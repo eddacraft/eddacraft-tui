@@ -1,8 +1,8 @@
 # Testing Best Practices
 
 This guide covers testing conventions and best practices for the Anvil monorepo.
-TypeScript packages use **Vitest**; Rust crates use **cargo test** with **insta**
-(snapshot testing) and **criterion** (benchmarks).
+TypeScript packages use **Vitest**; Rust crates use **cargo test** with
+**insta** (snapshot testing) and **criterion** (benchmarks).
 
 ## Quick Reference
 

@@ -16,13 +16,13 @@ latency (2.9s → 200ms).
 
 The Rust stack is organised into five APS modules totalling ~58 work items:
 
-| Module     | Name                  | Items | Status          | Purpose                                        |
-| ---------- | --------------------- | ----- | --------------- | ---------------------------------------------- |
-| **KERN**   | Rust Kernel           | 25    | 22/25 Done      | Watcher, parser, semantic graph, policy engine |
-| **RENG**   | Engine Ports          | 6     | **Complete**    | Port existing TS checks to Rust                |
-| **RATS**   | Ratatui TUI           | 7     | **Complete**    | New TUI surfaces consuming kernel events       |
-| **PORT**   | Ink-to-Ratatui Port   | 15    | **Complete**    | 1:1 port of existing Ink surfaces              |
-| **RSTLAN** | Rust Language Support | ~5    | Placeholder     | Extend analysis to Rust codebases              |
+| Module     | Name                  | Items | Status       | Purpose                                        |
+| ---------- | --------------------- | ----- | ------------ | ---------------------------------------------- |
+| **KERN**   | Rust Kernel           | 25    | 22/25 Done   | Watcher, parser, semantic graph, policy engine |
+| **RENG**   | Engine Ports          | 6     | **Complete** | Port existing TS checks to Rust                |
+| **RATS**   | Ratatui TUI           | 7     | **Complete** | New TUI surfaces consuming kernel events       |
+| **PORT**   | Ink-to-Ratatui Port   | 15    | **Complete** | 1:1 port of existing Ink surfaces              |
+| **RSTLAN** | Rust Language Support | ~5    | Placeholder  | Extend analysis to Rust codebases              |
 
 ---
 

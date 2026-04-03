@@ -519,18 +519,18 @@ sequenceDiagram
 
 ### Rust (CLI + Engine)
 
-| Category        | Technology              | Version | Purpose                                        |
-| --------------- | ----------------------- | ------- | ---------------------------------------------- |
-| Language        | Rust                    | Ed.2024 | CLI binary, kernel, gate checks, TUI           |
-| CLI framework   | clap                    | 4.x     | Command parsing and routing                    |
-| TUI             | Ratatui                 | 0.30    | Terminal UI (native Rust)                      |
-| TUI backend     | crossterm               | 0.29    | Terminal backend                               |
-| AST parsing     | tree-sitter             | 0.26    | Incremental parsing (<1ms/file)                |
-| File watching   | notify                  | 8       | File system events (<20ms p99)                 |
-| Graph           | petgraph                | 0.8     | Semantic graph (symbol, dependency, trust)      |
-| Async           | tokio                   | 1       | Async runtime (full features)                  |
-| Testing         | insta + criterion       | --      | Snapshot testing + benchmarks                  |
-| Distribution    | cargo-dist              | --      | Cross-platform binary releases (6 targets)     |
+| Category      | Technology        | Version | Purpose                                    |
+| ------------- | ----------------- | ------- | ------------------------------------------ |
+| Language      | Rust              | Ed.2024 | CLI binary, kernel, gate checks, TUI       |
+| CLI framework | clap              | 4.x     | Command parsing and routing                |
+| TUI           | Ratatui           | 0.30    | Terminal UI (native Rust)                  |
+| TUI backend   | crossterm         | 0.29    | Terminal backend                           |
+| AST parsing   | tree-sitter       | 0.26    | Incremental parsing (<1ms/file)            |
+| File watching | notify            | 8       | File system events (<20ms p99)             |
+| Graph         | petgraph          | 0.8     | Semantic graph (symbol, dependency, trust) |
+| Async         | tokio             | 1       | Async runtime (full features)              |
+| Testing       | insta + criterion | --      | Snapshot testing + benchmarks              |
+| Distribution  | cargo-dist        | --      | Cross-platform binary releases (6 targets) |
 
 ### TypeScript (Domain Packages + Services)
 

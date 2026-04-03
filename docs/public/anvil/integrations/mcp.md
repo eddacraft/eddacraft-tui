@@ -141,17 +141,17 @@ Query architecture boundary rules for a file or module:
 
 The MCP server exposes read-only resources:
 
-| Resource                  | Description                            |
-| ------------------------- | -------------------------------------- |
-| `anvil://config`          | Current `.anvilrc` configuration       |
-| `anvil://status`          | Last validation status                 |
-| `anvil://baseline`        | Current baseline snapshot              |
-| `anvil://boundaries`      | Architecture boundary definitions      |
-| `anvil://constraints`     | Active task constraints and scope      |
-| `anvil://drift`           | Drift snapshots                        |
-| `anvil://file-warnings`   | Per-file warning list                  |
-| `anvil://patterns`        | Anti-pattern definitions               |
-| `anvil://suppressions`    | Active suppressions                    |
+| Resource                | Description                       |
+| ----------------------- | --------------------------------- |
+| `anvil://config`        | Current `.anvilrc` configuration  |
+| `anvil://status`        | Last validation status            |
+| `anvil://baseline`      | Current baseline snapshot         |
+| `anvil://boundaries`    | Architecture boundary definitions |
+| `anvil://constraints`   | Active task constraints and scope |
+| `anvil://drift`         | Drift snapshots                   |
+| `anvil://file-warnings` | Per-file warning list             |
+| `anvil://patterns`      | Anti-pattern definitions          |
+| `anvil://suppressions`  | Active suppressions               |
 
 ## Example: Agent Loop
 
@@ -185,12 +185,12 @@ if result["status"] != "pass":
 
 The MCP server provides helpful prompts:
 
-| Prompt                  | Description                                   |
-| ----------------------- | --------------------------------------------- |
-| `architecture-review`   | Review a file's architecture boundary context |
-| `fix-violation`         | Explain a violation and suggest a fix         |
-| `pre-generation`        | Provide constraints before generating code    |
-| `suppress-violation`    | Guide suppression with a proper explanation   |
+| Prompt                | Description                                   |
+| --------------------- | --------------------------------------------- |
+| `architecture-review` | Review a file's architecture boundary context |
+| `fix-violation`       | Explain a violation and suggest a fix         |
+| `pre-generation`      | Provide constraints before generating code    |
+| `suppress-violation`  | Guide suppression with a proper explanation   |
 
 ---
 

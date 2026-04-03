@@ -38,18 +38,18 @@ jobs:
 For Windows runners, use the PowerShell installer:
 
 ```yaml
-      - name: Install Anvil
-        shell: pwsh
-        run: irm https://install.eddacraft.ai/windows | iex
+- name: Install Anvil
+  shell: pwsh
+  run: irm https://install.eddacraft.ai/windows | iex
 ```
 
 ### Exit Codes
 
-| Code | Meaning          | Action       |
-| ---- | ---------------- | ------------ |
-| `0`  | All gates passed | Continue     |
-| `1`  | General error    | Investigate  |
-| `2`  | Gate failure     | Block merge  |
+| Code | Meaning          | Action      |
+| ---- | ---------------- | ----------- |
+| `0`  | All gates passed | Continue    |
+| `1`  | General error    | Investigate |
+| `2`  | Gate failure     | Block merge |
 
 ## PR Comments
 

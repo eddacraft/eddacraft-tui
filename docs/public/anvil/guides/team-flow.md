@@ -64,11 +64,11 @@ The `ci` profile adjusts behaviour for pipeline environments:
 
 ### Exit Codes
 
-| Code | Meaning          | Action       |
-| ---- | ---------------- | ------------ |
-| 0    | All gates passed | Continue     |
-| 1    | General error    | Investigate  |
-| 2    | Gate failure     | Block merge  |
+| Code | Meaning          | Action      |
+| ---- | ---------------- | ----------- |
+| 0    | All gates passed | Continue    |
+| 1    | General error    | Investigate |
+| 2    | Gate failure     | Block merge |
 
 Configure warning behaviour:
 

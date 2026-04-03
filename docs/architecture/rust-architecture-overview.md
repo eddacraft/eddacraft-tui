@@ -7,10 +7,11 @@
 ## Executive Summary
 
 The Rust architecture has replaced Anvil's Node.js-based analysis engine with a
-standalone Rust binary that provides 10-40x performance improvements. The `anvil`
-binary watches files, builds a semantic graph, evaluates policies, and renders a
-terminal UI — all in one process with zero IPC overhead. It is distributed as a
-single static binary via cargo-dist for all six platform targets.
+standalone Rust binary that provides 10-40x performance improvements. The
+`anvil` binary watches files, builds a semantic graph, evaluates policies, and
+renders a terminal UI — all in one process with zero IPC overhead. It is
+distributed as a single static binary via cargo-dist for all six platform
+targets.
 
 ## Module Map
 
@@ -133,14 +134,14 @@ governance events.
 
 ### Phases
 
-| Phase | Name                   | Items | Status           | Key Deliverables                                                                                  |
-| ----- | ---------------------- | ----- | ---------------- | ------------------------------------------------------------------------------------------------- |
-| 0     | Spike                  | 5     | **Done**         | tree-sitter <1ms, notify <20ms, petgraph <500MB, Cargo+pnpm coexistence                           |
-| 1     | Watcher + Parser       | 4     | **Done**         | File watching with debounce/backpressure, incremental parsing, symbol extraction, ignore patterns |
-| 2     | Semantic Graph         | 4     | **Done**         | Symbol graph (petgraph), dependency graph, trust metadata, incremental update with GraphDelta     |
-| 3     | Policy Engine + Events | 4     | **Done**         | Architecture config loader, invariant framework, 4 H1 invariants, event emission                  |
-| 4     | Integration            | 5     | **Done**         | Embedded mode, watch mode, dual-run harness, benchmarks, cross-compilation                        |
-| 5     | Daemon Mode            | 3     | Deferred         | Unix socket transport, JSON-RPC protocol, session management                                      |
+| Phase | Name                   | Items | Status   | Key Deliverables                                                                                  |
+| ----- | ---------------------- | ----- | -------- | ------------------------------------------------------------------------------------------------- |
+| 0     | Spike                  | 5     | **Done** | tree-sitter <1ms, notify <20ms, petgraph <500MB, Cargo+pnpm coexistence                           |
+| 1     | Watcher + Parser       | 4     | **Done** | File watching with debounce/backpressure, incremental parsing, symbol extraction, ignore patterns |
+| 2     | Semantic Graph         | 4     | **Done** | Symbol graph (petgraph), dependency graph, trust metadata, incremental update with GraphDelta     |
+| 3     | Policy Engine + Events | 4     | **Done** | Architecture config loader, invariant framework, 4 H1 invariants, event emission                  |
+| 4     | Integration            | 5     | **Done** | Embedded mode, watch mode, dual-run harness, benchmarks, cross-compilation                        |
+| 5     | Daemon Mode            | 3     | Deferred | Unix socket transport, JSON-RPC protocol, session management                                      |
 
 ### H1 Invariants (KERN-032)
 
@@ -215,14 +216,14 @@ JS — the goal is identical results at 10-40x the speed.
 
 ### Work Items
 
-| ID       | Title                              | Status     | Dependencies       |
-| -------- | ---------------------------------- | ---------- | ------------------ |
-| RENG-001 | Port secret scan                   | **Done**   | None               |
-| RENG-002 | Port anti-pattern detection        | **Done**   | KERN-011           |
-| RENG-003 | Port command safety check          | **Done**   | None               |
-| RENG-004 | Validate architecture check parity | **Done**   | KERN-032           |
-| RENG-005 | Benchmark all ported checks vs JS  | **Done**   | RENG-001–003       |
-| RENG-006 | Feature flag + dual-run mode       | **Done**   | RENG-005, KERN-042 |
+| ID       | Title                              | Status   | Dependencies       |
+| -------- | ---------------------------------- | -------- | ------------------ |
+| RENG-001 | Port secret scan                   | **Done** | None               |
+| RENG-002 | Port anti-pattern detection        | **Done** | KERN-011           |
+| RENG-003 | Port command safety check          | **Done** | None               |
+| RENG-004 | Validate architecture check parity | **Done** | KERN-032           |
+| RENG-005 | Benchmark all ported checks vs JS  | **Done** | RENG-001–003       |
+| RENG-006 | Feature flag + dual-run mode       | **Done** | RENG-005, KERN-042 |
 
 All ported checks are shipped in the Rust binary and are the only engine.
 Legacy/Dual modes were dropped when the TypeScript engine was retired.
@@ -235,23 +236,23 @@ New TUI surfaces built on Ratatui, consuming kernel events in-process.
 
 ### Phases
 
-| Phase | Name              | Items | Status       |
-| ----- | ----------------- | ----- | ------------ |
-| 1     | Shared Components | 1     | **Done**     |
-| 2     | Core Surfaces     | 3     | **Done**     |
-| 3     | Integration       | 3     | **Done**     |
+| Phase | Name              | Items | Status   |
+| ----- | ----------------- | ----- | -------- |
+| 1     | Shared Components | 1     | **Done** |
+| 2     | Core Surfaces     | 3     | **Done** |
+| 3     | Integration       | 3     | **Done** |
 
 ### Key Surfaces
 
-| ID       | Surface                        | Description                                                          | Status     |
-| -------- | ------------------------------ | -------------------------------------------------------------------- | ---------- |
-| RATS-001 | eddacraft-tui shared crate     | Theme, keyboard, widgets (Select, TextInput, ProgressBar, StatusBar) | **Done**   |
-| RATS-002 | Watch dashboard                | Live gate results, file status, violations — 4-panel layout          | **Done**   |
-| RATS-003 | Gate result viewer             | Interactive violation browser with detail panes                      | **Done**   |
-| RATS-004 | APS onboarding wizard          | Multi-step project init wizard                                       | **Done**   |
-| RATS-005 | Ink-to-Ratatui migration path  | Ratatui is now the only TUI — Ink removed                            | **Done**   |
-| RATS-006 | Terminal compatibility testing | Cross-terminal validation (iTerm2, WezTerm, GNOME, Windows Terminal) | **Done**   |
-| RATS-007 | `anvil watch` TUI entry point  | Wire Ratatui dashboard into `anvil` binary                           | **Done**   |
+| ID       | Surface                        | Description                                                          | Status   |
+| -------- | ------------------------------ | -------------------------------------------------------------------- | -------- |
+| RATS-001 | eddacraft-tui shared crate     | Theme, keyboard, widgets (Select, TextInput, ProgressBar, StatusBar) | **Done** |
+| RATS-002 | Watch dashboard                | Live gate results, file status, violations — 4-panel layout          | **Done** |
+| RATS-003 | Gate result viewer             | Interactive violation browser with detail panes                      | **Done** |
+| RATS-004 | APS onboarding wizard          | Multi-step project init wizard                                       | **Done** |
+| RATS-005 | Ink-to-Ratatui migration path  | Ratatui is now the only TUI — Ink removed                            | **Done** |
+| RATS-006 | Terminal compatibility testing | Cross-terminal validation (iTerm2, WezTerm, GNOME, Windows Terminal) | **Done** |
+| RATS-007 | `anvil watch` TUI entry point  | Wire Ratatui dashboard into `anvil` binary                           | **Done** |
 
 ### Design Constraints
 
@@ -379,8 +380,8 @@ These can start immediately without waiting for KERN:
 ## Migration Status
 
 The migration has reached Phase 3 (Cutover, complete) and is now in standalone
-mode. The Rust binary is the primary distribution — Node.js is no longer required
-to run the CLI.
+mode. The Rust binary is the primary distribution — Node.js is no longer
+required to run the CLI.
 
 ### Phase 1: Coexistence [DONE]
 
@@ -424,11 +425,11 @@ dated 2026-03-05 (not included in this repository):
 
 ## Total Work Item Count
 
-| Module                         | Items   | Done  | Status          |
-| ------------------------------ | ------- | ----- | --------------- |
-| KERN (Rust Kernel)             | 25      | 22    | In Progress     |
-| RENG (Engine Ports)            | 6       | 6     | **Complete**    |
-| RATS (Ratatui TUI)             | 7       | 7     | **Complete**    |
-| PORT (Ink-to-Ratatui Port)     | 15      | 15    | **Complete**    |
-| RSTLAN (Rust Language Support) | ~5      | 0     | Placeholder     |
-| **Total**                      | **~58** | **50**| —               |
+| Module                         | Items   | Done   | Status       |
+| ------------------------------ | ------- | ------ | ------------ |
+| KERN (Rust Kernel)             | 25      | 22     | In Progress  |
+| RENG (Engine Ports)            | 6       | 6      | **Complete** |
+| RATS (Ratatui TUI)             | 7       | 7      | **Complete** |
+| PORT (Ink-to-Ratatui Port)     | 15      | 15     | **Complete** |
+| RSTLAN (Rust Language Support) | ~5      | 0      | Placeholder  |
+| **Total**                      | **~58** | **50** | —            |

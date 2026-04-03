@@ -152,23 +152,23 @@
 
 ### Rust Crates
 
-| Crate                       | Purpose                                                   | Status          |
-| --------------------------- | --------------------------------------------------------- | --------------- |
-| `crates/anvil-cli`          | CLI binary (clap + Ratatui) — primary entry point         | **[CURRENT]**   |
-| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine        | **[CURRENT]**   |
-| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                   | **[CURRENT]**   |
-| `crates/anvil-tui`          | Anvil-specific TUI surfaces (all ported)                  | **[CURRENT]**   |
-| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety        | **[CURRENT]**   |
-| `crates/anvil-policy`       | OPA policy evaluation engine                              | **[CURRENT]**   |
-| `crates/anvil-architecture` | Architecture enforcement (boundaries, drift)              | **[CURRENT]**   |
-| `crates/anvil-bench`        | Stress-test harness and benchmarks                        | **[CURRENT]**   |
-| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]**   |
-| `eddacraft-tui` (external)  | Shared Ratatui component library (git dependency)         | **[EXTERNAL]**  |
-| `crates/eddacraft-kindling` | Kindling Rust integration                                 | **[PROPOSED]**  |
+| Crate                       | Purpose                                                   | Status         |
+| --------------------------- | --------------------------------------------------------- | -------------- |
+| `crates/anvil-cli`          | CLI binary (clap + Ratatui) — primary entry point         | **[CURRENT]**  |
+| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine        | **[CURRENT]**  |
+| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                   | **[CURRENT]**  |
+| `crates/anvil-tui`          | Anvil-specific TUI surfaces (all ported)                  | **[CURRENT]**  |
+| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety        | **[CURRENT]**  |
+| `crates/anvil-policy`       | OPA policy evaluation engine                              | **[CURRENT]**  |
+| `crates/anvil-architecture` | Architecture enforcement (boundaries, drift)              | **[CURRENT]**  |
+| `crates/anvil-bench`        | Stress-test harness and benchmarks                        | **[CURRENT]**  |
+| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]**  |
+| `eddacraft-tui` (external)  | Shared Ratatui component library (git dependency)         | **[EXTERNAL]** |
+| `crates/eddacraft-kindling` | Kindling Rust integration                                 | **[PROPOSED]** |
 
-> **Note:** `eddacraft-tui` is an external git dependency, not part of the
-> Cargo workspace. `anvil-napi` (N-API bridge) was superseded by the standalone
-> Rust binary approach — the CLI is distributed directly via cargo-dist. Watcher,
+> **Note:** `eddacraft-tui` is an external git dependency, not part of the Cargo
+> workspace. `anvil-napi` (N-API bridge) was superseded by the standalone Rust
+> binary approach — the CLI is distributed directly via cargo-dist. Watcher,
 > gate, and engine responsibilities are consolidated into `anvil-kernel` as
 > internal modules.
 
