@@ -109,8 +109,8 @@ Use Anvil via MCP (Model Context Protocol):
 :::info Planned
 
 A built-in MCP server (`anvil mcp serve`) is planned for a future release. In
-the meantime, use `anvil mcp-config` to generate MCP configuration pointing to
-the Node.js MCP server package (`@eddacraft/anvil-mcp-server`).
+the meantime, use `npx @eddacraft/anvil-mcp-server --generate-config` to
+generate MCP configuration for your editor.
 
 :::
 

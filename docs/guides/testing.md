@@ -219,7 +219,7 @@ Have a small number of tests that:
 For deterministic hashing verification, use golden files:
 
 ```typescript
-// packages/anvil/core/src/golden-files.test.ts
+// Example: golden-files.test.ts (co-located with golden file fixtures)
 import { goldenPlans } from './__fixtures__/golden-plans/index.js';
 
 describe('Golden Files', () => {

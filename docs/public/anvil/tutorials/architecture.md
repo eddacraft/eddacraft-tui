@@ -7,7 +7,7 @@ sidebar_position: 3
 # Architecture Boundaries
 
 Anvil enforces module boundaries by analysing import graphs. This tutorial
-covers project detection, template selection, and boundary validation.
+covers defining layers, writing an architecture file, and validating boundaries.
 
 ## Prerequisites
 
@@ -15,28 +15,12 @@ covers project detection, template selection, and boundary validation.
 - A TypeScript or JavaScript project with at least a few directories under
   `src/`
 
-## 1. Detect Project Structure
+## 1. Plan Your Layers
 
-Anvil scans your source tree to identify existing modules:
+Before writing config, decide which directories form distinct layers. Common
+patterns:
 
-```bash
-anvil architecture detect
-```
-
-```
-Detected modules:
-  src/api/         (12 files)
-  src/services/    (8 files)
-  src/models/      (5 files)
-  src/utils/       (3 files)
-```
-
-## 2. Choose a Template
-
-Anvil ships with six architecture templates. Pick the one closest to your
-project and customise from there.
-
-| Template      | Layers                                                      |
+| Pattern       | Layers                                                      |
 | ------------- | ----------------------------------------------------------- |
 | **Starter**   | `components`, `lib`, `services`                             |
 | **Layered**   | `presentation`, `business`, `data`, `shared`                |
@@ -45,27 +29,10 @@ project and customise from there.
 | **DDD**       | `domain`, `application`, `infrastructure`, `interfaces`     |
 | **Monorepo**  | `apps`, `packages`, `shared`                                |
 
-## 3. Create Boundaries from a Template
+## 2. Create the Architecture File
 
-```bash
-anvil architecture create --template layered
-```
-
-```
-Creating architecture from template: layered
-
-Generated .anvil/architecture.yaml:
-  presentation -> business  (allowed)
-  business -> data          (allowed)
-  business -> shared        (allowed)
-  data -> shared            (allowed)
-
-4 layers, 4 dependency rules.
-```
-
-## 4. Review the Generated File
-
-The command produces `.anvil/architecture.yaml`:
+Create `.anvil/architecture.yaml` in your project root. Here is a layered
+example:
 
 ```yaml
 version: '1.0'
@@ -105,25 +72,28 @@ layers:
 
 Edit the `pattern` values to match your actual directory layout.
 
-## 5. Compile the Architecture
+## 3. Validate the Architecture Definition
+
+Check that your architecture file is well-formed:
 
 ```bash
-anvil architecture compile
+anvil architecture validate
 ```
 
+If valid, Anvil confirms the layer count and dependency rules. Fix any errors
+before proceeding.
+
+## 4. Review the Loaded Architecture
+
+View the architecture as Anvil sees it:
+
+```bash
+anvil architecture show
 ```
-Compiling architecture...
-  4 layers
-  4 dependency rules
-  28 files mapped
 
-Architecture compiled successfully.
-```
+This prints the resolved layers, allowed/denied imports, and file counts.
 
-Compilation resolves glob patterns against your file tree and builds the import
-graph used during validation.
-
-## 6. Validate
+## 5. Check Your Code Against Boundaries
 
 ```bash
 anvil check --all
@@ -139,7 +109,7 @@ Checking architecture...
 1 architecture violation found.
 ```
 
-## 7. Fix or Suppress
+## 6. Fix or Suppress
 
 **Fix** -- route the import through the correct layer:
 

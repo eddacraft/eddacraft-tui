@@ -362,19 +362,13 @@ Anvil works in both native Windows (PowerShell/cmd) and WSL. If using WSL:
 Run with verbose output:
 
 ```bash
-# macOS / Linux
-RUST_LOG=debug anvil check --all
+anvil check --all --verbose
 ```
 
-```powershell
-# Windows (PowerShell)
-$env:RUST_LOG="debug"; anvil check --all
-```
-
-For even more detail, use trace-level logging:
+For even more detail, pass `--verbose` twice:
 
 ```bash
-RUST_LOG=anvil=trace anvil check --all
+anvil check --all --verbose --verbose
 ```
 
 ### Log Collection

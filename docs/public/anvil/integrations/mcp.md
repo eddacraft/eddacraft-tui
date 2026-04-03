@@ -51,7 +51,7 @@ For HTTP transport (e.g. remote or multi-client setups):
   "mcpServers": {
     "anvil": {
       "command": "npx",
-      "args": ["anvil-mcp-server-http"],
+      "args": ["@eddacraft/anvil-mcp-server"],
       "cwd": "/path/to/your/project"
     }
   }

@@ -98,73 +98,48 @@ For files where many lines trigger the same rule, suppress at the file level in
 ## Bulk Suppression for Existing Codebases
 
 When adopting Anvil in a large project, you may have hundreds of existing
-violations. Suppress them all at once and work through them incrementally:
+violations. Add file-level suppressions to your `.anvilrc` grouped by directory
+and rule, then work through them incrementally:
 
-```bash
-anvil suppress --all --reason "Baseline: pre-Anvil adoption"
+```json
+{
+  "suppressions": [
+    {
+      "pattern": "src/**",
+      "checks": ["AP-003", "AP-006"],
+      "reason": "Baseline: pre-Anvil adoption"
+    }
+  ]
+}
 ```
 
-```
-Suppressed 142 violations across 38 files.
-Written to .anvilrc under "suppressions".
-
-Run anvil check --all to verify a clean baseline.
-```
-
-This creates file-level suppressions grouped by rule. New code is held to the
+Run `anvil check --all` to confirm a clean baseline. New code is held to the
 full standard from day one.
 
 <!-- prettier-ignore-start -->
 :::caution
-Bulk suppression is a one-time onboarding tool. Avoid running it
-repeatedly -- it masks new violations alongside old ones.
+Bulk suppression is a one-time onboarding tool. Avoid adding overly broad
+patterns — they mask new violations alongside old ones. Narrow the patterns as
+you fix issues.
 :::
 <!-- prettier-ignore-end -->
 
 ## Tracking Suppressions Over Time
 
-List all active suppressions:
+Review suppressions periodically by searching your codebase for inline comments
+and checking the `suppressions` array in `.anvilrc`:
 
 ```bash
-anvil suppress --list
+# Find inline suppressions
+grep -rn "@anvil-ignore" src/
+
+# Count them
+grep -rn "@anvil-ignore" src/ | wc -l
 ```
 
-```
-Active suppressions:
-
-  File-level (.anvilrc):
-    src/legacy/**          AP-003, AP-006    "Legacy code, migration planned Q2"
-    src/generated/**       *                 "Auto-generated from protobuf"
-
-  Inline:
-    src/utils/parser.ts:41     AP-003    "Legacy parser uses any, migration planned Q2"
-    src/api/health.ts:12       ARCH-001  "Health endpoint needs direct DB access"
-
-Total: 4 suppressions (2 file-level, 2 inline)
-```
-
-Track the count in CI to ensure it trends downward:
-
-```bash
-anvil suppress --count
-```
-
-```
-Suppression count: 4
-```
-
-Add a threshold to your CI pipeline to prevent suppression creep:
-
-```json
-{
-  "ci": {
-    "maxSuppressions": 10
-  }
-}
-```
-
-If the count exceeds the threshold, the pipeline fails -- forcing the team to
-resolve old suppressions before adding new ones.
+Track the count over time to ensure it trends downward. You can add a CI step
+that fails if the count exceeds a threshold — for example, using a script that
+counts `@anvil-ignore` occurrences and compares against a budget.
 
 ---
 

@@ -158,26 +158,6 @@ anvil tutorial
 - Anything confusing or unclear
 - Steps that do not work as described
 
-### Project Memory
-
-_New in 0.2.x._ Anvil can learn patterns from your codebase over time using the
-Edda memory system and Ember proposal engine.
-
-**Commands to try:**
-
-```bash
-anvil edda               # View and manage project memory
-anvil ember              # View pattern proposals and candidates
-anvil stack              # Inspect the full Edda/Ember stack state
-```
-
-**What we are looking for:**
-
-- Usefulness of detected patterns
-- Accuracy of pattern recognition
-- Command UX and output readability
-- Whether the memory system surfaces genuinely helpful insights
-
 ### Architecture Tools
 
 Tools for understanding and enforcing your project's architecture.
@@ -185,8 +165,12 @@ Tools for understanding and enforcing your project's architecture.
 **Commands to try:**
 
 ```bash
-anvil drift              # Detect architectural drift
-anvil architecture       # View detected architecture boundaries
+anvil architecture show          # View current architecture boundaries
+anvil architecture validate      # Validate architecture definition
+anvil drift snapshot --name v1   # Capture a dependency snapshot
+anvil drift list                 # List available snapshots
+anvil drift compare v1 v2        # Compare two snapshots
+anvil drift report               # Generate a drift report
 ```
 
 **What we are looking for:**

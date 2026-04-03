@@ -32,30 +32,15 @@ Snapshot saved to .anvil/snapshots/baseline.json
 
 A snapshot records every module and every dependency edge at a point in time.
 
-## 2. Inspect the Snapshot
+## 2. List Available Snapshots
 
 ```bash
-anvil drift show baseline
+anvil drift list
 ```
 
 ```
-Snapshot: baseline
-Captured: 2025-06-15T10:32:00Z
-
-Modules:
-  presentation  (12 files)
-  business      (8 files)
-  data          (5 files)
-  shared        (3 files)
-
-Dependency edges:
-  presentation -> business    (6 imports)
-  presentation -> shared      (2 imports)
-  business -> data            (4 imports)
-  business -> shared          (3 imports)
-  data -> shared              (1 import)
-
-Total edges: 16
+Snapshots:
+  baseline    2025-06-15T10:32:00Z    4 modules, 16 edges
 ```
 
 ## 3. Make Changes

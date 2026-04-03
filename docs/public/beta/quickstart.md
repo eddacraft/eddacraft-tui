@@ -65,25 +65,18 @@ The tutorial covers:
 4. **Next steps** -- where to go from here
 
 ```bash
-anvil tutorial --list      # See all available tutorials
 anvil tutorial --reset     # Start fresh if you have run it before
 ```
 
-**Advanced tutorials** (after the core tutorial):
-
-```bash
-anvil tutorial policies       # Write custom OPA/Rego rules
-anvil tutorial architecture   # Define architecture boundaries
-anvil tutorial drift          # Track architecture drift over time
-anvil tutorial ci             # Set up CI integration
-```
+For deeper dives into specific features, see the
+[written tutorials](/anvil/tutorials) (policies, architecture, drift, CI).
 
 ## Step 2 -- Log In
 
 Authenticate with your beta access token (provided with your invite):
 
 ```bash
-anvil auth login
+anvil login
 ```
 
 You will be prompted for your token. Once authenticated, all CLI commands are
@@ -155,12 +148,11 @@ anvil check --changed --staged   # Only staged files
 anvil check --verbose            # Detailed explanations
 ```
 
-**Understand a warning:**
+**Understand a policy:**
 
 ```bash
-anvil explain AP-003                    # What does AP-003 mean?
-anvil explain AP-003-src/file.ts:42     # Explain with file context
-anvil explain --rules                   # List all explainable rules
+anvil policy explain <policy-id>       # Explain a specific policy rule
+anvil policy list                      # List all available policies
 ```
 
 ## Step 5 -- Watch Mode
@@ -176,7 +168,6 @@ Save a file and see Anvil catch it immediately.
 ```bash
 anvil watch --plans        # Watch planning documents only
 anvil watch --all          # Watch both source and plans
-anvil watch --profile dev  # Development mode (skips coverage checks)
 ```
 
 Press `Ctrl+C` to stop.
@@ -199,9 +190,7 @@ anvil doctor
 This checks Git configuration, Anvil configuration validity, and hook
 installation status.
 
-```bash
-anvil doctor --fix    # Auto-fix common issues
-```
+The doctor checks Git configuration, `.anvilrc` validity, and hook installation.
 
 ## More Commands Worth Testing
 
@@ -262,7 +251,7 @@ Found a bug or have feedback?
 | `anvil check --all`    | Scan entire codebase            |
 | `anvil watch --source` | Real-time validation            |
 | `anvil doctor`         | Diagnostics and troubleshooting |
-| `anvil explain <rule>` | Understand a warning            |
+| `anvil policy explain`  | Understand a policy rule        |
 | `anvil status`         | Check configuration and state   |
 | `anvil gate`           | Run quality gates               |
 | `anvil --help`         | See all commands                |

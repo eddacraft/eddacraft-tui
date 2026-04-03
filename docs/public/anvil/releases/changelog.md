@@ -26,8 +26,7 @@ All notable changes to Anvil are documented here.
   status, doctor, welcome, init, audit, browser, gate) rebuilt using Ratatui
   with the EddaCraft Terminal Standard design system.
 - **Structured exit codes** — `0` (pass), `1` (general error), `2` (gate
-  failure). Codes `3` (auth required) and `4` (config error) reserved for future
-  use.
+  failure), `3` (auth required), `4` (config error).
 
 ### Added
 
@@ -37,7 +36,8 @@ All notable changes to Anvil are documented here.
   architecture parity tests, and benchmarks all ported to Rust.
 - **Cross-platform auth** — device-flow authentication with secure credential
   storage via the OS keychain.
-- **MCP config generation** — `anvil mcp-config` generates MCP server
+- **MCP config generation** —
+  `npx @eddacraft/anvil-mcp-server --generate-config` generates MCP server
   configuration for Claude Code, Cursor, Windsurf, and VS Code.
 - **Kernel benchmarks** — criterion benchmarks for watcher, parser, graph, and
   policy evaluation (crates/anvil-bench).
