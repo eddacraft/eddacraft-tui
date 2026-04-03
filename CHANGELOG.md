@@ -22,7 +22,8 @@ engineering maintenance are recorded in the
   - `anvil new` — template browser for project scaffolding
   - `anvil wizard` — interactive setup with template scaffolding
   - `anvil audit` — repository scanning for security findings
-  - `anvil drift` — architecture drift tracking (snapshot, compare, report, list)
+  - `anvil drift` — architecture drift tracking (snapshot, compare, report,
+    list)
   - `anvil validate` — APS plan file validation (structure, format, hashes)
   - `anvil gate-config` — gate check configuration and thresholds
   - `--json` output mode across all commands with structured error reporting
