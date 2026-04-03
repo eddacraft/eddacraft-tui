@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { OPAExecutor, type OPAInput } from './opa-executor.js';
 import { type LoadedPolicy } from './policy-loader.js';
-import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, platform } from 'node:os';
 import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
@@ -20,8 +20,7 @@ describe('OPAExecutor', () => {
   let mockPolicies: LoadedPolicy[];
 
   beforeEach(() => {
-    tempDir = join(tmpdir(), 'anvil-opa-executor-test', Math.random().toString(36));
-    mkdirSync(tempDir, { recursive: true });
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-opa-executor-test-'));
 
     // Create a mock OPA binary that returns valid JSON
     mockBinaryPath = join(tempDir, platform() === 'win32' ? 'opa.cmd' : 'opa');

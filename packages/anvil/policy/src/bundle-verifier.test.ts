@@ -12,7 +12,7 @@ import {
   type PublicKeyConfig,
   type SignatureManifest,
 } from './bundle-verifier.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, generateKeyPairSync, createSign } from 'node:crypto';
@@ -26,7 +26,7 @@ describe('BundleVerifier', () => {
   let ecKeyPair: { publicKey: string; privateKey: string };
 
   beforeEach(() => {
-    tempDir = join(tmpdir(), 'anvil-bundle-verifier-test', Math.random().toString(36));
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-bundle-verifier-test-'));
     bundleDir = join(tempDir, 'bundle');
     mkdirSync(bundleDir, { recursive: true });
 

@@ -7,7 +7,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -66,11 +66,7 @@ export function createE2EWorkspace(options: WorkspaceOptions = {}): E2EWorkspace
     files = {},
   } = options;
 
-  const root = join(
-    tmpdir(),
-    'anvil-e2e',
-    `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  );
+  const root = mkdtempSync(join(tmpdir(), 'anvil-e2e-ws-'));
   const anvilDir = join(root, '.anvil');
   const plansDir = join(anvilDir, 'plans');
 

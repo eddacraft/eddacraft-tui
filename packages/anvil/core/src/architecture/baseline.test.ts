@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
@@ -46,8 +46,7 @@ describe('Baseline Path Utilities', () => {
     let testDir: string;
 
     beforeEach(() => {
-      testDir = join(tmpdir(), `anvil-baseline-test-${Date.now()}`);
-      mkdirSync(testDir, { recursive: true });
+      testDir = mkdtempSync(join(tmpdir(), 'anvil-baseline-test-'));
     });
 
     afterEach(async () => {
@@ -72,8 +71,7 @@ describe('Baseline Load/Save', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `anvil-baseline-test-${Date.now()}`);
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-baseline-test-'));
   });
 
   afterEach(async () => {
@@ -503,8 +501,7 @@ describe('BaselineManager', () => {
   let manager: BaselineManager;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `anvil-baseline-test-${Date.now()}`);
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-baseline-test-'));
     manager = createBaselineManager(testDir);
   });
 

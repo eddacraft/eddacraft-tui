@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GateRunner } from './gate-runner.js';
 import { GateConfigManager } from './gate-config.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
@@ -12,8 +12,7 @@ describe('Gate Integration Tests', () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = join(tmpdir(), 'anvil-test', Math.random().toString(36));
-    mkdirSync(tempDir, { recursive: true });
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-test-'));
 
     gateRunner = new GateRunner();
     configManager = new GateConfigManager(tempDir);

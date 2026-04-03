@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ESLintCheck } from './eslint.check.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
@@ -19,8 +19,7 @@ describe('ESLintCheck', () => {
 
   beforeEach(() => {
     eslintCheck = new ESLintCheck();
-    tempDir = join(tmpdir(), 'anvil-eslint-test', Math.random().toString(36));
-    mkdirSync(tempDir, { recursive: true });
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-eslint-test-'));
 
     const mockPlan: PlanData = {
       id: 'aps-test123',

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -22,8 +22,7 @@ describe('ConstraintCollector', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `anvil-constraint-test-${Date.now()}`);
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-constraint-test-'));
   });
 
   afterEach(async () => {
@@ -427,8 +426,7 @@ describe('collectConstraints', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `anvil-constraint-test-${Date.now()}`);
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-constraint-test-'));
   });
 
   afterEach(async () => {

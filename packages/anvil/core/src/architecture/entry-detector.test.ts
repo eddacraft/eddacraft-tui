@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
@@ -14,9 +14,7 @@ describe('EntryPointDetector', () => {
   let detector: EntryPointDetector;
 
   beforeEach(() => {
-    // Create a temporary test directory
-    testDir = join(tmpdir(), `anvil-test-${Date.now()}`);
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-test-'));
     detector = createEntryPointDetector(testDir);
   });
 

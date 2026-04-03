@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OPABinaryManager } from './opa-binary-manager.js';
-import { existsSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, platform, arch } from 'node:os';
 import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
@@ -23,8 +23,7 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
     originalEnv = { ...process.env };
 
     // Create temp cache directory
-    tempCacheDir = join(tmpdir(), 'anvil-opa-test', Math.random().toString(36));
-    mkdirSync(tempCacheDir, { recursive: true });
+    tempCacheDir = mkdtempSync(join(tmpdir(), 'anvil-opa-test-'));
 
     // Clean up environment variables
     delete process.env.ANVIL_OPA_PATH;

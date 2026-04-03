@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PolicyLoader } from './policy-loader.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
@@ -18,7 +18,7 @@ describe('PolicyLoader', () => {
 
   beforeEach(() => {
     loader = new PolicyLoader();
-    tempDir = join(tmpdir(), 'anvil-policy-loader-test', Math.random().toString(36));
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-policy-loader-test-'));
     policyDir = join(tempDir, '.anvil', 'policies');
     mkdirSync(policyDir, { recursive: true });
   });

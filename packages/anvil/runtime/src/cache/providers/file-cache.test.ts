@@ -3,10 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { randomUUID } from 'node:crypto';
 import { FileCacheProvider } from './file-cache.js';
 import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
@@ -15,8 +14,7 @@ describe('FileCacheProvider', () => {
   let cache: FileCacheProvider;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `anvil-cache-test-${randomUUID()}`);
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-cache-test-'));
     cache = new FileCacheProvider(testDir, {
       defaultTtl: 60000, // 1 minute
     });

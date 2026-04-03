@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SecretCheck, SecretFinding } from './secret.check.js';
 import { EntropyDetector } from './secret/entropy-detector.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
@@ -15,8 +15,7 @@ describe('SecretCheck', () => {
 
   beforeEach(() => {
     secretCheck = new SecretCheck();
-    tempDir = join(tmpdir(), 'anvil-test', Math.random().toString(36));
-    mkdirSync(tempDir, { recursive: true });
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-test-'));
 
     const mockPlan: PlanData = {
       id: 'aps-test123',
@@ -476,9 +475,7 @@ describe('SecretCheck', () => {
     let gitTempDir: string;
 
     beforeEach(() => {
-      // Create a separate temp directory for git tests
-      gitTempDir = join(tmpdir(), 'anvil-git-test', Math.random().toString(36));
-      mkdirSync(gitTempDir, { recursive: true });
+      gitTempDir = mkdtempSync(join(tmpdir(), 'anvil-git-test-'));
     });
 
     afterEach(async () => {

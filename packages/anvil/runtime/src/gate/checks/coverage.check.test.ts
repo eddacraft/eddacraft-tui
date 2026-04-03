@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { CoverageCheck } from './coverage.check.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
@@ -19,7 +19,7 @@ describe('CoverageCheck', () => {
 
   beforeEach(() => {
     coverageCheck = new CoverageCheck();
-    tempDir = join(tmpdir(), 'anvil-coverage-test', Math.random().toString(36));
+    tempDir = mkdtempSync(join(tmpdir(), 'anvil-coverage-test-'));
     mkdirSync(join(tempDir, 'coverage'), { recursive: true });
 
     const mockPlan: PlanData = {

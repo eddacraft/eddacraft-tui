@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { compileArchitecture, needsCompilation } from './compiler.js';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { randomUUID } from 'node:crypto';
 import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import YAML from 'yaml';
 import type { ArchitectureDefinition } from './definition-schema.js';
@@ -26,9 +25,8 @@ describe('compiler', () => {
     return full;
   };
 
-  beforeEach(async () => {
-    testDir = join(tmpdir(), `anvil-compiler-test-${randomUUID()}`);
-    await mkdir(testDir, { recursive: true });
+  beforeEach(() => {
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-compiler-test-'));
   });
 
   afterEach(async () => {

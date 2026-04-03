@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promises as fs } from 'node:fs';
+import { promises as fs, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import {
@@ -38,13 +38,8 @@ const __dirname = dirname(__filename);
 const fixturesDir = join(__dirname, '__fixtures__');
 
 // Helper to create a temporary directory for tests
-async function createTempDir(): Promise<string> {
-  const tempDir = join(
-    tmpdir(),
-    `aps-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
-  await fs.mkdir(tempDir, { recursive: true });
-  return tempDir;
+function createTempDir(): string {
+  return mkdtempSync(join(tmpdir(), 'aps-state-test-'));
 }
 
 // Helper to clean up temp directory
@@ -70,8 +65,8 @@ const sampleTask: Task = {
 describe('State File Operations', () => {
   let tempDir: string;
 
-  beforeEach(async () => {
-    tempDir = await createTempDir();
+  beforeEach(() => {
+    tempDir = createTempDir();
   });
 
   afterEach(async () => {
@@ -170,8 +165,8 @@ describe('State File Operations', () => {
 describe('Execution Plan Operations', () => {
   let tempDir: string;
 
-  beforeEach(async () => {
-    tempDir = await createTempDir();
+  beforeEach(() => {
+    tempDir = createTempDir();
   });
 
   afterEach(async () => {
@@ -301,8 +296,8 @@ describe('Provenance', () => {
   describe('Lock File Operations', () => {
     let tempDir: string;
 
-    beforeEach(async () => {
-      tempDir = await createTempDir();
+    beforeEach(() => {
+      tempDir = createTempDir();
     });
 
     afterEach(async () => {
@@ -356,7 +351,7 @@ describe('TaskLocker', () => {
   let planPath: string;
 
   beforeEach(async () => {
-    tempDir = await createTempDir();
+    tempDir = createTempDir();
     // Copy the test plan fixture to temp directory
     planPath = join(tempDir, 'test-plan.aps.md');
     await fs.copyFile(join(fixturesDir, 'test-plan.aps.md'), planPath);

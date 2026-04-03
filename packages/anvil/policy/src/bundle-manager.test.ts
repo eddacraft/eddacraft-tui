@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { BundleManager, type BundleConfig } from './bundle-manager.js';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -115,8 +115,7 @@ describe('BundleManager', { timeout: 30000 }, () => {
 
   beforeEach(async () => {
     // Create temp cache directory
-    tempCacheDir = join(tmpdir(), 'anvil-bundle-test', Math.random().toString(36));
-    mkdirSync(tempCacheDir, { recursive: true });
+    tempCacheDir = mkdtempSync(join(tmpdir(), 'anvil-bundle-test-'));
 
     manager = new BundleManager({
       cacheDir: tempCacheDir,

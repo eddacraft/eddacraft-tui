@@ -3,7 +3,7 @@ import { AntipatternCheck } from './antipattern.check.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
@@ -51,11 +51,7 @@ describe('AntipatternCheck', () => {
 
   beforeEach(() => {
     check = new AntipatternCheck();
-    testDir = join(
-      tmpdir(),
-      `anvil-antipattern-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    );
-    mkdirSync(testDir, { recursive: true });
+    testDir = mkdtempSync(join(tmpdir(), 'anvil-antipattern-test-'));
   });
 
   afterEach(async () => {
