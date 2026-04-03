@@ -1,6 +1,6 @@
 // Baseline management — load, save, create `.anvil/architecture.json`.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use chrono::Utc;
@@ -126,7 +126,7 @@ pub fn merge_violations(
     existing: &[BaselineViolation],
     new_violations: &[BaselineViolation],
 ) -> Vec<BaselineViolation> {
-    let mut by_id: HashMap<&str, &BaselineViolation> = HashMap::new();
+    let mut by_id: BTreeMap<&str, &BaselineViolation> = BTreeMap::new();
 
     for v in existing {
         by_id.insert(&v.id, v);
