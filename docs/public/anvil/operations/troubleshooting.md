@@ -395,5 +395,5 @@ File at:
 
 ---
 
-**Previous:** [Security model](/anvil/operations/security) |
-**See also:** [Configuration reference](/anvil/operations/config)
+**Previous:** [Security model](/anvil/operations/security) | **See also:**
+[Configuration reference](/anvil/operations/config)

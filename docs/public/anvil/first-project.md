@@ -57,32 +57,32 @@ keyed by name, with `patterns` (glob list) and `depends_on` (allowed
 dependencies):
 
 ```yaml
-schema_version: "0.1.0"
+schema_version: '0.1.0'
 template: custom
 layers:
   api-layer:
     patterns:
-      - "src/api/**"
+      - 'src/api/**'
     depends_on:
       - service-layer
       - utils
 
   service-layer:
     patterns:
-      - "src/services/**"
+      - 'src/services/**'
     depends_on:
       - repository-layer
       - utils
 
   repository-layer:
     patterns:
-      - "src/repositories/**"
+      - 'src/repositories/**'
     depends_on:
       - utils
 
   utils:
     patterns:
-      - "src/utils/**"
+      - 'src/utils/**'
     depends_on: []
 ```
 
@@ -197,8 +197,8 @@ appropriate exit codes.
 
 ---
 
-**Previous:** [Quickstart](/anvil/quickstart) |
-**Next:** [Experience your first gate moment →](/anvil/first-gate)
+**Previous:** [Quickstart](/anvil/quickstart) | **Next:**
+[Experience your first gate moment →](/anvil/first-gate)
 
 **Learn more:**
 

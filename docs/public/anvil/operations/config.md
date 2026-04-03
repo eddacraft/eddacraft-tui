@@ -11,8 +11,8 @@ Anvil uses two configuration files and CLI flags for runtime options.
 
 ## Configuration Files
 
-| File                       | Purpose                                       |
-| -------------------------- | --------------------------------------------- |
+| File                       | Purpose                                        |
+| -------------------------- | ---------------------------------------------- |
 | `.anvilrc`                 | Project-level settings (checks, format, paths) |
 | `.anvil/gate-config.json`  | Gate check definitions and thresholds          |
 | `.anvil/architecture.yaml` | Architecture layer and boundary definitions    |
@@ -35,7 +35,7 @@ Created by `anvil init`. Supports JSON, YAML, and TOML formats.
 ### YAML
 
 ```yaml
-schemaVersion: "1.0.0"
+schemaVersion: '1.0.0'
 planningDir: plans
 format: yaml
 checks:
@@ -58,22 +58,22 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 
 :::
 
-| Field            | Type     | Default                                      | Description                       |
-| ---------------- | -------- | -------------------------------------------- | --------------------------------- |
-| `schemaVersion`  | string   | `"1.0.0"`                                    | Config schema version             |
-| `planningDir`    | string   | `"plans"`                                    | Directory for APS plan files      |
-| `format`         | string   | `"yaml"`                                     | Plan format: `json`, `yaml`, `toml` |
-| `checks`         | string[] | `["secret-detection", "import-boundaries"]`  | Enabled project checks            |
+| Field           | Type     | Default                                     | Description                         |
+| --------------- | -------- | ------------------------------------------- | ----------------------------------- |
+| `schemaVersion` | string   | `"1.0.0"`                                   | Config schema version               |
+| `planningDir`   | string   | `"plans"`                                   | Directory for APS plan files        |
+| `format`        | string   | `"yaml"`                                    | Plan format: `json`, `yaml`, `toml` |
+| `checks`        | string[] | `["secret-detection", "import-boundaries"]` | Enabled project checks              |
 
 ### Available Checks
 
-| Check                | Description                              |
-| -------------------- | ---------------------------------------- |
-| `secret-detection`   | Detect leaked secrets and credentials    |
-| `import-boundaries`  | Enforce module import boundaries         |
-| `antipattern-scan`   | Detect common code anti-patterns         |
-| `architecture`       | Validate architecture definitions        |
-| `policy`             | Evaluate OPA policy rules                |
+| Check               | Description                           |
+| ------------------- | ------------------------------------- |
+| `secret-detection`  | Detect leaked secrets and credentials |
+| `import-boundaries` | Enforce module import boundaries      |
+| `antipattern-scan`  | Detect common code anti-patterns      |
+| `architecture`      | Validate architecture definitions     |
+| `policy`            | Evaluate OPA policy rules             |
 
 ## Gate Configuration
 
@@ -133,39 +133,39 @@ Each check can have an optional `config` object for check-specific settings.
 ## Architecture Definition
 
 Architecture boundaries are defined in `.anvil/architecture.yaml`, not in
-`.anvilrc`. See the
-[Architecture tutorial](/anvil/tutorials/architecture) for a full walkthrough.
+`.anvilrc`. See the [Architecture tutorial](/anvil/tutorials/architecture) for a
+full walkthrough.
 
 Layers are a **map** keyed by layer name. Each layer has `patterns` (glob list)
 and `depends_on` (allowed dependencies):
 
 ```yaml
-schema_version: "0.1.0"
+schema_version: '0.1.0'
 template: custom
 layers:
   api-layer:
     patterns:
-      - "src/api/**"
+      - 'src/api/**'
     depends_on:
       - service-layer
       - utils
 
   service-layer:
     patterns:
-      - "src/services/**"
+      - 'src/services/**'
     depends_on:
       - repository-layer
       - utils
 
   repository-layer:
     patterns:
-      - "src/repositories/**"
+      - 'src/repositories/**'
     depends_on:
       - utils
 
   utils:
     patterns:
-      - "src/utils/**"
+      - 'src/utils/**'
     depends_on: []
 ```
 
@@ -181,17 +181,17 @@ every run and rejects definitions with a different version.
 Use `template` to start from a preset layer structure. Anvil fills in default
 patterns and dependencies that you can then customise.
 
-| Template      | Layers                                                    |
-| ------------- | --------------------------------------------------------- |
-| `starter`     | components, lib, services                                 |
-| `layered`     | presentation, business, data, shared                      |
-| `hexagonal`   | core, ports, adapters, application                        |
-| `clean`       | entities, use_cases, interface_adapters, frameworks       |
-| `ddd`         | domain, application, infrastructure, interfaces           |
-| `monorepo`    | packages, shared                                          |
-| `serverless`  | functions, services, shared                               |
-| `nx-workspace`| apps, feature-libs, data-access-libs, ui-libs, shared-libs|
-| `custom`      | (empty — define your own)                                 |
+| Template       | Layers                                                     |
+| -------------- | ---------------------------------------------------------- |
+| `starter`      | components, lib, services                                  |
+| `layered`      | presentation, business, data, shared                       |
+| `hexagonal`    | core, ports, adapters, application                         |
+| `clean`        | entities, use_cases, interface_adapters, frameworks        |
+| `ddd`          | domain, application, infrastructure, interfaces            |
+| `monorepo`     | packages, shared                                           |
+| `serverless`   | functions, services, shared                                |
+| `nx-workspace` | apps, feature-libs, data-access-libs, ui-libs, shared-libs |
+| `custom`       | (empty — define your own)                                  |
 
 ### Validation Options
 
@@ -201,11 +201,11 @@ options:
   detect_circular: true
   default_severity: error
   exclude_patterns:
-    - "**/*.test.ts"
-    - "**/*.spec.ts"
-    - "**/__tests__/**"
-    - "**/__fixtures__/**"
-    - "**/node_modules/**"
+    - '**/*.test.ts'
+    - '**/*.spec.ts'
+    - '**/__tests__/**'
+    - '**/__fixtures__/**'
+    - '**/node_modules/**'
 ```
 
 Validate with `anvil architecture validate` and inspect with
@@ -284,16 +284,16 @@ anvil watch --file src/api/              # Scope to specific path
 anvil watch --action gate                # Run gate on each change
 ```
 
-| Flag           | Short | Default | Description                                   |
-| -------------- | ----- | ------- | --------------------------------------------- |
-| `--source`     |       | —       | Watch source files (`src/**/*.ts`, `src/**/*.tsx`, `lib/**/*.ts`, `crates/**/*.rs`) |
-| `--plans`      |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`) |
-| `--all`        |       | —       | Watch all file types (source + plans)          |
-| `--debounce`   |       | `300`   | Milliseconds to wait before re-checking        |
-| `--exclude`    |       | —       | Comma-separated directory names to skip        |
-| `--patterns`   |       | —       | Comma-separated glob patterns to watch         |
-| `--file`       | `-f`  | —       | Scope watch to a specific file or directory    |
-| `--action`     | `-a`  | —       | Action to run on change: `gate` or `check`     |
+| Flag         | Short | Default | Description                                                                         |
+| ------------ | ----- | ------- | ----------------------------------------------------------------------------------- |
+| `--source`   |       | —       | Watch source files (`src/**/*.ts`, `src/**/*.tsx`, `lib/**/*.ts`, `crates/**/*.rs`) |
+| `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)   |
+| `--all`      |       | —       | Watch all file types (source + plans)                                               |
+| `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                             |
+| `--exclude`  |       | —       | Comma-separated directory names to skip                                             |
+| `--patterns` |       | —       | Comma-separated glob patterns to watch                                              |
+| `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                         |
+| `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                          |
 
 ## CI Mode
 
@@ -306,11 +306,11 @@ anvil gate --profile production   # All checks
 anvil gate --list-profiles        # Show available profiles
 ```
 
-| Profile        | Skips                          | Use case           |
-| -------------- | ------------------------------ | ------------------- |
-| `dev`          | coverage, dependency           | Local development   |
-| `ci`           | (none)                         | CI pipelines        |
-| `production`   | (none)                         | Release validation  |
+| Profile      | Skips                | Use case           |
+| ------------ | -------------------- | ------------------ |
+| `dev`        | coverage, dependency | Local development  |
+| `ci`         | (none)               | CI pipelines       |
+| `production` | (none)               | Release validation |
 
 Additional runtime flags:
 
@@ -341,13 +341,13 @@ Use CLI flags and config files instead. Legacy Node.js environment variables
 
 ## Exit Codes
 
-| Code | Meaning        | Typical action |
-| ---- | -------------- | -------------- |
-| 0    | All checks pass | Continue       |
-| 1    | General error   | Investigate    |
-| 2    | Gate failure    | Block merge    |
+| Code | Meaning         | Typical action    |
+| ---- | --------------- | ----------------- |
+| 0    | All checks pass | Continue          |
+| 1    | General error   | Investigate       |
+| 2    | Gate failure    | Block merge       |
 | 3    | Auth required   | Run `anvil login` |
-| 4    | Config error    | Fix `.anvilrc` |
+| 4    | Config error    | Fix `.anvilrc`    |
 
 ---
 

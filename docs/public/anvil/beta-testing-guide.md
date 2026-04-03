@@ -257,6 +257,5 @@ by testers.
 
 ---
 
-**Next:** [Set up your first project →](/anvil/first-project) |
-**See also:** [Quickstart](/anvil/quickstart),
-[Changelog](/anvil/releases/changelog)
+**Next:** [Set up your first project →](/anvil/first-project) | **See also:**
+[Quickstart](/anvil/quickstart), [Changelog](/anvil/releases/changelog)

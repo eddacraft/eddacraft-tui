@@ -162,8 +162,8 @@ The following features are planned to make agent harnesses more powerful:
   requires the separate `@eddacraft/anvil-mcp-server` Node.js package)
 - **Plan-first workflow** — `anvil plan create` and `anvil session start/end`
   commands for structured agent task scoping
-- **`@eddacraft/anvil-client` SDK** — TypeScript client for programmatic
-  session management, constraint queries, and validation
+- **`@eddacraft/anvil-client` SDK** — TypeScript client for programmatic session
+  management, constraint queries, and validation
 - **Evidence querying** — `anvil evidence list` for analysing agent behaviour
   patterns over time
 

@@ -146,5 +146,5 @@ technical debt.
 
 ---
 
-**Previous:** [First project](/anvil/first-project) |
-**Next:** [Understand the concepts behind gates →](/anvil/concepts/gates)
+**Previous:** [First project](/anvil/first-project) | **Next:**
+[Understand the concepts behind gates →](/anvil/concepts/gates)
