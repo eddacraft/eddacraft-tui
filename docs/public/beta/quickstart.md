@@ -251,7 +251,7 @@ Found a bug or have feedback?
 | `anvil check --all`    | Scan entire codebase            |
 | `anvil watch --source` | Real-time validation            |
 | `anvil doctor`         | Diagnostics and troubleshooting |
-| `anvil policy explain`  | Understand a policy rule        |
+| `anvil policy explain` | Understand a policy rule        |
 | `anvil status`         | Check configuration and state   |
 | `anvil gate`           | Run quality gates               |
 | `anvil --help`         | See all commands                |
