@@ -77,7 +77,7 @@ failed, and when.
 | Feature                  | Description                                         |
 | ------------------------ | --------------------------------------------------- |
 | **Architecture Safety**  | Detects dependency violations using import analysis |
-| **Anti-Pattern Library** | 13 built-in patterns (4 on by default, 9 opt-in)   |
+| **Anti-Pattern Library** | 13 built-in patterns (4 on by default, 9 opt-in)    |
 | **Watch Mode**           | Real-time validation on file save                   |
 | **Suppression System**   | Allow exceptions with mandatory explanations        |
 | **GitHub Integration**   | PR checks and inline comments                       |
@@ -98,17 +98,17 @@ failed, and when.
 
 Enable these in your `.anvilrc` when relevant to your project.
 
-| ID     | Pattern                       | Category     | Severity |
-| ------ | ----------------------------- | ------------ | -------- |
-| AP-002 | Rule-specific `eslint-disable`| escape hatch | info     |
-| AP-005 | `@ts-expect-error` directive  | type safety  | info     |
-| AP-007 | Console in production code    | code quality | info     |
-| AP-008 | Inline `style` attribute      | HTML         | warning  |
-| AP-009 | Inline `<script>` block       | HTML         | warning  |
-| AP-010 | Inline event handler          | HTML         | warning  |
-| AP-011 | Deprecated HTML tag           | HTML         | warning  |
-| AP-012 | `!important` in CSS           | CSS          | warning  |
-| AP-013 | CSS `@import`                 | CSS          | info     |
+| ID     | Pattern                        | Category     | Severity |
+| ------ | ------------------------------ | ------------ | -------- |
+| AP-002 | Rule-specific `eslint-disable` | escape hatch | info     |
+| AP-005 | `@ts-expect-error` directive   | type safety  | info     |
+| AP-007 | Console in production code     | code quality | info     |
+| AP-008 | Inline `style` attribute       | HTML         | warning  |
+| AP-009 | Inline `<script>` block        | HTML         | warning  |
+| AP-010 | Inline event handler           | HTML         | warning  |
+| AP-011 | Deprecated HTML tag            | HTML         | warning  |
+| AP-012 | `!important` in CSS            | CSS          | warning  |
+| AP-013 | CSS `@import`                  | CSS          | info     |
 
 ## What Anvil Doesn't Do
 
