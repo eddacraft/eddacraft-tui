@@ -18,7 +18,7 @@ Get Kindling running on your system.
 
 :::info Closed beta
 
-Kindling is part of the Edda stack and currently in closed beta.
+Kindling is part of the Edda stack and currently in early access.
 [Request access](https://eddacraft.ai/#waitlist) if you don't have an invite
 yet.
 

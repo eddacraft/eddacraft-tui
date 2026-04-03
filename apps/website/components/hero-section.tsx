@@ -54,7 +54,7 @@ export function HeroSection() {
                 }}
               >
                 <span className="text-anvil">$ npm i -g @eddacraft/anvil</span>
-                <span className="text-text-muted ml-4"># closed-beta</span>
+                <span className="text-text-muted ml-4"># early-access</span>
               </button>
 
               {/* Secondary - Docs */}

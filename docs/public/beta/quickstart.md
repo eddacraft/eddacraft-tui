@@ -29,7 +29,7 @@ Your feedback directly shapes the product before public launch.
 :::info Sign up first
 
 Don't have access yet? [Request an invite](https://eddacraft.ai/#waitlist) to
-join the next beta cohort.
+join the next cohort.
 
 :::
 
@@ -72,7 +72,7 @@ For deeper dives into specific features, see the
 
 ## Step 2 -- Log In
 
-Authenticate with your beta access token (provided with your invite):
+Authenticate with your access token (provided with your invite):
 
 ```bash
 anvil login

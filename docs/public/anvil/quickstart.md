@@ -19,7 +19,7 @@ minutes.
 
 :::info Closed beta
 
-Anvil is currently in closed beta. You need to
+Anvil is currently in early access. You need to
 [request access](https://eddacraft.ai/#waitlist) before you can install.
 
 :::
@@ -52,7 +52,7 @@ $env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
 
 ## Authenticate
 
-Log in with the beta token from your invite email:
+Log in with the access token from your invite email:
 
 ```bash
 anvil login

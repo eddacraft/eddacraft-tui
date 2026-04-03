@@ -159,7 +159,7 @@ export async function sendWaitlistMigration(
       from: FROM_ADDRESS,
       replyTo: REPLY_TO,
       to: email,
-      subject: "Anvil has a new home — and you're on the beta waitlist",
+      subject: "Anvil has a new home — and you're on the early access waitlist",
       headers: {
         'List-Unsubscribe': `<${unsubscribeMailto}>`,
       },
@@ -176,7 +176,7 @@ New website — We've rebuilt eddacraft.ai from the ground up. It's faster, clea
 
 Documentation — Full docs are now live at docs.eddacraft.ai. Architecture guides, CLI reference, and getting started walkthroughs are all there.
 
-Beta waitlist — Your email ${email} has been moved to the formal beta waitlist. You don't need to sign up again. When your cohort opens, you'll receive an invite with activation instructions.
+Beta waitlist — Your email ${email} has been moved to the formal early access waitlist. You don't need to sign up again. When your cohort opens, you'll receive an invite with activation instructions.
 
 We're onboarding engineering teams in controlled cohorts to keep quality high. Capacity is limited — early signups like yours are prioritised.
 
@@ -222,9 +222,9 @@ export async function sendBetaInvite(
       from: FROM_ADDRESS,
       replyTo: REPLY_TO,
       to: email,
-      subject: "You're in — Anvil beta access",
+      subject: "You're in — Anvil early access",
       react: BetaInvite({ email, userCode, activateUrl, unsubscribeMailto }),
-      text: `You're in — Anvil beta access\n\nYour email ${email} has been approved for the Anvil beta.\n\nActivate in your browser:\n${activateUrl}\n\nOr run in your terminal:\n$ anvil auth login\n\nYour activation code: ${userCode}\nThis code expires in 48 hours.\n\n—\nanvil :: eddacraft.ai`,
+      text: `You're in — Anvil early access\n\nYour email ${email} has been approved for Anvil early access.\n\nActivate in your browser:\n${activateUrl}\n\nOr run in your terminal:\n$ anvil auth login\n\nYour activation code: ${userCode}\nThis code expires in 48 hours.\n\n—\nanvil :: eddacraft.ai`,
       tags: [{ name: 'category', value: 'beta-invite' }],
     });
 
