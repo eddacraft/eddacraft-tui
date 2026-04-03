@@ -22,7 +22,7 @@ All notable changes to Anvil are documented here.
   available via Homebrew: `brew install eddacraft/tap/anvil`.
 - **Platform support** — builds for x86_64 and aarch64 on macOS, Linux, and
   Windows (6 targets via cargo-dist).
-- **Ratatui TUI** — all 15 interactive surfaces (tutorial, watch, wizard,
+- **Ratatui TUI** — all 10 interactive surfaces (tutorial, watch, wizard,
   status, doctor, welcome, init, audit, browser, gate) rebuilt using Ratatui
   with the EddaCraft Terminal Standard design system.
 - **Structured exit codes** — `0` (pass), `1` (general error), `2` (gate
@@ -40,7 +40,7 @@ All notable changes to Anvil are documented here.
   `npx @eddacraft/anvil-mcp-server --generate-config` generates MCP server
   configuration for Claude Code, Cursor, Windsurf, and VS Code.
 - **Kernel benchmarks** — criterion benchmarks for watcher, parser, graph, and
-  policy evaluation (crates/anvil-bench).
+  policy evaluation.
 
 ### Performance
 
@@ -53,8 +53,8 @@ All notable changes to Anvil are documented here.
 
 ### Added
 
-- **Project memory** — Anvil now tracks patterns and decisions in your codebase.
-  New commands: `anvil edda`, `anvil ember`, `anvil stack`.
+- **Project memory** — Anvil now tracks patterns and decisions in your codebase
+  via the Edda memory system and Ember proposal engine.
 - **Security hardening** — input validation and subprocess execution
   improvements across the platform.
 - **Dependency patches** — minimatch, axios, svgo, tar, and others.
@@ -73,15 +73,15 @@ All notable changes to Anvil are documented here.
   protocol with round cap, deferred finding auto-filing as GitHub issues, Temper
   self-healing GitHub Actions workflow with 2-cycle cap
 - **Rust kernel spike** — Phase 0 validated: tree-sitter parsing, notify-rs
-  watcher, petgraph dependency graph, Cargo workspace with CI (`crates/spike/`)
+  watcher, petgraph dependency graph, Cargo workspace with CI
 - **Rust check ports** — secret scan, anti-pattern detection, and command safety
-  ported to Rust (`crates/anvil-checks/`, RENG-001–003, RENG-005)
-- **Ratatui TUI** — shared component library (`crates/eddacraft-tui/`), 10 Ink
-  components ported to Ratatui (PORT-001, PORT-002)
+  ported to Rust for 10-40x speedup
+- **Ratatui TUI** — shared component library for native terminal UI, 10 Ink
+  components ported to Ratatui
 - **Security CI pipeline** — Semgrep SAST, dependency audit, TruffleHog secret
   scan, licence compliance, OSSF Scorecard on every PR
 - **Interactive release command** — `anvil release` for guided CLI releases
-- **APS nested index loading** — depth-limited recursive plan loading (CRB-011)
+- **APS nested index loading** — depth-limited recursive plan loading
 - **Tutorial continuation** — continue to another tutorial path from completion
 - **JSON output** — `--json` flag on `hooks status` and `plan create`
 
