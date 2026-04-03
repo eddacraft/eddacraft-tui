@@ -309,17 +309,9 @@ api/auth/callback.ts  → /auth/callback
 api/auth/logout.ts    → /auth/logout
 ```
 
-### vercel.json
-
-Update from `{}` to configure rewrites for the auth API routes:
-
-```json
-{
-  "rewrites": [
-    { "source": "/auth/:path*", "destination": "/api/auth/:path*" }
-  ]
-}
-```
+These handlers are auto-routed by Vercel's file-based routing. The
+`/auth/:path*` rewrite in the `vercel.json` shown above maps the public
+URL prefix to these serverless functions.
 
 ---
 

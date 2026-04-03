@@ -116,7 +116,7 @@ Change status to **Ready** when:
 - **Files:** `apps/docs-site/middleware/index.ts`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** DOCSAUTH-004 (needs public key env var)
+- **Dependencies:** DOCSAUTH-006 (needs public key env var deployed)
 
 ---
 

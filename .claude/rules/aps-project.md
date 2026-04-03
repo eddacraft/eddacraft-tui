@@ -271,6 +271,7 @@ crates/anvil-tui/src/surfaces/tutorial/mod.rs: PORT-040
 crates/anvil-tui/src/surfaces/tutorial/paths.rs: PORT-041, PORT-042, PORT-043, PORT-044
 apps/anvil-api/src/routes/auth-device.ts: BAUTH-006, BAUTH-007, BAUTH-008
 apps/anvil-api/src/routes/auth-github.ts: DOCSAUTH-001
+apps/anvil-api/src/index.ts: DOCSAUTH-001
 apps/anvil-api/src/routes/auth-otp.ts: BAUTH-009, BAUTH-010
 apps/anvil-api/src/routes/auth-session.ts: BAUTH-011
 # DOCSAUTH: Docs Auth Gating
