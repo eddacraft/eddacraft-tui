@@ -35,11 +35,10 @@ join the next beta cohort.
 
 ```bash
 # macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
+curl -fsSL https://install.eddacraft.ai | sh
 
 # Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.ps1 | iex"
+irm https://install.eddacraft.ai/windows | iex
 ```
 
 Verify the installation:
