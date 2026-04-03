@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anvil_tui::surfaces::browser::{
     BrowserState, TemplateCategory, TemplateEntry, TemplateVariable,
@@ -151,27 +150,13 @@ fn find_templates_dir() -> Option<PathBuf> {
     }
 
     // Fall back to workspace-relative path (useful during development)
-    let workspace = workspace_root();
+    let workspace = crate::util::workspace_root().ok()?;
     let candidate = workspace.join("apps/anvil-cli/templates");
     if candidate.is_dir() {
         return Some(candidate);
     }
 
     None
-}
-
-/// Best-effort workspace root detection via `git rev-parse`.
-fn workspace_root() -> PathBuf {
-    Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| {
-            let s = String::from_utf8(o.stdout).ok()?;
-            Some(PathBuf::from(s.trim()))
-        })
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
 }
 
 #[derive(serde::Deserialize)]
@@ -487,7 +472,7 @@ fn resolve_output_path(output: Option<&str>, template_id: &str) -> anyhow::Resul
     let raw = output.unwrap_or(&default_name);
     let raw_path = Path::new(raw);
 
-    let root = workspace_root();
+    let root = crate::util::workspace_root()?;
 
     let resolved = if raw_path.is_absolute() {
         raw_path.to_path_buf()

@@ -1,7 +1,31 @@
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+
+/// Resolve the workspace root via `git rev-parse --show-toplevel`.
+///
+/// Canonicalises the result to collapse symlinks. Falls back to the
+/// current directory. Returns an error only when no usable path can
+/// be determined.
+pub fn workspace_root() -> Result<PathBuf> {
+    if let Some(root) = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| PathBuf::from(s.trim()))
+    {
+        if let Ok(canonical) = root.canonicalize() {
+            return Ok(canonical);
+        }
+        return Ok(root);
+    }
+
+    std::env::current_dir()
+        .context("failed to determine workspace root: git not available and current directory unresolvable")
+}
 
 /// Write `data` to `path` atomically by writing to a uniquely-named temporary
 /// file in the same directory and then renaming. This prevents partial/corrupt
@@ -92,5 +116,19 @@ mod tests {
 
         let perms = std::fs::metadata(&path).unwrap().permissions();
         assert_eq!(perms.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn workspace_root_returns_absolute_path() {
+        let root = workspace_root().unwrap();
+        assert!(root.is_absolute(), "workspace root should be absolute, got: {root:?}");
+    }
+
+    #[test]
+    fn workspace_root_is_canonical() {
+        let root = workspace_root().unwrap();
+        if let Ok(canonical) = root.canonicalize() {
+            assert_eq!(root, canonical);
+        }
     }
 }

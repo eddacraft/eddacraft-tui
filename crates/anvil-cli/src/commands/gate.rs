@@ -139,7 +139,7 @@ fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
         return Some(direct);
     }
 
-    let root = workspace_root();
+    let root = crate::util::workspace_root().ok()?;
 
     // Try relative to workspace root.
     let relative = root.join(plan_arg);
@@ -164,22 +164,16 @@ fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
     None
 }
 
-/// Best-effort workspace root detection via `git rev-parse`.
-fn workspace_root() -> PathBuf {
-    std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| {
-            let s = String::from_utf8(o.stdout).ok()?;
-            Some(PathBuf::from(s.trim()))
-        })
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-}
-
 fn run_check_lint(name: &str) -> CheckResult {
-    let root = workspace_root();
+    let root = match crate::util::workspace_root() {
+        Ok(r) => r,
+        Err(e) => return CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Failed to determine workspace root: {e}"),
+        },
+    };
     let output = std::process::Command::new("pnpm")
         .args(["lint:check"])
         .current_dir(&root)
@@ -211,7 +205,15 @@ fn run_check_lint(name: &str) -> CheckResult {
 }
 
 fn run_check_test(name: &str) -> CheckResult {
-    let root = workspace_root();
+    let root = match crate::util::workspace_root() {
+        Ok(r) => r,
+        Err(e) => return CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Failed to determine workspace root: {e}"),
+        },
+    };
     let output = std::process::Command::new("pnpm")
         .args(["test"])
         .current_dir(&root)
@@ -274,7 +276,15 @@ const SECRET_SCAN_IGNORE: &[&str] = &[
 const SECRET_SCAN_MAX_DEPTH: usize = 20;
 
 fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) -> CheckResult {
-    let root = workspace_root();
+    let root = match crate::util::workspace_root() {
+        Ok(r) => r,
+        Err(e) => return CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Failed to determine workspace root: {e}"),
+        },
+    };
     let mut files_to_scan: Vec<String> = Vec::new();
 
     let mut walker = walkdir::WalkDir::new(&root);
@@ -870,7 +880,15 @@ fn run_check_policy(
 }
 
 fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
-    let root = workspace_root();
+    let root = match crate::util::workspace_root() {
+        Ok(r) => r,
+        Err(e) => return CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Failed to determine workspace root: {e}"),
+        },
+    };
     match name {
         "lint" => run_check_lint(name),
         "test" => run_check_test(name),
@@ -1550,7 +1568,7 @@ rules: []
 
     #[test]
     fn resolve_plan_path_finds_in_modules() {
-        let root = workspace_root();
+        let root = crate::util::workspace_root().unwrap();
         let modules_dir = root.join("plans/modules");
         if modules_dir.exists() {
             // Only run on actual workspace with plans.

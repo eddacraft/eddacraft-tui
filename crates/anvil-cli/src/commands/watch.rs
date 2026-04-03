@@ -70,20 +70,6 @@ struct WatchEvent {
     detail: String,
 }
 
-/// Best-effort workspace root detection via `git rev-parse`.
-fn workspace_root() -> PathBuf {
-    std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| {
-            let s = String::from_utf8(o.stdout).ok()?;
-            Some(PathBuf::from(s.trim()))
-        })
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-}
-
 /// Normalise a path by canonicalising the longest existing ancestor, then
 /// re-appending the remaining suffix. This resolves `..` traversal even when
 /// the full path doesn't exist on disk.
@@ -243,7 +229,7 @@ fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, n
 
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
-    let workspace_root = workspace_root();
+    let workspace_root = crate::util::workspace_root()?;
     let action = validate_action(args.action.as_deref())?;
 
     // Reject --action in TUI mode (action dispatch requires non-interactive output)

@@ -20,7 +20,7 @@ struct FirstRunMarker {
 }
 
 pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
-    let marker_path = first_run_marker_path();
+    let marker_path = first_run_marker_path()?;
 
     if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain_welcome();
@@ -158,22 +158,8 @@ fn open_docs_message() -> String {
     }
 }
 
-/// Best-effort workspace root detection via `git rev-parse`.
-fn workspace_root() -> PathBuf {
-    std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| {
-            let s = String::from_utf8(o.stdout).ok()?;
-            Some(PathBuf::from(s.trim()))
-        })
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-}
-
-fn first_run_marker_path() -> PathBuf {
-    workspace_root().join(".anvil").join("first-run")
+fn first_run_marker_path() -> anyhow::Result<PathBuf> {
+    Ok(crate::util::workspace_root()?.join(".anvil").join("first-run"))
 }
 
 fn create_first_run_marker(path: &Path) -> anyhow::Result<()> {
@@ -219,7 +205,7 @@ mod tests {
 
     #[test]
     fn first_run_marker_path_is_anchored() {
-        let path = first_run_marker_path();
+        let path = first_run_marker_path().unwrap();
         assert!(path.is_absolute(), "marker path should be absolute, got: {path:?}");
         assert!(path.ends_with(".anvil/first-run"));
     }
