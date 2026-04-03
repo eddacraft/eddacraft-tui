@@ -86,15 +86,16 @@ Wrap your agent invocation:
 #!/bin/bash
 # run-agent.sh
 
-# Start Anvil in watch mode (background)
-anvil watch --json > anvil.log &
+# Start Anvil in watch mode with JSON output (background)
+# --json is a global flag and must precede the subcommand
+anvil --json watch --source > anvil.log &
 ANVIL_PID=$!
 
 # Run agent
 your-agent-cli "$@"
 
-# Check Anvil results
-if grep -q '"status":"fail"' anvil.log; then
+# Check Anvil results (WatchEvent uses snake_case fields)
+if grep -q '"event_type":"violation"' anvil.log; then
   echo "Agent produced failing code"
   exit 1
 fi
@@ -151,7 +152,7 @@ Track agent behaviour over time by reviewing validation results:
 - **Common violations** — what patterns recur?
 - **Improvement over time** — is the agent learning from rejections?
 
-Use `anvil check --all --json` to capture structured results for analysis.
+Use `anvil --json check --all` to capture structured results for analysis.
 
 ## Coming Soon
 

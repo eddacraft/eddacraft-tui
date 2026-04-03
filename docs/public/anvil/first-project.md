@@ -52,43 +52,42 @@ anvil init
 
 ## Step 2: Define Architecture Boundaries
 
-Create `.anvil/architecture.yaml` to define your layer rules:
+Create `.anvil/architecture.yaml` to define your layer rules. Layers are a map
+keyed by name, with `patterns` (glob list) and `depends_on` (allowed
+dependencies):
 
 ```yaml
-version: '1.0'
+schema_version: "0.1.0"
+template: custom
 layers:
-  - name: api-layer
-    pattern: 'src/api/**'
-    allow:
+  api-layer:
+    patterns:
+      - "src/api/**"
+    depends_on:
       - service-layer
       - utils
-    deny:
-      - repository-layer
 
-  - name: service-layer
-    pattern: 'src/services/**'
-    allow:
+  service-layer:
+    patterns:
+      - "src/services/**"
+    depends_on:
       - repository-layer
       - utils
-    deny:
-      - api-layer
 
-  - name: repository-layer
-    pattern: 'src/repositories/**'
-    allow:
+  repository-layer:
+    patterns:
+      - "src/repositories/**"
+    depends_on:
       - utils
-    deny:
-      - api-layer
-      - service-layer
 
-  - name: utils
-    pattern: 'src/utils/**'
-    allow: []
-    deny:
-      - api-layer
-      - service-layer
-      - repository-layer
+  utils:
+    patterns:
+      - "src/utils/**"
+    depends_on: []
 ```
+
+The `depends_on` field declares which layers a given layer **may** import from.
+Any import outside that list is a boundary violation.
 
 Validate the definition:
 
