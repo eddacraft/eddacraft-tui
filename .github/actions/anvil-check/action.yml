@@ -70,15 +70,18 @@ runs:
       id: detect-node
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_NODE_VERSION: ${{ inputs.node-version }}
+        INPUT_NODE_VERSION_FILE: ${{ inputs.node-version-file }}
       run: |
-        if [[ -n "${{ inputs.node-version }}" ]]; then
+        if [[ -n "$INPUT_NODE_VERSION" ]]; then
           echo "source=explicit" >> $GITHUB_OUTPUT
-          echo "version=${{ inputs.node-version }}" >> $GITHUB_OUTPUT
-          echo "::notice::Using explicit node-version: ${{ inputs.node-version }}"
-        elif [[ -n "${{ inputs.node-version-file }}" ]]; then
+          echo "version=$INPUT_NODE_VERSION" >> $GITHUB_OUTPUT
+          echo "::notice::Using explicit node-version: $INPUT_NODE_VERSION"
+        elif [[ -n "$INPUT_NODE_VERSION_FILE" ]]; then
           echo "source=file" >> $GITHUB_OUTPUT
-          echo "file=${{ inputs.node-version-file }}" >> $GITHUB_OUTPUT
-          echo "::notice::Using node-version-file: ${{ inputs.node-version-file }}"
+          echo "file=$INPUT_NODE_VERSION_FILE" >> $GITHUB_OUTPUT
+          echo "::notice::Using node-version-file: $INPUT_NODE_VERSION_FILE"
         elif [[ -f ".node-version" ]]; then
           echo "source=auto" >> $GITHUB_OUTPUT
           echo "file=.node-version" >> $GITHUB_OUTPUT
@@ -111,17 +114,21 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token || github.token }}
+        EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        BEFORE_SHA: ${{ github.event.before }}
+        CURRENT_SHA: ${{ github.sha }}
       run: |
         FILES=""
 
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+        if [[ "$EVENT_NAME" == "pull_request" ]]; then
           # For PRs, use gh CLI to get changed files
-          FILES=$(gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path' 2>/dev/null | tr '\n' ' ' || echo "")
-          echo "::notice::Detected PR #${{ github.event.pull_request.number }} - found $(echo "$FILES" | wc -w) changed files"
-        elif [[ "${{ github.event_name }}" == "push" ]]; then
+          FILES=$(gh pr view "$PR_NUMBER" --json files -q '.files[].path' 2>/dev/null | tr '\n' ' ' || echo "")
+          echo "::notice::Detected PR #${PR_NUMBER} - found $(echo "$FILES" | wc -w) changed files"
+        elif [[ "$EVENT_NAME" == "push" ]]; then
           # For pushes, use git diff
-          if [[ -n "${{ github.event.before }}" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
-            FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null | tr '\n' ' ' || echo "")
+          if [[ -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            FILES=$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" 2>/dev/null | tr '\n' ' ' || echo "")
             echo "::notice::Detected push - found $(echo "$FILES" | wc -w) changed files"
           else
             echo "::notice::Initial commit or force push - will check all files"
@@ -134,23 +141,27 @@ runs:
     - name: Filter analysable files
       id: resolve-files
       shell: bash
+      env:
+        INPUT_FILES: ${{ inputs.files }}
+        INPUT_AUTO_DETECT: ${{ inputs.auto-detect-files }}
+        CHANGED_FILES: ${{ steps.changed-files.outputs.files }}
       run: |
         # Use explicit files if provided
-        if [[ -n "${{ inputs.files }}" ]]; then
-          echo "files=${{ inputs.files }}" >> $GITHUB_OUTPUT
+        if [[ -n "$INPUT_FILES" ]]; then
+          echo "files=$INPUT_FILES" >> $GITHUB_OUTPUT
           echo "::notice::Using explicitly provided files"
           exit 0
         fi
 
         # If auto-detect is disabled, check all files (empty = anvil decides)
-        if [[ "${{ inputs.auto-detect-files }}" != "true" ]]; then
+        if [[ "$INPUT_AUTO_DETECT" != "true" ]]; then
           echo "files=" >> $GITHUB_OUTPUT
           echo "::notice::Auto-detect disabled - Anvil will determine files to check"
           exit 0
         fi
 
         # Filter changed files to analysable types
-        CHANGED="${{ steps.changed-files.outputs.files }}"
+        CHANGED="$CHANGED_FILES"
         FILTERED=""
         COUNT=0
 
@@ -190,11 +201,17 @@ runs:
       id: anvil
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        RESOLVED_FILES: ${{ steps.resolve-files.outputs.files }}
+        INPUT_AUTO_DETECT: ${{ inputs.auto-detect-files }}
+        CHANGED_FILES: ${{ steps.changed-files.outputs.files }}
+        INPUT_CHECK_TYPE: ${{ inputs.check-type }}
+        INPUT_FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
       run: |
-        FILES="${{ steps.resolve-files.outputs.files }}"
+        FILES="$RESOLVED_FILES"
 
         # If we have specific files and none are analysable, skip
-        if [[ "${{ inputs.auto-detect-files }}" == "true" && -z "$FILES" && -n "${{ steps.changed-files.outputs.files }}" ]]; then
+        if [[ "$INPUT_AUTO_DETECT" == "true" && -z "$FILES" && -n "$CHANGED_FILES" ]]; then
           echo "::notice::No analysable files to check - skipping Anvil"
           echo "exit-code=0" >> $GITHUB_OUTPUT
           echo "warnings-count=0" >> $GITHUB_OUTPUT
@@ -204,7 +221,7 @@ runs:
         fi
 
         set +e
-        RESULT=$(anvil ${{ inputs.check-type }} $FILES --json 2>&1)
+        RESULT=$(anvil "$INPUT_CHECK_TYPE" $FILES --json 2>&1)
         EXIT_CODE=$?
         set -e
 
@@ -219,7 +236,7 @@ runs:
         # Extract counts from JSON based on check-type
         # - 'check' mode: .summary.warnings, .summary.errors, .warnings[]
         # - 'gate' mode: .summary.failed, .summary.passed, .checks[]
-        if [[ "${{ inputs.check-type }}" == "gate" ]]; then
+        if [[ "$INPUT_CHECK_TYPE" == "gate" ]]; then
           # Gate mode: use failed/passed counts from gate result structure
           FAILED=$(echo "$RESULT" | jq -r '.summary.failed // 0' 2>/dev/null || echo "0")
           PASSED=$(echo "$RESULT" | jq -r '.summary.passed // 0' 2>/dev/null || echo "0")
@@ -237,7 +254,7 @@ runs:
         echo "errors-count=$ERRORS" >> $GITHUB_OUTPUT
 
         # Handle exit based on mode
-        if [[ "${{ inputs.fail-on-warnings }}" == "true" && $EXIT_CODE -ne 0 ]]; then
+        if [[ "$INPUT_FAIL_ON_WARNINGS" == "true" && $EXIT_CODE -ne 0 ]]; then
           echo "::error::Anvil check failed (blocking mode enabled)"
           exit 1
         fi
