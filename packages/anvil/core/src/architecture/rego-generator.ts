@@ -60,9 +60,7 @@ export async function writeRegoPolicy(
   const regoPath = getRegoPath(workspaceRoot);
   debug('writing Rego policy', regoPath);
   const regoDir = dirname(regoPath);
-  if (!existsSync(regoDir)) {
-    await mkdir(regoDir, { recursive: true });
-  }
+  await mkdir(regoDir, { recursive: true });
   const content = generateRegoPolicy(definition);
   await writeFile(regoPath, content, 'utf-8');
   return regoPath;

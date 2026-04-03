@@ -114,11 +114,8 @@ export class GateConfigManager {
     const savePath = this.getConfigPath();
     debug(`saveConfig: path=${savePath} checks=${config.checks.length}`);
     const content = JSON.stringify(config, null, 2);
-    // Ensure directory exists before writing file
     const dir = dirname(savePath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+    mkdirSync(dir, { recursive: true });
     writeFileSync(savePath, content, 'utf-8');
     // Update configPath to the saved location
     this.configPath = savePath;

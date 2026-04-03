@@ -85,10 +85,7 @@ export function saveBaseline(workspaceRoot: string, baseline: ArchitectureBaseli
   const path = getBaselinePath(workspaceRoot);
   const dir = dirname(path);
 
-  // Ensure directory exists
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+  mkdirSync(dir, { recursive: true });
 
   // Validate before saving
   const result = ArchitectureBaselineSchema.safeParse(baseline);

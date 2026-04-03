@@ -47,9 +47,7 @@ export async function writeDCConfig(
   const configPath = getDCConfigPath(workspaceRoot);
   debug('writing dependency-cruiser config', configPath);
   const configDir = dirname(configPath);
-  if (!existsSync(configDir)) {
-    await mkdir(configDir, { recursive: true });
-  }
+  await mkdir(configDir, { recursive: true });
   const content = generateDCConfig(definition);
   await writeFile(configPath, content, 'utf-8');
   return configPath;
@@ -159,8 +157,7 @@ function generateRules(definition: ArchitectureDefinition): DCRule[] {
     if (disallowedLayers.length > 0) {
       const fromPattern = layerPathsToRegex(layerDef.patterns);
       const toPatterns = disallowedLayers
-        .map((l) => definition.layers[l]?.patterns ?? [])
-        .flat()
+        .flatMap((l) => definition.layers[l]?.patterns ?? [])
         .map((p) => globToRegex(p));
 
       if (toPatterns.length > 0) {

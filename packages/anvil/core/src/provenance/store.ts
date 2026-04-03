@@ -38,23 +38,21 @@ export class ProvenanceStore {
    * Ensures the provenance directories exist
    */
   private ensureDirectories(): void {
-    if (!existsSync(this.baseDir)) {
-      mkdirSync(this.baseDir, { recursive: true });
-    }
-    if (!existsSync(this.historyDir)) {
-      mkdirSync(this.historyDir, { recursive: true });
-    }
+    mkdirSync(this.historyDir, { recursive: true });
 
-    // Create .gitignore in .anvil if it doesn't exist
+    // Create .gitignore in .anvil if it doesn't exist (atomic create-or-skip)
     const gitignorePath = join(this.baseDir, '.gitignore');
-    if (!existsSync(gitignorePath)) {
+    try {
       writeFileSync(
         gitignorePath,
         `# Anvil local data
 history/
 *.local.json
-`
+`,
+        { flag: 'wx' }
       );
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
     }
   }
 
