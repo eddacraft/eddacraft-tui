@@ -1,9 +1,9 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Security — Anvil by eddacraft',
+  title: 'Security — anvil by eddacraft',
   description:
-    'Security practices and product security features for Anvil, the AI governance tool by eddacraft.',
+    'Security practices and product security features for anvil, the AI governance tool by eddacraft.',
 };
 
 export default function SecurityPage() {
@@ -43,7 +43,7 @@ export default function SecurityPage() {
           <section>
             <h2 className="text-anvil font-bold mb-2">SYNOPSIS</h2>
             <p className="text-text-muted pl-6">
-              This document describes how Anvil secures your code, how we secure Anvil itself, and
+              This document describes how anvil secures your code, how we secure anvil itself, and
               how to report security vulnerabilities.
             </p>
           </section>
@@ -53,7 +53,7 @@ export default function SecurityPage() {
             <h2 className="text-anvil font-bold mb-2">PRODUCT SECURITY FEATURES</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                Anvil provides the following security capabilities for your development workflow:
+                anvil provides the following security capabilities for your development workflow:
               </p>
 
               <div>
@@ -97,7 +97,7 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">Local-First Architecture</p>
                 <p className="pl-4">
-                  Anvil runs entirely on your machine. Your source code, policies, and AI outputs
+                  anvil runs entirely on your machine. Your source code, policies, and AI outputs
                   never leave your infrastructure unless you explicitly configure remote features.
                 </p>
               </div>

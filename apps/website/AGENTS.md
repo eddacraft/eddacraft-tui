@@ -1,10 +1,10 @@
 # Website - AI Agent Instructions
 
-> **Next.js 16 marketing site for Anvil, deployed on Vercel**
+> **Next.js 16 marketing site for anvil, deployed on Vercel**
 
 ## Overview
 
-This is the public-facing marketing and landing page for Anvil at
+This is the public-facing marketing and landing page for anvil at
 `anvil.eddacraft.ai`. It is a **Next.js 16** application using the **App
 Router**, **React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The
 design follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
@@ -120,9 +120,17 @@ All interactive components use `'use client'` directive. Key patterns:
 ## Metadata
 
 ```
-Title: "Anvil — AI Governance for Developers"
+Title: "anvil — Guardrails that ship with your code"
 URL: https://anvil.eddacraft.ai
 Locale: en_GB
-OG: Site name "Anvil by EddaCraft", type "website"
+OG: Site name "anvil by eddacraft", type "website"
 Twitter: @eddacraft, summary_large_image
 ```
+
+## Branding
+
+- Product name is **anvil** (lowercase), never "Anvil" — except in all-caps
+  contexts where **ANVIL** is acceptable
+- Company name is **eddacraft** (lowercase), never "EddaCraft"
+- Sentence-initial lowercase is intentional (e.g. "anvil enforces policy…") —
+  do not capitalise to "correct" grammar

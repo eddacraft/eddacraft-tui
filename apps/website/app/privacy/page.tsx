@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Privacy Policy — Anvil by eddacraft',
-  description: 'Privacy policy for Anvil, the AI governance tool by eddacraft.',
+  title: 'Privacy Policy — anvil by eddacraft',
+  description: 'Privacy policy for anvil, the AI governance tool by eddacraft.',
 };
 
 export default function PrivacyPage() {
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">SYNOPSIS</h2>
             <p className="text-text-muted pl-6">
               This document describes what data eddacraft collects, how we use it, and your rights
-              regarding that data when using Anvil.
+              regarding that data when using anvil.
             </p>
           </section>
 
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">DESCRIPTION</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                Anvil is a developer tool for AI governance. We are committed to protecting your
+                anvil is a developer tool for AI governance. We are committed to protecting your
                 privacy and being transparent about the data we handle.
               </p>
               <p>
@@ -78,13 +78,13 @@ export default function PrivacyPage() {
                 <p className="text-text-primary mb-1">Usage Analytics</p>
                 <p className="pl-4">
                   We collect anonymised, aggregated usage data to improve the product. This does not
-                  include your source code, prompts, or any content you process through Anvil.
+                  include your source code, prompts, or any content you process through anvil.
                 </p>
               </div>
               <div>
                 <p className="text-text-primary mb-1">CLI Telemetry</p>
                 <p className="pl-4">
-                  The Anvil CLI may collect anonymous performance metrics. Telemetry can be disabled
+                  The anvil CLI may collect anonymous performance metrics. Telemetry can be disabled
                   via <span className="text-anvil">anvil config set telemetry false</span>.
                 </p>
               </div>

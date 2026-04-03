@@ -14,24 +14,24 @@ const _inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Anvil — Guardrails that ship with your code',
+  title: 'anvil — Guardrails that ship with your code',
   description:
-    'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
+    'Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.',
   generator: 'eddacraft',
   metadataBase: new URL('https://anvil.eddacraft.ai'),
   openGraph: {
-    title: 'Anvil — Guardrails that ship with your code',
+    title: 'anvil — Guardrails that ship with your code',
     description:
-      'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
-    siteName: 'Anvil by EddaCraft',
+      'Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.',
+    siteName: 'anvil by eddacraft',
     locale: 'en_GB',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Anvil — Guardrails that ship with your code',
+    title: 'anvil — Guardrails that ship with your code',
     description:
-      'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
+      'Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.',
     creator: '@eddacraft',
   },
   icons: {

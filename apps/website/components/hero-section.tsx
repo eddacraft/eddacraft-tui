@@ -14,13 +14,13 @@ export function HeroSection() {
             <div className="flex items-center gap-3 sm:gap-4">
               <img
                 src="/images/anvil-brandmark-ember.svg"
-                alt="Anvil"
+                alt="anvil"
                 width={40}
                 height={40}
                 className="sm:w-12 sm:h-12"
               />
               <span className="font-mono text-lg sm:text-xl uppercase tracking-[0.2em] sm:tracking-[0.3em] text-anvil">
-                Anvil
+                anvil
               </span>
             </div>
 
@@ -36,7 +36,7 @@ export function HeroSection() {
             </h1>
 
             <p className="font-sans text-base sm:text-lg leading-relaxed text-text-muted max-w-lg">
-              Anvil enforces policy at generation time, not at review.
+              anvil enforces policy at generation time, not at review.
             </p>
 
             {/* Primary CTA - NPM Terminal Box */}

@@ -341,7 +341,7 @@ export function CLIFooter() {
               PRIVACY
             </a>
 
-            <span className="text-text-muted/30">{'// (c) 2026 EddaCraft Inc.'}</span>
+            <span className="text-text-muted/30">{'// (c) 2026 eddacraft Inc.'}</span>
           </div>
         </div>
       </div>
@@ -364,7 +364,7 @@ export function CLIFooter() {
             {/* Modal Content */}
             <div className="space-y-4">
               <h3 className="text-lg sm:text-xl text-anvil uppercase tracking-tight">
-                Anvil is in pre-release
+                anvil is in pre-release
               </h3>
               <p className="text-sm text-text-muted leading-relaxed">
                 We are onboarding engineering teams in controlled cohorts. Request access below to

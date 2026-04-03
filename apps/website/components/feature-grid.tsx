@@ -7,21 +7,21 @@ const features = [
     icon: 'O',
     name: 'WATCH_MODE',
     description:
-      "Governance usually happens at CI (too late). Anvil's watcher runs locally, validating context the moment code is generated.",
+      "Governance usually happens at CI (too late). anvil's watcher runs locally, validating context the moment code is generated.",
     highlighted: false,
   },
   {
     icon: '*',
     name: 'AGENT_AGNOSTIC',
     description:
-      "Your team is fragmented. Some use Cursor, others Copilot. Anvil doesn't care. We govern the output, standardising quality regardless of the agent that wrote it.",
+      "Your team is fragmented. Some use Cursor, others Copilot. anvil doesn't care. We govern the output, standardising quality regardless of the agent that wrote it.",
     highlighted: false,
   },
   {
     icon: '=',
     name: 'DETERMINISTIC_ENGINE',
     description:
-      'AI is inherently non-deterministic. Infrastructure must be deterministic. We force the former to behave like the latter. Anvil provides the mathematical boundary that turns probabilistic code into verification.',
+      'AI is inherently non-deterministic. Infrastructure must be deterministic. We force the former to behave like the latter. anvil provides the mathematical boundary that turns probabilistic code into verification.',
     highlighted: true,
   },
   {

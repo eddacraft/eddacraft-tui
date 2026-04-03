@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export const alt = 'Anvil — AI Governance for Developers';
+export const alt = 'anvil — AI Governance for Developers';
 export const size = {
   width: 1200,
   height: 630,

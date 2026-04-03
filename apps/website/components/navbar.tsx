@@ -35,7 +35,7 @@ export function Navbar() {
               href="https://docs.eddacraft.ai/anvil/overview"
               className="text-anvil transition-colors hover:text-text-primary"
             >
-              Anvil
+              anvil
             </Link>
 
             {/* Edda - coming soon dialog */}
@@ -104,7 +104,7 @@ export function Navbar() {
                         </div>
                         <div className="border-l-2 border-anvil pl-4 py-2">
                           <p className="text-xs text-text-muted">
-                            Anvil is in pre-release. Request access to join the next available
+                            anvil is in pre-release. Request access to join the next available
                             cohort.
                           </p>
                         </div>
