@@ -191,9 +191,11 @@ fn cross_layer_app_importing_from_presentation() {
         .filter(|v| v.policy_id == "cross-layer-violation")
         .collect();
     assert_eq!(cross_layer.len(), 1);
-    assert!(cross_layer[0]
-        .message
-        .contains("'application' cannot import from layer 'presentation'"));
+    assert!(
+        cross_layer[0]
+            .message
+            .contains("'application' cannot import from layer 'presentation'")
+    );
 }
 
 /// Non-Import edge types (Calls, Inherits) must not trigger cross-layer.
@@ -333,7 +335,9 @@ fn new_dependency_introduction_detected() {
             TrustLevel::Internal,
         ))
         .unwrap();
-    graph.add_symbol(external_sym(61, "axios", "axios")).unwrap();
+    graph
+        .add_symbol(external_sym(61, "axios", "axios"))
+        .unwrap();
     graph
         .add_edge(SymbolEdge {
             from: 60,
@@ -376,7 +380,9 @@ fn previously_imported_dependency_suppressed() {
             TrustLevel::Internal,
         ))
         .unwrap();
-    graph.add_symbol(external_sym(61, "axios", "axios")).unwrap();
+    graph
+        .add_symbol(external_sym(61, "axios", "axios"))
+        .unwrap();
     graph
         .add_edge(SymbolEdge {
             from: 60,
@@ -533,7 +539,9 @@ fn all_four_invariants_fire_on_maximum_violation() {
             TrustLevel::Internal,
         ))
         .unwrap();
-    graph.add_symbol(external_sym(72, "danger", "danger")).unwrap();
+    graph
+        .add_symbol(external_sym(72, "danger", "danger"))
+        .unwrap();
     graph
         .add_edge(SymbolEdge {
             from: 70,
@@ -808,7 +816,7 @@ fn import_target_outside_layers_no_violation() {
 }
 
 /// Multiple forbidden imports from different symbols in the same delta.
-/// Engine deduplicates by (policy_id, file, symbol), so two distinct
+/// Engine deduplicates by (`policy_id`, file, symbol), so two distinct
 /// symbols each importing across layers produce two violations.
 #[test]
 fn multiple_cross_layer_violations_from_different_symbols() {
@@ -891,8 +899,8 @@ fn multiple_cross_layer_violations_from_different_symbols() {
 
 // ── Deduplication ───────────────────────────────────────────────────
 
-/// Engine deduplicates violations by (policy_id, file, symbol) fingerprint
-/// across multiple evaluate() calls for the same delta.
+/// Engine deduplicates violations by (`policy_id`, file, symbol) fingerprint
+/// across multiple `evaluate()` calls for the same delta.
 #[test]
 fn engine_deduplicates_across_evaluations() {
     let config = layered_config();
@@ -932,7 +940,7 @@ fn engine_deduplicates_across_evaluations() {
 // as test cases so they serve as living documentation.
 
 /// ARCH-001: Circular dependency detection is NOT in the kernel H1 set.
-/// The kernel's SymbolGraph supports cycle detection via petgraph, but
+/// The kernel's `SymbolGraph` supports cycle detection via petgraph, but
 /// a circular-dependency invariant has not been implemented. This is
 /// intentional — the kernel focuses on symbol-level trust and layering
 /// for H1, with cycle detection planned for a future invariant.
@@ -1026,9 +1034,7 @@ fn gap_orphaned_module_not_detected() {
     let violations = engine.evaluate(&delta, &graph, &config);
 
     assert!(
-        violations
-            .iter()
-            .all(|v| v.policy_id != "orphaned-module"),
+        violations.iter().all(|v| v.policy_id != "orphaned-module"),
         "gap: orphaned module detection is not in H1 invariant set"
     );
 }
@@ -1131,13 +1137,19 @@ fn empty_config_no_panic() {
 
     // Should still fire public-api-expansion and privilege-expansion
     // (these don't depend on layer config), but not cross-layer
-    assert!(violations
-        .iter()
-        .all(|v| v.policy_id != "cross-layer-violation"));
-    assert!(violations
-        .iter()
-        .any(|v| v.policy_id == "public-api-expansion"));
-    assert!(violations
-        .iter()
-        .any(|v| v.policy_id == "privilege-expansion"));
+    assert!(
+        violations
+            .iter()
+            .all(|v| v.policy_id != "cross-layer-violation")
+    );
+    assert!(
+        violations
+            .iter()
+            .any(|v| v.policy_id == "public-api-expansion")
+    );
+    assert!(
+        violations
+            .iter()
+            .any(|v| v.policy_id == "privilege-expansion")
+    );
 }

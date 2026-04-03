@@ -13,8 +13,8 @@ All multi-step work MUST use APS format:
 - Wave-based parallel execution for independent work items
 - Archive completed modules to `plans/archive/`
 
-Before starting implementation, check `plans/index.aps.md` for active work
-items and current status. Update task status as you progress.
+Before starting implementation, check `plans/index.aps.md` for active work items
+and current status. Update task status as you progress.
 
 Reference spec: <https://github.com/EddaCraft/anvil-plan-spec>
 
@@ -22,12 +22,12 @@ Reference spec: <https://github.com/EddaCraft/anvil-plan-spec>
 
 Use `gx` for all repository management. Never use raw `git clone`.
 
-| Task | Command |
-|------|---------|
-| Clone a repo | `gx clone <url-or-name>` |
-| Jump to a project | `gx <name>` |
-| Scaffold configs | `gx init` |
-| List projects | `gx list` |
+| Task              | Command                  |
+| ----------------- | ------------------------ |
+| Clone a repo      | `gx clone <url-or-name>` |
+| Jump to a project | `gx <name>`              |
+| Scaffold configs  | `gx init`                |
+| List projects     | `gx list`                |
 
 All cloned repos land in `~/Projects/src/` automatically.
 
