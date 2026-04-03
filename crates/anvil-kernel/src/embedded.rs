@@ -461,6 +461,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: None,
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config).unwrap();
@@ -495,6 +496,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: None,
             filter: None,
+            plan: None,
         };
 
         // Both files should parse successfully
