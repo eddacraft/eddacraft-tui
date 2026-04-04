@@ -154,9 +154,19 @@ fn evaluate_auth(
 
 /// Validate that usable credentials exist.
 ///
-/// Returns `Ok(())` when valid credentials are found, or `Err(exit_code)`
-/// with `EXIT_AUTH_REQUIRED` when credentials are missing or expired.
+/// Returns `Ok(())` when valid credentials are found, `Ok(())` when
+/// `ANVIL_DEV=1` is set (local dev bypass — never active in production
+/// builds), or `Err(exit_code)` with `EXIT_AUTH_REQUIRED` otherwise.
 fn check_auth() -> Result<(), u8> {
+    // Local dev bypass: ANVIL_DEV=1 skips auth entirely.
+    // Safe because:
+    //   - All API calls still require a real token server-side.
+    //   - This only bypasses the local credential pre-check.
+    //   - Commands that call the API will fail with a 401 anyway.
+    //   - Intended for CLI UX testing without a live token.
+    if std::env::var("ANVIL_DEV").as_deref() == Ok("1") {
+        return Ok(());
+    }
     evaluate_auth(&auth::credentials::load())
 }
 
@@ -452,5 +462,25 @@ mod tests {
     #[test]
     fn evaluate_auth_returns_ok_when_no_expiry() {
         assert!(evaluate_auth(&Ok(Some(no_expiry_creds()))).is_ok());
+    }
+
+    #[test]
+    fn check_auth_bypasses_when_anvil_dev_set() {
+        // ANVIL_DEV=1 should allow unauthenticated access for local testing.
+        // Without credentials, auth normally fails — but not in dev mode.
+        temp_env::with_var("ANVIL_DEV", Some("1"), || {
+            assert!(check_auth().is_ok(), "ANVIL_DEV=1 should bypass auth check");
+        });
+    }
+
+    #[test]
+    fn check_auth_does_not_bypass_without_anvil_dev() {
+        // Env var absent — auth still required without credentials.
+        temp_env::with_vars(
+            [("ANVIL_DEV", None), ("ANVIL_LICENSE", None), ("XDG_CONFIG_HOME", Some("/nonexistent/path"))],
+            || {
+                assert_eq!(check_auth(), Err(EXIT_AUTH_REQUIRED));
+            },
+        );
     }
 }
