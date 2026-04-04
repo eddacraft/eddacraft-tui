@@ -130,8 +130,8 @@ default_severity = "error"
 
 ### Source delegation pattern
 
-Any top-level section can be delegated to an external file by replacing its
-contents with a single `source` key:
+Any top-level section other than `[project]` can be delegated to an external
+file by replacing its contents with a single `source` key:
 
 ```toml
 # .anvilrc — delegated architecture
@@ -170,16 +170,17 @@ depends_on = ["repository-layer", "utils"]
 
 #### Delegation rules
 
-1. **Exclusive** — If `source` is present, all other keys in that section are
-   ignored. `anvil doctor` warns if both `source` and inline keys are detected.
-   No merge semantics, ever. A section is either fully inline or fully delegated.
+1. **Exclusive** — If `source` is present, no other keys are permitted in that
+   section. If both `source` and inline keys are detected, the config is
+   rejected with an actionable error. No merge semantics, ever. A section is
+   either fully inline or fully delegated.
 
 2. **One level deep** — A delegated file cannot itself contain `source` keys.
    This eliminates circular references by construction, with no need for
    visited-set tracking.
 
-3. **Relative paths** — `source` paths are resolved relative to the `.anvilrc`
-   file's parent directory.
+3. **Relative paths** — `source` paths are resolved relative to the workspace
+   root.
 
 4. **Same format** — Delegated files must be TOML. No format mixing.
 

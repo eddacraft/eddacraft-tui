@@ -76,7 +76,7 @@ are greenfield; there are no existing users to migrate.
 
 Change status to **Ready** when:
 
-- [x] ADR-016 approved
+- [ ] ADR-016 approved
 - [ ] Work items reviewed and estimated
 
 ---
