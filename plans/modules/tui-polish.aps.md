@@ -147,9 +147,50 @@ high-signal for users seeing Anvil for the first time.
 - **Priority:** High
 - **Status:** Ready
 
+### POLISH-007: Tutorial commands out of sync with actual CLI — CRITICAL
+
+- **Intent:** Audit every command referenced in tutorial step instructions against
+  the actual CLI. Replace stubs and auth-walled commands with commands that
+  actually work for an unauthenticated early access user, or remove them.
+- **Expected Outcome:** Every command shown in the tutorial either (a) runs and
+  produces real output, or (b) is clearly framed as "you'll do this after setup"
+  with no expectation of immediate execution. Zero "Authentication required"
+  surprises during tutorial.
+- **Validation:** Walk all 4 tutorial paths and run every referenced command.
+  None should fail with auth errors or command-not-found.
+- **Findings from April 2026 audit:**
+
+  | Command in tutorial | Actual behaviour |
+  |---|---|
+  | `anvil gate` | ❌ Auth wall — `Authentication required` |
+  | `anvil check` | ❌ Auth wall |
+  | `anvil drift capture` | ❌ Auth wall (and wrong subcommand — it's `snapshot`) |
+  | `anvil drift compare` | ❌ Auth wall |
+  | `anvil architecture compile` | ❌ Command does not exist (it's `validate`) |
+  | `anvil architecture validate` | ❌ Auth wall |
+  | `anvil doctor` | ✅ Works unauthenticated |
+  | `anvil tutorial` | ✅ Works unauthenticated |
+  | `anvil welcome` | ✅ Works unauthenticated |
+  | `anvil status` | Unverified |
+
+  Additionally: tutorial copy contains internal stub language that should
+  never be user-facing:
+  - "once shipped" (Policy path, step 5)
+  - "will be the hook command once shipped" (CI path, step 2)
+  - "Gate step will be added once shipped" (CI path, step 3)
+
+- **Files:**
+  - `crates/anvil-tui/src/surfaces/tutorial/paths.rs` — fix command references and stub copy
+  - `crates/anvil-cli/src/` — verify which commands need auth and which don't
+- **Confidence:** high
+- **Priority:** Critical — this is the highest priority issue in the module.
+  A user who runs the tutorial and types the commands will hit auth errors
+  on nearly every instruction. This is a broken first experience.
+- **Status:** Ready
+
 ---
 
-## Definition of Done
+
 
 - All POLISH tasks complete or explicitly deferred with rationale
 - Full welcome → tutorial → completion flow navigable without issues
