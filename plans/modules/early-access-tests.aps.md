@@ -292,3 +292,131 @@ that would have caught bugs found during council review.
   to `apps/b/index.ts`. Assert whether a violation is produced (documents the
   lack of cross-app enforcement).
 - **Files:** `crates/anvil-architecture/src/validator.rs`
+
+---
+
+## Phase 5 — Kernel (slice 5)
+
+### EATEST-026 — remove_file with 3+ interleaved symbol indices
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** Build a SymbolGraph with 5 symbols from file A interleaved with
+  5 from file B (alternating NodeIndex 0-9), remove file A, assert every
+  symbol from B is still retrievable with correct metadata.
+- **Files:** `crates/anvil-kernel/src/graph/symbol_graph.rs`
+
+### EATEST-027 — Cross-layer violation on reverse edge (importing file)
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** Create infra.ts and domain.ts where domain imports infra in
+  violation of policy. Modify infra.ts and assert a Violation event for
+  domain.ts is emitted (tests reverse-edge evaluation).
+- **Files:** `crates/anvil-kernel/src/watch.rs`
+
+### EATEST-028 — initial_scan node_modules exclusion
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** Create temp dir with `node_modules/foo.ts` and `src/bar.ts`, run
+  initial_scan, assert no symbols from `node_modules/` appear in graph.
+- **Files:** `crates/anvil-kernel/src/watch.rs`
+
+### EATEST-029 — Same symbol name across files (false-negative test)
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Add symbol `greet` to file A (previously_public from A), add
+  `greet` to file B in same delta. Assert public-api-expansion violation
+  raised for B.
+- **Files:** `crates/anvil-kernel/src/graph/incremental.rs`
+
+### EATEST-030 — update_file import edges for multi-symbol files
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Create FileSymbols with 3 symbols and an import, call
+  `update_file`, assert edge_count >= 1 and edge originates correctly.
+- **Files:** `crates/anvil-kernel/src/graph/incremental.rs`
+
+### EATEST-031 — Debounce max-hold starvation
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** Medium
+- **Intent:** Drive Debouncer with events at 40ms intervals for 1 second
+  (window=50ms), assert at least one batch emitted within first 200ms.
+- **Files:** `crates/anvil-kernel/src/watcher/debounce.rs`
+
+### EATEST-032 — now_iso8601 century-year boundary correctness
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** For a fixed timestamp corresponding to 2100-03-01T00:00:00Z,
+  assert the returned string is exactly correct.
+- **Files:** `crates/anvil-kernel/src/protocol/emitter.rs`
+
+### EATEST-033 — WatchHandle stop during concurrent rapid changes
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** Medium
+- **Intent:** Start WatchHandle, write 200 files rapidly, call stop()
+  concurrently, assert join completes within 2s without panic.
+- **Files:** `crates/anvil-kernel/src/watcher/mod.rs`
+
+---
+
+## Phase 6 — TUI (slice 6)
+
+### EATEST-034 — LogPanel render with empty entries
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Render LogPanel with empty entries slice, assert 'No log
+  entries' message appears and no panic.
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+
+### EATEST-035 — LogPanel next_match with active search filter
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Populate entries, set search matching 2 entries, call next_match
+  twice, assert selected_index lands on correct filtered position.
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+
+### EATEST-036 — TextInput multi-byte Unicode delete
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Insert a 3-byte Unicode char, move cursor to position 0, call
+  delete, assert value and cursor correct.
+- **Files:** `crates/eddacraft-tui/src/widgets/text_input.rs`
+
+### EATEST-037 — ParallelProgress show_overall=false show_eta=true
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** Render with show_overall=false, show_eta=true, assert no panic
+  and ETA line appears.
+- **Files:** `crates/eddacraft-tui/src/widgets/parallel_progress.rs`
+
+### EATEST-038 — StatusBar render test
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** Create StatusBar with left and right items, render to 40x1
+  buffer, assert left at col 0 and right at col >= 20.
+- **Files:** `crates/eddacraft-tui/src/widgets/status_bar.rs`

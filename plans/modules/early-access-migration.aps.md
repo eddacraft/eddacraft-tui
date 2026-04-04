@@ -318,3 +318,128 @@ but they represent genuine improvements that should be addressed before GA.
 - **Intent:** Multiple credential-write paths share duplicated logic.
   Consolidate.
 - **Files:** `crates/anvil-cli/src/auth/`
+
+---
+
+## Phase 6 — Kernel (slice 5)
+
+### EAMIG-029 — Use StableGraph for symbol graph removals
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** `remove_file` swap-index repair loop is not provably correct for
+  3+ interleaved removals. Switch to `StableGraph` or `retain_nodes` so
+  `NodeIndex` values are never invalidated on removal.
+- **Files:** `crates/anvil-kernel/src/graph/symbol_graph.rs`
+
+### EAMIG-030 — Fix import edge sourcing for multi-symbol files
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** `update_file` always sources import edges from the first symbol
+  in a file. Multi-export files have incomplete dependency edges. Associate
+  edges with a per-file representative node or the Module node.
+- **Files:** `crates/anvil-kernel/src/graph/incremental.rs`
+
+### EAMIG-031 — Surface GraphDelta errors to emitter
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** `GraphDelta.errors` from failed symbol insertions are silently
+  dropped. Emit `ErrorCode::Internal` events for each error.
+- **Files:** `crates/anvil-kernel/src/watch.rs`
+
+### EAMIG-032 — Key previously_public/privileged on (file, name)
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** `PublicApiExpansion` and `PrivilegeExpansion` invariants key on
+  bare symbol name, causing false-negative suppression for common names
+  across files. Key on `(file, name)` pair.
+- **Files:** `crates/anvil-kernel/src/graph/incremental.rs`,
+  `crates/anvil-kernel/src/policy/invariants/privilege_expansion.rs`
+
+### EAMIG-033 — Evaluate cross-layer invariants on reverse edges
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** Medium
+- **Intent:** `CrossLayerViolation` only examines the changed file's delta.
+  Files that import the changed file are not re-evaluated, missing violations
+  when `infra/db.ts` changes but `domain/user.ts` imports it.
+- **Files:** `crates/anvil-kernel/src/watch.rs`
+
+### EAMIG-034 — Use filter_entry for initial_scan directory pruning
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** `initial_scan` in `watch.rs` does not prune ignored directories
+  at the walk level (unlike `embedded.rs`), so it descends into
+  `node_modules` and `target`.
+- **Files:** `crates/anvil-kernel/src/watch.rs`
+
+### EAMIG-035 — Monotonic next_id counter instead of max recomputation
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** `next_id` recomputes `max(all node IDs) + 1` per file (O(n) per
+  file). Replace with a monotonic counter incremented by symbol count.
+- **Files:** `crates/anvil-kernel/src/watch.rs`, `crates/anvil-kernel/src/embedded.rs`
+
+### EAMIG-036 — Replace hand-rolled now_iso8601 with time crate
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** Custom Gregorian calendar algorithm in `emitter.rs` may have
+  off-by-one errors near century-year boundaries. Use `time` or `chrono`.
+- **Files:** `crates/anvil-kernel/src/protocol/emitter.rs`
+
+### EAMIG-037 — Consolidate duplicate POOL_INIT rayon statics
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** Two `POOL_INIT: Once` statics in `watch.rs` and `embedded.rs`
+  both call `build_global()`. Extract to a shared `crate::pool` module.
+- **Files:** `crates/anvil-kernel/src/watch.rs`, `crates/anvil-kernel/src/embedded.rs`
+
+### EAMIG-038 — Remove or gate unimplemented WatchConfig patterns
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** `include_patterns` and `exclude_patterns` on `WatchConfig` are
+  documented as not consumed. Either remove from the public API or emit a
+  warning when non-empty.
+- **Files:** `crates/anvil-kernel/src/watch.rs`
+
+---
+
+## Phase 7 — TUI (slice 6)
+
+### EAMIG-039 — Fix LogPanel next_match/prev_match index semantics
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** `next_match`/`prev_match` treat `selected_index` as a match-list
+  index while render treats it as a filtered-entries index. These diverge when
+  the match set is a strict subset of filtered entries.
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+
+### EAMIG-040 — Remove render-time filter.search overwrite in LogPanel
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** `LogPanel::render` overwrites `filter.search` with
+  `search_input` every frame, making external writes to `filter.search`
+  ineffective.
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
