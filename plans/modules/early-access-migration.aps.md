@@ -436,10 +436,113 @@ but they represent genuine improvements that should be addressed before GA.
 
 ### EAMIG-040 — Remove render-time filter.search overwrite in LogPanel
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** `LogPanel::render` overwrites `filter.search` with
   `search_input` every frame, making external writes to `filter.search`
   ineffective.
 - **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+
+---
+
+## Phase 8 — Distribution (slice 11)
+
+### EAMIG-041 — Add checksum verification to install.sh
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** `install.sh` downloads and executes the cargo-dist installer
+  without any checksum or signature verification. Either add SHA256
+  verification before execution, or redirect users to the cargo-dist
+  installer directly which has its own verification.
+- **Files:** `install.sh`
+
+### EAMIG-042 — Scope ANVIL_RELEASES_TOKEN to step-level env
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** The PAT is exposed as a job-level env variable to all steps in
+  the host job. Move to step-level env for only the steps that need it.
+  Confirm the token is a fine-grained PAT scoped to only EddaCraft/anvil
+  and EddaCraft/homebrew-tap.
+- **Files:** `.github/workflows/release.yml`
+
+### EAMIG-043 — Add artefact attestation to release workflow
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Release binaries have no provenance attestation. Add
+  `actions/attest-build-provenance` to generate SLSA provenance for free.
+- **Files:** `.github/workflows/release.yml`
+
+### EAMIG-044 — Add tag protection rules
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Any contributor with push access can trigger a release by
+  creating a version tag. Configure GitHub tag protection rules.
+- **Files:** Repository settings (not code)
+
+### EAMIG-045 — Verify cargo-dist bootstrap integrity
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** cargo-dist is installed by piping curl to sh with no checksum.
+  Add a verification step after install.
+- **Files:** `.github/workflows/release.yml`
+
+---
+
+## Phase 9 — Bench (slice 12)
+
+### EAMIG-046 — Add publish = false to anvil-bench
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** Missing `publish = false` means the dev-only crate could be
+  accidentally published. Its deps (tempfile, rand) would ship as production
+  dependencies.
+- **Files:** `crates/anvil-bench/Cargo.toml`
+
+### EAMIG-047 — Fix graph_memory per-step measurement
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** Medium
+- **Intent:** Graphs are dropped between steps so RSS deltas are unreliable.
+  Either accumulate graphs or annotate metrics as net-of-dealloc.
+- **Files:** `crates/anvil-bench/src/scenarios/graph_memory.rs`
+
+### EAMIG-048 — Fix cold_start warm-cache measurement
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** Medium
+- **Intent:** Measures discovery after freshly generating the repo (warm
+  cache). Rename metric or drop caches before measurement.
+- **Files:** `crates/anvil-bench/src/scenarios/cold_start_scaling.rs`
+
+### EAMIG-049 — Fix watcher_saturation settle_time double-count
+
+- **Status:** Ready
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Settle time is added to the reported duration, double-counting
+  overhead in the wall-clock metric.
+- **Files:** `crates/anvil-bench/src/scenarios/watcher_saturation.rs`
+
+### EAMIG-050 — Rename policy_scaling violations to matches
+
+- **Status:** Ready
+- **Priority:** Low
+- **Confidence:** High
+- **Intent:** The metric counts rule-symbol matches, not violations. The
+  naming is inverted compared to policy engine semantics.
+- **Files:** `crates/anvil-bench/src/scenarios/policy_scaling.rs`
