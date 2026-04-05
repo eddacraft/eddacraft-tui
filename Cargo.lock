@@ -300,6 +300,7 @@ dependencies = [
  "crossterm",
  "insta",
  "ratatui",
+ "tempfile",
  "unicode-width",
 ]
 

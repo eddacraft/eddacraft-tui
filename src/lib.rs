@@ -1,10 +1,10 @@
 //! # eddacraft-tui
 //!
-//! Shared Ratatui component library for the EddaCraft product family.
+//! Shared Ratatui component library for the `EddaCraft` product family.
 //!
 //! Provides a consistent set of terminal UI building blocks — themed widgets,
 //! keyboard handling, shell chrome, and a surface abstraction — so that every
-//! EddaCraft TUI application shares the same look and feel.
+//! `EddaCraft` TUI application shares the same look and feel.
 //!
 //! ## Quick start
 //!
@@ -56,5 +56,6 @@ pub mod prelude {
     pub use crate::widgets::spinner::{Spinner, SpinnerState};
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;
+    pub use crate::widgets::editor::{Editor, EditorState};
     pub use crate::widgets::text_input::{TextInput, TextInputState};
 }

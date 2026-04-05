@@ -1,6 +1,7 @@
 pub mod confirm;
 pub mod container;
 pub mod divider;
+pub mod editor;
 pub mod header;
 pub mod log_panel;
 pub mod parallel_progress;
