@@ -19,10 +19,14 @@ pub fn first_run_marker_path() -> anyhow::Result<PathBuf> {
 
 /// Check whether this is a first run (marker file does not exist).
 ///
-/// Uses `try_exists()` so that a permission error is treated as
-/// "first run" rather than silently assuming the marker is absent.
+/// Uses `try_exists()` and treats filesystem errors conservatively as
+/// "not first run" so unreadable marker paths do not repeatedly trigger
+/// first-run behaviour.
 pub fn is_first_run(marker_path: &Path) -> bool {
-    !marker_path.try_exists().unwrap_or(false)
+    match marker_path.try_exists() {
+        Ok(exists) => !exists,
+        Err(_) => false,
+    }
 }
 
 /// Check whether the `ANVIL_SKIP_WELCOME` env var requests skipping.

@@ -9,8 +9,8 @@ sidebar_position: 6
 
 # Beta Testing Guide
 
-Welcome to the Anvil early access. Thank you for helping us shape the tool — your
-feedback directly influences what we build next.
+Welcome to the Anvil early access. Thank you for helping us shape the tool —
+your feedback directly influences what we build next.
 
 **Current version:** 0.3.0-beta
 

@@ -67,7 +67,10 @@ impl ScanFilter {
     /// to match a directory.
     #[must_use]
     pub fn new(patterns: Vec<String>) -> Self {
-        let rules = patterns.into_iter().map(|p| categorise_pattern(&p)).collect();
+        let rules = patterns
+            .into_iter()
+            .map(|p| categorise_pattern(&p))
+            .collect();
         Self { rules }
     }
 
@@ -99,12 +102,13 @@ fn matches_rule(rule: &ExcludeRule, path: &Path) -> bool {
             _ => false,
         }),
         ExcludeRule::FileSuffix(suffix) => {
-            let name = path.to_string_lossy();
-            let filename = name
-                .rsplit(['/', '\\'])
-                .next()
-                .unwrap_or(&name);
-            filename.ends_with(suffix.as_str())
+            if let Some(filename) = path.file_name() {
+                filename.to_string_lossy().ends_with(suffix.as_str())
+            } else {
+                let name = path.to_string_lossy();
+                let filename = name.rsplit(['/', '\\']).next().unwrap_or(&name);
+                filename.ends_with(suffix.as_str())
+            }
         }
     }
 }
@@ -236,9 +240,7 @@ mod tests {
     #[test]
     fn excludes_deeply_nested_test_data() {
         let f = default_filter();
-        assert!(!f.includes(Path::new(
-            "packages/core/test-data/golden/snapshot.json"
-        )));
+        assert!(!f.includes(Path::new("packages/core/test-data/golden/snapshot.json")));
     }
 
     // ── Partial matches must NOT falsely exclude ─────────────────
@@ -336,9 +338,7 @@ mod tests {
     #[test]
     fn excludes_absolute_path_with_fixtures() {
         let f = default_filter();
-        assert!(!f.includes(Path::new(
-            "/home/user/project/__fixtures__/data.json"
-        )));
+        assert!(!f.includes(Path::new("/home/user/project/__fixtures__/data.json")));
     }
 
     #[test]

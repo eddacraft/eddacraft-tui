@@ -5,8 +5,7 @@ use eddacraft_tui::theme::EddaCraftTheme;
 
 use crate::GlobalArgs;
 use crate::services::first_run::{
-    create_first_run_marker, first_run_marker_path, is_first_run,
-    should_skip_welcome,
+    create_first_run_marker, first_run_marker_path, is_first_run, should_skip_welcome,
 };
 use crate::tui::SurfaceExit;
 
@@ -20,12 +19,22 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.verbose {
         eprintln!("[welcome] marker_path={}", marker_path.display());
         eprintln!("[welcome] is_first_run={first_run}");
-        eprintln!("[welcome] ANVIL_SKIP_WELCOME={}", std::env::var("ANVIL_SKIP_WELCOME").unwrap_or_default());
+        eprintln!(
+            "[welcome] ANVIL_SKIP_WELCOME={}",
+            std::env::var("ANVIL_SKIP_WELCOME").unwrap_or_default()
+        );
     }
 
     // Env-var bypass: create marker silently and exit.
     if should_skip_welcome() {
-        create_first_run_marker(&marker_path)?;
+        if let Err(err) = create_first_run_marker(&marker_path) {
+            if global.verbose {
+                eprintln!(
+                    "[welcome] warning: failed to create first-run marker at {}: {err}",
+                    marker_path.display()
+                );
+            }
+        }
         return Ok(());
     }
 
@@ -51,7 +60,14 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // Write marker before propagating errors — a TUI crash should not
     // prevent the marker from being written, otherwise the user is stuck
     // in an onboarding loop on every launch.
-    let _ = create_first_run_marker(&marker_path);
+    if let Err(err) = create_first_run_marker(&marker_path) {
+        if global.verbose {
+            eprintln!(
+                "[welcome] failed to create first-run marker at {}: {err}",
+                marker_path.display()
+            );
+        }
+    }
 
     // Prefer the app error over the teardown error.
     result.and(teardown_result)?;
