@@ -3,6 +3,7 @@ pub mod browser;
 pub mod doctor;
 pub mod gate;
 pub mod init;
+pub mod onboarding;
 pub mod status;
 pub mod tutorial;
 pub mod watch;
