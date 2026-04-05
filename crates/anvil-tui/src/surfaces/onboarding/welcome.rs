@@ -48,6 +48,9 @@ impl OnboardingWelcomeState {
     }
 
     pub fn handle_key(&mut self, action: Action) {
+        if self.chosen.is_some() || self.should_quit {
+            return;
+        }
         match action {
             Action::Up => {
                 if self.selected > 0 {

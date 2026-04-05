@@ -7,6 +7,46 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::{TutorialPhase, TutorialState};
 
+const MAX_OUTPUT_LINES: usize = 5;
+
+/// Strip ANSI escape sequences from a string so raw control codes don't garble
+/// the Ratatui output. Handles CSI sequences (`ESC [ ... final_byte`) which
+/// cover colours, cursor movement, and SGR resets.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            // Consume the CSI sequence: ESC [ ... <final byte 0x40–0x7E>
+            if let Some(next) = chars.next() {
+                if next == '[' {
+                    for c in chars.by_ref() {
+                        if c.is_ascii() && (0x40..=0x7E).contains(&(c as u8)) {
+                            break;
+                        }
+                    }
+                }
+                // else: non-CSI escape, skip the single char after ESC
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Collect up to `MAX_OUTPUT_LINES` from a string, returning the collected
+/// lines and whether there were more lines beyond the limit.
+fn collect_lines(text: &str) -> (Vec<String>, bool) {
+    let mut lines = Vec::with_capacity(MAX_OUTPUT_LINES + 1);
+    for line in text.lines().take(MAX_OUTPUT_LINES + 1) {
+        lines.push(strip_ansi(line));
+    }
+    let has_more = lines.len() > MAX_OUTPUT_LINES;
+    lines.truncate(MAX_OUTPUT_LINES);
+    (lines, has_more)
+}
+
 pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
     match state.phase {
         TutorialPhase::PathSelect => {
@@ -129,14 +169,24 @@ fn render_step_content(
         return;
     };
 
+    let border_color = if step
+        .output
+        .as_ref()
+        .is_some_and(|o| !o.success)
+    {
+        theme.error()
+    } else {
+        theme.accent()
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent()))
+        .border_style(Style::default().fg(border_color))
         .title(format!(" {} ", step.title));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let lines = vec![
+    let mut lines = vec![
         Line::default(),
         Line::from(Span::styled(
             &step.description,
@@ -150,6 +200,54 @@ fn render_step_content(
                 .add_modifier(Modifier::BOLD),
         )),
     ];
+
+    if let Some(output) = &step.output {
+        lines.push(Line::default());
+        let status_color = if output.success {
+            theme.success()
+        } else {
+            theme.error()
+        };
+        let status_label = if output.success { "✓ success" } else { "✗ failed" };
+        let exit_label = output
+            .exit_code
+            .map_or_else(|| " (no exit code)".to_string(), |c| format!(" (exit {c})"));
+        lines.push(Line::from(Span::styled(
+            format!("{status_label}{exit_label}"),
+            Style::default().fg(status_color).add_modifier(Modifier::BOLD),
+        )));
+
+        if !output.stdout.is_empty() {
+            let (stdout_lines, has_more) = collect_lines(&output.stdout);
+            for line in &stdout_lines {
+                lines.push(Line::from(Span::styled(
+                    line.clone(),
+                    Style::default().fg(theme.fg()),
+                )));
+            }
+            if has_more {
+                lines.push(Line::from(Span::styled(
+                    "… (more lines truncated)",
+                    Style::default().fg(theme.muted()),
+                )));
+            }
+        }
+        if !output.stderr.is_empty() {
+            let (stderr_lines, has_more) = collect_lines(&output.stderr);
+            for line in &stderr_lines {
+                lines.push(Line::from(Span::styled(
+                    line.clone(),
+                    Style::default().fg(theme.error()),
+                )));
+            }
+            if has_more {
+                lines.push(Line::from(Span::styled(
+                    "… (more lines truncated)",
+                    Style::default().fg(theme.muted()),
+                )));
+            }
+        }
+    }
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }

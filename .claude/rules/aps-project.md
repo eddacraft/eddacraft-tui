@@ -14,7 +14,7 @@
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - RCLI: rust-cli (43/64) — In Progress
-- WELCOME: welcome-screen-onboarding (2/18) — In Progress
+- WELCOME: welcome-screen-onboarding (5/18) — In Progress
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready

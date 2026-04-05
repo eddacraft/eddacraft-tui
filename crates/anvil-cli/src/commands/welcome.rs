@@ -19,21 +19,16 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.verbose {
         eprintln!("[welcome] marker_path={}", marker_path.display());
         eprintln!("[welcome] is_first_run={first_run}");
-        eprintln!(
-            "[welcome] ANVIL_SKIP_WELCOME={}",
-            std::env::var("ANVIL_SKIP_WELCOME").unwrap_or_default()
-        );
+        eprintln!("[welcome] ANVIL_SKIP_WELCOME={}", should_skip_welcome());
     }
 
     // Env-var bypass: create marker silently and exit.
     if should_skip_welcome() {
         if let Err(err) = create_first_run_marker(&marker_path) {
-            if global.verbose {
-                eprintln!(
-                    "[welcome] warning: failed to create first-run marker at {}: {err}",
-                    marker_path.display()
-                );
-            }
+            eprintln!(
+                "[welcome] warning: failed to create first-run marker at {}: {err}",
+                marker_path.display()
+            );
         }
         return Ok(());
     }
@@ -61,12 +56,10 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // prevent the marker from being written, otherwise the user is stuck
     // in an onboarding loop on every launch.
     if let Err(err) = create_first_run_marker(&marker_path) {
-        if global.verbose {
-            eprintln!(
-                "[welcome] failed to create first-run marker at {}: {err}",
-                marker_path.display()
-            );
-        }
+        eprintln!(
+            "[welcome] warning: failed to create first-run marker at {}: {err}",
+            marker_path.display()
+        );
     }
 
     // Prefer the app error over the teardown error.

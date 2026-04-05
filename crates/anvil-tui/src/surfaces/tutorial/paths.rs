@@ -5,7 +5,25 @@ fn step(title: &str, description: &str, instruction: &str) -> TutorialStep {
         title: title.to_string(),
         description: description.to_string(),
         instruction: instruction.to_string(),
+        command: None,
         completed: false,
+        output: None,
+    }
+}
+
+fn step_with_command(
+    title: &str,
+    description: &str,
+    instruction: &str,
+    command: &str,
+) -> TutorialStep {
+    TutorialStep {
+        title: title.to_string(),
+        description: description.to_string(),
+        instruction: instruction.to_string(),
+        command: Some(command.to_string()),
+        completed: false,
+        output: None,
     }
 }
 
@@ -16,20 +34,22 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             "Policies are the rules that Anvil enforces on your codebase. Each policy is a declarative YAML file that describes what to check and how severely to flag violations.",
             "Press enter to continue to the next step.",
         ),
-        step(
+        step_with_command(
             "Create Policy Directory",
             "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom rules.",
             "Run: mkdir -p .anvil/policies",
+            "mkdir -p .anvil/policies",
         ),
         step(
             "Write Your First Policy",
             "A policy file defines a check ID, severity level, and a pattern to match against. Start with a simple rule that flags TODO comments left in production code.",
             "Create .anvil/policies/no-todos.yaml with a pattern rule.",
         ),
-        step(
+        step_with_command(
             "Test the Policy",
             "Before enforcing a policy, test it locally to confirm it catches the expected patterns. Anvil's dry-run mode evaluates policies without blocking commits.",
             "Run: anvil doctor to verify your setup is healthy.",
+            "anvil doctor",
         ),
         step(
             "See the Policy Fire",
@@ -56,15 +76,17 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "Anvil ships with architecture templates for common patterns: layered, hexagonal, and modular. Pick a template that matches your project structure.",
             "Create .anvil/architecture.yaml with your layer definitions.",
         ),
-        step(
+        step_with_command(
             "Compile the Architecture",
             "The architecture definition in .anvil/architecture.yaml is compiled into an import graph. This graph maps which layers are allowed to import from which others.",
             "Run: anvil architecture compile",
+            "anvil architecture compile",
         ),
-        step(
+        step_with_command(
             "Detect Violations",
             "Run the architecture check against your codebase. Anvil walks the import graph and reports any cross-layer violations it finds.",
             "Run: anvil architecture validate",
+            "anvil architecture validate",
         ),
         step(
             "Validate Boundaries",
@@ -86,15 +108,23 @@ pub fn drift_steps() -> Vec<TutorialStep> {
             "Drift detection captures snapshots of your configuration and flags changes between captures. This helps you track unintended configuration changes over time.",
             "Press enter to continue to the next step.",
         ),
-        step(
+        step_with_command(
             "Capture a Baseline",
             "Take an initial snapshot of your current configuration state. Anvil serialises the config into a versioned snapshot stored in .anvil/snapshots/.",
             "Run: anvil drift capture --name baseline",
+            "anvil drift capture --name baseline",
         ),
-        step(
+        step_with_command(
+            "Capture Current State",
+            "After making configuration changes, capture a second snapshot. Anvil stores each snapshot by name so you can compare them later.",
+            "Run: anvil drift capture --name current",
+            "anvil drift capture --name current",
+        ),
+        step_with_command(
             "Compare Snapshots",
-            "After making configuration changes, capture a second snapshot and compare it with the baseline. Anvil shows a structured diff of what changed.",
+            "Now compare the two snapshots. Anvil shows a structured diff highlighting what changed between baseline and current.",
             "Run: anvil drift compare baseline current",
+            "anvil drift compare baseline current",
         ),
         step(
             "Inspect Changes",
@@ -131,10 +161,11 @@ pub fn ci_steps() -> Vec<TutorialStep> {
             "Anvil uses structured exit codes: 0 for pass, 1 for gate failure, 2 for configuration errors. Map these codes to your CI system's pass/fail/error states.",
             "Verify exit code handling in your workflow file.",
         ),
-        step(
+        step_with_command(
             "Detect CI Environment",
             "Anvil auto-detects CI environments and adjusts its output format. In CI mode, it produces machine-readable JSON output suitable for downstream tooling.",
             "Run: anvil status --json to preview JSON output.",
+            "anvil status --json",
         ),
         step(
             "Summary",
@@ -205,10 +236,11 @@ mod tests {
         let steps = drift_steps();
         assert_steps_valid(
             &steps,
-            5,
+            6,
             &[
                 "Introduction",
                 "Capture a Baseline",
+                "Capture Current State",
                 "Compare Snapshots",
                 "Inspect Changes",
                 "Summary",
@@ -231,5 +263,66 @@ mod tests {
                 "Summary",
             ],
         );
+    }
+
+    #[test]
+    fn policy_steps_have_correct_commands() {
+        let steps = policy_steps();
+        // Introduction — no command
+        assert!(steps[0].command.is_none(), "Introduction should have no command");
+        // Create Policy Directory — has command
+        assert_eq!(steps[1].command.as_deref(), Some("mkdir -p .anvil/policies"));
+        // Write Your First Policy — no command (informational)
+        assert!(steps[2].command.is_none(), "Write Your First Policy should have no command");
+        // Test the Policy — has command
+        assert_eq!(steps[3].command.as_deref(), Some("anvil doctor"));
+        // See the Policy Fire — no command (informational)
+        assert!(steps[4].command.is_none(), "See the Policy Fire should have no command");
+        // Customise Severity — no command (informational)
+        assert!(steps[5].command.is_none(), "Customise Severity should have no command");
+    }
+
+    #[test]
+    fn architecture_steps_have_correct_commands() {
+        let steps = architecture_steps();
+        assert!(steps[0].command.is_none(), "Introduction should have no command");
+        assert!(steps[1].command.is_none(), "Choose a Template should have no command");
+        assert_eq!(steps[2].command.as_deref(), Some("anvil architecture compile"));
+        assert_eq!(steps[3].command.as_deref(), Some("anvil architecture validate"));
+        // Validate Boundaries — informational (mentions running the command in the instruction
+        // text but is not a direct executable step)
+        assert!(steps[4].command.is_none(), "Validate Boundaries should have no command");
+        assert!(steps[5].command.is_none(), "Summary should have no command");
+    }
+
+    #[test]
+    fn drift_steps_have_correct_commands() {
+        let steps = drift_steps();
+        assert!(steps[0].command.is_none(), "Introduction should have no command");
+        assert_eq!(steps[1].command.as_deref(), Some("anvil drift capture --name baseline"));
+        assert_eq!(steps[2].command.as_deref(), Some("anvil drift capture --name current"));
+        assert_eq!(steps[3].command.as_deref(), Some("anvil drift compare baseline current"));
+        assert!(steps[4].command.is_none(), "Inspect Changes should have no command");
+        assert!(steps[5].command.is_none(), "Summary should have no command");
+    }
+
+    #[test]
+    fn ci_steps_have_correct_commands() {
+        let steps = ci_steps();
+        assert!(steps[0].command.is_none(), "Introduction should have no command");
+        assert!(steps[1].command.is_none(), "Install Git Hooks should have no command");
+        assert!(steps[2].command.is_none(), "Add CI Workflow should have no command");
+        assert!(steps[3].command.is_none(), "Configure Exit Codes should have no command");
+        assert_eq!(steps[4].command.as_deref(), Some("anvil status --json"));
+        assert!(steps[5].command.is_none(), "Summary should have no command");
+    }
+
+    #[test]
+    fn all_steps_start_with_no_output() {
+        for steps in [policy_steps(), architecture_steps(), drift_steps(), ci_steps()] {
+            for step in &steps {
+                assert!(step.output.is_none(), "step '{}' should have no output initially", step.title);
+            }
+        }
     }
 }

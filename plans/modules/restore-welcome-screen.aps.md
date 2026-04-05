@@ -124,7 +124,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-002: Onboarding welcome screen
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Show a first-run specific welcome screen with: brand logo,
   value proposition ("Anvil catches architecture drift at save-time"),
   and three options: "Start guided setup", "Skip to tutorial", "Skip
@@ -164,7 +164,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-005: Discovery surface with scan progress
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Create `DiscoverySurface` in
   `crates/anvil-tui/src/surfaces/tutorial/discovery.rs`. Three phases:
   **Scanning** (spinner + file count from kernel `Progress` events) →
@@ -257,7 +257,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-011: Executable instruction steps
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Extend `TutorialStep` with an optional `command: String`
   field. When a step has a command, bind Enter to execute it via
   subprocess with output capture. Show command output inline below the

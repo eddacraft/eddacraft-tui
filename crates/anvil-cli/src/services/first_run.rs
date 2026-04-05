@@ -5,7 +5,7 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct FirstRunMarker {
+pub(crate) struct FirstRunMarker {
     created_epoch_secs: String,
     version: String,
 }
@@ -25,7 +25,13 @@ pub fn first_run_marker_path() -> anyhow::Result<PathBuf> {
 pub fn is_first_run(marker_path: &Path) -> bool {
     match marker_path.try_exists() {
         Ok(exists) => !exists,
-        Err(_) => false,
+        Err(err) => {
+            eprintln!(
+                "[welcome] warning: cannot check first-run marker at {}: {err}",
+                marker_path.display()
+            );
+            false
+        }
     }
 }
 

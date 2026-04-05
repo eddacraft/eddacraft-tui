@@ -128,6 +128,16 @@ mod tests {
         assert!(progress.completed_paths.is_empty());
     }
 
+    /// Helper: load a path's steps and mark them all completed, transitioning
+    /// to the Complete phase. This avoids executing real commands in tests.
+    fn complete_path(state: &mut TutorialState, path: TutorialPath) {
+        state.load_steps(path);
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        state.phase = TutorialPhase::Complete;
+    }
+
     #[test]
     fn save_and_load_progress() {
         let dir = tempfile::tempdir().unwrap();
@@ -135,13 +145,7 @@ mod tests {
 
         let existing = TutorialProgress::default();
         let mut state = TutorialState::new();
-
-        // Simulate completing the Policy path
-        state.handle_key(Action::Select); // choose Policy
-        let step_count = state.steps.len();
-        for _ in 0..step_count {
-            state.handle_key(Action::Select);
-        }
+        complete_path(&mut state, TutorialPath::Policy);
 
         save_progress_from_state(&path, &existing, &state).unwrap();
 
@@ -170,12 +174,7 @@ mod tests {
     #[test]
     fn is_path_completed_when_all_steps_done() {
         let mut state = TutorialState::new();
-        state.handle_key(Action::Select); // choose Policy
-        let step_count = state.steps.len();
-        for _ in 0..step_count {
-            state.handle_key(Action::Select);
-        }
-        // After completing all steps, phase is Complete
+        complete_path(&mut state, TutorialPath::Policy);
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(is_path_completed(&state, TutorialPath::Policy));
     }
@@ -198,11 +197,7 @@ mod tests {
         };
 
         let mut state = TutorialState::new();
-        state.handle_key(Action::Select); // choose Policy
-        let step_count = state.steps.len();
-        for _ in 0..step_count {
-            state.handle_key(Action::Select);
-        }
+        complete_path(&mut state, TutorialPath::Policy);
 
         save_progress_from_state(&path, &existing, &state).unwrap();
 
