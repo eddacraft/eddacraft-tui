@@ -3,8 +3,12 @@ mod discovery_render;
 pub(crate) mod executor;
 pub mod paths;
 pub mod render;
+pub mod showcase;
+pub mod verify;
 
+use discovery::ScanResults;
 use eddacraft_tui::keyboard::Action;
+use verify::{Verify, VerifyResult};
 
 /// Available tutorial paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +67,12 @@ pub struct TutorialStep {
     pub completed: bool,
     /// Captured output from the last execution of `command`.
     pub output: Option<CommandOutput>,
+    /// Optional verification check to run after command execution.
+    pub verify: Option<Verify>,
+    /// Result of the last verification check.
+    pub verify_result: Option<VerifyResult>,
+    /// Contextual hint shown when verification fails.
+    pub verify_hint: Option<String>,
 }
 
 /// State for the tutorial orchestrator surface.
@@ -75,6 +85,10 @@ pub struct TutorialState {
     pub current_step: usize,
     pub should_quit: bool,
     pub wants_back: bool,
+    /// Scan results from the discovery phase, threaded through to tutorials.
+    pub scan_results: Option<ScanResults>,
+    /// Findings filtered by the chosen tutorial domain.
+    pub domain_findings: Option<ScanResults>,
 }
 
 impl TutorialState {
@@ -93,7 +107,13 @@ impl TutorialState {
             current_step: 0,
             should_quit: false,
             wants_back: false,
+            scan_results: None,
+            domain_findings: None,
         }
+    }
+
+    pub fn set_scan_results(&mut self, results: ScanResults) {
+        self.scan_results = Some(results);
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
@@ -105,6 +125,7 @@ impl TutorialState {
         };
         self.current_step = 0;
         self.chosen_path = Some(path);
+        self.domain_findings = self.scan_results.as_ref().map(|r| r.filter_by_domain(path));
         self.phase = TutorialPhase::Running;
     }
 
@@ -150,29 +171,56 @@ impl TutorialState {
         }
     }
 
-    /// Returns true if the current step has failed command output waiting for retry/skip.
+    /// Returns true if the current step has failed command output or failed
+    /// verification, waiting for retry/skip.
     pub fn current_step_failed(&self) -> bool {
-        self.steps
-            .get(self.current_step)
-            .and_then(|s| s.output.as_ref())
-            .is_some_and(|o| !o.success)
+        let Some(step) = self.steps.get(self.current_step) else {
+            return false;
+        };
+        let command_failed = step.output.as_ref().is_some_and(|o| !o.success);
+        let verify_failed = matches!(step.verify_result, Some(VerifyResult::Fail(_)));
+        command_failed || verify_failed
+    }
+
+    /// Run the verification check for the current step (if any) against the
+    /// given command output. Returns `true` if the step should advance (either
+    /// no verification is configured, or verification passed).
+    fn run_verify(&mut self, output: &CommandOutput) -> bool {
+        let step = &mut self.steps[self.current_step];
+        if let Some(ref verify) = step.verify {
+            let result = verify.check(output);
+            let passed = result == VerifyResult::Pass;
+            step.verify_result = Some(result);
+            passed
+        } else {
+            // No verification configured — auto-pass.
+            true
+        }
     }
 
     fn handle_running(&mut self, action: Action) {
-        // When a command has failed, only retry (r → Char('r')) and skip (s → Char('s'))
-        // are active; everything else is ignored except Back and Quit.
+        // When a command has failed or verification has failed, only retry
+        // (r) and skip (s) are active; everything else is ignored except
+        // Back and Quit.
         if self.current_step_failed() {
             match action {
-                // 'r' — clear output and re-execute the command
+                // 'r' — clear output/verify state and re-execute the command
                 Action::Character('r') => {
                     if let Some(step) = self.steps.get_mut(self.current_step) {
                         step.output = None;
+                        step.verify_result = None;
                         if let Some(cmd) = step.command.clone() {
                             let result = executor::execute_command(&cmd);
                             let succeeded = result.success;
                             step.output = Some(result);
                             if succeeded {
-                                self.advance_step();
+                                let output = self.steps[self.current_step]
+                                    .output
+                                    .clone()
+                                    .expect("output just set");
+                                if self.run_verify(&output) {
+                                    self.advance_step();
+                                }
                             }
                         }
                     }
@@ -202,9 +250,16 @@ impl TutorialState {
                         let succeeded = result.success;
                         self.steps[self.current_step].output = Some(result);
                         if succeeded {
-                            self.advance_step();
+                            let output = self.steps[self.current_step]
+                                .output
+                                .clone()
+                                .expect("output just set");
+                            if self.run_verify(&output) {
+                                self.advance_step();
+                            }
+                            // On verify failure we stay on the step; retry/skip shown.
                         }
-                        // On failure we stay on the same step; retry/skip prompt shown.
+                        // On command failure we stay on the same step.
                     } else {
                         // No command — informational step, advance immediately.
                         self.advance_step();
@@ -284,6 +339,8 @@ impl crate::surface::Surface for TutorialState {
         self.steps.clear();
         self.current_step = 0;
         self.chosen_path = None;
+        self.scan_results = None;
+        self.domain_findings = None;
     }
 
     fn render(
@@ -318,6 +375,9 @@ mod tests {
                 command: None,
                 completed: false,
                 output: None,
+                verify: None,
+                verify_result: None,
+                verify_hint: None,
             })
             .collect();
         state.phase = TutorialPhase::Running;
@@ -335,6 +395,28 @@ mod tests {
             command: Some(command.to_string()),
             completed: false,
             output: None,
+            verify: None,
+            verify_result: None,
+            verify_hint: None,
+        }];
+        state.phase = TutorialPhase::Running;
+        state.chosen_path = Some(TutorialPath::Policy);
+        state
+    }
+
+    /// Build a state with a command step that has verification attached.
+    fn state_with_verified_step(command: &str, verify: Verify, hint: &str) -> TutorialState {
+        let mut state = TutorialState::new();
+        state.steps = vec![TutorialStep {
+            title: "Verified Step".to_string(),
+            description: "A step with verification.".to_string(),
+            instruction: format!("Run: {command}"),
+            command: Some(command.to_string()),
+            completed: false,
+            output: None,
+            verify: Some(verify),
+            verify_result: None,
+            verify_hint: Some(hint.to_string()),
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -594,5 +676,165 @@ mod tests {
         assert_eq!(state.current_step, 1);
         assert!(state.steps[0].completed);
         assert!(state.steps[0].output.is_none());
+    }
+
+    // --- Scan results threading tests ---
+
+    use discovery::{Finding, FindingSeverity, FindingSource, ScanResults};
+
+    fn make_scan_results() -> ScanResults {
+        ScanResults {
+            findings: vec![
+                Finding {
+                    file: "src/main.rs".to_string(),
+                    line: Some(10),
+                    severity: FindingSeverity::Error,
+                    source: FindingSource::AntiPattern,
+                    title: "anti-pattern".to_string(),
+                    message: "test".to_string(),
+                    suggestion: "fix".to_string(),
+                },
+                Finding {
+                    file: "src/lib.rs".to_string(),
+                    line: Some(20),
+                    severity: FindingSeverity::Warning,
+                    source: FindingSource::Architecture,
+                    title: "boundary".to_string(),
+                    message: "test".to_string(),
+                    suggestion: "fix".to_string(),
+                },
+            ],
+            files_scanned: 100,
+            duration_ms: 250,
+        }
+    }
+
+    #[test]
+    fn scan_results_default_none() {
+        let state = TutorialState::new();
+        assert!(state.scan_results.is_none());
+        assert!(state.domain_findings.is_none());
+    }
+
+    #[test]
+    fn set_scan_results_stores_results() {
+        let mut state = TutorialState::new();
+        let results = make_scan_results();
+        state.set_scan_results(results);
+        assert!(state.scan_results.is_some());
+        assert_eq!(state.scan_results.as_ref().unwrap().findings.len(), 2);
+    }
+
+    #[test]
+    fn load_steps_computes_domain_findings() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        state.load_steps(TutorialPath::Policy);
+
+        assert!(state.domain_findings.is_some());
+        let domain = state.domain_findings.as_ref().unwrap();
+        // Policy gets AntiPattern + Secret, so only the AntiPattern finding
+        assert_eq!(domain.findings.len(), 1);
+        assert_eq!(domain.findings[0].source, FindingSource::AntiPattern);
+    }
+
+    #[test]
+    fn load_steps_without_scan_results_leaves_domain_none() {
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Architecture);
+        assert!(state.domain_findings.is_none());
+    }
+
+    #[test]
+    fn reset_clears_scan_and_domain_findings() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        state.load_steps(TutorialPath::Policy);
+        assert!(state.scan_results.is_some());
+        assert!(state.domain_findings.is_some());
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+        assert!(state.scan_results.is_none());
+        assert!(state.domain_findings.is_none());
+    }
+
+    // --- Verification integration tests ---
+
+    #[test]
+    fn verify_pass_advances_step() {
+        // "echo hello" succeeds and stdout contains "hello" — should advance.
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("hello".to_string()),
+            "Output should contain hello.",
+        );
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+        assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
+    }
+
+    #[test]
+    fn verify_fail_stays_on_step() {
+        // "echo hello" succeeds but stdout does NOT contain "world" — should stay.
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("world".to_string()),
+            "Output should contain world.",
+        );
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert_eq!(state.current_step, 0);
+        assert!(!state.steps[0].completed);
+        assert!(state.current_step_failed());
+        assert!(matches!(
+            state.steps[0].verify_result,
+            Some(VerifyResult::Fail(_))
+        ));
+    }
+
+    #[test]
+    fn verify_fail_then_skip_advances() {
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("world".to_string()),
+            "Output should contain world.",
+        );
+        state.handle_key(Action::Select); // verify fails
+        assert!(state.current_step_failed());
+
+        state.handle_key(Action::Character('s')); // skip
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+    }
+
+    #[test]
+    fn verify_fail_then_retry_clears_result() {
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("hello".to_string()),
+            "Output should contain hello.",
+        );
+
+        // Inject a failed verify state to simulate prior failure.
+        state.steps[0].output = Some(CommandOutput {
+            stdout: "nope".to_string(),
+            stderr: String::new(),
+            success: true,
+            exit_code: Some(0),
+        });
+        state.steps[0].verify_result = Some(VerifyResult::Fail(
+            "Output did not contain expected text: hello".to_string(),
+        ));
+        assert!(state.current_step_failed());
+
+        // Retry — the actual "echo hello" command succeeds and contains "hello".
+        state.handle_key(Action::Character('r'));
+
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+        assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
     }
 }

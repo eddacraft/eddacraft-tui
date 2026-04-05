@@ -1,4 +1,5 @@
 use super::TutorialStep;
+use super::verify::Verify;
 
 fn step(title: &str, description: &str, instruction: &str) -> TutorialStep {
     TutorialStep {
@@ -8,6 +9,9 @@ fn step(title: &str, description: &str, instruction: &str) -> TutorialStep {
         command: None,
         completed: false,
         output: None,
+        verify: None,
+        verify_result: None,
+        verify_hint: None,
     }
 }
 
@@ -24,6 +28,30 @@ fn step_with_command(
         command: Some(command.to_string()),
         completed: false,
         output: None,
+        verify: None,
+        verify_result: None,
+        verify_hint: None,
+    }
+}
+
+fn step_with_verify(
+    title: &str,
+    description: &str,
+    instruction: &str,
+    command: &str,
+    verify: Verify,
+    hint: &str,
+) -> TutorialStep {
+    TutorialStep {
+        title: title.to_string(),
+        description: description.to_string(),
+        instruction: instruction.to_string(),
+        command: Some(command.to_string()),
+        completed: false,
+        output: None,
+        verify: Some(verify),
+        verify_result: None,
+        verify_hint: Some(hint.to_string()),
     }
 }
 
@@ -34,22 +62,26 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             "Policies are the rules that Anvil enforces on your codebase. Each policy is a declarative YAML file that describes what to check and how severely to flag violations.",
             "Press enter to continue to the next step.",
         ),
-        step_with_command(
+        step_with_verify(
             "Create Policy Directory",
             "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom rules.",
             "Run: mkdir -p .anvil/policies",
             "mkdir -p .anvil/policies",
+            Verify::FileExists(".anvil/policies".to_string()),
+            "The directory was not created. Check permissions.",
         ),
         step(
             "Write Your First Policy",
             "A policy file defines a check ID, severity level, and a pattern to match against. Start with a simple rule that flags TODO comments left in production code.",
             "Create .anvil/policies/no-todos.yaml with a pattern rule.",
         ),
-        step_with_command(
+        step_with_verify(
             "Test the Policy",
             "Before enforcing a policy, test it locally to confirm it catches the expected patterns. Anvil's dry-run mode evaluates policies without blocking commits.",
             "Run: anvil doctor to verify your setup is healthy.",
             "anvil doctor",
+            Verify::ExitCode(0),
+            "Doctor reported issues. Check the output above.",
         ),
         step(
             "See the Policy Fire",
@@ -76,11 +108,13 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "Anvil ships with architecture templates for common patterns: layered, hexagonal, and modular. Pick a template that matches your project structure.",
             "Create .anvil/architecture.yaml with your layer definitions.",
         ),
-        step_with_command(
+        step_with_verify(
             "Compile the Architecture",
             "The architecture definition in .anvil/architecture.yaml is compiled into an import graph. This graph maps which layers are allowed to import from which others.",
             "Run: anvil architecture compile",
             "anvil architecture compile",
+            Verify::ExitCode(0),
+            "Compilation failed. Check your architecture.yaml.",
         ),
         step_with_command(
             "Detect Violations",
@@ -108,11 +142,13 @@ pub fn drift_steps() -> Vec<TutorialStep> {
             "Drift detection captures snapshots of your configuration and flags changes between captures. This helps you track unintended configuration changes over time.",
             "Press enter to continue to the next step.",
         ),
-        step_with_command(
+        step_with_verify(
             "Capture a Baseline",
             "Take an initial snapshot of your current configuration state. Anvil serialises the config into a versioned snapshot stored in .anvil/snapshots/.",
             "Run: anvil drift capture --name baseline",
             "anvil drift capture --name baseline",
+            Verify::ExitCode(0),
+            "Capture failed. Is your project initialised?",
         ),
         step_with_command(
             "Capture Current State",
@@ -161,11 +197,13 @@ pub fn ci_steps() -> Vec<TutorialStep> {
             "Anvil uses structured exit codes: 0 for pass, 1 for gate failure, 2 for configuration errors. Map these codes to your CI system's pass/fail/error states.",
             "Verify exit code handling in your workflow file.",
         ),
-        step_with_command(
+        step_with_verify(
             "Detect CI Environment",
             "Anvil auto-detects CI environments and adjusts its output format. In CI mode, it produces machine-readable JSON output suitable for downstream tooling.",
             "Run: anvil status --json to preview JSON output.",
             "anvil status --json",
+            Verify::OutputContains("status".to_string()),
+            "Expected JSON output with status field.",
         ),
         step(
             "Summary",
@@ -273,18 +311,29 @@ mod tests {
             steps[0].command.is_none(),
             "Introduction should have no command"
         );
-        // Create Policy Directory — has command
+        assert!(steps[0].verify.is_none());
+        // Create Policy Directory — has command + verify
         assert_eq!(
             steps[1].command.as_deref(),
             Some("mkdir -p .anvil/policies")
         );
+        assert!(
+            steps[1].verify.is_some(),
+            "Create Policy Directory should have verification"
+        );
+        assert!(steps[1].verify_hint.is_some());
         // Write Your First Policy — no command (informational)
         assert!(
             steps[2].command.is_none(),
             "Write Your First Policy should have no command"
         );
-        // Test the Policy — has command
+        // Test the Policy — has command + verify
         assert_eq!(steps[3].command.as_deref(), Some("anvil doctor"));
+        assert!(
+            steps[3].verify.is_some(),
+            "Test the Policy should have verification"
+        );
+        assert!(steps[3].verify_hint.is_some());
         // See the Policy Fire — no command (informational)
         assert!(
             steps[4].command.is_none(),
@@ -312,9 +361,18 @@ mod tests {
             steps[2].command.as_deref(),
             Some("anvil architecture compile")
         );
+        assert!(
+            steps[2].verify.is_some(),
+            "Compile the Architecture should have verification"
+        );
+        assert!(steps[2].verify_hint.is_some());
         assert_eq!(
             steps[3].command.as_deref(),
             Some("anvil architecture validate")
+        );
+        assert!(
+            steps[3].verify.is_none(),
+            "Detect Violations has no verification"
         );
         // Validate Boundaries — informational (mentions running the command in the instruction
         // text but is not a direct executable step)
@@ -336,9 +394,18 @@ mod tests {
             steps[1].command.as_deref(),
             Some("anvil drift capture --name baseline")
         );
+        assert!(
+            steps[1].verify.is_some(),
+            "Capture a Baseline should have verification"
+        );
+        assert!(steps[1].verify_hint.is_some());
         assert_eq!(
             steps[2].command.as_deref(),
             Some("anvil drift capture --name current")
+        );
+        assert!(
+            steps[2].verify.is_none(),
+            "Capture Current State has no verification"
         );
         assert_eq!(
             steps[3].command.as_deref(),
@@ -371,6 +438,11 @@ mod tests {
             "Configure Exit Codes should have no command"
         );
         assert_eq!(steps[4].command.as_deref(), Some("anvil status --json"));
+        assert!(
+            steps[4].verify.is_some(),
+            "Detect CI Environment should have verification"
+        );
+        assert!(steps[4].verify_hint.is_some());
         assert!(steps[5].command.is_none(), "Summary should have no command");
     }
 
@@ -386,6 +458,11 @@ mod tests {
                 assert!(
                     step.output.is_none(),
                     "step '{}' should have no output initially",
+                    step.title
+                );
+                assert!(
+                    step.verify_result.is_none(),
+                    "step '{}' should have no verify result initially",
                     step.title
                 );
             }

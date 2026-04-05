@@ -5,6 +5,7 @@ use ratatui::layout::Rect;
 
 use crate::surface::Surface;
 
+use super::TutorialPath;
 use super::discovery_render;
 
 /// Maximum number of findings shown in the results phase.
@@ -61,6 +62,35 @@ impl ScanResults {
         sorted.sort_by(|a, b| b.severity.cmp(&a.severity));
         sorted.truncate(n);
         sorted
+    }
+
+    /// Filter findings relevant to a tutorial domain.
+    ///
+    /// - Policy -> `AntiPattern` + Secret findings (policy rules catch these)
+    /// - Architecture -> Architecture findings
+    /// - Drift / CI -> all findings (these are cross-cutting)
+    #[must_use]
+    pub fn filter_by_domain(&self, path: TutorialPath) -> ScanResults {
+        let filtered_findings: Vec<Finding> = match path {
+            TutorialPath::Policy => self
+                .findings
+                .iter()
+                .filter(|f| matches!(f.source, FindingSource::AntiPattern | FindingSource::Secret))
+                .cloned()
+                .collect(),
+            TutorialPath::Architecture => self
+                .findings
+                .iter()
+                .filter(|f| matches!(f.source, FindingSource::Architecture))
+                .cloned()
+                .collect(),
+            TutorialPath::Drift | TutorialPath::CI => self.findings.clone(),
+        };
+        ScanResults {
+            findings: filtered_findings,
+            files_scanned: self.files_scanned,
+            duration_ms: self.duration_ms,
+        }
     }
 }
 
@@ -285,6 +315,22 @@ mod tests {
             line: Some(10),
             severity,
             source: FindingSource::AntiPattern,
+            title: title.to_string(),
+            message: "test message".to_string(),
+            suggestion: "fix it".to_string(),
+        }
+    }
+
+    fn make_finding_with_source(
+        severity: FindingSeverity,
+        source: FindingSource,
+        title: &str,
+    ) -> Finding {
+        Finding {
+            file: "src/main.rs".to_string(),
+            line: Some(10),
+            severity,
+            source,
             title: title.to_string(),
             message: "test message".to_string(),
             suggestion: "fix it".to_string(),
@@ -701,5 +747,83 @@ mod tests {
         assert!(state.wants_continue);
         // should_quit() is false — caller inspects wants_continue to advance
         assert!(!Surface::should_quit(&state));
+    }
+
+    // ── ScanResults::filter_by_domain ───────────────────────────────────
+
+    fn make_mixed_findings() -> ScanResults {
+        ScanResults {
+            findings: vec![
+                make_finding_with_source(
+                    FindingSeverity::Error,
+                    FindingSource::AntiPattern,
+                    "anti-pattern issue",
+                ),
+                make_finding_with_source(
+                    FindingSeverity::Warning,
+                    FindingSource::Secret,
+                    "secret leak",
+                ),
+                make_finding_with_source(
+                    FindingSeverity::Error,
+                    FindingSource::Architecture,
+                    "boundary violation",
+                ),
+            ],
+            files_scanned: 150,
+            duration_ms: 300,
+        }
+    }
+
+    #[test]
+    fn filter_by_domain_policy_gets_antipattern_and_secret() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Policy);
+        assert_eq!(filtered.findings.len(), 2);
+        assert!(
+            filtered
+                .findings
+                .iter()
+                .all(|f| matches!(f.source, FindingSource::AntiPattern | FindingSource::Secret))
+        );
+    }
+
+    #[test]
+    fn filter_by_domain_architecture_gets_architecture_only() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Architecture);
+        assert_eq!(filtered.findings.len(), 1);
+        assert_eq!(filtered.findings[0].source, FindingSource::Architecture);
+    }
+
+    #[test]
+    fn filter_by_domain_drift_gets_all() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Drift);
+        assert_eq!(filtered.findings.len(), 3);
+    }
+
+    #[test]
+    fn filter_by_domain_ci_gets_all() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::CI);
+        assert_eq!(filtered.findings.len(), 3);
+    }
+
+    #[test]
+    fn filter_by_domain_preserves_metadata() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Policy);
+        assert_eq!(filtered.files_scanned, 150);
+        assert_eq!(filtered.duration_ms, 300);
+    }
+
+    #[test]
+    fn filter_by_domain_empty_results() {
+        let results = ScanResults::default();
+        let filtered = results.filter_by_domain(TutorialPath::Architecture);
+        assert!(filtered.findings.is_empty());
+        assert_eq!(filtered.files_scanned, 0);
+        assert_eq!(filtered.duration_ms, 0);
     }
 }

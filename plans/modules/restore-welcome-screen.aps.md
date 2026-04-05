@@ -139,7 +139,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-003: Guided init step
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Wire the existing `InitSurface` (5-step wizard: mode,
   format, directory, checks, summary) into the onboarding flow. After
   init completes, transition to the discovery scan (WELCOME-007). If
@@ -183,7 +183,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-006: Showcase mode fallback
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** When filtered scan returns zero warnings, display 3–4
   curated example findings covering different check types (secret
   detection, anti-pattern, architecture violation, policy violation).
@@ -208,7 +208,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-008: Scan results threading through phases
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Extend `TutorialState` to carry `Option<ScanResults>`.
   Results from discovery flow into feature tutorials so executable
   steps can reference already-found issues rather than re-scanning.
@@ -275,7 +275,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-012: Step verification and feedback
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** After executing a step's command, run a verification check
   to confirm the expected outcome. Verification types: file exists, exit
   code check, content match (regex against file or output). Each step

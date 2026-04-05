@@ -43,11 +43,24 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let theme = EddaCraftTheme;
 
     let result = if first_run {
-        run_onboarding_placeholder(&mut terminal, &theme)
+        match run_onboarding(&mut terminal, &theme) {
+            Ok(OnboardingOutcome::Quit) => Ok(()),
+            Ok(OnboardingOutcome::Tutorial) => {
+                let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
+                let sub_exit =
+                    crate::tui::run_surface_in(&mut terminal, &mut tutorial_state, &theme)?;
+                if sub_exit == SurfaceExit::Quit {
+                    Ok(())
+                } else {
+                    run_welcome_hub(&mut terminal, &theme)
+                }
+            }
+            Ok(_) => run_welcome_hub(&mut terminal, &theme),
+            Err(e) => Err(e),
+        }
     } else {
-        Ok(())
-    }
-    .and_then(|()| run_welcome_hub(&mut terminal, &theme));
+        run_welcome_hub(&mut terminal, &theme)
+    };
 
     // Always teardown terminal, even on error.
     let teardown_result = crate::tui::teardown_terminal(&mut terminal);
@@ -68,21 +81,82 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Placeholder for the onboarding flow (WELCOME-002 will replace this).
-///
-/// Shows a brief loading message, then falls through to the welcome hub.
-fn run_onboarding_placeholder(
+/// Outcome of the first-run onboarding flow, used by the caller to decide
+/// what to show next.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OnboardingOutcome {
+    /// User completed guided setup or config already existed — proceed normally.
+    Configured,
+    /// User chose to skip to tutorial — start tutorial immediately.
+    Tutorial,
+    /// User chose to skip entirely — go to welcome hub.
+    Skip,
+    /// User pressed quit — exit the entire program.
+    Quit,
+}
+
+fn run_onboarding(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<OnboardingOutcome> {
+    use anvil_tui::surfaces::onboarding::{OnboardingChoice, OnboardingWelcomeState};
+
+    let mut onboarding = OnboardingWelcomeState::new();
+    let exit = crate::tui::run_surface_in(terminal, &mut onboarding, theme)?;
+
+    if exit == SurfaceExit::Quit && onboarding.chosen.is_none() {
+        return Ok(OnboardingOutcome::Quit);
+    }
+
+    match onboarding.chosen {
+        Some(OnboardingChoice::GuidedSetup) => {
+            run_guided_init(terminal, theme)?;
+            Ok(OnboardingOutcome::Configured)
+        }
+        Some(OnboardingChoice::SkipToTutorial) => Ok(OnboardingOutcome::Tutorial),
+        Some(OnboardingChoice::SkipEntirely) | None => Ok(OnboardingOutcome::Skip),
+    }
+}
+
+fn run_guided_init(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
-    crate::tui::draw_loading(
-        terminal,
-        "Welcome",
-        "Onboarding coming soon — proceeding to welcome hub...",
-        theme,
-    )?;
-    // TODO(WELCOME-002): Replace with real onboarding surface.
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    use anvil_tui::surfaces::onboarding;
+
+    // Skip init if config already exists.
+    if onboarding::config_exists() {
+        crate::tui::draw_loading(
+            terminal,
+            "Init",
+            "Anvil configuration detected \u{2014} skipping setup.",
+            theme,
+        )?;
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        return Ok(());
+    }
+
+    let checks = onboarding::default_available_checks();
+    let mut init_state = anvil_tui::surfaces::init::InitState::new(checks);
+    let exit = crate::tui::run_surface_in(terminal, &mut init_state, theme)?;
+
+    if exit == SurfaceExit::Quit && !init_state.confirmed {
+        // User quit the init wizard — don't show error, just fall through.
+        return Ok(());
+    }
+
+    if init_state.confirmed {
+        // TODO(WELCOME-007): Write config based on init_state.config, then
+        // transition to discovery scan.
+        crate::tui::draw_loading(
+            terminal,
+            "Init",
+            "Configuration saved. Proceeding to welcome\u{2026}",
+            theme,
+        )?;
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+    }
+
     Ok(())
 }
 
@@ -234,5 +308,25 @@ mod tests {
         assert!(!Surface::should_quit(&state));
         state.chosen = Some(QuickStartOption::RunAudit);
         assert!(Surface::should_quit(&state));
+    }
+
+    #[test]
+    fn onboarding_outcome_variants_exist() {
+        // Verify all four variants are distinct.
+        let outcomes = [
+            OnboardingOutcome::Configured,
+            OnboardingOutcome::Tutorial,
+            OnboardingOutcome::Skip,
+            OnboardingOutcome::Quit,
+        ];
+        for (i, a) in outcomes.iter().enumerate() {
+            for (j, b) in outcomes.iter().enumerate() {
+                if i == j {
+                    assert_eq!(a, b);
+                } else {
+                    assert_ne!(a, b);
+                }
+            }
+        }
     }
 }

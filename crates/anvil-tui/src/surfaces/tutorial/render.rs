@@ -10,25 +10,38 @@ use super::{TutorialPhase, TutorialState};
 const MAX_OUTPUT_LINES: usize = 5;
 
 /// Strip ANSI escape sequences from a string so raw control codes don't garble
-/// the Ratatui output. Handles CSI sequences (`ESC [ ... final_byte`) which
-/// cover colours, cursor movement, and SGR resets.
+/// the Ratatui output. Handles:
+/// - CSI sequences: `ESC [ ... <final byte 0x40–0x7E>` (colours, cursor, SGR)
+/// - OSC sequences: `ESC ] ... BEL` or `ESC ] ... ESC \` (window titles, hyperlinks)
+/// - Other two-byte escapes: `ESC <char>` (consumed as introducer + single byte)
 fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars();
     while let Some(ch) = chars.next() {
         if ch == '\x1b' {
-            // Consume the CSI sequence: ESC [ ... <final byte 0x40–0x7E>
-            if let Some(next) = chars.next()
-                && next == '['
-            {
-                for c in chars.by_ref() {
-                    if c.is_ascii() && (0x40..=0x7E).contains(&(c as u8)) {
-                        break;
+            if let Some(next) = chars.next() {
+                if next == '[' {
+                    // CSI: consume until final byte 0x40–0x7E.
+                    for c in chars.by_ref() {
+                        if c.is_ascii() && (0x40..=0x7E).contains(&(c as u8)) {
+                            break;
+                        }
+                    }
+                } else if next == ']' {
+                    // OSC: consume until BEL (\x07) or ST (ESC \).
+                    for c in chars.by_ref() {
+                        if c == '\x07' {
+                            break;
+                        }
+                        if c == '\x1b' {
+                            // Consume the backslash of ESC \.
+                            let _ = chars.next();
+                            break;
+                        }
                     }
                 }
+                // Otherwise: two-byte escape — `next` is already consumed.
             }
-            // Otherwise, if a character follows ESC, it is consumed as a
-            // non-CSI escape introducer.
         } else {
             out.push(ch);
         }
@@ -382,6 +395,39 @@ mod tests {
 
         let buf = terminal.backend().buffer().clone();
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    // --- strip_ansi tests ---
+
+    #[test]
+    fn strip_ansi_removes_csi_colour() {
+        assert_eq!(strip_ansi("\x1b[31mred\x1b[0m"), "red");
+    }
+
+    #[test]
+    fn strip_ansi_removes_osc_bel_terminated() {
+        // OSC terminated by BEL (\x07)
+        assert_eq!(strip_ansi("\x1b]0;title\x07text"), "text");
+    }
+
+    #[test]
+    fn strip_ansi_removes_osc_st_terminated() {
+        // OSC terminated by ST (ESC \)
+        assert_eq!(
+            strip_ansi("\x1b]8;;https://x.com\x1b\\link\x1b]8;;\x1b\\"),
+            "link"
+        );
+    }
+
+    #[test]
+    fn strip_ansi_passthrough_plain_text() {
+        assert_eq!(strip_ansi("hello world"), "hello world");
+    }
+
+    #[test]
+    fn strip_ansi_bare_esc_at_end() {
+        // Trailing ESC with no following char — nothing to consume.
+        assert_eq!(strip_ansi("text\x1b"), "text");
     }
 
     #[test]
