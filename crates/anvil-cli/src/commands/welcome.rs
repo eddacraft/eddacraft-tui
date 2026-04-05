@@ -5,7 +5,8 @@ use eddacraft_tui::theme::EddaCraftTheme;
 
 use crate::GlobalArgs;
 use crate::services::first_run::{
-    create_first_run_marker, first_run_marker_path, is_first_run, should_skip_welcome,
+    create_first_run_marker, first_run_marker_path, is_first_run,
+    should_skip_welcome,
 };
 use crate::tui::SurfaceExit;
 
@@ -30,7 +31,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut terminal = crate::tui::setup_terminal()?;
     let theme = EddaCraftTheme;
 
-    let result = if is_first_run() {
+    let result = if is_first_run(&marker_path) {
         run_onboarding_placeholder(&mut terminal, &theme)
     } else {
         Ok(())

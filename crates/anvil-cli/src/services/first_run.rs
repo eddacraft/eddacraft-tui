@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FirstRunMarker {
-    pub created_at: String,
-    pub version: String,
+    created_at: String,
+    version: String,
 }
 
 /// Return the path to the first-run marker file inside `.anvil/`.
@@ -18,10 +18,8 @@ pub fn first_run_marker_path() -> anyhow::Result<PathBuf> {
 }
 
 /// Check whether this is a first run (marker file does not exist).
-pub fn is_first_run() -> bool {
-    first_run_marker_path()
-        .map(|p| !p.exists())
-        .unwrap_or(true)
+pub fn is_first_run(marker_path: &Path) -> bool {
+    !marker_path.exists()
 }
 
 /// Check whether the `ANVIL_SKIP_WELCOME` env var is set to `"1"`.
@@ -83,29 +81,16 @@ mod tests {
 
     #[test]
     fn is_first_run_true_when_marker_absent() {
-        // Use a temp dir that definitely has no marker file.
-        // We can't easily override workspace_root in a unit test, so
-        // verify the helper logic directly: absent file -> true.
         let dir = tempfile::tempdir().unwrap();
-        let marker = dir.path().join("first-run");
-        assert!(!marker.exists());
-        // The public is_first_run() delegates to first_run_marker_path(),
-        // so test the underlying invariant here.
-        assert!(
-            !marker.exists(),
-            "absent marker should indicate first run"
-        );
+        assert!(is_first_run(&dir.path().join("first-run")));
     }
 
     #[test]
     fn is_first_run_false_when_marker_exists() {
         let dir = tempfile::tempdir().unwrap();
-        let marker = dir.path().join("first-run");
-        create_first_run_marker(&marker).unwrap();
-        assert!(
-            marker.exists(),
-            "present marker should indicate not first run"
-        );
+        let path = dir.path().join("first-run");
+        create_first_run_marker(&path).unwrap();
+        assert!(!is_first_run(&path));
     }
 
     #[test]
