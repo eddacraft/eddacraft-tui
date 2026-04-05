@@ -62,7 +62,7 @@ impl OnboardingWelcomeState {
             Action::Select => {
                 self.chosen = Some(OnboardingChoice::ALL[self.selected]);
             }
-            Action::Quit => {
+            Action::Back | Action::Quit => {
                 self.should_quit = true;
             }
             _ => {}
@@ -76,7 +76,7 @@ impl crate::surface::Surface for OnboardingWelcomeState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  enter select  q quit"
+        "j/k navigate  enter select  esc/q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -183,12 +183,10 @@ mod tests {
     }
 
     #[test]
-    fn back_does_nothing() {
+    fn back_quits() {
         let mut state = OnboardingWelcomeState::new();
         state.handle_key(Action::Back);
-        assert!(!state.should_quit);
-        assert!(state.chosen.is_none());
-        assert_eq!(state.selected, 0);
+        assert!(state.should_quit);
     }
 
     #[test]
