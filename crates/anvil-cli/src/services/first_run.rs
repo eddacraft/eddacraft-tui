@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FirstRunMarker {
-    created_at: String,
+    created_epoch_secs: String,
     version: String,
 }
 
@@ -18,14 +18,19 @@ pub fn first_run_marker_path() -> anyhow::Result<PathBuf> {
 }
 
 /// Check whether this is a first run (marker file does not exist).
+///
+/// Uses `try_exists()` so that a permission error is treated as
+/// "first run" rather than silently assuming the marker is absent.
 pub fn is_first_run(marker_path: &Path) -> bool {
-    !marker_path.exists()
+    !marker_path.try_exists().unwrap_or(false)
 }
 
-/// Check whether the `ANVIL_SKIP_WELCOME` env var is set to `"1"`.
+/// Check whether the `ANVIL_SKIP_WELCOME` env var requests skipping.
+///
+/// Accepts `"1"`, `"true"`, or `"yes"` (case-insensitive).
 pub fn should_skip_welcome() -> bool {
     std::env::var("ANVIL_SKIP_WELCOME")
-        .map(|v| v == "1")
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
         .unwrap_or(false)
 }
 
@@ -36,13 +41,11 @@ pub fn create_first_run_marker(path: &Path) -> anyhow::Result<()> {
     }
 
     let marker = FirstRunMarker {
-        created_at: format!(
-            "{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        ),
+        created_epoch_secs: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     };
 
@@ -76,7 +79,7 @@ mod tests {
         let content = std::fs::read_to_string(&path).unwrap();
         let marker: FirstRunMarker = serde_json::from_str(&content).unwrap();
         assert_eq!(marker.version, env!("CARGO_PKG_VERSION"));
-        assert!(!marker.created_at.is_empty());
+        assert!(!marker.created_epoch_secs.is_empty());
     }
 
     #[test]
@@ -108,8 +111,29 @@ mod tests {
     }
 
     #[test]
-    fn should_skip_welcome_false_when_env_set_to_other() {
+    fn should_skip_welcome_true_when_env_set_to_yes() {
         temp_env::with_var("ANVIL_SKIP_WELCOME", Some("yes"), || {
+            assert!(should_skip_welcome());
+        });
+    }
+
+    #[test]
+    fn should_skip_welcome_true_when_env_set_to_true() {
+        temp_env::with_var("ANVIL_SKIP_WELCOME", Some("true"), || {
+            assert!(should_skip_welcome());
+        });
+    }
+
+    #[test]
+    fn should_skip_welcome_true_when_env_set_to_true_uppercase() {
+        temp_env::with_var("ANVIL_SKIP_WELCOME", Some("TRUE"), || {
+            assert!(should_skip_welcome());
+        });
+    }
+
+    #[test]
+    fn should_skip_welcome_false_when_env_set_to_other() {
+        temp_env::with_var("ANVIL_SKIP_WELCOME", Some("nah"), || {
             assert!(!should_skip_welcome());
         });
     }

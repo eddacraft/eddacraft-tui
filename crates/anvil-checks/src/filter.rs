@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Component, Path};
 
 /// Default directory segments excluded from scan results (DD-1).
 const DEFAULT_DIR_EXCLUDES: &[&str] = &[
@@ -75,8 +75,7 @@ impl ScanFilter {
     /// Returns `false` if the path matches any exclusion pattern.
     #[must_use]
     pub fn includes(&self, path: &Path) -> bool {
-        let normalised = normalise(path);
-        !self.rules.iter().any(|rule| matches_rule(rule, &normalised))
+        !self.rules.iter().any(|rule| matches_rule(rule, path))
     }
 }
 
@@ -84,26 +83,27 @@ impl ScanFilter {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/// Normalise a path to a forward-slash string for consistent matching.
-/// Avoids allocation on Unix where backslashes don't appear in paths.
-fn normalise(path: &Path) -> std::borrow::Cow<'_, str> {
-    let s = path.to_string_lossy();
-    if s.contains('\\') {
-        s.replace('\\', "/").into()
-    } else {
-        s
-    }
-}
-
-/// Determine whether a single rule excludes the given (already-normalised)
-/// path string.
-fn matches_rule(rule: &ExcludeRule, normalised: &str) -> bool {
+/// Determine whether a single rule excludes the given path.
+///
+/// Uses `Path::components()` for directory-segment matching. On Unix,
+/// backslashes are valid filename characters (not separators), so we also
+/// split component strings on `\` to handle Windows-style paths that may
+/// arrive cross-platform.
+fn matches_rule(rule: &ExcludeRule, path: &Path) -> bool {
     match rule {
-        ExcludeRule::DirSegment(segment) => normalised
-            .split('/')
-            .any(|component| component == segment),
+        ExcludeRule::DirSegment(segment) => path.components().any(|c| match c {
+            Component::Normal(s) => s
+                .to_string_lossy()
+                .split(['/', '\\'])
+                .any(|part| part == segment.as_str()),
+            _ => false,
+        }),
         ExcludeRule::FileSuffix(suffix) => {
-            let filename = normalised.rsplit('/').next().unwrap_or(normalised);
+            let name = path.to_string_lossy();
+            let filename = name
+                .rsplit(['/', '\\'])
+                .next()
+                .unwrap_or(&name);
             filename.ends_with(suffix.as_str())
         }
     }

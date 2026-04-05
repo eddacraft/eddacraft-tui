@@ -14,7 +14,7 @@
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - RCLI: rust-cli (43/64) — In Progress
-- TUTOR: interactive-tutorial (0/13) — Draft
+- WELCOME: welcome-screen-onboarding (2/18) — In Progress
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
@@ -582,4 +582,28 @@ apps/e2e/src/daemon/: TINT-012, TINT-013, TINT-014, TINT-015
 packages/transactional/emails/: TEXT-004, TEXT-005
 apps/anvil-api/: TEXT-004
 infra/src/: TEXT-006, TEXT-007, TEXT-008, TEXT-009
+# WELCOME: Welcome Screen & Interactive Onboarding
+crates/anvil-cli/src/commands/welcome.rs: WELCOME-001
+crates/anvil-cli/src/services/first_run.rs: WELCOME-001
+crates/anvil-tui/src/surfaces/onboarding/mod.rs: WELCOME-002, WELCOME-003, WELCOME-007
+crates/anvil-tui/src/surfaces/onboarding/welcome.rs: WELCOME-002
+crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs: WELCOME-002
+crates/anvil-checks/src/filter.rs: WELCOME-004
+crates/anvil-tui/src/surfaces/tutorial/discovery.rs: WELCOME-005, WELCOME-006, WELCOME-008
+crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs: WELCOME-005, WELCOME-006
+crates/anvil-tui/src/surfaces/tutorial/showcase.rs: WELCOME-006
+crates/anvil-tui/src/surfaces/welcome/mod.rs: WELCOME-007
+crates/anvil-tui/src/surfaces/tutorial/mod.rs: WELCOME-007, WELCOME-008, WELCOME-011, WELCOME-013, WELCOME-016, WELCOME-018
+crates/eddacraft-tui/src/widgets/editor.rs: WELCOME-009
+crates/eddacraft-tui/src/widgets/mod.rs: WELCOME-009
+crates/anvil-tui/src/surfaces/tutorial/fix.rs: WELCOME-010
+crates/anvil-tui/src/surfaces/tutorial/fix_render.rs: WELCOME-010
+crates/anvil-tui/src/surfaces/tutorial/paths.rs: WELCOME-011, WELCOME-012
+crates/anvil-tui/src/surfaces/tutorial/executor.rs: WELCOME-011, WELCOME-013
+crates/anvil-tui/src/surfaces/tutorial/verify.rs: WELCOME-012
+crates/anvil-tui/src/surfaces/tutorial/watch_demo.rs: WELCOME-014
+crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs: WELCOME-014
+crates/anvil-tui/src/surfaces/onboarding/hooks.rs: WELCOME-015
+crates/anvil-cli/src/commands/tutorial.rs: WELCOME-016
+crates/anvil-tui/src/surfaces/onboarding/complete.rs: WELCOME-017
 ```

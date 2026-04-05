@@ -15,6 +15,13 @@ pub struct WelcomeArgs {}
 
 pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let marker_path = first_run_marker_path()?;
+    let first_run = is_first_run(&marker_path);
+
+    if global.verbose {
+        eprintln!("[welcome] marker_path={}", marker_path.display());
+        eprintln!("[welcome] is_first_run={first_run}");
+        eprintln!("[welcome] ANVIL_SKIP_WELCOME={}", std::env::var("ANVIL_SKIP_WELCOME").unwrap_or_default());
+    }
 
     // Env-var bypass: create marker silently and exit.
     if should_skip_welcome() {
@@ -31,7 +38,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut terminal = crate::tui::setup_terminal()?;
     let theme = EddaCraftTheme;
 
-    let result = if is_first_run(&marker_path) {
+    let result = if first_run {
         run_onboarding_placeholder(&mut terminal, &theme)
     } else {
         Ok(())
@@ -40,8 +47,14 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // Always teardown terminal, even on error.
     let teardown_result = crate::tui::teardown_terminal(&mut terminal);
-    result.or(teardown_result)?;
-    create_first_run_marker(&marker_path)?;
+
+    // Write marker before propagating errors — a TUI crash should not
+    // prevent the marker from being written, otherwise the user is stuck
+    // in an onboarding loop on every launch.
+    let _ = create_first_run_marker(&marker_path);
+
+    // Prefer the app error over the teardown error.
+    result.and(teardown_result)?;
 
     Ok(())
 }
@@ -59,7 +72,7 @@ fn run_onboarding_placeholder(
         "Onboarding coming soon — proceeding to welcome hub...",
         theme,
     )?;
-    // Brief pause so the user can read the message.
+    // TODO(WELCOME-002): Replace with real onboarding surface.
     std::thread::sleep(std::time::Duration::from_secs(1));
     Ok(())
 }
