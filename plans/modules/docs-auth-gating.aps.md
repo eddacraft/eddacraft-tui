@@ -8,9 +8,9 @@ Scopes: DOCSAUTH (main)
 
 # Docs Auth Gating
 
-| ID       | Owner | Status |
-| -------- | ----- | ------ |
-| DOCSAUTH | —     | Ready  |
+| ID       | Owner | Status      |
+| -------- | ----- | ----------- |
+| DOCSAUTH | —     | In Progress |
 
 ## Purpose
 
@@ -82,7 +82,7 @@ Change status to **Ready** when:
 
 ### DOCSAUTH-001: Add GitHub OAuth callback to BAUTH API
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Add `POST /api/v1/auth/github/callback` that exchanges a GitHub
   OAuth code for a BAUTH JWT, creating or linking the user in `beta_users`
 - **Expected Outcome:** Calling the endpoint with a valid GitHub OAuth code
@@ -102,9 +102,9 @@ Change status to **Ready** when:
 
 ## Phase 2 — Edge Function + Auth Routes
 
-### DOCSAUTH-002: Create Vercel Edge Function for /anvil auth gate
+### DOCSAUTH-002: Create Vercel Routing Middleware for /anvil auth gate
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Edge function that intercepts `/anvil/*` requests, verifies the
   `anvil-docs-session` cookie contains a valid ES256 JWT, and either passes
   through or redirects to `/auth/login`
@@ -113,7 +113,7 @@ Change status to **Ready** when:
   the static Docusaurus HTML. All non-`/anvil` requests are unaffected
 - **Validation:** Manual test: clear cookies, navigate to `/anvil/overview`,
   verify redirect. Set a valid cookie, verify page loads
-- **Files:** `apps/docs-site/middleware/index.ts`
+- **Files:** `apps/docs-site/middleware.ts`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** DOCSAUTH-006 (needs public key env var deployed)
@@ -122,7 +122,7 @@ Change status to **Ready** when:
 
 ### DOCSAUTH-003: Create /auth serverless functions
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Three Vercel serverless functions that handle the GitHub OAuth
   browser flow: login (redirect to GitHub), callback (exchange code via BAUTH
   API, set cookie), and logout (clear cookie)
@@ -147,7 +147,7 @@ Change status to **Ready** when:
 
 ### DOCSAUTH-005: Update vercel.json with rewrites
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Configure `vercel.json` to route `/anvil/*` through the edge
   function and `/auth/*` to the serverless functions
 - **Expected Outcome:** `vercel.json` contains the function config and rewrite
@@ -168,9 +168,9 @@ Change status to **Ready** when:
 - **Intent:** Register a GitHub OAuth App under EddaCraft org and store the
   client ID, client secret, and ES256 public key in Azure Key Vault
   (`kv-iac-anvil`)
-- **Expected Outcome:** Three new secrets exist in Key Vault:
+- **Expected Outcome:** Four new secrets exist in Key Vault:
   `github-oauth-client-id`, `github-oauth-client-secret`,
-  `license-public-key`
+  `license-public-key`, `docs-state-secret`
 - **Validation:** `az keyvault secret show --vault-name kv-iac-anvil --name
   github-oauth-client-id` returns a value
 - **Files:** None (manual Key Vault operation + GitHub OAuth App registration)
@@ -182,7 +182,7 @@ Change status to **Ready** when:
 
 ### DOCSAUTH-006: Add Pulumi env vars for docs-site and anvil-api
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Add Pulumi resources that read the GitHub OAuth secrets from Key
   Vault and set them as Vercel environment variables on the `anvil-api` and
   `docs-site` projects
@@ -201,7 +201,7 @@ Change status to **Ready** when:
 
 ### DOCSAUTH-007: Pending approval and error pages
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Handle edge cases in the auth flow: pending approval (403 from
   BAUTH), GitHub OAuth denied/cancelled, and expired sessions
 - **Expected Outcome:**
@@ -232,8 +232,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — BAUTH GitHub OAuth | 1 | Ready |
-| 2 — Edge Function + Auth Routes | 3 | Ready |
-| 3 — Infrastructure | 2 | Ready |
-| 4 — Error Handling + UX | 1 | Ready |
-| **Total** | **7** | **0/7 done** |
+| 1 — BAUTH GitHub OAuth | 1 | Done |
+| 2 — Middleware + Auth Routes | 3 | Done |
+| 3 — Infrastructure | 2 | 1/2 done (DOCSAUTH-004 manual) |
+| 4 — Error Handling + UX | 1 | Done |
+| **Total** | **7** | **6/7 done** |

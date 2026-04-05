@@ -10,7 +10,7 @@ CREATE TABLE beta_users (
   email      citext UNIQUE NOT NULL,
   name       text,
   status     text NOT NULL DEFAULT 'active'
-             CHECK (status IN ('active', 'suspended', 'banned')),
+             CHECK (status IN ('active', 'pending', 'suspended', 'banned')),
   notes      text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
