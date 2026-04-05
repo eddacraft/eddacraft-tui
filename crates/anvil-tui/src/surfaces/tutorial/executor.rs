@@ -2,9 +2,10 @@ use super::CommandOutput;
 
 /// Execute a shell command and capture its output.
 ///
-/// The command string is passed to `sh -c` so shell syntax (pipes,
-/// redirections, builtins) works without extra parsing. Commands are
-/// expected to complete quickly — this call blocks the calling thread.
+/// The command string is passed to the platform shell (`sh -c` on Unix,
+/// `cmd /C` on Windows) so shell syntax works without extra parsing.
+/// Commands are expected to complete quickly — this call blocks the
+/// calling thread.
 ///
 /// # Safety contract
 ///

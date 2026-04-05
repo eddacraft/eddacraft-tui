@@ -11,7 +11,10 @@ const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦
 
 pub fn render(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme: &EddaCraftTheme) {
     match state.phase {
-        DiscoveryPhase::Scanning { files_scanned, spinner_tick } => {
+        DiscoveryPhase::Scanning {
+            files_scanned,
+            spinner_tick,
+        } => {
             render_scanning(frame, area, files_scanned, spinner_tick, theme);
         }
         DiscoveryPhase::Results { selected } => {
@@ -44,7 +47,9 @@ fn render_scanning(
         Line::from(vec![
             Span::styled(
                 format!("{spinner_char} "),
-                Style::default().fg(theme.accent()).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 "Scanning project...",
@@ -88,11 +93,7 @@ fn render_results(
     frame.render_widget(block, area);
 
     // Reserve bottom row for summary line.
-    let chunks = Layout::vertical([
-        Constraint::Min(1),
-        Constraint::Length(1),
-    ])
-    .split(inner);
+    let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(inner);
 
     // Build findings list.
     let finding_lines: Vec<Line> = top
@@ -103,16 +104,17 @@ fn render_results(
             let (badge, badge_style) = match f.severity {
                 FindingSeverity::Error => (
                     " ERR ",
-                    Style::default().fg(theme.error()).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.error())
+                        .add_modifier(Modifier::BOLD),
                 ),
                 FindingSeverity::Warning => (
                     "WARN ",
-                    Style::default().fg(theme.warning()).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.warning())
+                        .add_modifier(Modifier::BOLD),
                 ),
-                FindingSeverity::Info => (
-                    "INFO ",
-                    Style::default().fg(theme.muted()),
-                ),
+                FindingSeverity::Info => ("INFO ", Style::default().fg(theme.muted())),
             };
 
             let location = match f.line {
@@ -153,10 +155,7 @@ fn render_results(
         })
         .collect();
 
-    frame.render_widget(
-        Paragraph::new(Text::from(finding_lines)),
-        chunks[0],
-    );
+    frame.render_widget(Paragraph::new(Text::from(finding_lines)), chunks[0]);
 
     // Summary line.
     let duration_s = results.duration_ms / 1000;
@@ -175,12 +174,7 @@ fn render_results(
     );
 }
 
-fn render_continue(
-    frame: &mut Frame,
-    area: Rect,
-    state: &DiscoveryState,
-    theme: &EddaCraftTheme,
-) {
+fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme: &EddaCraftTheme) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.success()))
@@ -208,10 +202,7 @@ fn render_continue(
 
     let lines = vec![
         Line::default(),
-        Line::from(Span::styled(
-            summary_line,
-            Style::default().fg(theme.fg()),
-        )),
+        Line::from(Span::styled(summary_line, Style::default().fg(theme.fg()))),
         Line::default(),
         Line::from(Span::styled(
             "Press Enter to continue",
@@ -344,8 +335,16 @@ mod tests {
         let buf1 = terminal.backend().buffer().clone();
 
         // The spinner character changes between ticks.
-        let s0: String = buf0.content().iter().map(|c| c.symbol()).collect();
-        let s1: String = buf1.content().iter().map(|c| c.symbol()).collect();
+        let s0: String = buf0
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        let s1: String = buf1
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
         assert_ne!(s0, s1, "spinner should visually change between ticks");
     }
 
@@ -363,4 +362,3 @@ mod tests {
             .unwrap();
     }
 }
-

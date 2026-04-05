@@ -20,9 +20,9 @@ pub const MAX_FINDINGS_SHOWN: usize = 5;
 /// work correctly: `Error > Warning > Info`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FindingSeverity {
-    Info,    // lowest — must be first for derive Ord
+    Info, // lowest — must be first for derive Ord
     Warning,
-    Error,   // highest — must be last for derive Ord
+    Error, // highest — must be last for derive Ord
 }
 
 /// Which scanner produced a finding.
@@ -71,8 +71,13 @@ impl ScanResults {
 /// Current phase of the discovery surface.
 #[derive(Debug, PartialEq)]
 pub enum DiscoveryPhase {
-    Scanning { files_scanned: usize, spinner_tick: usize },
-    Results { selected: usize },
+    Scanning {
+        files_scanned: usize,
+        spinner_tick: usize,
+    },
+    Results {
+        selected: usize,
+    },
     Continue,
 }
 
@@ -110,7 +115,11 @@ impl DiscoveryState {
     ///
     /// No-ops if not currently in the `Scanning` phase.
     pub fn update_progress(&mut self, files_scanned: usize) {
-        if let DiscoveryPhase::Scanning { files_scanned: ref mut count, .. } = self.phase {
+        if let DiscoveryPhase::Scanning {
+            files_scanned: ref mut count,
+            ..
+        } = self.phase
+        {
             *count = files_scanned;
         }
     }
@@ -136,7 +145,11 @@ impl DiscoveryState {
     /// Should be called once per render cycle (e.g. on a timer tick event).
     /// No-ops outside the `Scanning` phase.
     pub fn tick(&mut self) {
-        if let DiscoveryPhase::Scanning { ref mut spinner_tick, .. } = self.phase {
+        if let DiscoveryPhase::Scanning {
+            ref mut spinner_tick,
+            ..
+        } = self.phase
+        {
             *spinner_tick = spinner_tick.wrapping_add(1);
         }
     }
@@ -162,19 +175,17 @@ impl DiscoveryState {
     fn handle_results(&mut self, action: Action) {
         match action {
             Action::Up => {
-                if let DiscoveryPhase::Results { ref mut selected } = self.phase {
-                    if *selected > 0 {
-                        *selected -= 1;
-                    }
+                if let DiscoveryPhase::Results { ref mut selected } = self.phase
+                    && *selected > 0
+                {
+                    *selected -= 1;
                 }
             }
             Action::Down => {
                 if let DiscoveryPhase::Results { ref mut selected } = self.phase {
-                    let max = self
-                        .results
-                        .as_ref()
-                        .map(|r| r.top_findings(MAX_FINDINGS_SHOWN).len().saturating_sub(1))
-                        .unwrap_or(0);
+                    let max = self.results.as_ref().map_or(0, |r| {
+                        r.top_findings(MAX_FINDINGS_SHOWN).len().saturating_sub(1)
+                    });
                     if *selected < max {
                         *selected += 1;
                     }
@@ -282,7 +293,11 @@ mod tests {
 
     fn make_results(findings: Vec<Finding>) -> ScanResults {
         let files_scanned = 42;
-        ScanResults { findings, files_scanned, duration_ms: 500 }
+        ScanResults {
+            findings,
+            files_scanned,
+            duration_ms: 500,
+        }
     }
 
     // ── FindingSeverity ordering ─────────────────────────────────────────
@@ -343,7 +358,10 @@ mod tests {
         let state = DiscoveryState::new();
         assert!(matches!(
             state.phase,
-            DiscoveryPhase::Scanning { files_scanned: 0, spinner_tick: 0 }
+            DiscoveryPhase::Scanning {
+                files_scanned: 0,
+                spinner_tick: 0
+            }
         ));
         assert!(state.results.is_none());
         assert!(!state.should_quit);
@@ -358,14 +376,20 @@ mod tests {
         state.update_progress(42);
         assert!(matches!(
             state.phase,
-            DiscoveryPhase::Scanning { files_scanned: 42, .. }
+            DiscoveryPhase::Scanning {
+                files_scanned: 42,
+                ..
+            }
         ));
     }
 
     #[test]
     fn update_progress_noop_in_results_phase() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         assert!(matches!(state.phase, DiscoveryPhase::Results { .. }));
         state.update_progress(99);
         assert!(matches!(state.phase, DiscoveryPhase::Results { .. }));
@@ -379,19 +403,28 @@ mod tests {
         state.tick();
         assert!(matches!(
             state.phase,
-            DiscoveryPhase::Scanning { spinner_tick: 1, .. }
+            DiscoveryPhase::Scanning {
+                spinner_tick: 1,
+                ..
+            }
         ));
         state.tick();
         assert!(matches!(
             state.phase,
-            DiscoveryPhase::Scanning { spinner_tick: 2, .. }
+            DiscoveryPhase::Scanning {
+                spinner_tick: 2,
+                ..
+            }
         ));
     }
 
     #[test]
     fn tick_noop_in_results_phase() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Warning, "w")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Warning,
+            "w",
+        )]));
         state.tick(); // should not panic
         assert!(matches!(state.phase, DiscoveryPhase::Results { .. }));
     }
@@ -401,8 +434,14 @@ mod tests {
     #[test]
     fn set_results_with_findings_transitions_to_results() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 0 }));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 0 }
+        ));
         assert!(state.results.is_some());
     }
 
@@ -416,7 +455,10 @@ mod tests {
     #[test]
     fn set_results_noop_if_already_in_results() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         // Call again — should not overwrite or change phase
         state.set_results(make_results(vec![]));
         assert!(matches!(state.phase, DiscoveryPhase::Results { .. }));
@@ -435,7 +477,10 @@ mod tests {
     #[test]
     fn skip_scan_noop_after_results_set() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Warning, "w")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Warning,
+            "w",
+        )]));
         state.skip_scan();
         assert!(matches!(state.phase, DiscoveryPhase::Results { .. }));
     }
@@ -476,31 +521,55 @@ mod tests {
             make_finding(FindingSeverity::Info, "i"),
         ]));
 
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 0 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 0 }
+        ));
 
         state.handle_key(Action::Down);
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 1 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 1 }
+        ));
 
         state.handle_key(Action::Down);
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 2 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 2 }
+        ));
 
         state.handle_key(Action::Down); // at max
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 2 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 2 }
+        ));
 
         state.handle_key(Action::Up);
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 1 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 1 }
+        ));
 
         state.handle_key(Action::Up);
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 0 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 0 }
+        ));
 
         state.handle_key(Action::Up); // at min
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 0 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 0 }
+        ));
     }
 
     #[test]
     fn results_select_transitions_to_continue() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         state.handle_key(Action::Select);
         assert!(matches!(state.phase, DiscoveryPhase::Continue));
     }
@@ -508,7 +577,10 @@ mod tests {
     #[test]
     fn results_back_sets_wants_back() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         state.handle_key(Action::Back);
         assert!(state.wants_back);
     }
@@ -516,7 +588,10 @@ mod tests {
     #[test]
     fn results_quit_sets_should_quit() {
         let mut state = DiscoveryState::new();
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         state.handle_key(Action::Quit);
         assert!(state.should_quit);
     }
@@ -563,7 +638,10 @@ mod tests {
         let mut state = DiscoveryState::new();
         assert!(state.help_text().contains("skip"));
 
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         assert!(state.help_text().contains("navigate"));
 
         state.handle_key(Action::Select);
@@ -574,14 +652,20 @@ mod tests {
     fn reset_returns_to_initial_state() {
         let mut state = DiscoveryState::new();
         state.update_progress(50);
-        state.set_results(make_results(vec![make_finding(FindingSeverity::Error, "e")]));
+        state.set_results(make_results(vec![make_finding(
+            FindingSeverity::Error,
+            "e",
+        )]));
         state.should_quit = true;
         state.wants_continue = true;
         state.reset();
 
         assert!(matches!(
             state.phase,
-            DiscoveryPhase::Scanning { files_scanned: 0, spinner_tick: 0 }
+            DiscoveryPhase::Scanning {
+                files_scanned: 0,
+                spinner_tick: 0
+            }
         ));
         assert!(state.results.is_none());
         assert!(!state.should_quit);
@@ -604,7 +688,10 @@ mod tests {
             make_finding(FindingSeverity::Warning, "w1"),
             make_finding(FindingSeverity::Error, "e1"),
         ]));
-        assert!(matches!(state.phase, DiscoveryPhase::Results { selected: 0 }));
+        assert!(matches!(
+            state.phase,
+            DiscoveryPhase::Results { selected: 0 }
+        ));
 
         state.handle_key(Action::Down);
         state.handle_key(Action::Select);

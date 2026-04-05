@@ -269,59 +269,125 @@ mod tests {
     fn policy_steps_have_correct_commands() {
         let steps = policy_steps();
         // Introduction — no command
-        assert!(steps[0].command.is_none(), "Introduction should have no command");
+        assert!(
+            steps[0].command.is_none(),
+            "Introduction should have no command"
+        );
         // Create Policy Directory — has command
-        assert_eq!(steps[1].command.as_deref(), Some("mkdir -p .anvil/policies"));
+        assert_eq!(
+            steps[1].command.as_deref(),
+            Some("mkdir -p .anvil/policies")
+        );
         // Write Your First Policy — no command (informational)
-        assert!(steps[2].command.is_none(), "Write Your First Policy should have no command");
+        assert!(
+            steps[2].command.is_none(),
+            "Write Your First Policy should have no command"
+        );
         // Test the Policy — has command
         assert_eq!(steps[3].command.as_deref(), Some("anvil doctor"));
         // See the Policy Fire — no command (informational)
-        assert!(steps[4].command.is_none(), "See the Policy Fire should have no command");
+        assert!(
+            steps[4].command.is_none(),
+            "See the Policy Fire should have no command"
+        );
         // Customise Severity — no command (informational)
-        assert!(steps[5].command.is_none(), "Customise Severity should have no command");
+        assert!(
+            steps[5].command.is_none(),
+            "Customise Severity should have no command"
+        );
     }
 
     #[test]
     fn architecture_steps_have_correct_commands() {
         let steps = architecture_steps();
-        assert!(steps[0].command.is_none(), "Introduction should have no command");
-        assert!(steps[1].command.is_none(), "Choose a Template should have no command");
-        assert_eq!(steps[2].command.as_deref(), Some("anvil architecture compile"));
-        assert_eq!(steps[3].command.as_deref(), Some("anvil architecture validate"));
+        assert!(
+            steps[0].command.is_none(),
+            "Introduction should have no command"
+        );
+        assert!(
+            steps[1].command.is_none(),
+            "Choose a Template should have no command"
+        );
+        assert_eq!(
+            steps[2].command.as_deref(),
+            Some("anvil architecture compile")
+        );
+        assert_eq!(
+            steps[3].command.as_deref(),
+            Some("anvil architecture validate")
+        );
         // Validate Boundaries — informational (mentions running the command in the instruction
         // text but is not a direct executable step)
-        assert!(steps[4].command.is_none(), "Validate Boundaries should have no command");
+        assert!(
+            steps[4].command.is_none(),
+            "Validate Boundaries should have no command"
+        );
         assert!(steps[5].command.is_none(), "Summary should have no command");
     }
 
     #[test]
     fn drift_steps_have_correct_commands() {
         let steps = drift_steps();
-        assert!(steps[0].command.is_none(), "Introduction should have no command");
-        assert_eq!(steps[1].command.as_deref(), Some("anvil drift capture --name baseline"));
-        assert_eq!(steps[2].command.as_deref(), Some("anvil drift capture --name current"));
-        assert_eq!(steps[3].command.as_deref(), Some("anvil drift compare baseline current"));
-        assert!(steps[4].command.is_none(), "Inspect Changes should have no command");
+        assert!(
+            steps[0].command.is_none(),
+            "Introduction should have no command"
+        );
+        assert_eq!(
+            steps[1].command.as_deref(),
+            Some("anvil drift capture --name baseline")
+        );
+        assert_eq!(
+            steps[2].command.as_deref(),
+            Some("anvil drift capture --name current")
+        );
+        assert_eq!(
+            steps[3].command.as_deref(),
+            Some("anvil drift compare baseline current")
+        );
+        assert!(
+            steps[4].command.is_none(),
+            "Inspect Changes should have no command"
+        );
         assert!(steps[5].command.is_none(), "Summary should have no command");
     }
 
     #[test]
     fn ci_steps_have_correct_commands() {
         let steps = ci_steps();
-        assert!(steps[0].command.is_none(), "Introduction should have no command");
-        assert!(steps[1].command.is_none(), "Install Git Hooks should have no command");
-        assert!(steps[2].command.is_none(), "Add CI Workflow should have no command");
-        assert!(steps[3].command.is_none(), "Configure Exit Codes should have no command");
+        assert!(
+            steps[0].command.is_none(),
+            "Introduction should have no command"
+        );
+        assert!(
+            steps[1].command.is_none(),
+            "Install Git Hooks should have no command"
+        );
+        assert!(
+            steps[2].command.is_none(),
+            "Add CI Workflow should have no command"
+        );
+        assert!(
+            steps[3].command.is_none(),
+            "Configure Exit Codes should have no command"
+        );
         assert_eq!(steps[4].command.as_deref(), Some("anvil status --json"));
         assert!(steps[5].command.is_none(), "Summary should have no command");
     }
 
     #[test]
     fn all_steps_start_with_no_output() {
-        for steps in [policy_steps(), architecture_steps(), drift_steps(), ci_steps()] {
+        for steps in [
+            policy_steps(),
+            architecture_steps(),
+            drift_steps(),
+            ci_steps(),
+        ] {
             for step in &steps {
-                assert!(step.output.is_none(), "step '{}' should have no output initially", step.title);
+                assert!(
+                    step.output.is_none(),
+                    "step '{}' should have no output initially",
+                    step.title
+                );
             }
         }
     }

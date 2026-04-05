@@ -214,10 +214,10 @@ impl TutorialState {
             Action::Toggle => {
                 // Toggle (space) only advances informational steps — it does not
                 // execute commands, preventing accidental shell invocation.
-                if let Some(step) = self.steps.get(self.current_step) {
-                    if step.command.is_none() {
-                        self.advance_step();
-                    }
+                if let Some(step) = self.steps.get(self.current_step)
+                    && step.command.is_none()
+                {
+                    self.advance_step();
                 }
             }
             Action::Back => {
@@ -481,7 +481,10 @@ mod tests {
         // (only one step in this state)
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
-        let output = state.steps[0].output.as_ref().expect("output should be present");
+        let output = state.steps[0]
+            .output
+            .as_ref()
+            .expect("output should be present");
         assert!(output.success);
     }
 
@@ -496,7 +499,10 @@ mod tests {
         assert_eq!(state.current_step, 0);
         assert!(!state.steps[0].completed);
         assert_eq!(state.phase, TutorialPhase::Running);
-        let output = state.steps[0].output.as_ref().expect("output should be present");
+        let output = state.steps[0]
+            .output
+            .as_ref()
+            .expect("output should be present");
         assert!(!output.success);
     }
 

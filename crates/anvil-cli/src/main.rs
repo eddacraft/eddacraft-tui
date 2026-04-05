@@ -478,7 +478,11 @@ mod tests {
     fn check_auth_does_not_bypass_without_anvil_dev() {
         // Env var absent — auth still required without credentials.
         temp_env::with_vars(
-            [("ANVIL_DEV", None), ("ANVIL_LICENSE", None), ("XDG_CONFIG_HOME", Some("/nonexistent/path"))],
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
+            ],
             || {
                 assert_eq!(check_auth(), Err(EXIT_AUTH_REQUIRED));
             },

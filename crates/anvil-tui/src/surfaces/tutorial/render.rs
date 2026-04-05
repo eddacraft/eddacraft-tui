@@ -18,16 +18,17 @@ fn strip_ansi(s: &str) -> String {
     while let Some(ch) = chars.next() {
         if ch == '\x1b' {
             // Consume the CSI sequence: ESC [ ... <final byte 0x40–0x7E>
-            if let Some(next) = chars.next() {
-                if next == '[' {
-                    for c in chars.by_ref() {
-                        if c.is_ascii() && (0x40..=0x7E).contains(&(c as u8)) {
-                            break;
-                        }
+            if let Some(next) = chars.next()
+                && next == '['
+            {
+                for c in chars.by_ref() {
+                    if c.is_ascii() && (0x40..=0x7E).contains(&(c as u8)) {
+                        break;
                     }
                 }
-                // else: non-CSI escape, skip the single char after ESC
             }
+            // Otherwise, if a character follows ESC, it is consumed as a
+            // non-CSI escape introducer.
         } else {
             out.push(ch);
         }
@@ -169,11 +170,7 @@ fn render_step_content(
         return;
     };
 
-    let border_color = if step
-        .output
-        .as_ref()
-        .is_some_and(|o| !o.success)
-    {
+    let border_color = if step.output.as_ref().is_some_and(|o| !o.success) {
         theme.error()
     } else {
         theme.accent()
@@ -208,13 +205,19 @@ fn render_step_content(
         } else {
             theme.error()
         };
-        let status_label = if output.success { "✓ success" } else { "✗ failed" };
+        let status_label = if output.success {
+            "✓ success"
+        } else {
+            "✗ failed"
+        };
         let exit_label = output
             .exit_code
             .map_or_else(|| " (no exit code)".to_string(), |c| format!(" (exit {c})"));
         lines.push(Line::from(Span::styled(
             format!("{status_label}{exit_label}"),
-            Style::default().fg(status_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(status_color)
+                .add_modifier(Modifier::BOLD),
         )));
 
         if !output.stdout.is_empty() {
