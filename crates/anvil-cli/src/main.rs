@@ -1,6 +1,7 @@
 mod auth;
 mod commands;
 mod output;
+mod services;
 mod tui;
 mod util;
 

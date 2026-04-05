@@ -1,26 +1,25 @@
 use std::io::IsTerminal;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
-use anyhow::Context;
 use eddacraft_tui::theme::EddaCraftTheme;
-use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
+use crate::services::first_run::{
+    create_first_run_marker, first_run_marker_path, is_first_run, should_skip_welcome,
+};
 use crate::tui::SurfaceExit;
 
 #[derive(Debug, clap::Args)]
 pub struct WelcomeArgs {}
 
-#[derive(Debug, Serialize, Deserialize)]
-struct FirstRunMarker {
-    created_at: String,
-    version: String,
-}
-
 pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let marker_path = first_run_marker_path()?;
+
+    // Env-var bypass: create marker silently and exit.
+    if should_skip_welcome() {
+        create_first_run_marker(&marker_path)?;
+        return Ok(());
+    }
 
     if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain_welcome();
@@ -31,15 +30,36 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut terminal = crate::tui::setup_terminal()?;
     let theme = EddaCraftTheme;
 
-    let result = run_welcome_hub(&mut terminal, &theme);
+    let result = if is_first_run() {
+        run_onboarding_placeholder(&mut terminal, &theme)
+    } else {
+        Ok(())
+    }
+    .and_then(|()| run_welcome_hub(&mut terminal, &theme));
 
     // Always teardown terminal, even on error.
-    // Teardown runs before propagating the hub error so the terminal
-    // is always restored, but we preserve the hub error when both fail.
     let teardown_result = crate::tui::teardown_terminal(&mut terminal);
     result.or(teardown_result)?;
     create_first_run_marker(&marker_path)?;
 
+    Ok(())
+}
+
+/// Placeholder for the onboarding flow (WELCOME-002 will replace this).
+///
+/// Shows a brief loading message, then falls through to the welcome hub.
+fn run_onboarding_placeholder(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    crate::tui::draw_loading(
+        terminal,
+        "Welcome",
+        "Onboarding coming soon — proceeding to welcome hub...",
+        theme,
+    )?;
+    // Brief pause so the user can read the message.
+    std::thread::sleep(std::time::Duration::from_secs(1));
     Ok(())
 }
 
@@ -158,34 +178,6 @@ fn open_docs_message() -> String {
     }
 }
 
-fn first_run_marker_path() -> anyhow::Result<PathBuf> {
-    Ok(crate::util::workspace_root()?
-        .join(".anvil")
-        .join("first-run"))
-}
-
-fn create_first_run_marker(path: &Path) -> anyhow::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).context("failed to create .anvil directory")?;
-    }
-
-    let marker = FirstRunMarker {
-        created_at: format!(
-            "{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        ),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-    };
-
-    let json = serde_json::to_string_pretty(&marker)?;
-    crate::util::atomic_write(path, json.as_bytes()).context("failed to write first-run marker")?;
-
-    Ok(())
-}
-
 fn print_plain_welcome() {
     println!();
     println!("  Welcome to Anvil");
@@ -204,29 +196,6 @@ fn print_plain_welcome() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn first_run_marker_path_is_anchored() {
-        let path = first_run_marker_path().unwrap();
-        assert!(
-            path.is_absolute(),
-            "marker path should be absolute, got: {path:?}"
-        );
-        assert!(path.ends_with(".anvil/first-run"));
-    }
-
-    #[test]
-    fn create_marker_writes_valid_json() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("first-run");
-
-        create_first_run_marker(&path).unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-        let marker: FirstRunMarker = serde_json::from_str(&content).unwrap();
-        assert_eq!(marker.version, env!("CARGO_PKG_VERSION"));
-        assert!(!marker.created_at.is_empty());
-    }
 
     #[test]
     fn open_docs_message_does_not_panic() {
