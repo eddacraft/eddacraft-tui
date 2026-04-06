@@ -34,7 +34,8 @@ undefined layers, and incomplete definitions before analysis runs.
 
 - `opa-architecture-integration` — Architecture YAML schema and parser
 - `architecture-safety` — Layer definitions and baseline usage
-- `core/src/config/` — Configuration loading
+- `crates/anvil-kernel` — kernel architecture config loading (KERN-030)
+- `crates/anvil-cli` — Rust CLI commands
 
 **Exposes:**
 
@@ -58,52 +59,48 @@ undefined layers, and incomplete definitions before analysis runs.
 
 - **Intent:** Define semantic rules for architecture config integrity
 - **Expected Outcome:** Validator detects overlaps, duplicates, and unknowns
-- **Scope:** `core/src/architecture/`
+- **Scope:** `crates/anvil-kernel/src/policy/config.rs` (extends KERN-030 loader)
 - **Non-scope:** Gate evaluation
 - **Files:**
-  - `core/src/architecture/config-validator.ts`
-  - `core/src/architecture/config-validator.test.ts`
+  - `crates/anvil-kernel/src/policy/config_validator.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** —
-- **Validation:** `nx test core --testNamePattern="ArchitectureConfigValidator"`
+- **Validation:** `cargo test -p anvil-kernel -- architecture_config_validator`
 - **Confidence:** high
 
 ### ARCHCFG-002: Diagnostic mapping
 
 - **Intent:** Surface validation errors with clear configuration locations
 - **Expected Outcome:** Errors map to section keys and rule ids
-- **Scope:** `core/src/architecture/`
+- **Scope:** `crates/anvil-kernel/src/policy/config_diagnostics.rs`
 - **Non-scope:** CLI presentation
 - **Files:**
-  - `core/src/architecture/config-diagnostics.ts`
-  - `core/src/architecture/config-diagnostics.test.ts`
+  - `crates/anvil-kernel/src/policy/config_diagnostics.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** ARCHCFG-001
-- **Validation:** `nx test core --testNamePattern="ArchitectureConfigDiagnostics"`
+- **Validation:** `cargo test -p anvil-kernel -- architecture_config_diagnostics`
 - **Confidence:** medium
 
 ### ARCHCFG-003: CLI validation command
 
 - **Intent:** Provide a direct validation entry point for users and CI
 - **Expected Outcome:** `anvil architecture validate` returns structured output
-- **Scope:** `cli/src/commands/`
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
 - **Non-scope:** IDE integration
 - **Files:**
-  - `cli/src/commands/architecture-validate.ts`
-  - `cli/src/commands/architecture-validate.test.ts`
+  - `crates/anvil-cli/src/commands/architecture.rs` (validate subcommand, including colocated tests)
 - **Dependencies:** ARCHCFG-001, ARCHCFG-002
-- **Validation:** `nx test cli --testNamePattern="architecture validate"`
+- **Validation:** `cargo test -p anvil-cli -- architecture_validate`
 - **Confidence:** medium
 
 ### ARCHCFG-004: Gate preflight integration
 
 - **Intent:** Prevent architecture checks from running on invalid config
 - **Expected Outcome:** Gate preflight blocks with validation report
-- **Scope:** `core/src/gate/`
+- **Scope:** `crates/anvil-cli/src/commands/gate.rs`
 - **Non-scope:** Architecture analysis logic
 - **Files:**
-  - `core/src/gate/checks/architecture-config-validation.check.ts`
-  - `core/src/gate/checks/architecture-config-validation.check.test.ts`
+  - `crates/anvil-cli/src/commands/gate.rs` (preflight integration, including colocated tests)
 - **Dependencies:** ARCHCFG-001
-- **Validation:** `nx test core --testNamePattern="ArchitectureConfigPreflight"`
+- **Validation:** `cargo test -p anvil-cli -- architecture_config_preflight`
 - **Confidence:** medium
 
 ### ARCHCFG-005: Documentation and examples

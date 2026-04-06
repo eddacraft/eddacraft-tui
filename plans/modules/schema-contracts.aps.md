@@ -45,7 +45,8 @@ are handled.
 **Depends on:**
 
 - `packages/anvil/contracts` — Zod schema definitions
-- `crates/anvil-kernel-types` — Rust type definitions
+- `crates/anvil-kernel-types` — Rust type definitions (serde-parity with Zod)
+- `crates/anvil-kernel` — kernel runtime (watcher/parser/graph/policy engine)
 - `packages/anvil/core` — schema validation, JSON schema generation
 
 **Exposes:**
@@ -60,9 +61,50 @@ are handled.
 
 ## Tasks
 
-- SCHEMA-001: Schema evolution policy and breaking change definition
-- SCHEMA-002: Cross-language type parity validation framework
-- SCHEMA-003: Golden hash management automation
-- SCHEMA-004: Schema version compatibility matrix
-- SCHEMA-005: Contract testing (TS ↔ Rust output parity)
-- SCHEMA-006: Breaking change migration guide template
+### SCHEMA-001: Schema evolution policy and breaking change definition
+
+- **Intent:** Define what constitutes a breaking change in schemas
+- **Expected Outcome:** Policy document detailing TS Zod ↔ Rust serde parity rules
+- **Scope:** `packages/anvil/contracts/src/` and `crates/anvil-kernel-types/src/`
+- **Validation:** Policy documented in docs/guides/schema-evolution.md
+- **Confidence:** high
+
+### SCHEMA-002: Cross-language type parity validation framework
+
+- **Intent:** Validate that TypeScript Zod types and Rust serde types produce identical outputs
+- **Expected Outcome:** Framework runs both parsers on sample data, diffs results
+- **Scope:** `packages/anvil/core/src/validation/parity.ts` and `crates/anvil-kernel-types/tests/`
+- **Validation:** `cargo test -p anvil-kernel-types -- parity`
+- **Confidence:** high
+
+### SCHEMA-003: Golden hash management automation
+
+- **Intent:** Automate golden hash updates when schemas change
+- **Expected Outcome:** `cargo test` and `pnpm test` update hashes atomically
+- **Scope:** Build scripts in both workspaces
+- **Validation:** `cargo test` with --locked flag passes
+- **Confidence:** high
+
+### SCHEMA-004: Schema version compatibility matrix
+
+- **Intent:** Track which schema versions are compatible with which kernel versions
+- **Expected Outcome:** Matrix documented; migration paths defined
+- **Scope:** `crates/anvil-kernel-types/src/version.rs`
+- **Validation:** Compatibility matrix in docs/guides/schema-compatibility.md
+- **Confidence:** high
+
+### SCHEMA-005: Contract testing (TS ↔ Rust output parity)
+
+- **Intent:** Test that TS and Rust types serialise/deserialise identically
+- **Expected Outcome:** Contract tests pass for all shared types
+- **Scope:** `crates/anvil-kernel-types/tests/parity.rs`
+- **Validation:** `cargo test -p anvil-kernel-types`
+- **Confidence:** high
+
+### SCHEMA-006: Breaking change migration guide template
+
+- **Intent:** Standardise migration guides when schemas change
+- **Expected Outcome:** Template available in docs/guides/
+- **Scope:** `docs/guides/schema-migration-template.md`
+- **Validation:** Template exists and follows format
+- **Confidence:** high

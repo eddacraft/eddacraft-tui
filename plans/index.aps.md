@@ -86,11 +86,12 @@ backlog (complete) as tracked sub-modules.
 Rust kernel for structural graph analysis (KERN), performance-critical check
 ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
 TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard rendering.
+KERN is 22/25 done, RENG is complete, RCLI is in progress.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 32/62 | KERN, RATS, PORT |
@@ -99,9 +100,9 @@ TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard re
 | [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 | [tui-polish](./modules/tui-polish.aps.md) | POLISH | Ready | 0/7 | RCLI, RATS |
 
-The TypeScript CLI stays — the Rust kernel adds structural graph analysis as a
+The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
-surfaces move to Ratatui (RATS), and existing Ink surfaces are ported
+surfaces use Ratatui (RATS), and existing Ink surfaces are ported
 systematically (PORT). See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan.
@@ -162,18 +163,20 @@ provide. See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 ### Policy Governance (Draft/Ready)
 
 Organisational policy governance: multi-level inheritance, lifecycle management,
-compliance reporting, federation, and agent orchestration.
+compliance reporting, federation, and agent orchestration. Policy governance
+tasks now reference Rust crates (anvil-kernel, anvil-policy, anvil-cli) as the
+implementation targets.
 
 | Module | Scope | Status | Dependencies |
 | ------ | ----- | ------ | ------------ |
-| [opa-enhancements](./modules/opa-enhancements.aps.md) | OPAE | Draft | opa-architecture-integration, architecture-safety, tui |
-| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md) | ORGHIER | Draft | opa-architecture-integration, policy-pack-validation, opa-enhancements |
-| [policy-lifecycle](./modules/policy-lifecycle.aps.md) | POLLC | Draft | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
-| [compliance-reporting](./modules/compliance-reporting.aps.md) | COMPLY | Draft | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
-| [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
-| [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration |
-| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety |
-| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
+| [opa-enhancements](./modules/opa-enhancements.aps.md) | OPAE | Draft | opa-architecture-integration, crates/anvil-kernel, crates/anvil-tui |
+| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md) | ORGHIER | Draft | opa-architecture-integration, policy-pack-validation, opa-enhancements, crates/anvil-policy |
+| [policy-lifecycle](./modules/policy-lifecycle.aps.md) | POLLC | Draft | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy, crates/anvil-policy |
+| [compliance-reporting](./modules/compliance-reporting.aps.md) | COMPLY | Draft | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions, crates/anvil-policy |
+| [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation, crates/anvil-policy |
+| [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration, crates/anvil-policy |
+| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety, crates/anvil-kernel |
+| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation, crates/anvil-kernel |
 | [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
 | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
 | [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | compliance-reporting, policy-lifecycle, eval-harness-integration |
@@ -195,13 +198,13 @@ when specific work is identified.
 
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
-| [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api, beta-auth-streamline |
-| [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, dependency check |
-| [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 6 | CI pipeline, all packages |
+| [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
+| [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
+| [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
+| [release-management](./modules/release-management.aps.md) | RELMGMT | 6 | CI pipeline, all packages and crates |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (6 done) | docs-site, feature modules — **In Progress** |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
-| [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7 | eddacraft-tui, RATS (done) |
+| [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7 (3 done) | eddacraft-tui, RATS (done) — **In Progress** |
 
 ### Test Quality (Ready/Draft)
 
@@ -400,66 +403,57 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 
 #### OPA Enhancements
 
-<!-- REVIEW(ADR-011): OPAE tasks reference Ink paths — Ratatui is now implemented.
-     When OPAE moves to Ready, remap to crates/anvil-tui/src/surfaces/ and
-     crates/anvil-cli/src/commands/ (Rust CLI exists).
+<!-- REVIEW(post-rust): OPAE tasks now reference Rust paths. When OPAE moves to Ready,
+     implement in Rust crates (anvil-kernel, anvil-policy, anvil-cli, anvil-tui).
 
-     Ink TUI targets → Ratatui equivalents:
-       OPAE-005  Interactive architecture wizard → RATS-004 or PORT-020
-       OPAE-014  Interactive debugger TUI → new Ratatui surface
-       OPAE-019  Impact visualisation → Ratatui surface
-       OPAE-023  Policy creation wizard → Ratatui surface
-       OPAE-032  Metrics dashboard TUI → Ratatui surface
-       OPAE-033  Team leaderboards → Ratatui surface
+     TypeScript → Rust path mapping:
+       core/src/architecture/  → crates/anvil-kernel/src/policy/ or crates/anvil-architecture/src/
+       core/src/gate/          → crates/anvil-policy/src/
+       cli/src/commands/       → crates/anvil-cli/src/commands/
+       cli/src/tui/            → crates/anvil-tui/src/surfaces/
 
-     Watch mode items — KERN watch + RATS-002 (done) may subsume:
-       OPAE-015  Policy watch mode
-       OPAE-016  Architecture watch mode
-       OPAE-017  Watch mode performance
+     TUI items use Ratatui, not Ink/React. See ADR-011.
 
-     CLI items — update paths to crates/anvil-cli/src/commands/:
-       OPAE-011  Policy browse command
-       OPAE-013  Policy debugger foundation
-       OPAE-027  Exception CLI commands (already correct) -->
+     Watch mode may be subsumed by KERN watch + RATS-002 (done). -->
 
 | Task     | Module | Description                             | Status | Priority | Review |
 | -------- | ------ | --------------------------------------- | ------ | -------- | ------ |
-| OPAE-001 | opae   | Enhanced architecture YAML schema       | Draft  | high     | — |
-| OPAE-002 | opae   | Module boundary definitions             | Draft  | high     | — |
-| OPAE-003 | opae   | File-level import rules                 | Draft  | high     | — |
-| OPAE-004 | opae   | Package import restrictions             | Draft  | high     | — |
-| OPAE-005 | opae   | Interactive architecture wizard         | Draft  | medium   | ADR-011: TUI → absorb into RATS-004/PORT-020 |
-| OPAE-006 | opae   | Policy library infrastructure           | Draft  | high     | — |
-| OPAE-007 | opae   | Security policy pack (8 policies)       | Draft  | high     | — |
-| OPAE-008 | opae   | Quality policy pack (6 policies)        | Draft  | high     | — |
-| OPAE-009 | opae   | Scope policy pack (4 policies)          | Draft  | high     | — |
-| OPAE-010 | opae   | Compliance policy pack (5 policies)     | Draft  | medium   | — |
-| OPAE-011 | opae   | Policy browse command                   | Draft  | high     | ADR-011: path cli/src/ → apps/anvil-cli/ |
-| OPAE-012 | opae   | Enhanced violation messages             | Draft  | high     | — |
-| OPAE-013 | opae   | Policy debugger foundation              | Draft  | medium   | ADR-011: path cli/src/ → apps/anvil-cli/ |
-| OPAE-014 | opae   | Interactive debugger TUI                | Draft  | medium   | ADR-011: Ink → Ratatui surface |
-| OPAE-015 | opae   | Policy watch mode                       | Draft  | medium   | ADR-011: subsumed by KERN watch + RATS-002 |
-| OPAE-016 | opae   | Architecture watch mode                 | Draft  | medium   | ADR-011: subsumed by KERN watch + RATS-002 |
-| OPAE-017 | opae   | Watch mode performance optimisation     | Draft  | medium   | ADR-011: subsumed by KERN (14x speedup) |
-| OPAE-018 | opae   | Historical PR analysis                  | Draft  | medium   | — |
-| OPAE-019 | opae   | Impact visualisation                    | Draft  | medium   | ADR-011: Ink → Ratatui surface |
-| OPAE-020 | opae   | Impact simulation                       | Draft  | medium   | — |
-| OPAE-021 | opae   | Policy description parser (NLP)         | Draft  | low      | — |
-| OPAE-022 | opae   | YAML generation from NLP                | Draft  | low      | — |
-| OPAE-023 | opae   | Policy creation wizard                  | Draft  | low      | ADR-011: Ink → Ratatui surface |
-| OPAE-024 | opae   | Exception request system                | Draft  | high     | — |
-| OPAE-025 | opae   | Exception approval workflow             | Draft  | high     | — |
-| OPAE-026 | opae   | Audit trail                             | Draft  | high     | — |
-| OPAE-027 | opae   | Exception CLI commands                  | Draft  | high     | — |
-| OPAE-028 | opae   | GitHub PR comments                      | Draft  | high     | — |
-| OPAE-029 | opae   | GitLab MR comments                      | Draft  | high     | — |
-| OPAE-030 | opae   | Inline annotations                      | Draft  | medium   | — |
-| OPAE-031 | opae   | Compliance metrics collection           | Draft  | high     | — |
-| OPAE-032 | opae   | Metrics dashboard TUI                   | Draft  | medium   | ADR-011: Ink → Ratatui surface |
-| OPAE-033 | opae   | Team leaderboards                       | Draft  | medium   | ADR-011: Ink → Ratatui surface |
-| OPAE-034 | opae   | Organisation policy bundles             | Draft  | high     | — |
-| OPAE-035 | opae   | Bundle versioning                       | Draft  | high     | — |
-| OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   | — |
+| OPAE-001 | opae   | Enhanced architecture YAML schema       | Draft  | high     | Rust: crates/anvil-kernel |
+| OPAE-002 | opae   | Module boundary definitions             | Draft  | high     | Rust: crates/anvil-architecture |
+| OPAE-003 | opae   | File-level import rules                 | Draft  | high     | Rust: crates/anvil-kernel |
+| OPAE-004 | opae   | Package import restrictions             | Draft  | high     | Rust: crates/anvil-kernel |
+| OPAE-005 | opae   | Interactive architecture wizard         | Draft  | medium   | Rust: Ratatui surface |
+| OPAE-006 | opae   | Policy library infrastructure           | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-007 | opae   | Security policy pack (8 policies)       | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-008 | opae   | Quality policy pack (6 policies)        | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-009 | opae   | Scope policy pack (4 policies)          | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-010 | opae   | Compliance policy pack (5 policies)     | Draft  | medium   | Rust: crates/anvil-policy |
+| OPAE-011 | opae   | Policy browse command                   | Draft  | high     | Rust: crates/anvil-cli |
+| OPAE-012 | opae   | Enhanced violation messages             | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-013 | opae   | Policy debugger foundation              | Draft  | medium   | Rust: crates/anvil-cli |
+| OPAE-014 | opae   | Interactive debugger TUI                | Draft  | medium   | Rust: Ratatui surface |
+| OPAE-015 | opae   | Policy watch mode                       | Draft  | medium   | May subsume by KERN watch |
+| OPAE-016 | opae   | Architecture watch mode                 | Draft  | medium   | May subsume by KERN watch |
+| OPAE-017 | opae   | Watch mode performance optimisation     | Draft  | medium   | KERN done (14x speedup) |
+| OPAE-018 | opae   | Historical PR analysis                  | Draft  | medium   | Rust: crates/anvil-policy |
+| OPAE-019 | opae   | Impact visualisation                    | Draft  | medium   | Rust: Ratatui surface |
+| OPAE-020 | opae   | Impact simulation                       | Draft  | medium   | Rust: crates/anvil-policy |
+| OPAE-021 | opae   | Policy description parser (NLP)         | Draft  | low      | Rust: crates/anvil-policy |
+| OPAE-022 | opae   | YAML generation from NLP                | Draft  | low      | Rust: crates/anvil-policy |
+| OPAE-023 | opae   | Policy creation wizard                  | Draft  | low      | Rust: Ratatui surface |
+| OPAE-024 | opae   | Exception request system                | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-025 | opae   | Exception approval workflow             | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-026 | opae   | Audit trail                             | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-027 | opae   | Exception CLI commands                  | Draft  | high     | Rust: crates/anvil-cli |
+| OPAE-028 | opae   | GitHub PR comments                      | Draft  | high     | Rust: crates/anvil-cli |
+| OPAE-029 | opae   | GitLab MR comments                      | Draft  | high     | Rust: crates/anvil-cli |
+| OPAE-030 | opae   | Inline annotations                      | Draft  | medium   | Rust: crates/anvil-policy |
+| OPAE-031 | opae   | Compliance metrics collection           | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-032 | opae   | Metrics dashboard TUI                   | Draft  | medium   | Rust: Ratatui surface |
+| OPAE-033 | opae   | Team leaderboards                       | Draft  | medium   | Rust: Ratatui surface |
+| OPAE-034 | opae   | Organisation policy bundles             | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-035 | opae   | Bundle versioning                       | Draft  | high     | Rust: crates/anvil-policy |
+| OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   | Rust: crates/anvil-policy |
 
 #### OPA Agent Orchestration
 

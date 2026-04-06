@@ -45,12 +45,13 @@ EddaCraft projects from using it.
 
 **Depends on:**
 
-- `crates/eddacraft-tui` — current code to extract
+- `eddacraft/eddacraft` — current source repository for the extracted
+  `eddacraft-tui` crate
 - RATS (done) — the Ratatui surfaces that consume eddacraft-tui
 
 **Exposes:**
 
-- Standalone eddacraft-tui crate
+- Standalone eddacraft-tui crate (external repo: eddacraft/eddacraft)
 - Published crate on crates.io
 - Widget catalogue documentation
 

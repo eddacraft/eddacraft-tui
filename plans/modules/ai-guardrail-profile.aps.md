@@ -37,6 +37,8 @@ This gives teams using external AI tools a predictable safety harness.
 - `policy-pack-validation` — Policy validation preflight
 - `architecture-config-validation` — Config validation preflight
 - `llms-txt-export` — Constraint export for AI tools
+- `crates/anvil-kernel` — kernel checks (secret scan, anti-pattern, command safety, architecture invariants)
+- `crates/anvil-cli` — Rust CLI `--profile ai` flag
 
 **Exposes:**
 
@@ -59,39 +61,37 @@ This gives teams using external AI tools a predictable safety harness.
 
 - **Intent:** Define the AI guardrail profile and its default checks
 - **Expected Outcome:** Profile describes strict rules and required inputs
-- **Scope:** `core/src/gate/`
-- **Non-scope:** CLI integration
+- **Scope:** `crates/anvil-cli/src/commands/gate.rs` (profile integration)
+- **Non-scope:** IDE integration and external AI tooling
 - **Files:**
-  - `core/src/gate/profiles/ai-guardrail-profile.ts`
-  - `core/src/gate/profiles/ai-guardrail-profile.test.ts`
+  - `crates/anvil-cli/src/commands/gate.rs` (ai profile config, including colocated tests)
 - **Dependencies:** —
-- **Validation:** `nx test core --testNamePattern="ai-guardrail profile"`
+- **Validation:** `cargo test -p anvil-cli -- ai_guardrail_profile`
 - **Confidence:** medium
 
 ### AIGUARD-002: Structured diagnostics format
 
 - **Intent:** Standardise diagnostics across policy, architecture, and rules
 - **Expected Outcome:** Consistent schema with remediation hints
-- **Scope:** `core/src/diagnostics/`
+- **Scope:** `crates/anvil-kernel-types/src/diagnostics.rs`
 - **Non-scope:** CLI rendering details
 - **Files:**
-  - `core/src/diagnostics/diagnostic-schema.ts`
-  - `core/src/diagnostics/diagnostic-schema.test.ts`
+  - `crates/anvil-kernel-types/src/diagnostics.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** AIGUARD-001
-- **Validation:** `nx test core --testNamePattern="diagnostic schema"`
+- **Validation:** `cargo test -p anvil-kernel-types -- diagnostic_schema`
 - **Confidence:** medium
 
 ### AIGUARD-003: CLI profile integration
 
 - **Intent:** Expose the profile via CLI flags
 - **Expected Outcome:** `anvil gate --profile ai` runs guardrail profile
-- **Scope:** `cli/src/commands/`
+- **Scope:** `crates/anvil-cli/src/commands/gate.rs`
 - **Non-scope:** IDE integration
 - **Files:**
-  - `cli/src/commands/gate.ts`
-  - `cli/src/commands/gate.test.ts`
+  - `crates/anvil-cli/src/commands/gate.rs` (profile flag)
+  - `crates/anvil-cli/src/commands/gate_test.rs`
 - **Dependencies:** AIGUARD-001, AIGUARD-002
-- **Validation:** `nx test cli --testNamePattern="gate profile"`
+- **Validation:** `cargo test -p anvil-cli -- gate_profile`
 - **Confidence:** medium
 
 ### AIGUARD-004: Documentation and examples
