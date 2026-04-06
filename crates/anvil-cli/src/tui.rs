@@ -119,6 +119,138 @@ fn surface_loop<S: Surface>(
     }
 }
 
+/// Run the tutorial surface with optional file-watcher integration.
+/// When `file_rx` is `Some`, file-change events trigger automatic
+/// re-verification on watched steps (WELCOME-013).
+pub fn run_tutorial(
+    mut state: anvil_tui::surfaces::tutorial::TutorialState,
+    file_rx: Option<&Receiver<anvil_kernel::watcher::events::ChangeBatch>>,
+) -> anyhow::Result<anvil_tui::surfaces::tutorial::TutorialState> {
+    terminal::enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    let theme = EddaCraftTheme;
+
+    let result = tutorial_loop(&mut terminal, &mut state, file_rx, &theme);
+
+    terminal::disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
+    result.map(|_| state)
+}
+
+fn tutorial_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    file_rx: Option<&Receiver<anvil_kernel::watcher::events::ChangeBatch>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    loop {
+        // Drain file-change events before drawing so changes appear immediately.
+        if let Some(rx) = file_rx {
+            while let Ok(batch) = rx.try_recv() {
+                let paths: Vec<std::path::PathBuf> =
+                    batch.changes.iter().map(|c| c.path.clone()).collect();
+                state.handle_file_change(&paths);
+            }
+        }
+
+        terminal.draw(|frame| {
+            let area = frame.area();
+            let content =
+                render_shell(frame, area, state.surface_name(), state.help_text(), theme);
+            state.render(frame, content, theme);
+        })?;
+
+        if event::poll(Duration::from_millis(100))?
+            && let Event::Key(key) = event::read()?
+        {
+            let action = KeyHandler::map(key);
+            state.handle_key(action);
+        }
+
+        if state.should_quit() || state.should_back() || state.wants_watch_demo {
+            return Ok(());
+        }
+    }
+}
+
+/// Run the watch demo with guided overlay (WELCOME-014).
+/// Receives engine events from the kernel watcher and renders the watch
+/// dashboard with progressive overlay hints.
+pub fn run_watch_demo(
+    mut state: anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
+    event_rx: &Receiver<EngineEvent>,
+) -> anyhow::Result<()> {
+    terminal::enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    let theme = EddaCraftTheme;
+
+    let result = watch_demo_loop(&mut terminal, &mut state, event_rx, &theme);
+
+    terminal::disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
+    result
+}
+
+fn watch_demo_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
+    event_rx: &Receiver<EngineEvent>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    loop {
+        // Drain engine events.
+        while let Ok(engine_event) = event_rx.try_recv() {
+            state.handle_engine_event(&engine_event);
+        }
+
+        // Advance time-based overlay hints.
+        state.tick();
+
+        let poll_timeout = if state.is_dirty() {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(50)
+        };
+
+        if event::poll(poll_timeout)? {
+            match event::read()? {
+                Event::Key(key) => {
+                    let action = KeyHandler::map(key);
+                    state.handle_key(action);
+                }
+                Event::Resize(_, _) => {
+                    state.mark_dirty();
+                }
+                _ => {}
+            }
+        }
+
+        if state.take_dirty() {
+            terminal.draw(|frame| {
+                let area = frame.area();
+                let content = render_shell(frame, area, "Watch Demo", state.help_text(), theme);
+                anvil_tui::surfaces::tutorial::watch_demo_render::render(
+                    frame, content, state, theme,
+                );
+            })?;
+        }
+
+        if state.should_quit || state.wants_back {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 /// Run the watch dashboard, draining kernel events from the given channel.
 #[allow(dead_code)]
 pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> anyhow::Result<()> {

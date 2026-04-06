@@ -45,17 +45,27 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let result = if first_run {
         match run_onboarding(&mut terminal, &theme) {
             Ok(OnboardingOutcome::Quit) => Ok(()),
-            Ok(OnboardingOutcome::Tutorial) => {
-                let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
-                let sub_exit =
-                    crate::tui::run_surface_in(&mut terminal, &mut tutorial_state, &theme)?;
-                if sub_exit == SurfaceExit::Quit {
-                    Ok(())
-                } else {
-                    run_welcome_hub(&mut terminal, &theme)
+            Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
+                match run_discovery(&mut terminal, &theme)? {
+                    Some(results) => {
+                        let mut tutorial_state =
+                            anvil_tui::surfaces::tutorial::TutorialState::new();
+                        tutorial_state.set_scan_results(results);
+                        let sub_exit = crate::tui::run_surface_in(
+                            &mut terminal,
+                            &mut tutorial_state,
+                            &theme,
+                        )?;
+                        if sub_exit == SurfaceExit::Quit {
+                            Ok(())
+                        } else {
+                            run_welcome_hub(&mut terminal, &theme)
+                        }
+                    }
+                    None => run_welcome_hub(&mut terminal, &theme),
                 }
             }
-            Ok(_) => run_welcome_hub(&mut terminal, &theme),
+            Ok(OnboardingOutcome::Skip) => run_welcome_hub(&mut terminal, &theme),
             Err(e) => Err(e),
         }
     } else {
@@ -132,7 +142,7 @@ fn run_guided_init(
             "Anvil configuration detected \u{2014} skipping setup.",
             theme,
         )?;
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+        std::thread::sleep(std::time::Duration::from_millis(200));
         return Ok(());
     }
 
@@ -146,18 +156,47 @@ fn run_guided_init(
     }
 
     if init_state.confirmed {
-        // TODO(WELCOME-007): Write config based on init_state.config, then
-        // transition to discovery scan.
+        // TODO: Write config based on init_state.config.
+        // Discovery scan runs after init returns (wired in run()).
         crate::tui::draw_loading(
             terminal,
             "Init",
-            "Configuration saved. Proceeding to welcome\u{2026}",
+            "Setup complete. Proceeding to welcome\u{2026}",
             theme,
         )?;
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        std::thread::sleep(std::time::Duration::from_millis(200));
     }
 
     Ok(())
+}
+
+fn run_discovery(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<Option<anvil_tui::surfaces::tutorial::discovery::ScanResults>> {
+    use anvil_tui::surfaces::tutorial::discovery::{DiscoveryState, ScanResults};
+    use anvil_tui::surfaces::tutorial::showcase;
+
+    let mut discovery = DiscoveryState::new();
+
+    // TODO(WELCOME-013): Replace with real project scan using anvil-checks scanners
+    // and kernel run_embedded(). For now, use showcase findings so the user sees
+    // what Anvil is capable of detecting.
+    let findings = showcase::showcase_findings();
+    let results = ScanResults {
+        findings,
+        files_scanned: 0,
+        duration_ms: 0,
+    };
+    discovery.set_results(results);
+
+    let exit = crate::tui::run_surface_in(terminal, &mut discovery, theme)?;
+
+    if exit == SurfaceExit::Quit && !discovery.wants_continue {
+        return Ok(None);
+    }
+
+    Ok(discovery.results)
 }
 
 fn run_welcome_hub(
@@ -220,10 +259,20 @@ fn run_welcome_hub(
             }
             Some(QuickStartOption::RunTutorial) => {
                 welcome.status_message = None;
-                let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
-                let sub_exit = crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
-                if sub_exit == SurfaceExit::Quit {
-                    break;
+                match run_discovery(terminal, theme)? {
+                    Some(results) => {
+                        let mut tutorial_state =
+                            anvil_tui::surfaces::tutorial::TutorialState::new();
+                        tutorial_state.set_scan_results(results);
+                        let sub_exit =
+                            crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
+                        if sub_exit == SurfaceExit::Quit {
+                            break;
+                        }
+                    }
+                    None => {
+                        // User quit during discovery — return to welcome hub.
+                    }
                 }
                 welcome.should_quit = false;
                 welcome.chosen = None;

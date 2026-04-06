@@ -12,6 +12,8 @@ fn step(title: &str, description: &str, instruction: &str) -> TutorialStep {
         verify: None,
         verify_result: None,
         verify_hint: None,
+        watch_path: None,
+        watch_demo: false,
     }
 }
 
@@ -31,6 +33,8 @@ fn step_with_command(
         verify: None,
         verify_result: None,
         verify_hint: None,
+        watch_path: None,
+        watch_demo: false,
     }
 }
 
@@ -52,6 +56,31 @@ fn step_with_verify(
         verify: Some(verify),
         verify_result: None,
         verify_hint: Some(hint.to_string()),
+        watch_path: None,
+        watch_demo: false,
+    }
+}
+
+fn step_with_watch(
+    title: &str,
+    description: &str,
+    instruction: &str,
+    verify: Verify,
+    hint: &str,
+    watch_path: &str,
+) -> TutorialStep {
+    TutorialStep {
+        title: title.to_string(),
+        description: description.to_string(),
+        instruction: instruction.to_string(),
+        command: None,
+        completed: false,
+        output: None,
+        verify: Some(verify),
+        verify_result: None,
+        verify_hint: Some(hint.to_string()),
+        watch_path: Some(watch_path.to_string()),
+        watch_demo: false,
     }
 }
 
@@ -62,18 +91,24 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             "Policies are the rules that Anvil enforces on your codebase. Each policy is a declarative YAML file that describes what to check and how severely to flag violations.",
             "Press enter to continue to the next step.",
         ),
-        step_with_verify(
-            "Create Policy Directory",
-            "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom rules.",
-            "Run: mkdir -p .anvil/policies",
-            "mkdir -p .anvil/policies",
-            Verify::FileExists(".anvil/policies".to_string()),
-            "The directory was not created. Check permissions.",
-        ),
-        step(
+        TutorialStep {
+            command: Some("mkdir -p .anvil/policies".to_string()),
+            verify: Some(Verify::FileExists(".anvil/policies".to_string())),
+            verify_hint: Some("The directory was not created. Check permissions.".to_string()),
+            watch_path: Some(".anvil/policies".to_string()),
+            ..step(
+                "Create Policy Directory",
+                "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom rules.",
+                "Run: mkdir -p .anvil/policies",
+            )
+        },
+        step_with_watch(
             "Write Your First Policy",
             "A policy file defines a check ID, severity level, and a pattern to match against. Start with a simple rule that flags TODO comments left in production code.",
             "Create .anvil/policies/no-todos.yaml with a pattern rule.",
+            Verify::FileExists(".anvil/policies/no-todos.yaml".to_string()),
+            "Create the file .anvil/policies/no-todos.yaml to continue.",
+            ".anvil/policies",
         ),
         step_with_verify(
             "Test the Policy",
@@ -103,10 +138,13 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "Architecture enforcement validates that your code respects the layer boundaries you define. Anvil prevents imports that violate your declared dependency rules.",
             "Press enter to continue to the next step.",
         ),
-        step(
+        step_with_watch(
             "Choose a Template",
             "Anvil ships with architecture templates for common patterns: layered, hexagonal, and modular. Pick a template that matches your project structure.",
             "Create .anvil/architecture.yaml with your layer definitions.",
+            Verify::FileExists(".anvil/architecture.yaml".to_string()),
+            "Create .anvil/architecture.yaml to continue.",
+            ".anvil",
         ),
         step_with_verify(
             "Compile the Architecture",
@@ -162,11 +200,14 @@ pub fn drift_steps() -> Vec<TutorialStep> {
             "Run: anvil drift compare baseline current",
             "anvil drift compare baseline current",
         ),
-        step(
-            "Inspect Changes",
-            "The diff output highlights added, removed, and modified configuration entries. Each change includes the path within the config tree and the old and new values.",
-            "Review the diff output and identify the intentional changes.",
-        ),
+        TutorialStep {
+            watch_demo: true,
+            ..step(
+                "Watch Mode Demo",
+                "See Anvil\u{2019}s watch dashboard in action. It monitors your files and runs checks in real time. Edit a file and watch the dashboard update automatically.",
+                "Press enter to launch the watch demo.",
+            )
+        },
         step(
             "Summary",
             "Drift detection gives you visibility into configuration changes. Schedule regular captures in CI to catch unintended changes before they reach production.",
@@ -280,7 +321,7 @@ mod tests {
                 "Capture a Baseline",
                 "Capture Current State",
                 "Compare Snapshots",
-                "Inspect Changes",
+                "Watch Mode Demo",
                 "Summary",
             ],
         );
@@ -312,7 +353,7 @@ mod tests {
             "Introduction should have no command"
         );
         assert!(steps[0].verify.is_none());
-        // Create Policy Directory — has command + verify
+        // Create Policy Directory — has command + verify + watch
         assert_eq!(
             steps[1].command.as_deref(),
             Some("mkdir -p .anvil/policies")
@@ -322,10 +363,22 @@ mod tests {
             "Create Policy Directory should have verification"
         );
         assert!(steps[1].verify_hint.is_some());
-        // Write Your First Policy — no command (informational)
+        assert!(
+            steps[1].watch_path.is_some(),
+            "Create Policy Directory should have watch_path"
+        );
+        // Write Your First Policy — no command, has verify + watch
         assert!(
             steps[2].command.is_none(),
             "Write Your First Policy should have no command"
+        );
+        assert!(
+            steps[2].verify.is_some(),
+            "Write Your First Policy should have verification"
+        );
+        assert!(
+            steps[2].watch_path.is_some(),
+            "Write Your First Policy should have watch_path"
         );
         // Test the Policy — has command + verify
         assert_eq!(steps[3].command.as_deref(), Some("anvil doctor"));
@@ -356,6 +409,14 @@ mod tests {
         assert!(
             steps[1].command.is_none(),
             "Choose a Template should have no command"
+        );
+        assert!(
+            steps[1].verify.is_some(),
+            "Choose a Template should have verification"
+        );
+        assert!(
+            steps[1].watch_path.is_some(),
+            "Choose a Template should have watch_path"
         );
         assert_eq!(
             steps[2].command.as_deref(),
@@ -413,7 +474,11 @@ mod tests {
         );
         assert!(
             steps[4].command.is_none(),
-            "Inspect Changes should have no command"
+            "Watch Mode Demo should have no command"
+        );
+        assert!(
+            steps[4].watch_demo,
+            "Watch Mode Demo should have watch_demo flag"
         );
         assert!(steps[5].command.is_none(), "Summary should have no command");
     }

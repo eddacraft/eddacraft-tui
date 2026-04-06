@@ -45,7 +45,9 @@ impl Verify {
                 )),
             },
             Verify::OutputContains(pattern) => {
-                if output.stdout.contains(pattern.as_str()) {
+                if output.stdout.contains(pattern.as_str())
+                    || output.stderr.contains(pattern.as_str())
+                {
                     VerifyResult::Pass
                 } else {
                     VerifyResult::Fail(format!("Output did not contain expected text: {pattern}"))
@@ -92,13 +94,14 @@ mod tests {
 
     #[test]
     fn file_exists_fail() {
-        let verify = Verify::FileExists("/tmp/anvil_verify_nonexistent_12345".to_string());
+        let path = std::env::temp_dir()
+            .join(format!("anvil_verify_nonexistent_{}_marker.txt", std::process::id()));
+        let path = path.to_string_lossy().to_string();
+        let verify = Verify::FileExists(path.clone());
         let output = make_output("", "", true, Some(0));
         assert_eq!(
             verify.check(&output),
-            VerifyResult::Fail(
-                "Expected file not found: /tmp/anvil_verify_nonexistent_12345".to_string()
-            ),
+            VerifyResult::Fail(format!("Expected file not found: {path}")),
         );
     }
 
@@ -148,6 +151,13 @@ mod tests {
             verify.check(&output),
             VerifyResult::Fail("Output did not contain expected text: status".to_string()),
         );
+    }
+
+    #[test]
+    fn output_contains_matches_stderr() {
+        let verify = Verify::OutputContains("warning".to_string());
+        let output = make_output("", "warning: deprecated", true, Some(0));
+        assert_eq!(verify.check(&output), VerifyResult::Pass);
     }
 
     #[test]

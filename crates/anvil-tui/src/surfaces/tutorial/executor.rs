@@ -13,11 +13,11 @@ use super::CommandOutput;
 /// definitions in `paths.rs`), never from user input. The function is
 /// `pub(crate)` to limit the blast radius.
 ///
-/// # TODO(WELCOME-013)
-///
-/// Move to channel-based async execution so long-running commands
-/// (e.g. `anvil architecture compile`) don't freeze the TUI. Add a
-/// timeout (30s) and a spinner during execution.
+/// WELCOME-013 adds a file watcher that re-runs verification on
+/// filesystem changes, avoiding the need for async command execution
+/// in most interactive steps. Commands that do run are expected to
+/// complete quickly (sub-second); the watcher handles the
+/// edit-then-verify cycle without blocking.
 pub(crate) fn execute_command(command: &str) -> CommandOutput {
     let result = if cfg!(windows) {
         std::process::Command::new("cmd")

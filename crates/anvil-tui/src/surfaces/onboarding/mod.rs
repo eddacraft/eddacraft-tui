@@ -1,15 +1,29 @@
+pub mod complete;
+pub mod hooks;
+mod hooks_render;
 pub mod welcome;
 mod welcome_render;
 
+pub use complete::{CompletionState, OnboardingSummary};
+pub use hooks::HooksState;
 pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 
 /// Check whether an Anvil configuration file already exists in the
 /// current working directory. Checks for `.anvil.yaml`, `.anvil.json`,
 /// and `.anvil.toml`.
 pub fn config_exists() -> bool {
+    let cwd = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
+    config_exists_in(&cwd)
+}
+
+/// Check whether an Anvil configuration file exists under `dir`.
+pub fn config_exists_in(dir: &std::path::Path) -> bool {
     [".anvil.yaml", ".anvil.json", ".anvil.toml"]
         .iter()
-        .any(|name| std::path::Path::new(name).exists())
+        .any(|name| dir.join(name).try_exists().unwrap_or(false))
 }
 
 /// Default set of checks offered during guided init.
@@ -49,12 +63,7 @@ mod tests {
             std::env::temp_dir().join(format!("anvil_test_config_exists_{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
 
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&tmp).unwrap();
-
-        assert!(!config_exists());
-
-        std::env::set_current_dir(prev).unwrap();
+        assert!(!config_exists_in(&tmp));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

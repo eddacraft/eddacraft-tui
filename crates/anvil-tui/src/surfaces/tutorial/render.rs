@@ -67,18 +67,70 @@ pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &Edda
             render_path_select(frame, area, state, theme);
         }
         TutorialPhase::Running => {
-            let chunks = Layout::vertical([
-                Constraint::Length(3), // Progress indicator
-                Constraint::Min(6),    // Content
-            ])
-            .split(area);
+            let has_notice = state.static_mode || state.resuming_notice.is_some();
+            if has_notice {
+                let chunks = Layout::vertical([
+                    Constraint::Length(1), // Notice line
+                    Constraint::Length(3), // Progress indicator
+                    Constraint::Min(6),    // Content
+                ])
+                .split(area);
 
-            render_step_progress(frame, chunks[0], state, theme);
-            render_step_content(frame, chunks[1], state, theme);
+                if state.static_mode {
+                    render_static_notice(frame, chunks[0], state, theme);
+                } else {
+                    render_resuming_notice(frame, chunks[0], state, theme);
+                }
+                render_step_progress(frame, chunks[1], state, theme);
+                render_step_content(frame, chunks[2], state, theme);
+            } else {
+                let chunks = Layout::vertical([
+                    Constraint::Length(3), // Progress indicator
+                    Constraint::Min(6),    // Content
+                ])
+                .split(area);
+
+                render_step_progress(frame, chunks[0], state, theme);
+                render_step_content(frame, chunks[1], state, theme);
+            }
         }
         TutorialPhase::Complete => {
             render_complete(frame, area, state, theme);
         }
+    }
+}
+
+fn render_static_notice(
+    frame: &mut Frame,
+    area: Rect,
+    state: &TutorialState,
+    theme: &EddaCraftTheme,
+) {
+    if let Some(notice) = &state.static_notice {
+        let line = Line::from(Span::styled(
+            notice.as_str(),
+            Style::default()
+                .fg(theme.warning())
+                .add_modifier(Modifier::ITALIC),
+        ));
+        frame.render_widget(Paragraph::new(line), area);
+    }
+}
+
+fn render_resuming_notice(
+    frame: &mut Frame,
+    area: Rect,
+    state: &TutorialState,
+    theme: &EddaCraftTheme,
+) {
+    if let Some(notice) = &state.resuming_notice {
+        let line = Line::from(Span::styled(
+            notice.as_str(),
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::ITALIC),
+        ));
+        frame.render_widget(Paragraph::new(line), area);
     }
 }
 
@@ -101,7 +153,8 @@ fn render_path_select(
         .enumerate()
         .map(|(i, path)| {
             let selected = i == state.path_selected;
-            let indicator = if selected { ">> " } else { "  " };
+            let done = state.completed_paths.contains(path);
+            let indicator = if selected { ">> " } else { "   " };
             let name_style = if selected {
                 Style::default()
                     .fg(theme.accent())
@@ -110,14 +163,27 @@ fn render_path_select(
                 Style::default().fg(theme.fg())
             };
 
-            Line::from(vec![
-                Span::styled(indicator, name_style),
-                Span::styled(path.label(), name_style),
-                Span::styled(
-                    format!("  {}", path.description()),
+            let mut spans = Vec::with_capacity(if done { 5 } else { 3 });
+            spans.push(Span::styled(indicator, name_style));
+            if done {
+                spans.push(Span::styled(
+                    "\u{2713} ",
+                    Style::default().fg(theme.success()),
+                ));
+            }
+            spans.push(Span::styled(path.label(), name_style));
+            spans.push(Span::styled(
+                format!("  {}", path.description()),
+                Style::default().fg(theme.muted()),
+            ));
+            if done {
+                spans.push(Span::styled(
+                    "  (redo)",
                     Style::default().fg(theme.muted()),
-                ),
-            ])
+                ));
+            }
+
+            Line::from(spans)
         })
         .collect();
 
@@ -210,6 +276,16 @@ fn render_step_content(
                 .add_modifier(Modifier::BOLD),
         )),
     ];
+
+    // Show a watching hint when the step has a watch_path and isn't in static mode.
+    if step.watch_path.is_some() && !state.static_mode {
+        lines.push(Line::from(Span::styled(
+            "\u{25c9} Watching for file changes\u{2026}",
+            Style::default()
+                .fg(theme.muted())
+                .add_modifier(Modifier::ITALIC),
+        )));
+    }
 
     if let Some(output) = &step.output {
         lines.push(Line::default());
@@ -435,6 +511,60 @@ mod tests {
         let backend = TestBackend::new(40, 12);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn renders_static_mode_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        state.enable_static_mode();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_running_static_mode() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        state.enable_static_mode();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_resuming_notice_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.set_completed_paths(vec![TutorialPath::Architecture]);
+        state.resume_path(TutorialPath::Policy, 1, &[true, false, false, false, false, false]);
         let theme = EddaCraftTheme;
 
         terminal

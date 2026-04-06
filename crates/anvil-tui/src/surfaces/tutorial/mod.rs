@@ -1,10 +1,14 @@
 pub mod discovery;
 mod discovery_render;
 pub(crate) mod executor;
+pub mod fix;
+mod fix_render;
 pub mod paths;
 pub mod render;
 pub mod showcase;
 pub mod verify;
+pub mod watch_demo;
+pub mod watch_demo_render;
 
 use discovery::ScanResults;
 use eddacraft_tui::keyboard::Action;
@@ -26,6 +30,16 @@ impl TutorialPath {
             Self::Architecture => "Architecture",
             Self::Drift => "Drift",
             Self::CI => "CI Integration",
+        }
+    }
+
+    pub fn from_label(s: &str) -> Option<Self> {
+        match s {
+            "Policy" => Some(Self::Policy),
+            "Architecture" => Some(Self::Architecture),
+            "Drift" => Some(Self::Drift),
+            "CI Integration" => Some(Self::CI),
+            _ => None,
         }
     }
 
@@ -73,6 +87,14 @@ pub struct TutorialStep {
     pub verify_result: Option<VerifyResult>,
     /// Contextual hint shown when verification fails.
     pub verify_hint: Option<String>,
+    /// Optional filesystem path to watch for changes. When set and a
+    /// file watcher is available, changes to this path (or files within
+    /// it) trigger automatic re-verification without pressing Enter.
+    pub watch_path: Option<String>,
+    /// When true, pressing Enter on this step triggers the watch mode
+    /// demo instead of normal advancement. The TUI loop exits and the
+    /// CLI command launches the demo surface.
+    pub watch_demo: bool,
 }
 
 /// State for the tutorial orchestrator surface.
@@ -89,6 +111,21 @@ pub struct TutorialState {
     pub scan_results: Option<ScanResults>,
     /// Findings filtered by the chosen tutorial domain.
     pub domain_findings: Option<ScanResults>,
+    /// When true, command execution is disabled and all steps become
+    /// informational (press-enter-to-continue). Set by the caller when the
+    /// kernel watcher is unavailable.
+    pub static_mode: bool,
+    /// Notice displayed when static mode is active, explaining why interactive
+    /// features are disabled.
+    pub static_notice: Option<String>,
+    /// Paths the user has previously completed (persisted across sessions).
+    /// Used by the renderer to show checkmarks in the path selector.
+    pub completed_paths: Vec<TutorialPath>,
+    /// Transient notice shown when resuming an interrupted session.
+    pub resuming_notice: Option<String>,
+    /// Set to true when the tutorial wants to launch the watch mode demo.
+    /// The TUI loop exits and the CLI command handles the transition.
+    pub wants_watch_demo: bool,
 }
 
 impl TutorialState {
@@ -109,7 +146,56 @@ impl TutorialState {
             wants_back: false,
             scan_results: None,
             domain_findings: None,
+            static_mode: false,
+            static_notice: None,
+            completed_paths: Vec::new(),
+            resuming_notice: None,
+            wants_watch_demo: false,
         }
+    }
+
+    /// Enable static mode, disabling command execution and showing a notice.
+    /// All steps become informational (press-enter-to-continue) regardless of
+    /// whether they have a `command` attached.
+    pub fn enable_static_mode(&mut self) {
+        self.static_mode = true;
+        self.static_notice =
+            Some("Interactive mode unavailable \u{2014} showing guided walkthrough.".to_string());
+    }
+
+    /// Set which paths the user has previously completed (loaded from
+    /// persistent progress file). The renderer uses this to show checkmarks.
+    pub fn set_completed_paths(&mut self, paths: Vec<TutorialPath>) {
+        self.completed_paths = paths;
+    }
+
+    /// Resume an interrupted session: load the path's steps and jump to
+    /// `step_index`, marking earlier steps as completed per `steps_completed`.
+    /// If the saved step count doesn't match the current path definition
+    /// (e.g. after a tool upgrade), the stale session is discarded and the
+    /// path starts fresh.
+    pub fn resume_path(
+        &mut self,
+        path: TutorialPath,
+        step_index: usize,
+        steps_completed: &[bool],
+    ) {
+        self.load_steps(path);
+        // Stale session: step count changed since the session was saved.
+        if steps_completed.len() != self.steps.len() {
+            return;
+        }
+        for (i, step) in self.steps.iter_mut().enumerate() {
+            if steps_completed.get(i).copied().unwrap_or(false) {
+                step.completed = true;
+            }
+        }
+        self.current_step = step_index.min(self.steps.len().saturating_sub(1));
+        self.resuming_notice = Some(format!(
+            "Resuming from step {} of {}.",
+            self.current_step + 1,
+            self.steps.len(),
+        ));
     }
 
     pub fn set_scan_results(&mut self, results: ScanResults) {
@@ -127,6 +213,65 @@ impl TutorialState {
         self.chosen_path = Some(path);
         self.domain_findings = self.scan_results.as_ref().map(|r| r.filter_by_domain(path));
         self.phase = TutorialPhase::Running;
+    }
+
+    /// Called by the TUI loop when the file watcher detects changes.
+    /// If the current step has a `watch_path` and verification, re-runs
+    /// the verify check (and optionally the command). Returns `true` if
+    /// the step was auto-advanced.
+    pub fn handle_file_change(&mut self, changed_paths: &[std::path::PathBuf]) -> bool {
+        if self.phase != TutorialPhase::Running || self.static_mode {
+            return false;
+        }
+        let Some(step) = self.steps.get(self.current_step) else {
+            return false;
+        };
+        let Some(ref watch_target) = step.watch_path else {
+            return false;
+        };
+        // Skip if the step already completed or hasn't been attempted yet
+        // when it has a command (user should press Enter first).
+        if step.completed {
+            return false;
+        }
+
+        // Check if any changed path overlaps the watch target.
+        let target = std::path::Path::new(watch_target);
+        let relevant = changed_paths.iter().any(|p| {
+            p == target || p.starts_with(target)
+        });
+        if !relevant {
+            return false;
+        }
+
+        // For steps with a command, re-execute it then verify.
+        // For steps without a command, verify directly (e.g. FileExists).
+        if let Some(ref cmd) = step.command.clone() {
+            let result = executor::execute_command(cmd);
+            let success = result.success;
+            self.steps[self.current_step].output = Some(result);
+            if success && self.run_verify_current() {
+                self.advance_step();
+                return true;
+            }
+        } else if let Some(ref verify) = step.verify {
+            // No command — verify directly with a placeholder output.
+            let placeholder = CommandOutput {
+                stdout: String::new(),
+                stderr: String::new(),
+                success: true,
+                exit_code: Some(0),
+            };
+            let result = verify.check(&placeholder);
+            let passed = result == VerifyResult::Pass;
+            self.steps[self.current_step].verify_result = Some(result);
+            if passed {
+                self.advance_step();
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn handle_key(&mut self, action: Action) {
@@ -160,7 +305,9 @@ impl TutorialState {
         }
     }
 
-    fn advance_step(&mut self) {
+    pub fn advance_step(&mut self) {
+        // Clear the resume notice on first interaction.
+        self.resuming_notice = None;
         if self.current_step < self.steps.len() {
             self.steps[self.current_step].completed = true;
             if self.current_step + 1 < self.steps.len() {
@@ -182,18 +329,23 @@ impl TutorialState {
         command_failed || verify_failed
     }
 
-    /// Run the verification check for the current step (if any) against the
-    /// given command output. Returns `true` if the step should advance (either
-    /// no verification is configured, or verification passed).
-    fn run_verify(&mut self, output: &CommandOutput) -> bool {
-        let step = &mut self.steps[self.current_step];
+    /// Run the verification check for the current step against its stored
+    /// output. Returns `true` if the step should advance (either no
+    /// verification is configured, verification passed, or the step index
+    /// is out of bounds).
+    fn run_verify_current(&mut self) -> bool {
+        let Some(step) = self.steps.get_mut(self.current_step) else {
+            return true;
+        };
+        let Some(ref output) = step.output else {
+            return true;
+        };
         if let Some(ref verify) = step.verify {
             let result = verify.check(output);
             let passed = result == VerifyResult::Pass;
             step.verify_result = Some(result);
             passed
         } else {
-            // No verification configured — auto-pass.
             true
         }
     }
@@ -213,14 +365,8 @@ impl TutorialState {
                             let result = executor::execute_command(&cmd);
                             let succeeded = result.success;
                             step.output = Some(result);
-                            if succeeded {
-                                let output = self.steps[self.current_step]
-                                    .output
-                                    .clone()
-                                    .expect("output just set");
-                                if self.run_verify(&output) {
-                                    self.advance_step();
-                                }
+                            if succeeded && self.run_verify_current() {
+                                self.advance_step();
                             }
                         }
                     }
@@ -230,10 +376,12 @@ impl TutorialState {
                     self.advance_step();
                 }
                 Action::Back => {
+                    self.resuming_notice = None;
                     self.phase = TutorialPhase::PathSelect;
                     self.steps.clear();
                     self.current_step = 0;
                     self.chosen_path = None;
+                    self.domain_findings = None;
                 }
                 Action::Quit => self.should_quit = true,
                 _ => {}
@@ -243,21 +391,23 @@ impl TutorialState {
 
         match action {
             Action::Select => {
-                if let Some(step) = self.steps.get(self.current_step) {
+                if self.static_mode {
+                    // Static mode: all steps are informational — advance
+                    // without executing commands.
+                    self.advance_step();
+                } else if let Some(step) = self.steps.get(self.current_step)
+                    && step.watch_demo
+                {
+                    // Watch demo step: signal the TUI loop to launch the demo.
+                    self.wants_watch_demo = true;
+                } else if let Some(step) = self.steps.get(self.current_step) {
                     if let Some(cmd) = step.command.clone() {
                         // Execute the command and store the output.
                         let result = executor::execute_command(&cmd);
                         let succeeded = result.success;
                         self.steps[self.current_step].output = Some(result);
-                        if succeeded {
-                            let output = self.steps[self.current_step]
-                                .output
-                                .clone()
-                                .expect("output just set");
-                            if self.run_verify(&output) {
-                                self.advance_step();
-                            }
-                            // On verify failure we stay on the step; retry/skip shown.
+                        if succeeded && self.run_verify_current() {
+                            self.advance_step();
                         }
                         // On command failure we stay on the same step.
                     } else {
@@ -267,19 +417,25 @@ impl TutorialState {
                 }
             }
             Action::Toggle => {
-                // Toggle (space) only advances informational steps — it does not
-                // execute commands, preventing accidental shell invocation.
-                if let Some(step) = self.steps.get(self.current_step)
+                // In static mode, Toggle (space) advances any step since
+                // commands are never executed.
+                if self.static_mode {
+                    self.advance_step();
+                } else if let Some(step) = self.steps.get(self.current_step)
                     && step.command.is_none()
                 {
+                    // Toggle only advances informational steps — it does not
+                    // execute commands, preventing accidental shell invocation.
                     self.advance_step();
                 }
             }
             Action::Back => {
+                self.resuming_notice = None;
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
                 self.current_step = 0;
                 self.chosen_path = None;
+                self.domain_findings = None;
             }
             Action::Quit => self.should_quit = true,
             _ => {}
@@ -293,6 +449,7 @@ impl TutorialState {
                 self.steps.clear();
                 self.current_step = 0;
                 self.chosen_path = None;
+                self.domain_findings = None;
             }
             Action::Quit => self.should_quit = true,
             _ => {}
@@ -309,7 +466,9 @@ impl crate::surface::Surface for TutorialState {
         match self.phase {
             TutorialPhase::PathSelect => "j/k navigate  enter select  esc back  q quit",
             TutorialPhase::Running => {
-                if self.current_step_failed() {
+                if self.static_mode {
+                    "enter next  esc back  q quit"
+                } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
                 } else {
                     "enter run/next  space next  esc back  q quit"
@@ -341,6 +500,9 @@ impl crate::surface::Surface for TutorialState {
         self.chosen_path = None;
         self.scan_results = None;
         self.domain_findings = None;
+        self.resuming_notice = None;
+        // static_mode, static_notice, and completed_paths are intentionally
+        // preserved — they represent environment/session state, not transient.
     }
 
     fn render(
@@ -378,6 +540,8 @@ mod tests {
                 verify: None,
                 verify_result: None,
                 verify_hint: None,
+                watch_path: None,
+                watch_demo: false,
             })
             .collect();
         state.phase = TutorialPhase::Running;
@@ -398,6 +562,8 @@ mod tests {
             verify: None,
             verify_result: None,
             verify_hint: None,
+            watch_path: None,
+            watch_demo: false,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -417,6 +583,8 @@ mod tests {
             verify: Some(verify),
             verify_result: None,
             verify_hint: Some(hint.to_string()),
+            watch_path: None,
+            watch_demo: false,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -836,5 +1004,360 @@ mod tests {
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
         assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
+    }
+
+    // --- Static mode tests ---
+
+    #[test]
+    fn static_mode_defaults_to_false() {
+        let state = TutorialState::new();
+        assert!(!state.static_mode);
+        assert!(state.static_notice.is_none());
+    }
+
+    #[test]
+    fn enable_static_mode_sets_flag_and_notice() {
+        let mut state = TutorialState::new();
+        state.enable_static_mode();
+        assert!(state.static_mode);
+        assert_eq!(
+            state.static_notice.as_deref(),
+            Some("Interactive mode unavailable \u{2014} showing guided walkthrough.")
+        );
+    }
+
+    #[test]
+    fn static_mode_select_advances_command_step_without_executing() {
+        let mut state = state_with_command_step("echo should_not_run");
+        state.enable_static_mode();
+
+        state.handle_key(Action::Select);
+
+        // Step should advance without executing — no output stored.
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+        assert!(state.steps[0].output.is_none());
+    }
+
+    #[test]
+    fn static_mode_toggle_advances_command_step() {
+        let mut state = state_with_command_step("echo should_not_run");
+        state.enable_static_mode();
+
+        state.handle_key(Action::Toggle);
+
+        // In static mode, Toggle advances even command steps.
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+        assert!(state.steps[0].output.is_none());
+    }
+
+    #[test]
+    fn static_mode_informational_steps_still_advance() {
+        let mut state = state_with_plain_steps(3);
+        state.enable_static_mode();
+
+        state.handle_key(Action::Select);
+        assert_eq!(state.current_step, 1);
+
+        state.handle_key(Action::Select);
+        assert_eq!(state.current_step, 2);
+
+        state.handle_key(Action::Select);
+        assert_eq!(state.phase, TutorialPhase::Complete);
+    }
+
+    #[test]
+    fn static_mode_help_text_shows_simplified() {
+        let mut state = state_with_command_step("echo test");
+        state.enable_static_mode();
+
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(help, "enter next  esc back  q quit");
+    }
+
+    #[test]
+    fn static_mode_preserved_across_reset() {
+        let mut state = TutorialState::new();
+        state.enable_static_mode();
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+
+        assert!(state.static_mode);
+        assert!(state.static_notice.is_some());
+    }
+
+    #[test]
+    fn static_mode_current_step_failed_always_false() {
+        let mut state = state_with_command_step("echo test");
+        state.enable_static_mode();
+
+        // In static mode, commands never execute, so current_step_failed()
+        // should always return false.
+        assert!(!state.current_step_failed());
+    }
+
+    #[test]
+    fn static_mode_skip_still_works_defensively() {
+        // Even though current_step_failed() is unreachable in static mode,
+        // if output were injected (defensively), skip should still advance.
+        let mut state = state_with_command_step("echo test");
+        state.enable_static_mode();
+
+        // Inject failure output to simulate an edge case.
+        state.steps[0].output = Some(CommandOutput {
+            stdout: String::new(),
+            stderr: "simulated".to_string(),
+            success: false,
+            exit_code: Some(1),
+        });
+        assert!(state.current_step_failed());
+
+        state.handle_key(Action::Character('s'));
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+    }
+
+    #[test]
+    fn static_mode_back_from_running_returns_to_path_select() {
+        let mut state = state_with_command_step("echo test");
+        state.enable_static_mode();
+
+        state.handle_key(Action::Back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+    }
+
+    #[test]
+    fn static_mode_quit_from_running() {
+        let mut state = state_with_command_step("echo test");
+        state.enable_static_mode();
+
+        state.handle_key(Action::Quit);
+        assert!(state.should_quit);
+    }
+
+    // --- Progress persistence / resumption tests ---
+
+    #[test]
+    fn from_label_roundtrips() {
+        for path in &[
+            TutorialPath::Policy,
+            TutorialPath::Architecture,
+            TutorialPath::Drift,
+            TutorialPath::CI,
+        ] {
+            assert_eq!(TutorialPath::from_label(path.label()), Some(*path));
+        }
+        assert_eq!(TutorialPath::from_label("Nonexistent"), None);
+    }
+
+    #[test]
+    fn set_completed_paths_stored() {
+        let mut state = TutorialState::new();
+        state.set_completed_paths(vec![TutorialPath::Policy, TutorialPath::Drift]);
+        assert_eq!(state.completed_paths.len(), 2);
+        assert!(state.completed_paths.contains(&TutorialPath::Policy));
+        assert!(state.completed_paths.contains(&TutorialPath::Drift));
+    }
+
+    #[test]
+    fn completed_paths_preserved_across_reset() {
+        let mut state = TutorialState::new();
+        state.set_completed_paths(vec![TutorialPath::Architecture]);
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+
+        assert_eq!(state.completed_paths, vec![TutorialPath::Architecture]);
+    }
+
+    #[test]
+    fn resume_path_jumps_to_step() {
+        let mut state = TutorialState::new();
+        // Policy has 6 steps — provide a matching-length vec.
+        let completed = vec![true, true, false, false, false, false];
+        state.resume_path(TutorialPath::Policy, 2, &completed);
+
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert_eq!(state.chosen_path, Some(TutorialPath::Policy));
+        assert_eq!(state.current_step, 2);
+        assert!(state.steps[0].completed);
+        assert!(state.steps[1].completed);
+        assert!(!state.steps[2].completed);
+    }
+
+    #[test]
+    fn resume_path_sets_notice() {
+        let mut state = TutorialState::new();
+        // Policy has 6 steps.
+        state.resume_path(TutorialPath::Policy, 2, &[true, true, false, false, false, false]);
+
+        assert!(state.resuming_notice.is_some());
+        let notice = state.resuming_notice.as_ref().unwrap();
+        assert!(notice.contains("Resuming from step 3"));
+    }
+
+    #[test]
+    fn resume_notice_cleared_on_advance() {
+        let mut state = state_with_plain_steps(3);
+        state.resuming_notice = Some("Resuming from step 2 of 3.".to_string());
+        state.current_step = 1;
+        state.steps[0].completed = true;
+
+        state.handle_key(Action::Select); // advance step 1
+        assert!(state.resuming_notice.is_none());
+    }
+
+    #[test]
+    fn resume_clears_on_reset() {
+        let mut state = TutorialState::new();
+        // Drift has 6 steps.
+        state.resume_path(TutorialPath::Drift, 1, &[true, false, false, false, false, false]);
+        assert!(state.resuming_notice.is_some());
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+        assert!(state.resuming_notice.is_none());
+    }
+
+    #[test]
+    fn resume_stale_session_discarded() {
+        let mut state = TutorialState::new();
+        // Provide wrong-length steps_completed — simulates a stale session.
+        state.resume_path(TutorialPath::CI, 2, &[true, true]);
+
+        // Stale session discarded: starts at step 0 with no notice.
+        assert_eq!(state.current_step, 0);
+        assert!(state.resuming_notice.is_none());
+        assert!(!state.steps[0].completed);
+    }
+
+    // --- File watcher integration tests ---
+
+    fn state_with_watched_step(watch_path: &str) -> TutorialState {
+        let dir = std::env::temp_dir().join("anvil_watch_test");
+        let _ = std::fs::create_dir_all(&dir);
+        let target = dir.join("marker.txt");
+
+        let mut state = TutorialState::new();
+        state.steps = vec![TutorialStep {
+            title: "Watched Step".to_string(),
+            description: "A step with file watching.".to_string(),
+            instruction: "Create the target file.".to_string(),
+            command: None,
+            completed: false,
+            output: None,
+            verify: Some(Verify::FileExists(target.to_string_lossy().to_string())),
+            verify_result: None,
+            verify_hint: Some("File not found.".to_string()),
+            watch_path: Some(watch_path.to_string()),
+            watch_demo: false,
+        }];
+        state.phase = TutorialPhase::Running;
+        state.chosen_path = Some(TutorialPath::Policy);
+        state
+    }
+
+    #[test]
+    fn handle_file_change_ignores_non_running_phase() {
+        let mut state = TutorialState::new();
+        // Phase is PathSelect, not Running.
+        let advanced = state.handle_file_change(&[std::path::PathBuf::from("test.txt")]);
+        assert!(!advanced);
+    }
+
+    #[test]
+    fn handle_file_change_ignores_step_without_watch_path() {
+        let mut state = state_with_plain_steps(2);
+        let advanced = state.handle_file_change(&[std::path::PathBuf::from("test.txt")]);
+        assert!(!advanced);
+    }
+
+    #[test]
+    fn handle_file_change_ignores_irrelevant_paths() {
+        let mut state = state_with_watched_step("/tmp/watched_dir");
+        let advanced = state
+            .handle_file_change(&[std::path::PathBuf::from("/other/unrelated.txt")]);
+        assert!(!advanced);
+        assert_eq!(state.current_step, 0);
+    }
+
+    #[test]
+    fn handle_file_change_auto_verifies_file_exists() {
+        let dir = std::env::temp_dir().join("anvil_watch_autotest");
+        let _ = std::fs::create_dir_all(&dir);
+        let target = dir.join("marker.txt");
+
+        // Create the file so FileExists passes.
+        std::fs::write(&target, "ok").unwrap();
+
+        let mut state = TutorialState::new();
+        state.steps = vec![TutorialStep {
+            title: "Watched".to_string(),
+            description: "desc".to_string(),
+            instruction: "inst".to_string(),
+            command: None,
+            completed: false,
+            output: None,
+            verify: Some(Verify::FileExists(target.to_string_lossy().to_string())),
+            verify_result: None,
+            verify_hint: None,
+            watch_path: Some(dir.to_string_lossy().to_string()),
+            watch_demo: false,
+        }];
+        state.phase = TutorialPhase::Running;
+        state.chosen_path = Some(TutorialPath::Policy);
+
+        let changed = dir.join("marker.txt");
+        let advanced = state.handle_file_change(&[changed]);
+        assert!(advanced);
+        assert_eq!(state.phase, TutorialPhase::Complete);
+
+        // Clean up.
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn handle_file_change_stays_when_verify_fails() {
+        let dir = std::env::temp_dir().join("anvil_watch_failtest");
+        let _ = std::fs::create_dir_all(&dir);
+        let target = dir.join("nonexistent.txt");
+
+        let mut state = TutorialState::new();
+        state.steps = vec![TutorialStep {
+            title: "Watched".to_string(),
+            description: "desc".to_string(),
+            instruction: "inst".to_string(),
+            command: None,
+            completed: false,
+            output: None,
+            verify: Some(Verify::FileExists(target.to_string_lossy().to_string())),
+            verify_result: None,
+            verify_hint: None,
+            watch_path: Some(dir.to_string_lossy().to_string()),
+            watch_demo: false,
+        }];
+        state.phase = TutorialPhase::Running;
+        state.chosen_path = Some(TutorialPath::Policy);
+
+        // Trigger with a file in the watched dir, but the verify target doesn't exist.
+        let changed = dir.join("other.txt");
+        let advanced = state.handle_file_change(&[changed]);
+        assert!(!advanced);
+        assert_eq!(state.current_step, 0);
+        assert!(matches!(
+            state.steps[0].verify_result,
+            Some(VerifyResult::Fail(_))
+        ));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn handle_file_change_skipped_in_static_mode() {
+        let mut state = state_with_watched_step("/tmp/watched_dir");
+        state.enable_static_mode();
+
+        let advanced = state
+            .handle_file_change(&[std::path::PathBuf::from("/tmp/watched_dir/file.txt")]);
+        assert!(!advanced);
     }
 }

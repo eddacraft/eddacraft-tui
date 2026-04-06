@@ -278,7 +278,7 @@ impl Surface for DiscoveryState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.wants_continue
     }
 
     fn should_back(&self) -> bool {
@@ -651,8 +651,18 @@ mod tests {
         state.handle_key(Action::Select);
         assert!(state.wants_continue);
         assert!(!state.should_quit);
-        // should_quit() returns false — caller inspects wants_continue separately
-        assert!(!Surface::should_quit(&state));
+        // should_quit() returns true when wants_continue is set so the surface
+        // loop exits; caller distinguishes continue vs quit by checking wants_continue
+        assert!(Surface::should_quit(&state));
+    }
+
+    #[test]
+    fn should_quit_true_when_wants_continue() {
+        let mut state = DiscoveryState::new();
+        state.skip_scan();
+        state.handle_key(Action::Select);
+        assert!(state.wants_continue);
+        assert!(Surface::should_quit(&state));
     }
 
     #[test]
@@ -745,8 +755,87 @@ mod tests {
 
         state.handle_key(Action::Select);
         assert!(state.wants_continue);
-        // should_quit() is false — caller inspects wants_continue to advance
-        assert!(!Surface::should_quit(&state));
+        // should_quit() returns true when wants_continue is set so the surface
+        // loop exits; caller distinguishes continue vs quit by checking wants_continue
+        assert!(Surface::should_quit(&state));
+    }
+
+    // ── ScanResults::filter_by_domain ───────────────────────────────────
+
+    fn make_mixed_findings() -> ScanResults {
+        ScanResults {
+            findings: vec![
+                make_finding_with_source(
+                    FindingSeverity::Error,
+                    FindingSource::AntiPattern,
+                    "anti-pattern issue",
+                ),
+                make_finding_with_source(
+                    FindingSeverity::Warning,
+                    FindingSource::Secret,
+                    "secret leak",
+                ),
+                make_finding_with_source(
+                    FindingSeverity::Error,
+                    FindingSource::Architecture,
+                    "boundary violation",
+                ),
+            ],
+            files_scanned: 150,
+            duration_ms: 300,
+        }
+    }
+
+    #[test]
+    fn filter_by_domain_policy_gets_antipattern_and_secret() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Policy);
+        assert_eq!(filtered.findings.len(), 2);
+        assert!(
+            filtered
+                .findings
+                .iter()
+                .all(|f| matches!(f.source, FindingSource::AntiPattern | FindingSource::Secret))
+        );
+    }
+
+    #[test]
+    fn filter_by_domain_architecture_gets_architecture_only() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Architecture);
+        assert_eq!(filtered.findings.len(), 1);
+        assert_eq!(filtered.findings[0].source, FindingSource::Architecture);
+    }
+
+    #[test]
+    fn filter_by_domain_drift_gets_all() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Drift);
+        assert_eq!(filtered.findings.len(), 3);
+    }
+
+    #[test]
+    fn filter_by_domain_ci_gets_all() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::CI);
+        assert_eq!(filtered.findings.len(), 3);
+    }
+
+    #[test]
+    fn filter_by_domain_preserves_metadata() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Policy);
+        assert_eq!(filtered.files_scanned, 150);
+        assert_eq!(filtered.duration_ms, 300);
+    }
+
+    #[test]
+    fn filter_by_domain_empty_results() {
+        let results = ScanResults::default();
+        let filtered = results.filter_by_domain(TutorialPath::Architecture);
+        assert!(filtered.findings.is_empty());
+        assert_eq!(filtered.files_scanned, 0);
+        assert_eq!(filtered.duration_ms, 0);
     }
 
     // ── ScanResults::filter_by_domain ───────────────────────────────────

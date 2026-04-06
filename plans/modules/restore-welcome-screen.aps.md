@@ -1,7 +1,7 @@
 # Welcome Screen & Interactive Onboarding
 
 Module: **WELCOME**
-Status: In Progress
+Status: Complete
 Owner: EddaCraft
 
 ## Problem
@@ -195,7 +195,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-007: Wire discovery into welcome and onboarding flows
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Two integration points: (a) After "Interactive Tutorial"
   from the standard welcome menu, run discovery scan before entering
   tutorial path selection. (b) After guided init in onboarding flow,
@@ -223,7 +223,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-009: Inline editor widget
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Create `EditorState` / `EditorWidget` in
   `crates/eddacraft-tui/src/widgets/editor.rs`. Multi-line text editing
   with: line numbers, current-line highlighting, scroll, cursor movement
@@ -238,7 +238,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-010: Fix step with dual-mode editing
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Present the top warning with 5 lines of context
   above/below. Default: show file path (OSC 8 hyperlink) + start
   single-file watcher. When file changes on disk, re-run the relevant
@@ -291,7 +291,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-013: Live file watching during tutorial steps
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** For steps that ask the user to edit a file (e.g. "Add a
   policy rule to no-todos.yaml"), start a file watcher on the target
   path. When the file changes, re-run verification automatically. This
@@ -310,7 +310,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-014: Watch mode demo with guided overlay
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Start `anvil watch` in a tutorial context — render the
   real watch dashboard with a semi-transparent guided overlay explaining
   each panel (file watcher status, check results, warning list). The
@@ -326,7 +326,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-015: Git hooks installation step
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Offer to install git hooks (pre-commit, pre-push) that
   run Anvil checks. Show what each hook does before installing. Detect
   existing hook managers (Husky, lefthook, pre-commit framework) and
@@ -343,7 +343,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-016: Tutorial progress persistence and resumption
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Persist tutorial progress at `~/.anvil/tutorial-progress.json`
   so interrupted sessions can resume. Track: which steps completed, scan
   results (to avoid re-scanning), chosen configuration, onboarding
@@ -357,7 +357,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-017: Next steps and completion summary
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Show a summary of what was set up, what Anvil found, and
   what to do next. Content: findings count, config created (y/n), hooks
   installed (y/n). Suggestions: "Run `anvil watch` to monitor
@@ -371,7 +371,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-018: Static tutorial fallback
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** When the kernel watcher is unavailable (e.g. inotify limit
   reached, no project directory, running in CI), fall back to the
   existing static tutorial content per DD-5. Detection is automatic —
