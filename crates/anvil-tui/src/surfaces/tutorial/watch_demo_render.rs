@@ -29,11 +29,8 @@ fn render_overlay(frame: &mut Frame, area: Rect, state: &WatchDemoState, theme: 
 
     // Position the overlay at the bottom of the screen.
     let overlay_height = 5u16.min(area.height.saturating_sub(2));
-    let chunks = Layout::vertical([
-        Constraint::Min(0),
-        Constraint::Length(overlay_height),
-    ])
-    .split(area);
+    let chunks =
+        Layout::vertical([Constraint::Min(0), Constraint::Length(overlay_height)]).split(area);
 
     let overlay_area = chunks[1];
 
@@ -48,7 +45,9 @@ fn render_overlay(frame: &mut Frame, area: Rect, state: &WatchDemoState, theme: 
         .border_style(Style::default().fg(border_color))
         .title(Span::styled(
             " Watch Demo ",
-            Style::default().fg(theme.accent()).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
         ));
 
     let content = Paragraph::new(Line::from(vec![

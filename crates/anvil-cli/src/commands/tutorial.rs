@@ -55,10 +55,10 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // Resume an interrupted session if one exists. Unrecognised path
     // labels (e.g. after a rename) are silently dropped — the next save
     // overwrites the stale entry.
-    if let Some(ref session) = progress.in_progress {
-        if let Some(path) = TutorialPath::from_label(&session.path) {
-            state.resume_path(path, session.current_step, &session.steps_completed);
-        }
+    if let Some(ref session) = progress.in_progress
+        && let Some(path) = TutorialPath::from_label(&session.path)
+    {
+        state.resume_path(path, session.current_step, &session.steps_completed);
     }
 
     // Start a file watcher for live verification on watched steps
@@ -404,7 +404,11 @@ mod tests {
         std::fs::write(&path, r#"{"completed_paths":["CI Integration"]}"#).unwrap();
 
         let loaded = load_progress(&path);
-        assert!(loaded.completed_paths.contains(&"CI Integration".to_string()));
+        assert!(
+            loaded
+                .completed_paths
+                .contains(&"CI Integration".to_string())
+        );
         assert!(loaded.in_progress.is_none());
     }
 }

@@ -131,10 +131,7 @@ fn render(frame: &mut Frame, area: Rect, state: &CompletionState, theme: &EddaCr
         };
         lines.push(status_line(&label, theme.success()));
     } else {
-        lines.push(status_line(
-            "\u{2013} Hooks: not installed",
-            theme.muted(),
-        ));
+        lines.push(status_line("\u{2013} Hooks: not installed", theme.muted()));
     }
 
     // ── Findings count ──────────────────────────────────────────────────
@@ -157,10 +154,7 @@ fn render(frame: &mut Frame, area: Rect, state: &CompletionState, theme: &EddaCr
         };
         lines.push(status_line(&label, theme.success()));
     } else {
-        lines.push(status_line(
-            "\u{2013} Tutorial: skipped",
-            theme.muted(),
-        ));
+        lines.push(status_line("\u{2013} Tutorial: skipped", theme.muted()));
     }
 
     // ── Blank separator ─────────────────────────────────────────────────
@@ -171,9 +165,7 @@ fn render(frame: &mut Frame, area: Rect, state: &CompletionState, theme: &EddaCr
         Span::styled(PAD, Style::default()),
         Span::styled(
             "What\u{2019}s next:",
-            Style::default()
-                .fg(theme.fg())
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
         ),
     ]));
 

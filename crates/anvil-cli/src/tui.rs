@@ -159,8 +159,7 @@ fn tutorial_loop(
 
         terminal.draw(|frame| {
             let area = frame.area();
-            let content =
-                render_shell(frame, area, state.surface_name(), state.help_text(), theme);
+            let content = render_shell(frame, area, state.surface_name(), state.help_text(), theme);
             state.render(frame, content, theme);
         })?;
 

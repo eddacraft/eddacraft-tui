@@ -94,8 +94,10 @@ mod tests {
 
     #[test]
     fn file_exists_fail() {
-        let path = std::env::temp_dir()
-            .join(format!("anvil_verify_nonexistent_{}_marker.txt", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "anvil_verify_nonexistent_{}_marker.txt",
+            std::process::id()
+        ));
         let path = path.to_string_lossy().to_string();
         let verify = Verify::FileExists(path.clone());
         let output = make_output("", "", true, Some(0));

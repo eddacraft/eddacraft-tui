@@ -156,14 +156,14 @@ impl FixState {
 
         // Position the cursor on the warning line within the context block.
         // Only reposition if the warning line falls within the context window.
-        if let Some(warning_line) = self.finding.line {
-            if warning_line >= self.context_start_line {
-                let target = warning_line - self.context_start_line;
-                let total = editor.line_count();
-                let clamped = target.min(total.saturating_sub(1));
-                for _ in 0..clamped {
-                    editor.move_down();
-                }
+        if let Some(warning_line) = self.finding.line
+            && warning_line >= self.context_start_line
+        {
+            let target = warning_line - self.context_start_line;
+            let total = editor.line_count();
+            let clamped = target.min(total.saturating_sub(1));
+            for _ in 0..clamped {
+                editor.move_down();
             }
         }
 
@@ -311,8 +311,8 @@ impl Surface for FixState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::discovery::{FindingSeverity, FindingSource};
+    use super::*;
 
     fn make_finding() -> Finding {
         Finding {

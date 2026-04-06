@@ -69,10 +69,7 @@ impl WatchDemoState {
         self.event_count += 1;
         self.dirty = true;
 
-        if matches!(
-            event.event_type,
-            anvil_kernel_types::EventType::Snapshot
-        ) {
+        if matches!(event.event_type, anvil_kernel_types::EventType::Snapshot) {
             self.snapshot_count += 1;
             // A cycle is complete when we've seen at least 2 snapshots
             // (initial scan + one triggered by file change).
@@ -168,9 +165,7 @@ impl WatchDemoState {
         match self.overlay {
             OverlayPhase::Intro => "enter dismiss overlay  s skip  esc back",
             OverlayPhase::Hint1 | OverlayPhase::Hint2 => "s skip  esc back",
-            OverlayPhase::Hint3 | OverlayPhase::CycleComplete => {
-                "enter continue  s skip  esc back"
-            }
+            OverlayPhase::Hint3 | OverlayPhase::CycleComplete => "enter continue  s skip  esc back",
             OverlayPhase::Dismissed => "s skip  esc back",
         }
     }

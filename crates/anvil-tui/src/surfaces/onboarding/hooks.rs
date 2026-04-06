@@ -47,9 +47,7 @@ impl HookManager {
             Self::None => None,
             Self::Husky => Some("Anvil will add entries to your existing Husky hooks"),
             Self::Lefthook => Some("Anvil will add a run entry to your lefthook.yml"),
-            Self::PreCommit => {
-                Some("Anvil will add a hook entry to your .pre-commit-config.yaml")
-            }
+            Self::PreCommit => Some("Anvil will add a hook entry to your .pre-commit-config.yaml"),
         }
     }
 }

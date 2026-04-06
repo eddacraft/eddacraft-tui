@@ -174,12 +174,7 @@ impl TutorialState {
     /// If the saved step count doesn't match the current path definition
     /// (e.g. after a tool upgrade), the stale session is discarded and the
     /// path starts fresh.
-    pub fn resume_path(
-        &mut self,
-        path: TutorialPath,
-        step_index: usize,
-        steps_completed: &[bool],
-    ) {
+    pub fn resume_path(&mut self, path: TutorialPath, step_index: usize, steps_completed: &[bool]) {
         self.load_steps(path);
         // Stale session: step count changed since the session was saved.
         if steps_completed.len() != self.steps.len() {
@@ -237,9 +232,9 @@ impl TutorialState {
 
         // Check if any changed path overlaps the watch target.
         let target = std::path::Path::new(watch_target);
-        let relevant = changed_paths.iter().any(|p| {
-            p == target || p.starts_with(target)
-        });
+        let relevant = changed_paths
+            .iter()
+            .any(|p| p == target || p.starts_with(target));
         if !relevant {
             return false;
         }
@@ -1189,7 +1184,11 @@ mod tests {
     fn resume_path_sets_notice() {
         let mut state = TutorialState::new();
         // Policy has 6 steps.
-        state.resume_path(TutorialPath::Policy, 2, &[true, true, false, false, false, false]);
+        state.resume_path(
+            TutorialPath::Policy,
+            2,
+            &[true, true, false, false, false, false],
+        );
 
         assert!(state.resuming_notice.is_some());
         let notice = state.resuming_notice.as_ref().unwrap();
@@ -1211,7 +1210,11 @@ mod tests {
     fn resume_clears_on_reset() {
         let mut state = TutorialState::new();
         // Drift has 6 steps.
-        state.resume_path(TutorialPath::Drift, 1, &[true, false, false, false, false, false]);
+        state.resume_path(
+            TutorialPath::Drift,
+            1,
+            &[true, false, false, false, false, false],
+        );
         assert!(state.resuming_notice.is_some());
 
         <TutorialState as crate::surface::Surface>::reset(&mut state);
@@ -1274,8 +1277,8 @@ mod tests {
     #[test]
     fn handle_file_change_ignores_irrelevant_paths() {
         let mut state = state_with_watched_step("/tmp/watched_dir");
-        let advanced = state
-            .handle_file_change(&[std::path::PathBuf::from("/other/unrelated.txt")]);
+        let advanced =
+            state.handle_file_change(&[std::path::PathBuf::from("/other/unrelated.txt")]);
         assert!(!advanced);
         assert_eq!(state.current_step, 0);
     }
@@ -1356,8 +1359,8 @@ mod tests {
         let mut state = state_with_watched_step("/tmp/watched_dir");
         state.enable_static_mode();
 
-        let advanced = state
-            .handle_file_change(&[std::path::PathBuf::from("/tmp/watched_dir/file.txt")]);
+        let advanced =
+            state.handle_file_change(&[std::path::PathBuf::from("/tmp/watched_dir/file.txt")]);
         assert!(!advanced);
     }
 }

@@ -51,11 +51,8 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         let mut tutorial_state =
                             anvil_tui::surfaces::tutorial::TutorialState::new();
                         tutorial_state.set_scan_results(results);
-                        let sub_exit = crate::tui::run_surface_in(
-                            &mut terminal,
-                            &mut tutorial_state,
-                            &theme,
-                        )?;
+                        let sub_exit =
+                            crate::tui::run_surface_in(&mut terminal, &mut tutorial_state, &theme)?;
                         if sub_exit == SurfaceExit::Quit {
                             Ok(())
                         } else {

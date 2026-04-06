@@ -177,10 +177,7 @@ fn render_path_select(
                 Style::default().fg(theme.muted()),
             ));
             if done {
-                spans.push(Span::styled(
-                    "  (redo)",
-                    Style::default().fg(theme.muted()),
-                ));
+                spans.push(Span::styled("  (redo)", Style::default().fg(theme.muted())));
             }
 
             Line::from(spans)
@@ -564,7 +561,11 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let mut state = TutorialState::new();
         state.set_completed_paths(vec![TutorialPath::Architecture]);
-        state.resume_path(TutorialPath::Policy, 1, &[true, false, false, false, false, false]);
+        state.resume_path(
+            TutorialPath::Policy,
+            1,
+            &[true, false, false, false, false, false],
+        );
         let theme = EddaCraftTheme;
 
         terminal

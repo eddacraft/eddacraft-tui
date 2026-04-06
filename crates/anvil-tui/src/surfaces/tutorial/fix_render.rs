@@ -53,7 +53,7 @@ fn render_watching(frame: &mut Frame, area: Rect, state: &FixState, theme: &Edda
     let chunks = Layout::vertical([
         Constraint::Length(4), // severity + file + message + suggestion
         Constraint::Length(1), // separator
-        Constraint::Min(1),   // context lines
+        Constraint::Min(1),    // context lines
         Constraint::Length(1), // footer
     ])
     .split(inner);
@@ -229,7 +229,10 @@ fn render_timed_out(frame: &mut Frame, area: Rect, state: &FixState, theme: &Edd
         )),
         Line::default(),
         Line::from(Span::styled(
-            format!("The fix for '{}' was not applied in time.", state.finding.title),
+            format!(
+                "The fix for '{}' was not applied in time.",
+                state.finding.title
+            ),
             Style::default().fg(theme.fg()),
         )),
         Line::from(Span::styled(

@@ -30,25 +30,25 @@ fn render_overview(frame: &mut Frame, area: Rect, state: &HooksState, theme: &Ed
     ])
     .split(area);
 
-    if state.hook_manager != HookManager::None {
-        if let Some(note) = state.hook_manager.adapter_note() {
-            let notice = Paragraph::new(Text::from(vec![
-                Line::from(vec![
-                    Span::styled(PAD, Style::default()),
-                    Span::styled(
-                        format!("Detected: {}", state.hook_manager.label()),
-                        Style::default()
-                            .fg(theme.warning())
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::styled(PAD, Style::default()),
-                    Span::styled(note, Style::default().fg(theme.muted())),
-                ]),
-            ]));
-            frame.render_widget(notice, chunks[0]);
-        }
+    if state.hook_manager != HookManager::None
+        && let Some(note) = state.hook_manager.adapter_note()
+    {
+        let notice = Paragraph::new(Text::from(vec![
+            Line::from(vec![
+                Span::styled(PAD, Style::default()),
+                Span::styled(
+                    format!("Detected: {}", state.hook_manager.label()),
+                    Style::default()
+                        .fg(theme.warning())
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled(PAD, Style::default()),
+                Span::styled(note, Style::default().fg(theme.muted())),
+            ]),
+        ]));
+        frame.render_widget(notice, chunks[0]);
     }
 
     let block = Block::default()
@@ -74,9 +74,7 @@ fn render_overview(frame: &mut Frame, area: Rect, state: &HooksState, theme: &Ed
                 theme.muted()
             };
             let name_style = if selected {
-                Style::default()
-                    .fg(theme.fg())
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(theme.fg())
             };
@@ -84,7 +82,10 @@ fn render_overview(frame: &mut Frame, area: Rect, state: &HooksState, theme: &Ed
             let hook_line = Line::from(vec![
                 Span::styled(PAD, Style::default()),
                 Span::styled(indicator, name_style),
-                Span::styled(format!("{toggle_icon} "), Style::default().fg(toggle_colour)),
+                Span::styled(
+                    format!("{toggle_icon} "),
+                    Style::default().fg(toggle_colour),
+                ),
                 Span::styled(hook.name, name_style),
             ]);
             let desc_line = Line::from(vec![
