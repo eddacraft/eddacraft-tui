@@ -37,7 +37,7 @@
 - RENG: rust-core-engine (6/6) — Complete
 - KERN: rust-kernel (22/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
-- DOCSAUTH: docs-auth-gating (0/7) — Ready
+- DOCSAUTH: docs-auth-gating (6/7) — In Progress
 - RATS: ratatui-tui (7/7) — Complete
 - PORT: ink-to-ratatui-port (15/15) — Complete
 - OPENSPEC: open-spec-adapter — Draft
