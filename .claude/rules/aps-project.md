@@ -51,7 +51,7 @@
 - CPACKS: compliance-policy-packs (0/28) — Draft
 - DIST: distribution-pipeline (0/8) — Ready
 - TUIEXTRACT: eddacraft-tui-shared (3/7) — In Progress
-- DOCSYNC: documentation-sync (6/14) — In Progress
+- DOCSYNC: documentation-sync (9/14) — In Progress
 - TFIX: test-infrastructure-fix (0/10) — Ready
 - TCOV: test-coverage-uplift (0/25) — Draft
 - TINT: test-integration-surface (0/15) — Draft
@@ -515,6 +515,10 @@ docs/guides/compliance-packs-gdpr.md: CPACKS-071
 docs/guides/compliance-packs-nist-ai-rmf.md: CPACKS-071
 docs/guides/compliance-packs-eu-ai-act.md: CPACKS-071
 # DOCSYNC: Documentation Sync
+docs/guides/release-doc-checklist.md: DOCSYNC-001
+plans/decisions/adr-template.md: DOCSYNC-002
+docs/guides/adr-process.md: DOCSYNC-002
+docs/guides/architecture-diagrams.md: DOCSYNC-003
 docs/public/anvil/releases/rust-rewrite.md: DOCSYNC-008
 docs/public/anvil/beta-testing-guide.md: DOCSYNC-007, DOCSYNC-010
 docs/public/anvil/quickstart.md: DOCSYNC-007, DOCSYNC-009

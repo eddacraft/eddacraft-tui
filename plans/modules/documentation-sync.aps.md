@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      |
 | ------- | ----- | ----------- |
-| DOCSYNC | —     | In Progress |
+| DOCSYNC | —     | In Progress (9/14) |
 
 ## Purpose
 
@@ -85,17 +85,17 @@ documentation updates that aren't tracked.
 
 | Phase                  | Total | Done | In Progress | Draft |
 | ---------------------- | ----- | ---- | ----------- | ----- |
-| Rust CLI Migration     |    10 |    6 |           0 |     4 |
+| Rust CLI Migration     |    10 |    9 |           0 |     1 |
 | Future                 |     4 |    0 |           0 |     4 |
-| **Total**              |    14 |    6 |           0 |     8 |
+| **Total**              |    14 |    9 |           0 |     5 |
 
 ### Item Detail
 
 | ID          | Status | Notes                                         |
 | ----------- | ------ | --------------------------------------------- |
-| DOCSYNC-001 | Draft  |                                               |
-| DOCSYNC-002 | Draft  |                                               |
-| DOCSYNC-003 | Draft  |                                               |
+| DOCSYNC-001 | Done   | docs/guides/release-doc-checklist.md (180-line checklist) |
+| DOCSYNC-002 | Done   | plans/decisions/adr-template.md + docs/guides/adr-process.md |
+| DOCSYNC-003 | Done   | docs/guides/architecture-diagrams.md          |
 | DOCSYNC-004 | Done   | TUI references updated in beta guide, quickstart |
 | DOCSYNC-005 | Draft  |                                               |
 | DOCSYNC-006 | Done   | Crate READMEs + rust-rewrite.md               |
