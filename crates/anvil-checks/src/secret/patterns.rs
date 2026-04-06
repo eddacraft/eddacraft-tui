@@ -313,6 +313,18 @@ mod tests {
     }
 
     #[test]
+    fn generic_secret_matches_compound_names() {
+        let compiled = compile_secret_patterns(&[]);
+        let pattern = compiled
+            .iter()
+            .find(|p| p.name == "Generic Secret")
+            .expect("Generic Secret pattern");
+        assert!(pattern.regex.is_match("DB_PASSWORD=supersecret99"));
+        assert!(pattern.regex.is_match("my_secret = longvalue123"));
+        assert!(pattern.regex.is_match("ADMIN_PWD='f3k8q9m2x7'"));
+    }
+
+    #[test]
     fn allows_default_and_custom_allowlist_patterns() {
         let matcher = PatternMatcher::new(&["my-safe-value".to_string()]);
 
