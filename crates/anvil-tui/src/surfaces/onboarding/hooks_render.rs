@@ -252,14 +252,39 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
-    fn make_state() -> HooksState {
+    struct TestHarness {
+        dir: std::path::PathBuf,
+        state: HooksState,
+    }
+
+    impl std::ops::Deref for TestHarness {
+        type Target = HooksState;
+        fn deref(&self) -> &Self::Target {
+            &self.state
+        }
+    }
+
+    impl std::ops::DerefMut for TestHarness {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.state
+        }
+    }
+
+    impl Drop for TestHarness {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn make_state() -> TestHarness {
         let dir = std::env::temp_dir().join(format!(
             "anvil_hooks_render_test_{}_{:?}",
             std::process::id(),
             std::thread::current().id()
         ));
         std::fs::create_dir_all(&dir).unwrap();
-        HooksState::new(&dir)
+        let state = HooksState::new(&dir);
+        TestHarness { dir, state }
     }
 
     #[test]

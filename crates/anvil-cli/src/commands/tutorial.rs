@@ -64,10 +64,11 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // Start a file watcher for live verification on watched steps
     // (WELCOME-013). Falls back to keyboard-only mode if the watcher
     // cannot start (e.g. inotify limit reached).
-    let watcher_result = try_start_watcher();
-    let (file_rx, _watcher_handle) = match watcher_result {
-        Ok((rx, handle)) => (Some(rx), Some(handle)),
-        Err(_) => (None, None),
+    let (file_rx, _watcher_handle) = if let Ok((rx, handle)) = try_start_watcher() {
+        (Some(rx), Some(handle))
+    } else {
+        state.enable_static_mode();
+        (None, None)
     };
 
     let mut state = crate::tui::run_tutorial(state, file_rx.as_ref())?;

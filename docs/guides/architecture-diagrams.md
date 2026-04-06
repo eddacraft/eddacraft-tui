@@ -18,7 +18,8 @@ and which tool to use.
 - Dependency graphs
 - Sequence diagrams in ADRs or specs
 - Simple flow diagrams in guides
-- Renders automatically in GitHub and Docusaurus
+- Renders automatically in GitHub; for local preview, use a Mermaid-aware editor
+  or CLI
 
 **Draw.io** — use for complex architecture diagrams:
 

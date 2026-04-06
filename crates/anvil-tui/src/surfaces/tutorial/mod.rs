@@ -227,15 +227,23 @@ impl TutorialState {
         };
         // Skip if the step already completed or hasn't been attempted yet
         // when it has a command (user should press Enter first).
-        if step.completed {
+        if step.completed || (step.command.is_some() && step.output.is_none()) {
             return false;
         }
 
-        // Check if any changed path overlaps the watch target.
-        let target = std::path::Path::new(watch_target);
+        // Normalise the watch target to an absolute path so it matches the
+        // absolute paths emitted by the file watcher.
+        let watch_target_path = std::path::PathBuf::from(watch_target);
+        let target = if watch_target_path.is_absolute() {
+            watch_target_path
+        } else if let Ok(root) = std::env::current_dir() {
+            root.join(&watch_target_path)
+        } else {
+            watch_target_path
+        };
         let relevant = changed_paths
             .iter()
-            .any(|p| p == target || p.starts_with(target));
+            .any(|p| p == &target || p.starts_with(&target));
         if !relevant {
             return false;
         }

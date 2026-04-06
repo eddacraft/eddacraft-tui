@@ -259,6 +259,9 @@ fn run_welcome_hub(
                 if let Some(results) = run_discovery(terminal, theme)? {
                     let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
                     tutorial_state.set_scan_results(results);
+                    // No file watcher available from the welcome hub, so run
+                    // in static mode (watch/demo steps become informational).
+                    tutorial_state.enable_static_mode();
                     let sub_exit =
                         crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
                     if sub_exit == SurfaceExit::Quit {
