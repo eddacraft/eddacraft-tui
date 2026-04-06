@@ -98,6 +98,7 @@ pub struct TutorialStep {
 }
 
 /// State for the tutorial orchestrator surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct TutorialState {
     pub phase: TutorialPhase,
     pub paths: Vec<TutorialPath>,

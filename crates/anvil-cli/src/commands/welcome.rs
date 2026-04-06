@@ -256,19 +256,13 @@ fn run_welcome_hub(
             }
             Some(QuickStartOption::RunTutorial) => {
                 welcome.status_message = None;
-                match run_discovery(terminal, theme)? {
-                    Some(results) => {
-                        let mut tutorial_state =
-                            anvil_tui::surfaces::tutorial::TutorialState::new();
-                        tutorial_state.set_scan_results(results);
-                        let sub_exit =
-                            crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
-                        if sub_exit == SurfaceExit::Quit {
-                            break;
-                        }
-                    }
-                    None => {
-                        // User quit during discovery — return to welcome hub.
+                if let Some(results) = run_discovery(terminal, theme)? {
+                    let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
+                    tutorial_state.set_scan_results(results);
+                    let sub_exit =
+                        crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
+                    if sub_exit == SurfaceExit::Quit {
+                        break;
                     }
                 }
                 welcome.should_quit = false;

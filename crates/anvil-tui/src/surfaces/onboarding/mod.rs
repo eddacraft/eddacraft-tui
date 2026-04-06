@@ -12,9 +12,8 @@ pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 /// current working directory. Checks for `.anvil.yaml`, `.anvil.json`,
 /// and `.anvil.toml`.
 pub fn config_exists() -> bool {
-    let cwd = match std::env::current_dir() {
-        Ok(d) => d,
-        Err(_) => return false,
+    let Ok(cwd) = std::env::current_dir() else {
+        return false;
     };
     config_exists_in(&cwd)
 }

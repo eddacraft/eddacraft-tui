@@ -27,6 +27,7 @@ pub enum OverlayPhase {
 ///
 /// Wraps a `WatchData` (the same data the real watch dashboard uses)
 /// and adds overlay annotations, timing, and auto-continue logic.
+#[allow(clippy::struct_excessive_bools)]
 pub struct WatchDemoState {
     pub data: WatchData,
     pub adapter: WatchEventAdapter,
@@ -105,7 +106,7 @@ impl WatchDemoState {
     pub fn handle_key(&mut self, action: Action) {
         match action {
             // 's' — skip the demo
-            Action::Character('s') => self.wants_back = true,
+            Action::Character('s') | Action::Back | Action::Quit => self.wants_back = true,
             // Enter — continue if cycle complete or hint3 reached
             Action::Select => {
                 if self.overlay == OverlayPhase::CycleComplete
@@ -118,7 +119,6 @@ impl WatchDemoState {
                     self.dirty = true;
                 }
             }
-            Action::Back | Action::Quit => self.wants_back = true,
             _ => {}
         }
     }
@@ -164,9 +164,10 @@ impl WatchDemoState {
     pub fn help_text(&self) -> &'static str {
         match self.overlay {
             OverlayPhase::Intro => "enter dismiss overlay  s skip  esc back",
-            OverlayPhase::Hint1 | OverlayPhase::Hint2 => "s skip  esc back",
+            OverlayPhase::Hint1 | OverlayPhase::Hint2 | OverlayPhase::Dismissed => {
+                "s skip  esc back"
+            }
             OverlayPhase::Hint3 | OverlayPhase::CycleComplete => "enter continue  s skip  esc back",
-            OverlayPhase::Dismissed => "s skip  esc back",
         }
     }
 }

@@ -79,6 +79,7 @@ pub enum HooksPhase {
 }
 
 /// State for the git hooks installation surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct HooksState {
     pub phase: HooksPhase,
     pub hooks: Vec<HookDef>,
@@ -199,10 +200,7 @@ impl HooksState {
 
     fn handle_done_key(&mut self, action: Action) {
         match action {
-            Action::Select | Action::Back => {
-                self.should_quit = true;
-            }
-            Action::Quit => {
+            Action::Select | Action::Back | Action::Quit => {
                 self.should_quit = true;
             }
             _ => {}

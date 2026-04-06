@@ -18,10 +18,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &HooksState, theme: &EddaCra
 }
 
 fn render_overview(frame: &mut Frame, area: Rect, state: &HooksState, theme: &EddaCraftTheme) {
-    let manager_notice_height = if state.hook_manager != HookManager::None {
-        2u16
-    } else {
+    let manager_notice_height = if state.hook_manager == HookManager::None {
         0u16
+    } else {
+        2u16
     };
 
     let chunks = Layout::vertical([

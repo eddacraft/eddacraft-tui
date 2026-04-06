@@ -138,7 +138,7 @@ pub fn run_tutorial(
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
-    result.map(|_| state)
+    result.map(|()| state)
 }
 
 fn tutorial_loop(
