@@ -22,7 +22,8 @@ Do **not** write an ADR for:
 
 ## How to Create an ADR
 
-1. Copy the template: `cp plans/decisions/adr-template.md plans/decisions/NNN-short-title.md`
+1. Copy the template:
+   `cp plans/decisions/adr-template.md plans/decisions/NNN-short-title.md`
 2. Use the next available number (check existing files in `plans/decisions/`)
 3. Use kebab-case for the filename: `NNN-short-description.md`
 4. Set status to **Proposed**

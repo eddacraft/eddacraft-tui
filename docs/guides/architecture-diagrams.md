@@ -5,11 +5,11 @@ and which tool to use.
 
 ## Diagram Inventory
 
-| Diagram | Format | Location | What it shows |
-|---------|--------|----------|---------------|
-| System overview | Mermaid | `docs/architecture/overview.md` | Dependency graph between packages |
-| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | Full component diagram |
-| PPTX workflow | Draw.io | `docs/architecture/pptx-workflow.drawio` | Presentation generation flow |
+| Diagram           | Format  | Location                                           | What it shows                     |
+| ----------------- | ------- | -------------------------------------------------- | --------------------------------- |
+| System overview   | Mermaid | `docs/architecture/overview.md`                    | Dependency graph between packages |
+| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | Full component diagram            |
+| PPTX workflow     | Draw.io | `docs/architecture/pptx-workflow.drawio`           | Presentation generation flow      |
 
 ## Tool Choice
 
@@ -69,7 +69,8 @@ When reviewing a PR that changes architecture:
 
 ## Quarterly Audit
 
-As part of the quarterly documentation audit (see `docs/guides/release-doc-checklist.md`):
+As part of the quarterly documentation audit (see
+`docs/guides/release-doc-checklist.md`):
 
 - [ ] Verify all Mermaid diagrams render correctly
 - [ ] Open each `.drawio` file and check it matches the current codebase
