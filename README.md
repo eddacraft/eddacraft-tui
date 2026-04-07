@@ -4,7 +4,7 @@
 [![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Rust](https://img.shields.io/badge/Rust-2024_edition-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/Rust-2024%20edition-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js->=24-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
 EddaCraft monorepo. Currently home to **Anvil** — a deterministic development
