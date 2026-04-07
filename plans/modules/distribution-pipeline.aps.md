@@ -1,7 +1,7 @@
 <!--
 APS Module: Distribution Pipeline
 ===================================
-Public repo, release binaries, install script, DNS, crates.io.
+Public repo, release binaries, install script, DNS, Homebrew, WinGet.
 Replaces RCLI-024 with a full module.
 
 Scopes: DIST (main)
@@ -16,14 +16,19 @@ Scopes: DIST (main)
 ## Purpose
 
 Ship the `anvil` binary to users via a public repo (`EddaCraft/anvil`),
-GitHub Releases, an install script at `install.eddacraft.ai`, and crates.io.
-Also extract `eddacraft-tui` to its own public repo for consumption by APS
-and Kindling.
+GitHub Releases, an install script at `install.eddacraft.ai`, a Homebrew
+tap, and a WinGet manifest.
 
 **Why:** The Rust CLI is feature-complete for beta but users can't install it.
 The binary is built in the private monorepo (`anvil-001`) and needs a public
 distribution surface with platform binaries, an install script, and DNS
 routing.
+
+**IP model (ADR-018):** Anvil is closed-source / free-at-base-tier. The
+source never leaves the private monorepo. Distribution is binary-only. This
+rules out crates.io as an install path (publishing requires source
+disclosure) and shapes the channel mix below toward manifest-based package
+managers (Homebrew, WinGet, scoop) that point at GitHub Release binaries.
 
 ## In Scope
 
@@ -34,8 +39,9 @@ routing.
 - GitHub Pages on `EddaCraft/anvil` serving install scripts
 - Azure DNS: CNAME `install.eddacraft.ai` → `eddacraft.github.io`
 - Pulumi resource for the DNS record
-- crates.io publish for Windows users (`cargo install anvil-cli`)
-- Homebrew tap (`eddacraft/homebrew-tap`) for macOS users
+- Homebrew tap (`EddaCraft/homebrew-tap`) for macOS users
+- WinGet manifest (`microsoft/winget-pkgs`) for Windows users
+- Optional scoop bucket for Windows developer audience
 
 ## Out of Scope
 
@@ -43,6 +49,8 @@ routing.
 - Website changes beyond updating install commands (see beta housekeeping)
 - Nightly builds or pre-release channels
 - Auto-update mechanism
+- **crates.io publish** — incompatible with the closed-source IP model
+  (see ADR-018 and DIST-008 below)
 
 ## Interfaces
 
@@ -193,19 +201,32 @@ Change status to **Ready** when:
 
 ### DIST-008: Publish to crates.io
 
-- **Status:** Ready
-- **Intent:** Publish `anvil-cli` to crates.io so Windows users can
-  `cargo install anvil-cli`. Requires vendoring or publishing workspace
-  dependencies first
-- **Expected Outcome:** `cargo install anvil-cli` installs a working `anvil`
-  binary
-- **Validation:** `cargo install anvil-cli && anvil --version` on a clean
-  machine
-- **Files:** `crates/anvil-cli/Cargo.toml` (metadata for crates.io)
-- **Confidence:** medium (workspace deps need to be resolvable from
-  crates.io — may need to publish anvil-kernel, anvil-tui, etc. or vendor)
-- **Priority:** Medium
-- **Dependencies:** DIST-007
+- **Status:** Deferred — incompatible with the closed-source IP model
+  (see [ADR-018](../decisions/018-product-ip-architecture.md))
+- **Original intent:** Publish the Anvil crate family to crates.io so
+  users on platforms without our install script could run
+  `cargo install anvil-cli`.
+- **Why deferred:** Publishing to crates.io requires publishing source.
+  ADR-018 establishes that the Anvil monorepo is closed-source (free at
+  base tier, source proprietary), with a deliberate three-piece OSS
+  surface (`eddacraft-tui`, `anvil-plan-spec`, `kindling`) that does
+  *not* include the product code. `cargo install` is therefore not a
+  viable install path for Anvil. The Windows-user gap this item was
+  meant to fill is filled by **DIST-010 (WinGet)** instead, which
+  points at the GitHub Release binary and requires zero source
+  disclosure.
+- **Namespace analysis (ADR-017):** The `eddacraft-anvil-*` namespace
+  prefix was analysed and approved but the rename was reverted during
+  reconciliation. Execution is deferred alongside this item. See
+  ADR-017 for the full analysis and re-activation criteria.
+- **Re-activation criteria** — this item could come off the shelf if:
+  - The IP model changes (e.g. a future ADR opens part of the product
+    under a permissive licence), **and**
+  - There is a real user request volume for `cargo install` that
+    WinGet / scoop / Homebrew / install.sh together cannot satisfy
+- **Files:** ADR-017 (naming), ADR-018 (IP model)
+- **Priority:** Deferred
+- **Dependencies:** n/a
 
 ---
 
@@ -224,15 +245,69 @@ Change status to **Ready** when:
 
 ---
 
+## Phase 4 — Windows package managers
+
+> **Context:** DIST-008 (crates.io publish) was deferred per ADR-018
+> because it requires source disclosure. WinGet and scoop fill the
+> Windows install gap by pointing at the GitHub Release binary
+> produced by DIST-007 — both are manifest-based and require zero
+> source disclosure.
+
+### DIST-010: WinGet manifest
+
+- **Status:** Ready
+- **Intent:** Submit a WinGet manifest to `microsoft/winget-pkgs` so
+  Windows users can `winget install eddacraft.anvil`. WinGet ships
+  preinstalled on Windows 11 and is the official Microsoft package
+  manager. Used by `gh`, `gcloud`, `vercel`, `pulumi`, `bun`, and
+  most other modern closed-source dev tools targeting Windows.
+- **Expected Outcome:** `winget install eddacraft.anvil` installs a
+  working `anvil.exe` on a clean Windows 11 machine.
+- **Validation:** `winget install eddacraft.anvil && anvil --version`
+  on a clean Windows VM.
+- **Files:**
+  - WinGet manifest YAML in
+    `microsoft/winget-pkgs/manifests/e/EddaCraft/Anvil/<version>/`
+  - `anvil-001` release workflow extension to auto-generate and
+    submit the manifest on each tagged release (use
+    `vedantmgoyal2009/winget-releaser` or
+    `microsoft/winget-create`)
+- **Confidence:** high — well-trodden path, lots of prior art
+- **Priority:** High (replaces DIST-008 for the Windows install gap)
+- **Dependencies:** DIST-007 (release workflow producing
+  `eddacraft-anvil-x86_64-pc-windows-msvc.zip`)
+
+---
+
+### DIST-011: Scoop bucket (optional)
+
+- **Status:** Ready
+- **Intent:** Create `EddaCraft/scoop-bucket` repo with a manifest for
+  `anvil` that downloads the Windows binary from GitHub Releases.
+  Scoop is the popular community Windows package manager favoured
+  by developer audiences (lighter weight than WinGet, single-line
+  install).
+- **Expected Outcome:** `scoop bucket add eddacraft https://github.com/EddaCraft/scoop-bucket && scoop install anvil`
+  installs the latest version.
+- **Validation:** clean Windows VM with scoop pre-installed,
+  `scoop install eddacraft/anvil && anvil --version`.
+- **Files:** `EddaCraft/scoop-bucket/bucket/anvil.json`
+- **Confidence:** high
+- **Priority:** Medium (WinGet is the primary Windows path; scoop is
+  the developer-audience polish)
+- **Dependencies:** DIST-007
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 | ---- | ---------- | ------ | ---------- |
 | Cross-repo release auth (PAT/deploy key) | Medium | High | Use fine-grained PAT scoped to EddaCraft/anvil repo |
-| crates.io workspace dep resolution | Medium | Medium | Vendor deps or publish sub-crates first |
 | DNS propagation delay | Low | Low | Set up CNAME early; 48h buffer before beta |
 | GitHub Pages HTTPS cert for custom domain | Low | Low | GitHub auto-provisions Let's Encrypt cert |
 | Install script platform detection edge cases | Medium | Low | Test in CI matrix; fall back to manual download |
+| WinGet manifest review delay | Medium | Low | Microsoft's review queue can take 1–7 days for new packages — submit early; subsequent updates are auto-merged |
 
 ## Stats
 
@@ -240,5 +315,7 @@ Change status to **Ready** when:
 | ----- | ----- | ------ |
 | 1 — Public Repo | 1 | Ready |
 | 2 — Install Script + DNS | 4 | Ready |
-| 3 — Release Workflow | 3 | Ready |
-| **Total** | **8** | **0/8 done** |
+| 3 — Release Workflow | 2 (DIST-007, DIST-009; DIST-008 deferred) | Ready |
+| 4 — Windows Package Managers | 2 | Ready |
+| **Total active** | **9** | **0/9 done** |
+| Deferred | 1 (DIST-008) | per ADR-018 |
