@@ -69,9 +69,9 @@ export function HeroSection() {
             {/* Stats */}
             <div className="flex gap-4 sm:gap-8 pt-4 border-t border-structure">
               <div>
-                <div className="font-mono text-xl sm:text-2xl text-text-primary">{'<'}50ms</div>
+                <div className="font-mono text-xl sm:text-2xl text-text-primary">10 µs</div>
                 <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  gate latency
+                  save-time check
                 </div>
               </div>
               <div>
