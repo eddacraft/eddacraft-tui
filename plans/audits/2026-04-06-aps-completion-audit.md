@@ -135,9 +135,14 @@ implemented with tests and benchmarks, yet remain marked Draft:
 ### Investigate (possible lost work) — RESOLVED
 
 - [x] CRB-014: `git-status.test.ts` exists on `dev` HEAD; `git-agent.test.ts`
-  found in commit `04c996f0`. Both restored to this branch.
-- [x] CRB-029: 12 command test files found in commit `7a549c55` on `dev`
-  (removed during merge conflict resolution `491d4cf3`). All 12 restored.
+  found in commit `04c996f0`. This audit preserves that historical evidence
+  from the legacy TypeScript CLI lineage; it does not imply both files exist
+  in the current repository layout.
+- [x] CRB-029: 12 command test files were identified in commit `7a549c55` on
+  `dev` and appear to have been removed during merge conflict resolution
+  `491d4cf3`. Recorded as historical evidence for the legacy/archived CLI;
+  the current Rust CLI repository does not contain these `apps/anvil-cli/...`
+  test files.
 
 ### Low Priority (partial completions)
 

@@ -1,28 +1,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Track execFileSync calls for argument safety verification
-const execFileSyncCalls: Array<{ cmd: string; args: string[] }> = [];
-let execFileSyncResult = '';
-let execFileSyncError: Error | null = null;
+// vi.mock() factories are hoisted above module-scope bindings, so any state
+// the factory closes over must also be hoisted with vi.hoisted() to avoid
+// a TDZ ReferenceError before tests run.
+const { execFileSyncCalls, state, execFileSyncMock, execFileMock } = vi.hoisted(() => {
+  const calls: Array<{ cmd: string; args: string[] }> = [];
+  const sharedState = { result: '', error: null as Error | null };
 
-vi.mock('node:child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:child_process')>();
-
-  const execFileSyncMock = vi.fn((...fnArgs: unknown[]) => {
+  const execFileSync = vi.fn((...fnArgs: unknown[]) => {
     const cmd = fnArgs[0] as string;
     const args = fnArgs[1] as string[];
-    execFileSyncCalls.push({ cmd, args });
-    if (execFileSyncError) throw execFileSyncError;
-    return execFileSyncResult;
+    calls.push({ cmd, args });
+    if (sharedState.error) throw sharedState.error;
+    return sharedState.result;
   });
 
   // Provide a working execFile with promisify support for transitive deps
-  const execFileMock = Object.assign(vi.fn(), {
+  const execFile = Object.assign(vi.fn(), {
     [Symbol.for('nodejs.util.promisify.custom')]: vi.fn(() =>
       Promise.resolve({ stdout: '', stderr: '' })
     ),
   });
 
+  return {
+    execFileSyncCalls: calls,
+    state: sharedState,
+    execFileSyncMock: execFileSync,
+    execFileMock: execFile,
+  };
+});
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
   return {
     ...actual,
     default: { ...actual, execFileSync: execFileSyncMock, execFile: execFileMock },
@@ -45,8 +54,8 @@ import {
 describe('git-agent — command safety (CRB-014)', () => {
   beforeEach(() => {
     execFileSyncCalls.length = 0;
-    execFileSyncResult = '';
-    execFileSyncError = null;
+    state.result = '';
+    state.error = null;
   });
 
   afterEach(() => {
@@ -55,8 +64,8 @@ describe('git-agent — command safety (CRB-014)', () => {
 
   describe('parseCommitTrailers', () => {
     it('should parse valid trailers', () => {
-      // Trailing newline matches real git %B output — parseCommitTrailers
-      // walks backwards and needs the empty last element to trigger collection
+      // Trailing newline matches real git %B output. parseCommitTrailers
+      // recognises trailers from the blank line before the trailer block.
       const message = `fix: something\n\nSigned-off-by: test@example.com\nCo-authored-by: AI <ai@example.com>\n`;
       const trailers = parseCommitTrailers(message);
 
@@ -149,7 +158,7 @@ describe('git-agent — command safety (CRB-014)', () => {
 
   describe('getCommitAgentInfo — argument safety', () => {
     it('should pass commit ref with special characters as a single argument', () => {
-      execFileSyncResult = 'fix: test commit\n';
+      state.result = 'fix: test commit\n';
 
       getCommitAgentInfo('HEAD; rm -rf /');
 
@@ -160,7 +169,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should pass commit ref with backticks as a single argument', () => {
-      execFileSyncResult = 'fix: test\n';
+      state.result = 'fix: test\n';
 
       getCommitAgentInfo('`whoami`');
 
@@ -168,7 +177,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should pass commit ref with $() as a single argument', () => {
-      execFileSyncResult = 'fix: test\n';
+      state.result = 'fix: test\n';
 
       getCommitAgentInfo('$(cat /etc/passwd)');
 
@@ -176,7 +185,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should use execFileSync (not execSync) for shell safety', () => {
-      execFileSyncResult = 'fix: test\n';
+      state.result = 'fix: test\n';
 
       getCommitAgentInfo('HEAD');
 
@@ -186,7 +195,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
+      state.error = new Error('not a git repository');
 
       const result = getCommitAgentInfo('HEAD');
 
@@ -196,7 +205,7 @@ describe('git-agent — command safety (CRB-014)', () => {
 
   describe('getAgentContributions — sinceRef injection prevention', () => {
     it('should pass sinceRef with injection attempts as a single argument', () => {
-      execFileSyncResult = '';
+      state.result = '';
 
       getAgentContributions('main; rm -rf /', '/workspace');
 
@@ -207,7 +216,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should pass sinceRef with backticks safely', () => {
-      execFileSyncResult = '';
+      state.result = '';
 
       getAgentContributions('`whoami`', '/workspace');
 
@@ -216,7 +225,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
+      state.error = new Error('not a git repository');
 
       const contributions = getAgentContributions('main', '/workspace');
 
@@ -226,7 +235,7 @@ describe('git-agent — command safety (CRB-014)', () => {
 
   describe('getAiCommitPercentage — sinceRef injection prevention', () => {
     it('should pass sinceRef safely to rev-list', () => {
-      execFileSyncResult = '0\n';
+      state.result = '0\n';
 
       getAiCommitPercentage('main; echo pwned', '/workspace');
 
@@ -235,7 +244,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
+      state.error = new Error('not a git repository');
 
       const percentage = getAiCommitPercentage('main', '/workspace');
 
@@ -292,7 +301,7 @@ describe('git-agent — command safety (CRB-014)', () => {
 
   describe('getRecentCommitsAgentInfo', () => {
     it('should not crash on empty git log output', () => {
-      execFileSyncResult = '';
+      state.result = '';
 
       const results = getRecentCommitsAgentInfo(10, '/workspace');
 
@@ -300,7 +309,7 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
+      state.error = new Error('not a git repository');
 
       const results = getRecentCommitsAgentInfo(10, '/workspace');
 
