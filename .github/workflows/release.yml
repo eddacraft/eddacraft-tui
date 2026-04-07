@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    env:
+      # GITHUB_REF is controlled by repo write access; tag names are
+      # constrained by the on.push.tags pattern above (semver-only).
+      GIT_REF: ${{ github.ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          TAG="${GIT_REF#refs/tags/v}"
+          MANIFEST=$(cargo metadata --no-deps --format-version 1 \
+            | grep -o '"version":"[^"]*"' | head -1 \
+            | sed 's/"version":"\(.*\)"/\1/')
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "::error::Tag v$TAG does not match Cargo.toml version $MANIFEST"
+            exit 1
+          fi
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GIT_REF#refs/tags/}"
+          gh release create "$TAG" --title "$TAG" --generate-notes

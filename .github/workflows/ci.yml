@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        # Pedantic lints are configured as warnings in Cargo.toml; only
+        # deny-level lints fail the build (matches local dev behaviour).
+        run: cargo clippy --all-targets --all-features
+      - name: cargo test
+        run: cargo test --all-features
+      - name: cargo publish (dry run)
+        run: cargo publish --dry-run
