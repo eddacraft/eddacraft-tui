@@ -7,9 +7,9 @@
 > **AI agents make software probabilistic. Anvil makes it deterministic.**
 
 Anvil enforces policy at generation time, not at review. It sits between
-probabilistic AI agents and production code as a deterministic governance
-layer that catches architectural drift, anti-patterns, security risks, and
-policy violations **before they ever leave the developer's machine.**
+probabilistic AI agents and production code as a deterministic governance layer
+that catches architectural drift, anti-patterns, security risks, and policy
+violations **before they ever leave the developer's machine.**
 
 **[→ Early access at eddacraft.ai](https://eddacraft.ai)** ·
 [Docs](https://docs.eddacraft.ai/anvil/overview) ·
@@ -25,9 +25,9 @@ policy violations **before they ever leave the developer's machine.**
 0          perceptible delay
 ```
 
-Measured 2026-04-03 against the Rust kernel via Criterion (100 samples,
-release build). Governance overhead is effectively zero — Anvil is in a
-different category from SAST, not a faster scanner.
+Measured 2026-04-03 against the Rust kernel via Criterion (100 samples, release
+build). Governance overhead is effectively zero — Anvil is in a different
+category from SAST, not a faster scanner.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/EddaCraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
@@ -35,14 +35,15 @@ for marketing-ready proof points.
 
 ## What Anvil is
 
-**Agentic engineering governance** — a category being defined right now.
-Anvil is not a SAST scanner, not a linter, not an observability product, not
-a compliance dashboard. It is the governance layer that complements and
-constrains AI coding tools (Cursor, Copilot, Codex) in real time, in the
-developer workflow — *not* in the PR queue.
+**Agentic engineering governance** — a category being defined right now. Anvil
+is not a SAST scanner, not a linter, not an observability product, not a
+compliance dashboard. It is the governance layer that complements and constrains
+AI coding tools (Cursor, Copilot, Codex) in real time, in the developer workflow
+— _not_ in the PR queue.
 
 For full positioning, ICP definition, competitive intelligence, and the GTM
-primer, see [`EddaCraft/eddacraft-gtm`](https://github.com/EddaCraft/eddacraft-gtm).
+primer, see
+[`EddaCraft/eddacraft-gtm`](https://github.com/EddaCraft/eddacraft-gtm).
 
 ## Related repos
 
@@ -75,9 +76,9 @@ module `LAC` and governed by ADR-014 (TypeScript vs Rust allocation tree).
 
 Anvil ensures AI and humans cannot produce unsafe software.
 
-AI generates code, infrastructure, and decisions at unprecedented speed.
-Anvil acts as a deterministic governance layer in the developer workflow,
-intercepting and validating changes at the moment of creation.
+AI generates code, infrastructure, and decisions at unprecedented speed. Anvil
+acts as a deterministic governance layer in the developer workflow, intercepting
+and validating changes at the moment of creation.
 
 It prevents:
 
@@ -85,8 +86,8 @@ It prevents:
 - Security risks
 - Policy violations
 
-Before they are ever executed. Only correct, compliant, and safe outcomes
-are allowed to proceed.
+Before they are ever executed. Only correct, compliant, and safe outcomes are
+allowed to proceed.
 
 ## Repository Structure
 
@@ -323,21 +324,21 @@ regression detection. These validate the performance targets defined in the
 ### Performance Targets vs Measured
 
 The kernel was designed against the targets in the
-[Kernel Spec](./docs/architecture/rust-kernel-spec.md). The 2026-04-03
-benchmark run (rayon-parallel parser, release build, Criterion 100 samples):
+[Kernel Spec](./docs/architecture/rust-kernel-spec.md). The 2026-04-03 benchmark
+run (rayon-parallel parser, release build, Criterion 100 samples):
 
-| Metric                                    | Target      | Measured (2026-04-03)         | Status                              |
-| ----------------------------------------- | ----------- | ----------------------------- | ----------------------------------- |
-| Cold graph build, 100 files               | —           | **14.5 ms**                   | Validated                           |
-| Cold graph build, 1,000 files             | —           | **~565 ms** (extrapolated)    | Validated                           |
-| Cold graph build, 2,500 files             | —           | **~3.4 s** (extrapolated)     | Validated                           |
-| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness        | Pending                             |
-| Incremental update (single file)          | < 100 ms    | **10.7 µs**                   | Validated · ~10,000× under target   |
-| Policy evaluation (all invariants)        | —           | **799 ns**                    | Validated                           |
-| Event emission (1,000 events)             | < 10 ms     | **408 µs**                    | Validated · ~25× under target       |
-| Memory footprint (medium repo)            | < 500 MB    | Pending stress test           | Pending                             |
-| File detection latency (p99)              | < 20 ms     | Validated (spike)             | Validated                           |
-| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)     | Validated                           |
+| Metric                                    | Target      | Measured (2026-04-03)      | Status                            |
+| ----------------------------------------- | ----------- | -------------------------- | --------------------------------- |
+| Cold graph build, 100 files               | —           | **14.5 ms**                | Validated                         |
+| Cold graph build, 1,000 files             | —           | **~565 ms** (extrapolated) | Validated                         |
+| Cold graph build, 2,500 files             | —           | **~3.4 s** (extrapolated)  | Validated                         |
+| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness     | Pending                           |
+| Incremental update (single file)          | < 100 ms    | **10.7 µs**                | Validated · ~10,000× under target |
+| Policy evaluation (all invariants)        | —           | **799 ns**                 | Validated                         |
+| Event emission (1,000 events)             | < 10 ms     | **408 µs**                 | Validated · ~25× under target     |
+| Memory footprint (medium repo)            | < 500 MB    | Pending stress test        | Pending                           |
+| File detection latency (p99)              | < 20 ms     | Validated (spike)          | Validated                         |
+| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)  | Validated                         |
 
 Full benchmark report and marketing-ready angles:
 [`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/EddaCraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
