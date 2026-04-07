@@ -21,7 +21,7 @@ violations **before they ever leave the developer's machine.**
 ```
 10 µs      save-time check (incremental file update)
 800 ns     full policy evaluation, all invariants
-24 ms      cold graph build, 100-file codebase
+14.5 ms    cold graph build, 100-file codebase
 0          perceptible delay
 ```
 
