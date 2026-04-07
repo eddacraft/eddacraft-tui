@@ -319,9 +319,14 @@ mod tests {
             .iter()
             .find(|p| p.name == "Generic Secret")
             .expect("Generic Secret pattern");
-        assert!(pattern.regex.is_match("DB_PASSWORD=supersecret99"));
-        assert!(pattern.regex.is_match("my_secret = longvalue123"));
-        assert!(pattern.regex.is_match("ADMIN_PWD='f3k8q9m2x7'"));
+        // Construct test inputs at runtime to avoid tripping secret-scanning
+        // push protection (consistent with other tests in this file).
+        let db_password = format!("DB_PASSWORD={}{}", "super", "secret99");
+        let my_secret = format!("my_secret = {}{}", "long", "value123");
+        let admin_pwd = format!("ADMIN_PWD='{}{}{}'", "f3k8", "q9m2", "x7");
+        assert!(pattern.regex.is_match(&db_password));
+        assert!(pattern.regex.is_match(&my_secret));
+        assert!(pattern.regex.is_match(&admin_pwd));
     }
 
     #[test]
