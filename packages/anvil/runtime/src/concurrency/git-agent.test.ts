@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Track execFileSync calls for argument safety verification
 const execFileSyncCalls: Array<{ cmd: string; args: string[] }> = [];
@@ -47,6 +47,10 @@ describe('git-agent — command safety (CRB-014)', () => {
     execFileSyncCalls.length = 0;
     execFileSyncResult = '';
     execFileSyncError = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('parseCommitTrailers', () => {
