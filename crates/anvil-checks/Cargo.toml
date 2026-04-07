@@ -1,5 +1,5 @@
 [package]
-name = "anvil-checks"
+name = "eddacraft-anvil-checks"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

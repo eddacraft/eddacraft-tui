@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Stress test harness for anvil-kernel — repo generation, memory measurement, scenario runners"
+publish = false
 
 [dependencies]
-anvil-kernel-types = { path = "../anvil-kernel-types" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 petgraph = { workspace = true }
