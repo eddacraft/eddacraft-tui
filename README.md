@@ -45,6 +45,24 @@ For full positioning, ICP definition, competitive intelligence, and the GTM
 primer, see
 [`EddaCraft/eddacraft-gtm`](https://github.com/EddaCraft/eddacraft-gtm).
 
+## Why now
+
+The **EU AI Act becomes substantially enforceable on 2 August 2026** — under
+four months out. High-risk obligations (Annex III), Article 50 transparency,
+conformity assessments, technical documentation, CE marking, and EU database
+registration all become required by that date for in-scope systems. Every
+EU-exposed engineering team now has a hard deadline to prove their agents are
+governed.
+
+At the same time, adjacent funding tells the same story: Qodo closed a $70M
+Series B and DAM Secure closed a $4M seed in the same week (April 2026);
+Microsoft, GitHub, Cisco, Zapier, Nvidia, and JetBrains are all shipping
+adjacent primitives in Q1–Q2 2026. The category is being built right now.
+
+Full market context and the parallel-track ICP framing that follows from this
+deadline live in
+[`eddacraft-gtm/GTM-PRIMER.md`](https://github.com/EddaCraft/eddacraft-gtm/blob/main/GTM-PRIMER.md).
+
 ## Related repos
 
 | Repo                                                                          | Purpose                                                                       |
