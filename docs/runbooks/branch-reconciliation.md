@@ -9,9 +9,9 @@ one-time recovery runbook, not a recurring operational task.
 ## When to use
 
 - Right now (one-shot, before the `0.3.0` release goes out).
-- Any future situation where `main` and `dev` have drifted enough that a
-  trivial back-merge is no longer possible and the divergence affects shipped
-  release behaviour.
+- Any future situation where `main` and `dev` have drifted enough that a trivial
+  back-merge is no longer possible and the divergence affects shipped release
+  behaviour.
 
 ## Context
 
@@ -28,8 +28,7 @@ that produced a state problem:
 1. The release process did not close the loop.
 2. `dev` continued to evolve structurally while `main` was frozen as the
    promotion target.
-3. Both branches edited many of the same files in legitimate but different
-   ways.
+3. Both branches edited many of the same files in legitimate but different ways.
 
 The next release is the first Rust-native `0.3.0` release. The goal is to
 preserve work, recover to a single canonical line, and avoid repeating this
@@ -41,8 +40,8 @@ state.
 
 The v0.3.x release was assembled through multiple release branches cut from
 `main`, with content composed from `dev`. Each release branch went through PR
-review, council review, CI, and follow-up fixups. Those fixups landed on
-`main`, but there was no runbook step to merge them back into `dev`.
+review, council review, CI, and follow-up fixups. Those fixups landed on `main`,
+but there was no runbook step to merge them back into `dev`.
 
 That left `main` with a bounded but important tail of release-only work:
 
@@ -75,14 +74,11 @@ workflow YAML, plans, docs, and Rust source.
 
 Examples:
 
-- `crates/anvil-cli/src/main.rs`
-  `dev` added `ANVIL_DEV=1` bypass and related wiring.
-  `main` changed `evaluate_auth` semantics.
-- `pnpm-lock.yaml`
-  `dev` moved package versions forward.
-  `main` contains audit-driven dependency remediations.
-- `Cargo.toml` and `Cargo.lock`
-  both lines changed dependencies independently.
+- `crates/anvil-cli/src/main.rs` `dev` added `ANVIL_DEV=1` bypass and related
+  wiring. `main` changed `evaluate_auth` semantics.
+- `pnpm-lock.yaml` `dev` moved package versions forward. `main` contains
+  audit-driven dependency remediations.
+- `Cargo.toml` and `Cargo.lock` both lines changed dependencies independently.
 
 ## Audit Findings
 
@@ -90,14 +86,13 @@ The branch audit produced these high-level facts:
 
 - `origin/HEAD` points to `dev`.
 - `main...dev` unique commit counts are `66` on `main` and `861` on `dev`.
-- Symmetric three-dot diff (`git diff --stat origin/main...origin/dev`):
-  `1107` files, `108051` insertions, `11575` deletions. This is the total
-  amount of work done on either side since the merge base.
-- Two-dot direct tree diff (`git diff --stat origin/main..origin/dev`):
-  `733` files, `19138` insertions, `78537` deletions. This is the actual
-  reconciliation surface — the file content that differs between current
-  `main` and current `dev` right now. This is what a real merge would have to
-  resolve.
+- Symmetric three-dot diff (`git diff --stat origin/main...origin/dev`): `1107`
+  files, `108051` insertions, `11575` deletions. This is the total amount of
+  work done on either side since the merge base.
+- Two-dot direct tree diff (`git diff --stat origin/main..origin/dev`): `733`
+  files, `19138` insertions, `78537` deletions. This is the actual
+  reconciliation surface — the file content that differs between current `main`
+  and current `dev` right now. This is what a real merge would have to resolve.
 - File-level breakdown of the two-dot diff: `47` files added on `dev` only,
   `491` files exist on `main` but not on `dev` (mostly archived/cleaned-up
   paths), `193` files modified on both branches with non-overlapping changes
@@ -161,42 +156,41 @@ Run `git merge origin/main` on `dev`, resolve conflicts by hand in one pass.
 Outcome of investigation: produced `129` conflicts across `156` files in a
 single merge attempt, including `86` "added on both" (`AA`) files where both
 branches independently created the same path with different content, `39`
-"modified on both" (`UU`) files needing real 3-way merging, and `4` "deleted
-on dev, modified on main" (`DU`) files. No `-X ours` or `-X theirs` flag
-resolves this safely — both options silently lose real work. Rejected.
+"modified on both" (`UU`) files needing real 3-way merging, and `4` "deleted on
+dev, modified on main" (`DU`) files. No `-X ours` or `-X theirs` flag resolves
+this safely — both options silently lose real work. Rejected.
 
 ### B. Themed PRs from dev into current `main`
 
-Open `~8` themed PRs (cleanup deletions, WELCOME, DOCSAUTH, plans, polish,
-sync of evolved files) targeting `main` directly, each with its own council
-review.
+Open `~8` themed PRs (cleanup deletions, WELCOME, DOCSAUTH, plans, polish, sync
+of evolved files) targeting `main` directly, each with its own council review.
 
-Outcome of investigation: same conflict surface as Option A, just spread
-across multiple PRs instead of one. The mechanical deletion PRs (cleanups)
-are easy, but the "sync evolved files" PR still has to do 193-file 3-way
-merge work. Worse, it operates on the live `main` so any in-flight problem
-risks production. Rejected on risk grounds.
+Outcome of investigation: same conflict surface as Option A, just spread across
+multiple PRs instead of one. The mechanical deletion PRs (cleanups) are easy,
+but the "sync evolved files" PR still has to do 193-file 3-way merge work.
+Worse, it operates on the live `main` so any in-flight problem risks production.
+Rejected on risk grounds.
 
 ### C. Branch `main-next` from current `main`, PR dev's content into it
 
-Same as B but landing into a parallel `main-next` branch instead of live
-`main`, then atomically swap branch names at the end. Adds a safety net
-(rollback target preserved) but the conflict surface and review burden are
-identical to B. Rejected as offering no real improvement over B.
+Same as B but landing into a parallel `main-next` branch instead of live `main`,
+then atomically swap branch names at the end. Adds a safety net (rollback target
+preserved) but the conflict surface and review burden are identical to B.
+Rejected as offering no real improvement over B.
 
 ### D. Branch `main-next` from `dev`, cherry-pick `main`-only fixes onto it
 
 Use `dev`'s tree as the base (it is structurally newer and cleaner), then
-cherry-pick the `~48` `main`-only hardening fix commits onto a branch off
-`dev`. When complete, that branch becomes the new `main`.
+cherry-pick the `~48` `main`-only hardening fix commits onto a branch off `dev`.
+When complete, that branch becomes the new `main`.
 
 Outcome of investigation: structurally cleanest because the conflict surface
-collapses from `~193` files to whatever the `~48` cherry-picks touch
-(typically lockfiles, workflows, auth files, Rust CLI files). However, every
-piece of work currently on `dev` (cleanups, WELCOME, DOCSAUTH, plans,
-post-release polish) becomes part of the new `main` *without ever passing
-through a fresh PR-to-`main` council review*. See "Council Review Gap" below
-for the rationale for accepting this trade-off.
+collapses from `~193` files to whatever the `~48` cherry-picks touch (typically
+lockfiles, workflows, auth files, Rust CLI files). However, every piece of work
+currently on `dev` (cleanups, WELCOME, DOCSAUTH, plans, post-release polish)
+becomes part of the new `main` _without ever passing through a fresh
+PR-to-`main` council review_. See "Council Review Gap" below for the rationale
+for accepting this trade-off.
 
 This is the chosen approach.
 
@@ -228,12 +222,12 @@ council review on a "PR to `main`". Only the reconciliation PR carrying the
 This is a known gap. We accept it for the following reasons:
 
 1. **Each `dev` item already had council review on its own PR into `dev`.**
-   WELCOME, DOCSAUTH, and the post-release polish landed via standard PR
-   review. The "promotion to `main`" review step would be re-reviewing
-   already-reviewed work.
+   WELCOME, DOCSAUTH, and the post-release polish landed via standard PR review.
+   The "promotion to `main`" review step would be re-reviewing already-reviewed
+   work.
 2. **Re-running PR-to-`main` council review on every existing `dev` item
-   requires reproducing the conflict surface we are trying to avoid.** It is
-   the same trade-off Options B and C made, with the same cost.
+   requires reproducing the conflict surface we are trying to avoid.** It is the
+   same trade-off Options B and C made, with the same cost.
 3. **The reconciliation PR itself carries the cross-cutting risk** (auth,
    workflows, manifests, release packaging, Rust CLI behaviour). That PR gets
    full council review during cutover and is where production-affecting
@@ -243,9 +237,9 @@ This is a known gap. We accept it for the following reasons:
    change gets back-merged into `dev` immediately, so the
    "items-staying-put-skip-council-on-promotion" problem never recurs.
 
-If a stakeholder objects to this trade-off, the alternative is to fall back
-to Option B or C and accept the additional weeks of merge work. The decision
-should be made before Phase 1 of this runbook starts.
+If a stakeholder objects to this trade-off, the alternative is to fall back to
+Option B or C and accept the additional weeks of merge work. The decision should
+be made before Phase 1 of this runbook starts.
 
 ## Strategy
 
@@ -285,7 +279,8 @@ These can usually be cherry-picked or replayed with little or no modification.
 
 - `140a3195` `fix(test): add missing mock secret and JWT claims in tests`
 - `45e38850` `fix(dist): jq quoting, mktemp portability, prettier formatting`
-- `eb7fc881` `fix(ci): gate parse_kb_value test for linux-only, allow unused_mut`
+- `eb7fc881`
+  `fix(ci): gate parse_kb_value test for linux-only, allow unused_mut`
 - `55e440c5` `fix: add ignoreDeprecations to CJS packages for TS 6 compat`
 - `fbcde70b` `fix: add ignoreDeprecations for TS 6.0 baseUrl deprecation`
 - `e1c38d5c` `fix(workspace): add packages/libs/* to pnpm workspace`
@@ -299,22 +294,29 @@ These are required, but direct cherry-pick is risky because they overlap with
 current `dev` structure or with lockfiles/manifests/workflows.
 
 - `c8774a40` `fix(deps): resolve all 37 audit vulnerabilities`
-- `b2e9f6e9` `fix(auth): harden token pepper, add JWT claims, cleanup expired refresh tokens`
+- `b2e9f6e9`
+  `fix(auth): harden token pepper, add JWT claims, cleanup expired refresh tokens`
 - `9a37a9f6` `fix(auth): address review feedback on auth flows`
-- `f5aad7d6` `fix(ci): SHA-pin all actions, replace curl-pipe-shell, fix script injection`
+- `f5aad7d6`
+  `fix(ci): SHA-pin all actions, replace curl-pipe-shell, fix script injection`
 - `2af495d2` `fix(ci): address review feedback on workflows and cross-compile`
-- `b7b2cde6` `fix(ci): resolve cross-platform test failures on macOS and Windows`
+- `b7b2cde6`
+  `fix(ci): resolve cross-platform test failures on macOS and Windows`
 - `059aaa6d` `ci: update CI/CD workflows for v0.3.x`
 - `06d03d08` `fix: upgrade remaining tools to TypeScript ~6.0.2`
 - `73b5a6e1` `fix: remove baseUrl, use relative paths in tsconfig.base`
-- `e2a4e1c5` `feat(dist): distribution pipeline — release workflow, cargo-dist, installers`
+- `e2a4e1c5`
+  `feat(dist): distribution pipeline — release workflow, cargo-dist, installers`
 
 Rust review-fix commits that should be mined by file and behaviour, not applied
 blindly:
 
-- `0623146c` `fix(cli): terminal teardown guard, doctor probe safety, device flow newline`
-- `f5766723` `fix(cli): address review feedback on error handling and consistency`
-- `21148747` `fix(cli): align ignore dirs, use workspace_root in audit/status, fix check metadata`
+- `0623146c`
+  `fix(cli): terminal teardown guard, doctor probe safety, device flow newline`
+- `f5766723`
+  `fix(cli): address review feedback on error handling and consistency`
+- `21148747`
+  `fix(cli): align ignore dirs, use workspace_root in audit/status, fix check metadata`
 - `caa2687c` `fix(cli): address review feedback and cargo check warnings`
 - `319cd9a7` `fix(cli): revert IPv6 host_str change, fix clippy similar_names`
 - `2c67c70c` `fix(cli): resolve clippy warnings in audit and status commands`
@@ -577,8 +579,8 @@ Before branch cutover, verify these questions explicitly:
 5. Were lockfiles regenerated from final manifests?
 6. Did we avoid resurrecting obsolete archived or deleted paths?
 
-If the answer to all six is yes, the branch is ready to become the new
-canonical line.
+If the answer to all six is yes, the branch is ready to become the new canonical
+line.
 
 ### Phase 12: PR to `dev`
 
