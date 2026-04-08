@@ -1,0 +1,12 @@
+[Unit]
+Description=APS cleanup — verify Committed items, run post-merge test plans
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=aneki
+WorkingDirectory=/home/aneki/src-morgan/anvil-001
+ExecStart=/home/aneki/src-morgan/anvil-001/scripts/aps-cleanup.sh --notify
+Environment=REPO=/home/aneki/src-morgan/anvil-001
+StandardOutput=journal
+StandardError=journal

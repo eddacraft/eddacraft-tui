@@ -186,3 +186,5 @@ plans/
 | Planning module | Boundaries clear? Status set? No premature tasks? |
 | Executing | Module status is Ready/In Progress? Prerequisites met? |
 | Starting work | Read index.aps.md (active) + completed-index.aps.md (context)? |
+| Finishing / committing | Module set to Committed? Post-merge test plan extracted to plans/reviews/post-merge/? |
+| Cleanup agent | Committed items merged + CI green → advance to Complete? Post-merge plans verified? |
