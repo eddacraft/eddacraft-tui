@@ -9,7 +9,7 @@ All multi-step work MUST use APS format:
 - Master plan: `plans/index.aps.md`
 - Modules: `plans/modules/<module>.aps.md`
 - Work item IDs: `PREFIX-NNN` (3-digit zero-padded)
-- Module statuses: Draft > Proposed > Ready > In Progress > Complete
+- Module statuses: Draft -> Proposed -> Ready -> In Progress -> Complete
 - Wave-based parallel execution for independent work items
 - Archive completed modules to `plans/archive/`
 
@@ -52,23 +52,28 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 ```
 
 ### 1. Start from APS
+
 - Read `plans/index.aps.md` — pick the next **Ready** work item
 - Mark module **In Progress** before touching any code
-- Branch name must reference the APS module: `fix/<module-slug>` or `feat/<module-slug>`
+- Branch name must reference the APS module: `fix/<module-slug>` or
+  `feat/<module-slug>`
 - Create branch from `dev` (hotfixes from `main`)
 
 ### 2. Code
+
 - Work in a disposable worktree — see `docs/guides/worktree-policy.md`
 - Follow TDD: tests before implementation
 - Run `pnpm typecheck && pnpm test` before committing
 - Commit with conventional format referencing APS ID where applicable
 
 ### 3. Council Review (before PR)
+
 - Run `/council` before opening any non-trivial PR
 - Minimum: council-reviewer + adversarial-reviewer
 - Address CRITICAL and MAJOR findings before opening PR
 
 ### 4. Open PR
+
 - Target `dev` for normal work, `main` only for hotfixes
 - If the PR has post-merge verification steps:
   - Extract them to `plans/reviews/post-merge/<branch-slug>.md`
@@ -77,27 +82,31 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 - Mark module status **Committed** in the `.aps.md` file
 
 ### 5. Cleanup Agent (automated)
+
 - Runs on schedule — checks all **Committed** modules
 - Verifies branch merged + CI green → advances to **Complete**
-- Works through `plans/reviews/post-merge/` — verifies agent-runnable steps, flags human-required steps
+- Works through `plans/reviews/post-merge/` — verifies agent-runnable steps,
+  flags human-required steps
 - Sends notification for anything needing attention
 - Logs to `plans/reviews/cleanup-log.md`
 
 ### Quick Reference
 
-| Stage | Agent/Command | Skill |
-|---|---|---|
-| Plan | `anvil-plan-spec` agent | `aps-planning` |
-| Branch | — | `docs/guides/worktree-policy.md` |
-| Code | `tdd-coach` agent | `test-driven-development` |
-| Debug | `debugger` agent | `systematic-debugging` |
-| Review | `/council` command | `code-review` |
-| PR | `/commit` command | — |
-| Verify | cleanup agent (cron) | — |
+| Stage  | Agent/Command           | Skill                            |
+| ------ | ----------------------- | -------------------------------- |
+| Plan   | `anvil-plan-spec` agent | `aps-planning`                   |
+| Branch | —                       | `docs/guides/worktree-policy.md` |
+| Code   | `tdd-coach` agent       | `test-driven-development`        |
+| Debug  | `debugger` agent        | `systematic-debugging`           |
+| Review | `/council` command      | `code-review`                    |
+| PR     | `/commit` command       | —                                |
+| Verify | cleanup agent (cron)    | —                                |
 
-Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` · `docs/guides/worktree-policy.md`
+Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` ·
+`docs/guides/worktree-policy.md`
 
-> Global workflow skill: `dev-workflow` in `joshuaboys/code-env` — canonical routing layer for all lifecycle stages.
+> Global workflow skill: `dev-workflow` in `joshuaboys/code-env` — canonical
+> routing layer for all lifecycle stages.
 
 ## Code Quality
 
