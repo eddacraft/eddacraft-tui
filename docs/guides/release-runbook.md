@@ -43,20 +43,56 @@ Sanity assertions before release:
 
 ---
 
-## 2) Promote dev to main
+## 2) Cut the release branch or promote directly
 
-All day-to-day work lands on `dev`. Releases are cut from `main` after
-promotion. See `docs/guides/branching-strategy.md` for the full model.
+All day-to-day work lands on `dev`. Releases are promoted from `dev` into
+`main`. For small, low-risk releases, a direct `dev -> main` PR is acceptable.
+For anything larger, cut a short-lived `release/*` branch from `dev` and do
+stabilisation there.
 
-1. Ensure `dev` is green (CI passing, no known blockers).
+See `docs/guides/branching-strategy.md` for the full policy.
+
+### Option A: direct promotion for small releases
+
+Use this when the change set is small, reviewable, and already stable on `dev`.
+
+1. Ensure `dev` is green.
 2. Open a PR from `dev` to `main`.
-   - Title convention: `release: vX.Y.Z`.
-3. Once the release gate passes, merge the PR.
+3. Title convention: `release: vX.Y.Z`.
+4. Once the release gate passes, merge the PR.
 
 ```bash
 gh pr create --base main --head dev --title "release: vX.Y.Z" \
   --body "Promote dev to main for release vX.Y.Z"
 ```
+
+### Option B: stabilise on `release/*` for non-trivial releases
+
+Use this when you want a short hardening window for packaging, docs, final bug
+fixes, or release validation.
+
+1. Ensure `dev` is green.
+2. Create `release/x.y.z` from `dev`.
+3. Allow only release hardening on the release branch.
+4. Open a PR from `release/x.y.z` to `main`.
+5. Once the release gate passes, merge the PR.
+
+```bash
+git switch dev && git pull --ff-only origin dev
+git switch -c release/x.y.z
+git push -u origin release/x.y.z
+
+gh pr create --base main --head release/x.y.z --title "release: vX.Y.Z" \
+  --body "Promote release/x.y.z to main for release vX.Y.Z"
+```
+
+Release branch scope is intentionally narrow:
+
+- version bumps
+- changelog and release notes
+- docs updates required for release
+- packaging and workflow fixes
+- bug fixes discovered during final validation
 
 ---
 
@@ -96,7 +132,23 @@ vX.Y.Z-beta      # e.g. v0.3.0-beta
 vX.Y.Z-beta.N    # e.g. v0.3.0-beta.0
 ```
 
-After tagging, merge the version bump back to `dev` via PR:
+After tagging, merge the release line back to `dev` immediately.
+
+If the release went direct from `dev`, no extra sync PR is needed.
+
+If the release used `release/x.y.z`, merge that release branch back to `dev`
+after tagging so `dev` retains all release-only fixes and versioning changes.
+
+```bash
+gh pr create --base dev --head release/x.y.z \
+  --title "chore: merge release vX.Y.Z back to dev" \
+  --body "Sync release hardening, version bump, and changelog from vX.Y.Z"
+```
+
+If the release was cut directly from `dev`, create a sync PR only if an
+additional commit landed on `main` outside the original release promotion.
+
+Example:
 
 ```bash
 gh pr create --base dev --head main \
@@ -179,7 +231,8 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 ### If a binary is broken on one platform
 
 1. Check the build log for that target in the release workflow.
-2. Fix and cut a patch release (vX.Y.Z+1).
+2. Fix on a short-lived `hotfix/*` or `release/*` branch.
+3. Cut a patch release (vX.Y.Z+1).
 
 ### If public release publish fails (partial release)
 
@@ -248,6 +301,9 @@ gh release delete vX.Y.Z --repo EddaCraft/anvil-001 --yes
 
 ## 7) Known gotchas
 
+- **Release branch lifetime:** `release/*` branches should live for days, not
+  weeks. If stabilisation keeps growing, the branch was cut too early or is
+  taking too much non-release work.
 - **cargo-dist PR mode:** PRs only run the `plan` job (no builds). Full builds
   only fire on version tags. This is configured in `dist-workspace.toml` as
   `pr-run-mode = "plan"`.
@@ -280,3 +336,14 @@ Anvil CLI vX.Y.Z is live.
 Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 Login: anvil auth login
 ```
+
+---
+
+## 9) Release rules that matter most
+
+1. Day-to-day work lands on `dev`.
+2. Small releases may go directly from `dev` to `main`.
+3. Larger releases should use a temporary `release/*` branch.
+4. Any fix that lands during release stabilisation must be merged back to `dev`
+   immediately after release.
+5. If `dev -> main` promotion feels too large, promotion waited too long.

@@ -31,6 +31,8 @@ How-to guides for developers working on Anvil.
 
 - [Testing Guide](testing.md) — Test strategy and practices
 - [Branching Strategy](branching-strategy.md) — Git branching model
+- [Worktree Policy](worktree-policy.md) — How to manage permanent and disposable
+  worktrees
 
 ### CLI
 

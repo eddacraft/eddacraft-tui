@@ -43,6 +43,22 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
 
 The `Authored-By:` trailer is added automatically — do not add it manually.
 
+## Branching and Worktrees
+
+- `main` is the stable release branch
+- `dev` is the active integration branch
+- normal work branches should be created from `dev`
+- hotfix branches should be created from `main` or the active `release/*` branch
+- keep `main` and `dev` as the only permanent worktrees
+- treat all other worktrees as disposable
+- merge any `main` or `release/*` fix back into `dev` immediately
+
+Reference:
+
+- `docs/guides/branching-strategy.md`
+- `docs/guides/worktree-policy.md`
+- `docs/guides/release-runbook.md`
+
 ## Code Quality
 
 - UK English spelling in plan text and documentation

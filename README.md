@@ -90,6 +90,16 @@ Current trust/provenance direction includes line-level authorship attribution
 planning (human/AI/mixed/unknown + model metadata + confidence), tracked in APS
 module `LAC` and governed by ADR-014 (TypeScript vs Rust allocation tree).
 
+Contributor workflow quick links:
+
+- [Branching strategy](docs/guides/branching-strategy.md) — `main`/`dev` release
+  and integration flow
+- [Worktree policy](docs/guides/worktree-policy.md) — permanent vs disposable
+  worktrees
+- [Release runbook](docs/guides/release-runbook.md) — direct promotion vs
+  `release/*` stabilisation
+- [Contributing](CONTRIBUTING.md) — setup, commands, and submission checklist
+
 ## Vision
 
 Anvil ensures AI and humans cannot produce unsafe software.
