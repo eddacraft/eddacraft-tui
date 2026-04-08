@@ -97,6 +97,8 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 
 Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` · `docs/guides/worktree-policy.md`
 
+> Global workflow skill: `dev-workflow` in `joshuaboys/code-env` — canonical routing layer for all lifecycle stages.
+
 ## Code Quality
 
 - UK English spelling in plan text and documentation
