@@ -122,6 +122,18 @@ allowed to proceed.
 This is an NX-managed pnpm workspace containing the following apps, packages,
 and tooling.
 
+### Root files
+
+| File                       | Purpose                                                                    |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `package.json`             | Workspace scripts, shared devDependencies, and package manager constraints |
+| `pnpm-workspace.yaml`      | Workspace package discovery for apps, packages, tools, and infra           |
+| `nx.json`                  | Nx task and workspace configuration                                        |
+| `rust-toolchain.toml`      | Pinned Rust toolchain for workspace crates                                 |
+| `dist-workspace.toml`      | `cargo-dist` release configuration for Rust binaries                       |
+| `.anvilrc`                 | Repository-level Anvil configuration                                       |
+| `.node-version` / `.nvmrc` | Node version hints for CI and local tooling                                |
+
 ### Apps
 
 | Directory        | Package                    | Description                                                                   | Deployment          |

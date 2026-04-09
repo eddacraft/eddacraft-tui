@@ -1,4 +1,4 @@
-# Release Scope — v0.3.x Rust CLI
+# Rust CLI Release Scope — v0.3.x
 
 > Functional review areas for the Rust CLI release. Each slice has a clear
 > boundary and can be reviewed/merged independently, respecting dependency

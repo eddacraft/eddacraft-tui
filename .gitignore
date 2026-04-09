@@ -81,9 +81,12 @@ apps/anvil-api/.claude/settings.local.json
 .gemini/
 gha-creds-*.json
 
+# Local tool state and worktrees
 /.serena
 .worktrees/
 .vercel
+
+# Local environment files
 .env
 .env.*
 !.env.example
@@ -115,25 +118,16 @@ infra/import.json
 target/
 **/*.rs.bk
 
-# Local settings (contains secrets)
+# Local machine state and secrets
 settings.local.json
-
-# Session logs
 logs/
-
-# Memory file (can contain sensitive context)
 memory.json
-
-# Autonomous state files
 autonomous-state.json
-
-# Setup metadata
 .setup-meta
 
 # Temporary files
 *.tmp
 *.bak
 
-# Autonomous state files
-autonomous-state.json
+# Local review artefacts
 review/

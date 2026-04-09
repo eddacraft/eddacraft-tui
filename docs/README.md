@@ -21,11 +21,12 @@ docs/
 ├── guides/                 # Developer how-to guides (incl. testing, branching strategy)
 ├── runbooks/               # Operational playbooks
 ├── specs/                  # Technical specifications
-├── reviews/                # Point-in-time adversarial code reviews
+├── reviews/                # Active review work that still needs follow-up
 ├── strategy/               # Adoption candidates and competitor tracking
 ├── vision/                 # North star documents
 ├── public/                 # Public-facing documentation (off-limits here)
 └── archive/                # Historical documents (read-only reference)
+    └── reviews/            # Dated review snapshots kept for reference
 ```
 
 ## Key Documents
@@ -57,7 +58,9 @@ docs/
 
 ### Reviews
 
-- [reviews/](reviews/) — Adversarial code reviews (point-in-time snapshots)
+- [reviews/](reviews/) — Active review notes that still need follow-up
+- [archive/reviews/](archive/reviews/) — Historical adversarial reviews kept as
+  dated snapshots
 
 ### Strategy
 
@@ -96,5 +99,9 @@ The `archive/` directory contains historical documents preserved for reference:
 - Completed decision docs (Deno migration, Kindling integration, storage choice)
 - Research notes (Ratatui diagrams)
 - Superseded guides and specs
+- Historical engineering logs and dated review snapshots
 
 These are **read-only reference** — do not update archived documents.
+
+Point-in-time review writeups should move to `archive/reviews/` once their
+follow-up work is merged or superseded.
