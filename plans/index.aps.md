@@ -57,6 +57,17 @@ integration layer, and review backlog.
 
 See [completed-index.aps.md](./completed-index.aps.md) for task tables.
 
+### Branch Recovery (In Progress)
+
+Reconcile divergent `main`/`dev` histories by porting release-critical fixes
+from `main` onto `dev`, validating as one integrated branch, then cutting
+over. See `docs/runbooks/branch-reconciliation.md` and the freeze notice in
+`RECONCILIATION-IN-PROGRESS.md`.
+
+| Module | Scope | Status | Progress |
+| ------ | ----- | ------ | -------- |
+| [branch-reconciliation](./modules/branch-reconciliation.aps.md) | BRECON | In Progress | 0/14 |
+
 ### Hardening & Maintenance (In Progress)
 
 Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
@@ -329,6 +340,7 @@ Active module themes:
 
 | Theme | Module File |
 | ----- | ----------- |
+| Branch Recovery | [branch-reconciliation](./modules/branch-reconciliation.aps.md) |
 | Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
 | Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) |
 | Rust Engine | [rust-kernel](./modules/rust-kernel.aps.md), [rust-core-engine](./modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./modules/rust-cli.aps.md), [kernel-benchmarking](./modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |

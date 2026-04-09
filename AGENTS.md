@@ -2,6 +2,16 @@
 
 These conventions apply to all agents working in this project.
 
+> **⚠️ RECONCILIATION FREEZE IN EFFECT**
+>
+> `main` and `dev` are in a soft freeze while branch reconciliation runs.
+> See `RECONCILIATION-IN-PROGRESS.md` and
+> `plans/modules/branch-reconciliation.aps.md` (BRECON).
+>
+> **Do not** merge into `main` or `dev`, force-push either branch, or rename
+> release-critical refs. Work on topic branches only. Coordinate with the
+> BRECON owner before landing anything on `main` or `dev`.
+
 ## Planning — Anvil Plan Spec (APS)
 
 All multi-step work MUST use APS format:
