@@ -149,6 +149,7 @@ fn read_proc_status() -> Option<MemorySnapshot> {
     None
 }
 
+#[cfg(target_os = "linux")]
 fn parse_kb_value(s: &str) -> u64 {
     s.trim()
         .strip_suffix("kB")
