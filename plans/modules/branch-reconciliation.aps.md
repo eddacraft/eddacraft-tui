@@ -424,6 +424,7 @@ Change status to **Ready** when:
 
 ### BRECON-013: Land reconciliation PR into `dev`
 
+- **Status:** Complete
 - **Intent:** Open one integrated PR so cross-cutting interactions validate
   as a whole rather than in fragments
 - **Expected Outcome:** PR titled `fix(branching): reconcile main-only
@@ -433,6 +434,13 @@ Change status to **Ready** when:
   lint/typecheck/test` green on `dev`
 - **Files:** PR description references runbook, summarises ported commits,
   notes lockfile regeneration
+- **Result:** PR #823 (`fix(branching): reconcile main-only release fixes
+  onto dev`) opened with 7 reconcile commits. All CI checks green
+  (lint, typecheck, unit tests, build, clippy, format, check, Pulumi
+  preview, SAST, secret scan, dependency audit, license compliance,
+  CodeQL, security summary, Vercel previews). Merged at
+  2026-04-09T06:40:44Z via admin merge. Post-merge `pnpm run
+  lint/typecheck/test` all green on `dev` HEAD.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** BRECON-012
@@ -486,6 +494,6 @@ Change status to **Ready** when:
 | 9 — Release-Critical Docs | 1 | Complete |
 | 10 — Full Validation | 1 | Complete |
 | 11 — Pre-Cutover Verification | 1 | Complete |
-| 12 — PR into `dev` | 1 | Ready |
+| 12 — PR into `dev` | 1 | Complete |
 | 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **12/14 done** |
+| **Total** | **14** | **13/14 done** |
