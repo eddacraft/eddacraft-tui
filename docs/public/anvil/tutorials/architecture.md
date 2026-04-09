@@ -35,42 +35,36 @@ Create `.anvil/architecture.yaml` in your project root. Here is a layered
 example:
 
 ```yaml
-version: '1.0'
+schema_version: '0.1.0'
+template: layered
 layers:
-  - name: presentation
-    pattern: 'src/api/**'
-    allow:
+  presentation:
+    patterns:
+      - 'src/api/**'
+    depends_on:
       - business
       - shared
-    deny:
-      - data
 
-  - name: business
-    pattern: 'src/services/**'
-    allow:
+  business:
+    patterns:
+      - 'src/services/**'
+    depends_on:
       - data
       - shared
-    deny:
-      - presentation
 
-  - name: data
-    pattern: 'src/repositories/**'
-    allow:
+  data:
+    patterns:
+      - 'src/repositories/**'
+    depends_on:
       - shared
-    deny:
-      - presentation
-      - business
 
-  - name: shared
-    pattern: 'src/utils/**'
-    allow: []
-    deny:
-      - presentation
-      - business
-      - data
+  shared:
+    patterns:
+      - 'src/utils/**'
+    depends_on: []
 ```
 
-Edit the `pattern` values to match your actual directory layout.
+Edit the `patterns` values to match your actual directory layout.
 
 ## 3. Validate the Architecture Definition
 

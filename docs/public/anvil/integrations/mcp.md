@@ -63,6 +63,13 @@ Start the server separately:
 ANVIL_MCP_PORT=3000 npx --package @eddacraft/anvil-mcp-server anvil-mcp-server-http
 ```
 
+:::note Node.js version
+
+The MCP server requires **Node.js 18+** and **npm 7+** (for the `--package` flag
+used by `npx`). Run `node --version` and `npm --version` to verify.
+
+:::
+
 Configure the port and host with `ANVIL_MCP_PORT` (default: 3000) and
 `ANVIL_MCP_HOST` (default: localhost).
 

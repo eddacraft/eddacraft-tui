@@ -149,9 +149,8 @@ Features that were not feasible in the Node.js version:
   semantic dependency graph that updates in real-time as files change
 - **Policy evaluation** — policy configuration and rule loading are handled
   natively; OPA is still required for Rego evaluation
-- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail) for
-  precise CI integration. Codes `3` (auth required) and `4` (config error) are
-  reserved for future use
+- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail), `3`
+  (auth required), `4` (config error) for precise CI integration
 - **Cross-platform auth** — device-flow authentication with secure credential
   storage via the OS keychain
 
@@ -189,12 +188,22 @@ pnpm remove @eddacraft/anvil-cli
 # or: npm uninstall @eddacraft/anvil-cli
 ```
 
-### Step 4: Update CI
+### Step 4: Authenticate
+
+```bash
+anvil login
+```
+
+If you were previously authenticated with the Node.js CLI, your credentials
+migrate automatically on first run. Run `anvil login` only if prompted or if you
+see exit code 3 (auth required).
+
+### Step 5: Update CI
 
 Replace any `pnpm anvil` or `npx anvil` invocations with direct `anvil` calls.
 Remove the Node.js install step if Anvil was the only reason it was there.
 
-### Step 5: Test
+### Step 6: Test
 
 ```bash
 anvil gate
