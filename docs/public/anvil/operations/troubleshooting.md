@@ -191,6 +191,7 @@ Anvil flagging code that's actually fine.
    ```
 
 2. Add pattern suppression in `.anvil/suppressions.json`:
+
    ```json
    {
      "suppressions": [
@@ -205,8 +206,8 @@ Anvil flagging code that's actually fine.
    }
    ```
 
-   `expires_at` is optional — omit it for a permanent suppression.
-   Additional fields are ignored by the parser.
+   `expires_at` is optional — omit it for a permanent suppression. Additional
+   fields are ignored by the parser.
 
 ### Missing Issues
 
