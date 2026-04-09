@@ -310,6 +310,7 @@ Change status to **Ready** when:
 
 ### BRECON-010: Port release-critical docs from `main`
 
+- **Status:** Complete
 - **Intent:** Mine `f754401c`, `9feb0489`, `48adec2b` for Rust release docs,
   install/upgrade docs, auth docs, and `0.3.0` quickstart/product docs
 - **Expected Outcome:** Release-critical docs are correct on the
@@ -318,6 +319,26 @@ Change status to **Ready** when:
   (`pnpm --filter @eddacraft/docs-site run build`); broken-link check passes
 - **Files:** `docs/public/anvil/releases/*`, `docs/public/anvil/quickstart.md`,
   install/upgrade/auth docs
+- **Result:** Ported as `d99f93ea` on `reconcile/dev-with-main-fixes`.
+  Five files updated after verifying each claim against the Rust
+  v0.3.x code:
+  `mcp.md` (Node.js 18+/npm 7+ note),
+  `rust-rewrite.md` (exit codes 3/4 are actively emitted by
+  `EXIT_AUTH_REQUIRED`/`EXIT_CONFIG_ERROR`, not reserved; Step 4
+  Authenticate restored),
+  `troubleshooting.md` (`.anvil/suppressions.json` schema matches
+  `SuppressionStore` in `export.rs`),
+  `tutorials/ci.md` (pre-commit hook uses `anvil check --changed
+  --staged` because `anvil gate` scans unstaged+staged; exit codes
+  3/4 corrected),
+  `tutorials/architecture.md` (restored `schema_version: '0.1.0'` /
+  `template` / layers-as-mapping / `patterns` / `depends_on` format
+  that the Rust `ArchDefinition` parser accepts).
+  Three files deliberately skipped (dev correct or ahead):
+  `beta-testing-guide.md` (drift + architecture subcommands exist),
+  `beta/quickstart.md` (policy explain/list + watch --source exist),
+  `release-runbook.md` (dev has strictly newer Option A/B flow).
+  `pnpm --filter @eddacraft/docs-site run build` clean.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** BRECON-004, BRECON-005, BRECON-008
@@ -422,9 +443,9 @@ Change status to **Ready** when:
 | 6 — TypeScript Compatibility | 1 | Complete |
 | 7 — Release & Distribution | 1 | Complete |
 | 8 — Lockfiles | 1 | Complete |
-| 9 — Release-Critical Docs | 1 | Ready |
+| 9 — Release-Critical Docs | 1 | Complete |
 | 10 — Full Validation | 1 | Ready |
 | 11 — Pre-Cutover Verification | 1 | Ready |
 | 12 — PR into `dev` | 1 | Ready |
 | 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **9/14 done** |
+| **Total** | **14** | **10/14 done** |
