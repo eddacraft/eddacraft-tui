@@ -848,6 +848,7 @@ mod tests {
     // ── Path safety ─────────────────────────────────────────────
 
     #[test]
+    #[cfg(unix)]
     fn rejects_absolute_module_paths() {
         let content = "## Modules\n\n- [mod](/etc/passwd.aps.md)\n";
         let mut issues = Vec::new();

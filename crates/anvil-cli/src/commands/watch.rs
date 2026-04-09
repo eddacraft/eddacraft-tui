@@ -544,11 +544,12 @@ mod tests {
     #[test]
     fn normalise_path_via_ancestors_success_non_existent_target() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::fs::create_dir_all(tmp.path().join("a/b")).unwrap();
+        let base = tmp.path().canonicalize().unwrap();
+        std::fs::create_dir_all(base.join("a/b")).unwrap();
         // Path traverses up from a/b then into non-existent "c"
-        let input = tmp.path().join("a/b/../../c");
+        let input = base.join("a/b/../../c");
         let result = normalise_path_via_ancestors(&input);
-        let expected = tmp.path().canonicalize().unwrap().join("c");
+        let expected = base.join("c");
         assert_eq!(result, expected);
     }
 
@@ -603,20 +604,21 @@ mod tests {
     #[test]
     fn normalise_path_resolves_dotdot_traversal() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let sub = tmp.path().join("a").join("b");
+        let base = tmp.path().canonicalize().unwrap();
+        let sub = base.join("a").join("b");
         std::fs::create_dir_all(&sub).unwrap();
 
         // a/b/../../c should resolve to <tmp>/c
         let input = sub.join("..").join("..").join("c");
         let result = normalise_path_via_ancestors(&input);
-        let expected = tmp.path().canonicalize().unwrap().join("c");
-        assert_eq!(result, expected);
+        assert_eq!(result, base.join("c"));
     }
 
     #[test]
     fn normalise_path_handles_absolute_existing_path() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let file = tmp.path().join("exists.txt");
+        let base = tmp.path().canonicalize().unwrap();
+        let file = base.join("exists.txt");
         std::fs::write(&file, "").unwrap();
 
         let result = normalise_path_via_ancestors(&file);
@@ -626,14 +628,14 @@ mod tests {
     #[test]
     fn normalise_path_handles_relative_components() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let sub = tmp.path().join("deep");
+        let base = tmp.path().canonicalize().unwrap();
+        let sub = base.join("deep");
         std::fs::create_dir(&sub).unwrap();
 
         // deep/../shallow should resolve to <tmp>/shallow
         let input = sub.join("..").join("shallow");
         let result = normalise_path_via_ancestors(&input);
-        let expected = tmp.path().canonicalize().unwrap().join("shallow");
-        assert_eq!(result, expected);
+        assert_eq!(result, base.join("shallow"));
     }
 
     // --- WatchEvent serialisation ---
