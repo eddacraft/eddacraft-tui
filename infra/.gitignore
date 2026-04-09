@@ -1,0 +1,9 @@
+# Pulumi state exports — never commit
+stack-*.json
+stack-*.yaml
+*.pulumi-backup
+Pulumi.*.yaml.bak
+
+# Local env files
+.env
+.env.local
