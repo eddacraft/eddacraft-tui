@@ -134,11 +134,14 @@ Change status to **Ready** when:
 
 ### BRECON-003: Prepare reconciliation working checklist
 
+- **Status:** Complete
 - **Intent:** Translate the nine runbook buckets into a trackable todo list
   scoped to the reconciliation branch
 - **Expected Outcome:** Internal checklist exists covering CI/workflow, auth,
   Rust CLI, TypeScript, release, lockfiles, docs, validation, cutover
 - **Validation:** Checklist covers all nine runbook buckets
+- **Result:** Session task list tracks BRECON-004 through BRECON-014,
+  one-to-one with runbook Phases 3–13.
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** BRECON-002
