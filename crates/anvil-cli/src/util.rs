@@ -62,6 +62,7 @@ pub fn workspace_root() -> Result<PathBuf> {
 pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
 
+    #[allow(unused_mut)]
     let mut builder = tempfile::Builder::new();
 
     #[cfg(unix)]
