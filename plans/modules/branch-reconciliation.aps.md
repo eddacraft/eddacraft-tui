@@ -12,9 +12,9 @@ Scopes: BRECON (main)
 
 # Branch Reconciliation
 
-| ID     | Owner | Status      |
-| ------ | ----- | ----------- |
-| BRECON | aneki | In Progress |
+| ID     | Owner | Status   |
+| ------ | ----- | -------- |
+| BRECON | aneki | Complete |
 
 ## Purpose
 
@@ -451,6 +451,7 @@ Change status to **Ready** when:
 
 ### BRECON-014: Cut `main` over to reconciled lineage
 
+- **Status:** Complete
 - **Intent:** Promote the reconciled line and archive the old `main` so the
   history story is coherent going forward
 - **Expected Outcome:** `main-archive` exists at the old `main` tip; `main`
@@ -460,6 +461,12 @@ Change status to **Ready** when:
   `gh api repos/EddaCraft/anvil-001` confirms default branch; freeze marker
   removed; AGENTS.md freeze notice removed
 - **Files:** `RECONCILIATION-IN-PROGRESS.md` (delete), `AGENTS.md`
+- **Result:** `main-archive` created at `4bf0c620` (old main tip).
+  `main` force-pushed to `49968112` (dev HEAD) via admin ruleset
+  bypass. `RECONCILIATION-IN-PROGRESS.md` deleted. AGENTS.md freeze
+  notice block removed. Default branch remains `dev` (unchanged).
+  `main` ruleset (non-fast-forward + deletion protection) remains
+  active. `main` and `dev` are now identical at `49968112`.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** BRECON-013
@@ -495,5 +502,5 @@ Change status to **Ready** when:
 | 10 — Full Validation | 1 | Complete |
 | 11 — Pre-Cutover Verification | 1 | Complete |
 | 12 — PR into `dev` | 1 | Complete |
-| 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **13/14 done** |
+| 13 — Cutover | 1 | Complete |
+| **Total** | **14** | **14/14 done** |
