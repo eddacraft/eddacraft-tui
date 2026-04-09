@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Anvil quality gate checks ported to Rust - secret scan, anti-pattern detection, command safety"
 
+[lib]
+name = "anvil_checks"
+
 [dependencies]
 regex = "1"
 serde = { workspace = true }

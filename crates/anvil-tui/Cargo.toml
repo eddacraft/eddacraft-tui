@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Anvil TUI surfaces built on eddacraft-tui — watch dashboard, gate explorer, wizard"
 
+[lib]
+name = "anvil_tui"
+
 [dependencies]
 eddacraft-tui = { workspace = true }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }

@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Shared types for the Anvil Rust kernel — events, graph nodes, trust levels"
 
+[lib]
+name = "anvil_kernel_types"
+
 [dependencies]
 serde = { workspace = true }
 

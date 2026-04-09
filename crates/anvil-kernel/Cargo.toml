@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Anvil Rust kernel — watcher, parser, semantic graph, policy engine"
 
+[lib]
+name = "anvil_kernel"
+
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 tree-sitter = { workspace = true }
