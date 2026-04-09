@@ -149,8 +149,8 @@ dist plan --tag v0.3.0-rc.0
 
 **Expected output:**
 
-- A list of "Apps to release" — should include `eddacraft-anvil` (and
-  *only* `eddacraft-anvil`, since everything else is `publish=false`
+- A list of "Apps to release" — should include `anvil-cli` (and
+  *only* `anvil-cli`, since everything else is `publish=false`
   or a library)
 - A list of "Artifacts to build" — 6 platform binaries + checksums +
   installer scripts
@@ -172,7 +172,7 @@ build will fail in the same way during cross-compilation.
 
 ```bash
 cd /home/aneki/Projects/src/eddacraft
-cargo build --profile dist -p eddacraft-anvil
+cargo build --profile dist -p anvil-cli
 ```
 
 **Expected:** clean build, ~5-10 minutes, no errors. Warnings are OK.
@@ -197,7 +197,7 @@ If you don't want to gate the rehearsal on DNS, the alternative install
 URL is the direct GitHub Releases URL:
 
 ```bash
-curl -fsSL https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+curl -fsSL https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 ```
 
 This works without any DNS, just uses an uglier URL.
@@ -230,7 +230,7 @@ as an artifact but never published — that's fine for the rehearsal.
 - [ ] A2 — `ANVIL_RELEASES_TOKEN` secret exists with cross-repo write
 - [ ] A3 — `cargo-dist` 0.31.0 is reachable
 - [ ] A4 — `dist plan --tag v0.3.0-rc.0` succeeds locally
-- [ ] A5 — `cargo build --profile dist -p eddacraft-anvil` succeeds locally
+- [ ] A5 — `cargo build --profile dist -p anvil-cli` succeeds locally
 - [ ] A6 — `install.eddacraft.ai` resolves (or accept the GitHub URL fallback)
 - [ ] A7 — `dist-workspace.toml` matches expectations
 
@@ -373,7 +373,7 @@ On a clean Linux container:
 docker run --rm -it ubuntu:24.04 bash
 apt update && apt install -y curl
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 
 anvil --version
 ```
@@ -399,7 +399,7 @@ x86_64-apple-darwin binary should run via Rosetta.
 ### C3. Test on Windows (PowerShell)
 
 ```powershell
-irm https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+irm https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.ps1 | iex
 anvil --version
 ```
 
@@ -433,7 +433,7 @@ and additive — adding one cannot break the others.
 
 1. **Add `formula = "anvil"` to `crates/anvil-cli/Cargo.toml`** so the
    generated formula is `Formula/anvil.rb` (class `Anvil`) rather
-   than `Formula/eddacraft-anvil.rb` (class `EddacraftAnvil`):
+   than the default generated formula name:
 
    ```toml
    [package.metadata.dist]
@@ -560,7 +560,7 @@ the rehearsal:
   able to check for newer versions.
 - **The `eddacraft-tui` git dependency.** The workspace consumes
   `eddacraft-tui` via `git = "..."` rev. This works fine for builds,
-  but when cargo-dist tries to package the `eddacraft-anvil` crate
+  but when cargo-dist tries to package the `anvil-cli` crate
   *for the homebrew formula generation*, it may complain about the
   git dep depending on cargo-dist version. If this fails, the fix is
   to publish `eddacraft-tui` to crates.io first and pin to a version

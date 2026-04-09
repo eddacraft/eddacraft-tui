@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-While preparing DIST-008 (publish `eddacraft-anvil` to crates.io), an
+While preparing DIST-008 (publish `anvil-cli` to crates.io), an
 implicit assumption surfaced: that publishing the Anvil binary required
 either open-sourcing the CLI under a permissive license (Apache-2.0,
 open-core style) or picking a source-available license (BUSL, FSL).
@@ -111,9 +111,10 @@ Because the product is closed-source:
 - **Linux install path is `install.sh`** via `install.eddacraft.ai`
   (DIST-003 / DIST-005 / DIST-006) — already in scope.
 - **Universal install path is GitHub Releases via cargo-dist** (DIST-007).
-- The crate-rename to `eddacraft-anvil-*` (ADR-017) is **kept** as a
-  defensive namespace claim and to keep the door open for future
-  selective publication, but no crates.io publish is currently planned.
+- The crate-rename to `eddacraft-anvil-*` (ADR-017) was analysed and
+  approved but execution was reverted during reconciliation and deferred
+  alongside DIST-008. The analysis is preserved in ADR-017. No crates.io
+  publish is currently planned.
 
 ### Activation / licensing / telemetry
 
@@ -158,15 +159,16 @@ developer tools and requires no source disclosure.
 - **Positive:**
   - DIST-008 stops being a blocker; it becomes a non-goal
   - No license-text-decision required for the monorepo
-  - The crate-rename work (ADR-017) becomes pure defensive namespace
-    insurance — it costs nothing and protects future optionality
+  - The crate-rename analysis (ADR-017) is preserved as defensive
+    namespace insurance — execution is deferred alongside DIST-008
+    but the analysis protects future optionality
   - The three OSS repos can be developed, versioned, and released on
     their own cadence without coupling to the product release cycle
   - WinGet + scoop covers Windows; Homebrew covers macOS; install.sh
     covers Linux — a complete, closed-source-friendly install matrix
   - Activation + tier gating already supported by BAUTH
 - **Negative:**
-  - No `cargo install eddacraft-anvil` — Rust users have to use the
+  - No `cargo install anvil-cli` — Rust users have to use the
     install script, Homebrew, or WinGet like everyone else
   - Cannot accept outside PRs to product code (only to the three
     OSS repos)
@@ -231,7 +233,8 @@ These are not commitments — just a record that the door is open.
 
 ## References
 
-- Related ADRs: ADR-017 (crates.io naming, kept as defensive insurance)
+- Related ADRs: ADR-017 (crates.io naming, analysed and approved but
+  execution reverted; deferred alongside DIST-008)
 - APS modules: DIST (deferral of DIST-008), CPACKS (future open candidate),
   BAUTH (activation foundation, complete)
 - OSS repos:
