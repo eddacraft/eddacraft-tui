@@ -91,7 +91,7 @@ Change status to **Ready** when:
 
 ### BRECON-001: Announce freeze and create marker
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Signal to humans and agents that `main` and `dev` are frozen for
   reconciliation so no merges, rebases, or force-pushes happen during the
   window
@@ -113,6 +113,7 @@ Change status to **Ready** when:
 
 ### BRECON-002: Create safety anchor branches
 
+- **Status:** Complete
 - **Intent:** Create local and remote backup branches so reconciliation work
   is reversible
 - **Expected Outcome:** `backup/dev-before-reconcile`,
@@ -120,6 +121,9 @@ Change status to **Ready** when:
   locally and on origin
 - **Validation:** `git branch -a | grep -E 'backup/|reconcile/'` lists all
   three; `git ls-remote origin 'backup/*' 'reconcile/*'` confirms remote
+- **Result:** `backup/dev-before-reconcile` @ `e32e78d0`,
+  `backup/main-before-reconcile` @ `4bf0c620`,
+  `reconcile/dev-with-main-fixes` @ `e32e78d0`. All three pushed to origin.
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** BRECON-001
@@ -360,8 +364,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Freeze | 1 | In Progress |
-| 1 — Safety Anchors | 1 | Ready |
+| 0 — Freeze | 1 | Complete |
+| 1 — Safety Anchors | 1 | Complete |
 | 2 — Working Checklist | 1 | Ready |
 | 3 — CI & Security | 1 | Ready |
 | 4 — Auth Hardening | 1 | Ready |
@@ -374,4 +378,4 @@ Change status to **Ready** when:
 | 11 — Pre-Cutover Verification | 1 | Ready |
 | 12 — PR into `dev` | 1 | Ready |
 | 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **0/14 done** |
+| **Total** | **14** | **2/14 done** |
