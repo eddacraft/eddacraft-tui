@@ -327,9 +327,9 @@
     "@eddacraft/anvil-core": "workspace:*"
   },
   "devDependencies": {
-    "@types/vscode": "^1.110.0",
+    "@types/vscode": "^1.115.0",
     "@vscode/vsce": "^3.7.1",
-    "esbuild": "^0.27.5",
-    "vitest": "^4.1.1"
+    "esbuild": "^0.28.0",
+    "vitest": "^4.1.3"
   }
 }
