@@ -6,7 +6,9 @@ use anvil_checks::command_safety::parser::CommandParser;
 use anvil_checks::command_safety::rules::{default_filesystem_rules, default_git_rules};
 use anvil_checks::secret::entropy::calculate_entropy;
 use anvil_checks::secret::{SecretCheckConfig, scan_content};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 
 const SHORT_ENTROPY_STRING: &str = "A7f9K2mN4pQ8xR3s";
 const LONG_ENTROPY_STRING: &str =

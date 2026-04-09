@@ -18,7 +18,9 @@ use anvil_kernel::watcher::debounce::Debouncer;
 use anvil_kernel::watcher::events::{ChangeKind, FileChange};
 
 use anvil_kernel_types::{EdgeType, EngineId, SymbolKind, SymbolNode, TrustLevel, Visibility};
-use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use std::hint::black_box;
+
+use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use tempfile::TempDir;
 
 const SAMPLE_TS: &str = r"
