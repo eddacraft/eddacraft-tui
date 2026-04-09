@@ -46,6 +46,8 @@ export const api = new VercelApp('anvil-api', {
     ACTIVATE_URL: 'https://eddacraft.ai/auth/activate',
     WAITLIST_ADMIN_EMAIL: 'josh@eddacraft.ai',
     CRON_SECRET: getSecret('cron-secret'),
+    // BAUTH: pepper for SHA-256 token hashing (required in production)
+    TOKEN_PEPPER: getSecret('token-pepper'),
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,

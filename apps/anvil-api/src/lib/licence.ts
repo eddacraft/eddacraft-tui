@@ -51,6 +51,8 @@ export async function signLicence(
     .setProtectedHeader({ alg: 'ES256', kid: KEY_ID })
     .setSubject(claims.sub)
     .setIssuedAt(now)
+    .setIssuer('https://api.eddacraft.ai')
+    .setAudience('anvil-cli')
     .setExpirationTime(exp)
     .sign(privateKey);
 }

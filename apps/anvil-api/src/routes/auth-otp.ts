@@ -139,11 +139,21 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
     return c.json(INVALID_CODE_ERROR, 400);
   }
 
-  // Consume the matched OTP code
-  await sql`
-    UPDATE otp_codes SET consumed_at = now()
+  // Consume the matched OTP code atomically so concurrent verification
+  // requests cannot both use the same code.
+  const consumedRows = (await sql`
+    UPDATE otp_codes
+    SET consumed_at = now()
     WHERE id = ${match.id}
-  `;
+      AND consumed_at IS NULL
+      AND expires_at > now()
+    RETURNING id
+  `) as { id: string }[];
+
+  if (consumedRows.length === 0) {
+    debug('otp verify failed', { userId: user.id, reason: 'already_consumed_or_expired' });
+    return c.json(INVALID_CODE_ERROR, 400);
+  }
 
   // Sign a 7-day JWT
   const claims: LicenceClaims = {

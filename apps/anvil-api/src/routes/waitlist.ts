@@ -64,7 +64,12 @@ waitlist.post('/', async (c) => {
     let emailStatus = 'skipped';
 
     if (isNewSignup) {
-      void addToWaitlistAudience(result[0].email);
+      const audienceUpdate = addToWaitlistAudience(result[0].email);
+      try {
+        c.executionCtx.waitUntil(audienceUpdate);
+      } catch {
+        void audienceUpdate;
+      }
       const delivery = await sendWaitlistConfirmation(result[0].email);
       emailSent = delivery.sent;
       emailStatus = delivery.sent ? 'sent' : (delivery.code ?? 'failed');

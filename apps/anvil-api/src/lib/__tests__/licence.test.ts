@@ -60,6 +60,8 @@ describe('signLicence', () => {
     expect(payload.sub).toBe('user_test123');
     expect(payload.org).toBeNull();
     expect(payload.seats).toBe(1);
+    expect(payload.iss).toBe('https://api.eddacraft.ai');
+    expect(payload.aud).toBe('anvil-cli');
   });
 
   it('sets exp to 90 days from now', async () => {
