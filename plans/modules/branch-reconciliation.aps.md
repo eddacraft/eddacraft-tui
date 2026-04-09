@@ -182,6 +182,7 @@ Change status to **Ready** when:
 
 ### BRECON-005: Port auth hardening from `main`
 
+- **Status:** Complete
 - **Intent:** Preserve the auth behaviour landed on `main` via
   `b2e9f6e9`, `9a37a9f6`, `140a3195`
 - **Expected Outcome:** Auth routes and admin endpoints match intended
@@ -190,6 +191,16 @@ Change status to **Ready** when:
   admin and waitlist flows still reachable
 - **Files:** `apps/anvil-api/src/routes/auth*.ts`,
   `apps/anvil-api/src/routes/admin.ts`, `apps/anvil-api/src/lib/*`
+- **Result:** Ported as `9e0951d6` on `reconcile/dev-with-main-fixes`.
+  Nine files touched: JWT `iss`/`aud` claims added in `licence.ts`;
+  `TOKEN_PEPPER` fail-fast at module load in `token.ts`;
+  refresh-token cleanup (7-day revoked retention) in `cron.ts`;
+  atomic OTP consume via `UPDATE ... RETURNING` in `auth-otp.ts`;
+  `waitUntil` wrapper for Resend audience update in `waitlist.ts`;
+  direct `contacts.remove({id: email})` in `audience.ts`;
+  `TOKEN_PEPPER` env var restored in `infra/src/vercel.ts`;
+  test assertions added in `licence.test.ts` and `vercel.test.ts`.
+  All anvil-api (63/63) and infra (3/3) tests pass.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** BRECON-002
@@ -200,6 +211,7 @@ Change status to **Ready** when:
 
 ### BRECON-006: Port Rust CLI review fixes from `main`
 
+- **Status:** Complete
 - **Intent:** Apply review fixes from `0623146c`, `f5766723`, `21148747`,
   `caa2687c`, `319cd9a7`, `2c67c70c`, `abe0943b` using current `dev` files as
   the base
@@ -209,6 +221,13 @@ Change status to **Ready** when:
   --all-targets -- -D warnings`, `cargo test --workspace` all green
 - **Files:** `crates/anvil-cli/src/main.rs`,
   `crates/anvil-cli/src/commands/*`, `crates/anvil-cli/src/auth/*`
+- **Result:** No port needed. All seven review-fix commits already
+  absorbed by dev's parallel Rust CLI evolution: pure `evaluate_auth` +
+  `check_auth` wrapper, `ANVIL_DEV=1` bypass, `parse_kb_value` +
+  `unused_mut` gate, cross-platform test fixes. Verified with
+  `cargo build --workspace` (clean), `cargo clippy --workspace
+  --all-targets -- -D warnings` (clean), `cargo test --workspace`
+  (506/506 pass).
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** BRECON-002
@@ -219,6 +238,7 @@ Change status to **Ready** when:
 
 ### BRECON-007: Port TypeScript compatibility fixes from `main`
 
+- **Status:** Complete
 - **Intent:** Review and port only still-relevant changes from `55e440c5`,
   `06d03d08`, `73b5a6e1`, `fbcde70b`, `e1c38d5c` without regressing newer
   `dev` package structure
@@ -228,6 +248,10 @@ Change status to **Ready** when:
   drift
 - **Files:** `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, app
   and package manifests, workspace tooling config
+- **Result:** No port needed. All five TS compatibility commits already
+  absorbed. Dev's `nodenext` module resolution sidesteps main's TS 6
+  `ignoreDeprecations` workarounds, and dev carries newer dep versions
+  across the board. `pnpm run typecheck` clean on reconcile branch.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** BRECON-002
@@ -238,6 +262,7 @@ Change status to **Ready** when:
 
 ### BRECON-008: Port release pipeline changes from `main`
 
+- **Status:** Complete
 - **Intent:** Manually port release-critical behaviour from `e2a4e1c5` and
   `45e38850` because `0.3.0` is the first Rust-native distribution release
 - **Expected Outcome:** Release workflow still cuts the Rust binary
@@ -246,6 +271,12 @@ Change status to **Ready** when:
   current `dev` state; no regressions in DIST module expectations
 - **Files:** `.github/workflows/release.yml`, installer scripts, distribution
   config
+- **Result:** Ported as `5838deb8` on `reconcile/dev-with-main-fixes`.
+  Two real regressions fixed: `.github/workflows/release.yml` jq nested
+  single-quoting at lines 92 and 270 (inside GITHUB_OUTPUT echo steps);
+  `install.sh` portable `mktemp` fallback for BSD/macOS using
+  `-t anvil-installer` then `${TMPDIR:-/tmp}/anvil-installer.XXXXXX`
+  with trap cleanup. `e2a4e1c5`'s remaining content was already absorbed.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** BRECON-002
@@ -256,6 +287,7 @@ Change status to **Ready** when:
 
 ### BRECON-009: Regenerate lockfiles from final manifests
 
+- **Status:** Complete
 - **Intent:** Reconcile dependency state by regenerating rather than
   hand-merging lockfiles
 - **Expected Outcome:** `pnpm-lock.yaml` and `Cargo.lock` regenerated after
@@ -263,6 +295,10 @@ Change status to **Ready** when:
 - **Validation:** `pnpm install` completes; `cargo check` completes;
   lockfiles contain no conflict markers
 - **Files:** `pnpm-lock.yaml`, `Cargo.lock`
+- **Result:** No regeneration needed — manifests were not touched by
+  ports 005–008. `pnpm install --frozen-lockfile` clean;
+  `cargo check --workspace` clean; no conflict markers in either
+  lockfile. Lockfile freshness verified directly against final state.
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** BRECON-004, BRECON-005, BRECON-006, BRECON-007,
@@ -381,14 +417,14 @@ Change status to **Ready** when:
 | 1 — Safety Anchors | 1 | Complete |
 | 2 — Working Checklist | 1 | Complete |
 | 3 — CI & Security | 1 | Complete |
-| 4 — Auth Hardening | 1 | Ready |
-| 5 — Rust CLI Review Fixes | 1 | Ready |
-| 6 — TypeScript Compatibility | 1 | Ready |
-| 7 — Release & Distribution | 1 | Ready |
-| 8 — Lockfiles | 1 | Ready |
+| 4 — Auth Hardening | 1 | Complete |
+| 5 — Rust CLI Review Fixes | 1 | Complete |
+| 6 — TypeScript Compatibility | 1 | Complete |
+| 7 — Release & Distribution | 1 | Complete |
+| 8 — Lockfiles | 1 | Complete |
 | 9 — Release-Critical Docs | 1 | Ready |
 | 10 — Full Validation | 1 | Ready |
 | 11 — Pre-Cutover Verification | 1 | Ready |
 | 12 — PR into `dev` | 1 | Ready |
 | 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **4/14 done** |
+| **Total** | **14** | **9/14 done** |

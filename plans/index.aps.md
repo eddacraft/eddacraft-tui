@@ -66,7 +66,7 @@ over. See `docs/runbooks/branch-reconciliation.md` and the freeze notice in
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [branch-reconciliation](./modules/branch-reconciliation.aps.md) | BRECON | In Progress | 4/14 |
+| [branch-reconciliation](./modules/branch-reconciliation.aps.md) | BRECON | In Progress | 9/14 |
 
 ### Hardening & Maintenance (In Progress)
 
