@@ -149,6 +149,7 @@ fn read_proc_status() -> Option<MemorySnapshot> {
     None
 }
 
+#[cfg(target_os = "linux")]
 fn parse_kb_value(s: &str) -> u64 {
     s.trim()
         .strip_suffix("kB")
@@ -202,6 +203,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn parse_kb_value_handles_variants() {
         assert_eq!(parse_kb_value("  12345 kB"), 12345);
         assert_eq!(parse_kb_value("  67890 KB"), 67890);

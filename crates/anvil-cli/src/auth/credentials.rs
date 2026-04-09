@@ -258,6 +258,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn save_load_clear_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         temp_env::with_vars(
@@ -289,6 +290,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn load_from_env_var() {
         let dir = tempfile::tempdir().unwrap();
         temp_env::with_vars(
@@ -305,6 +307,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn load_empty_env_var_returns_none() {
         let dir = tempfile::tempdir().unwrap();
         temp_env::with_vars(
@@ -320,6 +323,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn file_credentials_take_priority_over_env() {
         let dir = tempfile::tempdir().unwrap();
         temp_env::with_vars(
@@ -343,6 +347,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn credentials_dir_respects_xdg() {
         let tmp_dir = tempfile::tempdir().unwrap();
         let xdg_config_home = tmp_dir.path().to_str().unwrap();

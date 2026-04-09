@@ -36,11 +36,11 @@ Add a pre-commit hook that checks staged files:
 
 ```bash
 # .husky/pre-commit (or .git/hooks/pre-commit)
-anvil gate
+anvil check --changed --staged
 ```
 
-This blocks commits that introduce violations. Only staged files are checked, so
-it stays fast.
+This blocks commits that introduce violations. The `--changed --staged` flags
+restrict analysis to staged files only, so it stays fast.
 
 ## Layer 3: CI-Time (Pipeline)
 
@@ -139,13 +139,13 @@ anvil:
 
 ## Exit Codes
 
-| Code | Meaning                                             |
-| ---- | --------------------------------------------------- |
-| `0`  | All gates passed                                    |
-| `1`  | General error                                       |
-| `2`  | One or more gate failures                           |
-| `3`  | Authentication required (reserved, not yet emitted) |
-| `4`  | Configuration error (reserved, not yet emitted)     |
+| Code | Meaning                   |
+| ---- | ------------------------- |
+| `0`  | All gates passed          |
+| `1`  | General error             |
+| `2`  | One or more gate failures |
+| `3`  | Authentication required   |
+| `4`  | Configuration error       |
 
 CI runners use these exit codes to pass or fail the pipeline step.
 

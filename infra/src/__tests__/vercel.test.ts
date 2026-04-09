@@ -11,6 +11,7 @@ vi.mock('../../src/keyvault.js', () => ({
       'resend-waitlist-audience-id': 'mock-waitlist-audience-id',
       'resend-beta-audience-id': 'mock-beta-audience-id',
       'cron-secret': 'mock-cron-secret',
+      'token-pepper': 'mock-token-pepper',
       'github-oauth-client-id': 'mock-github-client-id',
       'github-oauth-client-secret': 'mock-github-client-secret',
       'license-public-key': 'mock-license-public-key',

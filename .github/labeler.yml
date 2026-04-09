@@ -2,7 +2,9 @@
 
 'area:cli':
   - changed-files:
-      - any-glob-to-any-file: 'crates/anvil-cli/**'
+      - any-glob-to-any-file:
+          - 'crates/anvil-cli/**'
+          - 'apps/anvil-cli/**'
 
 'area:core':
   - changed-files:

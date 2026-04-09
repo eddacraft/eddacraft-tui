@@ -4,6 +4,12 @@ const TOKEN_PREFIX = 'anvil_beta_';
 // base64url(32 bytes) = 43 characters (no padding needed for 32 bytes)
 const TOKEN_PAYLOAD_LENGTH = 43;
 
+// Fail fast at cold start rather than during request handling.
+// In serverless (Vercel), module-level code runs once per instance.
+if (process.env['NODE_ENV'] === 'production' && !process.env['TOKEN_PEPPER']) {
+  throw new Error('TOKEN_PEPPER environment variable is required in production');
+}
+
 /**
  * Generate a new beta access token.
  * Format: anvil_beta_<base64url(32 random bytes)>
@@ -16,7 +22,7 @@ export function generateToken(): string {
 
 /**
  * Hash a raw token for storage.
- * Uses SHA-256 with an optional pepper from environment.
+ * Uses SHA-256 with a pepper from environment.
  */
 export function hashToken(raw: string): string {
   const pepper = process.env['TOKEN_PEPPER'] ?? '';

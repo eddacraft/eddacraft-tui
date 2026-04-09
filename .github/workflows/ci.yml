@@ -305,7 +305,7 @@ jobs:
       - name: Run unit tests
         run: pnpm run test -- --run
 
-  # ── Job 4: Build (matrix: Node 20, uses Azure remote cache) ──
+  # ── Job 4: Build (matrix: Node 22, uses Azure remote cache) ──
   build:
     name: Build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest

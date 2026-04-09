@@ -30,14 +30,11 @@ export async function moveToApprovedAudience(email: string): Promise<void> {
   const betaId = process.env['RESEND_BETA_AUDIENCE_ID'];
   if (!resend) return;
 
-  // Remove from waitlist audience (best-effort)
+  // Remove from waitlist audience (best-effort).
+  // Pass email directly as the id — Resend accepts email or contact ID.
   if (waitlistId) {
     try {
-      const contacts = await resend.contacts.list({ audienceId: waitlistId });
-      const contact = contacts.data?.data?.find((c: { email: string }) => c.email === email);
-      if (contact) {
-        await resend.contacts.remove({ id: contact.id, audienceId: waitlistId });
-      }
+      await resend.contacts.remove({ id: email, audienceId: waitlistId });
     } catch (error) {
       console.error(
         'Failed to remove from waitlist audience:',
@@ -64,12 +61,9 @@ export async function removeFromBetaAudience(email: string): Promise<void> {
   const betaId = process.env['RESEND_BETA_AUDIENCE_ID'];
   if (!resend || !betaId) return;
 
+  // Pass email directly as the id — Resend accepts email or contact ID.
   try {
-    const contacts = await resend.contacts.list({ audienceId: betaId });
-    const contact = contacts.data?.data?.find((c: { email: string }) => c.email === email);
-    if (contact) {
-      await resend.contacts.remove({ id: contact.id, audienceId: betaId });
-    }
+    await resend.contacts.remove({ id: email, audienceId: betaId });
   } catch (error) {
     console.error(
       'Failed to remove from beta audience:',

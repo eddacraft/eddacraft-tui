@@ -25,7 +25,14 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-TMPFILE=$(mktemp)
+if TMPFILE=$(mktemp -t anvil-installer 2>/dev/null); then
+  :
+elif TMPFILE=$(mktemp "${TMPDIR:-/tmp}/anvil-installer.XXXXXX" 2>/dev/null); then
+  :
+else
+  echo "[!] Failed to create temporary file." >&2
+  exit 1
+fi
 trap 'rm -f "$TMPFILE"' EXIT
 
 if ! curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o "$TMPFILE"; then

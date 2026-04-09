@@ -10,9 +10,10 @@ const cron = new Hono();
 /**
  * GET /cron/cleanup
  *
- * Purge expired device codes and OTP codes.
+ * Purge expired device codes, OTP codes, and refresh tokens.
  * Retains codes for 1 hour after expiry to allow for clock skew and
- * debugging before cleanup. Runs hourly via Vercel Cron.
+ * debugging before cleanup. Revoked refresh tokens are kept for 7 days
+ * for audit purposes. Runs hourly via Vercel Cron.
  * Protected by CRON_SECRET for Vercel Cron compatibility.
  *
  * Vercel Cron config (vercel.json):
@@ -47,15 +48,28 @@ cron.get('/cleanup', async (c) => {
     RETURNING id
   `;
 
+  const refreshResult = await sql`
+    DELETE FROM refresh_tokens
+    WHERE (expires_at < now() - interval '1 hour')
+       OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '7 days')
+    RETURNING id
+  `;
+
   const deviceCount = Array.isArray(deviceResult) ? deviceResult.length : 0;
   const otpCount = Array.isArray(otpResult) ? otpResult.length : 0;
+  const refreshCount = Array.isArray(refreshResult) ? refreshResult.length : 0;
 
-  debug('cleanup complete', { deviceCodes: deviceCount, otpCodes: otpCount });
+  debug('cleanup complete', {
+    deviceCodes: deviceCount,
+    otpCodes: otpCount,
+    refreshTokens: refreshCount,
+  });
 
   return c.json({
     cleaned: {
       deviceCodes: deviceCount,
       otpCodes: otpCount,
+      refreshTokens: refreshCount,
     },
   });
 });
