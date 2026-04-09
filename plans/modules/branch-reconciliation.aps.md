@@ -349,6 +349,7 @@ Change status to **Ready** when:
 
 ### BRECON-011: Run full validation pass
 
+- **Status:** Complete
 - **Intent:** Run the reconciliation-branch validation matrix from the
   runbook so the branch is known-good before PR
 - **Expected Outcome:** Lint, typecheck, unit tests, cargo fmt, clippy, and
@@ -356,6 +357,13 @@ Change status to **Ready** when:
 - **Validation:** `pnpm run lint && pnpm run typecheck && pnpm run test
   -- --run && cargo fmt --all --check && cargo clippy --workspace
   --all-targets -- -D warnings && cargo test --workspace`
+- **Result:** All six gates green on `reconcile/dev-with-main-fixes` at
+  `cd6a6067`. `pnpm run lint` clean (0 errors, 4 pre-existing website
+  warnings). `pnpm run typecheck` clean across 21 projects.
+  `pnpm test --run` 3,497 TS tests + 85 MCP + 159 source tests all
+  pass. `cargo fmt --all --check` clean. `cargo clippy --workspace
+  --all-targets -- -D warnings` clean. `cargo test --workspace`
+  1,573/1,573 pass.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** BRECON-004 through BRECON-010
@@ -366,6 +374,7 @@ Change status to **Ready** when:
 
 ### BRECON-012: Answer pre-cutover checklist
 
+- **Status:** Complete
 - **Intent:** Explicitly verify the six runbook questions before changing
   branch roles
 - **Expected Outcome:** Documented yes/no for: auth hardening preserved,
@@ -374,6 +383,37 @@ Change status to **Ready** when:
   resurrected
 - **Validation:** All six answers are "yes" and recorded in the
   reconciliation PR description
+- **Result:** All six questions answered yes.
+  1. **Auth hardening preserved:** yes. BRECON-005 commit `5e63a3da`
+     ports JWT iss/aud claims, TOKEN_PEPPER fail-fast, refresh-token
+     cleanup, atomic OTP consume, waitUntil for Resend audience
+     update, direct `contacts.remove({id: email})`, plus
+     `TOKEN_PEPPER` env var in `infra/src/vercel.ts`.
+  2. **CI hardening preserved:** yes. BRECON-004 commits `deb5d97e`
+     (SHA-pinned `actions/labeler@v6`), `0b4be31b` (review-feedback
+     tweaks), `61073098` (gate `parse_kb_value`, allow `unused_mut`),
+     `b6c76e76` (cross-platform test fixes). `f5aad7d6`/`2af495d2`
+     content ported; `059aaa6d`/`eb7fc881` verified already absorbed
+     by dev.
+  3. **Release pipeline changes preserved:** yes. BRECON-008 commit
+     `2a6903ab` ports `.github/workflows/release.yml` jq nested
+     quoting fix at lines 92 and 270 and `install.sh` portable
+     `mktemp` fallback for BSD/macOS.
+  4. **Rust CLI review fixes preserved:** yes. BRECON-006 verified
+     all seven review-fix commits fully absorbed by dev's parallel
+     Rust CLI evolution. `cargo clippy --workspace --all-targets
+     -- -D warnings` and `cargo test --workspace` (1,573/1,573)
+     clean on reconcile.
+  5. **Lockfiles regenerated from final manifests:** yes. BRECON-009
+     verified no manifest drift from ports — `git diff dev..
+     reconcile/dev-with-main-fixes -- pnpm-lock.yaml Cargo.lock`
+     returns nothing. `pnpm install --frozen-lockfile` clean;
+     `cargo check --workspace` clean.
+  6. **No archived paths resurrected:** yes. `git diff dev..
+     reconcile/dev-with-main-fixes --name-status | grep "^A" | wc -l`
+     returns 0 — reconcile introduces only modifications, never
+     additions, so none of `main`'s deleted archived directories
+     came back.
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** BRECON-011
@@ -444,8 +484,8 @@ Change status to **Ready** when:
 | 7 — Release & Distribution | 1 | Complete |
 | 8 — Lockfiles | 1 | Complete |
 | 9 — Release-Critical Docs | 1 | Complete |
-| 10 — Full Validation | 1 | Ready |
-| 11 — Pre-Cutover Verification | 1 | Ready |
+| 10 — Full Validation | 1 | Complete |
+| 11 — Pre-Cutover Verification | 1 | Complete |
 | 12 — PR into `dev` | 1 | Ready |
 | 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **10/14 done** |
+| **Total** | **14** | **12/14 done** |
