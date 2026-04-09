@@ -47,10 +47,10 @@ crossterm = "0.29"
 
 # CLI
 clap = { version = "4", features = ["derive"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.13", features = ["json", "rustls"], default-features = false }
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-dirs = "5"
+dirs = "6"
 
 # Error handling
 thiserror = "2"
@@ -64,7 +64,7 @@ regex = "1"
 
 # Testing
 insta = { version = "1", features = ["yaml"] }
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
