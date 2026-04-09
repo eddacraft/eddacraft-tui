@@ -55,6 +55,7 @@ pub mod prelude {
     pub use crate::widgets::select::{Select, SelectItem, SelectState};
     pub use crate::widgets::spinner::{Spinner, SpinnerState};
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
-    pub use crate::widgets::status_bar::{StatusBar, StatusItem, StatusKind};
+    pub use crate::widgets::status_bar::StatusBar;
+    pub use crate::widgets::editor::{Editor, EditorState};
     pub use crate::widgets::text_input::{TextInput, TextInputState};
 }

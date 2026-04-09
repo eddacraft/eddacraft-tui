@@ -16,6 +16,9 @@ unicode-width = "0.2"
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
+tempfile = "3"
+
+[workspace]
 
 [lints.rust]
 unsafe_code = "forbid"
