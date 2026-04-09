@@ -152,6 +152,7 @@ Change status to **Ready** when:
 
 ### BRECON-004: Port CI and security fixes from `main`
 
+- **Status:** Complete
 - **Intent:** Apply CI hardening and action pinning from commits
   `f5aad7d6`, `2af495d2`, `eb7fc881`, `b7b2cde6`, `059aaa6d` onto the
   reconciliation branch
@@ -162,7 +163,16 @@ Change status to **Ready** when:
   `gh workflow list` shows the same workflows
 - **Files:** `.github/workflows/*.yml`,
   `.github/actions/anvil-check/action.yml`
-- **Confidence:** medium
+- **Result:** Four commits landed on `reconcile/dev-with-main-fixes`:
+  `4933245a` (SHA-pin actions/labeler@v6 from f5aad7d6),
+  `4f1b8fcd` (review-feedback tweaks from 2af495d2 minus rust.yml hunk,
+  which would regress TFIX-003/004 OPA CI work), `38001285` (gate
+  `parse_kb_value` on linux + allow unused_mut), `a4f9f137` (cross-platform
+  test fixes from b7b2cde6). `059aaa6d` verified fully absorbed by dev's
+  parallel CI evolution — 8 of 10 files identical to main, 2 strictly
+  ahead via Dependabot bumps; no port needed. `eb7fc881` content already
+  present on dev.
+- **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** BRECON-002
 
@@ -369,8 +379,8 @@ Change status to **Ready** when:
 | ----- | ----- | ------ |
 | 0 — Freeze | 1 | Complete |
 | 1 — Safety Anchors | 1 | Complete |
-| 2 — Working Checklist | 1 | Ready |
-| 3 — CI & Security | 1 | Ready |
+| 2 — Working Checklist | 1 | Complete |
+| 3 — CI & Security | 1 | Complete |
 | 4 — Auth Hardening | 1 | Ready |
 | 5 — Rust CLI Review Fixes | 1 | Ready |
 | 6 — TypeScript Compatibility | 1 | Ready |
@@ -381,4 +391,4 @@ Change status to **Ready** when:
 | 11 — Pre-Cutover Verification | 1 | Ready |
 | 12 — PR into `dev` | 1 | Ready |
 | 13 — Cutover | 1 | Ready |
-| **Total** | **14** | **2/14 done** |
+| **Total** | **14** | **4/14 done** |
