@@ -199,6 +199,7 @@ what FSL is and the auto-conversion clause.
 
 ---
 
-*This document is for discussion only. Once a decision is made, capture it
-in `plans/decisions/018-anvil-licensing.md` (next ADR number) and update
-DIST-008 in the plan accordingly.*
+*This document is retained for historical discussion context only. The
+decision was later resolved in
+[`ADR-018: Product / IP Architecture`](../decisions/018-product-ip-architecture.md);
+update DIST-008 in the plan accordingly.*

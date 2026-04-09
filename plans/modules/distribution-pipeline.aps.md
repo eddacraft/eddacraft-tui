@@ -64,7 +64,8 @@ managers (Homebrew, WinGet, scoop) that point at GitHub Release binaries.
 
 - `install.eddacraft.ai` — install script endpoint
 - `EddaCraft/anvil` — GitHub Releases with platform binaries
-- `anvil-cli` on crates.io
+- `EddaCraft/homebrew-tap` — Homebrew formula
+- `microsoft/winget-pkgs` — WinGet manifest
 
 ## Constraints
 
@@ -72,8 +73,6 @@ managers (Homebrew, WinGet, scoop) that point at GitHub Release binaries.
   push artefacts to the public repo via a deploy key or PAT
 - Install script must detect platform (Linux x86_64/aarch64, macOS
   x86_64/aarch64, Windows x86_64) and download the correct binary
-- crates.io publish requires the crate to build standalone — all workspace
-  path deps must be vendored or published first
 - DNS propagation may take up to 48h for new CNAME records
 
 ## Ready Checklist
@@ -215,16 +214,16 @@ Change status to **Ready** when:
   meant to fill is filled by **DIST-010 (WinGet)** instead, which
   points at the GitHub Release binary and requires zero source
   disclosure.
-- **Namespace analysis (ADR-017):** The `eddacraft-anvil-*` namespace
-  prefix was analysed and approved but the rename was reverted during
-  reconciliation. Execution is deferred alongside this item. See
-  ADR-017 for the full analysis and re-activation criteria.
+- **Namespace analysis:** The `eddacraft-anvil-*` namespace prefix was
+  analysed and approved but the rename was reverted during
+  reconciliation. Execution is deferred alongside this item, and the
+  preserved naming analysis is captured in this section.
 - **Re-activation criteria** — this item could come off the shelf if:
   - The IP model changes (e.g. a future ADR opens part of the product
     under a permissive licence), **and**
   - There is a real user request volume for `cargo install` that
     WinGet / scoop / Homebrew / install.sh together cannot satisfy
-- **Files:** ADR-017 (naming), ADR-018 (IP model)
+- **Files:** ADR-018 (IP model)
 - **Priority:** Deferred
 - **Dependencies:** n/a
 
@@ -274,8 +273,9 @@ Change status to **Ready** when:
     `microsoft/winget-create`)
 - **Confidence:** high — well-trodden path, lots of prior art
 - **Priority:** High (replaces DIST-008 for the Windows install gap)
-- **Dependencies:** DIST-007 (release workflow producing
-  `eddacraft-anvil-x86_64-pc-windows-msvc.zip`)
+- **Dependencies:** DIST-007 (release workflow producing the
+  Windows cargo-dist artifacts `anvil-cli-x86_64-pc-windows-msvc.zip`
+  and `anvil-cli-aarch64-pc-windows-msvc.zip`)
 
 ---
 

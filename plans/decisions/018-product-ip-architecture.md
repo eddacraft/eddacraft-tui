@@ -111,9 +111,10 @@ Because the product is closed-source:
 - **Linux install path is `install.sh`** via `install.eddacraft.ai`
   (DIST-003 / DIST-005 / DIST-006) — already in scope.
 - **Universal install path is GitHub Releases via cargo-dist** (DIST-007).
-- The crate-rename to `eddacraft-anvil-*` (ADR-017) was analysed and
-  approved but execution was reverted during reconciliation and deferred
-  alongside DIST-008. The analysis is preserved in ADR-017. No crates.io
+- The crate-rename to `eddacraft-anvil-*` was analysed and approved, but
+  execution was reverted during reconciliation and deferred alongside
+  DIST-008. Current status and any future crates.io-related work should be
+  tracked via `plans/modules/distribution-pipeline.aps.md`. No crates.io
   publish is currently planned.
 
 ### Activation / licensing / telemetry
@@ -159,9 +160,9 @@ developer tools and requires no source disclosure.
 - **Positive:**
   - DIST-008 stops being a blocker; it becomes a non-goal
   - No license-text-decision required for the monorepo
-  - The crate-rename analysis (ADR-017) is preserved as defensive
-    namespace insurance — execution is deferred alongside DIST-008
-    but the analysis protects future optionality
+  - The crate-rename analysis is preserved as defensive namespace
+    insurance — execution is deferred alongside DIST-008 but the
+    analysis protects future optionality
   - The three OSS repos can be developed, versioned, and released on
     their own cadence without coupling to the product release cycle
   - WinGet + scoop covers Windows; Homebrew covers macOS; install.sh
@@ -233,8 +234,8 @@ These are not commitments — just a record that the door is open.
 
 ## References
 
-- Related ADRs: ADR-017 (crates.io naming, analysed and approved but
-  execution reverted; deferred alongside DIST-008)
+- Crate namespace analysis: `eddacraft-anvil-*` prefix was analysed and
+  approved; execution deferred alongside DIST-008
 - APS modules: DIST (deferral of DIST-008), CPACKS (future open candidate),
   BAUTH (activation foundation, complete)
 - OSS repos:

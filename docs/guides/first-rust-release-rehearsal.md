@@ -9,8 +9,6 @@
 >   runbook for _ongoing_ releases (assumes the pipeline works)
 > - [`plans/modules/distribution-pipeline.aps.md`](../../plans/modules/distribution-pipeline.aps.md)
 >   — DIST module with item-level scope
-> - [`plans/decisions/017-crates-io-naming.md`](../../plans/decisions/017-crates-io-naming.md)
->   — namespace rename
 > - [`plans/decisions/018-product-ip-architecture.md`](../../plans/decisions/018-product-ip-architecture.md)
 >   — closed-source IP model
 
@@ -58,7 +56,8 @@ zero-risk.
 
 ### A1. Confirm the public repo has a `main` branch with content
 
-The custom cross-repo push step in `release.yml` (line 312) does:
+The custom cross-repo push step in `release.yml` (the `push-to-public-repo` job)
+does:
 
 ```bash
 PUBLIC_HEAD=$(gh api repos/EddaCraft/anvil/git/ref/heads/main -q '.object.sha')
@@ -144,7 +143,7 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 **Run plan from the workspace root:**
 
 ```bash
-cd /home/aneki/Projects/src/eddacraft
+cd <repo_root>
 dist plan --tag v0.3.0-rc.0
 ```
 
@@ -169,7 +168,7 @@ this profile doesn't compile cleanly, the release build will fail in the same
 way during cross-compilation.
 
 ```bash
-cd /home/aneki/Projects/src/eddacraft
+cd <repo_root>
 cargo build --profile dist -p anvil-cli
 ```
 
@@ -205,7 +204,7 @@ This works without any DNS, just uses an uglier URL.
 Quick read-through. Things to confirm:
 
 ```bash
-grep -E "version|installers|tap|targets|hosting|ci" /home/aneki/Projects/src/eddacraft/dist-workspace.toml
+grep -E "version|installers|tap|targets|hosting|ci" <repo_root>/dist-workspace.toml
 ```
 
 **Expected:**
