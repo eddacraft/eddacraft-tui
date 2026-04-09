@@ -193,21 +193,20 @@ Anvil flagging code that's actually fine.
 2. Add pattern suppression in `.anvil/suppressions.json`:
    ```json
    {
-     "version": 1,
      "suppressions": [
        {
-         "id": "src/types/external.ts:0:AP-003",
          "pattern_id": "AP-003",
          "file": "src/types/external.ts",
-         "line": 0,
          "reason": "External type definitions",
          "scope": "file",
-         "timestamp": "2026-04-01T00:00:00Z"
+         "expires_at": "2026-07-01T00:00:00Z"
        }
-     ],
-     "lastUpdated": "2026-04-01T00:00:00Z"
+     ]
    }
    ```
+
+   `expires_at` is optional — omit it for a permanent suppression.
+   Additional fields are ignored by the parser.
 
 ### Missing Issues
 
