@@ -29,6 +29,12 @@ kernel and keeping the architecture-enforcement surface intact.
 
 ## In Scope
 
+- **User toggle** — `graph.enabled` boolean in `.anvilrc` / `.anvil/config.yml`
+  (Zod schema, default `true`); when `false`, kernel skips graph construction,
+  persistence is paused, and MCP graph tools return `{ enabled: false }`
+  gracefully instead of erroring. Granular sub-toggles for persistence
+  (`graph.persist: true`) and MCP exposure (`graph.mcp: true`) so users can
+  run the graph in-memory-only or keep it private from assistants
 - SQLite persistence layer for `SymbolGraph` and `DependencyGraph` with
   incremental writes on every `GraphDelta`
 - Transitive impact analysis API on the existing `petgraph` structure
@@ -64,7 +70,8 @@ kernel and keeping the architecture-enforcement surface intact.
   mode
 - `anvil-kernel-types` — `SymbolNode`, `SymbolEdge`, `GraphDelta`
 - `packages/mcp-server` — existing tool and resource registration surface
-- `rusqlite` (new dev-dependency) or equivalent for SQLite persistence
+- `rkyv` (zero-copy serialisation) — primary persistence backend
+- `rusqlite` (optional, behind `features = ["sqlite"]`) — alternative backend
 - Tree-sitter language grammars: `tree-sitter-python`, `tree-sitter-go`,
   `tree-sitter-rust`
 - `tiktoken-rs` or equivalent for token estimation
@@ -120,26 +127,70 @@ Change status to **Ready** when:
 
 ---
 
+## Phase 0 — Configuration & Feature Gate
+
+> Land the toggle before anything else so every subsequent phase respects it
+> from day one.
+
+### GCTX-000: `graph` config section with `enabled`, `persist`, `mcp` toggles
+
+- **Status:** Draft
+- **Intent:** Let users turn the entire graph context engine on or off, and
+  independently control persistence and MCP exposure. Default: all on.
+  When `graph.enabled: false`, kernel skips graph construction entirely
+  (zero overhead). When `graph.persist: false`, graph runs in-memory only.
+  When `graph.mcp: false`, graph tools are not registered on the MCP server.
+- **Expected Outcome:** Zod schema in `packages/edda-stack/src/config.ts`
+  (or `packages/anvil/core/src/config/`); Rust mirror in
+  `crates/anvil-kernel/src/config.rs`; `.anvilrc` example:
+  ```yaml
+  graph:
+    enabled: true    # master switch — false skips graph entirely
+    persist: true    # false = in-memory only, rebuilt each run
+    mcp: true        # false = graph tools hidden from MCP clients
+  ```
+  MCP tools return `{ enabled: false }` gracefully when toggled off rather
+  than erroring.
+- **Validation:** Unit test: parse config with each combination of
+  true/false; integration test: kernel startup with `enabled: false`
+  produces no graph, no persistence file, no MCP tools registered
+- **Files:** `packages/anvil/core/src/config/graph.ts`,
+  `crates/anvil-kernel/src/config.rs`,
+  `packages/mcp-server/src/tools/index.ts`
+- **Confidence:** high
+- **Priority:** Critical
+- **Dependencies:** None
+
+---
+
 ## Phase 1 — Persistent Graph Store
 
 > Move the `SymbolGraph` and `DependencyGraph` from process-memory-only to a
-> SQLite-backed store that survives restarts and supports incremental writes.
+> persistent store that survives restarts and supports incremental writes.
+> Default storage backend is `petgraph` + `rkyv` serialisation (zero-copy,
+> pure Rust, no C dependencies). SQLite is a supported alternative behind a
+> build feature flag for users who want SQL-queryable graph data.
 
-### GCTX-001: Design SQLite schema for symbols, edges, files
+### GCTX-001: ADR — graph persistence strategy
 
 - **Status:** Draft
-- **Intent:** Lock down a schema that can round-trip `SymbolNode`,
-  `SymbolEdge`, and `DependencyGraph` without losing fidelity, supports
-  incremental updates, and has indices for the queries Phase 2 and Phase 4
-  need (by file, by symbol kind, by edge type, by incoming/outgoing)
-- **Expected Outcome:** ADR committed describing tables (`symbols`, `edges`,
-  `files`, `content_hashes`, `schema_version`), indices, and migration
-  strategy. Includes a worked example of a 10-file graph serialised into the
-  schema.
-- **Validation:** ADR reviewed by council-reviewer and kernel-maintainer;
-  schema round-trips a fixture graph in a unit test stub
-- **Files:** `plans/decisions/NNN-graph-persistence.md`,
-  `crates/anvil-graph-store/schema.sql`
+- **Intent:** Record the storage decision and rationale. Primary backend:
+  `petgraph` + `rkyv` zero-copy serialisation with atomic file rename for
+  crash safety. The graph is a derivable cache (re-indexable from source),
+  so ACID transactions are not required. Alternative SQLite backend behind
+  `--features sqlite` for users who need SQL-queryable graph data or
+  multi-process readers.
+  **Candidates evaluated:** SQLite (rusqlite), RocksDB, sled, redb,
+  SurrealDB embedded, Cozo, petgraph+rkyv, DuckDB, LMDB.
+  `petgraph+rkyv` chosen because: (a) graph is already `petgraph` in
+  memory so serialisation is structural identity, (b) zero-copy
+  deserialisation means cold-start loads a 50k-node graph in <1ms,
+  (c) pure Rust with no C dependencies, (d) traversal stays in-memory at
+  microsecond latency vs millisecond DB queries.
+- **Expected Outcome:** ADR committed in `plans/decisions/`; comparison
+  table; benchmark targets
+- **Validation:** ADR reviewed by council-reviewer and kernel-maintainer
+- **Files:** `plans/decisions/NNN-graph-persistence.md`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** None
@@ -149,13 +200,17 @@ Change status to **Ready** when:
 ### GCTX-002: `anvil-graph-store` crate scaffold
 
 - **Status:** Draft
-- **Intent:** Introduce a new crate that owns SQLite persistence, decoupled
-  from `anvil-kernel` so the kernel's in-memory fast path stays lean
+- **Intent:** Introduce a new crate that owns persistence, decoupled from
+  `anvil-kernel` so the kernel's in-memory fast path stays lean. Crate
+  exposes a `GraphStore` trait with two backends: `RkyvStore` (default,
+  pure Rust) and `SqliteStore` (behind `features = ["sqlite"]`)
 - **Expected Outcome:** `crates/anvil-graph-store/` crate builds, exposes
-  `GraphStore::open(path)`, `save_snapshot(&SymbolGraph)`, `load_snapshot()`,
-  with a no-op in-memory implementation for tests
+  `GraphStore::open(path)`, `save(&SymbolGraph)`, `load() -> SymbolGraph`,
+  with an `InMemoryStore` for tests; `RkyvStore` uses atomic rename for
+  crash safety
 - **Validation:** `cargo test -p anvil-graph-store`
 - **Files:** `crates/anvil-graph-store/src/lib.rs`,
+  `crates/anvil-graph-store/src/rkyv_store.rs`,
   `crates/anvil-graph-store/Cargo.toml`
 - **Confidence:** high
 - **Priority:** Critical
@@ -163,17 +218,18 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-003: Full-snapshot serialisation
+### GCTX-003: `RkyvStore` full-graph serialisation
 
 - **Status:** Draft
-- **Intent:** Persist a complete `SymbolGraph` + `DependencyGraph` to disk so
-  cold-start can skip re-parsing on unchanged repos
-- **Expected Outcome:** `save_snapshot`/`load_snapshot` round-trip a 5k-file
-  fixture graph byte-for-byte; loaded graph is observationally identical to
-  the source via `graph_eq()` helper
+- **Intent:** Persist a complete `SymbolGraph` + `DependencyGraph` to disk
+  using `rkyv` zero-copy serialisation so cold-start can skip re-parsing on
+  unchanged repos. Atomic rename (`write tmp → rename`) for crash safety.
+- **Expected Outcome:** Round-trip a 5k-file fixture graph; loaded graph is
+  observationally identical to the source via `graph_eq()` helper; cold
+  load of a 50k-node graph in <1ms
 - **Validation:** Property-based test `snapshot_roundtrip` on generated
-  graphs up to 10k nodes
-- **Files:** `crates/anvil-graph-store/src/snapshot.rs`
+  graphs up to 10k nodes; Criterion bench for load time at 50k nodes
+- **Files:** `crates/anvil-graph-store/src/rkyv_store.rs`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** GCTX-002
@@ -183,18 +239,20 @@ Change status to **Ready** when:
 ### GCTX-004: Incremental persistence on `GraphDelta`
 
 - **Status:** Draft
-- **Intent:** Apply every `GraphDelta` the kernel produces to the SQLite
-  store in a single transaction so the on-disk view stays current without
-  requiring a full snapshot
-- **Expected Outcome:** `GraphStore::apply_delta(&GraphDelta)` executes
-  within 10ms on a 10k-node graph and 100-symbol delta; watch loop in
-  `anvil-kernel` fans deltas into the store behind a feature flag
-- **Validation:** Criterion benchmark `apply_delta_10k` in
+- **Intent:** After each `GraphDelta`, persist the updated graph. For
+  `RkyvStore` this is a full re-serialise + atomic rename (the whole graph
+  at 50k nodes is ~5MB, serialises in <10ms with `rkyv`). For `SqliteStore`
+  this is a transaction applying the delta. The kernel's watch loop fans
+  deltas into the store, gated by `graph.persist` config toggle.
+- **Expected Outcome:** `GraphStore::apply_delta(&GraphDelta)` completes
+  within 10ms on a 10k-node graph; debounced to avoid thrashing under
+  rapid saves (reuse the watcher's existing 50ms debounce window)
+- **Validation:** Criterion benchmark `persist_delta_10k` in
   `crates/anvil-graph-store/benches/`
-- **Files:** `crates/anvil-graph-store/src/delta.rs`,
+- **Files:** `crates/anvil-graph-store/src/rkyv_store.rs`,
+  `crates/anvil-graph-store/src/sqlite_store.rs`,
   `crates/anvil-kernel/src/watch.rs`
-- **Confidence:** medium (SQLite contention under high change rates is the
-  risk)
+- **Confidence:** high (rkyv path is straightforward; SQLite path is medium)
 - **Priority:** Critical
 - **Dependencies:** GCTX-003
 
@@ -667,7 +725,8 @@ Change status to **Ready** when:
 
 | Risk | Likelihood | Impact | Mitigation |
 | ---- | ---------- | ------ | ---------- |
-| SQLite write contention under high change rates degrades incremental latency | Medium | High | Batch deltas, use WAL mode, benchmark against the 100ms budget in GCTX-004; fall back to periodic snapshots if incremental writes are too slow |
+| rkyv format changes break cold-start on kernel upgrades | Medium | Medium | Version header in the serialised file; if version mismatch, discard and rebuild from source — it's a cache, not a source of truth |
+| SQLite backend write contention under high change rates (if opted in) | Low | Medium | WAL mode, batch deltas; this is the alternative backend, not the default |
 | Test-coverage heuristic has poor recall on some ecosystems (e.g. Jest with remapped modules) | Medium | Medium | Document the heuristic, measure recall on representative repos, allow user overrides via config before graduating |
 | Multi-language parser grammar licensing conflicts | Low | High | Review each grammar licence in the Ready checklist before landing |
 | Context slicer picks the wrong snippets and wastes budget | Medium | Medium | Deterministic ordering + benchmark harness (GCTX-044) to measure reduction; iterate on prioritisation rules |
@@ -687,15 +746,23 @@ Change status to **Ready** when:
    reports (`lcov.info`, `coverage.xml`) when present?
 4. How do we handle graph state during partial parse failures? Snapshot the
    last good state vs partial writes with quarantine?
+5. Should `graph.enabled` default to `true` or `false`? `true` means new
+   users get the benefit automatically; `false` avoids surprising existing
+   users with new disk writes and MCP surface. Lean towards `true` with a
+   first-run notice.
+6. Should the `graph.persist` backend be selectable in config
+   (`graph.backend: "rkyv" | "sqlite"`) or only via build feature flag?
+   Config is more user-friendly; feature flag keeps the binary smaller.
 
 ## Stats
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
+| 0 — Configuration & Feature Gate | 1 | 0/1 Draft |
 | 1 — Persistent Graph Store | 5 | 0/5 Draft |
 | 2 — Transitive Impact Analysis | 5 | 0/5 Draft |
 | 3 — Multi-Language Parser Registration | 5 | 0/5 Draft |
 | 4 — MCP Graph Tools | 6 | 0/6 Draft |
 | 5 — Context Slicing & Token Budget | 5 | 0/5 Draft |
 | 6 — Docs, CLI, Integration | 3 | 0/3 Draft |
-| **Total** | **29** | **0/29 Draft** |
+| **Total** | **30** | **0/30 Draft** |
