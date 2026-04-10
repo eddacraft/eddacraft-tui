@@ -148,9 +148,7 @@ impl EditorState {
     /// Convert a character column on `line_idx` to a byte offset.
     fn col_to_byte(&self, line_idx: usize, col: usize) -> usize {
         let line = &self.lines[line_idx];
-        line.char_indices()
-            .nth(col)
-            .map_or(line.len(), |(i, _)| i)
+        line.char_indices().nth(col).map_or(line.len(), |(i, _)| i)
     }
 
     /// Clamp the cursor's byte offset so it does not exceed the line length
@@ -326,9 +324,7 @@ impl EditorState {
                 .map_or(line_len, |(i, _)| self.cursor.1 + i);
             self.lines[self.cursor.0].replace_range(self.cursor.1..next_byte, "");
             self.dirty = true;
-        } else if self.cursor.0 + 1 < self.lines.len()
-            && self.is_editable(self.cursor.0 + 1)
-        {
+        } else if self.cursor.0 + 1 < self.lines.len() && self.is_editable(self.cursor.0 + 1) {
             // Join next line onto the current line.
             let next = self.lines.remove(self.cursor.0 + 1);
             self.lines[self.cursor.0].push_str(&next);
@@ -458,7 +454,11 @@ impl<T: Theme> StatefulWidget for Editor<'_, T> {
             // ── Gutter ────────────────────────────────────────────────────
             if gutter_width > 0 {
                 let gutter_area = Rect::new(editor_area.x, y, gutter_width, 1);
-                let num_str = format!("{:>width$} ", line_idx + 1, width = (gutter_width - 1) as usize);
+                let num_str = format!(
+                    "{:>width$} ",
+                    line_idx + 1,
+                    width = (gutter_width - 1) as usize
+                );
                 let gutter_style = if is_cursor_line {
                     Style::default()
                         .fg(self.theme.accent())
@@ -479,9 +479,11 @@ impl<T: Theme> StatefulWidget for Editor<'_, T> {
 
             let line_style = if is_cursor_line {
                 // Current line: highlighted background, keep text colour from editable/RO.
-                Style::default()
-                    .bg(self.theme.border())
-                    .fg(if editable { self.theme.fg() } else { self.theme.muted() })
+                Style::default().bg(self.theme.border()).fg(if editable {
+                    self.theme.fg()
+                } else {
+                    self.theme.muted()
+                })
             } else if editable {
                 self.theme.base()
             } else {
@@ -576,8 +578,7 @@ mod tests {
     fn from_file_with_context_sets_editable_range() {
         let f = temp_file("0\n1\n2\n3\n4\n5\n6");
         // focus=3, editable_above=1, editable_below=1  → editable [2,5)
-        let state = EditorState::from_file_with_context(f.path(), 3, 1, 1)
-            .expect("load file");
+        let state = EditorState::from_file_with_context(f.path(), 3, 1, 1).expect("load file");
         assert!(!state.is_editable(0));
         assert!(!state.is_editable(1));
         assert!(state.is_editable(2));
@@ -590,8 +591,7 @@ mod tests {
     #[test]
     fn from_file_with_context_cursor_on_focus_line() {
         let f = temp_file("a\nb\nc\nd\ne");
-        let state = EditorState::from_file_with_context(f.path(), 2, 1, 1)
-            .expect("load file");
+        let state = EditorState::from_file_with_context(f.path(), 2, 1, 1).expect("load file");
         assert_eq!(state.cursor_line(), 2);
     }
 
@@ -876,7 +876,10 @@ mod tests {
         state.cursor = (1, 0);
         // Navigate into read-only context above.
         state.move_up();
-        assert_eq!(state.cursor.0, 0, "navigation into read-only line should work");
+        assert_eq!(
+            state.cursor.0, 0,
+            "navigation into read-only line should work"
+        );
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
