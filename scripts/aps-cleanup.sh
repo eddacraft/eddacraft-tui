@@ -4,7 +4,7 @@
 # runs post-merge test plans, flags blockers.
 #
 # Usage: ./aps-cleanup.sh [--repo <path>] [--dry-run] [--notify]
-# Default repo: ~/src-morgan/anvil-001
+# Default repo: ~/Projects/src/eddacraft
 
 set -euo pipefail
 

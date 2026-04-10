@@ -1,6 +1,8 @@
 # Pulumi state exports — never commit
 stack-*.json
 stack-*.yaml
+*-export.json
+*-export.yaml
 *.pulumi-backup
 Pulumi.*.yaml.bak
 
