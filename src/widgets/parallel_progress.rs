@@ -5,6 +5,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, StatefulWidget, Widget};
+use unicode_width::UnicodeWidthChar;
 
 use crate::theme::Theme;
 
@@ -21,6 +22,7 @@ pub enum CheckStatus {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CheckProgress {
     pub id: String,
     pub name: String,
@@ -30,7 +32,21 @@ pub struct CheckProgress {
     pub end_time: Option<Instant>,
     pub duration_ms: Option<u64>,
     pub message: Option<String>,
-    pub cached: bool,
+}
+
+impl CheckProgress {
+    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            status: CheckStatus::Pending,
+            progress: 0,
+            start_time: None,
+            end_time: None,
+            duration_ms: None,
+            message: None,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -144,6 +160,7 @@ impl<'a, T: Theme> ParallelProgress<'a, T> {
 impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
     type State = ParallelProgressState;
 
+    #[allow(clippy::too_many_lines)]
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if area.width == 0 || area.height == 0 {
             return;
@@ -194,7 +211,10 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
 
         for (row_index, check) in state.checks.iter().take(check_rows).enumerate() {
             #[allow(clippy::cast_possible_truncation)]
-            let y = checks_area.y + row_index as u16;
+            let y = checks_area.y.saturating_add(row_index as u16);
+            if y >= checks_area.y.saturating_add(checks_area.height) {
+                break;
+            }
             let row_area = Rect::new(checks_area.x, y, checks_area.width, 1);
             let row_chunks = Layout::horizontal([
                 Constraint::Length(14),
@@ -260,10 +280,6 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
 }
 
 fn effective_progress(check: &CheckProgress) -> u8 {
-    if check.cached {
-        return 100;
-    }
-
     match check.status {
         CheckStatus::Pending => 0,
         CheckStatus::Running => check.progress.min(100),
@@ -325,12 +341,18 @@ fn truncate_name(name: &str, width: usize) -> String {
     }
 
     let mut output = String::new();
-    for character in name.chars().take(width) {
-        output.push(character);
+    let mut used = 0;
+    for ch in name.chars() {
+        let cw = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if used + cw > width {
+            break;
+        }
+        output.push(ch);
+        used += cw;
     }
 
-    if output.chars().count() < width {
-        output.push_str(&" ".repeat(width - output.chars().count()));
+    if used < width {
+        output.push_str(&" ".repeat(width - used));
     }
 
     output
@@ -364,7 +386,6 @@ mod tests {
                 end_time: None,
                 duration_ms: Some(1_000),
                 message: None,
-                cached: false,
             },
             CheckProgress {
                 id: "b".to_string(),
@@ -375,7 +396,6 @@ mod tests {
                 end_time: None,
                 duration_ms: None,
                 message: None,
-                cached: false,
             },
         ];
 
@@ -393,7 +413,6 @@ mod tests {
             end_time: None,
             duration_ms: None,
             message: None,
-            cached: false,
         }];
 
         let eta = calculate_eta(&checks, Duration::from_secs(10));

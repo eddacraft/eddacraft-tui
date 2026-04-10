@@ -16,12 +16,31 @@ pub enum LogLevel {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct LogEntry {
     pub id: String,
     pub timestamp: String,
     pub level: LogLevel,
     pub message: String,
     pub source: String,
+}
+
+impl LogEntry {
+    pub fn new(
+        id: impl Into<String>,
+        timestamp: impl Into<String>,
+        level: LogLevel,
+        message: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            timestamp: timestamp.into(),
+            level,
+            message: message.into(),
+            source: source.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +73,8 @@ pub struct LogPanelState {
     pub filter: LogFilter,
     pub search_mode: bool,
     pub search_input: String,
+    pub auto_scroll: bool,
+    last_entry_count: usize,
 }
 
 impl LogPanelState {
@@ -74,12 +95,12 @@ impl LogPanelState {
         self.selected_index = self.selected_index.saturating_sub(1);
     }
 
-    pub fn scroll_down(&mut self, total_entries: usize) {
-        if total_entries == 0 {
+    pub fn scroll_down(&mut self, visible_count: usize) {
+        if visible_count == 0 {
             self.selected_index = 0;
             return;
         }
-        self.selected_index = (self.selected_index + 1).min(total_entries - 1);
+        self.selected_index = (self.selected_index + 1).min(visible_count - 1);
     }
 
     pub fn jump_to_top(&mut self) {
@@ -87,13 +108,17 @@ impl LogPanelState {
         self.scroll_offset = 0;
     }
 
-    pub fn jump_to_bottom(&mut self, total_entries: usize) {
-        if total_entries == 0 {
+    /// Jump to the last entry in the filtered list.
+    ///
+    /// Sets `scroll_offset` to `selected_index`; the render viewport
+    /// correction will clamp it to the correct position on the next frame.
+    pub fn jump_to_bottom(&mut self, visible_count: usize) {
+        if visible_count == 0 {
             self.selected_index = 0;
             self.scroll_offset = 0;
             return;
         }
-        self.selected_index = total_entries - 1;
+        self.selected_index = visible_count - 1;
         self.scroll_offset = self.selected_index;
     }
 
@@ -140,7 +165,6 @@ impl LogPanelState {
     }
 }
 
-#[allow(clippy::struct_excessive_bools)]
 pub struct LogPanel<'a, T: Theme> {
     entries: &'a [LogEntry],
     theme: &'a T,
@@ -149,7 +173,6 @@ pub struct LogPanel<'a, T: Theme> {
     title: &'a str,
     show_filter: bool,
     show_search: bool,
-    auto_scroll: bool,
     focused: bool,
 }
 
@@ -163,7 +186,6 @@ impl<'a, T: Theme> LogPanel<'a, T> {
             title: "Logs",
             show_filter: true,
             show_search: true,
-            auto_scroll: false,
             focused: false,
         }
     }
@@ -199,12 +221,6 @@ impl<'a, T: Theme> LogPanel<'a, T> {
     }
 
     #[must_use]
-    pub fn auto_scroll(mut self, auto_scroll: bool) -> Self {
-        self.auto_scroll = auto_scroll;
-        self
-    }
-
-    #[must_use]
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
         self
@@ -214,7 +230,6 @@ impl<'a, T: Theme> LogPanel<'a, T> {
 impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
     type State = LogPanelState;
 
-    #[allow(clippy::too_many_lines)]
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if area.width == 0 || area.height == 0 {
             return;
@@ -249,14 +264,13 @@ impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
             return;
         }
 
-        state.filter.search = state.search_input.clone();
         let filtered_indices = state.filtered_indices(self.entries);
         let filtered_entries: Vec<&LogEntry> = filtered_indices
             .iter()
             .filter_map(|index| self.entries.get(*index))
             .collect();
 
-        if self.auto_scroll && !filtered_entries.is_empty() {
+        if state.auto_scroll && filtered_entries.len() > state.last_entry_count {
             state.selected_index = filtered_entries.len() - 1;
         }
 
@@ -281,33 +295,12 @@ impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
         let mut cursor = 0;
 
         if self.show_filter {
-            let filter_line = render_filter_line(&state.filter, self.theme);
-            filter_line.render(chunks[cursor], buf);
+            render_filter_bar(&state.filter, self.theme, chunks[cursor], buf);
             cursor += 1;
         }
 
         if self.show_search {
-            let prefix_style = if state.search_mode {
-                self.theme.title()
-            } else {
-                self.theme.disabled()
-            };
-            let line = Line::from(vec![
-                Span::styled("Search: ", prefix_style),
-                Span::styled(
-                    if state.search_input.is_empty() {
-                        "(type to filter)"
-                    } else {
-                        &state.search_input
-                    },
-                    if state.search_input.is_empty() {
-                        self.theme.disabled()
-                    } else {
-                        self.theme.base()
-                    },
-                ),
-            ]);
-            line.render(chunks[cursor], buf);
+            render_search_bar(state, self.theme, chunks[cursor], buf);
             cursor += 1;
         }
 
@@ -324,49 +317,123 @@ impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
             }
         }
 
-        if filtered_entries.is_empty() {
-            Line::styled(
-                "No log entries recognised by current filter",
-                self.theme.disabled(),
-            )
-            .render(entries_area, buf);
-        } else {
-            let end = (state.scroll_offset + visible_height).min(filtered_entries.len());
-            for (row_index, entry) in filtered_entries[state.scroll_offset..end]
-                .iter()
-                .enumerate()
-            {
-                #[allow(clippy::cast_possible_truncation)]
-                let y = entries_area.y + row_index as u16;
-                let row_area = Rect::new(entries_area.x, y, entries_area.width, 1);
-                let style = if state.scroll_offset + row_index == state.selected_index {
-                    self.theme.highlighted()
-                } else {
-                    level_style(entry.level, self.theme)
-                };
-
-                let line = Line::from(vec![
-                    Span::styled(level_icon(entry.level).to_string(), style),
-                    Span::raw(" "),
-                    Span::styled(entry.timestamp.as_str(), self.theme.disabled()),
-                    Span::raw(" "),
-                    Span::styled(entry.source.as_str(), self.theme.muted()),
-                    Span::raw(" - "),
-                    Span::styled(entry.message.as_str(), style),
-                ]);
-                line.render(row_area, buf);
-            }
-        }
-
-        let has_more_up = state.scroll_offset > 0;
-        let has_more_down = state.scroll_offset + visible_height < filtered_entries.len();
-        let help = format!(
-            "[j/k] scroll  [g/G] jump  [/] search  {}{}",
-            if has_more_up { "^ " } else { "" },
-            if has_more_down { "v" } else { "" }
+        render_entries(
+            self.entries.is_empty(),
+            &filtered_entries,
+            state,
+            self.theme,
+            entries_area,
+            visible_height,
+            buf,
         );
-        Line::styled(help, self.theme.disabled()).render(help_area, buf);
+
+        render_help(
+            state,
+            visible_height,
+            filtered_entries.len(),
+            self.theme,
+            help_area,
+            buf,
+        );
+
+        state.last_entry_count = filtered_entries.len();
     }
+}
+
+fn render_filter_bar<T: Theme>(filter: &LogFilter, theme: &T, area: Rect, buf: &mut Buffer) {
+    render_filter_line(filter, theme).render(area, buf);
+}
+
+fn render_search_bar<T: Theme>(
+    state: &LogPanelState,
+    theme: &T,
+    area: Rect,
+    buf: &mut Buffer,
+) {
+    let prefix_style = if state.search_mode {
+        theme.title()
+    } else {
+        theme.disabled()
+    };
+    let line = Line::from(vec![
+        Span::styled("Search: ", prefix_style),
+        Span::styled(
+            if state.search_input.is_empty() {
+                "(type to filter)"
+            } else {
+                &state.search_input
+            },
+            if state.search_input.is_empty() {
+                theme.disabled()
+            } else {
+                theme.base()
+            },
+        ),
+    ]);
+    line.render(area, buf);
+}
+
+fn render_entries<T: Theme>(
+    all_empty: bool,
+    filtered_entries: &[&LogEntry],
+    state: &LogPanelState,
+    theme: &T,
+    entries_area: Rect,
+    visible_height: usize,
+    buf: &mut Buffer,
+) {
+    if filtered_entries.is_empty() {
+        let message = if all_empty {
+            "No log entries"
+        } else {
+            "No entries match current filter"
+        };
+        Line::styled(message, theme.disabled()).render(entries_area, buf);
+    } else {
+        let end = (state.scroll_offset + visible_height).min(filtered_entries.len());
+        for (row_index, entry) in filtered_entries[state.scroll_offset..end]
+            .iter()
+            .enumerate()
+        {
+            #[allow(clippy::cast_possible_truncation)]
+            let y = entries_area.y + row_index as u16;
+            let row_area = Rect::new(entries_area.x, y, entries_area.width, 1);
+            let style = if state.scroll_offset + row_index == state.selected_index {
+                theme.highlighted()
+            } else {
+                level_style(entry.level, theme)
+            };
+
+            let line = Line::from(vec![
+                Span::styled(level_icon(entry.level).to_string(), style),
+                Span::raw(" "),
+                Span::styled(entry.timestamp.as_str(), theme.disabled()),
+                Span::raw(" "),
+                Span::styled(entry.source.as_str(), theme.muted()),
+                Span::raw(" - "),
+                Span::styled(entry.message.as_str(), style),
+            ]);
+            line.render(row_area, buf);
+        }
+    }
+}
+
+fn render_help<T: Theme>(
+    state: &LogPanelState,
+    visible_height: usize,
+    filtered_count: usize,
+    theme: &T,
+    help_area: Rect,
+    buf: &mut Buffer,
+) {
+    let has_more_up = state.scroll_offset > 0;
+    let has_more_down = state.scroll_offset + visible_height < filtered_count;
+    let help = format!(
+        "[j/k] scroll  [g/G] jump  [/] search  {}{}",
+        if has_more_up { "^ " } else { "" },
+        if has_more_down { "v" } else { "" }
+    );
+    Line::styled(help, theme.disabled()).render(help_area, buf);
 }
 
 fn level_style<T: Theme>(level: LogLevel, theme: &T) -> ratatui::style::Style {

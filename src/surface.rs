@@ -12,9 +12,9 @@ use crate::theme::{EddaCraftTheme, Theme};
 /// `impl Surface for MyState` continues to work unchanged.
 pub trait Surface<T: Theme = EddaCraftTheme> {
     /// Short name shown in the shell chrome header.
-    fn surface_name(&self) -> &'static str;
+    fn surface_name(&self) -> &str;
     /// One-line help text shown in the bottom bar.
-    fn help_text(&self) -> &'static str;
+    fn help_text(&self) -> &str;
     /// Process a mapped keyboard action.
     fn handle_key(&mut self, action: Action);
     /// Whether the surface wants to exit the current surface.
