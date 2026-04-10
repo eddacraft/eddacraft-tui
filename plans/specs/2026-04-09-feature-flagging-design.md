@@ -4,7 +4,7 @@
 
 Date: 2026-04-09
 Module: `FLAGS`
-Status: Draft
+Status: Ready
 
 ## Goal
 
@@ -260,11 +260,16 @@ The goal is predictable degradation rather than silent exposure.
 
 ### Default telemetry
 
-At session start, emit minimal OTEL usage metrics for features actually used.
+At session start, emit minimal OTEL snapshot telemetry describing the active
+flag configuration for the session, such as snapshot version and low-risk
+enabled-state metadata.
+
+Emit feature usage metrics only when a feature is actually evaluated or first
+used during the session.
 
 Properties:
 
-- one usage stat per feature used in the session
+- one usage stat per feature actually used in the session
 - no PII in attributes
 - include only low-risk dimensions such as feature key, environment, runtime,
   snapshot version, and coarse tier/channel where appropriate
@@ -390,7 +395,7 @@ Non-goal:
 2. Define resolution and snapshot contract
 3. Define OTEL/debug telemetry contract
 4. Define rollout/promotion/governance policy
-5. Prove the model with Rust engine selection
+5. Prove the model with CLI licence-gated actions and `/anvil` docs access
 6. Classify existing ad-hoc flags for later migration
 
 ## Ready Criteria

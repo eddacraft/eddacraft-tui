@@ -33,8 +33,9 @@ provider swap to Featureboard once its SDKs support OpenFeature.
 - Audience-aware and environment-aware targeting rules
 - Progressive rollout controls: explicit opt-in, cohort targeting, kill switch,
   and environment promotion
-- Minimal OTEL usage metrics at session start for features actually used, with
-  debug-on-demand tracing for deeper investigation
+- Minimal OTEL telemetry at session start for static session/snapshot metadata,
+  plus minimal usage metrics on first use or per evaluation for features
+  actually used, with debug-on-demand tracing for deeper investigation
 - Documentation and governance for adding and retiring flags
 - Test strategy for enabled, disabled, and mixed-flag execution paths
 
@@ -82,8 +83,8 @@ provider swap to Featureboard once its SDKs support OpenFeature.
       evaluation without request-time vendor dependence
 - [ ] Emergency disable path exists without code changes or redeploying all
       surfaces
-- [ ] Session-start usage emits minimal OTEL metrics for features actually used,
-      without PII in event attributes
+- [ ] First use of a feature within a session emits minimal OTEL metrics for
+      that feature, without PII in event attributes
 - [ ] Rollout state is observable enough to answer which code path executed,
       with detailed traces available on demand when needed
 - [ ] Temporary rollout flags have an explicit retirement path and are prevented
