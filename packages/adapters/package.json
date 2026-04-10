@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@eddacraft/anvil-core": "workspace:*",
-    "@eddacraft/anvil-aps": "0.1.0"
+    "@eddacraft/anvil-aps": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^4.1.3"
