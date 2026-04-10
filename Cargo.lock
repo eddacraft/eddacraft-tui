@@ -916,7 +916,8 @@ dependencies = [
 [[package]]
 name = "eddacraft-tui"
 version = "0.1.0"
-source = "git+https://github.com/eddacraft/eddacraft-tui.git?rev=9e65ca55e9ec43074fbe77db26dd33a5e12328d3#9e65ca55e9ec43074fbe77db26dd33a5e12328d3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcd9b63dda5a9d61cf779bf3223c87c39ba44590c35381e467356d42ecf701d6"
 dependencies = [
  "crossterm",
  "ratatui",
