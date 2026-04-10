@@ -53,14 +53,7 @@ impl<T: Theme> StatefulWidget for ProgressBar<'_, T> {
     type State = ProgressBarState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let inner = if let Some(block) = &self.block {
-            let styled = block.clone().border_style(self.theme.border_focused());
-            let inner = styled.inner(area);
-            styled.render(area, buf);
-            inner
-        } else {
-            area
-        };
+        let inner = super::render_block(self.block.as_ref(), self.theme.border_focused(), area, buf);
 
         if inner.height == 0 || inner.width == 0 {
             return;

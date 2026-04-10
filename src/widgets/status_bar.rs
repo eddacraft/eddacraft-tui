@@ -25,6 +25,16 @@ pub enum StatusKind {
     Muted,
 }
 
+fn kind_style<T: Theme>(kind: StatusKind, theme: &T) -> ratatui::style::Style {
+    match kind {
+        StatusKind::Normal => theme.base(),
+        StatusKind::Success => theme.status_ok(),
+        StatusKind::Error => theme.status_error(),
+        StatusKind::Warning => theme.status_warning(),
+        StatusKind::Muted => theme.disabled(),
+    }
+}
+
 impl<'a, T: Theme> StatusBar<'a, T> {
     pub fn new(theme: &'a T) -> Self {
         Self {
@@ -35,14 +45,14 @@ impl<'a, T: Theme> StatusBar<'a, T> {
     }
 
     #[must_use]
-    pub fn left(mut self, items: Vec<StatusItem<'a>>) -> Self {
-        self.left = items;
+    pub fn left(mut self, items: impl IntoIterator<Item = StatusItem<'a>>) -> Self {
+        self.left = items.into_iter().collect();
         self
     }
 
     #[must_use]
-    pub fn right(mut self, items: Vec<StatusItem<'a>>) -> Self {
-        self.right = items;
+    pub fn right(mut self, items: impl IntoIterator<Item = StatusItem<'a>>) -> Self {
+        self.right = items.into_iter().collect();
         self
     }
 }
@@ -58,13 +68,7 @@ impl<T: Theme> Widget for StatusBar<'_, T> {
             .left
             .iter()
             .flat_map(|item| {
-                let style = match item.kind {
-                    StatusKind::Normal => self.theme.base(),
-                    StatusKind::Success => self.theme.status_ok(),
-                    StatusKind::Error => self.theme.status_error(),
-                    StatusKind::Warning => self.theme.status_warning(),
-                    StatusKind::Muted => self.theme.disabled(),
-                };
+                let style = kind_style(item.kind, self.theme);
                 vec![Span::styled(item.label, style), Span::raw(" ")]
             })
             .collect();
@@ -73,13 +77,7 @@ impl<T: Theme> Widget for StatusBar<'_, T> {
             .right
             .iter()
             .flat_map(|item| {
-                let style = match item.kind {
-                    StatusKind::Normal => self.theme.base(),
-                    StatusKind::Success => self.theme.status_ok(),
-                    StatusKind::Error => self.theme.status_error(),
-                    StatusKind::Warning => self.theme.status_warning(),
-                    StatusKind::Muted => self.theme.disabled(),
-                };
+                let style = kind_style(item.kind, self.theme);
                 vec![Span::raw(" "), Span::styled(item.label, style)]
             })
             .collect();

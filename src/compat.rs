@@ -5,6 +5,7 @@ const MIN_ROWS: u16 = 24;
 
 /// Information about the current terminal.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct TerminalInfo {
     pub cols: u16,
     pub rows: u16,
