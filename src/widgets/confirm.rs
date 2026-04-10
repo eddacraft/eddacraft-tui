@@ -74,7 +74,8 @@ impl<T: Theme> StatefulWidget for Confirm<'_, T> {
     type State = ConfirmState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let inner = super::render_block(self.block.as_ref(), self.theme.border_focused(), area, buf);
+        let inner =
+            super::render_block(self.block.as_ref(), self.theme.border_focused(), area, buf);
 
         if inner.height == 0 || inner.width == 0 {
             return;

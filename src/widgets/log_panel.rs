@@ -344,12 +344,7 @@ fn render_filter_bar<T: Theme>(filter: &LogFilter, theme: &T, area: Rect, buf: &
     render_filter_line(filter, theme).render(area, buf);
 }
 
-fn render_search_bar<T: Theme>(
-    state: &LogPanelState,
-    theme: &T,
-    area: Rect,
-    buf: &mut Buffer,
-) {
+fn render_search_bar<T: Theme>(state: &LogPanelState, theme: &T, area: Rect, buf: &mut Buffer) {
     let prefix_style = if state.search_mode {
         theme.title()
     } else {

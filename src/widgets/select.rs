@@ -90,7 +90,8 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
     type State = SelectState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let inner = super::render_block(self.block.as_ref(), self.theme.border_focused(), area, buf);
+        let inner =
+            super::render_block(self.block.as_ref(), self.theme.border_focused(), area, buf);
 
         let visible_height = inner.height as usize;
         if self.items.is_empty() || visible_height == 0 {
