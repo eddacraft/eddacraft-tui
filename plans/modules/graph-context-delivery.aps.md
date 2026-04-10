@@ -29,12 +29,16 @@ kernel and keeping the architecture-enforcement surface intact.
 
 ## In Scope
 
-- **User toggle** — `graph.enabled` boolean in `.anvilrc` / `.anvil/config.yml`
-  (Zod schema, default `true`); when `false`, kernel skips graph construction,
-  persistence is paused, and MCP graph tools return `{ enabled: false }`
-  gracefully instead of erroring. Granular sub-toggles for persistence
-  (`graph.persist: true`) and MCP exposure (`graph.mcp: true`) so users can
-  run the graph in-memory-only or keep it private from assistants
+- **User toggle** — `graph.context` boolean in `.anvilrc` / `.anvil/config.yml`
+  (Zod schema, default `true`); controls only the **new context delivery
+  layer** (persistence, impact analysis, MCP graph tools, context slicing).
+  The core kernel symbol graph used for architecture enforcement is
+  **always on** and unaffected by this toggle. Granular sub-toggles for
+  persistence (`graph.persist: true`) and MCP exposure (`graph.mcp: true`)
+  so users can run the context layer in-memory-only or keep it private
+  from assistants. When `graph.context: false`, persistence is skipped,
+  impact API is inactive, and MCP graph tools return
+  `{ enabled: false }` gracefully instead of erroring.
 - SQLite persistence layer for `SymbolGraph` and `DependencyGraph` with
   incremental writes on every `GraphDelta`
 - Transitive impact analysis API on the existing `petgraph` structure
@@ -132,28 +136,33 @@ Change status to **Ready** when:
 > Land the toggle before anything else so every subsequent phase respects it
 > from day one.
 
-### GCTX-000: `graph` config section with `enabled`, `persist`, `mcp` toggles
+### GCTX-000: `graph` config section with `context`, `persist`, `mcp` toggles
 
 - **Status:** Draft
-- **Intent:** Let users turn the entire graph context engine on or off, and
-  independently control persistence and MCP exposure. Default: all on.
-  When `graph.enabled: false`, kernel skips graph construction entirely
-  (zero overhead). When `graph.persist: false`, graph runs in-memory only.
-  When `graph.mcp: false`, graph tools are not registered on the MCP server.
+- **Intent:** Let users toggle the context delivery layer independently
+  from core architecture enforcement. The kernel's symbol graph used for
+  boundary checks, import rules, and cycle detection is **always on** —
+  it is not affected by these toggles. `graph.context` controls only the
+  new features in this module: persistence, transitive impact analysis,
+  MCP graph tools, and context slicing. Sub-toggles `graph.persist` and
+  `graph.mcp` give finer control. Default: all on.
 - **Expected Outcome:** Zod schema in `packages/edda-stack/src/config.ts`
   (or `packages/anvil/core/src/config/`); Rust mirror in
   `crates/anvil-kernel/src/config.rs`; `.anvilrc` example:
   ```yaml
   graph:
-    enabled: true    # master switch — false skips graph entirely
+    context: true    # false = disables context delivery layer only
     persist: true    # false = in-memory only, rebuilt each run
     mcp: true        # false = graph tools hidden from MCP clients
   ```
-  MCP tools return `{ enabled: false }` gracefully when toggled off rather
-  than erroring.
+  When `graph.context: false`, the kernel still builds its graph for
+  enforcement but skips persistence, impact API, and MCP graph tools.
+  MCP tools return `{ enabled: false }` gracefully when toggled off
+  rather than erroring.
 - **Validation:** Unit test: parse config with each combination of
-  true/false; integration test: kernel startup with `enabled: false`
-  produces no graph, no persistence file, no MCP tools registered
+  true/false; integration test: kernel startup with `context: false`
+  still runs architecture enforcement, produces no persistence file,
+  and does not register MCP graph tools
 - **Files:** `packages/anvil/core/src/config/graph.ts`,
   `crates/anvil-kernel/src/config.rs`,
   `packages/mcp-server/src/tools/index.ts`
@@ -746,7 +755,7 @@ Change status to **Ready** when:
    reports (`lcov.info`, `coverage.xml`) when present?
 4. How do we handle graph state during partial parse failures? Snapshot the
    last good state vs partial writes with quarantine?
-5. Should `graph.enabled` default to `true` or `false`? `true` means new
+5. Should `graph.context` default to `true` or `false`? `true` means new
    users get the benefit automatically; `false` avoids surprising existing
    users with new disk writes and MCP surface. Lean towards `true` with a
    first-run notice.
