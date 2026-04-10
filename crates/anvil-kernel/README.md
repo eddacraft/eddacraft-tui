@@ -17,13 +17,13 @@ The Anvil Rust kernel — file watcher, parser, semantic graph, and policy engin
 ## Benchmarks
 
 ```bash
-cargo bench -p anvil-kernel
+cargo bench -p eddacraft-anvil-kernel
 ```
 
 ## Tests
 
 ```bash
-cargo test -p anvil-kernel
+cargo test -p eddacraft-anvil-kernel
 ```
 
 Includes architecture parity tests (`tests/architecture_parity.rs`) and dual-run

@@ -154,11 +154,10 @@ Because the product is closed-source, the install path is **binary-only**:
 - **Universal (GitHub Releases):** download the `.tar.xz` / `.zip` from
   <https://github.com/EddaCraft/anvil/releases>
 
-There is **no `cargo install anvil-cli`** path. The `eddacraft-anvil-*`
-namespace was proposed during crates.io naming discussions but was briefly
-claimed and reverted; it would only be reconsidered if the distribution strategy
-changed. No source is published to crates.io. This is a deliberate consequence
-of the IP model — see
+There is **no `cargo install anvil-cli`** path. The internal crates use the
+`eddacraft-anvil-*` package-name prefix in their `Cargo.toml` files (for
+namespace protection and future readiness), but no source is published to
+crates.io. This is a deliberate consequence of the closed-source IP model — see
 [ADR-018](../../plans/decisions/018-product-ip-architecture.md) for the full
 reasoning.
 

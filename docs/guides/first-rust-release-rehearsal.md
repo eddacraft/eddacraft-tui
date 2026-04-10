@@ -149,8 +149,8 @@ dist plan --tag v0.3.0-rc.0
 
 **Expected output:**
 
-- A list of "Apps to release" — should include `anvil-cli` (and _only_
-  `anvil-cli`, since everything else is `publish=false` or a library)
+- A list of "Apps to release" — should include `eddacraft-anvil` (and _only_
+  `eddacraft-anvil`, since everything else is `publish=false` or a library)
 - A list of "Artifacts to build" — 6 platform binaries + checksums + installer
   scripts
 - No errors about missing fields, conflicting versions, or unknown installers
@@ -169,7 +169,7 @@ way during cross-compilation.
 
 ```bash
 cd <repo_root>
-cargo build --profile dist -p anvil-cli
+cargo build --profile dist -p eddacraft-anvil
 ```
 
 **Expected:** clean build, ~5-10 minutes, no errors. Warnings are OK.
@@ -194,7 +194,7 @@ If you don't want to gate the rehearsal on DNS, the alternative install URL is
 the direct GitHub Releases URL:
 
 ```bash
-curl -fsSL https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
+curl -fsSL https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 ```
 
 This works without any DNS, just uses an uglier URL.
@@ -227,7 +227,7 @@ Phase B, the homebrew installer will be built as an artifact but never published
 - [ ] A2 — `ANVIL_RELEASES_TOKEN` secret exists with cross-repo write
 - [ ] A3 — `cargo-dist` 0.31.0 is reachable
 - [ ] A4 — `dist plan --tag v0.3.0-rc.0` succeeds locally
-- [ ] A5 — `cargo build --profile dist -p anvil-cli` succeeds locally
+- [ ] A5 — `cargo build --profile dist -p eddacraft-anvil` succeeds locally
 - [ ] A6 — `install.eddacraft.ai` resolves (or accept the GitHub URL fallback)
 - [ ] A7 — `dist-workspace.toml` matches expectations
 
@@ -370,7 +370,7 @@ On a clean Linux container:
 docker run --rm -it ubuntu:24.04 bash
 apt update && apt install -y curl
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
+  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 
 anvil --version
 ```
@@ -395,7 +395,7 @@ binary should run via Rosetta.
 ### C3. Test on Windows (PowerShell)
 
 ```powershell
-irm https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.ps1 | iex
+irm https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
 anvil --version
 ```
 

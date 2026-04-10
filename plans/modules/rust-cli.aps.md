@@ -118,7 +118,7 @@ Change status to **Ready** when:
   `surface_name`, `help_text`, `handle_key`, `should_quit`, and `render`
 - **Expected Outcome:** All surfaces implement `Surface`; existing tests still
   pass
-- **Validation:** `cargo test -p anvil-tui` passes; trait is importable from
+- **Validation:** `cargo test -p eddacraft-anvil-tui` passes; trait is importable from
   `anvil_tui::surface::Surface`
 - **Files:** `crates/anvil-tui/src/surface.rs`, `crates/anvil-tui/src/lib.rs`,
   all 10 `surfaces/*/mod.rs`
@@ -867,7 +867,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
   fix
 - **Expected Outcome:** No files under `coverage/` directories appear in
   watch events
-- **Validation:** `cargo test -p anvil-kernel` with a test case for
+- **Validation:** `cargo test -p eddacraft-anvil-kernel` with a test case for
   `apps/anvil-api/coverage/block-navigation.js`
 - **Files:** `crates/anvil-kernel/src/watcher/filter.rs`
 - **Confidence:** high
@@ -885,7 +885,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
   cap or ring buffer to both collections
 - **Expected Outcome:** Queue and history collections stay bounded regardless
   of session length
-- **Validation:** `cargo test -p anvil-tui` with tests asserting cap behaviour
+- **Validation:** `cargo test -p eddacraft-anvil-tui` with tests asserting cap behaviour
   after inserting more entries than the limit
 - **Files:** `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`,
   `crates/anvil-tui/src/surfaces/watch/mod.rs`
@@ -903,7 +903,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
   cycle. A single run is counted twice. Deduplicate so each gate cycle
   produces exactly one history entry
 - **Expected Outcome:** `total_runs` matches the actual number of gate cycles
-- **Validation:** `cargo test -p anvil-tui` with a test sending both
+- **Validation:** `cargo test -p eddacraft-anvil-tui` with a test sending both
   `Progress(complete)` and `Snapshot` in sequence, asserting `total_runs == 1`
 - **Files:** `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`
 - **Confidence:** high
@@ -922,8 +922,8 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
   loops
 - **Expected Outcome:** `surface_loop` gates render on `take_dirty()`;
   surfaces that don't override it behave identically to before
-- **Validation:** `cargo test -p anvil-tui` existing surface tests pass
-  unchanged; `cargo test -p anvil-cli` compiles
+- **Validation:** `cargo test -p eddacraft-anvil-tui` existing surface tests pass
+  unchanged; `cargo test -p eddacraft-anvil` compiles
 - **Files:** `crates/anvil-tui/src/surface.rs`,
   `crates/anvil-cli/src/tui.rs`,
   `crates/anvil-tui/src/surfaces/watch/mod.rs`
@@ -1142,7 +1142,7 @@ findings deferred for later.
   `yaml_parser.rs` within the `anvil-architecture` crate. Extract to a shared
   constant in `lib.rs` or a `constants` module to prevent divergence
 - **Expected Outcome:** Single `ANVIL_DIR` definition in the crate
-- **Validation:** `cargo check -p anvil-architecture`
+- **Validation:** `cargo check -p eddacraft-anvil-architecture`
 - **Files:** `crates/anvil-architecture/src/lib.rs`,
   `crates/anvil-architecture/src/baseline.rs`,
   `crates/anvil-architecture/src/yaml_parser.rs`

@@ -21,7 +21,7 @@ From repo root:
 ```bash
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
-cargo build --release -p anvil-cli
+cargo build --release -p eddacraft-anvil
 ./target/release/anvil --help
 ./target/release/anvil --version
 ```

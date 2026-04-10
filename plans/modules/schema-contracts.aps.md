@@ -74,7 +74,7 @@ are handled.
 - **Intent:** Validate that TypeScript Zod types and Rust serde types produce identical outputs
 - **Expected Outcome:** Framework runs both parsers on sample data, diffs results
 - **Scope:** `packages/anvil/core/src/validation/parity.ts` and `crates/anvil-kernel-types/tests/`
-- **Validation:** `cargo test -p anvil-kernel-types -- parity`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- parity`
 - **Confidence:** high
 
 ### SCHEMA-003: Golden hash management automation
@@ -98,7 +98,7 @@ are handled.
 - **Intent:** Test that TS and Rust types serialise/deserialise identically
 - **Expected Outcome:** Contract tests pass for all shared types
 - **Scope:** `crates/anvil-kernel-types/tests/parity.rs`
-- **Validation:** `cargo test -p anvil-kernel-types`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types`
 - **Confidence:** high
 
 ### SCHEMA-006: Breaking change migration guide template

@@ -63,7 +63,7 @@ persisted to disk to survive restarts.
   an `anvil-intercept-proto` library module (or sibling crate) is created first
   containing NDJSON message types, session model structs, and IPC command enum
   shared by both daemon and launcher
-- **Validation:** `cargo build -p anvil-intercept && cargo test -p anvil-intercept`
+- **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
 - **Status:** Draft
 
 ### INTD-002: IPC Listener
@@ -72,7 +72,7 @@ persisted to disk to survive restarts.
   and named pipes (Windows) with restricted permissions
 - **Expected Outcome:** Daemon listens on a platform-appropriate socket path,
   accepts connections, parses NDJSON frames, and dispatches to command handlers
-- **Validation:** `cargo test -p anvil-intercept --lib ipc`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
 - **Status:** Draft
 
 ### INTD-003: Session Registry
@@ -85,7 +85,7 @@ persisted to disk to survive restarts.
   within 30s, session marked ended and removed from active registry (handles
   crashed launchers that never call unregister, since Drop guards do not fire on
   SIGKILL or TerminateProcess)
-- **Validation:** `cargo test -p anvil-intercept --lib registry`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib registry`
 - **Status:** Draft
 
 ### INTD-004: Watcher Integration
@@ -94,7 +94,7 @@ persisted to disk to survive restarts.
   sessions via worktree mapping
 - **Expected Outcome:** Change batches from the watcher are received, coalesced,
   and forwarded to the enforcement pipeline with session attribution
-- **Validation:** `cargo test -p anvil-intercept --lib watcher`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib watcher`
 - **Status:** Draft
 
 ### INTD-005: Enforcement Decision Pipeline
@@ -107,7 +107,7 @@ persisted to disk to survive restarts.
   pipeline before rule evaluation, with a hard size cap (1 MB) above which
   content-dependent rules are skipped; binary detection (null byte check)
   short-circuits content rules; deleted files pass only path-based rules
-- **Validation:** `cargo test -p anvil-intercept --lib enforcement`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib enforcement`
 - **Status:** Draft
 
 ### INTD-006: Process-Group Interrupt
@@ -120,7 +120,7 @@ persisted to disk to survive restarts.
   proc_pidinfo, Windows: GetProcessTimes); SIGINT sent first, then SIGTERM after
   timeout, then SIGKILL as last resort; on Windows, Job Object termination used;
   fence applied immediately on any delivery failure
-- **Validation:** `cargo test -p anvil-intercept --lib interrupt`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib interrupt`
 - **Status:** Draft
 
 ### INTD-007: Fence Persistence
@@ -132,7 +132,7 @@ persisted to disk to survive restarts.
   regardless of session liveness -- auto-clear is never performed; on daemon
   restart, fences are loaded from disk and re-asserted before accepting
   connections
-- **Validation:** `cargo test -p anvil-intercept --lib fence`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib fence`
 - **Status:** Draft
 
 ### INTD-008: Configuration Loading
@@ -142,7 +142,7 @@ persisted to disk to survive restarts.
 - **Expected Outcome:** Daemon resolves mode (warn/fence/interrupt),
   on_ambiguous_ownership (warn/fence), and observe_only flag per worktree;
   ambiguous ownership hard-capped at fence regardless of config
-- **Validation:** `cargo test -p anvil-intercept --lib config`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib config`
 - **Status:** Draft
 
 ### INTD-009: Embedded Mode
@@ -152,7 +152,7 @@ persisted to disk to survive restarts.
 - **Expected Outcome:** A library API that accepts change events and returns
   decisions synchronously, reusing the same rule evaluation and session logic
   as the daemon
-- **Validation:** `cargo test -p anvil-intercept --lib embedded`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib embedded`
 - **Status:** Draft
 
 ### INTD-010: Unregistered Change Handling
@@ -162,7 +162,7 @@ persisted to disk to survive restarts.
 - **Expected Outcome:** Unattributed changes tagged `attribution:unknown-agent`;
   enforcement policy applied (warn or fence per configuration); worktree fenced
   if configured for fence-on-unknown
-- **Validation:** `cargo test -p anvil-intercept --lib unregistered`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib unregistered`
 - **Status:** Draft
 
 ### INTD-011: Daemon Status and Diagnostics
@@ -172,7 +172,7 @@ persisted to disk to survive restarts.
 - **Expected Outcome:** IPC commands for session list, worktree status, fence
   list, and daemon health; output suitable for consumption by the launcher and
   future CLI status commands
-- **Validation:** `cargo test -p anvil-intercept --lib status`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib status`
 - **Status:** Draft
 
 ### INTD-012: Windows CI Matrix

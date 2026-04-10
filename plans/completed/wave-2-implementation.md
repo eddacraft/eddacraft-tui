@@ -299,7 +299,7 @@ Add `pub mod graph;` to `crates/anvil-kernel/src/lib.rs`.
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test -p anvil-kernel -- graph::symbol_graph`
+Run: `cargo test -p eddacraft-anvil-kernel -- graph::symbol_graph`
 Expected: all 7 tests pass
 
 - [ ] **Step 4: Commit**
@@ -530,7 +530,7 @@ Add `pub mod dependency;` and `pub use dependency::DependencyGraph;`
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test -p anvil-kernel -- graph::dependency`
+Run: `cargo test -p eddacraft-anvil-kernel -- graph::dependency`
 Expected: all 6 tests pass
 
 - [ ] **Step 4: Commit**
@@ -721,7 +721,7 @@ Add `pub mod trust;` and `pub use trust::annotate_trust;`
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test -p anvil-kernel -- graph::trust`
+Run: `cargo test -p eddacraft-anvil-kernel -- graph::trust`
 Expected: all 5 tests pass
 
 - [ ] **Step 4: Commit**
@@ -939,7 +939,7 @@ Add `pub mod incremental;` and `pub use incremental::{GraphDelta, update_file, r
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test -p anvil-kernel -- graph::incremental`
+Run: `cargo test -p eddacraft-anvil-kernel -- graph::incremental`
 Expected: all 5 tests pass
 
 - [ ] **Step 4: Commit**

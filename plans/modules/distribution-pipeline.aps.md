@@ -214,10 +214,10 @@ Change status to **Ready** when:
   meant to fill is filled by **DIST-010 (WinGet)** instead, which
   points at the GitHub Release binary and requires zero source
   disclosure.
-- **Namespace analysis:** The `eddacraft-anvil-*` namespace prefix was
-  analysed and approved but the rename was reverted during
-  reconciliation. Execution is deferred alongside this item, and the
-  preserved naming analysis is captured in this section.
+- **Namespace rename:** The `eddacraft-anvil-*` namespace prefix was
+  analysed, approved, and applied to all publishable crates (ADR-017).
+  Crates.io publication itself is deferred alongside this item. The
+  naming analysis is captured in this section.
 - **Re-activation criteria** — this item could come off the shelf if:
   - The IP model changes (e.g. a future ADR opens part of the product
     under a permissive licence), **and**
@@ -274,8 +274,8 @@ Change status to **Ready** when:
 - **Confidence:** high — well-trodden path, lots of prior art
 - **Priority:** High (replaces DIST-008 for the Windows install gap)
 - **Dependencies:** DIST-007 (release workflow producing the
-  Windows cargo-dist artifacts `anvil-cli-x86_64-pc-windows-msvc.zip`
-  and `anvil-cli-aarch64-pc-windows-msvc.zip`)
+  Windows cargo-dist artifacts `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
+  and `eddacraft-anvil-aarch64-pc-windows-msvc.zip`)
 
 ---
 

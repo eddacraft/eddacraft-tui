@@ -92,7 +92,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/hooks.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- hooks` passes; llvm-cov shows
+- **Validation:** `cargo test -p eddacraft-anvil -- hooks` passes; llvm-cov shows
   ≥80% for the hooks module.
 - **Confidence:** high
 
@@ -105,7 +105,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/admin.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- admin` passes.
+- **Validation:** `cargo test -p eddacraft-anvil -- admin` passes.
 - **Confidence:** medium — may need mock HTTP layer for API calls
 
 #### TCOV-003: test export command (all format paths)
@@ -117,7 +117,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/export.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- export` passes.
+- **Validation:** `cargo test -p eddacraft-anvil -- export` passes.
 - **Confidence:** high
 
 #### TCOV-004: test architecture command (validation paths)
@@ -129,7 +129,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/architecture.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- architecture` passes.
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture` passes.
 - **Confidence:** high
 
 #### TCOV-005: test policy command (eval path)
@@ -141,7 +141,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/policy.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- policy` passes.
+- **Validation:** `cargo test -p eddacraft-anvil -- policy` passes.
 - **Confidence:** medium — eval path depends on OPA output structure
 
 #### TCOV-006: test gate command (--plan and --no-cache flags)
@@ -153,7 +153,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/gate.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- gate` passes; no
+- **Validation:** `cargo test -p eddacraft-anvil -- gate` passes; no
   `#[allow(dead_code)]` remains on these flags.
 - **Confidence:** medium
 
@@ -166,7 +166,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/watch.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- watch` passes; dead code
+- **Validation:** `cargo test -p eddacraft-anvil -- watch` passes; dead code
   annotations removed.
 - **Confidence:** medium — requires watcher test infrastructure
 
@@ -179,7 +179,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/auth/device_flow.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- device_flow` passes.
+- **Validation:** `cargo test -p eddacraft-anvil -- device_flow` passes.
 - **Confidence:** medium — mock HTTP adds test complexity
 
 ### Phase 2 — OPA Real-Binary Tests
@@ -207,7 +207,7 @@ Change status to **Ready** when:
   - `crates/anvil-policy/src/opa.rs`
   - `crates/anvil-policy/tests/` (new integration test file)
 - **Dependencies:** TFIX-004 (OPA in Rust CI)
-- **Validation:** `cargo test -p anvil-policy` passes with OPA installed.
+- **Validation:** `cargo test -p eddacraft-anvil-policy` passes with OPA installed.
 - **Confidence:** high
 
 #### TCOV-011: run opa test against fixture Rego files

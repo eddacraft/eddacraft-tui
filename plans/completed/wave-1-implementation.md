@@ -88,7 +88,7 @@ Add `"crates/anvil-kernel"` to the `members` array in root `Cargo.toml`.
 
 - [ ] **Step 5: Verify build**
 
-Run: `cargo check -p anvil-kernel`
+Run: `cargo check -p eddacraft-anvil-kernel`
 Expected: compiles with no errors
 
 - [ ] **Step 6: Commit**
@@ -312,7 +312,7 @@ mod tests {
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test -p anvil-kernel -- watcher::debounce`
+Run: `cargo test -p eddacraft-anvil-kernel -- watcher::debounce`
 Expected: all 4 tests pass
 
 - [ ] **Step 4: Implement the file watcher**
@@ -468,7 +468,7 @@ fn detects_file_creation() {
 
 - [ ] **Step 7: Run integration test**
 
-Run: `cargo test -p anvil-kernel --test watcher_integration`
+Run: `cargo test -p eddacraft-anvil-kernel --test watcher_integration`
 Expected: PASS
 
 - [ ] **Step 8: Commit**
@@ -570,7 +570,7 @@ mod tests {
 
 - [ ] **Step 2: Run language tests**
 
-Run: `cargo test -p anvil-kernel -- parser::languages`
+Run: `cargo test -p eddacraft-anvil-kernel -- parser::languages`
 Expected: all 4 tests pass
 
 - [ ] **Step 3: Implement AST cache**
@@ -710,7 +710,7 @@ mod tests {
 
 - [ ] **Step 4: Run cache tests**
 
-Run: `cargo test -p anvil-kernel -- parser::cache`
+Run: `cargo test -p eddacraft-anvil-kernel -- parser::cache`
 Expected: all 5 tests pass
 
 - [ ] **Step 5: Implement the parser**
@@ -936,7 +936,7 @@ module.exports = { add };
 
 - [ ] **Step 6: Run parser tests**
 
-Run: `cargo test -p anvil-kernel -- parser::tests`
+Run: `cargo test -p eddacraft-anvil-kernel -- parser::tests`
 Expected: all 6 tests pass
 
 - [ ] **Step 7: Commit**
@@ -1323,7 +1323,7 @@ Add `pub mod extract;` to `crates/anvil-kernel/src/parser/mod.rs`.
 
 - [ ] **Step 4: Run extraction tests**
 
-Run: `cargo test -p anvil-kernel -- parser::extract`
+Run: `cargo test -p eddacraft-anvil-kernel -- parser::extract`
 Expected: all 5 tests pass
 
 - [ ] **Step 5: Commit**
@@ -1472,7 +1472,7 @@ Add `pub mod filter;` to `crates/anvil-kernel/src/watcher/mod.rs`.
 
 - [ ] **Step 3: Run filter tests**
 
-Run: `cargo test -p anvil-kernel -- watcher::filter`
+Run: `cargo test -p eddacraft-anvil-kernel -- watcher::filter`
 Expected: all 7 tests pass
 
 - [ ] **Step 4: Commit**
@@ -1592,7 +1592,7 @@ Add `"crates/anvil-tui"` to the `members` array in root `Cargo.toml`.
 
 - [ ] **Step 4: Verify build**
 
-Run: `cargo check -p anvil-tui`
+Run: `cargo check -p eddacraft-anvil-tui`
 Expected: compiles with no errors
 
 - [ ] **Step 5: Commit**
@@ -1762,7 +1762,7 @@ mod tests {
 
 - [ ] **Step 2: Run welcome state tests**
 
-Run: `cargo test -p anvil-tui -- surfaces::welcome`
+Run: `cargo test -p eddacraft-anvil-tui -- surfaces::welcome`
 Expected: all 6 tests pass
 
 - [ ] **Step 3: Implement welcome render**
@@ -1859,7 +1859,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
 
 - [ ] **Step 4: Verify compilation**
 
-Run: `cargo check -p anvil-tui`
+Run: `cargo check -p eddacraft-anvil-tui`
 Expected: compiles with no errors
 
 - [ ] **Step 5: Commit**
@@ -2072,7 +2072,7 @@ mod tests {
 
 - [ ] **Step 2: Run doctor tests**
 
-Run: `cargo test -p anvil-tui -- surfaces::doctor`
+Run: `cargo test -p eddacraft-anvil-tui -- surfaces::doctor`
 Expected: all 3 tests pass
 
 - [ ] **Step 3: Implement doctor render**
@@ -2212,7 +2212,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
 
 - [ ] **Step 4: Verify compilation**
 
-Run: `cargo check -p anvil-tui`
+Run: `cargo check -p eddacraft-anvil-tui`
 Expected: compiles with no errors
 
 - [ ] **Step 5: Commit**
@@ -2439,7 +2439,7 @@ mod tests {
 
 - [ ] **Step 2: Run status tests**
 
-Run: `cargo test -p anvil-tui -- surfaces::status`
+Run: `cargo test -p eddacraft-anvil-tui -- surfaces::status`
 Expected: all 3 tests pass
 
 - [ ] **Step 3: Implement status render**
@@ -2665,7 +2665,7 @@ fn render_results_panel(
 
 - [ ] **Step 4: Verify compilation**
 
-Run: `cargo check -p anvil-tui`
+Run: `cargo check -p eddacraft-anvil-tui`
 Expected: compiles with no errors
 
 - [ ] **Step 5: Commit**
@@ -2941,7 +2941,7 @@ mod tests {
 
 - [ ] **Step 2: Run wizard tests**
 
-Run: `cargo test -p anvil-tui -- surfaces::wizard`
+Run: `cargo test -p eddacraft-anvil-tui -- surfaces::wizard`
 Expected: all 6 tests pass
 
 - [ ] **Step 3: Add wizard render stub**
@@ -3206,7 +3206,7 @@ Add `pub mod wizard;` to `crates/anvil-tui/src/surfaces/mod.rs`.
 
 - [ ] **Step 5: Verify compilation**
 
-Run: `cargo check -p anvil-tui`
+Run: `cargo check -p eddacraft-anvil-tui`
 Expected: compiles with no errors
 
 - [ ] **Step 6: Commit**

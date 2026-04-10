@@ -111,11 +111,11 @@ Because the product is closed-source:
 - **Linux install path is `install.sh`** via `install.eddacraft.ai`
   (DIST-003 / DIST-005 / DIST-006) — already in scope.
 - **Universal install path is GitHub Releases via cargo-dist** (DIST-007).
-- The crate-rename to `eddacraft-anvil-*` was analysed and approved, but
-  execution was reverted during reconciliation and deferred alongside
-  DIST-008. Current status and any future crates.io-related work should be
-  tracked via `plans/modules/distribution-pipeline.aps.md`. No crates.io
-  publish is currently planned.
+- The crate-rename to `eddacraft-anvil-*` was analysed, approved, and applied
+  to all publishable crates (ADR-017). Crates.io publication itself is deferred
+  alongside DIST-008. Current status and any future crates.io-related work
+  should be tracked via `plans/modules/distribution-pipeline.aps.md`. No
+  crates.io publish is currently planned.
 
 ### Activation / licensing / telemetry
 

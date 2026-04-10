@@ -57,7 +57,7 @@ consistent launch semantics across tools.
 - **Expected Outcome:** A `crates/anvil-run/` binary crate that accepts
   `--tool <name> -- <command...>` and resolves cwd, repo root, and worktree
   root; added to root workspace
-- **Validation:** `cargo build -p anvil-run && anvil-run --help`
+- **Validation:** `cargo build -p eddacraft-anvil-run && anvil-run --help`
 - **Status:** Draft
 
 ### INTL-002: Daemon Connectivity and Fence Check
@@ -67,7 +67,7 @@ consistent launch semantics across tools.
 - **Expected Outcome:** Launcher connects to daemon IPC, queries worktree
   status; if daemon unreachable or worktree fenced, launch is refused with a
   clear error message
-- **Validation:** `cargo test -p anvil-run --lib preflight`
+- **Validation:** `cargo test -p eddacraft-anvil-run --lib preflight`
 - **Status:** Draft
 
 ### INTL-003: Session Registration Flow
@@ -77,7 +77,7 @@ consistent launch semantics across tools.
 - **Expected Outcome:** Launcher generates a session ID, sends registration
   (tool, worktree, cwd, tmux pane), receives acknowledgement, then proceeds
   to spawn
-- **Validation:** `cargo test -p anvil-run --lib register`
+- **Validation:** `cargo test -p eddacraft-anvil-run --lib register`
 - **Status:** Draft
 
 ### INTL-004: Process-Group Child Launch
@@ -90,7 +90,7 @@ consistent launch semantics across tools.
   daemon, which opens the named Job Object independently; launcher reports PID,
   PGID (Unix) or Job Object name (Windows), and process start time to daemon;
   launcher waits for child exit
-- **Validation:** `cargo test -p anvil-run --lib spawn`
+- **Validation:** `cargo test -p eddacraft-anvil-run --lib spawn`
 - **Status:** Draft
 
 ### INTL-005: Session Cleanup on Exit
@@ -100,7 +100,7 @@ consistent launch semantics across tools.
 - **Expected Outcome:** On normal exit, signal-based exit, or launcher crash
   (via drop guard), session unregistration sent to daemon; daemon marks session
   ended
-- **Validation:** `cargo test -p anvil-run --lib cleanup`
+- **Validation:** `cargo test -p eddacraft-anvil-run --lib cleanup`
 - **Status:** Draft
 
 ### INTL-006: Shell Integration Functions
@@ -124,7 +124,7 @@ consistent launch semantics across tools.
   fence-only, because the calling PID belongs to the agent process itself rather
   than a controlled wrapper PGID -- the daemon enforces this at registration
   time
-- **Validation:** `cargo test -p anvil-run --lib hook`
+- **Validation:** `cargo test -p eddacraft-anvil-run --lib hook`
 - **Status:** Draft
 
 ### INTL-008: Blocked Launch UX
@@ -144,5 +144,5 @@ consistent launch semantics across tools.
 - **Expected Outcome:** Launcher sends periodic heartbeats to the daemon while
   the child process is running; heartbeat interval is well within the daemon's
   30s TTL window
-- **Validation:** `cargo test -p anvil-run --lib heartbeat`
+- **Validation:** `cargo test -p eddacraft-anvil-run --lib heartbeat`
 - **Status:** Draft
