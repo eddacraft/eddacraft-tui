@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      |
 | ------- | ----- | ----------- |
-| DOCSYNC | —     | In Progress (9/14) |
+| DOCSYNC | —     | In Progress (9/10 Rust-migration phase; Future items deferred) |
 
 ## Purpose
 

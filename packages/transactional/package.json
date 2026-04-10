@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/transactional",
-  "version": "0.1.0",
+  "version": "0.3.0-beta",
   "description": "Shared transactional email templates for EddaCraft",
   "type": "module",
   "main": "./dist/emails/index.js",

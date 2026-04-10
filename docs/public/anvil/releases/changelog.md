@@ -9,7 +9,7 @@ sidebar_position: 1
 
 All notable changes to Anvil are documented here.
 
-## [0.3.0-beta] - 2026-04-01
+## [0.3.0-beta] — Rust CLI & Native Engine
 
 ### Changed
 
@@ -19,34 +19,62 @@ All notable changes to Anvil are documented here.
   [The Switch to Rust](./rust-rewrite.md) for migration instructions.
 - **Installation** — `curl -fsSL https://install.eddacraft.ai | sh` (macOS /
   Linux) or `irm https://install.eddacraft.ai/windows | iex` (Windows). Also
-  available via Homebrew: `brew install eddacraft/tap/anvil`.
+  available via Homebrew: `brew install eddacraft/tap/anvil`. Built-in
+  self-updater via `anvil-update`.
 - **Platform support** — builds for x86_64 and aarch64 on macOS, Linux, and
   Windows (6 targets via cargo-dist).
-- **Ratatui TUI** — all 10 interactive surfaces (tutorial, watch, wizard,
-  status, doctor, welcome, init, audit, browser, gate) rebuilt using Ratatui
+- **Ratatui TUI** — all 10 interactive surfaces (welcome, tutorial, watch,
+  wizard, status, doctor, init, audit, browser, gate) rebuilt using Ratatui
   with the EddaCraft Terminal Standard design system.
 - **Structured exit codes** — `0` (pass), `1` (general error), `2` (gate
   failure), `3` (auth required), `4` (config error).
+- **Docs gating** — the `/anvil` documentation is now gated behind GitHub OAuth
+  for beta users. Public docs (APS, Kindling, edda-stack) remain open.
 
 ### Added
 
-- **Kernel engine** — persistent daemon mode with incremental tree-sitter
-  parsing and a real-time semantic dependency graph (petgraph).
+- **Welcome screen & onboarding** — first-run detection with an interactive
+  onboarding experience covering tutorial paths, live watch demo, and hook
+  installer guidance. `anvil welcome` anytime.
+- **Kernel engine** — native core engine with file watching, incremental
+  tree-sitter parsing, and a real-time semantic dependency graph (petgraph).
+  Supports foreground watch, embedded one-shot checks, and a dual-run harness
+  for engine comparison.
 - **Rust check ports** — secret scan, anti-pattern detection, command safety,
   architecture parity tests, and benchmarks all ported to Rust.
-- **Cross-platform auth** — device-flow authentication with secure credential
-  storage via the OS keychain.
+- **Beta authentication** — passwordless device-code and OTP flows with secure
+  credential storage, session refresh with theft detection, and
+  `anvil auth login` / `anvil admin approve` commands.
+- **New commands** — `anvil new` (template browser), `anvil wizard`
+  (interactive setup), `anvil audit` (security findings scan),
+  `anvil drift` (snapshot, compare, report, list),
+  `anvil validate` (APS plan validation), and `anvil gate-config` (gate
+  thresholds). `--json` output mode across all commands.
 - **MCP config generation** — library functions for generating MCP server
   configuration for Claude Code, Cursor, Windsurf, and VS Code.
-- **Kernel benchmarks** — criterion benchmarks for watcher, parser, graph, and
-  policy evaluation.
+- **Kernel benchmarks** — criterion benchmarks and a stress test harness for
+  watcher, parser, graph, and policy evaluation, wired into CI.
 
 ### Performance
 
-- 5-10x faster scanning on typical projects.
-- 80% less memory in watch mode (~30-50MB vs ~400MB for a 5,000-file monorepo).
-- Cold start under 10ms (vs 200-400ms with Node.js).
+- 5–10x faster scanning on typical projects.
+- 80% less memory in watch mode (~30–50MB vs ~400MB for a 5,000-file monorepo).
+- Cold start under 10ms (vs 200–400ms with Node.js).
 - Tree-sitter parse throughput ~15,000 files/second.
+- Parallel file walks via rayon; watch mode excludes ignored directories at the
+  OS level.
+
+### Security
+
+- Device-code and OTP authentication hardened with theft detection on session
+  refresh.
+- Atomic credential file writes with restrictive permissions at creation time.
+- Log inputs sanitised to prevent log injection.
+- GitHub Action expression injection sanitised; all GitHub Actions pinned to
+  commit SHAs.
+- Dependency patches: fast-xml-parser (CVE-2026-33036),
+  `@hono/node-server` (CVE-2026-39406), axios, picomatch, undici, yauzl,
+  rustls-webpki, and others.
 
 ## [0.2.1-beta] - 2026-03-26
 

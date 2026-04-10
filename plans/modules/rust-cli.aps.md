@@ -11,7 +11,7 @@ Scopes: RCLI (main)
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RCLI | —     | In Progress | 32/62    |
+| RCLI | —     | In Progress | 43/64    |
 
 ## Purpose
 
@@ -312,7 +312,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-014: watch command
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Port `anvil watch`. Spawns kernel watcher on background thread,
   feeds `EngineEvent`s to TUI via `mpsc`. Uses `run_watch` runner with event
   draining loop (50ms poll)
@@ -324,8 +324,8 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RCLI-003, KERN (watcher + event emission)
-- **Rework:** `--file`, `--action`, `--patterns`, `--exclude` wiring in
-  PR #698 (open). Once merged, watch command is complete
+- **Rework:** `--file`, `--action`, `--patterns`, `--exclude` wiring merged in
+  PR #698
 
 ---
 
@@ -435,7 +435,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-021: hooks and export commands
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Port `anvil hooks install/status` and `anvil export`. Filesystem
   operations for hook installation, constraint export in multiple formats
 - **Expected Outcome:** Hook installation and constraint export work identically
@@ -448,8 +448,8 @@ Commands that launch TUI surfaces without kernel integration.
 - **Dependencies:** RCLI-004
 - **Notes — hooks:** Hooks now enforce `anvil gate --progress` (pre-commit) and
   `anvil gate` (pre-push). Enforcement regression resolved.
-- **Notes — export:** APS markdown export and constraint formatters in PR #697
-  (open). Once merged, export is complete
+- **Notes — export:** APS markdown export and constraint formatters merged in
+  PR #697
 
 ---
 
@@ -545,7 +545,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-014a: wire watch action dispatch and file scoping
 
-- **Status:** In Progress (PR #698 open)
+- **Status:** Complete (PR #698 merged)
 - **Intent:** Wire the `--file`, `--action`, `--patterns`, and `--exclude` args
   that are currently parsed but ignored (underscore-prefixed dead code). Action
   dispatch should support at minimum `gate` (re-run gate on change) and `check`
@@ -679,7 +679,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-021b: export APS markdown support
 
-- **Status:** In Progress (PR #697 open)
+- **Status:** Complete (PR #697 merged)
 - **Intent:** Remove the explicit `.md` file rejection in `export_plan()` and
   implement APS markdown parsing for plan export. At minimum, parse the APS
   markdown structure (frontmatter, phases, work items) into the same
@@ -698,7 +698,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-021c: implement constraint export formatters
 
-- **Status:** In Progress (PR #697 open)
+- **Status:** Complete (PR #697 merged)
 - **Intent:** Implement the three constraint export formatters that currently
   bail unconditionally: `llms.txt` (LLM-friendly text), `mcp-resource` (MCP
   server resource format), `prompt-fragment` (embeddable prompt snippet).
@@ -1298,13 +1298,13 @@ findings deferred for later.
 | ----- | ----- | ------ |
 | 1 — Foundation | 4 | Complete |
 | 2 — Static Surface Commands | 8 | Complete |
-| 3 — Kernel-Integrated Commands | 2 | 1 Complete (gate), 1 In Progress (watch — PR #698) |
+| 3 — Kernel-Integrated Commands | 2 | Complete (gate, watch) |
 | 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Complete (RCLI-016) |
 | 5 — Policy & Architecture | 4 | Complete |
-| 6 — Utilities & Cutover | 4 | 2 Complete, 1 In Progress (RCLI-021 — PR #697), 1 Complete (RCLI-024) |
-| 7 — Parity Rework | 11 | 10 Complete, 1 In Progress (RCLI-014a — PR #698) |
+| 6 — Utilities & Cutover | 4 | Complete (RCLI-021 merged in PR #697) |
+| 7 — Parity Rework | 11 | Complete (RCLI-014a merged in PR #698) |
 | 8 — TUI UX Polish | 12 | 7 Complete, 1 In Progress, 4 Proposed |
 | 9 — Council Review | 8 | Proposed |
 | 10 — Council Review | 6 | 3 Complete (048, 049, 052), 3 Proposed |
 | 11 — Council Deferred | 2 | Proposed |
-| **Total** | **64** | **43 Complete, 3 In Progress (PRs open), 18 Proposed** |
+| **Total** | **64** | **43 Complete, 3 In Progress, 18 Proposed** |
