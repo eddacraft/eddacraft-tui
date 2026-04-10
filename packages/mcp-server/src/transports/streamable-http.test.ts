@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { startHttpServer } from './streamable-http.js';
 import type { HttpServerHandle } from './streamable-http.js';
+import { SERVER_VERSION } from '../server.js';
 
 // Mock the same runtime dependencies that server.test.ts mocks,
 // since createAnvilMcpServer (called internally) registers tools that
@@ -119,7 +120,7 @@ describe('Streamable HTTP Transport', () => {
       const serverVersion = client.getServerVersion();
       expect(serverVersion).toBeDefined();
       expect(serverVersion?.name).toBe('anvil-mcp-server');
-      expect(serverVersion?.version).toBe('0.1.0');
+      expect(serverVersion?.version).toBe(SERVER_VERSION);
 
       await client.close();
     });

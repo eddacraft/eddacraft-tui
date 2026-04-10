@@ -17,6 +17,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+eddacraft-tui = { workspace = true, features = ["test-utils"] }
 
 [[example]]
 name = "demo"

@@ -5,7 +5,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { createAnvilMcpServer } from './server.js';
+import { createAnvilMcpServer, SERVER_VERSION } from './server.js';
 
 // Mock runtime dependencies used by tool callbacks via dynamic import().
 vi.mock('@eddacraft/anvil-runtime', () => {
@@ -132,7 +132,7 @@ describe('AnvilMcpServer', () => {
       const serverVersion = client.getServerVersion();
       expect(serverVersion).toBeDefined();
       expect(serverVersion?.name).toBe('anvil-mcp-server');
-      expect(serverVersion?.version).toBe('0.1.0');
+      expect(serverVersion?.version).toBe(SERVER_VERSION);
     });
 
     it('reflects custom server name and version after handshake', async () => {
@@ -265,7 +265,7 @@ describe('AnvilMcpServer', () => {
       const parsed = JSON.parse(textItem.text) as Record<string, unknown>;
 
       expect(typeof parsed.version).toBe('string');
-      expect(parsed.version).toBe('0.1.0');
+      expect(parsed.version).toBe(SERVER_VERSION);
     });
 
     it('does not report isError', async () => {

@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-bench"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-kernel-types",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-spike"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "notify",
  "petgraph",
@@ -792,7 +792,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "eddacraft-anvil"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "anyhow",
  "chrono",
@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-architecture"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "chrono",
  "glob",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-checks"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "criterion",
  "insta",
@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-kernel"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-kernel-types",
@@ -876,7 +876,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-kernel-types"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "serde",
  "serde_json",
@@ -884,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-policy"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "chrono",
  "glob",
@@ -903,7 +903,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-tui"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "crossterm",
  "eddacraft-anvil-kernel-types",
