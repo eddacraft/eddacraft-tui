@@ -1,6 +1,6 @@
 [package]
 name = "eddacraft-tui"
-version = "0.1.0-rc.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Shared Ratatui component library for the EddaCraft product family"
