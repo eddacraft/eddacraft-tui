@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-$HOME/src-morgan/anvil-001}"
+REPO="${REPO:-$HOME/Projects/src/eddacraft}"
 DRY_RUN=false
 NOTIFY=false
 LOG="$REPO/plans/reviews/cleanup-log.md"
