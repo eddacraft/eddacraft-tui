@@ -7,7 +7,8 @@
 
 ## Pre-release checklist
 
-1. All CI checks pass on dev (`cargo fmt`, `clippy`, `test`, `publish --dry-run`)
+1. All checks pass locally (`cargo fmt --check`, `clippy`, `test`, `publish --dry-run`)
+   CI runs automatically on PRs targeting main, not on dev pushes.
 2. Update version in `Cargo.toml`
 3. Update snapshot tests if the version string appears in rendered output:
    ```sh
@@ -76,5 +77,7 @@ Triggered by pushing an exact semver tag (`vX.Y.Z`) to any branch:
 - **Snapshot test failure**: Run `INSTA_UPDATE=always cargo test` and commit
   the updated snapshot files.
 - **Pre-release tag triggered release**: Should not happen with current config.
-  The release workflow pattern `v[0-9]+.[0-9]+.[0-9]+` only matches exact
-  semver without suffixes.
+  The release workflow uses GitHub Actions filter pattern `v[0-9]+.[0-9]+.[0-9]+`
+  where `+` means "one or more of the preceding character" (GitHub's extended
+  glob syntax, not regex). This matches exact `vX.Y.Z` tags only — suffixes
+  like `-rc.0` are excluded because there is no trailing wildcard.
