@@ -122,7 +122,13 @@ kernel and keeping the architecture-enforcement surface intact.
 
 Change status to **Ready** when:
 
-- [ ] Persistence schema drafted and reviewed (ADR)
+- [x] Storage backend decided (rkyv default, SQLite opt-in via feature flag)
+- [x] Graph file location decided (per-repo `.anvil/graph.bin`)
+- [x] MCP server approach decided (reuse existing TS server)
+- [x] Test-coverage strategy decided (import heuristic v1, lcov deferred)
+- [x] Default toggle decided (`graph.context: true`)
+- [x] Backend selection mechanism decided (feature flag, not config)
+- [ ] Persistence ADR drafted and reviewed (GCTX-001)
 - [ ] Impact-analysis algorithm choice decided (BFS vs bidirectional, cycle
       handling)
 - [ ] Token-budget strategy agreed with MCP server owner
@@ -743,29 +749,30 @@ Change status to **Ready** when:
 | Duplicates effort with the existing `lang-*` modules | Medium | Low | This module touches parser *registration* only; anti-pattern + suppression work remains with `lang-*`. Coordinated via shared interfaces in GCTX-020 |
 | Token-reduction claims don't hold up vs code-review-graph | Medium | Low | GCTX-044 makes the benchmark reproducible; even a 3-4x reduction is valuable and we don't need to beat the headline 8.2x to justify this module |
 
-## Open Questions
+## Decisions (formerly Open Questions)
 
-1. Should the persistent graph file live in `~/.anvil/graph.bin` (user-wide)
-   or `.anvil/graph.bin` (per-repo)? Per-repo is simpler and avoids
-   cross-repo contamination; user-wide enables multi-repo queries later
-   but adds complexity around repo identity and cache invalidation.
-2. Do we reuse the existing `packages/mcp-server` (TypeScript) or build a
-   Rust-native MCP server for zero-cost graph access? TS server is simpler
-   for this module; Rust-native is a follow-up if performance demands it.
-3. Test-coverage edges: pure heuristic for v1, or also ingest coverage
-   reports (`lcov.info`, `coverage.xml`) when present?
-4. ~~How do we handle graph state during partial parse failures?~~ Resolved
-   by the rkyv + atomic rename strategy — the on-disk file is always the
-   last complete good state. If a parse fails mid-batch, the in-memory
-   graph has the partial update but the persisted file stays clean. On
-   restart, the clean snapshot loads and the failed files re-parse.
-5. Should `graph.context` default to `true` or `false`? `true` means new
-   users get the benefit automatically; `false` avoids surprising existing
-   users with new disk writes and MCP surface. Lean towards `true` with a
-   first-run notice.
-6. Should the `graph.persist` backend be selectable in config
-   (`graph.backend: "rkyv" | "sqlite"`) or only via build feature flag?
-   Config is more user-friendly; feature flag keeps the binary smaller.
+1. **Per-repo** — `.anvil/graph.bin`. One graph file per repo, no cross-repo
+   contamination. `.anvil/` is already gitignored. Multi-repo queries are
+   out of scope; if needed later, a registry layer can index multiple
+   per-repo files.
+2. **Reuse TS MCP server** — the existing `packages/mcp-server` already
+   handles tool registration, transports, and resources. The graph data
+   crosses the boundary as JSON-RPC regardless of server language. A
+   Rust-native MCP server can follow if latency becomes a bottleneck.
+3. **Heuristic only for v1** — import-based test-coverage edges (test file
+   imports target → TestedBy edge). Conservative over-estimation (high
+   recall, lower precision) is the safe direction. Coverage-report ingestion
+   (`lcov.info`, `coverage.xml`) deferred to a follow-up.
+4. ~~Partial parse failures~~ — resolved by rkyv + atomic rename. On-disk
+   file is always the last complete good state.
+5. **Default `true`** — `graph.context` defaults to `true`. Overhead when
+   unqueried is negligible (debounced persistence write, <10ms). MCP tools
+   only activate when an assistant connects. First-run log line for
+   visibility.
+6. **Feature flag only** — SQLite backend via
+   `cargo install anvil --features sqlite`. Keeps the default binary lean
+   (no `libsqlite3`). Promotion to a config option later if demand warrants
+   it.
 
 ## Stats
 
