@@ -29,7 +29,7 @@ kernel and keeping the architecture-enforcement surface intact.
 
 ## In Scope
 
-- **User toggle** — `graph.context` boolean in `.anvilrc` / `.anvil/config.yml`
+- **User toggle** — `graph.context` boolean in `.anvilrc` / `.anvil/config.json`
   (Zod schema, default `true`); controls only the **new context delivery
   layer** (persistence, impact analysis, MCP graph tools, context slicing).
   The core kernel symbol graph used for architecture enforcement is
@@ -170,6 +170,7 @@ Change status to **Ready** when:
   still runs architecture enforcement, produces no persistence file,
   and does not register MCP graph tools
 - **Files:** `packages/anvil/core/src/config/graph.ts`,
+  `packages/anvil/runtime/src/gate/gate-config.ts`,
   `crates/anvil-kernel/src/config.rs`,
   `packages/mcp-server/src/tools/index.ts`
 - **Confidence:** high
