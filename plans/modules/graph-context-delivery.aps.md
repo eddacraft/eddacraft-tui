@@ -745,16 +745,20 @@ Change status to **Ready** when:
 
 ## Open Questions
 
-1. Should the persistent graph store live in `~/.anvil/graph.db` (user-wide)
-   or `.anvil/graph.db` (per-repo)? Per-repo is simpler; user-wide enables
-   multi-repo queries later.
+1. Should the persistent graph file live in `~/.anvil/graph.bin` (user-wide)
+   or `.anvil/graph.bin` (per-repo)? Per-repo is simpler and avoids
+   cross-repo contamination; user-wide enables multi-repo queries later
+   but adds complexity around repo identity and cache invalidation.
 2. Do we reuse the existing `packages/mcp-server` (TypeScript) or build a
    Rust-native MCP server for zero-cost graph access? TS server is simpler
    for this module; Rust-native is a follow-up if performance demands it.
 3. Test-coverage edges: pure heuristic for v1, or also ingest coverage
    reports (`lcov.info`, `coverage.xml`) when present?
-4. How do we handle graph state during partial parse failures? Snapshot the
-   last good state vs partial writes with quarantine?
+4. ~~How do we handle graph state during partial parse failures?~~ Resolved
+   by the rkyv + atomic rename strategy — the on-disk file is always the
+   last complete good state. If a parse fails mid-batch, the in-memory
+   graph has the partial update but the persisted file stays clean. On
+   restart, the clean snapshot loads and the failed files re-parse.
 5. Should `graph.context` default to `true` or `false`? `true` means new
    users get the benefit automatically; `false` avoids surprising existing
    users with new disk writes and MCP surface. Lean towards `true` with a
