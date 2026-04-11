@@ -21,6 +21,8 @@ Acceptance criteria checked:
 <!-- How was this tested? Check all that apply -->
 
 - [ ] Unit tests added/updated
-- [ ] Manual testing
+- [ ] Manual testing — link to the APS work item `Validation:` field or a
+      verification issue where the steps live (ephemeral PR checklists rot; put
+      the steps somewhere durable)
 - [ ] CI passes (lint, typecheck, test)
 - [ ] N/A (docs/config only)
