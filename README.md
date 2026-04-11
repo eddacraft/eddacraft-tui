@@ -448,9 +448,10 @@ The Rust CLI is built for the following platforms via cargo-dist:
 | Linux    | aarch64                 | `anvil`     |
 | Windows  | x86_64                  | `anvil.exe` |
 
-> Windows aarch64 is not yet built — axoupdater has no prebuilt binary for that
-> target, so it is excluded from the `cargo-dist` matrix until upstream support
-> lands.
+> Windows aarch64 is not yet shipped via `cargo-dist` / GitHub Releases —
+> axoupdater has no prebuilt binary for that target, so it is excluded from the
+> `cargo-dist` matrix until upstream support lands. The target is still built in
+> Rust CI (`.github/workflows/rust.yml`).
 
 ## CI/CD
 
@@ -471,8 +472,9 @@ The repository has several GitHub Actions workflows:
 - **codeql.yml** — GitHub CodeQL static analysis.
 - **rust.yml** — Rust CI (clippy, test, format).
 
-A reusable **anvil check** GitHub Action is also provided at
-`.github/actions/anvil-check/` for running anvil analysis in your own workflows.
+A reusable **Anvil Check** GitHub Action (that is the action's declared name) is
+also provided at `.github/actions/anvil-check/` for running anvil analysis in
+your own workflows.
 
 ## Code Conventions
 
