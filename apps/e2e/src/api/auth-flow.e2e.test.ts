@@ -9,8 +9,9 @@
  * Surface: API (auth route)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import { Hono } from 'hono';
+import { generateKeyPair, exportPKCS8 } from 'jose';
 
 // Mock the DB layer at the source-resolved paths (via vitest alias)
 vi.mock('../../../anvil-api/src/db/client.js', () => ({
@@ -36,6 +37,8 @@ const { findTokenByHash } = await import('../../../anvil-api/src/db/queries.js')
 const app = new Hono();
 app.route('/auth', auth);
 
+let originalSigningKey: string | undefined;
+
 function post(path: string, body: unknown) {
   return app.request(path, {
     method: 'POST',
@@ -43,6 +46,17 @@ function post(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+beforeAll(async () => {
+  originalSigningKey = process.env['LICENSE_SIGNING_KEY'];
+  const { privateKey } = await generateKeyPair('ES256', { extractable: true });
+  process.env['LICENSE_SIGNING_KEY'] = await exportPKCS8(privateKey);
+});
+
+afterAll(() => {
+  if (originalSigningKey === undefined) delete process.env['LICENSE_SIGNING_KEY'];
+  else process.env['LICENSE_SIGNING_KEY'] = originalSigningKey;
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -107,11 +121,14 @@ describe('API Auth Flow › POST /auth/verify', () => {
     const res = await post('/auth/verify', { token });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({
-      valid: true,
-      user: { email: 'user@test.local' },
-      scopes: ['beta'],
-      expiresAt,
-    });
+    expect(body).toEqual(
+      expect.objectContaining({
+        valid: true,
+        user: { email: 'user@test.local' },
+        scopes: ['beta'],
+        expiresAt,
+      })
+    );
+    expect(body.license).toEqual(expect.any(String));
   });
 });
