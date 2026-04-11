@@ -57,13 +57,16 @@ describe('Vercel resources', () => {
   it('creates Vercel Project resources for all apps', () => {
     const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
 
-    expect(projects.length).toBe(3);
+    expect(projects.length).toBe(6);
     expect(projects.map((p) => p.name)).toContain('website');
     expect(projects.map((p) => p.name)).toContain('docs-site');
     expect(projects.map((p) => p.name)).toContain('anvil-api');
+    expect(projects.map((p) => p.name)).toContain('anvil-docs-private');
+    expect(projects.map((p) => p.name)).toContain('docs-public');
+    expect(projects.map((p) => p.name)).toContain('docs-shell');
   });
 
-  it('creates ProjectDomain resources for each app', () => {
+  it('creates ProjectDomain resources only for apps with domains', () => {
     const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
 
     expect(domains.length).toBe(3);

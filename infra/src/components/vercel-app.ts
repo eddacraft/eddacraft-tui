@@ -1,13 +1,6 @@
 import * as vercel from '@pulumiverse/vercel';
 import * as pulumi from '@pulumi/pulumi';
 
-export type VercelDeploymentProtection =
-  | 'all_deployments'
-  | 'standard_protection_new'
-  | 'standard_protection'
-  | 'only_preview_deployments'
-  | 'none';
-
 export interface VercelAppArgs {
   name: string;
   framework: string;
@@ -23,12 +16,6 @@ export interface VercelAppArgs {
   productionBranch?: string;
   /** Skip automatic preview deploys for non-production branches (default: false). */
   skipPreviewDeploys?: boolean;
-  /**
-   * Gate deployments behind Vercel Authentication. Use `allDeployments` to
-   * require auth on both production and previews — the shell must use a
-   * protection bypass secret to rewrite through the upstream project.
-   */
-  deploymentProtection?: VercelDeploymentProtection;
 }
 
 export class VercelApp extends pulumi.ComponentResource {
@@ -70,9 +57,6 @@ export class VercelApp extends pulumi.ComponentResource {
           type: 'github',
           repo: args.gitRepo,
         },
-        ...(args.deploymentProtection && {
-          vercelAuthentication: { deploymentType: args.deploymentProtection },
-        }),
       },
       { parent: this }
     );

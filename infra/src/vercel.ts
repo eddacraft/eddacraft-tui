@@ -13,8 +13,9 @@ const licensePublicKey = getSecret('license-public-key');
 const docsStateSecret = getSecret('docs-state-secret');
 
 // DOCSAUTH2: upstream Docusaurus hosts. These are the auto-generated
-// .vercel.app hostnames (matching the project `name`). The shell rewrites
-// requests to these hosts and attaches a protection-bypass secret.
+// .vercel.app hostnames (matching the project `name`). The docs-shell
+// rewrites requests to these hosts and attaches a shared-secret header;
+// the upstreams enforce the header in routing middleware (Track B).
 const ANVIL_DOCS_PRIVATE_HOST = 'eddacraft-anvil-docs-private.vercel.app';
 const DOCS_PUBLIC_HOST = 'eddacraft-docs-public.vercel.app';
 
