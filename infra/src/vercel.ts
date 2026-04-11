@@ -71,7 +71,7 @@ export const anvilDocsPrivate = new VercelApp('anvil-docs-private', {
   gitRepo,
   domains: [],
   skipPreviewDeploys: true,
-  deploymentProtection: 'allDeployments',
+  deploymentProtection: 'all_deployments',
 });
 
 // DOCSAUTH2: Public docs (Kindling/APS/edda-stack/blog) — also locked behind
@@ -84,7 +84,7 @@ export const docsPublic = new VercelApp('docs-public', {
   gitRepo,
   domains: [],
   skipPreviewDeploys: true,
-  deploymentProtection: 'allDeployments',
+  deploymentProtection: 'all_deployments',
 });
 
 // DOCSAUTH2: Docs shell (Next.js) — public-facing, gates /anvil/* with
