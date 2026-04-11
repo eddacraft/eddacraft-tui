@@ -168,6 +168,7 @@ affects install commands, supported targets, or project status.
       ```bash
       gh release create vX.Y.Z --repo EddaCraft/anvil-001 --latest --notes-file <file>
       ```
+
 - [ ] `install.eddacraft.ai` serves `HTTP/2 200` with a valid cert and the
       install commands on the landing page match the published asset names
 
