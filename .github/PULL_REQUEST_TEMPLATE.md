@@ -18,11 +18,15 @@ Acceptance criteria checked:
 
 ## Test plan
 
-<!-- How was this tested? Check all that apply -->
+<!--
+How was this tested? Check all that apply.
+
+For "Manual testing", link to the APS work item `Validation:` field or a
+verification issue where the steps live. Ephemeral PR checklists rot; put the
+steps somewhere durable.
+-->
 
 - [ ] Unit tests added/updated
-- [ ] Manual testing — link to the APS work item `Validation:` field or a
-      verification issue where the steps live (ephemeral PR checklists rot; put
-      the steps somewhere durable)
+- [ ] Manual testing (link to durable steps — see comment above)
 - [ ] CI passes (lint, typecheck, test)
 - [ ] N/A (docs/config only)
