@@ -1,12 +1,12 @@
-# Anvil
+# anvil
 
 <p align="center">
-  <img src="apps/website/public/images/anvil-brandmark-ember.svg" alt="Anvil brandmark" width="120" />
+  <img src="apps/website/public/images/anvil-brandmark-ember.svg" alt="anvil brandmark" width="120" />
 </p>
 
-> **AI agents make software probabilistic. Anvil makes it deterministic.**
+> **AI agents make software probabilistic. anvil makes it deterministic.**
 
-Anvil enforces policy at generation time, not at review. It sits between
+anvil enforces policy at generation time, not at review. It sits between
 probabilistic AI agents and production code as a deterministic governance layer
 that catches architectural drift, anti-patterns, security risks, and policy
 violations **before they ever leave the developer's machine.**
@@ -26,16 +26,16 @@ violations **before they ever leave the developer's machine.**
 ```
 
 Measured 2026-04-03 against the Rust kernel via Criterion (100 samples, release
-build). Governance overhead is effectively zero — Anvil is in a different
+build). Governance overhead is effectively zero — anvil is in a different
 category from SAST, not a faster scanner.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/EddaCraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
 for marketing-ready proof points.
 
-## What Anvil is
+## What anvil is
 
-**Agentic engineering governance** — a category being defined right now. Anvil
+**Agentic engineering governance** — a category being defined right now. anvil
 is not a SAST scanner, not a linter, not an observability product, not a
 compliance dashboard. It is the governance layer that complements and constrains
 AI coding tools (Cursor, Copilot, Codex) in real time, in the developer workflow
@@ -82,7 +82,7 @@ deadline live in
 [![Rust](https://img.shields.io/badge/Rust-2024%20edition-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js->=24-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
-EddaCraft monorepo. Currently home to **Anvil** — a deterministic development
+eddacraft monorepo. Currently home to **anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
 save, before they reach code review.
 
@@ -102,9 +102,9 @@ Contributor workflow quick links:
 
 ## Vision
 
-Anvil ensures AI and humans cannot produce unsafe software.
+anvil ensures AI and humans cannot produce unsafe software.
 
-AI generates code, infrastructure, and decisions at unprecedented speed. Anvil
+AI generates code, infrastructure, and decisions at unprecedented speed. anvil
 acts as a deterministic governance layer in the developer workflow, intercepting
 and validating changes at the moment of creation.
 
@@ -131,7 +131,7 @@ and tooling.
 | `nx.json`                  | Nx task and workspace configuration                                        |
 | `rust-toolchain.toml`      | Pinned Rust toolchain for workspace crates                                 |
 | `dist-workspace.toml`      | `cargo-dist` release configuration for Rust binaries                       |
-| `.anvilrc`                 | Repository-level Anvil configuration                                       |
+| `.anvilrc`                 | Repository-level anvil configuration                                       |
 | `.node-version` / `.nvmrc` | Node version hints for CI and local tooling                                |
 
 ### Apps
@@ -144,7 +144,7 @@ and tooling.
 | `apps/anvil-api` | —                          | API service                                                                   | Vercel              |
 | `apps/e2e`       | —                          | End-to-end test suites (Playwright)                                           | —                   |
 
-### Packages — Anvil Core
+### Packages — anvil core
 
 | Directory                  | Package                      | Description                                               |
 | -------------------------- | ---------------------------- | --------------------------------------------------------- |
@@ -447,7 +447,10 @@ The Rust CLI is built for the following platforms via cargo-dist:
 | Linux    | x86_64                  | `anvil`     |
 | Linux    | aarch64                 | `anvil`     |
 | Windows  | x86_64                  | `anvil.exe` |
-| Windows  | aarch64                 | `anvil.exe` |
+
+> Windows aarch64 is not yet built — axoupdater has no prebuilt binary for that
+> target, so it is excluded from the `cargo-dist` matrix until upstream support
+> lands.
 
 ## CI/CD
 
@@ -468,8 +471,8 @@ The repository has several GitHub Actions workflows:
 - **codeql.yml** — GitHub CodeQL static analysis.
 - **rust.yml** — Rust CI (clippy, test, format).
 
-A reusable **Anvil Check** GitHub Action is also provided at
-`.github/actions/anvil-check/` for running Anvil analysis in your own workflows.
+A reusable **anvil check** GitHub Action is also provided at
+`.github/actions/anvil-check/` for running anvil analysis in your own workflows.
 
 ## Code Conventions
 
