@@ -24,8 +24,8 @@ All notable changes to Anvil are documented here.
 - **Platform support** — builds for x86_64 and aarch64 on macOS, Linux, and
   Windows (6 targets via cargo-dist).
 - **Ratatui TUI** — all 10 interactive surfaces (welcome, tutorial, watch,
-  wizard, status, doctor, init, audit, browser, gate) rebuilt using Ratatui
-  with the EddaCraft Terminal Standard design system.
+  wizard, status, doctor, init, audit, browser, gate) rebuilt using Ratatui with
+  the EddaCraft Terminal Standard design system.
 - **Structured exit codes** — `0` (pass), `1` (general error), `2` (gate
   failure), `3` (auth required), `4` (config error).
 - **Docs gating** — the `/anvil` documentation is now gated behind GitHub OAuth
@@ -45,11 +45,11 @@ All notable changes to Anvil are documented here.
 - **Beta authentication** — passwordless device-code and OTP flows with secure
   credential storage, session refresh with theft detection, and
   `anvil auth login` / `anvil admin approve` commands.
-- **New commands** — `anvil new` (template browser), `anvil wizard`
-  (interactive setup), `anvil audit` (security findings scan),
-  `anvil drift` (snapshot, compare, report, list),
-  `anvil validate` (APS plan validation), and `anvil gate-config` (gate
-  thresholds). `--json` output mode across all commands.
+- **New commands** — `anvil new` (template browser), `anvil wizard` (interactive
+  setup), `anvil audit` (security findings scan), `anvil drift` (snapshot,
+  compare, report, list), `anvil validate` (APS plan validation), and
+  `anvil gate-config` (gate thresholds). `--json` output mode across all
+  commands.
 - **MCP config generation** — library functions for generating MCP server
   configuration for Claude Code, Cursor, Windsurf, and VS Code.
 - **Kernel benchmarks** — criterion benchmarks and a stress test harness for
@@ -72,9 +72,8 @@ All notable changes to Anvil are documented here.
 - Log inputs sanitised to prevent log injection.
 - GitHub Action expression injection sanitised; all GitHub Actions pinned to
   commit SHAs.
-- Dependency patches: fast-xml-parser (CVE-2026-33036),
-  `@hono/node-server` (CVE-2026-39406), axios, picomatch, undici, yauzl,
-  rustls-webpki, and others.
+- Dependency patches: fast-xml-parser (CVE-2026-33036), `@hono/node-server`
+  (CVE-2026-39406), axios, picomatch, undici, yauzl, rustls-webpki, and others.
 
 ## [0.2.1-beta] - 2026-03-26
 

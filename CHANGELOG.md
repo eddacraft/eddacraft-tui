@@ -86,8 +86,8 @@ engineering maintenance are recorded in the
   - Engine mode flag for Rust/Legacy/Dual selection
   - Rayon parallel scanning for file walks
   - Architecture parity tests validating Rust engine against TypeScript baseline
-- **Kernel benchmarks** — criterion micro-benchmarks and stress test harness
-  for critical paths (`BENCH`)
+- **Kernel benchmarks** — criterion micro-benchmarks and stress test harness for
+  critical paths (`BENCH`)
   - Watcher saturation, graph memory, incremental throughput, policy scaling,
     and cold start scenarios
   - CI integration on main pushes and manual dispatch
@@ -181,8 +181,8 @@ engineering maintenance are recorded in the
 - oxlint adopted as first-pass linter, oxfmt replaces prettier
 - Criterion benchmarks added for kernel critical paths and wired into CI
 - Stress test harness for kernel benchmarking (`BENCH`)
-- Test coverage added for watch, doctor, export, auth device flow, status,
-  and audit commands (`TCOV`)
+- Test coverage added for watch, doctor, export, auth device flow, status, and
+  audit commands (`TCOV`)
 - 59 unit tests for under-covered anvil-cli modules
 - Integration test suite for checks crate
 - GitHub Actions bumped: checkout v6, setup-node v6, download-artifact v8,
