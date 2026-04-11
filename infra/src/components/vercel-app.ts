@@ -2,10 +2,10 @@ import * as vercel from '@pulumiverse/vercel';
 import * as pulumi from '@pulumi/pulumi';
 
 export type VercelDeploymentProtection =
-  | 'allDeployments'
-  | 'standardProtectionNew'
-  | 'standardProtection'
-  | 'onlyPreviewDeployments'
+  | 'all_deployments'
+  | 'standard_protection_new'
+  | 'standard_protection'
+  | 'only_preview_deployments'
   | 'none';
 
 export interface VercelAppArgs {
