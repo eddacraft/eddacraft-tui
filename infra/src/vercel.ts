@@ -61,9 +61,11 @@ export const api = new VercelApp('anvil-api', {
   },
 });
 
-// DOCSAUTH2: Anvil docs (private, Docusaurus) — locked behind deployment
-// protection, reached only via docs-shell rewrites with a bypass secret.
-// Declared before docsShell so its host string is in scope for shell env vars.
+// DOCSAUTH2: Anvil docs (private, Docusaurus). Vercel Authentication isn't
+// available on the current plan for production deployments, so these projects
+// stay publicly reachable at the Vercel level. Protection is enforced in app
+// code via a shared-secret header check in a routing middleware (Track B),
+// which the docs-shell rewrite injects on every upstream request.
 export const anvilDocsPrivate = new VercelApp('anvil-docs-private', {
   name: 'eddacraft-anvil-docs-private',
   framework: 'docusaurus-2',
@@ -71,12 +73,11 @@ export const anvilDocsPrivate = new VercelApp('anvil-docs-private', {
   gitRepo,
   domains: [],
   skipPreviewDeploys: true,
-  deploymentProtection: 'all_deployments',
 });
 
-// DOCSAUTH2: Public docs (Kindling/APS/edda-stack/blog) — also locked behind
-// deployment protection. Public-facing users reach it only via docs-shell;
-// direct .vercel.app hits return 401.
+// DOCSAUTH2: Public docs (Kindling/APS/edda-stack/blog). Same header-based
+// enforcement as anvilDocsPrivate — direct .vercel.app hits will 401 once the
+// upstream middleware lands in Track B.
 export const docsPublic = new VercelApp('docs-public', {
   name: 'eddacraft-docs-public',
   framework: 'docusaurus-2',
@@ -84,7 +85,6 @@ export const docsPublic = new VercelApp('docs-public', {
   gitRepo,
   domains: [],
   skipPreviewDeploys: true,
-  deploymentProtection: 'all_deployments',
 });
 
 // DOCSAUTH2: Docs shell (Next.js) — public-facing, gates /anvil/* with
