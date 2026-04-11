@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID        | Owner | Status    |
 | --------- | ----- | --------- |
-| TUIEXTRACT | —     | In Progress |
+| TUIEXTRACT | —     | Complete (crates.io v0.1.0) |
 
 ## Purpose
 

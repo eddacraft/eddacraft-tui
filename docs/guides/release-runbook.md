@@ -21,7 +21,7 @@ From repo root:
 ```bash
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
-cargo build --release -p anvil-cli
+cargo build --release -p eddacraft-anvil
 ./target/release/anvil --help
 ./target/release/anvil --version
 ```
@@ -190,7 +190,7 @@ Install on a clean machine (or container):
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
+  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 
 anvil --version
 anvil doctor
@@ -206,14 +206,14 @@ gh release view vX.Y.Z --repo EddaCraft/anvil
 
 Expected artefacts:
 
-- `anvil-cli-aarch64-apple-darwin.tar.xz`
-- `anvil-cli-x86_64-apple-darwin.tar.xz`
-- `anvil-cli-aarch64-unknown-linux-gnu.tar.xz`
-- `anvil-cli-x86_64-unknown-linux-gnu.tar.xz`
-- `anvil-cli-x86_64-pc-windows-msvc.zip`
-- `anvil-cli-aarch64-pc-windows-msvc.zip`
-- `anvil-cli-installer.sh`
-- `anvil-cli-installer.ps1`
+- `eddacraft-anvil-aarch64-apple-darwin.tar.xz`
+- `eddacraft-anvil-x86_64-apple-darwin.tar.xz`
+- `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
+- `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
+- `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
+- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
+- `eddacraft-anvil-installer.sh`
+- `eddacraft-anvil-installer.ps1`
 
 ---
 
@@ -333,7 +333,7 @@ Example:
 
 ```text
 Anvil CLI vX.Y.Z is live.
-Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
+Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 Login: anvil auth login
 ```
 

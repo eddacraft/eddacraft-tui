@@ -16,7 +16,7 @@ The Anvil CLI binary — structural governance for AI-assisted development.
 ## Usage
 
 ```bash
-cargo run -p anvil-cli -- --help
+cargo run -p eddacraft-anvil -- --help
 ```
 
 Produces the `anvil` binary (or `anvil.exe` on Windows) with 16+ subcommands

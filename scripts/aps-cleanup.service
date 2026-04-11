@@ -5,8 +5,8 @@ After=network-online.target
 [Service]
 Type=oneshot
 User=aneki
-WorkingDirectory=/home/aneki/src-morgan/anvil-001
-ExecStart=/home/aneki/src-morgan/anvil-001/scripts/aps-cleanup.sh --notify
-Environment=REPO=/home/aneki/src-morgan/anvil-001
+WorkingDirectory=%h/Projects/src/eddacraft
+ExecStart=%h/Projects/src/eddacraft/scripts/aps-cleanup.sh --notify
+Environment=REPO=%h/Projects/src/eddacraft
 StandardOutput=journal
 StandardError=journal

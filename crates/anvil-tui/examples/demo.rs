@@ -650,7 +650,7 @@ fn render_picker(
 // Shell integration helpers
 // ---------------------------------------------------------------------------
 
-fn surface_name(app: &DemoApp) -> &'static str {
+fn surface_name(app: &DemoApp) -> &str {
     match &app.surface {
         DemoSurface::Picker(_) => "p i c k e r",
         DemoSurface::Welcome(s) => s.surface_name(),
@@ -666,7 +666,7 @@ fn surface_name(app: &DemoApp) -> &'static str {
     }
 }
 
-fn help_text(app: &DemoApp) -> &'static str {
+fn help_text(app: &DemoApp) -> &str {
     match &app.surface {
         DemoSurface::Picker(_) => "j/k navigate  enter select  q quit",
         DemoSurface::Welcome(s) => s.help_text(),

@@ -151,7 +151,7 @@ Change status to **Ready** when:
 - **Files:**
   - `.github/workflows/rust.yml`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-policy` in CI runs OPA-dependent tests.
+- **Validation:** `cargo test -p eddacraft-anvil-policy` in CI runs OPA-dependent tests.
 - **Confidence:** high
 
 #### TFIX-005: cache OPA binary in CI

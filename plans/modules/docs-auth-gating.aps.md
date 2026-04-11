@@ -10,7 +10,7 @@ Scopes: DOCSAUTH (main)
 
 | ID       | Owner | Status      |
 | -------- | ----- | ----------- |
-| DOCSAUTH | —     | In Progress |
+| DOCSAUTH | —     | Complete (7/7) |
 
 ## Purpose
 
@@ -164,7 +164,7 @@ Change status to **Ready** when:
 
 ### DOCSAUTH-004: Store GitHub OAuth secrets in Key Vault
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Register a GitHub OAuth App under EddaCraft org and store the
   client ID, client secret, and ES256 public key in Azure Key Vault
   (`kv-iac-anvil`)
@@ -234,6 +234,6 @@ Change status to **Ready** when:
 | ----- | ----- | ------ |
 | 1 — BAUTH GitHub OAuth | 1 | Done |
 | 2 — Middleware + Auth Routes | 3 | Done |
-| 3 — Infrastructure | 2 | 1/2 done (DOCSAUTH-004 manual) |
+| 3 — Infrastructure | 2 | Done (DOCSAUTH-004 manual Key Vault step complete) |
 | 4 — Error Handling + UX | 1 | Done |
-| **Total** | **7** | **6/7 done** |
+| **Total** | **7** | **7/7 done** |

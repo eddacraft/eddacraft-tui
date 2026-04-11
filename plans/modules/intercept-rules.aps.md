@@ -53,7 +53,7 @@ analysis.
   workspace; a trait accepting a change batch reference and optional file
   content, returning an allow or interrupt decision with reason metadata; trait
   is object-safe for dynamic dispatch in the rule registry
-- **Validation:** `cargo test -p anvil-intercept-rules --lib trait`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib trait`
 - **Status:** Draft
 
 ### INTR-002: Secret Detection Wrapper
@@ -62,7 +62,7 @@ analysis.
   without duplicating the detection logic
 - **Expected Outcome:** A thin adapter that calls anvil-checks secret scanning
   on changed file content and maps findings to interrupt decisions
-- **Validation:** `cargo test -p anvil-intercept-rules --lib secret`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib secret`
 - **Status:** Draft
 
 ### INTR-003: Antipattern Scanning Wrapper
@@ -71,7 +71,7 @@ analysis.
   InterceptRule
 - **Expected Outcome:** A thin adapter that calls anvil-checks antipattern
   detection on changed file content and maps findings to interrupt decisions
-- **Validation:** `cargo test -p anvil-intercept-rules --lib antipattern`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib antipattern`
 - **Status:** Draft
 
 ### INTR-004: Path Deny List Rule
@@ -81,7 +81,7 @@ analysis.
 - **Expected Outcome:** A rule that evaluates changed file paths against a
   configurable deny list; matches produce an interrupt decision with the
   matching pattern and path
-- **Validation:** `cargo test -p anvil-intercept-rules --lib path_deny`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib path_deny`
 - **Status:** Draft
 
 ### INTR-005: Regex Content Rule
@@ -91,7 +91,7 @@ analysis.
 - **Expected Outcome:** A rule that applies compiled regex patterns against
   changed file content; matches produce an interrupt decision with the matching
   pattern and line context
-- **Validation:** `cargo test -p anvil-intercept-rules --lib regex_content`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib regex_content`
 - **Status:** Draft
 
 ### INTR-006: Rule Registry
@@ -102,7 +102,7 @@ analysis.
   implementations, evaluates them in order, and returns the first interrupt
   decision (or allow if all pass); supports observe-only mode where interrupt
   decisions are logged but not enforced
-- **Validation:** `cargo test -p anvil-intercept-rules --lib registry`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib registry`
 - **Status:** Draft
 
 ### INTR-007: Rule Configuration
@@ -114,5 +114,5 @@ analysis.
   falls back to sensible defaults (secret detection enabled, no custom deny
   lists); regex patterns compiled once at startup and cached for the lifetime
   of the rule instance
-- **Validation:** `cargo test -p anvil-intercept-rules --lib config`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib config`
 - **Status:** Draft

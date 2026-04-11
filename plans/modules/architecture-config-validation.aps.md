@@ -64,7 +64,7 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Files:**
   - `crates/anvil-kernel/src/policy/config_validator.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-kernel -- architecture_config_validator`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel -- architecture_config_validator`
 - **Confidence:** high
 
 ### ARCHCFG-002: Diagnostic mapping
@@ -76,7 +76,7 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Files:**
   - `crates/anvil-kernel/src/policy/config_diagnostics.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** ARCHCFG-001
-- **Validation:** `cargo test -p anvil-kernel -- architecture_config_diagnostics`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel -- architecture_config_diagnostics`
 - **Confidence:** medium
 
 ### ARCHCFG-003: CLI validation command
@@ -88,7 +88,7 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Files:**
   - `crates/anvil-cli/src/commands/architecture.rs` (validate subcommand, including colocated tests)
 - **Dependencies:** ARCHCFG-001, ARCHCFG-002
-- **Validation:** `cargo test -p anvil-cli -- architecture_validate`
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_validate`
 - **Confidence:** medium
 
 ### ARCHCFG-004: Gate preflight integration
@@ -100,7 +100,7 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Files:**
   - `crates/anvil-cli/src/commands/gate.rs` (preflight integration, including colocated tests)
 - **Dependencies:** ARCHCFG-001
-- **Validation:** `cargo test -p anvil-cli -- architecture_config_preflight`
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_config_preflight`
 - **Confidence:** medium
 
 ### ARCHCFG-005: Documentation and examples

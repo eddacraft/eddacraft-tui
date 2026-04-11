@@ -66,7 +66,7 @@ This gives teams using external AI tools a predictable safety harness.
 - **Files:**
   - `crates/anvil-cli/src/commands/gate.rs` (ai profile config, including colocated tests)
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-cli -- ai_guardrail_profile`
+- **Validation:** `cargo test -p eddacraft-anvil -- ai_guardrail_profile`
 - **Confidence:** medium
 
 ### AIGUARD-002: Structured diagnostics format
@@ -78,7 +78,7 @@ This gives teams using external AI tools a predictable safety harness.
 - **Files:**
   - `crates/anvil-kernel-types/src/diagnostics.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** AIGUARD-001
-- **Validation:** `cargo test -p anvil-kernel-types -- diagnostic_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- diagnostic_schema`
 - **Confidence:** medium
 
 ### AIGUARD-003: CLI profile integration
@@ -91,7 +91,7 @@ This gives teams using external AI tools a predictable safety harness.
   - `crates/anvil-cli/src/commands/gate.rs` (profile flag)
   - `crates/anvil-cli/src/commands/gate_test.rs`
 - **Dependencies:** AIGUARD-001, AIGUARD-002
-- **Validation:** `cargo test -p anvil-cli -- gate_profile`
+- **Validation:** `cargo test -p eddacraft-anvil -- gate_profile`
 - **Confidence:** medium
 
 ### AIGUARD-004: Documentation and examples

@@ -204,7 +204,7 @@ runs:
         TMPFILE=$(mktemp)
         trap 'rm -f "$TMPFILE"' EXIT
         curl --proto '=https' --tlsv1.2 -LsSf \
-          https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh \
+          https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh \
           -o "$TMPFILE"
         sh "$TMPFILE"
 

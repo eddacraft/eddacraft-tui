@@ -92,27 +92,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "anvil-architecture"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "glob",
- "hex",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.11.0",
- "tempfile",
- "thiserror 2.0.18",
- "walkdir",
-]
-
-[[package]]
 name = "anvil-bench"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
- "anvil-kernel-types",
  "criterion",
+ "eddacraft-anvil-kernel-types",
  "petgraph",
  "rand 0.10.0",
  "serde",
@@ -121,103 +105,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "anvil-checks"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "insta",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "anvil-cli"
-version = "0.1.0"
-dependencies = [
- "anvil-architecture",
- "anvil-checks",
- "anvil-kernel",
- "anvil-kernel-types",
- "anvil-policy",
- "anvil-tui",
- "anyhow",
- "chrono",
- "clap",
- "crossterm",
- "ctrlc",
- "dirs",
- "eddacraft-tui",
- "hex",
- "ratatui",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.11.0",
- "temp-env",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "toml",
- "walkdir",
- "wiremock",
-]
-
-[[package]]
-name = "anvil-kernel"
-version = "0.1.0"
-dependencies = [
- "anvil-kernel-types",
- "criterion",
- "insta",
- "notify",
- "num_cpus",
- "petgraph",
- "rayon",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tree-sitter",
- "tree-sitter-javascript",
- "tree-sitter-typescript",
- "walkdir",
-]
-
-[[package]]
-name = "anvil-kernel-types"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "anvil-policy"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "glob",
- "hex",
- "regex",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.11.0",
- "tempfile",
- "thiserror 2.0.18",
- "wait-timeout",
- "walkdir",
- "which",
-]
-
-[[package]]
 name = "anvil-spike"
-version = "0.1.0"
+version = "0.3.0-beta"
 dependencies = [
  "notify",
  "petgraph",
@@ -226,18 +115,6 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
-]
-
-[[package]]
-name = "anvil-tui"
-version = "0.1.0"
-dependencies = [
- "anvil-kernel-types",
- "crossterm",
- "eddacraft-tui",
- "insta",
- "ratatui",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -394,9 +271,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.59"
+version = "1.2.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7a4d3ec6524d28a329fc53654bbadc9bdd7b0431f5d65f1a56ffb28a1ee5283"
+checksum = "e1e928d4b69e3077709075a938a05ffbedfa53a84c8f766efbf8220bb1ff60e1"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -914,9 +791,133 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "eddacraft-anvil"
+version = "0.3.0-beta"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "crossterm",
+ "ctrlc",
+ "dirs",
+ "eddacraft-anvil-architecture",
+ "eddacraft-anvil-checks",
+ "eddacraft-anvil-kernel",
+ "eddacraft-anvil-kernel-types",
+ "eddacraft-anvil-policy",
+ "eddacraft-anvil-tui",
+ "eddacraft-tui",
+ "hex",
+ "ratatui",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.11.0",
+ "temp-env",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml",
+ "walkdir",
+ "wiremock",
+]
+
+[[package]]
+name = "eddacraft-anvil-architecture"
+version = "0.3.0-beta"
+dependencies = [
+ "chrono",
+ "glob",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror 2.0.18",
+ "walkdir",
+]
+
+[[package]]
+name = "eddacraft-anvil-checks"
+version = "0.3.0-beta"
+dependencies = [
+ "criterion",
+ "insta",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "eddacraft-anvil-kernel"
+version = "0.3.0-beta"
+dependencies = [
+ "criterion",
+ "eddacraft-anvil-kernel-types",
+ "insta",
+ "notify",
+ "num_cpus",
+ "petgraph",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tree-sitter",
+ "tree-sitter-javascript",
+ "tree-sitter-typescript",
+ "walkdir",
+]
+
+[[package]]
+name = "eddacraft-anvil-kernel-types"
+version = "0.3.0-beta"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "eddacraft-anvil-policy"
+version = "0.3.0-beta"
+dependencies = [
+ "chrono",
+ "glob",
+ "hex",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror 2.0.18",
+ "wait-timeout",
+ "walkdir",
+ "which",
+]
+
+[[package]]
+name = "eddacraft-anvil-tui"
+version = "0.3.0-beta"
+dependencies = [
+ "crossterm",
+ "eddacraft-anvil-kernel-types",
+ "eddacraft-tui",
+ "insta",
+ "ratatui",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "eddacraft-tui"
 version = "0.1.0"
-source = "git+https://github.com/eddacraft/eddacraft-tui.git?rev=9e65ca55e9ec43074fbe77db26dd33a5e12328d3#9e65ca55e9ec43074fbe77db26dd33a5e12328d3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcd9b63dda5a9d61cf779bf3223c87c39ba44590c35381e467356d42ecf701d6"
 dependencies = [
  "crossterm",
  "ratatui",
@@ -972,9 +973,9 @@ dependencies = [
 
 [[package]]
 name = "fastrand"
-version = "2.4.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
+checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "filedescriptor"
@@ -1522,9 +1523,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.13.1"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a8a2b9cb3e0b0c1803dbb0758ffac5de2f425b23c28f518faabd9d805342ff"
+checksum = "7714e70437a7dc3ac8eb7e6f8df75fd8eb422675fc7678aff7364301092b1017"
 dependencies = [
  "equivalent",
  "hashbrown 0.16.1",
@@ -2766,9 +2767,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.28"
+version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
 name = "serde"
@@ -3205,9 +3206,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.51.1"
+version = "1.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f66bf9585cda4b724d3e78ab34b73fb2bbaba9011b9bfdf69dc836382ea13b8c"
+checksum = "27ad5e34374e03cfffefc301becb44e9dc3c17584f414349ebe29ed26661822d"
 dependencies = [
  "bytes",
  "libc",
@@ -3222,9 +3223,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.7.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496"
+checksum = "5c55a2eff8b69ce66c84f85e1da1c233edc36ceb85a2058d11b0d6a3c7e7569c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3256,9 +3257,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "1.1.2+spec-1.1.0"
+version = "1.1.1+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81f3d15e84cbcd896376e6730314d59fb5a87f31e4b038454184435cd57defee"
+checksum = "994b95d9e7bae62b34bab0e2a4510b801fa466066a6a8b2b57361fa1eba068ee"
 dependencies = [
  "indexmap",
  "serde_core",
@@ -3280,9 +3281,9 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
-version = "1.1.2+spec-1.1.0"
+version = "1.1.1+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2abe9b86193656635d2411dc43050282ca48aa31c2451210f4202550afb7526"
+checksum = "39ca317ebc49f06bd748bfba29533eac9485569dc9bf80b849024b025e814fb9"
 dependencies = [
  "winnow",
 ]
@@ -4195,9 +4196,9 @@ dependencies = [
 
 [[package]]
 name = "writeable"
-version = "0.6.3"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
+checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "yoke"

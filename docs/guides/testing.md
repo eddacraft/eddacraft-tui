@@ -16,10 +16,10 @@ npx nx test adapters --testNamePattern="BMAD"  # Run matching tests
 
 # Rust
 cargo test --workspace       # Run all Rust tests
-cargo test -p anvil-kernel   # Test specific crate
-cargo test -p anvil-checks -- secret  # Filter by test name
+cargo test -p eddacraft-anvil-kernel   # Test specific crate
+cargo test -p eddacraft-anvil-checks -- secret  # Filter by test name
 cargo insta review           # Review snapshot changes
-cargo bench -p anvil-checks  # Run criterion benchmarks
+cargo bench -p eddacraft-anvil-checks  # Run criterion benchmarks
 ```
 
 ---
@@ -371,9 +371,9 @@ vi.spyOn(console, 'log').mockImplementation(() => {});
 
 ```bash
 cargo test --workspace                      # All crates
-cargo test -p anvil-kernel                  # Single crate
-cargo test -p anvil-checks -- secret        # Filter by name
-INSTA_UPDATE=1 cargo test -p anvil-kernel   # Update snapshots
+cargo test -p eddacraft-anvil-kernel                  # Single crate
+cargo test -p eddacraft-anvil-checks -- secret        # Filter by name
+INSTA_UPDATE=1 cargo test -p eddacraft-anvil-kernel   # Update snapshots
 cargo insta review                          # Interactive snapshot review
 ```
 
@@ -401,8 +401,8 @@ Performance-critical crates (`anvil-checks`, `anvil-kernel`, `anvil-bench`) use
 [criterion](https://bheisler.github.io/criterion.rs/) for benchmarks.
 
 ```bash
-cargo bench -p anvil-checks                 # Run check benchmarks
-cargo bench -p anvil-kernel                 # Run kernel benchmarks
+cargo bench -p eddacraft-anvil-checks                 # Run check benchmarks
+cargo bench -p eddacraft-anvil-kernel                 # Run kernel benchmarks
 ```
 
 Benchmark results are output as HTML reports in `target/criterion/`.

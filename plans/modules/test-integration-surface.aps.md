@@ -137,7 +137,7 @@ Change status to **Ready** when:
 
 - **Intent:** The E2E harness needs the built Rust binary. Add a step to build
   it (or use a cached artifact) before E2E tests run.
-- **Expected Outcome:** `cargo build --release -p anvil-cli` runs before E2E;
+- **Expected Outcome:** `cargo build --release -p eddacraft-anvil` runs before E2E;
   binary path injected via env var.
 - **Files:**
   - `.github/workflows/ci.yml`
@@ -206,7 +206,7 @@ Change status to **Ready** when:
   - `crates/anvil-tui/src/snapshots/` (golden snapshot files)
   - `crates/anvil-tui/src/**` (TUI modules with snapshot-based tests)
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-tui -- snapshot` passes; `cargo insta
+- **Validation:** `cargo test -p eddacraft-anvil-tui -- snapshot` passes; `cargo insta
   review` shows clean diffs on intentional changes.
 - **Confidence:** high
 

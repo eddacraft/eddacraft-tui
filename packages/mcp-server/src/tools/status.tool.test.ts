@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { registerStatusTool } from './status.tool.js';
+import { SERVER_VERSION } from '../server.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -136,7 +137,7 @@ describe('anvil_status tool', () => {
 
       expect(parsed.status).toBe('ok');
       expect(parsed.workspaceRoot).toBe(workspaceRoot);
-      expect(parsed.version).toBe('0.1.0');
+      expect(parsed.version).toBe(SERVER_VERSION);
       expect(parsed.hasBaseline).toBe(true);
       expect(parsed.availableChecks).toEqual(
         expect.arrayContaining(['eslint', 'coverage', 'secret'])

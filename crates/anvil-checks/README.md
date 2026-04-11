@@ -13,7 +13,7 @@ evaluation in the Anvil kernel.
 ## Benchmarks
 
 ```bash
-cargo bench -p anvil-checks
+cargo bench -p eddacraft-anvil-checks
 ```
 
 Benchmarks live in `benches/checks.rs`.

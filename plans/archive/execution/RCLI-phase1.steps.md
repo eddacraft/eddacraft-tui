@@ -288,10 +288,10 @@ now use the full area for content only. The shell handles chrome.
 
 - [ ] **Step C6: Verify everything compiles and tests pass**
 
-Run: `cargo test -p anvil-tui -p eddacraft-tui`
+Run: `cargo test -p eddacraft-anvil-tui -p eddacraft-tui`
 Expected: all tests pass
 
-Run: `cargo clippy -p anvil-tui -p eddacraft-tui --all-targets`
+Run: `cargo clippy -p eddacraft-anvil-tui -p eddacraft-tui --all-targets`
 Expected: zero new warnings
 
 - [ ] **Step C7: Commit**
@@ -333,7 +333,7 @@ Add `mod tui;` to `crates/anvil-cli/src/main.rs`.
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cargo check -p anvil-cli`
+Run: `cargo check -p eddacraft-anvil`
 Expected: compiles (tui.rs is a module but not yet called from main)
 
 - [ ] **Step 4: Commit**
@@ -447,7 +447,7 @@ pub fn run(args: Args, global: &crate::GlobalArgs) -> anyhow::Result<()> {
 
 - [ ] **Step 6: Verify the full binary works**
 
-Run: `cargo build -p anvil-cli`
+Run: `cargo build -p eddacraft-anvil`
 Expected: produces `target/debug/anvil` binary
 
 Run: `target/debug/anvil --help`
@@ -461,7 +461,7 @@ Expected: exits with "error: not yet implemented"
 
 - [ ] **Step 7: Verify clippy passes**
 
-Run: `cargo clippy -p anvil-cli --all-targets`
+Run: `cargo clippy -p eddacraft-anvil --all-targets`
 Expected: zero warnings
 
 - [ ] **Step 8: Commit**

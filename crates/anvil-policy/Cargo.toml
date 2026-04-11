@@ -1,9 +1,12 @@
 [package]
-name = "anvil-policy"
+name = "eddacraft-anvil-policy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Anvil policy engine — evaluation, library loading, policy lifecycle"
+
+[lib]
+name = "anvil_policy"
 
 [dependencies]
 serde = { workspace = true }

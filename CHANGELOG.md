@@ -6,7 +6,7 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
-## [Unreleased]
+## [0.3.0-beta] — Rust CLI & Native Engine
 
 ### Added
 
@@ -27,6 +27,8 @@ engineering maintenance are recorded in the
   - `anvil validate` — APS plan file validation (structure, format, hashes)
   - `anvil gate-config` — gate check configuration and thresholds
   - `--json` output mode across all commands with structured error reporting
+  - `--confidence` and `--since` filters on edda list
+  - Node.js CLI archived to `archive/` — single binary, no runtime dependency
 - **Beta authentication system** — passwordless device-code and OTP
   authentication for beta users (`BAUTH`)
   - Device code start, confirm, and poll endpoints
@@ -37,6 +39,23 @@ engineering maintenance are recorded in the
   - Auth auto-refresh in CLI
   - Device code confirmation page on website
   - Beta invite and OTP code email templates
+  - Resend audience management for waitlist
+- **Docs auth gating** — `/anvil` docs gated behind GitHub OAuth via Vercel
+  middleware (`DOCSAUTH`)
+  - GitHub OAuth callback in BAUTH API
+  - Vercel routing middleware with stateless ES256 JWT verification
+  - Login, callback, and logout serverless functions
+  - Pending approval and error pages for edge cases
+  - Pulumi env vars for Key Vault secrets
+- **Welcome screen & onboarding** — first-run detection with interactive
+  onboarding experience (`WELCOME`)
+  - First-run detection service anchored to workspace root
+  - Onboarding welcome surface with discovery mode
+  - Executable tutorial steps with live file watching demo
+  - Fix step with dual-mode editing
+  - Hook installer guidance
+  - Gate and watch accessible from welcome menu
+  - `ANVIL_DEV=1` bypass for local development testing
 - **Ratatui TUI surfaces** — native terminal UI replacing Ink/React (`RATS`,
   `PORT`)
   - Welcome screen with brand block logo and watermark
@@ -48,6 +67,7 @@ engineering maintenance are recorded in the
   - Shell chrome with surface-specific help text and footer
   - Esc/back navigation from all surfaces
   - Loading frame during surface transitions
+  - Render snapshot tests for all surfaces
 - **Rust kernel** — native core engine with file watching, parsing, and graph
   analysis (`KERN`)
   - File watcher with debounce and backpressure
@@ -64,10 +84,15 @@ engineering maintenance are recorded in the
   - Embedded mode for one-shot checks
   - Dual-run harness for engine comparison
   - Engine mode flag for Rust/Legacy/Dual selection
-- **Kernel benchmarks** — criterion micro-benchmarks for critical paths
-  (`BENCH`)
+  - Rayon parallel scanning for file walks
+  - Architecture parity tests validating Rust engine against TypeScript baseline
+- **Kernel benchmarks** — criterion micro-benchmarks and stress test harness for
+  critical paths (`BENCH`)
+  - Watcher saturation, graph memory, incremental throughput, policy scaling,
+    and cold start scenarios
+  - CI integration on main pushes and manual dispatch
 - **@eddacraft/json-render** — JSON-driven dashboard rendering package for
-  declarative UI specs
+  declarative UI specs with 3 dashboard spec templates
 - **Rust engine checks** — native secret detection, anti-pattern detection, and
   command safety validation ported to Rust (`RENG`)
 - **Distribution pipeline** — cross-platform binary releases via cargo-dist
@@ -78,25 +103,35 @@ engineering maintenance are recorded in the
   - Homebrew tap (`brew install eddacraft/tap/anvil`)
   - Built-in self-updater (`anvil-update`)
   - Cross-repo release workflow publishing to `EddaCraft/anvil`
+- **Scan filter** — test fixture exclusion from check scans (`WELCOME-004`)
 - **OPA v1 and Regal linting in CI** — Rego policies migrated to OPA v1 syntax,
   Regal linter added to Rust workflow (`TFIX-003`, `TFIX-004`)
 - **Waitlist migration email** — bulk invite existing waitlist users with
-  migration email template
+  migration email template and personalised sign-off
 
 ### Improved
 
 - Shared packages restructured per ADR-015 (flattened `packages/shared/` into
   `packages/platform/`)
-- eddacraft-tui extracted to external git dependency for reuse across projects
+- eddacraft-tui extracted to crates.io v0.1.0 for reuse across projects
+  (`TUIEXTRACT`)
+- Crate namespace renamed to `eddacraft-anvil-*` for crates.io publishing
 - TUI welcome screen layout adapts to small terminals (24-row minimum)
 - TUI position indicator only shown when Issues panel is focused
-- TUI audit list viewport scrolling
+- TUI audit list viewport scrolling with inline expansion
 - Watch mode excludes ignored directories from OS-level file watches
 - Watch collections capped to prevent unbounded memory growth
 - Pass rate calculation corrected (no double-counting)
 - File walker prunes ignored directories during traversal
 - Graph uses deterministic ordering for import resolution
 - External trust level preserved correctly in trust annotation
+- Architecture baseline output is deterministic (BTreeMap ordering)
+- Workspace root computed once per gate run (performance)
+- Vercel preview deploys skipped on non-main branches
+- Branding updated to lowercase `anvil` and `eddacraft`
+- Public docs aligned with Rust CLI: install commands, CI config,
+  troubleshooting all updated for native binary (`DOCSYNC`)
+- Node.js/npm references removed from all public documentation
 
 ### Fixed
 
@@ -109,21 +144,34 @@ engineering maintenance are recorded in the
 - Side-effect module imports handled properly
 - `PrivilegeExpansion` suppressed for already-privileged symbols
 - Baseline policy evaluation runs before first watch snapshot
+- Atomic file writes use secure permissions at creation, not after
+- TOCTOU races removed in directory and file creation
+- First-run marker anchored to workspace root (not CWD)
+- Import edge line numbers propagated from parser
+- Watch coverage file filter leak fixed (no more coverage/ artifacts)
+- Watch event adapter double-counting and unbounded queue growth fixed
+- Divergent `main`/`dev` branch histories reconciled (`BRECON`)
 
 ### Security
 
 - Device-code and OTP authentication hardened with theft detection on session
   refresh
+- Docs auth gating prevents unauthenticated access to `/anvil` documentation
 - Licence signing guards against NaN TTL values
 - API returns 500 on refresh signing errors instead of `valid:false`
 - Log inputs sanitised to prevent log injection
 - GitHub Action expression injection sanitised in anvil-check action
 - All GitHub Actions pinned to commit SHAs
+- CI release workflow hardened from council review
+- Atomic credential file writes with restrictive permissions
 - Dependency patches:
   - fast-xml-parser >= 5.5.6 (`CVE-2026-33036`)
+  - @hono/node-server >= 1.19.13 (`CVE-2026-39406`)
+  - axios >= 1.15.0
   - picomatch and smol-toml overrides for CVE fixes
   - undici and yauzl security patches
   - flatted and socket.io-parser overrides
+  - rustls-webpki bumped to 0.103.10
 
 ### Developer
 
@@ -131,11 +179,21 @@ engineering maintenance are recorded in the
 - Node engine floor raised to >= 22
 - Rust toolchain bumped to 1.94.0 with Windows and macOS cross-compilation
 - oxlint adopted as first-pass linter, oxfmt replaces prettier
-- Criterion benchmarks added for kernel critical paths
+- Criterion benchmarks added for kernel critical paths and wired into CI
+- Stress test harness for kernel benchmarking (`BENCH`)
+- Test coverage added for watch, doctor, export, auth device flow, status, and
+  audit commands (`TCOV`)
+- 59 unit tests for under-covered anvil-cli modules
+- Integration test suite for checks crate
 - GitHub Actions bumped: checkout v6, setup-node v6, download-artifact v8,
-  nx-set-shas v5
+  nx-set-shas v5, labeler v6, azure/login v3, pnpm/action-setup v5
 - Unused CI jobs removed (Playwright, e2e-harness, tui-tests)
 - Benchmarks restricted to main pushes and manual dispatch
+- CodeQL workflow added with paths-ignore
+- Docusaurus upgraded to 3.10
+- Dependency bumps: criterion 0.8, reqwest 0.13, dirs 6, Vite 8
+- ADR-015 (shared packages restructure) and ADR-016 (unified config format)
+  published
 
 ## [0.2.1-beta] — Project Memory & Pattern Detection
 
@@ -266,8 +324,8 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
-[Unreleased]:
-  https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta.0...HEAD
+[0.3.0-beta]:
+  https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta...v0.3.0-beta
 [0.2.1-beta]:
   https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.1-beta
 [0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3

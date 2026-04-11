@@ -33,15 +33,19 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 ### What's New
 
-- **Native binary** — 5-10x faster scanning, 80% less memory in watch mode, no
+- **Native binary** — 5–10x faster scanning, 80% less memory in watch mode, no
   Node.js dependency.
 - **Kernel engine** — persistent daemon with incremental parsing and real-time
   semantic graph updates.
 - **Ratatui TUI** — rebuilt interactive surfaces with the EddaCraft Terminal
   Standard design system.
+- **Welcome & onboarding** — first-run interactive experience; run
+  `anvil welcome` anytime.
+- **New commands** — `anvil new`, `anvil wizard`, `anvil audit`, `anvil drift`,
+  `anvil validate`, `anvil gate-config`.
 - **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail), `3`
   (auth required), `4` (config error).
-- **Cross-platform auth** — device-flow authentication with OS keychain storage.
+- **Beta auth** — device-flow and OTP authentication with OS keychain storage.
 
 ### Breaking Changes
 
@@ -49,6 +53,9 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
   the install script or Homebrew.
 - **CI workflows** — replace `pnpm anvil` / `npx anvil` with direct `anvil`
   calls. Remove Node.js setup steps if Anvil was the only reason they existed.
+- **Docs access** — the `/anvil` documentation is now gated behind GitHub OAuth
+  for beta users. Sign in with the GitHub account tied to your beta invite.
+  Public EddaCraft docs (APS, Kindling, edda-stack) remain open.
 
 ## Upgrading to 0.2.1-beta
 

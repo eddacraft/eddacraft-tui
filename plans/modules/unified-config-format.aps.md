@@ -91,7 +91,7 @@ New `crates/anvil-config/` crate with the unified config type and
 - **Status:** Proposed
 - **Intent:** Create `crates/anvil-config/` with `Cargo.toml`, workspace
   registration, `lib.rs` stub. Dependencies: `serde`, `toml`, `thiserror`
-- **Expected Outcome:** `cargo check -p anvil-config` passes
+- **Expected Outcome:** `cargo check -p eddacraft-anvil-config` passes
 - **Validation:** Workspace builds cleanly with the new crate
 - **Files:** `Cargo.toml`, `crates/anvil-config/Cargo.toml`,
   `crates/anvil-config/src/lib.rs`
@@ -113,7 +113,7 @@ New `crates/anvil-config/` crate with the unified config type and
   `options`)
 - **Expected Outcome:** All config types derive `Serialize + Deserialize` with
   snake_case. Round-trip test: struct → TOML string → struct
-- **Validation:** `cargo test -p anvil-config` passes with round-trip tests
+- **Validation:** `cargo test -p eddacraft-anvil-config` passes with round-trip tests
 - **Files:** `crates/anvil-config/src/types.rs`,
   `crates/anvil-config/src/types.test.rs`
 - **Confidence:** High

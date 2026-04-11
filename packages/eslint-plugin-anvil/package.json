@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-anvil",
-  "version": "0.1.0",
+  "version": "0.3.0-beta",
   "description": "ESLint rules for Anvil test quality enforcement",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

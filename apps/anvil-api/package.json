@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-api",
-  "version": "0.1.0",
+  "version": "0.3.0-beta",
   "description": "Beta access API for Anvil — Hono on Vercel with Neon Postgres",
   "type": "module",
   "main": "./dist/index.js",

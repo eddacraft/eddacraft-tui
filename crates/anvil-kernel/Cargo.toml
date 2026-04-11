@@ -1,12 +1,15 @@
 [package]
-name = "anvil-kernel"
+name = "eddacraft-anvil-kernel"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Anvil Rust kernel — watcher, parser, semantic graph, policy engine"
 
+[lib]
+name = "anvil_kernel"
+
 [dependencies]
-anvil-kernel-types = { path = "../anvil-kernel-types" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 tree-sitter-javascript = { workspace = true }

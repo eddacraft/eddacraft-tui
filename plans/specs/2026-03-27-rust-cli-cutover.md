@@ -130,7 +130,7 @@ fn test_legacy_load_triggers_migration_copy() {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo test -p anvil-cli -- test_load_from_legacy -v`
+Run: `cargo test -p eddacraft-anvil -- test_load_from_legacy -v`
 Expected: FAIL — `load_from_paths` and `load_from_env` don't exist yet.
 
 - [ ] **Step 3: Implement credential fallback and migration**
@@ -230,7 +230,7 @@ fn migrate_to_xdg(creds: &Credentials, xdg_dir: &Path) -> Result<()> {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cargo test -p anvil-cli -- test_load_from -v`
+Run: `cargo test -p eddacraft-anvil -- test_load_from -v`
 Expected: All 5 new tests PASS.
 
 - [ ] **Step 5: Run full workspace test suite**
@@ -328,7 +328,7 @@ Note: For this to compile, the args structs need `Default` derives. If they don'
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo test -p anvil-cli -- test_requires_auth -v`
+Run: `cargo test -p eddacraft-anvil -- test_requires_auth -v`
 Expected: FAIL — `requires_auth` doesn't exist.
 
 - [ ] **Step 3: Implement requires_auth and pre-dispatch check**
@@ -392,7 +392,7 @@ if requires_auth(&cli.command) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cargo test -p anvil-cli -- test_requires_auth -v`
+Run: `cargo test -p eddacraft-anvil -- test_requires_auth -v`
 Expected: All 12 tests PASS.
 
 - [ ] **Step 5: Run full workspace tests**
@@ -469,7 +469,7 @@ fn test_coverage_check_no_report_skips() {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo test -p anvil-cli -- test_coverage_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_coverage_check -v`
 Expected: FAIL — `run_check_coverage` doesn't exist.
 
 - [ ] **Step 3: Implement coverage check**
@@ -574,7 +574,7 @@ Then replace the coverage stub in `run_single_check`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cargo test -p anvil-cli -- test_coverage_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_coverage_check -v`
 Expected: All 3 PASS.
 
 - [ ] **Step 5: Commit**
@@ -614,7 +614,7 @@ fn test_dependency_check_no_lockfile_skips() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p anvil-cli -- test_dependency_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_dependency_check -v`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement dependency check**
@@ -680,7 +680,7 @@ Replace dependency stub: `"dependency" => run_check_dependency(&std::env::curren
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test -p anvil-cli -- test_dependency_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_dependency_check -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -721,7 +721,7 @@ fn test_architecture_check_with_valid_config() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p anvil-cli -- test_architecture_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_architecture_check -v`
 Expected: FAIL.
 
 - [ ] **Step 3: Add minimal validate() to anvil-architecture crate**
@@ -831,7 +831,7 @@ Replace architecture stub: `"architecture" => run_check_architecture(&std::env::
 
 - [ ] **Step 5: Run tests**
 
-Run: `cargo test -p anvil-cli -- test_architecture_check -v && cargo test -p anvil-architecture -v`
+Run: `cargo test -p eddacraft-anvil -- test_architecture_check -v && cargo test -p eddacraft-anvil-architecture -v`
 Expected: All PASS.
 
 - [ ] **Step 6: Commit**
@@ -857,7 +857,7 @@ fn test_policy_check_no_bundle_skips() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p anvil-cli -- test_policy_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_policy_check -v`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement policy check**
@@ -923,7 +923,7 @@ Replace policy stub: `"policy" => run_check_policy(&std::env::current_dir()?),`
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test -p anvil-cli -- test_policy_check -v`
+Run: `cargo test -p eddacraft-anvil -- test_policy_check -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -983,7 +983,7 @@ mod tests {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo test -p anvil-cli -- test_json_flag -v`
+Run: `cargo test -p eddacraft-anvil -- test_json_flag -v`
 Expected: FAIL — `OutputMode` doesn't exist.
 
 - [ ] **Step 3: Implement OutputMode**
@@ -1054,7 +1054,7 @@ mod tests {
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test -p anvil-cli -- test_json_flag -v`
+Run: `cargo test -p eddacraft-anvil -- test_json_flag -v`
 Expected: All 5 PASS.
 
 - [ ] **Step 5: Integrate OutputMode into gate command**
@@ -1177,7 +1177,7 @@ Note: Place gate and watch first — they're the primary workflow commands.
 
 - [ ] **Step 2: Verify the TUI renders correctly**
 
-Run: `cargo build -p anvil-cli && ./target/debug/anvil start`
+Run: `cargo build -p eddacraft-anvil && ./target/debug/anvil start`
 Expected: Welcome menu shows 6 items with gate and watch at the top. Arrow keys navigate. Esc exits.
 
 - [ ] **Step 3: Wire gate dispatch in welcome hub**
@@ -1217,7 +1217,7 @@ Note: The exact function names (`collect_gate_data`, `spawn_watcher`) may differ
 
 - [ ] **Step 4: Test manually**
 
-Run: `cargo build -p anvil-cli && ./target/debug/anvil start`
+Run: `cargo build -p eddacraft-anvil && ./target/debug/anvil start`
 
 1. Select "Run quality gate" → gate surface should launch
 2. Press Esc → should return to welcome menu
