@@ -26,6 +26,6 @@ export default function middleware(request: Request): Response | undefined {
 }
 
 export const config = {
-  runtime: 'nodejs' as const,
+  runtime: 'nodejs',
   matcher: ['/((?!favicon\\.ico).*)'],
 };

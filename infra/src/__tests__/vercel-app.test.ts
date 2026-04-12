@@ -45,20 +45,19 @@ describe('VercelApp component', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
-    it('gates on non-empty VERCEL_GIT_COMMIT_REF before skipping', () => {
+    it('passes --skip-preview flag to the ignore script', () => {
       const cmd = getProjectIgnoreCommand('skip-preview');
-      expect(cmd).toContain('-n "$VERCEL_GIT_COMMIT_REF"');
+      expect(cmd).toContain('vercel-ignore-build.sh --skip-preview apps/web');
     });
 
-    it('compares against default production branch (main)', () => {
+    it('does not pass --prod-branch when using default (main)', () => {
       const cmd = getProjectIgnoreCommand('skip-preview');
-      expect(cmd).toContain('"$VERCEL_GIT_COMMIT_REF" != "main"');
+      expect(cmd).not.toContain('--prod-branch');
     });
 
-    it('falls through to file-check command after the branch gate', () => {
+    it('starts with cd to repo root', () => {
       const cmd = getProjectIgnoreCommand('skip-preview');
-      expect(cmd).toContain('fi && cd $(git rev-parse --show-toplevel)');
-      expect(cmd).toContain('vercel-ignore-build.sh apps/web');
+      expect(cmd).toMatch(/^cd \$\(git rev-parse --show-toplevel\) && bash/);
     });
   });
 
@@ -103,9 +102,9 @@ describe('VercelApp component', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
-    it('uses the custom branch in the gate check', () => {
+    it('passes --prod-branch flag with the custom branch', () => {
       const cmd = getProjectIgnoreCommand('custom-branch');
-      expect(cmd).toContain('"$VERCEL_GIT_COMMIT_REF" != "release/stable"');
+      expect(cmd).toContain('--skip-preview --prod-branch release/stable');
     });
   });
 
