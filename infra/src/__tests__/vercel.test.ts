@@ -57,12 +57,10 @@ describe('Vercel resources', () => {
   it('creates Vercel Project resources for all apps', () => {
     const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
 
-    expect(projects.length).toBe(6);
+    expect(projects.length).toBe(4);
     expect(projects.map((p) => p.name)).toContain('website');
     expect(projects.map((p) => p.name)).toContain('docs-site');
     expect(projects.map((p) => p.name)).toContain('anvil-api');
-    expect(projects.map((p) => p.name)).toContain('anvil-docs-private');
-    expect(projects.map((p) => p.name)).toContain('docs-public');
     expect(projects.map((p) => p.name)).toContain('docs-shell');
   });
 
