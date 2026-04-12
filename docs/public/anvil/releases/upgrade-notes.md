@@ -26,7 +26,7 @@ brew upgrade eddacraft/tap/anvil
 anvil-update
 ```
 
-### What's New in 0.3.1
+### What's New in 0.3.1-beta
 
 - **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated proxy
   with shared-secret middleware.
