@@ -29,7 +29,7 @@ anvil-update
 ### What's New in 0.3.1-beta
 
 - **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated proxy
-  with a nordic terminal-themed landing page.
+  with a Nordic terminal-themed landing page.
 - **Welcome screen fixes** — first-user onboarding flows restored after
   regressions in 0.3.0-beta.
 - **Auth error messages** — clearer error messages during login and device-code

@@ -12,7 +12,7 @@ engineering maintenance are recorded in the
 
 - **Docs domain cutover** — `docs.eddacraft.ai` now served via a docs-shell
   proxy with shared-secret middleware protecting upstream apps (`DOCSAUTH2`)
-- **Docs landing page** — nordic terminal-themed hub at `docs.eddacraft.ai` with
+- **Docs landing page** — Nordic terminal-themed hub at `docs.eddacraft.ai` with
   navigation to public and gated documentation sections
 
 ### Fixed
