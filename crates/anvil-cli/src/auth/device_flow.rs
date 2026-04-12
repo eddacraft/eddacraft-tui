@@ -75,7 +75,7 @@ fn build_client() -> Result<reqwest::Client> {
 /// Convert an HTTP error status into a user-friendly message.
 fn friendly_http_error(status: reqwest::StatusCode, context: &str) -> String {
     match status.as_u16() {
-        401 => format!("{context}: invalid or expired credentials. Please try again."),
+        401 => format!("{context}: authorisation failed. Please try again."),
         403 => format!("{context}: access denied. Check that your account is approved."),
         404 => format!("{context}: auth service not found. Check your ANVIL_API_URL setting."),
         429 => format!("{context}: too many requests. Please wait a moment and try again."),
@@ -118,7 +118,7 @@ async fn device_start(
         .json(&DeviceStartRequest { email })
         .send()
         .await
-        .context("Could not reach the auth server. Check your network connection.")?;
+        .map_err(|_| anyhow::anyhow!("Could not reach the auth server. Check your network connection."))?;
     check_status(resp, "Login failed")?
         .json()
         .await
@@ -135,7 +135,7 @@ async fn device_poll(
         .json(&DevicePollRequest { poll_token })
         .send()
         .await
-        .context("Could not reach the auth server while checking login status.")?;
+        .map_err(|_| anyhow::anyhow!("Could not reach the auth server while checking login status."))?;
     check_status(resp, "Login check failed")?
         .json()
         .await
@@ -152,7 +152,7 @@ async fn otp_request(
         .json(&OtpSendRequest { email })
         .send()
         .await
-        .context("Could not reach the auth server. Check your network connection.")?;
+        .map_err(|_| anyhow::anyhow!("Could not reach the auth server. Check your network connection."))?;
     check_status(resp, "Verification code request failed")?
         .json()
         .await
@@ -170,8 +170,8 @@ async fn otp_verify(
         .json(&OtpVerifyRequest { email, code })
         .send()
         .await
-        .context("Could not reach the auth server. Check your network connection.")?;
-    check_status(resp, "Verification failed")?
+        .map_err(|_| anyhow::anyhow!("Could not reach the auth server. Check your network connection."))?;
+    check_status(resp, "Invalid or expired code")?
         .json()
         .await
         .context("Verification failed: unexpected response from the auth server.")
@@ -277,7 +277,7 @@ pub async fn login_otp_flow() -> Result<()> {
                 return Ok(());
             }
             Err(e) => {
-                eprintln!("Verification failed: {e}");
+                eprintln!("{e}");
                 if attempt < 3 {
                     eprintln!("{} attempt(s) remaining", 3 - attempt);
                 }
@@ -596,8 +596,7 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string()
-                .contains("Verification code request failed"),
+            err.to_string().contains("Verification code request failed"),
             "expected user-friendly error, got: {err}"
         );
     }
@@ -648,7 +647,7 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("Verification failed"),
+            err.to_string().contains("Invalid or expired code"),
             "expected user-friendly error, got: {err}"
         );
     }
@@ -695,6 +694,59 @@ mod tests {
         assert_eq!(creds.license, "lic-otp");
         assert_eq!(creds.refresh_token.as_deref(), Some("rt-otp"));
         assert_eq!(creds.email.as_deref(), Some("otp@example.com"));
+    }
+
+    // ── friendly_http_error coverage ────────────────────────────────────
+
+    #[test]
+    fn friendly_http_error_401() {
+        let msg = friendly_http_error(reqwest::StatusCode::UNAUTHORIZED, "Login");
+        assert_eq!(msg, "Login: authorisation failed. Please try again.");
+    }
+
+    #[test]
+    fn friendly_http_error_403() {
+        let msg = friendly_http_error(reqwest::StatusCode::FORBIDDEN, "Login");
+        assert_eq!(
+            msg,
+            "Login: access denied. Check that your account is approved."
+        );
+    }
+
+    #[test]
+    fn friendly_http_error_404() {
+        let msg = friendly_http_error(reqwest::StatusCode::NOT_FOUND, "Login");
+        assert_eq!(
+            msg,
+            "Login: auth service not found. Check your ANVIL_API_URL setting."
+        );
+    }
+
+    #[test]
+    fn friendly_http_error_429() {
+        let msg = friendly_http_error(reqwest::StatusCode::TOO_MANY_REQUESTS, "Login");
+        assert_eq!(
+            msg,
+            "Login: too many requests. Please wait a moment and try again."
+        );
+    }
+
+    #[test]
+    fn friendly_http_error_500() {
+        let msg = friendly_http_error(reqwest::StatusCode::INTERNAL_SERVER_ERROR, "Login");
+        assert!(msg.contains("temporarily unavailable"), "got: {msg}");
+    }
+
+    #[test]
+    fn friendly_http_error_502() {
+        let msg = friendly_http_error(reqwest::StatusCode::BAD_GATEWAY, "Login");
+        assert!(msg.contains("temporarily unavailable"), "got: {msg}");
+    }
+
+    #[test]
+    fn friendly_http_error_other() {
+        let msg = friendly_http_error(reqwest::StatusCode::CONFLICT, "Login");
+        assert_eq!(msg, "Login: unexpected error (HTTP 409 Conflict).");
     }
 
     // ── Boundary: expires_in zero ─────────────────────────────────────
