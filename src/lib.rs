@@ -1,10 +1,10 @@
 //! # eddacraft-tui
 //!
-//! Shared Ratatui component library for the `EddaCraft` product family.
+//! Shared Ratatui component library for the `eddacraft` product family.
 //!
 //! Provides a consistent set of terminal UI building blocks — themed widgets,
 //! keyboard handling, shell chrome, and a surface abstraction — so that every
-//! `EddaCraft` TUI application shares the same look and feel.
+//! `eddacraft` TUI application shares the same look and feel.
 //!
 //! ## Quick start
 //!
@@ -13,7 +13,7 @@
 //!
 //! let theme = EddaCraftTheme;
 //! // Use any widget with the theme:
-//! // let spinner = Spinner::new(&theme).label("Loading…");
+//! // let spinner = Spinner::new(&theme).eddacraft().label("Loading...");
 //! ```
 //!
 //! ## Modules
@@ -38,9 +38,9 @@ pub mod theme;
 pub mod widgets;
 
 pub mod prelude {
-    pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
+    pub use crate::compat::{detect_terminal, validate_minimum_size, TerminalInfo};
     pub use crate::keyboard::{Action, KeyHandler};
-    pub use crate::shell::render_shell;
+    pub use crate::shell::{render_shell, ShellBranding};
     pub use crate::surface::Surface;
     pub use crate::theme::{EddaCraftTheme, Theme};
     pub use crate::widgets::confirm::{Confirm, ConfirmState};
@@ -54,7 +54,7 @@ pub mod prelude {
     };
     pub use crate::widgets::progress_bar::{ProgressBar, ProgressBarState};
     pub use crate::widgets::select::{Select, SelectItem, SelectState};
-    pub use crate::widgets::spinner::{Spinner, SpinnerState};
+    pub use crate::widgets::spinner::{anvil, eddacraft, Spinner, SpinnerPreset, SpinnerState};
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;
     pub use crate::widgets::text_input::{TextInput, TextInputState};

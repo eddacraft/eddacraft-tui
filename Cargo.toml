@@ -12,6 +12,7 @@ categories = ["command-line-interface"]
 [dependencies]
 ratatui = "0.30"
 crossterm = "0.29"
+rattles = "0.2"
 unicode-width = "0.2"
 
 [features]
