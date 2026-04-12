@@ -12,7 +12,7 @@ sidebar_position: 6
 Welcome to the Anvil early access. Thank you for helping us shape the tool —
 your feedback directly influences what we build next.
 
-**Current version:** 0.3.0-beta
+**Current version:** 0.3.1-beta
 
 Anvil is a developer tool that analyses your codebase for architectural drift,
 anti-patterns, and convention violations, then helps you maintain consistency as

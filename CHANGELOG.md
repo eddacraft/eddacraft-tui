@@ -6,6 +6,34 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [0.3.1-beta] — Docs Cutover & Onboarding Fixes
+
+### Added
+
+- **Docs domain cutover** — `docs.eddacraft.ai` now served via a docs-shell
+  proxy with shared-secret middleware protecting upstream apps (`DOCSAUTH2`)
+
+### Fixed
+
+- **Welcome screen** — first-user onboarding flows restored after regressions
+  in 0.3.0-beta; council review findings and PR feedback addressed (`WELCOME`)
+- **Docs auth** — CI build failures resolved for the domain cutover; upstream
+  middleware and proxy hardened from review feedback; Docusaurus `baseUrl`
+  deprecation warning suppressed
+- **Beta auth e2e** — e2e test harness for authentication flows fixed
+- **Build scripts** — `%h` home-directory expansion replaced with absolute path
+  to prevent misexpansion under `sudo`
+- **Release pipeline** — `aarch64-pc-windows-msvc` removed from cargo-dist
+  targets (upstream `axoupdater` lacks ARM64 Windows binaries)
+
+### Improved
+
+- Vercel auth on docs upstream projects replaced with header-based gating for
+  simpler deployment
+- `docsStateSecret` reused across Pulumi env vars instead of duplicating the
+  secret reference
+- Vercel preview deploys skip non-release branches via `vercel-ignore-build.sh`
+
 ## [0.3.0-beta] — Rust CLI & Native Engine
 
 ### Added
@@ -324,6 +352,8 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
+[0.3.1-beta]:
+  https://github.com/EddaCraft/anvil-001/compare/v0.3.0-beta...v0.3.1-beta
 [0.3.0-beta]:
   https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta...v0.3.0-beta
 [0.2.1-beta]:

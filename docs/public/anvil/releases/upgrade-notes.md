@@ -9,7 +9,34 @@ sidebar_position: 2
 
 Guides for upgrading between Anvil versions.
 
-## Current Version: 0.3.0-beta
+## Current Version: 0.3.1-beta
+
+## Upgrading to 0.3.1-beta
+
+Drop-in upgrade from 0.3.0-beta. No configuration changes required.
+
+```bash
+# Upgrade via the installer (overwrites existing binary)
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+
+# Or via the built-in updater
+anvil-update
+```
+
+### What's New in 0.3.1
+
+- **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated
+  proxy with shared-secret middleware.
+- **Welcome screen fixes** — first-user onboarding flows restored after
+  regressions in 0.3.0-beta.
+- **Release pipeline fix** — ARM64 Windows target removed from cargo-dist
+  (upstream dependency not yet available).
+
+No breaking changes. All existing configuration, credentials, and workflows
+continue to work without modification.
 
 ## Upgrading to 0.3.0-beta
 
