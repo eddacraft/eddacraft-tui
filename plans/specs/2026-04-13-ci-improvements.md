@@ -33,7 +33,7 @@ Create `.github/actions/setup-workspace/action.yml` that encapsulates:
 - `nrwl/nx-set-shas` (optional)
 
 **Inputs:**
-- `node-version` (default: `22.x`)
+- `node-version` (default: `22`)
 - `fetch-depth` (default: `1`, set to `0` for affected commands)
 - `azure-login` (default: `false`)
 - `nx-shas` (default: `false`)
@@ -82,7 +82,7 @@ Change `.lintstagedrc` to run formatters before linters:
 Same for JSON files. This ensures code is formatted before linting, so
 linters see the final form and don't flag formatting issues.
 
-**File:** `.lintstagedrc`
+**File:** `.lintstagedrc.json`
 
 ### Fix 5: Remove single-element matrix
 
