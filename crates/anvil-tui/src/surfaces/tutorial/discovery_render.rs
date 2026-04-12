@@ -262,6 +262,7 @@ mod tests {
             ],
             files_scanned: 120,
             duration_ms: 3200,
+            truncated: false,
         });
         let theme = EddaCraftTheme;
 
@@ -292,6 +293,7 @@ mod tests {
             findings: vec![make_finding(FindingSeverity::Error, "e")],
             files_scanned: 50,
             duration_ms: 1500,
+            truncated: false,
         });
         // Advance to continue phase
         state.handle_key(Action::Select);

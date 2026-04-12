@@ -9,6 +9,32 @@ use crate::services::first_run::{
 };
 use crate::tui::SurfaceExit;
 
+/// Draw a loading message and wait for `duration`, processing resize events
+/// so the terminal doesn't appear frozen.
+fn timed_loading(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    surface_name: &str,
+    message: &str,
+    theme: &EddaCraftTheme,
+    duration: std::time::Duration,
+) -> anyhow::Result<()> {
+    crate::tui::draw_loading(terminal, surface_name, message, theme)?;
+    let deadline = std::time::Instant::now() + duration;
+    while std::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        let poll_time = remaining.min(std::time::Duration::from_millis(50));
+        if crossterm::event::poll(poll_time)? {
+            if let crossterm::event::Event::Resize(_, _) = crossterm::event::read()? {
+                crate::tui::draw_loading(terminal, surface_name, message, theme)?;
+            } else {
+                // Consume and discard non-resize events during loading.
+                continue;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, clap::Args)]
 pub struct WelcomeArgs {}
 
@@ -71,14 +97,15 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // Always teardown terminal, even on error.
     let teardown_result = crate::tui::teardown_terminal(&mut terminal);
 
-    // Write marker before propagating errors — a TUI crash should not
-    // prevent the marker from being written, otherwise the user is stuck
-    // in an onboarding loop on every launch.
-    if let Err(err) = create_first_run_marker(&marker_path) {
-        eprintln!(
-            "[welcome] warning: failed to create first-run marker at {}: {err}",
-            marker_path.display()
-        );
+    // Write marker on first run only — don't clobber an existing marker's
+    // creation timestamp on subsequent launches.
+    if first_run {
+        if let Err(err) = create_first_run_marker(&marker_path) {
+            eprintln!(
+                "[welcome] warning: failed to create first-run marker at {}: {err}",
+                marker_path.display()
+            );
+        }
     }
 
     // Prefer the app error over the teardown error.
@@ -110,14 +137,16 @@ fn run_onboarding(
     // Check for stale tutorial progress from a previous install and offer reset.
     if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
         if progress_path.exists() {
-            crate::tui::draw_loading(
+            if let Err(e) = std::fs::remove_file(&progress_path) {
+                eprintln!("[welcome] warning: could not remove tutorial progress: {e}");
+            }
+            timed_loading(
                 terminal,
                 "Setup",
                 "Previous tutorial progress found \u{2014} resetting for fresh install.",
                 theme,
+                std::time::Duration::from_millis(600),
             )?;
-            let _ = std::fs::remove_file(&progress_path);
-            std::thread::sleep(std::time::Duration::from_millis(600));
         }
     }
 
@@ -146,13 +175,13 @@ fn run_guided_init(
 
     // Skip init if config already exists.
     if onboarding::config_exists() {
-        crate::tui::draw_loading(
+        timed_loading(
             terminal,
             "Init",
             "Anvil configuration detected \u{2014} skipping setup.",
             theme,
+            std::time::Duration::from_millis(200),
         )?;
-        std::thread::sleep(std::time::Duration::from_millis(200));
         return Ok(());
     }
 
@@ -188,25 +217,17 @@ fn run_guided_init(
             checks,
         };
 
-        match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(()) => {
-                crate::tui::draw_loading(
-                    terminal,
-                    "Init",
-                    "Config saved to .anvilrc. Proceeding to scan\u{2026}",
-                    theme,
-                )?;
-            }
-            Err(e) => {
-                crate::tui::draw_loading(
-                    terminal,
-                    "Init",
-                    &format!("Warning: could not save config: {e}"),
-                    theme,
-                )?;
-            }
-        }
-        std::thread::sleep(std::time::Duration::from_millis(400));
+        let msg = match crate::commands::init::generate_config(&config, &init_root) {
+            Ok(()) => "Config saved to .anvilrc. Proceeding to scan\u{2026}".to_string(),
+            Err(e) => format!("Warning: could not save config: {e}"),
+        };
+        timed_loading(
+            terminal,
+            "Init",
+            &msg,
+            theme,
+            std::time::Duration::from_millis(400),
+        )?;
     }
 
     Ok(())
@@ -229,6 +250,7 @@ fn run_discovery(
                 findings,
                 files_scanned: results.files_scanned,
                 duration_ms: results.duration_ms,
+                truncated: false,
             }
         }
         Ok(results) => results,
@@ -239,6 +261,7 @@ fn run_discovery(
                 findings,
                 files_scanned: 0,
                 duration_ms: 0,
+                truncated: false,
             }
         }
     };
@@ -267,7 +290,9 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
 
     let mut findings = Vec::new();
     let mut files_scanned: usize = 0;
+    let mut truncated = false;
     const MAX_FILES: usize = 500;
+    const MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
 
     for entry in walkdir::WalkDir::new(&cwd)
         .follow_links(false)
@@ -290,6 +315,13 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
                 | "dll" | "so" | "dylib" | "wasm" | "o" | "a"
         ) {
             continue;
+        }
+
+        // Skip files larger than 512 KB to avoid memory exhaustion.
+        if let Ok(meta) = entry.metadata() {
+            if meta.len() > MAX_FILE_SIZE {
+                continue;
+            }
         }
 
         let Ok(content) = std::fs::read_to_string(path) else {
@@ -348,6 +380,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
 
         files_scanned += 1;
         if files_scanned >= MAX_FILES {
+            truncated = true;
             break;
         }
     }
@@ -361,6 +394,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
         findings,
         files_scanned,
         duration_ms,
+        truncated,
     })
 }
 
@@ -387,6 +421,9 @@ fn run_tutorial_with_fix(
             if let Some(finding) = finding {
                 let mut fix_state =
                     anvil_tui::surfaces::tutorial::fix::FixState::new(finding.clone());
+                // Disable inline editor — welcome flow cannot drive the
+                // save/check loop that the editor requires.
+                fix_state.editor_disabled = true;
 
                 // Load file context around the finding for display.
                 if let Ok(content) = std::fs::read_to_string(&finding.file) {
@@ -402,6 +439,16 @@ fn run_tutorial_with_fix(
                 let fix_exit = crate::tui::run_surface_in(terminal, &mut fix_state, theme)?;
                 if fix_exit == SurfaceExit::Quit {
                     return Ok(SurfaceExit::Quit);
+                }
+
+                // Remove the addressed finding so repeated 'f' presses
+                // advance to the next one instead of reopening the same.
+                if let Some(domain) = tutorial_state.domain_findings.as_mut() {
+                    domain.findings.retain(|f| {
+                        f.file != finding.file
+                            || f.line != finding.line
+                            || f.title != finding.title
+                    });
                 }
             }
             // Resume the tutorial — loop back to run_surface_in.
@@ -425,6 +472,7 @@ fn start_watch_from_hub(
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
         root: workspace_root.clone(),
         debounce_window: std::time::Duration::from_millis(300),
+        filter: Some(anvil_kernel::watcher::filter::FileFilter::default()),
         ..Default::default()
     };
 
@@ -530,6 +578,12 @@ fn run_welcome_hub(
                             crate::commands::doctor::apply_fix_at(
                                 &mut doctor_state.checks,
                                 idx,
+                            );
+                            // Re-collect checks so the UI reflects actual state.
+                            let fresh = crate::commands::doctor::collect_checks();
+                            doctor_state.checks = fresh;
+                            doctor_state.selected = idx.min(
+                                doctor_state.checks.len().saturating_sub(1),
                             );
                         }
                         doctor_state.wants_fix = false;
