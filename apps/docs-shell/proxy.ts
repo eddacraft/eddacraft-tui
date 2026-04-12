@@ -64,7 +64,6 @@ async function proxyToUpstream(request: NextRequest, upstream: string): Promise<
     if (value) headers.set(name, value);
   }
   headers.set('x-docs-upstream-secret', UPSTREAM_SECRET);
-  headers.set('host', new URL(upstream).host);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -150,5 +149,7 @@ export const config = {
     '/edda-stack/:path*',
     '/blog',
     '/blog/:path*',
+    '/assets/:path*',
+    '/img/:path*',
   ],
 };
