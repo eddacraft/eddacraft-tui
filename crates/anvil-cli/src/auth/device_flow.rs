@@ -72,6 +72,29 @@ fn build_client() -> Result<reqwest::Client> {
         .context("building HTTP client")
 }
 
+/// Convert an HTTP error status into a user-friendly message.
+fn friendly_http_error(status: reqwest::StatusCode, context: &str) -> String {
+    match status.as_u16() {
+        401 => format!("{context}: invalid or expired credentials. Please try again."),
+        403 => format!("{context}: access denied. Check that your account is approved."),
+        404 => format!("{context}: auth service not found. Check your ANVIL_API_URL setting."),
+        429 => format!("{context}: too many requests. Please wait a moment and try again."),
+        500..=599 => format!(
+            "{context}: the auth server is temporarily unavailable. Please try again in a few minutes."
+        ),
+        _ => format!("{context}: unexpected error (HTTP {status})."),
+    }
+}
+
+/// Check response status and return a user-friendly error on failure.
+fn check_status(response: reqwest::Response, context: &str) -> Result<reqwest::Response> {
+    let status = response.status();
+    if status.is_client_error() || status.is_server_error() {
+        bail!(friendly_http_error(status, context));
+    }
+    Ok(response)
+}
+
 fn prompt_input(label: &str) -> Result<String> {
     use std::io::Write;
     eprint!("{label}");
@@ -90,17 +113,16 @@ async fn device_start(
     url: &str,
     email: &str,
 ) -> Result<DeviceStartResponse> {
-    client
+    let resp = client
         .post(format!("{url}/api/v1/auth/device/start"))
         .json(&DeviceStartRequest { email })
         .send()
         .await
-        .context("device code start request")?
-        .error_for_status()
-        .context("device code start response")?
+        .context("Could not reach the auth server. Check your network connection.")?;
+    check_status(resp, "Login failed")?
         .json()
         .await
-        .context("parsing device code start response")
+        .context("Login failed: unexpected response from the auth server.")
 }
 
 async fn device_poll(
@@ -108,17 +130,16 @@ async fn device_poll(
     url: &str,
     poll_token: &str,
 ) -> Result<DevicePollResponse> {
-    client
+    let resp = client
         .post(format!("{url}/api/v1/auth/device/poll"))
         .json(&DevicePollRequest { poll_token })
         .send()
         .await
-        .context("device poll request")?
-        .error_for_status()
-        .context("device poll response")?
+        .context("Could not reach the auth server while checking login status.")?;
+    check_status(resp, "Login check failed")?
         .json()
         .await
-        .context("parsing device poll response")
+        .context("Login check failed: unexpected response from the auth server.")
 }
 
 async fn otp_request(
@@ -126,17 +147,16 @@ async fn otp_request(
     url: &str,
     email: &str,
 ) -> Result<OtpRequestResponse> {
-    client
+    let resp = client
         .post(format!("{url}/api/v1/auth/otp/request"))
         .json(&OtpSendRequest { email })
         .send()
         .await
-        .context("OTP send request")?
-        .error_for_status()
-        .context("OTP send response")?
+        .context("Could not reach the auth server. Check your network connection.")?;
+    check_status(resp, "Verification code request failed")?
         .json()
         .await
-        .context("parsing OTP send response")
+        .context("Verification code request failed: unexpected response from the auth server.")
 }
 
 async fn otp_verify(
@@ -145,17 +165,16 @@ async fn otp_verify(
     email: &str,
     code: &str,
 ) -> Result<OtpVerifyResponse> {
-    client
+    let resp = client
         .post(format!("{url}/api/v1/auth/otp/verify"))
         .json(&OtpVerifyRequest { email, code })
         .send()
         .await
-        .context("OTP verify request")?
-        .error_for_status()
-        .context("OTP verify response")?
+        .context("Could not reach the auth server. Check your network connection.")?;
+    check_status(resp, "Verification failed")?
         .json()
         .await
-        .context("parsing OTP verify response")
+        .context("Verification failed: unexpected response from the auth server.")
 }
 
 // ── Public entry points (thin wrappers adding I/O) ────────────────────
@@ -446,8 +465,8 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("device code start response"),
-            "expected context about start response, got: {err}"
+            err.to_string().contains("Login failed"),
+            "expected user-friendly error, got: {err}"
         );
     }
 
@@ -531,8 +550,8 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("device poll response"),
-            "expected context about poll response, got: {err}"
+            err.to_string().contains("Login check failed"),
+            "expected user-friendly error, got: {err}"
         );
     }
 
@@ -577,8 +596,9 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("OTP send response"),
-            "expected context about send response, got: {err}"
+            err.to_string()
+                .contains("Verification code request failed"),
+            "expected user-friendly error, got: {err}"
         );
     }
 
@@ -628,8 +648,8 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("OTP verify response"),
-            "expected context about verify response, got: {err}"
+            err.to_string().contains("Verification failed"),
+            "expected user-friendly error, got: {err}"
         );
     }
 
@@ -716,8 +736,8 @@ mod tests {
 
         assert!(
             err.to_string()
-                .contains("parsing device code start response"),
-            "expected parse context, got: {err}"
+                .contains("unexpected response from the auth server"),
+            "expected user-friendly parse error, got: {err}"
         );
     }
 
@@ -740,8 +760,9 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("parsing OTP verify response"),
-            "expected parse context, got: {err}"
+            err.to_string()
+                .contains("unexpected response from the auth server"),
+            "expected user-friendly parse error, got: {err}"
         );
     }
 }
