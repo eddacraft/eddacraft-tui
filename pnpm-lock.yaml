@@ -197,6 +197,80 @@ importers:
         specifier: ~6.0.2
         version: 6.0.2
 
+  apps/anvil-docs-private:
+    dependencies:
+      '@docusaurus/faster':
+        specifier: 3.10.0
+        version: 3.10.0(@docusaurus/types@3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@swc/helpers@0.5.21)(esbuild@0.28.0)
+      '@docusaurus/plugin-content-docs':
+        specifier: 3.10.0
+        version: 3.10.0(@docusaurus/faster@3.10.0(@docusaurus/types@3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@swc/helpers@0.5.21)(esbuild@0.28.0))(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.4))(@rspack/core@1.7.11(@swc/helpers@0.5.21))(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
+      '@docusaurus/preset-classic':
+        specifier: 3.10.0
+        version: 3.10.0(@algolia/client-search@5.50.1)(@docusaurus/faster@3.10.0(@docusaurus/types@3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@swc/helpers@0.5.21)(esbuild@0.28.0))(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.4))(@rspack/core@1.7.11(@swc/helpers@0.5.21))(@swc/core@1.15.24(@swc/helpers@0.5.21))(@types/react@19.2.14)(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(search-insights@2.17.3)(typescript@6.0.2)
+      '@docusaurus/types':
+        specifier: 3.10.0
+        version: 3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      prism-react-renderer:
+        specifier: ^2.4.1
+        version: 2.4.1(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@docusaurus/module-type-aliases':
+        specifier: 3.10.0
+        version: 3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@docusaurus/tsconfig':
+        specifier: 3.10.0
+        version: 3.10.0
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.2
+
+  apps/docs-public:
+    dependencies:
+      '@docusaurus/faster':
+        specifier: 3.10.0
+        version: 3.10.0(@docusaurus/types@3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@swc/helpers@0.5.21)(esbuild@0.28.0)
+      '@docusaurus/plugin-content-docs':
+        specifier: 3.10.0
+        version: 3.10.0(@docusaurus/faster@3.10.0(@docusaurus/types@3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@swc/helpers@0.5.21)(esbuild@0.28.0))(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.4))(@rspack/core@1.7.11(@swc/helpers@0.5.21))(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@6.0.2)
+      '@docusaurus/preset-classic':
+        specifier: 3.10.0
+        version: 3.10.0(@algolia/client-search@5.50.1)(@docusaurus/faster@3.10.0(@docusaurus/types@3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@swc/helpers@0.5.21)(esbuild@0.28.0))(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.4))(@rspack/core@1.7.11(@swc/helpers@0.5.21))(@swc/core@1.15.24(@swc/helpers@0.5.21))(@types/react@19.2.14)(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(search-insights@2.17.3)(typescript@6.0.2)
+      '@docusaurus/types':
+        specifier: 3.10.0
+        version: 3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      prism-react-renderer:
+        specifier: ^2.4.1
+        version: 2.4.1(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@docusaurus/module-type-aliases':
+        specifier: 3.10.0
+        version: 3.10.0(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@docusaurus/tsconfig':
+        specifier: 3.10.0
+        version: 3.10.0
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.2
+
   apps/docs-shell:
     dependencies:
       jose:

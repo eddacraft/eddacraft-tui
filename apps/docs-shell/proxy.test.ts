@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { SignJWT, importPKCS8 } from 'jose';
 
 vi.stubEnv('ANVIL_DOCS_URL', 'https://eddacraft-anvil-docs-private.vercel.app');
@@ -46,6 +46,10 @@ describe('middleware', () => {
     resetKeyCache();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('redirects to login when no cookie', async () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/overview');
     const res = await proxy(req as never);
@@ -88,5 +92,91 @@ describe('middleware', () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/quickstart/setup');
     const res = await proxy(req as never);
     expect(res.headers.get('location')).toContain('next=%2Fanvil%2Fquickstart%2Fsetup');
+  });
+});
+
+describe('proxy upstream behaviour', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeAll(() => {
+    process.env.LICENSE_PUBLIC_KEY = TEST_PUBLIC_KEY_PEM;
+  });
+
+  beforeEach(() => {
+    resetKeyCache();
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok', { status: 200 }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('routes public paths to PUBLIC_DOCS_URL', async () => {
+    const req = makeRequest('https://docs.eddacraft.ai/kindling/overview');
+    await proxy(req as never);
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url.toString()).toMatch(/^https:\/\/eddacraft-docs-public\.vercel\.app/);
+  });
+
+  it('routes /anvil paths to ANVIL_DOCS_URL with valid token', async () => {
+    const token = await signToken();
+    const req = makeRequest('https://docs.eddacraft.ai/anvil/overview', {
+      'anvil-docs-session': token,
+    });
+    await proxy(req as never);
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url.toString()).toMatch(/^https:\/\/eddacraft-anvil-docs-private\.vercel\.app/);
+  });
+
+  it('injects x-docs-upstream-secret header', async () => {
+    const req = makeRequest('https://docs.eddacraft.ai/kindling/overview');
+    await proxy(req as never);
+    const [, init] = fetchSpy.mock.calls[0];
+    const headers = init?.headers as Headers;
+    expect(headers.get('x-docs-upstream-secret')).toBe('test-secret');
+  });
+
+  it('does not forward cookie or authorization headers', async () => {
+    const token = await signToken();
+    const req = new Request('https://docs.eddacraft.ai/kindling/overview', {
+      headers: {
+        cookie: `anvil-docs-session=${token}`,
+        authorization: 'Bearer leaked',
+      },
+    });
+    await proxy(req as never);
+    const [, init] = fetchSpy.mock.calls[0];
+    const headers = init?.headers as Headers;
+    expect(headers.get('cookie')).toBeNull();
+    expect(headers.get('authorization')).toBeNull();
+  });
+
+  it('rewrites upstream redirect Location to shell origin', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://eddacraft-docs-public.vercel.app/kindling/intro',
+        },
+      })
+    );
+    const req = makeRequest('https://docs.eddacraft.ai/kindling/overview');
+    const res = await proxy(req as never);
+    expect(res.headers.get('location')).toBe('https://docs.eddacraft.ai/kindling/intro');
+  });
+
+  it('returns 503 on fetch timeout', async () => {
+    fetchSpy.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        })
+    );
+    const req = makeRequest('https://docs.eddacraft.ai/kindling/overview');
+    const res = await proxy(req as never);
+    expect(res.status).toBe(503);
+    expect(await res.text()).toBe('Upstream timeout');
   });
 });
