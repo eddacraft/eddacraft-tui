@@ -47,20 +47,8 @@ jobs:
     if: needs.detect-changes.outputs.docs-only == 'true'
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
         run: pnpm run lint:md
@@ -68,44 +56,25 @@ jobs:
       - name: Run format check
         run: pnpm run format:check
 
-  # ── Shared setup (duplicated in each job) ────────────────────────
-
-  # ── Job 1: Lint + Format (Node-version independent) ──────────────
+  # ── Job 1: Lint + Format ─────────────────────────────────────────
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
           fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Azure Login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        continue-on-error: true
-        with:
-          creds:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
-
-      - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+          azure-login: true
+          nx-shas: true
 
       - name: Build ESLint plugin (required by lint rules)
         run: pnpm exec nx run eslint-plugin-anvil:build
@@ -121,42 +90,25 @@ jobs:
       - name: Run format check
         run: pnpm run format:check
 
-  # ── Job 2: Type Check (Node-version independent) ─────────────────
+  # ── Job 2: Type Check ───────────────────────────────────────────
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
           fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Azure Login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        continue-on-error: true
-        with:
-          creds:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
-
-      - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+          azure-login: true
+          nx-shas: true
 
       - name: Run type check (affected on PRs, all on push)
         run: |
@@ -166,8 +118,6 @@ jobs:
             pnpm run typecheck
           fi
 
-  # Placeholder: satisfy required check when unit test matrix is skipped.
-  # When a matrix job is skipped, GitHub Actions does not resolve matrix
   # ── Skip jobs for required checks on docs-only PRs ────────────────
   # The branch ruleset requires these check names to report a status.
   # When no code changes are detected, the real jobs are skipped, so these
@@ -196,46 +146,25 @@ jobs:
     steps:
       - run: echo "Skipped — no code changes detected"
 
-  # ── Job 3a: Unit Tests — Ubuntu (always runs when code changes) ──
+  # ── Job 3a: Unit Tests — Ubuntu ──────────────────────────────────
   test:
-    name: Unit Tests (Node ${{ matrix.node-version }}, ubuntu-latest)
+    name: Unit Tests (Node 22.x, ubuntu-latest)
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [22.x]
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
           fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Azure Login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        continue-on-error: true
-        with:
-          creds:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
-
-      - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+          azure-login: true
+          nx-shas: true
 
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
@@ -249,10 +178,10 @@ jobs:
           fi
 
       - name: Upload coverage reports
-        if: matrix.node-version == '22.x'
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: coverage-report-${{ matrix.node-version }}
+          name: coverage-report-22.x
           path: coverage/
 
   # NOTE: Cross-platform (macOS/Windows) and Node 22+ tests moved to
@@ -276,69 +205,38 @@ jobs:
             runner: macos-latest
           - os: windows-latest
             runner: windows-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js 22.x
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Azure Login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        continue-on-error: true
-        with:
-          creds:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+          azure-login: true
 
       - name: Run unit tests
         run: pnpm run test -- --run
 
-  # ── Job 4: Build (matrix: Node 22, uses Azure remote cache) ──
+  # ── Job 4: Build ─────────────────────────────────────────────────
   build:
-    name: Build (Node ${{ matrix.node-version }})
+    name: Build (Node 22.x)
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
-    strategy:
-      matrix:
-        node-version: [22.x]
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Azure Login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        continue-on-error: true
-        with:
-          creds:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+          azure-login: true
 
       - name: Build all packages
         run: pnpm run build

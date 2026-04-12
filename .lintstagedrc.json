@@ -1,6 +1,6 @@
 {
-  "*.{js,jsx,ts,tsx}": ["oxlint --fix", "eslint --fix", "oxfmt --write"],
-  "*.json": ["eslint --fix", "oxfmt --write"],
+  "*.{js,jsx,ts,tsx}": ["oxfmt --write", "oxlint --fix", "eslint --fix"],
+  "*.json": ["oxfmt --write", "eslint --fix"],
   "!(pnpm-lock|temper).{yml,yaml}": ["yamllint", "oxfmt --write"],
   "temper.{yml,yaml}": ["oxfmt --write"],
   "*.md": ["markdownlint --fix"]
