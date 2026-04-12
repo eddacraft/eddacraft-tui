@@ -149,7 +149,7 @@ fn try_start_watcher() -> anyhow::Result<(
     Ok((rx, handle))
 }
 
-fn progress_file_path() -> anyhow::Result<PathBuf> {
+pub(crate) fn progress_file_path() -> anyhow::Result<PathBuf> {
     let home = dirs::home_dir().context("could not determine home directory")?;
     Ok(home.join(".anvil").join("tutorial-progress.json"))
 }

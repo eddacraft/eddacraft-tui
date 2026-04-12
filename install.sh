@@ -41,3 +41,11 @@ if ! curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o "$TMPFILE"; then
 fi
 
 sh "$TMPFILE"
+
+echo ""
+echo "  Get started:"
+echo "    cd your-project/"
+echo "    anvil start"
+echo ""
+echo "  Or run anvil --help for all commands."
+echo ""

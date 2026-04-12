@@ -319,8 +319,8 @@ fn check_plans_dir() -> DiagnosticCheck {
             category: "Configuration".to_string(),
             status: CheckStatus::Warn,
             message: "no plans directory found".to_string(),
-            details: Some("Create plans/ or docs/plans/ for specification documents".to_string()),
-            auto_fixable: false,
+            details: Some("Create plans/ directory for specification documents".to_string()),
+            auto_fixable: true,
         }
     }
 }
@@ -377,6 +377,15 @@ fn check_hooks_installed() -> DiagnosticCheck {
 
 // --- Fix application ---
 
+/// Apply a fix to a single check by index. Used by the welcome hub
+/// when the user presses 'f' in the doctor TUI.
+pub fn apply_fix_at(checks: &mut [DiagnosticCheck], index: usize) {
+    if let Some(check) = checks.get_mut(index) {
+        let mut slice = std::slice::from_mut(check);
+        apply_fixes(&mut slice, true);
+    }
+}
+
 fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
     for check in checks.iter_mut() {
         if !check.auto_fixable || check.status == CheckStatus::Pass {
@@ -412,6 +421,16 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
                     check.auto_fixable = false;
                     if !quiet {
                         println!("  Fixed: anvil-dir — created .anvil/ directory");
+                    }
+                }
+            }
+            "plans-dir" => {
+                if std::fs::create_dir_all("plans").is_ok() {
+                    check.status = CheckStatus::Pass;
+                    check.message = "plans/ directory created".to_string();
+                    check.auto_fixable = false;
+                    if !quiet {
+                        println!("  Fixed: plans-dir — created plans/ directory");
                     }
                 }
             }

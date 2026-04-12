@@ -268,6 +268,22 @@ pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> any
     result
 }
 
+/// Run the watch surface inside an already-initialised terminal session.
+/// Used by the welcome hub to launch watch mode without teardown/setup.
+pub fn run_watch_in(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut WatchState,
+    event_rx: &Receiver<EngineEvent>,
+) -> anyhow::Result<SurfaceExit> {
+    let theme = EddaCraftTheme;
+    watch_loop(terminal, state, event_rx, &theme)?;
+    if state.should_quit() {
+        Ok(SurfaceExit::Quit)
+    } else {
+        Ok(SurfaceExit::Back)
+    }
+}
+
 fn watch_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut WatchState,

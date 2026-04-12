@@ -24,11 +24,11 @@ const SCHEMA_VERSION: &str = "1.0.0";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct AnvilConfig {
-    schema_version: String,
-    planning_dir: String,
-    format: String,
-    checks: Vec<String>,
+pub(crate) struct AnvilConfig {
+    pub(crate) schema_version: String,
+    pub(crate) planning_dir: String,
+    pub(crate) format: String,
+    pub(crate) checks: Vec<String>,
 }
 
 impl Default for AnvilConfig {
@@ -112,7 +112,7 @@ fn run_plain(root: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
+pub(crate) fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
     let content = match config.format.as_str() {
         "toml" => toml_serialise(config),
         "yaml" => yaml_serialise(config),
@@ -206,7 +206,7 @@ fn toml_serialise(config: &AnvilConfig) -> String {
     out
 }
 
-fn format_label(fmt: anvil_tui::surfaces::init::ConfigFormat) -> String {
+pub(crate) fn format_label(fmt: anvil_tui::surfaces::init::ConfigFormat) -> String {
     match fmt {
         anvil_tui::surfaces::init::ConfigFormat::Yaml => "yaml".to_string(),
         anvil_tui::surfaces::init::ConfigFormat::Json => "json".to_string(),

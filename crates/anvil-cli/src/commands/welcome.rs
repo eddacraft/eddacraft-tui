@@ -51,9 +51,8 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         let mut tutorial_state =
                             anvil_tui::surfaces::tutorial::TutorialState::new();
                         tutorial_state.set_scan_results(results);
-                        let sub_exit =
-                            crate::tui::run_surface_in(&mut terminal, &mut tutorial_state, &theme)?;
-                        if sub_exit == SurfaceExit::Quit {
+                        let exit = run_tutorial_with_fix(&mut terminal, &theme, &mut tutorial_state)?;
+                        if exit == SurfaceExit::Quit {
                             Ok(())
                         } else {
                             run_welcome_hub(&mut terminal, &theme)
@@ -108,6 +107,20 @@ fn run_onboarding(
 ) -> anyhow::Result<OnboardingOutcome> {
     use anvil_tui::surfaces::onboarding::{OnboardingChoice, OnboardingWelcomeState};
 
+    // Check for stale tutorial progress from a previous install and offer reset.
+    if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
+        if progress_path.exists() {
+            crate::tui::draw_loading(
+                terminal,
+                "Setup",
+                "Previous tutorial progress found \u{2014} resetting for fresh install.",
+                theme,
+            )?;
+            let _ = std::fs::remove_file(&progress_path);
+            std::thread::sleep(std::time::Duration::from_millis(600));
+        }
+    }
+
     let mut onboarding = OnboardingWelcomeState::new();
     let exit = crate::tui::run_surface_in(terminal, &mut onboarding, theme)?;
 
@@ -153,15 +166,47 @@ fn run_guided_init(
     }
 
     if init_state.confirmed {
-        // TODO: Write config based on init_state.config.
-        // Discovery scan runs after init returns (wired in run()).
-        crate::tui::draw_loading(
-            terminal,
-            "Init",
-            "Setup complete. Proceeding to welcome\u{2026}",
-            theme,
-        )?;
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        let checks: Vec<String> = if init_state.config.checks.is_empty() {
+            vec!["secret-scan".to_string(), "anti-pattern".to_string()]
+        } else {
+            init_state.config.checks
+        };
+
+        let init_root = if init_state.config.directory == "." {
+            std::path::PathBuf::from(".")
+        } else {
+            std::path::PathBuf::from(&init_state.config.directory)
+        };
+        if let Err(e) = std::fs::create_dir_all(&init_root) {
+            eprintln!("[welcome] warning: failed to create directory: {e}");
+        }
+
+        let config = crate::commands::init::AnvilConfig {
+            schema_version: "1.0.0".to_string(),
+            planning_dir: "plans".to_string(),
+            format: crate::commands::init::format_label(init_state.config.format),
+            checks,
+        };
+
+        match crate::commands::init::generate_config(&config, &init_root) {
+            Ok(()) => {
+                crate::tui::draw_loading(
+                    terminal,
+                    "Init",
+                    "Config saved to .anvilrc. Proceeding to scan\u{2026}",
+                    theme,
+                )?;
+            }
+            Err(e) => {
+                crate::tui::draw_loading(
+                    terminal,
+                    "Init",
+                    &format!("Warning: could not save config: {e}"),
+                    theme,
+                )?;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(400));
     }
 
     Ok(())
@@ -176,14 +221,26 @@ fn run_discovery(
 
     let mut discovery = DiscoveryState::new();
 
-    // TODO(WELCOME-013): Replace with real project scan using anvil-checks scanners
-    // and kernel run_embedded(). For now, use showcase findings so the user sees
-    // what Anvil is capable of detecting.
-    let findings = showcase::showcase_findings();
-    let results = ScanResults {
-        findings,
-        files_scanned: 0,
-        duration_ms: 0,
+    let results = match scan_project() {
+        Ok(results) if results.findings.is_empty() => {
+            // Clean project — show showcase examples so user sees capabilities.
+            let findings = showcase::showcase_findings();
+            ScanResults {
+                findings,
+                files_scanned: results.files_scanned,
+                duration_ms: results.duration_ms,
+            }
+        }
+        Ok(results) => results,
+        Err(_) => {
+            // Scan failed — fall back to showcase mode.
+            let findings = showcase::showcase_findings();
+            ScanResults {
+                findings,
+                files_scanned: 0,
+                duration_ms: 0,
+            }
+        }
     };
     discovery.set_results(results);
 
@@ -194,6 +251,213 @@ fn run_discovery(
     }
 
     Ok(discovery.results)
+}
+
+/// Scan the current project for real secret and antipattern findings.
+fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::ScanResults> {
+    use anvil_checks::filter::ScanFilter;
+    use anvil_tui::surfaces::tutorial::discovery::{
+        Finding, FindingSeverity, FindingSource, ScanResults,
+    };
+
+    let start = std::time::Instant::now();
+    let filter = ScanFilter::default_excludes();
+    let cwd = std::env::current_dir()?;
+    let secret_config = anvil_checks::secret::types::SecretCheckConfig::default();
+
+    let mut findings = Vec::new();
+    let mut files_scanned: usize = 0;
+    const MAX_FILES: usize = 500;
+
+    for entry in walkdir::WalkDir::new(&cwd)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if !filter.includes(path) {
+            continue;
+        }
+        // Skip binary / non-text files by extension.
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if matches!(
+            ext,
+            "png" | "jpg" | "jpeg" | "gif" | "ico" | "woff" | "woff2" | "ttf"
+                | "otf" | "eot" | "pdf" | "zip" | "gz" | "tar" | "exe"
+                | "dll" | "so" | "dylib" | "wasm" | "o" | "a"
+        ) {
+            continue;
+        }
+
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
+
+        let rel_path = path
+            .strip_prefix(&cwd)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
+        // Secret scan
+        let secret_hits =
+            anvil_checks::secret::scanner::scan_content(&content, &rel_path, &secret_config);
+        for hit in &secret_hits {
+            findings.push(Finding {
+                file: hit.file.clone(),
+                line: Some(hit.line),
+                severity: FindingSeverity::Error,
+                source: FindingSource::Secret,
+                title: format!("Secret detected: {}", hit.pattern_name),
+                message: hit.redacted_line.clone(),
+                suggestion: "Move the value to an environment variable or secrets manager."
+                    .to_string(),
+            });
+        }
+
+        // Antipattern scan
+        let ap_result =
+            anvil_checks::antipattern::scanner::scan_file(&rel_path, &content, None);
+        for warning in &ap_result.warnings {
+            if warning.suppressed.is_some() {
+                continue;
+            }
+            findings.push(Finding {
+                file: warning.location.file.clone(),
+                line: Some(warning.location.line),
+                severity: match warning.severity {
+                    anvil_checks::antipattern::types::WarningSeverity::Error => {
+                        FindingSeverity::Error
+                    }
+                    anvil_checks::antipattern::types::WarningSeverity::Warning => {
+                        FindingSeverity::Warning
+                    }
+                    anvil_checks::antipattern::types::WarningSeverity::Info => {
+                        FindingSeverity::Info
+                    }
+                },
+                source: FindingSource::AntiPattern,
+                title: warning.title.clone(),
+                message: warning.message.clone(),
+                suggestion: warning.suggestion.clone(),
+            });
+        }
+
+        files_scanned += 1;
+        if files_scanned >= MAX_FILES {
+            break;
+        }
+    }
+
+    // Sort by severity descending (Error first).
+    findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    Ok(ScanResults {
+        findings,
+        files_scanned,
+        duration_ms,
+    })
+}
+
+/// Run the tutorial surface in a loop, handling 'f' fix requests.
+/// When the user presses 'f' in the tutorial, we exit the surface, create a
+/// FixState for the top finding, run it, then resume the tutorial.
+fn run_tutorial_with_fix(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+) -> anyhow::Result<SurfaceExit> {
+    loop {
+        let exit = crate::tui::run_surface_in(terminal, tutorial_state, theme)?;
+
+        if tutorial_state.wants_fix {
+            tutorial_state.wants_fix = false;
+
+            // Get the top finding from domain_findings.
+            let finding = tutorial_state
+                .domain_findings
+                .as_ref()
+                .and_then(|d| d.top_findings(1).into_iter().next().cloned());
+
+            if let Some(finding) = finding {
+                let mut fix_state =
+                    anvil_tui::surfaces::tutorial::fix::FixState::new(finding.clone());
+
+                // Load file context around the finding for display.
+                if let Ok(content) = std::fs::read_to_string(&finding.file) {
+                    let all_lines: Vec<String> =
+                        content.lines().map(|l| l.to_string()).collect();
+                    let target = finding.line.unwrap_or(1).saturating_sub(1);
+                    let start = target.saturating_sub(5);
+                    let end = (target + 6).min(all_lines.len());
+                    let context: Vec<String> = all_lines[start..end].to_vec();
+                    fix_state.set_context(context, start + 1);
+                }
+
+                let fix_exit = crate::tui::run_surface_in(terminal, &mut fix_state, theme)?;
+                if fix_exit == SurfaceExit::Quit {
+                    return Ok(SurfaceExit::Quit);
+                }
+            }
+            // Resume the tutorial — loop back to run_surface_in.
+            continue;
+        }
+
+        return Ok(exit);
+    }
+}
+
+/// Start watch mode from the welcome hub. Sets up the kernel watcher,
+/// runs the watch TUI surface, then stops the watcher on exit.
+fn start_watch_from_hub(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    _theme: &EddaCraftTheme,
+) -> anyhow::Result<SurfaceExit> {
+    use anyhow::Context;
+
+    let workspace_root = crate::util::workspace_root()?;
+
+    let watcher_config = anvil_kernel::watcher::WatcherConfig {
+        root: workspace_root.clone(),
+        debounce_window: std::time::Duration::from_millis(300),
+        ..Default::default()
+    };
+
+    let watch_config = anvil_kernel::watch::WatchConfig {
+        root: workspace_root,
+        architecture_config: None,
+        watcher: watcher_config,
+        include_patterns: vec!["**/*".to_string()],
+        exclude_patterns: Vec::new(),
+    };
+
+    let (event_tx, event_rx) = std::sync::mpsc::channel();
+
+    let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx)
+        .context("starting kernel watcher")?;
+
+    let mut state =
+        anvil_tui::surfaces::watch::WatchState::new(anvil_tui::surfaces::watch::WatchData {
+            status: anvil_tui::surfaces::watch::WatchStatus::Idle,
+            queue: std::collections::VecDeque::new(),
+            history: Vec::new(),
+            stats: anvil_tui::surfaces::watch::WatchStats {
+                total_runs: 0,
+                pass_rate: 0.0,
+                avg_duration_ms: 0,
+                files_watched: 0,
+            },
+        });
+
+    let exit = crate::tui::run_watch_in(terminal, &mut state, &event_rx)?;
+
+    handle.stop().context("stopping watcher")?;
+    Ok(exit)
 }
 
 fn run_welcome_hub(
@@ -222,11 +486,22 @@ fn run_welcome_hub(
                 welcome.chosen = None;
             }
             Some(QuickStartOption::StartWatch) => {
-                welcome.status_message = Some(
-                    "Watch mode requires a kernel watcher channel. Run \u{2018}anvil watch\u{2019} from the command line."
-                        .to_string(),
-                );
+                crate::tui::draw_loading(
+                    terminal,
+                    "Watch",
+                    "Starting file watcher...",
+                    theme,
+                )?;
+                match start_watch_from_hub(terminal, theme) {
+                    Ok(SurfaceExit::Quit) => break,
+                    Ok(SurfaceExit::Back) => {}
+                    Err(e) => {
+                        welcome.status_message =
+                            Some(format!("Watch mode failed: {e}"));
+                    }
+                }
                 welcome.should_quit = false;
+                welcome.chosen = None;
             }
             Some(QuickStartOption::ViewDocs) => {
                 welcome.status_message = Some(open_docs_message());
@@ -247,8 +522,26 @@ fn run_welcome_hub(
                 crate::tui::draw_loading(terminal, "Doctor", "Running diagnostics...", theme)?;
                 let checks = crate::commands::doctor::collect_checks();
                 let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
-                let sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
-                if sub_exit == SurfaceExit::Quit {
+                loop {
+                    let sub_exit =
+                        crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
+                    if doctor_state.wants_fix {
+                        if let Some(idx) = doctor_state.fix_index {
+                            crate::commands::doctor::apply_fix_at(
+                                &mut doctor_state.checks,
+                                idx,
+                            );
+                        }
+                        doctor_state.wants_fix = false;
+                        doctor_state.fix_index = None;
+                        continue;
+                    }
+                    if sub_exit == SurfaceExit::Quit {
+                        break;
+                    }
+                    break;
+                }
+                if doctor_state.should_quit {
                     break;
                 }
                 welcome.should_quit = false;
