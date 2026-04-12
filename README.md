@@ -1,6 +1,6 @@
 # eddacraft-tui
 
-Shared Ratatui component library for the eddacraft product family.
+Shared Ratatui component library for open-source TUIs that follow the eddacraft design system.
 
 ## Modules
 
@@ -37,7 +37,31 @@ eddacraft-tui = "0.1"
 use eddacraft_tui::prelude::*;
 
 let theme = EddaCraftTheme;
+let spinner = Spinner::new(&theme).eddacraft().label("Loading...");
+let forge_spinner = Spinner::new(&theme).anvil().label("Forging...");
+
+// Pass the consuming crate's version explicitly.
+// render_shell(frame, area, ShellBranding::Anvil, "anvil", "Watch", "[q] quit", &theme, env!("CARGO_PKG_VERSION"));
 ```
+
+`ParallelProgress` also uses the branded `anvil` spinner automatically for running checks.
+
+`render_shell` supports reusable shell marks for open-source apps:
+
+- `ShellBranding::Plain`
+- `ShellBranding::EddaCraft` -> `[■]`
+- `ShellBranding::Edda` -> `[=]`
+- `ShellBranding::Anvil` -> `[⚒]`
+
+## Links
+
+- eddacraft: <https://eddacraft.com>
+- anvil repository: <https://github.com/EddaCraft/anvil>
+- Brand and design system: <https://github.com/EddaCraft/brand-and-design>
+
+## Acknowledgements
+
+Spinner support is powered by [`rattles`](https://github.com/vyfor/rattles), a minimal Rust terminal spinner library.
 
 ## Licence
 

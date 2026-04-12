@@ -8,6 +8,7 @@ use ratatui::widgets::{Block, Borders, StatefulWidget, Widget};
 use unicode_width::UnicodeWidthChar;
 
 use crate::theme::Theme;
+use crate::widgets::spinner::SpinnerPreset;
 
 const FRACTION_BLOCKS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
 
@@ -227,7 +228,7 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
             Line::styled(name, self.theme.base()).render(row_chunks[0], buf);
 
             let status_style = status_style(check.status, self.theme);
-            let status_icon = status_icon(check.status);
+            let status_icon = status_icon(check);
             let progress_text = if self.compact || !matches!(check.status, CheckStatus::Running) {
                 if let Some(message) = &check.message {
                     format!("{status_icon} {message}")
@@ -289,14 +290,28 @@ fn effective_progress(check: &CheckProgress) -> u8 {
     }
 }
 
-fn status_icon(status: CheckStatus) -> char {
-    match status {
-        CheckStatus::Passed => '◆',
-        CheckStatus::Failed => '✖',
-        CheckStatus::Running => '●',
-        CheckStatus::Pending | CheckStatus::Skipped => '○',
-        CheckStatus::Cached => '⚡',
+fn status_icon(check: &CheckProgress) -> String {
+    match check.status {
+        CheckStatus::Passed => "◆".to_string(),
+        CheckStatus::Failed => "✖".to_string(),
+        CheckStatus::Running => SpinnerPreset::Anvil
+            .frame(running_frame_index(check.start_time))
+            .to_string(),
+        CheckStatus::Pending | CheckStatus::Skipped => "○".to_string(),
+        CheckStatus::Cached => "⚡".to_string(),
     }
+}
+
+fn running_frame_index(start_time: Option<Instant>) -> usize {
+    let interval_ms = SpinnerPreset::Anvil.interval().as_millis().max(1);
+    let elapsed_ms = start_time
+        .map(|started| {
+            Instant::now()
+                .saturating_duration_since(started)
+                .as_millis()
+        })
+        .unwrap_or(0);
+    usize::try_from(elapsed_ms / interval_ms).unwrap_or(0)
 }
 
 fn status_style<T: Theme>(status: CheckStatus, theme: &T) -> Style {
@@ -372,6 +387,8 @@ fn resolve_duration(check: &CheckProgress) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use ratatui::widgets::StatefulWidget;
+
     use super::*;
 
     #[test]
@@ -424,5 +441,32 @@ mod tests {
         assert_eq!(format_duration(512), "512ms");
         assert_eq!(format_duration(12_000), "12s");
         assert_eq!(format_duration(61_000), "1m 1s");
+    }
+
+    #[test]
+    fn compact_running_check_renders_spinner_frame() {
+        let theme = crate::theme::EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        let mut state = ParallelProgressState {
+            checks: vec![CheckProgress {
+                id: "a".to_string(),
+                name: "forge".to_string(),
+                status: CheckStatus::Running,
+                progress: 42,
+                start_time: Some(Instant::now()),
+                end_time: None,
+                duration_ms: None,
+                message: Some("Forging".to_string()),
+            }],
+            start_time: None,
+        };
+
+        ParallelProgress::new(&theme)
+            .compact(true)
+            .render(area, &mut buf, &mut state);
+
+        let row: String = (0..40).map(|x| buf[(x, 1)].symbol().to_string()).collect();
+        assert!(row.contains("⚒") || row.contains("🔨") || row.contains("🛠"));
     }
 }
