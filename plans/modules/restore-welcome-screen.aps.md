@@ -1,7 +1,7 @@
 # Welcome Screen & Interactive Onboarding
 
 Module: **WELCOME**
-Status: Complete
+Status: In Progress
 Owner: EddaCraft
 
 ## Problem
@@ -139,7 +139,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-003: Guided init step
 
-- **Status:** Done
+- **Status:** In Progress
 - **Intent:** Wire the existing `InitSurface` (5-step wizard: mode,
   format, directory, checks, summary) into the onboarding flow. After
   init completes, transition to the discovery scan (WELCOME-007). If
@@ -149,6 +149,8 @@ to showcase mode rather than erroring out.
   init; existing config detected and skipped.
 - **Files:** `crates/anvil-tui/src/surfaces/onboarding/mod.rs`
 - **Dependencies:** WELCOME-002
+- **Note:** Config persistence was never implemented — `TODO` stub at
+  `welcome.rs:156`. Reopened 2026-04-12.
 
 #### Phase 2 — Discovery Scan Infrastructure
 
@@ -195,7 +197,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-007: Wire discovery into welcome and onboarding flows
 
-- **Status:** Done
+- **Status:** In Progress
 - **Intent:** Two integration points: (a) After "Interactive Tutorial"
   from the standard welcome menu, run discovery scan before entering
   tutorial path selection. (b) After guided init in onboarding flow,
@@ -291,7 +293,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-013: Live file watching during tutorial steps
 
-- **Status:** Done
+- **Status:** In Progress
 - **Intent:** For steps that ask the user to edit a file (e.g. "Add a
   policy rule to no-todos.yaml"), start a file watcher on the target
   path. When the file changes, re-run verification automatically. This
@@ -310,7 +312,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-014: Watch mode demo with guided overlay
 
-- **Status:** Done
+- **Status:** In Progress
 - **Intent:** Start `anvil watch` in a tutorial context — render the
   real watch dashboard with a semi-transparent guided overlay explaining
   each panel (file watcher status, check results, warning list). The

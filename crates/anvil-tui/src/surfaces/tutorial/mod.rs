@@ -127,6 +127,9 @@ pub struct TutorialState {
     /// Set to true when the tutorial wants to launch the watch mode demo.
     /// The TUI loop exits and the CLI command handles the transition.
     pub wants_watch_demo: bool,
+    /// Set to true when the user presses 'f' to fix the top finding.
+    /// The orchestrator creates a `FixState` and runs it as a sub-surface.
+    pub wants_fix: bool,
 }
 
 impl TutorialState {
@@ -152,6 +155,7 @@ impl TutorialState {
             completed_paths: Vec::new(),
             resuming_notice: None,
             wants_watch_demo: false,
+            wants_fix: false,
         }
     }
 
@@ -379,14 +383,7 @@ impl TutorialState {
                 Action::Character('s') => {
                     self.advance_step();
                 }
-                Action::Back => {
-                    self.resuming_notice = None;
-                    self.phase = TutorialPhase::PathSelect;
-                    self.steps.clear();
-                    self.current_step = 0;
-                    self.chosen_path = None;
-                    self.domain_findings = None;
-                }
+                Action::Back => self.wants_back = true,
                 Action::Quit => self.should_quit = true,
                 _ => {}
             }
@@ -433,14 +430,13 @@ impl TutorialState {
                     self.advance_step();
                 }
             }
-            Action::Back => {
-                self.resuming_notice = None;
-                self.phase = TutorialPhase::PathSelect;
-                self.steps.clear();
-                self.current_step = 0;
-                self.chosen_path = None;
-                self.domain_findings = None;
+            Action::Character('f') => {
+                // 'f' — open fix surface for the top domain finding.
+                if self.domain_findings.as_ref().is_some_and(|d| !d.findings.is_empty()) {
+                    self.wants_fix = true;
+                }
             }
+            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -448,13 +444,14 @@ impl TutorialState {
 
     fn handle_complete(&mut self, action: Action) {
         match action {
-            Action::Select | Action::Back => {
+            Action::Select => {
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
                 self.current_step = 0;
                 self.chosen_path = None;
                 self.domain_findings = None;
             }
+            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -474,6 +471,8 @@ impl crate::surface::Surface for TutorialState {
                     "enter next  esc back  q quit"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
+                } else if self.domain_findings.as_ref().is_some_and(|d| !d.findings.is_empty()) {
+                    "enter run/next  space next  f fix  esc back  q quit"
                 } else {
                     "enter run/next  space next  esc back  q quit"
                 }
@@ -487,7 +486,7 @@ impl crate::surface::Surface for TutorialState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.wants_fix
     }
 
     fn should_back(&self) -> bool {
@@ -497,6 +496,7 @@ impl crate::surface::Surface for TutorialState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.wants_fix = false;
         self.phase = TutorialPhase::PathSelect;
         self.path_selected = 0;
         self.steps.clear();
@@ -660,15 +660,13 @@ mod tests {
     }
 
     #[test]
-    fn back_from_running_returns_to_path_select() {
+    fn back_from_running_exits_tutorial() {
         let mut state = TutorialState::new();
         state.handle_key(Action::Select); // choose Policy
         assert_eq!(state.phase, TutorialPhase::Running);
 
         state.handle_key(Action::Back);
-        assert_eq!(state.phase, TutorialPhase::PathSelect);
-        assert!(state.steps.is_empty());
-        assert!(state.chosen_path.is_none());
+        assert!(state.wants_back);
     }
 
     #[test]
@@ -686,7 +684,7 @@ mod tests {
     }
 
     #[test]
-    fn select_different_paths() {
+    fn back_from_running_sets_wants_back() {
         let mut state = TutorialState::new();
 
         // Select Architecture (index 1)
@@ -694,11 +692,9 @@ mod tests {
         state.handle_key(Action::Select);
         assert_eq!(state.chosen_path, Some(TutorialPath::Architecture));
 
-        // Back and select Drift (index 2) — path_selected was 1 from before
+        // Back exits the tutorial entirely
         state.handle_key(Action::Back);
-        state.handle_key(Action::Down);
-        state.handle_key(Action::Select);
-        assert_eq!(state.chosen_path, Some(TutorialPath::Drift));
+        assert!(state.wants_back);
     }
 
     #[test]
@@ -811,13 +807,13 @@ mod tests {
     }
 
     #[test]
-    fn back_from_failed_command_returns_to_path_select() {
+    fn back_from_failed_command_exits_tutorial() {
         let mut state = state_with_command_step("exit 1");
         state.handle_key(Action::Select); // fails
 
         state.handle_key(Action::Back);
 
-        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(state.wants_back);
     }
 
     #[test]
@@ -1123,12 +1119,12 @@ mod tests {
     }
 
     #[test]
-    fn static_mode_back_from_running_returns_to_path_select() {
+    fn static_mode_back_from_running_exits_tutorial() {
         let mut state = state_with_command_step("echo test");
         state.enable_static_mode();
 
         state.handle_key(Action::Back);
-        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(state.wants_back);
     }
 
     #[test]
@@ -1371,5 +1367,48 @@ mod tests {
         let advanced =
             state.handle_file_change(&[std::path::PathBuf::from("/tmp/watched_dir/file.txt")]);
         assert!(!advanced);
+    }
+
+    // --- Fix key tests ---
+
+    #[test]
+    fn f_key_sets_wants_fix_when_domain_findings_present() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        state.handle_key(Action::Select); // choose Policy path
+        assert!(state.domain_findings.is_some());
+        assert!(!state.domain_findings.as_ref().unwrap().findings.is_empty());
+
+        state.handle_key(Action::Character('f'));
+        assert!(state.wants_fix);
+    }
+
+    #[test]
+    fn f_key_no_op_without_domain_findings() {
+        let mut state = TutorialState::new();
+        state.handle_key(Action::Select); // choose Policy path, no scan results
+        assert!(state.domain_findings.is_none());
+
+        state.handle_key(Action::Character('f'));
+        assert!(!state.wants_fix);
+    }
+
+    #[test]
+    fn wants_fix_causes_should_quit_true() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        state.handle_key(Action::Select);
+        assert!(!crate::surface::Surface::should_quit(&state));
+
+        state.handle_key(Action::Character('f'));
+        assert!(crate::surface::Surface::should_quit(&state));
+    }
+
+    #[test]
+    fn reset_clears_wants_fix() {
+        let mut state = TutorialState::new();
+        state.wants_fix = true;
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+        assert!(!state.wants_fix);
     }
 }

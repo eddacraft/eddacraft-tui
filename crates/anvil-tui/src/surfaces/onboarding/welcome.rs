@@ -16,17 +16,17 @@ impl OnboardingChoice {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::GuidedSetup => "Start guided setup",
-            Self::SkipToTutorial => "Skip to tutorial",
-            Self::SkipEntirely => "Skip entirely",
+            Self::GuidedSetup => "Set up this project",
+            Self::SkipToTutorial => "Explore the tutorial",
+            Self::SkipEntirely => "Go to command menu",
         }
     }
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::GuidedSetup => "Configure Anvil for your project step by step",
-            Self::SkipToTutorial => "Jump straight into the interactive tutorial",
-            Self::SkipEntirely => "Go to the command menu — you can run the tutorial later",
+            Self::GuidedSetup => "Add Anvil to your codebase and scan for issues",
+            Self::SkipToTutorial => "Learn what Anvil can do with a guided walkthrough",
+            Self::SkipEntirely => "Skip setup \u{2014} you can always come back with `anvil start`",
         }
     }
 }
@@ -203,24 +203,24 @@ mod tests {
 
     #[test]
     fn choice_labels() {
-        assert_eq!(OnboardingChoice::GuidedSetup.label(), "Start guided setup");
-        assert_eq!(OnboardingChoice::SkipToTutorial.label(), "Skip to tutorial");
-        assert_eq!(OnboardingChoice::SkipEntirely.label(), "Skip entirely");
+        assert_eq!(OnboardingChoice::GuidedSetup.label(), "Set up this project");
+        assert_eq!(OnboardingChoice::SkipToTutorial.label(), "Explore the tutorial");
+        assert_eq!(OnboardingChoice::SkipEntirely.label(), "Go to command menu");
     }
 
     #[test]
     fn choice_descriptions() {
         assert_eq!(
             OnboardingChoice::GuidedSetup.description(),
-            "Configure Anvil for your project step by step"
+            "Add Anvil to your codebase and scan for issues"
         );
         assert_eq!(
             OnboardingChoice::SkipToTutorial.description(),
-            "Jump straight into the interactive tutorial"
+            "Learn what Anvil can do with a guided walkthrough"
         );
         assert_eq!(
             OnboardingChoice::SkipEntirely.description(),
-            "Go to the command menu — you can run the tutorial later"
+            "Skip setup \u{2014} you can always come back with `anvil start`"
         );
     }
 }
