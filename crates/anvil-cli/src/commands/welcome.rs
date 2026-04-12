@@ -210,12 +210,9 @@ fn run_guided_init(
             eprintln!("[welcome] warning: failed to create directory: {e}");
         }
 
-        let config = crate::commands::init::AnvilConfig {
-            schema_version: "1.0.0".to_string(),
-            planning_dir: "plans".to_string(),
-            format: crate::commands::init::format_label(init_state.config.format),
-            checks,
-        };
+        let mut config = crate::commands::init::AnvilConfig::default();
+        config.format = crate::commands::init::format_label(init_state.config.format);
+        config.checks = checks;
 
         let msg = match crate::commands::init::generate_config(&config, &init_root) {
             Ok(()) => "Config saved to .anvilrc. Proceeding to scan\u{2026}".to_string(),
@@ -254,8 +251,11 @@ fn run_discovery(
             }
         }
         Ok(results) => results,
-        Err(_) => {
-            // Scan failed — fall back to showcase mode.
+        Err(e) => {
+            // Scan failed — surface the error and fall back to showcase mode.
+            eprintln!(
+                "Warning: failed to scan project for discovery findings: {e}. Falling back to showcase examples."
+            );
             let findings = showcase::showcase_findings();
             ScanResults {
                 findings,
@@ -502,10 +502,11 @@ fn start_watch_from_hub(
             },
         });
 
-    let exit = crate::tui::run_watch_in(terminal, &mut state, &event_rx)?;
+    let exit = crate::tui::run_watch_in(terminal, &mut state, &event_rx);
+    let stop_result = handle.stop().context("stopping watcher");
 
-    handle.stop().context("stopping watcher")?;
-    Ok(exit)
+    stop_result?;
+    exit
 }
 
 fn run_welcome_hub(

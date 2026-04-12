@@ -26,8 +26,23 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     } else if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain(&checks);
     } else {
-        let state = DoctorState::new(checks.clone());
-        crate::tui::run_surface(state)?;
+        let mut state = DoctorState::new(checks.clone());
+        loop {
+            state = crate::tui::run_surface(state)?;
+            if state.wants_fix {
+                if let Some(idx) = state.fix_index {
+                    apply_fix_at(&mut state.checks, idx);
+                    let fresh = collect_checks();
+                    state.checks = fresh;
+                    state.selected = idx.min(state.checks.len().saturating_sub(1));
+                }
+                state.wants_fix = false;
+                state.fix_index = None;
+                continue;
+            }
+            break;
+        }
+        checks = state.checks;
     }
 
     let has_failures = checks.iter().any(|c| c.status == CheckStatus::Fail);

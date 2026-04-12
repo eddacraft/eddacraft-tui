@@ -144,7 +144,7 @@ A new user who runs `install.sh` → `anvil start` in an existing project should
 
 1. See a clear post-install message telling them what to do
 2. Choose "Set up this project" and complete the init wizard
-3. See their config written to disk (`.anvil.yaml`)
+3. See their config written to disk (`.anvilrc`)
 4. See Anvil scan their actual codebase and find real issues (or showcase if clean)
 5. Fix at least one issue via the inline editor or file watcher
 6. See a completion summary with actionable next steps
