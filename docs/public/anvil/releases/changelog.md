@@ -14,7 +14,7 @@ All notable changes to Anvil are documented here.
 ### Added
 
 - **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated proxy
-  with shared-secret middleware and a nordic terminal-themed landing page.
+  with shared-secret middleware and a Nordic terminal-themed landing page.
 
 ### Fixed
 
@@ -25,11 +25,6 @@ All notable changes to Anvil are documented here.
 - **TUI version display** — shell footer now shows the correct version string.
 - **Release pipeline** — ARM64 Windows target removed from cargo-dist (upstream
   dependency not yet available).
-
-### Improved
-
-- Docs infrastructure simplified with header-based auth gating.
-- Vercel preview deploys skip non-release branches.
 
 ## [0.3.0-beta] — Rust CLI & Native Engine
 
