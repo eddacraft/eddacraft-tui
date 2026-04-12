@@ -100,14 +100,13 @@ export const docsPublic = new VercelApp('docs-public', {
 });
 
 // DOCSAUTH2: Docs shell (Next.js) — public-facing, gates /anvil/* with
-// licence JWT, proxies to the two protected upstreams. Domain cutover to
-// docs.eddacraft.ai lives in a later task (currently still on docsSite).
+// licence JWT, proxies to the two protected upstreams.
 export const docsShell = new VercelApp('docs-shell', {
   name: 'eddacraft-docs-shell',
   framework: 'nextjs',
   rootDirectory: 'apps/docs-shell',
   gitRepo,
-  domains: [],
+  domains: ['docs.eddacraft.ai'],
   buildCommand: 'pnpm nx build docs-shell',
   installCommand: 'pnpm install --frozen-lockfile',
   skipPreviewDeploys: true,
@@ -123,14 +122,14 @@ export const docsShell = new VercelApp('docs-shell', {
   },
 });
 
-// IAC-004: Docs Site (Docusaurus) — will be retired once docsShell takes
-// over the docs.eddacraft.ai domain (see DOCSAUTH2 Task 24/26).
+// IAC-004: Docs Site (Docusaurus) — RETIRED. Domain moved to docsShell.
+// Kept temporarily for rollback; remove once docs-shell is stable.
 export const docsSite = new VercelApp('docs-site', {
   name: 'docs-site',
   framework: 'docusaurus-2',
   rootDirectory: 'apps/docs-site',
   gitRepo,
-  domains: ['docs.eddacraft.ai'],
+  domains: [],
   skipPreviewDeploys: true,
   extraWatchPaths: ['docs/public'],
   envVars: {
