@@ -33,16 +33,13 @@ export class VercelApp extends pulumi.ComponentResource {
         `Invalid productionBranch "${prodBranch}" — must contain only word characters, dots, slashes, or hyphens`
       );
     }
+    const skipFlag = args.skipPreviewDeploys ? '--skip-preview ' : '';
+    const branchFlag =
+      args.skipPreviewDeploys && prodBranch !== 'main' ? `--prod-branch ${prodBranch} ` : '';
     const extraArgs = args.extraWatchPaths?.length
       ? ' ' + args.extraWatchPaths.map((p) => `'${p}'`).join(' ')
       : '';
-    const fileCheckCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}${extraArgs}`;
-
-    // When skipPreviewDeploys is true, only build on the production branch;
-    // all other branches exit 0 (skip). Manual dev deploys via `vercel deploy`.
-    const defaultIgnoreCommand = args.skipPreviewDeploys
-      ? `if [ -n "$VERCEL_GIT_COMMIT_REF" ] && [ "$VERCEL_GIT_COMMIT_REF" != "${prodBranch}" ]; then echo "Skipping non-production branch"; exit 0; fi && ${fileCheckCommand}`
-      : fileCheckCommand;
+    const defaultIgnoreCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${skipFlag}${branchFlag}${args.rootDirectory}${extraArgs}`;
 
     const project = new vercel.Project(
       name,

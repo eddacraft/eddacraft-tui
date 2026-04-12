@@ -8,7 +8,10 @@
 # Usage (set as ignoreCommand in Vercel project config):
 #   bash tools/scripts/vercel-ignore-build.sh apps/website
 #   bash tools/scripts/vercel-ignore-build.sh apps/docs-site docs/public
-#   bash tools/scripts/vercel-ignore-build.sh apps/anvil-api
+#   bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/anvil-api
+#
+# Options:
+#   --skip-preview  Skip builds on non-production branches (exit 0)
 #
 # Vercel ignoreCommand semantics:
 #   Exit 1 = proceed with build
@@ -26,7 +29,24 @@ fi
 
 type log_enter >/dev/null 2>&1 && log_enter "$@"
 
-PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh <project-dir> [extra-path ...]}"
+SKIP_PREVIEW=false
+PROD_BRANCH="main"
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --skip-preview) SKIP_PREVIEW=true; shift ;;
+    --prod-branch) PROD_BRANCH="$2"; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+if [ "$SKIP_PREVIEW" = true ] && [ -n "${VERCEL_GIT_COMMIT_REF:-}" ] && [ "$VERCEL_GIT_COMMIT_REF" != "$PROD_BRANCH" ]; then
+  echo "Skipping non-production branch"
+  type log_info >/dev/null 2>&1 && log_info "skipping non-production branch '${VERCEL_GIT_COMMIT_REF}'"
+  type log_exit >/dev/null 2>&1 && log_exit 0
+  exit 0
+fi
+
+PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh [--skip-preview] <project-dir> [extra-path ...]}"
 shift
 EXTRA_PATHS=("$@")
 
