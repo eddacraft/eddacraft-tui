@@ -1,39 +1,46 @@
 export default function HomePage() {
   return (
     <>
-      <section className="hero">
-        <h1>EddaCraft</h1>
-        <p className="tagline">The forge for governed AI-assisted work.</p>
-        <a className="cta" href="/anvil/overview">
-          Anvil docs
+      <header className="header">
+        <a href="https://eddacraft.ai" className="wordmark">
+          eddacraft
         </a>
-        <a className="cta secondary" href="/aps/overview">
-          APS spec
+        <nav className="header-nav">
+          <a href="/blog" className="header-link">
+            Blog
+          </a>
+          <a href="https://eddacraft.ai" className="header-link" rel="noopener">
+            eddacraft.ai &rarr;
+          </a>
+        </nav>
+      </header>
+
+      <section className="hero">
+        <h1>Documentation</h1>
+        <p>The forge for governed AI-assisted work.</p>
+      </section>
+
+      <section className="cards">
+        <a href="/anvil/overview" className="card" data-accent="anvil">
+          <h3>Anvil</h3>
+          <p>Governed code-gen pipelines for engineering teams.</p>
+          <span className="card-link">Read docs &gt;</span>
+        </a>
+
+        <a href="/aps/overview" className="card" data-accent="aps">
+          <h3>APS</h3>
+          <p>Declarative implementation plans for AI-assisted work.</p>
+          <span className="card-link">Read docs &gt;</span>
+        </a>
+
+        <a href="/kindling/overview" className="card" data-accent="kindling">
+          <h3>Kindling</h3>
+          <p>Observation capture and memory substrate.</p>
+          <span className="card-link">Read docs &gt;</span>
         </a>
       </section>
 
-      <section className="sections">
-        <div className="section">
-          <h3>Anvil</h3>
-          <p>Commercial beta: governed code-gen pipelines for engineering teams.</p>
-          <a href="/anvil/overview">Read the Anvil docs →</a>
-        </div>
-        <div className="section">
-          <h3>APS</h3>
-          <p>Open-source Anvil Plan Spec: declarative implementation plans.</p>
-          <a href="/aps/overview">Read the APS spec →</a>
-        </div>
-        <div className="section">
-          <h3>Kindling</h3>
-          <p>Open-source observation capture and memory substrate.</p>
-          <a href="/kindling/overview">Read the Kindling docs →</a>
-        </div>
-        <div className="section">
-          <h3>edda-stack</h3>
-          <p>Open-source integration layer between Anvil, APS, and Kindling.</p>
-          <a href="/edda-stack/overview">Read the edda-stack docs →</a>
-        </div>
-      </section>
+      <footer className="footer">&copy; {new Date().getFullYear()} eddacraft</footer>
     </>
   );
 }
