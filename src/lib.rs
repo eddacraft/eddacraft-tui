@@ -14,6 +14,7 @@
 //! let theme = EddaCraftTheme;
 //! // Use any widget with the theme:
 //! // let spinner = Spinner::new(&theme).eddacraft().label("Loading...");
+//! // render_shell(frame, area, ShellBranding::Anvil, "anvil", "Watch", "[q] quit", &theme, env!("CARGO_PKG_VERSION"));
 //! ```
 //!
 //! ## Modules
