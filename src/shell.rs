@@ -29,6 +29,17 @@ impl ShellBranding {
             Self::Custom(mark) => mark,
         }
     }
+
+    #[must_use]
+    pub fn footer_wordmark(self, brand: &str) -> String {
+        match self {
+            Self::Plain => brand.to_lowercase(),
+            Self::EddaCraft => "e d d a c r a f t".to_string(),
+            Self::Edda => "e d d a".to_string(),
+            Self::Anvil => "a n v i l".to_string(),
+            Self::Custom(mark) => mark.to_string(),
+        }
+    }
 }
 
 /// Render branded shell chrome around a surface content area.
@@ -77,7 +88,11 @@ pub fn render_shell(
 
     // Footer: help text (left) + watermark (right).
     // Watermark is prioritised — help text is truncated if needed.
-    let watermark = format!("[ \u{25a0} ] e d d a c r a f t  v{version}");
+    let footer_mark = if mark.is_empty() { "[ ]" } else { mark };
+    let watermark = format!(
+        "{footer_mark} {}  v{version}",
+        branding.footer_wordmark(brand)
+    );
     let wm_width = watermark.width();
     let available = chunks[2].width as usize;
     let min_gap = 2;
@@ -289,5 +304,33 @@ mod tests {
             .collect();
 
         assert!(header.starts_with("custom > Home"));
+    }
+
+    #[test]
+    fn footer_uses_brand_specific_wordmark() {
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Anvil,
+                    "anvil",
+                    "Home",
+                    "q quit",
+                    &theme,
+                    "1.2.3",
+                );
+            })
+            .unwrap();
+
+        let footer: String = (0..60)
+            .map(|x| terminal.backend().buffer()[(x, 4)].symbol().to_string())
+            .collect();
+
+        assert!(footer.contains("[⚒] a n v i l  v1.2.3"));
     }
 }

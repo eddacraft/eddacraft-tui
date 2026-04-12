@@ -48,6 +48,15 @@ impl SpinnerPreset {
             Self::Anvil => anvil().len(),
         }
     }
+
+    #[must_use]
+    pub fn next_frame(self, frame: usize) -> usize {
+        let len = self.len();
+        if len == 0 {
+            return 0;
+        }
+        (frame + 1) % len
+    }
 }
 
 pub struct Spinner<'a, T: Theme> {
@@ -59,27 +68,21 @@ pub struct Spinner<'a, T: Theme> {
 #[derive(Debug, Default)]
 pub struct SpinnerState {
     pub frame: usize,
-    preset: SpinnerPreset,
 }
 
 impl SpinnerState {
     #[must_use]
     pub fn with_preset(preset: SpinnerPreset) -> Self {
-        Self { frame: 0, preset }
+        let _ = preset;
+        Self { frame: 0 }
     }
 
     pub fn tick(&mut self) {
-        self.tick_with(self.preset);
+        self.frame = SpinnerPreset::default().next_frame(self.frame);
     }
 
     pub fn tick_with(&mut self, preset: SpinnerPreset) {
-        self.preset = preset;
-        let len = preset.len();
-        if len == 0 {
-            self.frame = 0;
-            return;
-        }
-        self.frame = (self.frame + 1) % len;
+        self.frame = preset.next_frame(self.frame);
     }
 }
 
@@ -123,7 +126,6 @@ impl<T: Theme> StatefulWidget for Spinner<'_, T> {
             return;
         }
 
-        state.preset = self.preset;
         let frame = self.preset.frame(state.frame);
 
         let line = if let Some(label) = self.label {
@@ -154,7 +156,6 @@ mod tests {
     fn default_frame_is_zero() {
         let state = SpinnerState::default();
         assert_eq!(state.frame, 0);
-        assert_eq!(state.preset, SpinnerPreset::EddaCraft);
     }
 
     #[test]
@@ -199,14 +200,13 @@ mod tests {
     }
 
     #[test]
-    fn tick_uses_state_preset() {
+    fn tick_with_uses_passed_preset() {
         let mut state = SpinnerState::with_preset(SpinnerPreset::Anvil);
         state.frame = SpinnerPreset::Anvil.len() - 1;
 
-        state.tick();
+        state.tick_with(SpinnerPreset::Anvil);
 
         assert_eq!(state.frame, 0);
-        assert_eq!(state.preset, SpinnerPreset::Anvil);
     }
 
     #[test]
