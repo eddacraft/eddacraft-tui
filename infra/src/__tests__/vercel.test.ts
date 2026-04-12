@@ -16,6 +16,7 @@ vi.mock('../../src/keyvault.js', () => ({
       'github-oauth-client-secret': 'mock-github-client-secret',
       'license-public-key': 'mock-license-public-key',
       'docs-state-secret': 'mock-docs-state-secret',
+      'docs-upstream-secret': 'mock-upstream-secret',
     };
     const value = secrets[name];
     if (value === undefined) {
@@ -57,10 +58,12 @@ describe('Vercel resources', () => {
   it('creates Vercel Project resources for all apps', () => {
     const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
 
-    expect(projects.length).toBe(4);
+    expect(projects.length).toBe(6);
     expect(projects.map((p) => p.name)).toContain('website');
     expect(projects.map((p) => p.name)).toContain('docs-site');
     expect(projects.map((p) => p.name)).toContain('anvil-api');
+    expect(projects.map((p) => p.name)).toContain('anvil-docs-private');
+    expect(projects.map((p) => p.name)).toContain('docs-public');
     expect(projects.map((p) => p.name)).toContain('docs-shell');
   });
 

@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { SignJWT, importPKCS8 } from 'jose';
-import middleware from './middleware';
-import { resetKeyCache } from './lib/jwt';
+
+vi.stubEnv('ANVIL_DOCS_URL', 'https://eddacraft-anvil-docs-private.vercel.app');
+vi.stubEnv('PUBLIC_DOCS_URL', 'https://eddacraft-docs-public.vercel.app');
+vi.stubEnv('DOCS_UPSTREAM_SECRET', 'test-secret');
+
+const { default: proxy } = await import('./proxy');
+const { resetKeyCache } = await import('./lib/jwt');
 
 const TEST_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJBBvPQBkWNKD9mb6JqYMmoaUg8+e
@@ -43,7 +48,7 @@ describe('middleware', () => {
 
   it('redirects to login when no cookie', async () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/overview');
-    const res = await middleware(req as never);
+    const res = await proxy(req as never);
     expect(res.status).toBe(302);
     const location = res.headers.get('location')!;
     expect(location).toContain('/auth/login');
@@ -55,7 +60,7 @@ describe('middleware', () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/overview', {
       'anvil-docs-session': token,
     });
-    const res = await middleware(req as never);
+    const res = await proxy(req as never);
     expect(res.status).not.toBe(302);
   });
 
@@ -64,7 +69,7 @@ describe('middleware', () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/overview', {
       'anvil-docs-session': token,
     });
-    const res = await middleware(req as never);
+    const res = await proxy(req as never);
     expect(res.status).toBe(302);
     const setCookie = res.headers.get('set-cookie') ?? '';
     expect(setCookie).toContain('anvil-docs-session=');
@@ -75,13 +80,13 @@ describe('middleware', () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/overview', {
       'anvil-docs-session': 'not.a.jwt',
     });
-    const res = await middleware(req as never);
+    const res = await proxy(req as never);
     expect(res.status).toBe(302);
   });
 
   it('preserves deep path in next param', async () => {
     const req = makeRequest('https://docs.eddacraft.ai/anvil/quickstart/setup');
-    const res = await middleware(req as never);
+    const res = await proxy(req as never);
     expect(res.headers.get('location')).toContain('next=%2Fanvil%2Fquickstart%2Fsetup');
   });
 });
