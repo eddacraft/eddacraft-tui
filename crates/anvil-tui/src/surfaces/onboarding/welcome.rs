@@ -204,7 +204,10 @@ mod tests {
     #[test]
     fn choice_labels() {
         assert_eq!(OnboardingChoice::GuidedSetup.label(), "Set up this project");
-        assert_eq!(OnboardingChoice::SkipToTutorial.label(), "Explore the tutorial");
+        assert_eq!(
+            OnboardingChoice::SkipToTutorial.label(),
+            "Explore the tutorial"
+        );
         assert_eq!(OnboardingChoice::SkipEntirely.label(), "Go to command menu");
     }
 

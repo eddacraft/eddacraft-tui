@@ -118,7 +118,9 @@ async fn device_start(
         .json(&DeviceStartRequest { email })
         .send()
         .await
-        .map_err(|_| anyhow::anyhow!("Could not reach the auth server. Check your network connection."))?;
+        .map_err(|_| {
+            anyhow::anyhow!("Could not reach the auth server. Check your network connection.")
+        })?;
     check_status(resp, "Login failed")?
         .json()
         .await
@@ -135,7 +137,9 @@ async fn device_poll(
         .json(&DevicePollRequest { poll_token })
         .send()
         .await
-        .map_err(|_| anyhow::anyhow!("Could not reach the auth server while checking login status."))?;
+        .map_err(|_| {
+            anyhow::anyhow!("Could not reach the auth server while checking login status.")
+        })?;
     check_status(resp, "Login check failed")?
         .json()
         .await
@@ -152,7 +156,9 @@ async fn otp_request(
         .json(&OtpSendRequest { email })
         .send()
         .await
-        .map_err(|_| anyhow::anyhow!("Could not reach the auth server. Check your network connection."))?;
+        .map_err(|_| {
+            anyhow::anyhow!("Could not reach the auth server. Check your network connection.")
+        })?;
     check_status(resp, "Verification code request failed")?
         .json()
         .await
@@ -170,7 +176,9 @@ async fn otp_verify(
         .json(&OtpVerifyRequest { email, code })
         .send()
         .await
-        .map_err(|_| anyhow::anyhow!("Could not reach the auth server. Check your network connection."))?;
+        .map_err(|_| {
+            anyhow::anyhow!("Could not reach the auth server. Check your network connection.")
+        })?;
     check_status(resp, "Invalid or expired code")?
         .json()
         .await
