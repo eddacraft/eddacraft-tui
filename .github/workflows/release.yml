@@ -69,6 +69,9 @@ jobs:
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
+        # TODO(security): pin installer script by SHA256 hash — currently trusts
+        # the GitHub-hosted script at face value. cargo-dist does not yet publish
+        # checksums for installer scripts; revisit when they do.
         shell: bash
         run:
           "curl --proto '=https' --tlsv1.2 -LsSf

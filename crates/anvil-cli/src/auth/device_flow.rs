@@ -72,6 +72,19 @@ fn build_client() -> Result<reqwest::Client> {
         .context("building HTTP client")
 }
 
+/// Summarise a network-level reqwest error into a short user-visible hint.
+fn friendly_network_error(e: &reqwest::Error) -> &'static str {
+    if e.is_connect() {
+        "connection refused"
+    } else if e.is_timeout() {
+        "timed out"
+    } else if e.is_redirect() {
+        "too many redirects"
+    } else {
+        "network error"
+    }
+}
+
 /// Convert an HTTP error status into a user-friendly message.
 fn friendly_http_error(status: reqwest::StatusCode, context: &str) -> String {
     match status.as_u16() {
@@ -118,8 +131,11 @@ async fn device_start(
         .json(&DeviceStartRequest { email })
         .send()
         .await
-        .map_err(|_| {
-            anyhow::anyhow!("Could not reach the auth server. Check your network connection.")
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Could not reach the auth server ({}). Check your network connection.",
+                friendly_network_error(&e)
+            )
         })?;
     check_status(resp, "Login failed")?
         .json()
@@ -137,8 +153,11 @@ async fn device_poll(
         .json(&DevicePollRequest { poll_token })
         .send()
         .await
-        .map_err(|_| {
-            anyhow::anyhow!("Could not reach the auth server while checking login status.")
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Could not reach the auth server while checking login status ({}).",
+                friendly_network_error(&e)
+            )
         })?;
     check_status(resp, "Login check failed")?
         .json()
@@ -156,8 +175,11 @@ async fn otp_request(
         .json(&OtpSendRequest { email })
         .send()
         .await
-        .map_err(|_| {
-            anyhow::anyhow!("Could not reach the auth server. Check your network connection.")
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Could not reach the auth server ({}). Check your network connection.",
+                friendly_network_error(&e)
+            )
         })?;
     check_status(resp, "Verification code request failed")?
         .json()
@@ -176,8 +198,11 @@ async fn otp_verify(
         .json(&OtpVerifyRequest { email, code })
         .send()
         .await
-        .map_err(|_| {
-            anyhow::anyhow!("Could not reach the auth server. Check your network connection.")
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Could not reach the auth server ({}). Check your network connection.",
+                friendly_network_error(&e)
+            )
         })?;
     check_status(resp, "Invalid or expired code")?
         .json()

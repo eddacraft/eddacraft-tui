@@ -266,6 +266,20 @@ describe('resolveFlag', () => {
       expect(resolveFlag(flag, ctx).variant).toBe('enabled');
     });
 
+    it('segment operator resolves to default variant with unimplemented_operator reason', () => {
+      const flag = booleanFlag({
+        targeting: [
+          {
+            conditions: [{ attribute: 'cohort', operator: 'segment', value: 'beta-testers' }],
+            variant: 'enabled',
+          },
+        ],
+      });
+      const result = resolveFlag(flag, prodContext());
+      expect(result.variant).toBe('disabled');
+      expect(result.reason).toBe('unimplemented_operator');
+    });
+
     it('missing audience attribute does not match', () => {
       const flag = booleanFlag({
         targeting: [
@@ -292,11 +306,20 @@ describe('resolveFlag', () => {
       expect(result.errorCode).toBe('INVALID_OVERRIDE_VARIANT');
     });
 
-    it('invalid override on rollout class falls through to default', () => {
+    it('invalid override on rollout class falls through with invalid_override_fallthrough reason', () => {
       const flag = booleanFlag({ class: 'rollout' });
       const overrides: FlagOverrides = { local: { 'test.flag': 'nonexistent' } };
       const result = resolveFlag(flag, devContext(), overrides);
-      expect(result.reason).toBe('default');
+      expect(result.reason).toBe('invalid_override_fallthrough');
+      expect(result.variant).toBe('disabled');
+    });
+
+    it('invalid emergency override on rollout class falls through with invalid_override_fallthrough reason', () => {
+      const flag = booleanFlag({ class: 'rollout' });
+      const overrides: FlagOverrides = { emergency: { 'test.flag': 'nonexistent' } };
+      const result = resolveFlag(flag, devContext(), overrides);
+      expect(result.reason).toBe('invalid_override_fallthrough');
+      expect(result.variant).toBe('disabled');
     });
 
     it('ignores override for different flag key', () => {

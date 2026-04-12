@@ -429,8 +429,8 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
                     }
                 }
             }
-            "anvil-dir" => {
-                if std::fs::create_dir_all(".anvil").is_ok() {
+            "anvil-dir" => match std::fs::create_dir_all(".anvil") {
+                Ok(()) => {
                     check.status = CheckStatus::Pass;
                     check.message = ".anvil/ directory created".to_string();
                     check.auto_fixable = false;
@@ -438,9 +438,14 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
                         println!("  Fixed: anvil-dir — created .anvil/ directory");
                     }
                 }
-            }
-            "plans-dir" => {
-                if std::fs::create_dir_all("plans").is_ok() {
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("  Failed to fix anvil-dir: {e}");
+                    }
+                }
+            },
+            "plans-dir" => match std::fs::create_dir_all("plans") {
+                Ok(()) => {
                     check.status = CheckStatus::Pass;
                     check.message = "plans/ directory created".to_string();
                     check.auto_fixable = false;
@@ -448,7 +453,12 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
                         println!("  Fixed: plans-dir — created plans/ directory");
                     }
                 }
-            }
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("  Failed to fix plans-dir: {e}");
+                    }
+                }
+            },
             _ => {}
         }
     }

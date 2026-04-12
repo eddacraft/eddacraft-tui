@@ -9,7 +9,8 @@ describe('state encryption', () => {
     const payload = { next: '/anvil/overview', nonce: 'abc123' };
     const encrypted = await encryptState(payload, SECRET);
     const decrypted = await decryptState(encrypted, SECRET);
-    expect(decrypted).toEqual(payload);
+    expect(decrypted).toMatchObject(payload);
+    expect(typeof decrypted!.iat).toBe('number');
   });
 
   it('produces different ciphertext for the same input (random IV)', async () => {

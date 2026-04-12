@@ -20,7 +20,11 @@ export interface SnapshotConfig {
 // Snapshot Creation
 // =============================================================================
 
-let versionCounter = 0;
+// C-016: timestamp-based version with sub-second counter for monotonicity
+// within a single process. Survives restarts because the epoch-second base
+// advances with wall-clock time.
+let lastEpochSec = 0;
+let subSecondCounter = 0;
 
 // Strip milliseconds for cross-runtime parity with Rust (second precision)
 function toSecondPrecisionIso(date: Date): string {
@@ -28,10 +32,18 @@ function toSecondPrecisionIso(date: Date): string {
 }
 
 export function createSnapshot(manifest: FeatureFlagManifest): FeatureFlagSnapshot {
-  versionCounter += 1;
+  const epochSec = Math.floor(Date.now() / 1000);
+  if (epochSec === lastEpochSec) {
+    subSecondCounter += 1;
+  } else {
+    lastEpochSec = epochSec;
+    subSecondCounter = 0;
+  }
+  // Encode as epochSec * 1000 + sub-second counter to keep a single integer
+  const snapshotVersion = epochSec * 1000 + subSecondCounter;
   return {
     schemaVersion: manifest.schemaVersion,
-    snapshotVersion: versionCounter,
+    snapshotVersion,
     issuedAt: toSecondPrecisionIso(new Date()),
     flags: manifest.flags,
   };
@@ -87,6 +99,7 @@ export function loadSnapshot(json: string): FeatureFlagSnapshot {
   }
 
   // C-004: validate flag array elements have required fields
+  const KNOWN_VALUE_TYPES = ['boolean', 'string', 'number', 'object'] as const;
   const flags = obj.flags as unknown[];
   for (let i = 0; i < flags.length; i++) {
     const flag = flags[i];
@@ -102,6 +115,14 @@ export function loadSnapshot(json: string): FeatureFlagSnapshot {
       typeof f.class !== 'string'
     ) {
       throw new SnapshotLoadError(`flags[${i}] is missing required fields`);
+    }
+    // C-017: validate valueType is a known string
+    if (!(KNOWN_VALUE_TYPES as readonly string[]).includes(f.valueType as string)) {
+      throw new SnapshotLoadError(`flags[${i}] has invalid valueType: ${String(f.valueType)}`);
+    }
+    // C-017: validate variants array exists and is non-empty
+    if (!Array.isArray(f.variants) || f.variants.length === 0) {
+      throw new SnapshotLoadError(`flags[${i}] must have a non-empty variants array`);
     }
   }
 
