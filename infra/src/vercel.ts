@@ -13,9 +13,11 @@ const licensePublicKey = getSecret('license-public-key');
 const docsStateSecret = getSecret('docs-state-secret');
 
 // DOCSAUTH2: upstream Docusaurus hosts. These are the auto-generated
-// .vercel.app hostnames (matching the project `name`). The docs-shell
-// rewrites requests to these hosts and attaches a shared-secret header;
-// the upstreams enforce the header in routing middleware (Track B).
+// .vercel.app hostnames (matching the project `name` in Track B). The
+// docs-shell rewrites requests to these hosts and attaches a shared-secret
+// header; the upstreams enforce the header in routing middleware. The
+// Vercel projects themselves are provisioned by Track B alongside content,
+// to avoid creating publicly reachable placeholder projects.
 const ANVIL_DOCS_PRIVATE_HOST = 'eddacraft-anvil-docs-private.vercel.app';
 const DOCS_PUBLIC_HOST = 'eddacraft-docs-public.vercel.app';
 
@@ -60,32 +62,6 @@ export const api = new VercelApp('anvil-api', {
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,
   },
-});
-
-// DOCSAUTH2: Anvil docs (private, Docusaurus). Vercel Authentication isn't
-// available on the current plan for production deployments, so these projects
-// stay publicly reachable at the Vercel level. Protection is enforced in app
-// code via a shared-secret header check in a routing middleware (Track B),
-// which the docs-shell rewrite injects on every upstream request.
-export const anvilDocsPrivate = new VercelApp('anvil-docs-private', {
-  name: 'eddacraft-anvil-docs-private',
-  framework: 'docusaurus-2',
-  rootDirectory: 'apps/anvil-docs-private',
-  gitRepo,
-  domains: [],
-  skipPreviewDeploys: true,
-});
-
-// DOCSAUTH2: Public docs (Kindling/APS/edda-stack/blog). Same header-based
-// enforcement as anvilDocsPrivate — direct .vercel.app hits will 401 once the
-// upstream middleware lands in Track B.
-export const docsPublic = new VercelApp('docs-public', {
-  name: 'eddacraft-docs-public',
-  framework: 'docusaurus-2',
-  rootDirectory: 'apps/docs-public',
-  gitRepo,
-  domains: [],
-  skipPreviewDeploys: true,
 });
 
 // DOCSAUTH2: Docs shell (Next.js) — public-facing, gates /anvil/* with
