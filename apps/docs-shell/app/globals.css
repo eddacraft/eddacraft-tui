@@ -27,7 +27,11 @@ body {
 }
 
 body {
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-family:
+    var(--font-sans),
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 a {
@@ -118,27 +122,27 @@ a {
   transition: background 0.15s;
 }
 
-.card[data-accent="anvil"] {
+.card[data-accent='anvil'] {
   border-left-color: var(--anvil);
 }
 
-.card[data-accent="aps"] {
+.card[data-accent='aps'] {
   border-left-color: var(--aps);
 }
 
-.card[data-accent="kindling"] {
+.card[data-accent='kindling'] {
   border-left-color: var(--kindling);
 }
 
-.card[data-accent="anvil"]:hover {
+.card[data-accent='anvil']:hover {
   background: rgba(204, 85, 0, 0.05);
 }
 
-.card[data-accent="aps"]:hover {
+.card[data-accent='aps']:hover {
   background: rgba(100, 116, 139, 0.05);
 }
 
-.card[data-accent="kindling"]:hover {
+.card[data-accent='kindling']:hover {
   background: rgba(194, 65, 12, 0.05);
 }
 
@@ -163,15 +167,15 @@ a {
   letter-spacing: 0.02em;
 }
 
-.card[data-accent="anvil"] .card-link {
+.card[data-accent='anvil'] .card-link {
   color: var(--anvil);
 }
 
-.card[data-accent="aps"] .card-link {
+.card[data-accent='aps'] .card-link {
   color: var(--aps);
 }
 
-.card[data-accent="kindling"] .card-link {
+.card[data-accent='kindling'] .card-link {
   color: var(--kindling);
 }
 
