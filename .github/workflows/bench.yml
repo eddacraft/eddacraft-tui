@@ -63,4 +63,4 @@ jobs:
             stress-bench.txt
             target/criterion/
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: 90

@@ -43,7 +43,7 @@ runs:
 
         CHANGED_FILES=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null)
         if [ $? -ne 0 ] || [ -z "$CHANGED_FILES" ]; then
-          echo "git diff failed — falling back to GitHub API"
+          echo "::warning::git diff failed (shallow clone?) — falling back to GitHub API. Results may be incomplete."
           if [ "$EVENT_NAME" == "pull_request" ]; then
             CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only 2>/dev/null || echo "")
           fi

@@ -42,6 +42,13 @@ jobs:
         uses: ./.github/actions/detect-changes
 
   # ── SAST: Semgrep ─────────────────────────────────────────────
+  # TODO(ci): Semgrep is currently non-functional:
+  #   1. .semgrep.yml has invalid format (mixes registry packs with rules: key)
+  #   2. returntocorp/semgrep-action@v1 is deprecated (always exits 0)
+  #   3. SARIF upload fails due to permissions
+  # Tracked in: #852
+  # Fix: upgrade to semgrep/semgrep-action, fix .semgrep.yml, add
+  #      actions: read permission for SARIF upload.
   semgrep:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
