@@ -59,7 +59,7 @@
 - INTD: intercept-daemon (0/11) — Draft
 - INTL: intercept-launcher (0/8) — Draft
 - INTR: intercept-rules (0/7) — Draft
-- FLAGS: feature-flagging (0/9) — Ready
+- FLAGS: feature-flagging (9/9) — In Progress
 
 ## Conventions
 

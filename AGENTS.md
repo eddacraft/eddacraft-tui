@@ -108,6 +108,16 @@ Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` ·
 > Global workflow skill: `dev-workflow` in `joshuaboys/code-env` — canonical
 > routing layer for all lifecycle stages.
 
+## Feature Flags
+
+When introducing or modifying feature flags, follow the governance rules in
+`docs/guides/feature-flag-governance.md` and `plans/aps-rules.md`. Key points:
+
+- Every flag needs `createdFor` linking to an APS work item
+- `rollout` flags must have a sunset date (`expiryOrReviewDate`)
+- Retirement follows: `active` → `retiring` → `retired` → delete
+- Kill switch and entitlement flags fail closed on error
+
 ## Code Quality
 
 - UK English spelling in plan text and documentation

@@ -177,6 +177,23 @@ plans/
     └── [NNN]-[title].md
 ```
 
+## Feature Flag Rules
+
+When a task or module introduces a feature flag into the manifest:
+
+1. **`createdFor` is mandatory** — every flag must reference the APS work item
+   that introduced it (e.g. `FLAGS-008`).
+2. **Sunset metadata** — `rollout` class flags must have an
+   `expiryOrReviewDate`. Other classes should have one.
+3. **Retirement task** — when a rollout reaches 100% and stabilises, the owning
+   module must include a task to retire the flag (set status to `retiring` →
+   `retired` → delete).
+4. **Review checkpoint** — flag creation and class changes require review.
+   Council review should verify retirement steps are followed before manifest
+   entries are deleted.
+5. **Governance guide** — see `docs/guides/feature-flag-governance.md` for the
+   full lifecycle, rollout policy, and kill switch procedures.
+
 ## Quick Reference
 
 | If agent is... | Check for... |
