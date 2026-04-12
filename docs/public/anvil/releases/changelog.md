@@ -9,6 +9,28 @@ sidebar_position: 1
 
 All notable changes to Anvil are documented here.
 
+## [0.3.1-beta] — Docs Cutover & Onboarding Fixes
+
+### Added
+
+- **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated proxy
+  with shared-secret middleware and a nordic terminal-themed landing page.
+
+### Fixed
+
+- **Welcome screen** — first-user onboarding flows restored after regressions in
+  0.3.0-beta.
+- **Auth error messages** — raw HTTP errors replaced with user-friendly messages
+  in device-code and login flows.
+- **TUI version display** — shell footer now shows the correct version string.
+- **Release pipeline** — ARM64 Windows target removed from cargo-dist (upstream
+  dependency not yet available).
+
+### Improved
+
+- Docs infrastructure simplified with header-based auth gating.
+- Vercel preview deploys skip non-release branches.
+
 ## [0.3.0-beta] — Rust CLI & Native Engine
 
 ### Changed

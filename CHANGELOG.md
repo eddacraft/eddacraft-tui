@@ -12,6 +12,8 @@ engineering maintenance are recorded in the
 
 - **Docs domain cutover** — `docs.eddacraft.ai` now served via a docs-shell
   proxy with shared-secret middleware protecting upstream apps (`DOCSAUTH2`)
+- **Docs landing page** — nordic terminal-themed hub at `docs.eddacraft.ai` with
+  navigation to public and gated documentation sections
 
 ### Fixed
 
@@ -20,6 +22,10 @@ engineering maintenance are recorded in the
 - **Docs auth** — CI build failures resolved for the domain cutover; upstream
   middleware and proxy hardened from review feedback; Docusaurus `baseUrl`
   deprecation warning suppressed
+- **Auth error messages** — raw HTTP errors replaced with user-friendly messages
+  in device-code and login flows
+- **TUI version display** — shell footer now shows correct version string and
+  ViewDocs handler fixed
 - **Beta auth e2e** — e2e test harness for authentication flows fixed
 - **Build scripts** — `%h` home-directory expansion replaced with absolute path
   to prevent misexpansion under `sudo`

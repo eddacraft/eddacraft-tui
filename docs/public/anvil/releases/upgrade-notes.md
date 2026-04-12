@@ -29,11 +29,12 @@ anvil-update
 ### What's New in 0.3.1-beta
 
 - **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated proxy
-  with shared-secret middleware.
+  with a nordic terminal-themed landing page.
 - **Welcome screen fixes** — first-user onboarding flows restored after
   regressions in 0.3.0-beta.
-- **Release pipeline fix** — ARM64 Windows target removed from cargo-dist
-  (upstream dependency not yet available).
+- **Auth error messages** — clearer error messages during login and device-code
+  flows.
+- **TUI version display** — shell footer now shows the correct version.
 
 No breaking changes. All existing configuration, credentials, and workflows
 continue to work without modification.
