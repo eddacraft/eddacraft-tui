@@ -290,15 +290,13 @@ fn effective_progress(check: &CheckProgress) -> u8 {
     }
 }
 
-fn status_icon(check: &CheckProgress) -> String {
+fn status_icon(check: &CheckProgress) -> &'static str {
     match check.status {
-        CheckStatus::Passed => "◆".to_string(),
-        CheckStatus::Failed => "✖".to_string(),
-        CheckStatus::Running => SpinnerPreset::Anvil
-            .frame(running_frame_index(check.start_time))
-            .to_string(),
-        CheckStatus::Pending | CheckStatus::Skipped => "○".to_string(),
-        CheckStatus::Cached => "⚡".to_string(),
+        CheckStatus::Passed => "◆",
+        CheckStatus::Failed => "✖",
+        CheckStatus::Running => SpinnerPreset::Anvil.frame(running_frame_index(check.start_time)),
+        CheckStatus::Pending | CheckStatus::Skipped => "○",
+        CheckStatus::Cached => "⚡",
     }
 }
 

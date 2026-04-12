@@ -59,20 +59,21 @@ pub struct Spinner<'a, T: Theme> {
 #[derive(Debug, Default)]
 pub struct SpinnerState {
     pub frame: usize,
+    preset: SpinnerPreset,
 }
 
 impl SpinnerState {
     #[must_use]
     pub fn with_preset(preset: SpinnerPreset) -> Self {
-        let _ = preset;
-        Self { frame: 0 }
+        Self { frame: 0, preset }
     }
 
     pub fn tick(&mut self) {
-        self.tick_with(SpinnerPreset::default());
+        self.tick_with(self.preset);
     }
 
     pub fn tick_with(&mut self, preset: SpinnerPreset) {
+        self.preset = preset;
         let len = preset.len();
         if len == 0 {
             self.frame = 0;
@@ -122,6 +123,7 @@ impl<T: Theme> StatefulWidget for Spinner<'_, T> {
             return;
         }
 
+        state.preset = self.preset;
         let frame = self.preset.frame(state.frame);
 
         let line = if let Some(label) = self.label {
@@ -152,6 +154,7 @@ mod tests {
     fn default_frame_is_zero() {
         let state = SpinnerState::default();
         assert_eq!(state.frame, 0);
+        assert_eq!(state.preset, SpinnerPreset::EddaCraft);
     }
 
     #[test]
@@ -163,9 +166,8 @@ mod tests {
 
     #[test]
     fn tick_wraps_around() {
-        let mut state = SpinnerState {
-            frame: SpinnerPreset::EddaCraft.len() - 1,
-        };
+        let mut state = SpinnerState::with_preset(SpinnerPreset::EddaCraft);
+        state.frame = SpinnerPreset::EddaCraft.len() - 1;
         state.tick();
         assert_eq!(state.frame, 0);
     }
@@ -194,6 +196,17 @@ mod tests {
             .render(area, &mut buf, &mut state);
 
         assert_eq!(buf[(0, 0)].symbol(), "🔨");
+    }
+
+    #[test]
+    fn tick_uses_state_preset() {
+        let mut state = SpinnerState::with_preset(SpinnerPreset::Anvil);
+        state.frame = SpinnerPreset::Anvil.len() - 1;
+
+        state.tick();
+
+        assert_eq!(state.frame, 0);
+        assert_eq!(state.preset, SpinnerPreset::Anvil);
     }
 
     #[test]
