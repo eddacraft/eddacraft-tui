@@ -14,6 +14,7 @@ anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvi
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 thiserror = { workspace = true }
+unicode-width = "0.2"
 
 [dev-dependencies]
 insta = { workspace = true }

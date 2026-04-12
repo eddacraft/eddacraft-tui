@@ -564,6 +564,7 @@ fn run_welcome_hub(
             Some(QuickStartOption::ViewDocs) => {
                 welcome.status_message = Some(open_docs_message());
                 welcome.should_quit = false;
+                welcome.chosen = None;
             }
             Some(QuickStartOption::RunAudit) => {
                 crate::tui::draw_loading(terminal, "Audit", "Scanning project...", theme)?;
