@@ -20,6 +20,19 @@ function errorRedirect(origin: string, reason: string): NextResponse {
   return NextResponse.redirect(url, 302);
 }
 
+function clearNonce(response: NextResponse): NextResponse {
+  response.cookies.set({
+    name: 'oauth-nonce',
+    value: '',
+    path: '/auth/callback',
+    maxAge: 0,
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+  });
+  return response;
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -27,7 +40,9 @@ export async function GET(request: NextRequest) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    return errorRedirect(url.origin, error === 'access_denied' ? 'denied' : 'oauth_error');
+    return clearNonce(
+      errorRedirect(url.origin, error === 'access_denied' ? 'denied' : 'oauth_error')
+    );
   }
 
   if (!code || !stateParam) {
@@ -41,17 +56,17 @@ export async function GET(request: NextRequest) {
 
   const cookieNonce = request.cookies.get('oauth-nonce')?.value;
   if (!cookieNonce || cookieNonce !== state.nonce) {
-    return errorRedirect(url.origin, 'csrf_mismatch');
+    return clearNonce(errorRedirect(url.origin, 'csrf_mismatch'));
   }
 
   const next = validateNext(state.next);
 
   const result = await exchangeGithubCode(code);
   if (result.status === 'pending') {
-    return NextResponse.redirect(new URL('/auth/pending', url.origin), 302);
+    return clearNonce(NextResponse.redirect(new URL('/auth/pending', url.origin), 302));
   }
   if (result.status === 'error') {
-    return errorRedirect(url.origin, result.reason);
+    return clearNonce(errorRedirect(url.origin, result.reason));
   }
 
   const response = NextResponse.redirect(new URL(next, url.origin), 302);
@@ -64,14 +79,5 @@ export async function GET(request: NextRequest) {
     secure: true,
     sameSite: 'lax',
   });
-  response.cookies.set({
-    name: 'oauth-nonce',
-    value: '',
-    path: '/auth/callback',
-    maxAge: 0,
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-  });
-  return response;
+  return clearNonce(response);
 }

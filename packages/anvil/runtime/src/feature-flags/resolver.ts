@@ -18,7 +18,9 @@ export type ResolutionReason =
   | 'targeting_match'
   | 'default'
   | 'error'
-  | 'disabled';
+  | 'disabled'
+  | 'unimplemented_operator'
+  | 'invalid_override_fallthrough';
 
 export interface ResolutionDetails<T = unknown> {
   value: T;
@@ -75,6 +77,8 @@ export function resolveFlag(
         errorMessage: `Emergency override variant "${emergencyVariant}" not found in flag "${flag.key}"`,
       };
     }
+    // C-019: non-fail-closed class — fall through but with distinguishable reason
+    return resolveDefault(flag, 'invalid_override_fallthrough');
   }
 
   // 2. Local operator override
@@ -100,9 +104,12 @@ export function resolveFlag(
         errorMessage: `Local override variant "${localVariant}" not found in flag "${flag.key}"`,
       };
     }
+    // C-019: non-fail-closed class — fall through but with distinguishable reason
+    return resolveDefault(flag, 'invalid_override_fallthrough');
   }
 
   // 3. Targeting rules
+  let hasUnimplementedOperator = false;
   if (flag.targeting) {
     for (const rule of flag.targeting) {
       if (evaluateRule(rule, context)) {
@@ -116,10 +123,18 @@ export function resolveFlag(
           };
         }
       }
+      // C-018: detect if any rule failed due to unimplemented operator
+      if (rule.conditions.some((c) => c.operator === 'segment')) {
+        hasUnimplementedOperator = true;
+      }
     }
   }
 
   // 4. Manifest default
+  // C-018: surface unimplemented operator so callers/telemetry can observe it
+  if (hasUnimplementedOperator) {
+    return resolveDefault(flag, 'unimplemented_operator');
+  }
   return resolveDefault(flag, 'default');
 }
 
@@ -185,8 +200,8 @@ function evaluateCondition(condition: TargetingCondition, context: EvaluationCon
     case 'percentage':
       return evaluatePercentage(context.targetingKey, Number(condition.value));
     case 'segment':
-      // C-011: segment acts as string equality; reserved for future segment lookup
-      return actual === String(condition.value);
+      // C-018: segment is reserved for future segment lookup — always false
+      return false;
     default:
       return false;
   }

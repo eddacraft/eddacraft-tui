@@ -10,6 +10,10 @@ inputs:
     description: 'Enable Azure login for Nx remote cache'
     required: false
     default: 'false'
+  azure-credentials:
+    description: 'Azure credentials JSON for Nx remote cache (only used when azure-login is true)'
+    required: false
+    default: ''
   nx-shas:
     description: 'Run nrwl/nx-set-shas for affected commands'
     required: false
@@ -35,14 +39,11 @@ runs:
     # continue-on-error: fork PRs don't have secrets, so login fails
     # silently and Nx falls back to local cache. This is intentional.
     - name: Azure Login
-      if: inputs.azure-login == 'true'
+      if: inputs.azure-login == 'true' && inputs.azure-credentials != ''
       uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
       continue-on-error: true
       with:
-        creds: >-
-          {"clientId":"${{ env.ARM_CLIENT_ID }}","clientSecret":"${{ env.ARM_CLIENT_SECRET
-          }}","subscriptionId":"${{ env.ARM_SUBSCRIPTION_ID }}","tenantId":"${{ env.ARM_TENANT_ID
-          }}"}
+        creds: ${{ inputs.azure-credentials }}
 
     - name: Set Nx SHAs
       if: inputs.nx-shas == 'true'

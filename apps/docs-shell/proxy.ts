@@ -32,6 +32,7 @@ const STRIP_RESPONSE_HEADERS = [
   'x-vercel-cache',
   'x-middleware-rewrite',
   'x-middleware-next',
+  'x-docs-upstream-secret',
   'via',
 ];
 
@@ -93,10 +94,14 @@ async function proxyToUpstream(request: NextRequest, upstream: string): Promise<
             locUrl.origin === new URL(ANVIL_DOCS_URL).origin ||
             locUrl.origin === new URL(PUBLIC_DOCS_URL).origin
           ) {
-            locUrl.hostname = url.hostname;
-            locUrl.port = url.port;
-            locUrl.protocol = url.protocol;
-            responseHeaders.set('location', locUrl.toString());
+            if (locUrl.pathname.startsWith('/auth/')) {
+              responseHeaders.delete('location');
+            } else {
+              locUrl.hostname = url.hostname;
+              locUrl.port = url.port;
+              locUrl.protocol = url.protocol;
+              responseHeaders.set('location', locUrl.toString());
+            }
           }
         } catch {
           // relative URL or parse error — pass through
