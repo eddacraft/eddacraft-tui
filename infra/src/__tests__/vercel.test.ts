@@ -73,6 +73,14 @@ describe('Vercel resources', () => {
     expect(domains.length).toBe(3);
   });
 
+  it('assigns docs.eddacraft.ai to docs-shell, not docs-site', () => {
+    const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
+
+    const docsDomain = domains.find((d) => d.inputs.domain === 'docs.eddacraft.ai');
+    expect(docsDomain).toBeDefined();
+    expect(docsDomain!.name).toBe('docs-shell-docs-eddacraft-ai');
+  });
+
   it('creates environment variables for anvil-api when secrets are configured', () => {
     const envVars = resources.filter(
       (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'

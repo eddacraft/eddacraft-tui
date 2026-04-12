@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 export default function HomePage() {
   return (
     <>
@@ -9,7 +11,7 @@ export default function HomePage() {
           <a href="/blog" className="header-link">
             Blog
           </a>
-          <a href="https://eddacraft.ai" className="header-link" rel="noopener">
+          <a href="https://eddacraft.ai" className="header-link">
             eddacraft.ai &rarr;
           </a>
         </nav>
@@ -21,22 +23,32 @@ export default function HomePage() {
       </section>
 
       <section className="cards">
-        <a href="/anvil/overview" className="card" data-accent="anvil">
+        <a
+          href="/anvil/overview"
+          className="card"
+          data-accent="anvil"
+          aria-label="Anvil documentation"
+        >
           <h3>Anvil</h3>
           <p>Governed code-gen pipelines for engineering teams.</p>
-          <span className="card-link">Read docs &gt;</span>
+          <span className="card-link">Read docs &rarr;</span>
         </a>
 
-        <a href="/aps/overview" className="card" data-accent="aps">
+        <a href="/aps/overview" className="card" data-accent="aps" aria-label="APS documentation">
           <h3>APS</h3>
           <p>Declarative implementation plans for AI-assisted work.</p>
-          <span className="card-link">Read docs &gt;</span>
+          <span className="card-link">Read docs &rarr;</span>
         </a>
 
-        <a href="/kindling/overview" className="card" data-accent="kindling">
+        <a
+          href="/kindling/overview"
+          className="card"
+          data-accent="kindling"
+          aria-label="Kindling documentation"
+        >
           <h3>Kindling</h3>
           <p>Observation capture and memory substrate.</p>
-          <span className="card-link">Read docs &gt;</span>
+          <span className="card-link">Read docs &rarr;</span>
         </a>
       </section>
 
