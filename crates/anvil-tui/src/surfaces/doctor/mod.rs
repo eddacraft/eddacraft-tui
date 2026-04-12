@@ -65,6 +65,7 @@ impl DiagnosticSummary {
 }
 
 /// State for the doctor surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct DoctorState {
     pub checks: Vec<DiagnosticCheck>,
     pub selected: usize,
@@ -113,11 +114,12 @@ impl DoctorState {
                 self.expanded = !self.expanded;
             }
             Action::Character('f') => {
-                if let Some(check) = self.checks.get(self.selected) {
-                    if check.auto_fixable && check.status != CheckStatus::Pass {
-                        self.wants_fix = true;
-                        self.fix_index = Some(self.selected);
-                    }
+                if let Some(check) = self.checks.get(self.selected)
+                    && check.auto_fixable
+                    && check.status != CheckStatus::Pass
+                {
+                    self.wants_fix = true;
+                    self.fix_index = Some(self.selected);
                 }
             }
             Action::Back => {

@@ -396,8 +396,8 @@ fn check_hooks_installed() -> DiagnosticCheck {
 /// when the user presses 'f' in the doctor TUI.
 pub fn apply_fix_at(checks: &mut [DiagnosticCheck], index: usize) {
     if let Some(check) = checks.get_mut(index) {
-        let mut slice = std::slice::from_mut(check);
-        apply_fixes(&mut slice, true);
+        let slice = std::slice::from_mut(check);
+        apply_fixes(slice, true);
     }
 }
 
