@@ -69,6 +69,9 @@ pub struct FixState {
     /// The caller reads this to write the content to disk and re-run the
     /// check. Cleared after the caller processes it.
     pub pending_save_content: Option<String>,
+    /// When true, the inline editor ('e' key) is disabled. Set by callers
+    /// that cannot drive the editor save/check loop (e.g. the welcome flow).
+    pub editor_disabled: bool,
 }
 
 impl FixState {
@@ -88,6 +91,7 @@ impl FixState {
             wants_advance: false,
             wants_skip: false,
             pending_save_content: None,
+            editor_disabled: false,
         }
     }
 
@@ -183,7 +187,7 @@ impl FixState {
 
     fn handle_watching(&mut self, action: Action) {
         match action {
-            Action::Character('e') => self.open_editor(),
+            Action::Character('e') if !self.editor_disabled => self.open_editor(),
             Action::Character('s') => {
                 self.wants_skip = true;
                 self.wants_advance = true;
@@ -267,6 +271,7 @@ impl Surface for FixState {
 
     fn help_text(&self) -> &'static str {
         match self.phase {
+            FixPhase::Watching if self.editor_disabled => "s skip  esc back  q quit",
             FixPhase::Watching => "e editor  s skip  esc back  q quit",
             FixPhase::Editing => "type to edit  enter save  esc cancel  q quit",
             FixPhase::Resolved => "enter continue  esc back  q quit",

@@ -874,6 +874,7 @@ mod tests {
             ],
             files_scanned: 100,
             duration_ms: 250,
+            truncated: false,
         }
     }
 

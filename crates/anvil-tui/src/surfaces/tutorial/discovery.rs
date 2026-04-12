@@ -52,6 +52,8 @@ pub struct ScanResults {
     pub findings: Vec<Finding>,
     pub files_scanned: usize,
     pub duration_ms: u64,
+    /// True when the scan hit the file cap before exhausting the project.
+    pub truncated: bool,
 }
 
 impl ScanResults {
@@ -90,6 +92,7 @@ impl ScanResults {
             findings: filtered_findings,
             files_scanned: self.files_scanned,
             duration_ms: self.duration_ms,
+            truncated: self.truncated,
         }
     }
 }
@@ -343,6 +346,7 @@ mod tests {
             findings,
             files_scanned,
             duration_ms: 500,
+            truncated: false,
         }
     }
 
@@ -783,6 +787,7 @@ mod tests {
             ],
             files_scanned: 150,
             duration_ms: 300,
+            truncated: false,
         }
     }
 
