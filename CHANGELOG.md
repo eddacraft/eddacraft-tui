@@ -15,8 +15,8 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
-- **Welcome screen** — first-user onboarding flows restored after regressions
-  in 0.3.0-beta; council review findings and PR feedback addressed (`WELCOME`)
+- **Welcome screen** — first-user onboarding flows restored after regressions in
+  0.3.0-beta; council review findings and PR feedback addressed (`WELCOME`)
 - **Docs auth** — CI build failures resolved for the domain cutover; upstream
   middleware and proxy hardened from review feedback; Docusaurus `baseUrl`
   deprecation warning suppressed

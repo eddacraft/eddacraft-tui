@@ -28,8 +28,8 @@ anvil-update
 
 ### What's New in 0.3.1
 
-- **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated
-  proxy with shared-secret middleware.
+- **Docs domain cutover** — `docs.eddacraft.ai` now served via a dedicated proxy
+  with shared-secret middleware.
 - **Welcome screen fixes** — first-user onboarding flows restored after
   regressions in 0.3.0-beta.
 - **Release pipeline fix** — ARM64 Windows target removed from cargo-dist
