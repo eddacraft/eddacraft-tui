@@ -43,9 +43,20 @@ runs:
 
         CHANGED_FILES=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null)
         if [ $? -ne 0 ] || [ -z "$CHANGED_FILES" ]; then
-          echo "::warning::git diff failed (shallow clone?) — falling back to GitHub API. Results may be incomplete."
           if [ "$EVENT_NAME" == "pull_request" ]; then
+            echo "::warning::git diff failed (shallow clone?) — falling back to GitHub API. Results may be incomplete."
             CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only 2>/dev/null || echo "")
+          else
+            # No API fallback for push events — assume everything changed
+            # so no jobs are incorrectly skipped.
+            echo "::warning::git diff failed on push (force-push or missing before SHA?) — treating all outputs as changed."
+            echo "docs-only=false" >> "$GITHUB_OUTPUT"
+            echo "code-changed=true" >> "$GITHUB_OUTPUT"
+            echo "source-changed=true" >> "$GITHUB_OUTPUT"
+            echo "e2e-changed=true" >> "$GITHUB_OUTPUT"
+            echo "rust-changed=true" >> "$GITHUB_OUTPUT"
+            echo "Change detection: push fallback — all flags set to true"
+            exit 0
           fi
         fi
 
