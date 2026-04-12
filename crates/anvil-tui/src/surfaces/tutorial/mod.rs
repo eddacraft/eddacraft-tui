@@ -432,7 +432,11 @@ impl TutorialState {
             }
             Action::Character('f') => {
                 // 'f' — open fix surface for the top domain finding.
-                if self.domain_findings.as_ref().is_some_and(|d| !d.findings.is_empty()) {
+                if self
+                    .domain_findings
+                    .as_ref()
+                    .is_some_and(|d| !d.findings.is_empty())
+                {
                     self.wants_fix = true;
                 }
             }
@@ -471,7 +475,11 @@ impl crate::surface::Surface for TutorialState {
                     "enter next  esc back  q quit"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
-                } else if self.domain_findings.as_ref().is_some_and(|d| !d.findings.is_empty()) {
+                } else if self
+                    .domain_findings
+                    .as_ref()
+                    .is_some_and(|d| !d.findings.is_empty())
+                {
                     "enter run/next  space next  f fix  esc back  q quit"
                 } else {
                     "enter run/next  space next  esc back  q quit"

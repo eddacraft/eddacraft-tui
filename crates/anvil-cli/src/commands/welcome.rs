@@ -28,7 +28,6 @@ fn timed_loading(
                 crate::tui::draw_loading(terminal, surface_name, message, theme)?;
             } else {
                 // Consume and discard non-resize events during loading.
-                continue;
             }
         }
     }
@@ -77,7 +76,8 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         let mut tutorial_state =
                             anvil_tui::surfaces::tutorial::TutorialState::new();
                         tutorial_state.set_scan_results(results);
-                        let exit = run_tutorial_with_fix(&mut terminal, &theme, &mut tutorial_state)?;
+                        let exit =
+                            run_tutorial_with_fix(&mut terminal, &theme, &mut tutorial_state)?;
                         if exit == SurfaceExit::Quit {
                             Ok(())
                         } else {
@@ -99,13 +99,11 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // Write marker on first run only — don't clobber an existing marker's
     // creation timestamp on subsequent launches.
-    if first_run {
-        if let Err(err) = create_first_run_marker(&marker_path) {
-            eprintln!(
-                "[welcome] warning: failed to create first-run marker at {}: {err}",
-                marker_path.display()
-            );
-        }
+    if first_run && let Err(err) = create_first_run_marker(&marker_path) {
+        eprintln!(
+            "[welcome] warning: failed to create first-run marker at {}: {err}",
+            marker_path.display()
+        );
     }
 
     // Prefer the app error over the teardown error.
@@ -135,19 +133,19 @@ fn run_onboarding(
     use anvil_tui::surfaces::onboarding::{OnboardingChoice, OnboardingWelcomeState};
 
     // Check for stale tutorial progress from a previous install and offer reset.
-    if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
-        if progress_path.exists() {
-            if let Err(e) = std::fs::remove_file(&progress_path) {
-                eprintln!("[welcome] warning: could not remove tutorial progress: {e}");
-            }
-            timed_loading(
-                terminal,
-                "Setup",
-                "Previous tutorial progress found \u{2014} resetting for fresh install.",
-                theme,
-                std::time::Duration::from_millis(600),
-            )?;
+    if let Ok(progress_path) = crate::commands::tutorial::progress_file_path()
+        && progress_path.exists()
+    {
+        if let Err(e) = std::fs::remove_file(&progress_path) {
+            eprintln!("[welcome] warning: could not remove tutorial progress: {e}");
         }
+        timed_loading(
+            terminal,
+            "Setup",
+            "Previous tutorial progress found \u{2014} resetting for fresh install.",
+            theme,
+            std::time::Duration::from_millis(600),
+        )?;
     }
 
     let mut onboarding = OnboardingWelcomeState::new();
@@ -277,6 +275,10 @@ fn run_discovery(
 }
 
 /// Scan the current project for real secret and antipattern findings.
+const SCAN_MAX_FILES: usize = 500;
+const SCAN_MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
+
+#[allow(clippy::too_many_lines)]
 fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::ScanResults> {
     use anvil_checks::filter::ScanFilter;
     use anvil_tui::surfaces::tutorial::discovery::{
@@ -291,13 +293,11 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     let mut findings = Vec::new();
     let mut files_scanned: usize = 0;
     let mut truncated = false;
-    const MAX_FILES: usize = 500;
-    const MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
 
     for entry in walkdir::WalkDir::new(&cwd)
         .follow_links(false)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
             continue;
@@ -310,18 +310,36 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         if matches!(
             ext,
-            "png" | "jpg" | "jpeg" | "gif" | "ico" | "woff" | "woff2" | "ttf"
-                | "otf" | "eot" | "pdf" | "zip" | "gz" | "tar" | "exe"
-                | "dll" | "so" | "dylib" | "wasm" | "o" | "a"
+            "png"
+                | "jpg"
+                | "jpeg"
+                | "gif"
+                | "ico"
+                | "woff"
+                | "woff2"
+                | "ttf"
+                | "otf"
+                | "eot"
+                | "pdf"
+                | "zip"
+                | "gz"
+                | "tar"
+                | "exe"
+                | "dll"
+                | "so"
+                | "dylib"
+                | "wasm"
+                | "o"
+                | "a"
         ) {
             continue;
         }
 
         // Skip files larger than 512 KB to avoid memory exhaustion.
-        if let Ok(meta) = entry.metadata() {
-            if meta.len() > MAX_FILE_SIZE {
-                continue;
-            }
+        if let Ok(meta) = entry.metadata()
+            && meta.len() > SCAN_MAX_FILE_SIZE
+        {
+            continue;
         }
 
         let Ok(content) = std::fs::read_to_string(path) else {
@@ -351,8 +369,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
         }
 
         // Antipattern scan
-        let ap_result =
-            anvil_checks::antipattern::scanner::scan_file(&rel_path, &content, None);
+        let ap_result = anvil_checks::antipattern::scanner::scan_file(&rel_path, &content, None);
         for warning in &ap_result.warnings {
             if warning.suppressed.is_some() {
                 continue;
@@ -379,7 +396,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
         }
 
         files_scanned += 1;
-        if files_scanned >= MAX_FILES {
+        if files_scanned >= SCAN_MAX_FILES {
             truncated = true;
             break;
         }
@@ -388,7 +405,8 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     // Sort by severity descending (Error first).
     findings.sort_by(|a, b| b.severity.cmp(&a.severity));
 
-    let duration_ms = start.elapsed().as_millis() as u64;
+    #[allow(clippy::cast_possible_truncation)]
+    let duration_ms = start.elapsed().as_millis() as u64; // truncation is fine for display
 
     Ok(ScanResults {
         findings,
@@ -400,7 +418,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
 
 /// Run the tutorial surface in a loop, handling 'f' fix requests.
 /// When the user presses 'f' in the tutorial, we exit the surface, create a
-/// FixState for the top finding, run it, then resume the tutorial.
+/// `FixState` for the top finding, run it, then resume the tutorial.
 fn run_tutorial_with_fix(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
@@ -427,8 +445,7 @@ fn run_tutorial_with_fix(
 
                 // Load file context around the finding for display.
                 if let Ok(content) = std::fs::read_to_string(&finding.file) {
-                    let all_lines: Vec<String> =
-                        content.lines().map(|l| l.to_string()).collect();
+                    let all_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
                     let target = finding.line.unwrap_or(1).saturating_sub(1);
                     let start = target.saturating_sub(5);
                     let end = (target + 6).min(all_lines.len());
@@ -445,9 +462,7 @@ fn run_tutorial_with_fix(
                 // advance to the next one instead of reopening the same.
                 if let Some(domain) = tutorial_state.domain_findings.as_mut() {
                     domain.findings.retain(|f| {
-                        f.file != finding.file
-                            || f.line != finding.line
-                            || f.title != finding.title
+                        f.file != finding.file || f.line != finding.line || f.title != finding.title
                     });
                 }
             }
@@ -535,18 +550,12 @@ fn run_welcome_hub(
                 welcome.chosen = None;
             }
             Some(QuickStartOption::StartWatch) => {
-                crate::tui::draw_loading(
-                    terminal,
-                    "Watch",
-                    "Starting file watcher...",
-                    theme,
-                )?;
+                crate::tui::draw_loading(terminal, "Watch", "Starting file watcher...", theme)?;
                 match start_watch_from_hub(terminal, theme) {
                     Ok(SurfaceExit::Quit) => break,
                     Ok(SurfaceExit::Back) => {}
                     Err(e) => {
-                        welcome.status_message =
-                            Some(format!("Watch mode failed: {e}"));
+                        welcome.status_message = Some(format!("Watch mode failed: {e}"));
                     }
                 }
                 welcome.should_quit = false;
@@ -572,20 +581,15 @@ fn run_welcome_hub(
                 let checks = crate::commands::doctor::collect_checks();
                 let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
                 loop {
-                    let sub_exit =
-                        crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
+                    let sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
                     if doctor_state.wants_fix {
                         if let Some(idx) = doctor_state.fix_index {
-                            crate::commands::doctor::apply_fix_at(
-                                &mut doctor_state.checks,
-                                idx,
-                            );
+                            crate::commands::doctor::apply_fix_at(&mut doctor_state.checks, idx);
                             // Re-collect checks so the UI reflects actual state.
                             let fresh = crate::commands::doctor::collect_checks();
                             doctor_state.checks = fresh;
-                            doctor_state.selected = idx.min(
-                                doctor_state.checks.len().saturating_sub(1),
-                            );
+                            doctor_state.selected =
+                                idx.min(doctor_state.checks.len().saturating_sub(1));
                         }
                         doctor_state.wants_fix = false;
                         doctor_state.fix_index = None;
