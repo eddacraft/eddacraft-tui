@@ -17,6 +17,9 @@ const docsUpstreamSecret = getSecret('docs-upstream-secret');
 // .vercel.app hostnames (matching the project `name` in Track B). The
 // docs-shell rewrites requests to these hosts and attaches a shared-secret
 // header; the upstreams enforce the header in routing middleware.
+// NOTE: these are string literals rather than Pulumi outputs because
+// @pulumiverse/vercel does not expose a default-domain output. Keep in
+// sync with the `name` fields on anvilDocsPrivate and docsPublic below.
 const ANVIL_DOCS_PRIVATE_HOST = 'eddacraft-anvil-docs-private.vercel.app';
 const DOCS_PUBLIC_HOST = 'eddacraft-docs-public.vercel.app';
 
@@ -101,6 +104,9 @@ export const docsPublic = new VercelApp('docs-public', {
 
 // DOCSAUTH2: Docs shell (Next.js) — public-facing, gates /anvil/* with
 // licence JWT, proxies to the two protected upstreams.
+// DEPLOY NOTE: moving docs.eddacraft.ai between projects requires a
+// two-step Pulumi apply — destroy the old ProjectDomain first with
+// `pulumi destroy --target <old-domain-urn>`, then `pulumi up`.
 export const docsShell = new VercelApp('docs-shell', {
   name: 'eddacraft-docs-shell',
   framework: 'nextjs',
@@ -124,6 +130,7 @@ export const docsShell = new VercelApp('docs-shell', {
 
 // IAC-004: Docs Site (Docusaurus) — RETIRED. Domain moved to docsShell.
 // Kept temporarily for rollback; remove once docs-shell is stable.
+// TODO(DOCSAUTH-007): tear down docs-site project after 30 days stable.
 export const docsSite = new VercelApp('docs-site', {
   name: 'docs-site',
   framework: 'docusaurus-2',
