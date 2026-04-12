@@ -17,7 +17,9 @@ const config: Config = {
   organizationName: 'EddaCraft',
   projectName: 'anvil-docs-private',
 
-  onBrokenLinks: 'throw',
+  // Cross-app links (e.g. to /anvil/) resolve at runtime via the docs-shell
+  // proxy but are unresolvable at individual-app build time.
+  onBrokenLinks: 'log',
   onBrokenMarkdownLinks: 'warn',
 
   markdown: {
