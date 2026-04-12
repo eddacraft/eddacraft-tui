@@ -120,7 +120,6 @@ export const docsShell = new VercelApp('docs-shell', {
     LICENSE_PUBLIC_KEY: licensePublicKey,
     DOCS_STATE_SECRET: docsStateSecret,
     GITHUB_CLIENT_ID: githubClientId,
-    GITHUB_CLIENT_SECRET: githubClientSecret,
     BAUTH_API_URL: 'https://api.eddacraft.ai',
     ANVIL_DOCS_URL: `https://${ANVIL_DOCS_PRIVATE_HOST}`,
     PUBLIC_DOCS_URL: `https://${DOCS_PUBLIC_HOST}`,

@@ -65,11 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+    # Azure credentials are passed as a single input to setup-workspace
+    # rather than as job-scope env vars, to limit their visibility to the
+    # Azure Login step only.
 
     steps:
       - name: Checkout repository
@@ -81,6 +79,10 @@ jobs:
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
+          azure-credentials:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
           nx-shas: true
 
       - name: Build ESLint plugin (required by lint rules)
@@ -103,11 +105,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+    # Azure credentials are passed as a single input to setup-workspace
+    # rather than as job-scope env vars, to limit their visibility to the
+    # Azure Login step only.
 
     steps:
       - name: Checkout repository
@@ -119,6 +119,10 @@ jobs:
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
+          azure-credentials:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
           nx-shas: true
 
       - name: Run type check (affected on PRs, all on push)
@@ -163,11 +167,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+    # Azure credentials are passed as a single input to setup-workspace
+    # rather than as job-scope env vars, to limit their visibility to the
+    # Azure Login step only.
 
     steps:
       - name: Checkout repository
@@ -179,6 +181,10 @@ jobs:
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
+          azure-credentials:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
           nx-shas: true
 
       - name: Build test dependencies
@@ -210,8 +216,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: |
-      github.event_name == 'pull_request' &&
-      github.base_ref == 'main'
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     strategy:
       fail-fast: false
       matrix:
@@ -220,11 +226,9 @@ jobs:
             runner: macos-latest
           - os: windows-latest
             runner: windows-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+    # Azure credentials are passed as a single input to setup-workspace
+    # rather than as job-scope env vars, to limit their visibility to the
+    # Azure Login step only.
 
     steps:
       - name: Checkout repository
@@ -234,6 +238,10 @@ jobs:
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
+          azure-credentials:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Run unit tests
         run: pnpm run test -- --run
@@ -244,11 +252,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+    # Azure credentials are passed as a single input to setup-workspace
+    # rather than as job-scope env vars, to limit their visibility to the
+    # Azure Login step only.
 
     steps:
       - name: Checkout repository
@@ -258,6 +264,10 @@ jobs:
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
+          azure-credentials:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Build all packages
         run: pnpm run build

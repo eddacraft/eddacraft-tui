@@ -5,7 +5,10 @@
 export interface StatePayload {
   next: string;
   nonce: string;
+  iat: number;
 }
+
+const STATE_MAX_AGE_S = 600;
 
 async function getKey(secret: string): Promise<CryptoKey> {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
@@ -27,10 +30,14 @@ function base64urlDecode(str: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-export async function encryptState(payload: StatePayload, secret: string): Promise<string> {
+export async function encryptState(
+  payload: Omit<StatePayload, 'iat'>,
+  secret: string
+): Promise<string> {
   const key = await getKey(secret);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const plaintext = new TextEncoder().encode(JSON.stringify(payload));
+  const withIat: StatePayload = { ...payload, iat: Math.floor(Date.now() / 1000) };
+  const plaintext = new TextEncoder().encode(JSON.stringify(withIat));
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext)
   );
@@ -53,7 +60,11 @@ export async function decryptState(
     const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
     const parsed = JSON.parse(new TextDecoder().decode(plaintext));
     if (typeof parsed?.next !== 'string' || typeof parsed?.nonce !== 'string') return null;
-    return { next: parsed.next, nonce: parsed.nonce };
+    if (typeof parsed.iat === 'number') {
+      const age = Math.floor(Date.now() / 1000) - parsed.iat;
+      if (age > STATE_MAX_AGE_S || age < 0) return null;
+    }
+    return { next: parsed.next, nonce: parsed.nonce, iat: parsed.iat ?? 0 };
   } catch {
     return null;
   }

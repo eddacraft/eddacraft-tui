@@ -84,6 +84,7 @@ runs:
                [[ "$file" =~ ^packages/ ]] || \
                [[ "$file" =~ ^tools/ ]] || \
                [[ "$file" =~ ^infra/ ]] || \
+               [[ "$file" =~ ^\.github/ ]] || \
                [[ "$file" == "pnpm-lock.yaml" ]] || \
                [[ "$file" == "package.json" ]]; then
               SOURCE_CHANGED=true
@@ -99,7 +100,8 @@ runs:
             if [[ "$file" =~ ^crates/ ]] || \
                [[ "$file" == "Cargo.toml" ]] || \
                [[ "$file" == "Cargo.lock" ]] || \
-               [[ "$file" == "rust-toolchain.toml" ]]; then
+               [[ "$file" == "rust-toolchain.toml" ]] || \
+               [[ "$file" == "dist-workspace.toml" ]]; then
               RUST_CHANGED=true
             fi
           fi

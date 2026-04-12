@@ -24,10 +24,17 @@ fn timed_loading(
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         let poll_time = remaining.min(std::time::Duration::from_millis(50));
         if crossterm::event::poll(poll_time)? {
-            if let crossterm::event::Event::Resize(_, _) = crossterm::event::read()? {
-                crate::tui::draw_loading(terminal, surface_name, message, theme)?;
-            } else {
-                // Consume and discard non-resize events during loading.
+            match crossterm::event::read()? {
+                crossterm::event::Event::Resize(_, _) => {
+                    crate::tui::draw_loading(terminal, surface_name, message, theme)?;
+                }
+                crossterm::event::Event::Key(key)
+                    if key.code == crossterm::event::KeyCode::Char('q')
+                        || key.code == crossterm::event::KeyCode::Esc =>
+                {
+                    return Ok(());
+                }
+                _ => {}
             }
         }
     }
@@ -132,13 +139,10 @@ fn run_onboarding(
 ) -> anyhow::Result<OnboardingOutcome> {
     use anvil_tui::surfaces::onboarding::{OnboardingChoice, OnboardingWelcomeState};
 
-    // Check for stale tutorial progress from a previous install and offer reset.
+    // Check for stale tutorial progress from a previous install and reset.
     if let Ok(progress_path) = crate::commands::tutorial::progress_file_path()
         && progress_path.exists()
     {
-        if let Err(e) = std::fs::remove_file(&progress_path) {
-            eprintln!("[welcome] warning: could not remove tutorial progress: {e}");
-        }
         timed_loading(
             terminal,
             "Setup",
@@ -146,6 +150,9 @@ fn run_onboarding(
             theme,
             std::time::Duration::from_millis(600),
         )?;
+        if let Err(e) = std::fs::remove_file(&progress_path) {
+            eprintln!("[welcome] warning: could not remove tutorial progress: {e}");
+        }
     }
 
     let mut onboarding = OnboardingWelcomeState::new();
@@ -236,6 +243,8 @@ fn run_discovery(
     use anvil_tui::surfaces::tutorial::showcase;
 
     let mut discovery = DiscoveryState::new();
+
+    crate::tui::draw_loading(terminal, "Discovery", "Scanning project for findings\u{2026}", theme)?;
 
     let results = match scan_project() {
         Ok(results) if results.findings.is_empty() => {
@@ -595,9 +604,6 @@ fn run_welcome_hub(
                         doctor_state.wants_fix = false;
                         doctor_state.fix_index = None;
                         continue;
-                    }
-                    if sub_exit == SurfaceExit::Quit {
-                        break;
                     }
                     break;
                 }

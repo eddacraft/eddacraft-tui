@@ -10,6 +10,9 @@
     },
     {
       "path": "../core/tsconfig.lib.json"
+    },
+    {
+      "path": "../contracts/tsconfig.lib.json"
     }
   ]
 }
