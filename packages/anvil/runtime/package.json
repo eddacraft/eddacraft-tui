@@ -26,6 +26,10 @@
     "./export": {
       "types": "./dist/export/index.d.ts",
       "import": "./dist/export/index.js"
+    },
+    "./feature-flags": {
+      "types": "./dist/feature-flags/index.d.ts",
+      "import": "./dist/feature-flags/index.js"
     }
   },
   "scripts": {
@@ -35,6 +39,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@eddacraft/anvil-contracts": "workspace:*",
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-policy": "workspace:*",
     "chokidar": "^5.0.0",

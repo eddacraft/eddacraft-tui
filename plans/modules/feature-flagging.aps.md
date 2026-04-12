@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLAGS | —     | high     | Ready |
+| FLAGS | —     | high     | In Progress |
 
 ## Purpose
 
@@ -241,5 +241,5 @@ Change status to **Ready** when:
 - **Scope:** `plans/modules/rust-cli.aps.md`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `docs/specs/`, `plans/decisions/`
 - **Non-scope:** Migrating every consumer in the same work item
 - **Dependencies:** FLAGS-001, FLAGS-002, FLAGS-003
-- **Validation:** `grep -q "migrate" docs/guides/feature-flag-governance.md`
+- **Validation:** `grep -q "migrate" docs/guides/feature-flag-inventory.md`
 - **Confidence:** medium

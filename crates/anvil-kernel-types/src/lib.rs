@@ -1,8 +1,15 @@
 mod events;
+pub mod feature_flags;
 mod graph;
 mod trust;
 
 pub use events::{EngineEvent, ErrorCode, ErrorPayload, EventPayload, EventType};
+pub use feature_flags::{
+    AudienceContext, Channel, ConditionValue, EnvironmentContext, EnvironmentName,
+    EvaluationContext, FEATURE_FLAG_SCHEMA_VERSION, FeatureFlagDefinition, FeatureFlagManifest,
+    FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant, TargetingCondition,
+    TargetingOperator, TargetingRule,
+};
 pub use graph::{EdgeType, SymbolEdge, SymbolKind, SymbolNode, Visibility};
 pub use trust::TrustLevel;
 

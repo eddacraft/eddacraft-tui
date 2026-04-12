@@ -26,6 +26,20 @@ export type {
   Drift,
   Suppression,
   WarningSummary,
+  FlagClass,
+  FlagStatus,
+  FlagValueType,
+  FlagVariant,
+  FeatureFlagDefinition,
+  FeatureFlagManifest,
+  EnvironmentName,
+  Channel,
+  EnvironmentContext,
+  AudienceContext,
+  EvaluationContext,
+  TargetingOperator,
+  TargetingCondition,
+  TargetingRule,
 } from '../schemas/index.js';
 
 // Re-export gate types

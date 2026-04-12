@@ -520,6 +520,9 @@ importers:
 
   packages/anvil/runtime:
     dependencies:
+      '@eddacraft/anvil-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../core
