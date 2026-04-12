@@ -1,10 +1,10 @@
 # eddacraft-tui
 
-Shared Ratatui component library for the EddaCraft product family.
+Shared Ratatui component library for the eddacraft product family.
 
 ## Modules
 
-- **`theme/`** — EddaCraft Terminal Standard colour palette, theme trait, and
+- **`theme/`** — eddacraft Terminal Standard colour palette, theme trait, and
   brand theming
 - **`keyboard/`** — key binding definitions and action mapping
 - **`widgets/`** — reusable TUI widgets (tables, badges, charts, panels)
@@ -13,7 +13,7 @@ Shared Ratatui component library for the EddaCraft product family.
 
 ## Design System
 
-Implements the EddaCraft Terminal Standard:
+Implements the eddacraft Terminal Standard:
 
 | Token       | Colour               |
 | ----------- | -------------------- |
@@ -21,8 +21,8 @@ Implements the EddaCraft Terminal Standard:
 | Structure   | `rgb(42, 42, 46)`    |
 | Off-White   | `rgb(235, 235, 235)` |
 | Ghost Grey  | `rgb(133, 133, 138)` |
-| Anvil Ember | `rgb(204, 85, 0)`    |
-| Edda Growth | `rgb(46, 139, 87)`   |
+| anvil Ember | `rgb(204, 85, 0)`    |
+| edda Growth | `rgb(46, 139, 87)`   |
 | Brick Red   | `rgb(201, 74, 74)`   |
 | Dull Amber  | `rgb(208, 140, 56)`  |
 
