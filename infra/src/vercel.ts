@@ -11,13 +11,12 @@ const githubClientId = getSecret('github-oauth-client-id');
 const githubClientSecret = getSecret('github-oauth-client-secret');
 const licensePublicKey = getSecret('license-public-key');
 const docsStateSecret = getSecret('docs-state-secret');
+const docsUpstreamSecret = getSecret('docs-upstream-secret');
 
 // DOCSAUTH2: upstream Docusaurus hosts. These are the auto-generated
 // .vercel.app hostnames (matching the project `name` in Track B). The
 // docs-shell rewrites requests to these hosts and attaches a shared-secret
-// header; the upstreams enforce the header in routing middleware. The
-// Vercel projects themselves are provisioned by Track B alongside content,
-// to avoid creating publicly reachable placeholder projects.
+// header; the upstreams enforce the header in routing middleware.
 const ANVIL_DOCS_PRIVATE_HOST = 'eddacraft-anvil-docs-private.vercel.app';
 const DOCS_PUBLIC_HOST = 'eddacraft-docs-public.vercel.app';
 
@@ -64,8 +63,44 @@ export const api = new VercelApp('anvil-api', {
   },
 });
 
+// DOCSAUTH2: Anvil docs (private, Docusaurus). Protected via shared-secret
+// header check in routing middleware — the docs-shell proxy injects
+// X-Docs-Upstream-Secret on every upstream request.
+export const anvilDocsPrivate = new VercelApp('anvil-docs-private', {
+  name: 'eddacraft-anvil-docs-private',
+  framework: 'docusaurus-2',
+  rootDirectory: 'apps/anvil-docs-private',
+  gitRepo,
+  domains: [],
+  skipPreviewDeploys: true,
+  extraWatchPaths: ['docs/public/anvil', 'docs/public/beta'],
+  envVars: {
+    DOCS_UPSTREAM_SECRET: docsUpstreamSecret,
+  },
+});
+
+// DOCSAUTH2: Public docs (APS/Kindling/edda-stack/blog). Same header-based
+// enforcement — direct .vercel.app hits return 401.
+export const docsPublic = new VercelApp('docs-public', {
+  name: 'eddacraft-docs-public',
+  framework: 'docusaurus-2',
+  rootDirectory: 'apps/docs-public',
+  gitRepo,
+  domains: [],
+  skipPreviewDeploys: true,
+  extraWatchPaths: [
+    'docs/public/aps',
+    'docs/public/kindling',
+    'docs/public/edda-stack',
+    'apps/docs-public/blog',
+  ],
+  envVars: {
+    DOCS_UPSTREAM_SECRET: docsUpstreamSecret,
+  },
+});
+
 // DOCSAUTH2: Docs shell (Next.js) — public-facing, gates /anvil/* with
-// licence JWT, rewrites to the two protected upstreams. Domain cutover to
+// licence JWT, proxies to the two protected upstreams. Domain cutover to
 // docs.eddacraft.ai lives in a later task (currently still on docsSite).
 export const docsShell = new VercelApp('docs-shell', {
   name: 'eddacraft-docs-shell',
@@ -84,6 +119,7 @@ export const docsShell = new VercelApp('docs-shell', {
     BAUTH_API_URL: 'https://api.eddacraft.ai',
     ANVIL_DOCS_URL: `https://${ANVIL_DOCS_PRIVATE_HOST}`,
     PUBLIC_DOCS_URL: `https://${DOCS_PUBLIC_HOST}`,
+    DOCS_UPSTREAM_SECRET: docsUpstreamSecret,
   },
 });
 
