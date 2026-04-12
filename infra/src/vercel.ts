@@ -101,7 +101,7 @@ export const docsSite = new VercelApp('docs-site', {
     // DOCSAUTH: ES256 public key for edge JWT verification
     LICENSE_PUBLIC_KEY: licensePublicKey,
     // DOCSAUTH: secret for encrypting OAuth state parameter (CSRF nonce)
-    STATE_SECRET: getSecret('docs-state-secret'),
+    STATE_SECRET: docsStateSecret,
     // DOCSAUTH: BAUTH API URL for the callback function
     BAUTH_API_URL: 'https://api.eddacraft.ai',
     // DOCSAUTH: GitHub OAuth client ID (needed by login function for redirect)
