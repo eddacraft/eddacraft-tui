@@ -55,7 +55,7 @@
 - TFIX: test-infrastructure-fix (0/10) — Ready
 - TCOV: test-coverage-uplift (0/25) — Draft
 - TINT: test-integration-surface (0/15) — Draft
-- TEXT: test-external-services (0/10) — Draft
+- TEXT: test-external-services (0/14) — Draft
 - INTD: intercept-daemon (0/11) — Draft
 - INTL: intercept-launcher (0/8) — Draft
 - INTR: intercept-rules (0/7) — Draft
@@ -587,9 +587,13 @@ crates/anvil-tui/src/snapshots/: TINT-010
 apps/e2e/src/helpers/daemon-harness.ts: TINT-012
 apps/e2e/src/daemon/: TINT-012, TINT-013, TINT-014, TINT-015
 # TEXT: Test External Services
-packages/transactional/emails/: TEXT-004, TEXT-005
-apps/anvil-api/: TEXT-004
-infra/src/: TEXT-006, TEXT-007, TEXT-008, TEXT-009
+apps/anvil-api/src/db/: TEXT-004, TEXT-005
+packages/transactional/emails/: TEXT-006, TEXT-007
+apps/anvil-api/src/routes/: TEXT-006, TEXT-007
+apps/anvil-api/src/routes/auth-github.ts: TEXT-008, TEXT-009
+infra/src/keyvault.ts: TEXT-010
+infra/src/dns/: TEXT-011
+infra/src/vercel.ts: TEXT-012, TEXT-013
 # WELCOME: Welcome Screen & Interactive Onboarding
 crates/anvil-cli/src/commands/welcome.rs: WELCOME-001
 crates/anvil-cli/src/services/first_run.rs: WELCOME-001
