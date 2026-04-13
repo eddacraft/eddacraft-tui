@@ -39,9 +39,9 @@ pub mod theme;
 pub mod widgets;
 
 pub mod prelude {
-    pub use crate::compat::{detect_terminal, validate_minimum_size, TerminalInfo};
+    pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, KeyHandler};
-    pub use crate::shell::{render_shell, ShellBranding};
+    pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;
     pub use crate::theme::{EddaCraftTheme, Theme};
     pub use crate::widgets::confirm::{Confirm, ConfirmState};
@@ -55,7 +55,7 @@ pub mod prelude {
     };
     pub use crate::widgets::progress_bar::{ProgressBar, ProgressBarState};
     pub use crate::widgets::select::{Select, SelectItem, SelectState};
-    pub use crate::widgets::spinner::{anvil, eddacraft, Spinner, SpinnerPreset, SpinnerState};
+    pub use crate::widgets::spinner::{Spinner, SpinnerPreset, SpinnerState, anvil, eddacraft};
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;
     pub use crate::widgets::text_input::{TextInput, TextInputState};
