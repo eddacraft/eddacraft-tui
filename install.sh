@@ -40,7 +40,21 @@ if ! curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o "$TMPFILE"; then
   exit 1
 fi
 
+# Run the cargo-dist installer; capture exit code so we always print next steps
+set +e
 sh "$TMPFILE"
+INSTALL_EXIT=$?
+set -e
+
+if [ "$INSTALL_EXIT" -ne 0 ]; then
+  echo ""
+  echo "  [!] Installer exited with code $INSTALL_EXIT."
+  echo "  If the install failed, try Homebrew instead:"
+  echo ""
+  echo "    brew install eddacraft/tap/anvil"
+  echo ""
+  exit "$INSTALL_EXIT"
+fi
 
 echo ""
 echo "  Get started:"
