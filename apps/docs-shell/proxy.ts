@@ -95,7 +95,7 @@ async function proxyToUpstream(request: NextRequest, upstream: string): Promise<
             locUrl.origin === new URL(PUBLIC_DOCS_URL).origin
           ) {
             if (locUrl.pathname.startsWith('/auth/')) {
-              responseHeaders.delete('location');
+              return new Response('Forbidden', { status: 403 });
             } else {
               locUrl.hostname = url.hostname;
               locUrl.port = url.port;
