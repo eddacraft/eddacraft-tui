@@ -9,6 +9,7 @@
     "strict": true,
     "emitDeclarationOnly": true,
     "composite": true,
+    "declarationDir": "dist/types",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
