@@ -60,11 +60,10 @@ export async function decryptState(
     const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
     const parsed = JSON.parse(new TextDecoder().decode(plaintext));
     if (typeof parsed?.next !== 'string' || typeof parsed?.nonce !== 'string') return null;
-    if (typeof parsed.iat === 'number') {
-      const age = Math.floor(Date.now() / 1000) - parsed.iat;
-      if (age > STATE_MAX_AGE_S || age < 0) return null;
-    }
-    return { next: parsed.next, nonce: parsed.nonce, iat: parsed.iat ?? 0 };
+    if (typeof parsed.iat !== 'number' || !Number.isFinite(parsed.iat)) return null;
+    const age = Math.floor(Date.now() / 1000) - parsed.iat;
+    if (age > STATE_MAX_AGE_S || age < 0) return null;
+    return { next: parsed.next, nonce: parsed.nonce, iat: parsed.iat };
   } catch {
     return null;
   }

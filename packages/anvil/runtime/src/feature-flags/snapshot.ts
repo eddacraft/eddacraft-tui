@@ -21,8 +21,7 @@ export interface SnapshotConfig {
 // =============================================================================
 
 // C-016: timestamp-based version with sub-second counter for monotonicity
-// within a single process. Survives restarts because the epoch-second base
-// advances with wall-clock time.
+// within a single process under non-decreasing wall-clock time.
 let lastEpochSec = 0;
 let subSecondCounter = 0;
 

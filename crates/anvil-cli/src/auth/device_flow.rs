@@ -75,7 +75,7 @@ fn build_client() -> Result<reqwest::Client> {
 /// Summarise a network-level reqwest error into a short user-visible hint.
 fn friendly_network_error(e: &reqwest::Error) -> &'static str {
     if e.is_connect() {
-        "connection refused"
+        "could not connect"
     } else if e.is_timeout() {
         "timed out"
     } else if e.is_redirect() {
