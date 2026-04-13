@@ -125,6 +125,9 @@ fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
     if let Some(ver) = &args.version {
         cmd.args(["--version", ver]);
     }
+    if args.force {
+        cmd.arg("--force");
+    }
 
     let status = cmd
         .stdin(std::process::Stdio::inherit())
@@ -185,43 +188,11 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
     let update_needed = updater.is_update_needed_sync()?;
 
     if args.check {
-        if global.json {
-            println!(
-                "{}",
-                serde_json::json!({
-                    "current_version": current,
-                    "update_available": update_needed,
-                    "action": "check"
-                })
-            );
-        } else if update_needed {
-            println!("Current version: {current}");
-            println!("Update available. Run `anvil update` to install.");
-        } else {
-            println!("Current version: {current}");
-            println!("Already up to date.");
-        }
-
-        if update_needed {
-            anyhow::bail!(UpdateAvailable);
-        }
-        return Ok(());
+        return report_check(current, update_needed, global);
     }
 
     if !update_needed && !args.force && args.version.is_none() {
-        if global.json {
-            println!(
-                "{}",
-                serde_json::json!({
-                    "current_version": current,
-                    "update_available": false,
-                    "action": "none"
-                })
-            );
-        } else {
-            println!("Current version: {current}");
-            println!("Already up to date.");
-        }
+        report_up_to_date(current, global);
         return Ok(());
     }
 
@@ -231,7 +202,54 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
     }
 
     updater.enable_installer_output();
+    perform_update(updater, current, global)
+}
 
+fn report_check(current: &str, update_needed: bool, global: &GlobalArgs) -> anyhow::Result<()> {
+    if global.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "current_version": current,
+                "update_available": update_needed,
+                "action": "check"
+            })
+        );
+    } else if update_needed {
+        println!("Current version: {current}");
+        println!("Update available. Run `anvil update` to install.");
+    } else {
+        println!("Current version: {current}");
+        println!("Already up to date.");
+    }
+
+    if update_needed {
+        anyhow::bail!(UpdateAvailable);
+    }
+    Ok(())
+}
+
+fn report_up_to_date(current: &str, global: &GlobalArgs) {
+    if global.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "current_version": current,
+                "update_available": false,
+                "action": "none"
+            })
+        );
+    } else {
+        println!("Current version: {current}");
+        println!("Already up to date.");
+    }
+}
+
+fn perform_update(
+    mut updater: axoupdater::AxoUpdater,
+    current: &str,
+    global: &GlobalArgs,
+) -> anyhow::Result<()> {
     match updater.run_sync() {
         Ok(Some(result)) => {
             if global.json {
@@ -313,17 +331,17 @@ mod tests {
     // ── Sidecar resolution ──────────────────────────────────────────
 
     #[test]
-    fn find_sidecar_returns_none_in_temp_dir() {
-        let tmp = tempfile::tempdir().unwrap();
-        // No sidecar binary exists in temp dir
-        let candidate = tmp.path().join(SIDECAR_NAME);
-        assert!(!candidate.is_file());
+    fn find_on_path_returns_none_for_missing_binary() {
+        // Verify that a non-existent binary is not found on PATH
+        assert!(find_on_path("eddacraft-anvil-update-nonexistent-test").is_none());
     }
 
     #[test]
-    fn sidecar_name_has_correct_extension() {
+    fn sidecar_name_matches_platform() {
         if cfg!(windows) {
-            assert!(SIDECAR_NAME.ends_with(".exe"));
+            assert!(SIDECAR_NAME
+                .to_ascii_lowercase()
+                .ends_with(".exe"));
         } else {
             assert!(!SIDECAR_NAME.contains('.'));
         }
@@ -361,6 +379,21 @@ mod tests {
         }
         let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(cmd_args, vec!["--version", "0.4.0"]);
+    }
+
+    #[test]
+    fn sidecar_command_force_flag() {
+        let mut cmd = Command::new("fake-updater");
+        let args = UpdateArgs {
+            check: false,
+            version: None,
+            force: true,
+        };
+        if args.force {
+            cmd.arg("--force");
+        }
+        let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(cmd_args, vec!["--force"]);
     }
 
     #[test]

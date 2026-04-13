@@ -160,9 +160,8 @@ Exit code 1 (useful for CI: `anvil update --check || echo "outdated"`).
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success (updated, or already up-to-date) |
-| 1 | Update available but not installed (`--check` mode) |
-| 1 | Error during update |
+| 0 | Success (updated, already up-to-date, or Homebrew detected) |
+| 1 | Update available (`--check` mode), or error during update |
 
 ## Risks
 
