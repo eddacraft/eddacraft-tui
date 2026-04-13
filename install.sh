@@ -40,7 +40,8 @@ if ! curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o "$TMPFILE"; then
   exit 1
 fi
 
-# Run the cargo-dist installer; capture exit code so we always print next steps
+# Run the cargo-dist installer; capture its exit code so we can print follow-up
+# guidance before exiting on failure.
 set +e
 sh "$TMPFILE"
 INSTALL_EXIT=$?

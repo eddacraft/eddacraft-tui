@@ -334,18 +334,28 @@ jobs:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::secrets.ANVIL_RELEASES_TOKEN is required to publish the Homebrew formula."
+            exit 1
+          fi
+
           # cargo-dist generates eddacraft-anvil.rb in the release artifacts.
           # Homebrew expects Formula/anvil.rb with class Anvil for
           # `brew install eddacraft/tap/anvil` to work, so we patch the
           # class name and push it to the tap repo.
           FORMULA="artifacts/eddacraft-anvil.rb"
           if [ ! -f "$FORMULA" ]; then
-            echo "Warning: $FORMULA not found in artifacts; skipping tap publish."
+            echo "::warning file=.github/workflows/release.yml,title=Missing Homebrew formula artifact::$FORMULA not found in release artifacts; skipping tap publish."
             exit 0
           fi
 
           # Rename class EddacraftAnvil -> Anvil
           sed 's/^class EddacraftAnvil < Formula/class Anvil < Formula/' "$FORMULA" > "$RUNNER_TEMP/anvil.rb"
+
+          if ! grep -q '^class Anvil < Formula' "$RUNNER_TEMP/anvil.rb"; then
+            echo "Error: patched Homebrew formula is missing 'class Anvil < Formula'." >&2
+            exit 1
+          fi
 
           CONTENT=$(base64 -w 0 "$RUNNER_TEMP/anvil.rb")
 
