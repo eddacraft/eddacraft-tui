@@ -125,7 +125,7 @@ Change status to **Ready** when:
   contract tests against live services.
 - **Confidence:** high
 
-### Phase 2 ��� Neon Postgres
+### Phase 2 — Neon Postgres
 
 #### TEXT-004: Neon Postgres connection contract test
 
