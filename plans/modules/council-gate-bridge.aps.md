@@ -35,9 +35,10 @@ runtime gate can verify.
 - Map severity taxonomy (council: critical/major/minor/nit → Anvil: policy violation levels)
 - Identify the minimal bridge interface (what goes in, what comes out)
 - Identify where the bridge lives (code-env script, Rust binary, Anvil plugin)
-- Identify whether the existing PocketFlow TS integration (vendored in Kindling
-  with an Anvil adapter) is the right orchestration layer for the full council
-  flow, or whether the current Claude Code agent approach is sufficient
+- Identify whether the planned PocketFlow TS adapter (documented but not yet
+  vendored — see `docs/architecture/references/pocketflow-vendoring.md`) is the
+  right orchestration layer for the full council flow, or whether the current
+  Claude Code agent approach is sufficient
 
 **Out of scope:**
 - Implementing the bridge
@@ -77,7 +78,7 @@ runtime gate can verify.
 
 ### CGBDG-005 — Evaluate PocketFlow TS adapter vs agent approach
 
-- **Checkpoint:** Recommendation documented: PocketFlow TS (via Kindling adapter), Claude Code agents, or hybrid — with rationale
+- **Checkpoint:** Recommendation documented: PocketFlow TS adapter (planned, not yet vendored), Claude Code agents, or hybrid — with rationale
 - **Validate:** Recommendation in discovery doc with tradeoffs
 
 ### CGBDG-006 — Write discovery report + follow-on spec
@@ -88,8 +89,8 @@ runtime gate can verify.
 ## Dependencies
 
 - Existing: `packages/anvil/core/src/provenance/` (attestation schema)
-- Existing: `code-env/.claude/agents/council-judge.md` (output format)
-- Existing: PocketFlow TS (vendored in `packages/kindling-integration/` with Anvil adapter)
+- Existing: `.claude/commands/council.md` and `.claude/agents/plan-synthesizer.md` (council output format)
+- Planned: PocketFlow TS adapter (`packages/kindling-adapter-pocketflow/`; documented in `docs/architecture/references/pocketflow-vendoring.md` but not yet vendored)
 
 ## Risks
 
