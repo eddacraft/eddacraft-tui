@@ -136,14 +136,14 @@ and tooling.
 
 ### Apps
 
-| Directory        | Package                    | Description                                                                   | Deployment          |
-| ---------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
-| `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
-| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
-| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
-| `apps/anvil-api` | —                          | API service                                                                   | Vercel              |
-| `apps/docs-shell`| `@eddacraft/docs-shell`    | Documentation shell (Next.js, auth-gated)                                     | Vercel              |
-| `apps/e2e`       | —                          | End-to-end test suites (Playwright)                                           | —                   |
+| Directory         | Package                    | Description                                                                   | Deployment          |
+| ----------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
+| `apps/anvil-cli`  | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
+| `apps/docs-site`  | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
+| `apps/website`    | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
+| `apps/anvil-api`  | —                          | API service                                                                   | Vercel              |
+| `apps/docs-shell` | `@eddacraft/docs-shell`    | Documentation shell (Next.js, auth-gated)                                     | Vercel              |
+| `apps/e2e`        | —                          | End-to-end test suites (Playwright)                                           | —                   |
 
 ### Packages — anvil core
 
