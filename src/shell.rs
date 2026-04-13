@@ -45,6 +45,7 @@ impl ShellBranding {
 /// Render branded shell chrome around a surface content area.
 ///
 /// Returns the inner `Rect` that the surface should render into.
+#[allow(clippy::too_many_arguments)]
 pub fn render_shell(
     frame: &mut Frame,
     area: Rect,
