@@ -4,7 +4,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{StatefulWidget, Widget};
-use rattles::{rattle, Rattle};
+use rattles::{Rattle, rattle};
 
 use crate::theme::Theme;
 
