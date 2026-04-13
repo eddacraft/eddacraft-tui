@@ -59,6 +59,9 @@
     },
     {
       "path": "./packages/libs/render"
+    },
+    {
+      "path": "./apps/docs-shell"
     }
   ]
 }

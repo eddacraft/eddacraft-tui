@@ -136,13 +136,14 @@ and tooling.
 
 ### Apps
 
-| Directory        | Package                    | Description                                                                   | Deployment          |
-| ---------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
-| `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
-| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
-| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
-| `apps/anvil-api` | —                          | API service                                                                   | Vercel              |
-| `apps/e2e`       | —                          | End-to-end test suites (Playwright)                                           | —                   |
+| Directory         | Package                    | Description                                                                   | Deployment          |
+| ----------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
+| `apps/anvil-cli`  | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
+| `apps/docs-site`  | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
+| `apps/website`    | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
+| `apps/anvil-api`  | —                          | API service                                                                   | Vercel              |
+| `apps/docs-shell` | `@eddacraft/docs-shell`    | Documentation shell (Next.js, auth-gated)                                     | Vercel              |
+| `apps/e2e`        | —                          | End-to-end test suites (Playwright)                                           | —                   |
 
 ### Packages — anvil core
 
@@ -261,7 +262,7 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-04-01 · commit `e08aa44d`. `eddacraft-tui` is now an
+> Last measured: 2026-04-13 · commit `2b613407`. `eddacraft-tui` is now an
 > external git dependency and excluded from the Rust table. Run
 > `pnpm test:coverage` for current numbers across both stacks.
 
@@ -294,7 +295,8 @@ tests run separately via `apps/e2e/` and do not contribute to line coverage.
 | `transactional`                         |    --[^5] |    --[^5] |          0 | --                |
 | `docs-site`                             |    --[^5] |    --[^5] |          0 | --                |
 | `anvil-generators`                      |    --[^5] |    --[^5] |          0 | --                |
-| **TS total**                            | **77.2%** | **67.0%** |    **163** |                   |
+| `docs-shell`                            |    --[^6] |    --[^6] |          6 | Unit              |
+| **TS total**                            | **77.2%** | **67.0%** |    **164** |                   |
 
 #### Rust
 
@@ -323,11 +325,13 @@ tests run separately via `apps/e2e/` and do not contribute to line coverage.
 
 [^5]: No tests — not included in coverage totals.
 
+[^6]: Coverage not yet measured for this project (new addition).
+
 ### Test type breakdown
 
 | Type            | Files | Description                                            |
 | --------------- | ----: | ------------------------------------------------------ |
-| TS Unit         |   161 | Co-located `*.test.ts` — mocked deps, fast             |
+| TS Unit         |   162 | Co-located `*.test.ts` — mocked deps, fast             |
 | TS Integration  |     2 | `*-integration.test.ts` — multi-module, in-process     |
 | TS E2E          |    10 | `*.e2e.test.ts` in `apps/e2e/` — cross-package testing |
 | Rust Unit/Integ |   117 | `#[cfg(test)]` modules — inline and integration tests  |
