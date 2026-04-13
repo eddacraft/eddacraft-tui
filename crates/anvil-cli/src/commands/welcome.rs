@@ -244,7 +244,12 @@ fn run_discovery(
 
     let mut discovery = DiscoveryState::new();
 
-    crate::tui::draw_loading(terminal, "Discovery", "Scanning project for findings\u{2026}", theme)?;
+    crate::tui::draw_loading(
+        terminal,
+        "Discovery",
+        "Scanning project for findings\u{2026}",
+        theme,
+    )?;
 
     let results = match scan_project() {
         Ok(results) if results.findings.is_empty() => {
@@ -591,7 +596,7 @@ fn run_welcome_hub(
                 let checks = crate::commands::doctor::collect_checks();
                 let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
                 loop {
-                    let sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
+                    let _sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
                     if doctor_state.wants_fix {
                         if let Some(idx) = doctor_state.fix_index {
                             crate::commands::doctor::apply_fix_at(&mut doctor_state.checks, idx);
