@@ -26,6 +26,17 @@ All notable changes to Anvil are documented here.
 - **Release pipeline** — ARM64 Windows target removed from cargo-dist (upstream
   dependency not yet available).
 
+### Security
+
+- **OAuth state hardening** — replay protection via issued-at timestamp with
+  600-second expiry; nonce cookie cleared on all callback exit paths.
+- **Docs proxy** — upstream auth redirect blocking and response header stripping
+  for shared secrets.
+- **CI credential scoping** — Azure credentials passed as composite action
+  inputs instead of job-level environment variables.
+- **Feature flag validation** — strict input validation on snapshot loading and
+  explicit reason codes for unimplemented operators.
+
 ## [0.3.0-beta] — Rust CLI & Native Engine
 
 ### Changed
