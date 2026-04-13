@@ -162,13 +162,15 @@ jobs:
       - name: Check licenses
         run: bash scripts/license-check.sh
 
-  # ── OSSF Scorecard (weekly + push to main) ─────────────────────
+  # ── OSSF Scorecard (weekly + push to default branch) ────────────
+  # OSSF Scorecard only works on the repository's default branch.
+  # This repo's default branch is `dev`, not `main`.
   scorecard:
     name: OSSF Scorecard
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'schedule' || (github.event_name == 'push' && github.ref ==
-      'refs/heads/main')
+      'refs/heads/dev')
     permissions:
       contents: read
       security-events: write
