@@ -44,6 +44,7 @@
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
 - IAC: pulumi-iac (20/20) — Complete
+- CGBDG: council-gate-bridge (0/6) — Proposed
 
 - AGOV: agent-governance-patterns (0/7) — Draft
 - BENCH: kernel-benchmarking (14/16) — In Progress
