@@ -134,6 +134,15 @@ and gates `/anvil` docs behind it via Vercel Edge.
 - `docs/specs/2026-03-15-beta-auth-streamline-design.md`
 - `plans/specs/2026-04-03-docs-auth-gating-design.md`
 
+### Dev Tooling Bridge (Proposed)
+
+Connect the LLM-powered council review flow to Anvil's deterministic
+attestation format. Discovery-first: understand the interface before building.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Proposed | 0/6 | — |
+
 ### Observability Foundation (Draft)
 
 Unified observability: telemetry contracts, Neon health instrumentation,
