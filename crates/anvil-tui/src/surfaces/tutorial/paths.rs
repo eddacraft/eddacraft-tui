@@ -148,7 +148,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step_with_verify(
             "Validate the Architecture",
-            "The architecture definition in .anvil/architecture.yaml is validated against an import graph. This graph maps which layers are allowed to import from which others.",
+            "Validate the architecture definition in .anvil/architecture.yaml. This checks that layers, boundaries, and allowed-import rules are well-formed before enforcement.",
             "Run: anvil architecture validate",
             "anvil architecture validate",
             Verify::ExitCode(0),
@@ -226,7 +226,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         step(
             "Install Git Hooks",
             "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks.",
-            "Run: npx husky init && echo 'anvil gate' > .husky/pre-commit",
+            "Run: anvil hooks install --husky",
         ),
         step(
             "Add CI Workflow",
