@@ -20,6 +20,7 @@ const inviteSchema = z.object({
   notes: z.string().max(1000).optional(),
   days: z.number().int().positive().max(365).default(90),
   scopes: z.array(z.enum(ALLOWED_SCOPES)).default(['beta']),
+  tokenOnly: z.boolean().default(false),
 });
 
 const approveSchema = z.union([
@@ -57,48 +58,122 @@ function resolveAdminActor(c: { req: { header: (name: string) => string | undefi
 /**
  * POST /admin/invite
  *
- * Creates or finds a user by email, generates a new token.
- * Returns the raw token exactly once — it is never stored.
+ * Invite a user to the beta. Two modes:
+ *
+ * Default (tokenOnly=false): insert into waitlist with source 'manual',
+ * then run the full approve flow (upsert user, device code, invite email).
+ *
+ * tokenOnly=true: upsert user + waitlist entry, generate a raw access
+ * token returned exactly once. For CI/service accounts.
  */
 admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
-  const { email, name, notes, days, scopes } = c.req.valid('json');
-  debug('POST /admin/invite', { email, scopes, days });
+  const { email, name, notes, days, scopes, tokenOnly } = c.req.valid('json');
+  debug('POST /admin/invite', { email, scopes, days, tokenOnly });
   const sql = getClient();
   const actor = resolveAdminActor(c);
 
   const normalizedEmail = email.toLowerCase().trim();
 
+  // Always record in waitlist for tracking
+  await sql`INSERT INTO waitlist (email, name, source)
+      VALUES (${normalizedEmail}, ${name ?? null}, ${'manual'})
+      ON CONFLICT (email) DO UPDATE SET
+        name = COALESCE(${name ?? null}, waitlist.name),
+        updated_at = NOW()`;
+
+  if (tokenOnly) {
+    // Direct token flow — for CI/service accounts
+    const rawToken = generateToken();
+    const hash = hashToken(rawToken);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + days);
+
+    const txResult = await sql.transaction([
+      sql`INSERT INTO beta_users (email, name, notes, status)
+          VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
+          ON CONFLICT (email) DO UPDATE SET
+            name = COALESCE(${name ?? null}, beta_users.name),
+            notes = COALESCE(${notes ?? null}, beta_users.notes),
+            status = ${'active'}
+          RETURNING *`,
+      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+          VALUES (
+            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+            ${hash}, ${scopes}, ${expiresAt.toISOString()}
+          )
+          RETURNING *`,
+      sql`INSERT INTO audit_log (action, actor, metadata)
+          VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+          RETURNING *`,
+    ]);
+
+    const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
+
+    return c.json(
+      {
+        token: rawToken,
+        user: { email: user.email, id: user.id },
+        expiresAt: expiresAt.toISOString(),
+        scopes,
+      },
+      201
+    );
+  }
+
+  // Default flow — approve via device code + invite email
+  const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
+
   const rawToken = generateToken();
   const hash = hashToken(rawToken);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + days);
+  const tokenExpiry = new Date();
+  tokenExpiry.setDate(tokenExpiry.getDate() + days);
 
-  // Transaction: upsert user + insert token + audit log atomically
+  const userCode = 'ANVIL-' + randomBytes(8).toString('hex').toUpperCase();
+  const pollToken = randomBytes(32).toString('hex');
+  const pollTokenHash = hashToken(pollToken);
+  const deviceExpiry = new Date();
+  deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
+
   const txResult = await sql.transaction([
-    sql`INSERT INTO beta_users (email, name, notes)
-        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null})
+    sql`INSERT INTO beta_users (email, name, notes, status)
+        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
         ON CONFLICT (email) DO UPDATE SET
           name = COALESCE(${name ?? null}, beta_users.name),
-          notes = COALESCE(${notes ?? null}, beta_users.notes)
+          notes = COALESCE(${notes ?? null}, beta_users.notes),
+          status = ${'active'}
         RETURNING *`,
     sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
         VALUES (
           (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-          ${hash}, ${scopes}, ${expiresAt.toISOString()}
+          ${hash}, ${scopes}, ${tokenExpiry.toISOString()}
+        )
+        RETURNING *`,
+    sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+        VALUES (
+          (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+          ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
         )
         RETURNING *`,
     sql`INSERT INTO audit_log (action, actor, metadata)
-        VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+        VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
         RETURNING *`,
   ]);
 
   const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
 
+  moveToApprovedAudience(normalizedEmail).catch((err) => {
+    console.error('Failed to move audience (non-fatal):', err);
+  });
+
+  const activateUrl = `${ACTIVATE_BASE}?code=${userCode}`;
+  await sendBetaInvite(normalizedEmail, userCode, activateUrl).catch((err) => {
+    console.error('Failed to send invite email (non-fatal):', err);
+  });
+
   return c.json(
     {
-      token: rawToken,
       user: { email: user.email, id: user.id },
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: tokenExpiry.toISOString(),
       scopes,
     },
     201
