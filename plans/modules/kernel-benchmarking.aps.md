@@ -12,7 +12,7 @@ Scopes: BENCH (main)
 
 | ID    | Owner | Status      |
 | ----- | ----- | ----------- |
-| BENCH | —     | In Progress (14/16) |
+| BENCH | —     | In Progress (15/16) |
 
 ## Purpose
 
@@ -380,4 +380,4 @@ Change status to **Ready** when:
 | 1 — Micro-Benchmark Extensions | 6 | Complete (6/6) |
 | 2 — Stress Test Harness | 8 | Complete (code landed via PR #681; needs validation runs) |
 | 3 — CI Integration | 2 | 1/2 complete |
-| **Total** | **16** | **15 complete, 1 ready** |
+| **Total** | **16** | **15 complete, 1 draft** |

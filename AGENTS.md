@@ -4,19 +4,58 @@ These conventions apply to all agents working in this project.
 
 ## Planning — Anvil Plan Spec (APS)
 
-All multi-step work MUST use APS format:
+All multi-step work MUST use APS format. Read `plans/aps-rules.md` for the full
+spec before writing or modifying any `.aps.md` file.
 
-- Master plan: `plans/index.aps.md`
-- Modules: `plans/modules/<module>.aps.md`
-- Work item IDs: `PREFIX-NNN` (3-digit zero-padded)
-- Module statuses: Draft -> Proposed -> Ready -> In Progress -> Complete
-- Wave-based parallel execution for independent work items
-- Archive completed modules to `plans/archive/`
+### Single source of truth
 
-Before starting implementation, check `plans/index.aps.md` for active work items
-and current status. Update task status as you progress.
+`plans/index.aps.md` is the canonical index of all modules. Do NOT create
+separate module lists, summary files, or shadow indexes — they drift and cause
+confusion.
+
+### Key rules
+
+- **Read before writing:** check `plans/index.aps.md` for active work and
+  current status before starting any implementation
+- **Modules:** `plans/modules/<module>.aps.md` (active),
+  `plans/archive/modules/` (completed)
+- **Work item IDs:** `PREFIX-NNN` (3-digit zero-padded)
+- **Statuses:** Draft → Proposed → Ready → In Progress → Complete
+- **Wave-based** parallel execution for independent work items
+- **UK English** spelling in all plan text
+
+### Keeping plans current
+
+Agents MUST update APS state as they work — do not leave this for later:
+
+1. **Before starting:** mark module status **In Progress** in the module file
+2. **After completing a work item:** update its status (checkbox, Status field,
+   or table row) in the module file
+3. **After completing a work item:** update the done/total count in the module
+   file's header table
+4. **After all active items done:** update module status to **Complete**
+5. **Update `plans/index.aps.md`** whenever a module's count or status changes
+6. **Archive completed modules:** `git mv` to `plans/archive/modules/` and
+   update the path in `index.aps.md`
 
 Reference spec: <https://github.com/eddacraft/anvil-plan-spec>
+
+## Architecture and Design Decisions
+
+Before proposing new architecture, changing technology choices, or planning work
+that touches system boundaries, check existing decisions first:
+
+1. **Decision log:** `plans/decisions/DECISION-LOG.md` — condensed index of all
+   ADRs with one-line summaries. Start here.
+2. **Scope guard:** `docs/vision/anvil-scope-guard.md` — defines what Anvil is
+   and isn't. Check before proposing new scope.
+3. **Architecture overview:** `docs/architecture/overview.md` — design
+   philosophy (planless-first, deterministic, composable, safety by default).
+4. **Full ADRs:** `plans/decisions/NNN-*.md` — read the specific ADR when you
+   need trade-off context beyond the one-line summary.
+
+When introducing a new architectural decision, follow
+`docs/guides/adr-process.md` and add the entry to the decision log.
 
 ## Repository Operations — gx
 

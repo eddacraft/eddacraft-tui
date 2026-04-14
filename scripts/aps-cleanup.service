@@ -1,12 +1,12 @@
 [Unit]
-Description=APS cleanup — verify Committed items, run post-merge test plans
+Description=APS cleanup — reconcile APS state and perform hygiene checks
+Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
-User=aneki
-WorkingDirectory=/home/aneki/Projects/src/eddacraft
-ExecStart=/home/aneki/Projects/src/eddacraft/scripts/aps-cleanup.sh --notify
-Environment=REPO=/home/aneki/Projects/src/eddacraft
+WorkingDirectory=%h/Projects/src/EddaCraft/anvil-001
+ExecStart=%h/Projects/src/EddaCraft/anvil-001/scripts/aps-cleanup.sh --notify
+Environment=REPO=%h/Projects/src/EddaCraft/anvil-001
 StandardOutput=journal
 StandardError=journal

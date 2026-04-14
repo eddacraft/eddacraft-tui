@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLAGS | —     | high     | In Progress |
+| FLAGS | —     | high     | In Progress (8/9) |
 
 ## Purpose
 

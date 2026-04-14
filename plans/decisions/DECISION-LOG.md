@@ -1,0 +1,78 @@
+# Decision Log
+
+Condensed index of all Architecture Decision Records (ADRs). Read the linked
+document for full context and trade-off analysis.
+
+For the ADR process and when to write one, see
+[docs/guides/adr-process.md](../../docs/guides/adr-process.md).
+
+## Core Philosophy
+
+These define how Anvil behaves by default. All features must align.
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [001](001-planless-first.md) | Deliver value without requiring plans or config; codebase is the baseline truth | Accepted |
+| [002](002-warnings-over-blocks.md) | Warnings don't block (exit 0) by default; opt-in `fail-on-warnings` for enforcement | Accepted |
+| [003](003-new-edges-only.md) | Baseline existing architecture on first run; only warn on new violations | Accepted |
+| [004](004-suppression-syntax.md) | `@anvil-ignore[-until DATE] WARNING-ID: reason` for targeted, explained suppressions | Accepted |
+
+## Technology Stack
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [000](000-use-zod-for-aps-schema-definition.md) | Zod for APS schema definition, export to JSON Schema when needed | Accepted |
+| [005](005-ink-over-opentui.md) | Ink (React-based Node.js) for TUI components | Accepted |
+| [006](006-hybrid-dc-opa.md) | Dependency-Cruiser for static analysis + OPA for policy evaluation | Accepted |
+| [007](007-pulumi-iac.md) | Pulumi (TypeScript) for infrastructure as code | Accepted |
+| [014](014-language-allocation-tree-ts-vs-rust.md) | TypeScript for orchestration/UX; Rust for CPU-bound hot paths | Proposed |
+
+## Rust Migration
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [011a](011a-rust-core-engine.md) | Rust core engine for performance-critical paths (watch mode, analysis, policy) | Superseded |
+| [012](012-rust-cli-replacement.md) | Single `anvil` Rust binary replaces Node.js CLI; big bang, no hybrid period | Accepted |
+| [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
+
+## Product and Distribution
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [018](018-product-ip-architecture.md) | Free base tier, source-proprietary model; three foundational repos as OSS | Accepted |
+| [020](020-versioning-strategy.md) | Lockstep versioning for Anvil core; independent versioning for separate products, OSS, and peripherals | Accepted |
+
+## Configuration and Structure
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [016](016-unified-config-format.md) | Consolidate three config files into single TOML with source delegation | Proposed |
+| [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
+
+## Intercept and Enforcement
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [015](015-intercept-loop-enforcement.md) | Rust daemon detects file changes from AI agents, evaluates policy, interrupts sessions | Proposed |
+
+## Policy and Governance
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
+| [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
+
+## Evaluation and Testing
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [013](013-eval-harness-adoption.md) | External eval harness behind `EvalHarnessPort` adapter boundary | Proposed |
+
+## Superseded
+
+| ADR | Replaced By | Reason |
+|-----|-------------|--------|
+| [008](008-ink-vs-ratatui-assessment.md) | ADR-011a, Rust kernel | TUI choice tied to language; Rust migration changed the calculus |
+| [009](009-ink-vs-ratatui-watch-mode-performance.md) | ADR-011a, Rust kernel | Confirmed rendering isn't the bottleneck; check execution is |
+| [010](010-pulumi-typescript-iac.md) | ADR-007 | Duplicate; ADR-007 is the canonical Pulumi decision |
+| [011a](011a-rust-core-engine.md) | Architecture evolution docs | Rust kernel spec and architecture evolution are now authoritative |

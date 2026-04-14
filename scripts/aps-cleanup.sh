@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
-# aps-cleanup.sh — APS verification and post-merge test plan runner
-# Runs on schedule via systemd. Checks Committed APS items, verifies merges,
-# runs post-merge test plans, flags blockers.
+# aps-cleanup.sh — APS reconciliation and hygiene
+# Runs on schedule via systemd timer. Reconciles module statuses and counts
+# against actual work item states, flags stale entries, checks branch hygiene.
 #
-# Usage: ./aps-cleanup.sh [--repo <path>] [--dry-run] [--notify]
-# Default repo: ~/Projects/src/eddacraft
+# Usage: ./aps-cleanup.sh [--repo=<path>] [--dry-run] [--notify]
+# Default repo: ~/Projects/src/EddaCraft/anvil-001
+#
+# Modes:
+#   (default)  Report findings only, append to cleanup-log.md
+#   --dry-run  Print findings to stdout, don't write anything
+#   --notify   Send alerts for items needing human attention
 
 set -euo pipefail
 
-REPO="${REPO:-$HOME/Projects/src/eddacraft}"
+REPO="${REPO:-$HOME/Projects/src/EddaCraft/anvil-001}"
 DRY_RUN=false
 NOTIFY=false
-LOG="$REPO/plans/reviews/cleanup-log.md"
-POST_MERGE_DIR="$REPO/plans/reviews/post-merge"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M %Z')
 FINDINGS=""
 
-# Parse args
 for arg in "$@"; do
   case $arg in
     --dry-run) DRY_RUN=true ;;
@@ -25,55 +27,177 @@ for arg in "$@"; do
   esac
 done
 
-log() { echo "[aps-cleanup] $*"; }
+LOG="$REPO/plans/reviews/cleanup-log.md"
+MODULES_DIR="$REPO/plans/modules"
+ARCHIVE_DIR="$REPO/plans/archive/modules"
+POST_MERGE_DIR="$REPO/plans/reviews/post-merge"
+
+log() { echo "[aps-cleanup] $*" >&2; }
 finding() { FINDINGS+="- $*\n"; }
+
+cd "$REPO"
 
 # ── 1. Git sync ──────────────────────────────────────────────────────────────
 log "Fetching latest from origin..."
-cd "$REPO"
-git fetch origin --quiet
+git fetch origin --quiet 2>/dev/null || log "Warning: git fetch failed (offline?)"
 
-# ── 2. APS Committed sweep ───────────────────────────────────────────────────
-log "Scanning for Committed APS modules..."
+# ── 2. Module count reconciliation ──────────────────────────────────────────
+# For each module, count actual work items and compare against the header.
+shopt -s nullglob
+log "Reconciling module work item counts..."
 
-COMMITTED_MODULES=$(grep -rl "Committed" "$REPO/plans/modules/" 2>/dev/null || true)
+count_work_items() {
+  local file="$1"
+  local prefix="$2"
+  local total=0 done=0 in_progress=0 proposed=0 draft=0 ready=0 deferred=0 superseded=0
 
-for module_file in $COMMITTED_MODULES; do
+  # Method 1: Structured work items with Status field
+  # Count by grepping status lines near work item headings
+  local status_block
+  status_block=$(grep -A5 "^### ${prefix}-[0-9]" "$file" 2>/dev/null \
+    | grep -i '^\- \*\*Status\|^Status:' || true)
+
+  if [[ -n "$status_block" ]]; then
+    done=$(echo "$status_block" | grep -ciE 'complete|done' || true)
+    in_progress=$(echo "$status_block" | grep -ciE 'in.progress' || true)
+    proposed=$(echo "$status_block" | grep -ci 'proposed' || true)
+    deferred=$(echo "$status_block" | grep -ci 'deferred' || true)
+    superseded=$(echo "$status_block" | grep -ci 'superseded' || true)
+    draft=$(echo "$status_block" | grep -ciE '^.*draft' || true)
+    ready=$(echo "$status_block" | grep -ciE '^.*ready' || true)
+    total=$((done + in_progress + proposed + draft + ready + deferred + superseded))
+  fi
+
+  # Method 2: Checklist items (- [x] PREFIX-NNN: ...)
+  if [[ "$total" -eq 0 ]]; then
+    local checked unchecked
+    checked=$(grep -cE "^\- \[x\] ${prefix}-[0-9]" "$file" 2>/dev/null || true)
+    unchecked=$(grep -cE "^\- \[ \] ${prefix}-[0-9]" "$file" 2>/dev/null || true)
+    checked=${checked:-0}
+    unchecked=${unchecked:-0}
+
+    if [[ "$((checked + unchecked))" -gt 0 ]]; then
+      done=$checked
+      draft=$unchecked
+      total=$((checked + unchecked))
+    fi
+  fi
+
+  # Method 3: Table rows with Done/Complete status
+  if [[ "$total" -eq 0 ]]; then
+    local table_total
+    table_total=$(grep -cE "^\| ${prefix}-[0-9]" "$file" 2>/dev/null || true)
+    table_total=${table_total:-0}
+    if [[ "$table_total" -gt 0 ]]; then
+      done=$(grep -cE "^\| ${prefix}-[0-9].*\| (Done|Complete)" "$file" 2>/dev/null || true)
+      done=${done:-0}
+      total=$table_total
+    fi
+  fi
+
+  # Method 4: Just count headings (items exist but no status)
+  if [[ "$total" -eq 0 ]]; then
+    total=$(grep -cE "^### ${prefix}-[0-9]" "$file" 2>/dev/null || true)
+    total=${total:-0}
+    done=0
+  fi
+
+  echo "${total} ${done} ${in_progress} ${proposed} ${draft} ${ready} ${deferred} ${superseded}"
+}
+
+# Extract header count from module file (e.g. "43/64" or "In Progress (15/16)")
+extract_header_count() {
+  local file="$1"
+  # Look for N/N pattern in the header table (first 20 lines)
+  head -20 "$file" | grep -oE '[0-9]+/[0-9]+' | head -1 || echo ""
+}
+
+# Extract status from module header table row (lines starting with |)
+extract_header_status() {
+  local file="$1"
+  # Only look at table data rows in the first 20 lines, excluding
+  # header labels and markdown separator rows (| ---- | ---- |)
+  local table_line
+  table_line=$(head -20 "$file" \
+    | grep -E '^\|' \
+    | grep -viE '^\| *(ID|Scope|Module) ' \
+    | grep -vE '^[[:space:]|:-]+$' \
+    | head -1 || true)
+
+  if [[ -z "$table_line" ]]; then
+    echo "Unknown"
+    return
+  fi
+
+  if echo "$table_line" | grep -qi 'Complete'; then echo "Complete"
+  elif echo "$table_line" | grep -qi 'In Progress'; then echo "In Progress"
+  elif echo "$table_line" | grep -qi 'Ready'; then echo "Ready"
+  elif echo "$table_line" | grep -qi 'Proposed'; then echo "Proposed"
+  elif echo "$table_line" | grep -qi 'Draft'; then echo "Draft"
+  else echo "Unknown"
+  fi
+}
+
+for module_file in "$MODULES_DIR"/*.aps.md; do
   module=$(basename "$module_file" .aps.md)
 
-  # Find the branch associated with this module (heuristic: branch contains module slug)
-  branch=$(git branch -r --merged origin/dev 2>/dev/null \
-    | grep -i "$module" | head -1 | xargs || true)
+  # Extract prefix from first data row in the module header table, skipping
+  # header labels (ID, Scope, Module) and separator rows (| --- | --- |)
+  prefix=$(head -20 "$module_file" | grep -E '^\|' \
+    | grep -viE '^\| *(ID|Scope|Module) ' \
+    | grep -vE '^[[:space:]|:-]+$' \
+    | head -1 \
+    | sed -n 's/^| *\([A-Z][A-Z0-9]*\) .*/\1/p' || true)
 
-  if [[ -n "$branch" ]]; then
-    log "Module $module — branch ${branch} merged into dev"
+  [[ -z "$prefix" ]] && continue
 
-    # Check CI status on the merge commit
-    merge_sha=$(git log origin/dev --oneline --grep="$module" | head -1 | awk '{print $1}')
-    if [[ -n "$merge_sha" ]]; then
-      ci_status=$(gh run list --commit "$merge_sha" --json conclusion --jq '.[0].conclusion' 2>/dev/null || echo "unknown")
-      if [[ "$ci_status" == "success" ]]; then
-        log "CI green for $module — advancing to Complete"
-        if [[ "$DRY_RUN" == false ]]; then
-          sed -i 's/^status: Committed/status: Complete/' "$module_file"
-          sed -i 's/\*\*Committed\*\*/Complete/' "$module_file"
-        fi
-        finding "✅ $module — advanced Committed → Complete (CI: $ci_status)"
-      else
-        finding "⚠️  $module — merged but CI status: $ci_status"
-      fi
+  read -r total done in_progress proposed draft ready deferred superseded <<< "$(count_work_items "$module_file" "$prefix")"
+
+  [[ "$total" -eq 0 ]] && continue
+
+  header_count=$(extract_header_count "$module_file")
+  header_status=$(extract_header_status "$module_file")
+
+  # Check header count vs actual
+  if [[ -n "$header_count" ]]; then
+    header_done="${header_count%%/*}"
+    header_total="${header_count##*/}"
+
+    if [[ "$header_done" -ne "$done" ]] || [[ "$header_total" -ne "$total" ]]; then
+      finding "COUNT MISMATCH: $module — header says $header_count, actual is $done/$total"
     fi
-  else
-    finding "⏳ $module — Committed, branch not yet merged to dev"
+  fi
+
+  # Check if status should change
+  active=$((total - deferred - superseded))
+  if [[ "$done" -eq "$active" ]] && [[ "$active" -gt 0 ]] && [[ "$header_status" != "Complete" ]]; then
+    if [[ "$deferred" -gt 0 ]]; then
+      finding "STATUS: $module — all active items done ($done/$total, $deferred deferred), status is '$header_status' not Complete"
+    else
+      finding "STATUS: $module — all items done ($done/$total), status is '$header_status' not Complete"
+    fi
+  fi
+
+done
+
+# ── 3. Archive check ────────────────────────────────────────────────────────
+# Flag Complete modules still in plans/modules/ (should be in archive)
+log "Checking for Complete modules not yet archived..."
+
+for module_file in "$MODULES_DIR"/*.aps.md; do
+  module=$(basename "$module_file" .aps.md)
+  status=$(extract_header_status "$module_file")
+
+  if [[ "$status" == "Complete" ]]; then
+    finding "ARCHIVE: $module — status is Complete but still in plans/modules/"
   fi
 done
 
-# ── 3. Post-merge test plans ─────────────────────────────────────────────────
+# ── 4. Post-merge test plans ────────────────────────────────────────────────
 log "Checking post-merge test plans..."
 
-shopt -s nullglob
 for plan_file in "$POST_MERGE_DIR"/*.md; do
-  [[ "$(basename $plan_file)" == "TEMPLATE.md" ]] && continue
+  [[ "$(basename "$plan_file")" == "TEMPLATE.md" ]] && continue
 
   branch_slug=$(basename "$plan_file" .md)
   unchecked=$(grep -c '^\- \[ \]' "$plan_file" || true)
@@ -81,58 +205,72 @@ for plan_file in "$POST_MERGE_DIR"/*.md; do
   agent_runnable=$(grep -c 'agent: yes' "$plan_file" || true)
 
   if [[ "$unchecked" -eq 0 ]]; then
-    finding "✅ Post-merge plan complete: $branch_slug"
     continue
   fi
 
-  finding "📋 Post-merge plan: $branch_slug — $unchecked steps remaining ($agent_runnable agent-runnable, $human_required human-required)"
-
-  if [[ "$human_required" -gt 0 ]]; then
-    finding "🙋 Human attention needed: $branch_slug ($(grep 'human required\|agent: no' "$plan_file" | head -3 | sed 's/^/  /'))"
-  fi
+  finding "POST-MERGE: $branch_slug — $unchecked steps remaining ($agent_runnable agent-runnable, $human_required human-required)"
 done
 
-# ── 4. Branch hygiene ────────────────────────────────────────────────────────
+# ── 5. Branch hygiene ───────────────────────────────────────────────────────
 log "Checking branch hygiene..."
 
-# Merged branches still open
-stale_branches=$(git branch -r --merged origin/dev \
+stale_branches=$(git branch -r --merged origin/dev 2>/dev/null \
   | grep -v 'HEAD\|main\|dev\|release/' \
-  | xargs || true)
+  | sed 's/^[[:space:]]*//' || true)
 
 if [[ -n "$stale_branches" ]]; then
-  finding "🧹 Merged branches still open (consider deleting): $stale_branches"
+  count=$(echo "$stale_branches" | grep -c . || true)
+  finding "BRANCHES: $count merged branches still open (consider deleting)"
 fi
 
-# dev → main drift
 dev_ahead=$(git rev-list --count origin/main..origin/dev 2>/dev/null || echo 0)
 if [[ "$dev_ahead" -gt 20 ]]; then
-  finding "⚠️  dev is $dev_ahead commits ahead of main — promotion overdue"
+  finding "DRIFT: dev is $dev_ahead commits ahead of main — promotion overdue"
 fi
 
-# ── 5. Write log ─────────────────────────────────────────────────────────────
+# ── 6. Index staleness check ────────────────────────────────────────────────
+log "Checking index.aps.md for stale entries..."
+
+INDEX="$REPO/plans/index.aps.md"
+if [[ -f "$INDEX" ]]; then
+  # Count modules in plans/modules/ vs linked in index
+  module_count=$(ls "$MODULES_DIR"/*.aps.md 2>/dev/null | wc -l)
+  indexed_count=$(grep -cE '\./modules/.*\.aps\.md\)' "$INDEX" 2>/dev/null || echo 0)
+  archived_linked=$(grep -cE '\./archive/modules/.*\.aps\.md\)' "$INDEX" 2>/dev/null || echo 0)
+
+  unindexed=$((module_count - indexed_count))
+  if [[ "$unindexed" -gt 0 ]]; then
+    finding "INDEX: $unindexed module(s) in plans/modules/ not linked in index.aps.md"
+  fi
+fi
+
+# ── 7. Write results ────────────────────────────────────────────────────────
 if [[ -n "$FINDINGS" ]]; then
-  log "Writing findings to cleanup-log.md..."
+  log "Findings:"
+  echo -e "$FINDINGS" | while IFS= read -r line; do
+    [[ -n "$line" ]] && log "  $line"
+  done || true
+
   if [[ "$DRY_RUN" == false ]]; then
+    mkdir -p "$(dirname "$LOG")"
     {
       echo ""
       echo "## Cleanup run — $TIMESTAMP"
       echo ""
       echo -e "$FINDINGS"
     } >> "$LOG"
-  else
-    echo "--- DRY RUN findings ---"
-    echo -e "$FINDINGS"
+    log "Findings written to cleanup-log.md"
   fi
+else
+  log "No issues found."
 fi
 
-# ── 6. Notify ────────────────────────────────────────────────────────────────
+# ── 8. Notify ───────────────────────────────────────────────────────────────
 if [[ "$NOTIFY" == true ]] && [[ -n "$FINDINGS" ]]; then
-  # Check for anything needing attention
-  if echo -e "$FINDINGS" | grep -q '⚠️\|🙋'; then
-    ALERT=$(echo -e "$FINDINGS" | grep '⚠️\|🙋' | head -5)
+  if echo -e "$FINDINGS" | grep -qE 'MISMATCH|STATUS|DRIFT|ARCHIVE'; then
+    ALERT=$(echo -e "$FINDINGS" | grep -E 'MISMATCH|STATUS|DRIFT|ARCHIVE' | head -5)
     openclaw message send --channel telegram \
-      "🤖 APS cleanup — $(date '+%H:%M')\n\n$ALERT" 2>/dev/null \
+      "APS cleanup — $(date '+%H:%M')\n\n$ALERT" 2>/dev/null \
       || log "Notification failed (openclaw not available)"
   fi
 fi

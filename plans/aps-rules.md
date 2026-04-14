@@ -167,13 +167,14 @@ plans/
 ├── aps-rules.md              # This file (agent guidance)
 ├── index.aps.md              # Root plan (active/planned work)
 ├── completed-index.aps.md    # Completed work archive
-├── modules/                  # Module specs (numbered by dependency order)
+├── modules/                  # Active module specs
 │   ├── 01-core.aps.md
 │   └── 02-auth.aps.md
+├── archive/modules/          # Completed modules (git mv from modules/)
 ├── execution/                # Action plan files
 │   ├── [TASK-ID].steps.md    # Per-task (complex projects)
 │   └── [MODULE].steps.md     # Per-module (simple projects)
-└── decisions/                # ADRs (optional)
+└── decisions/                # ADRs (see DECISION-LOG.md for index)
     └── [NNN]-[title].md
 ```
 
@@ -193,6 +194,13 @@ When a task or module introduces a feature flag into the manifest:
    entries are deleted.
 5. **Governance guide** — see `docs/guides/feature-flag-governance.md` for the
    full lifecycle, rollout policy, and kill switch procedures.
+
+## Project Conventions
+
+- UK English spelling in all plan text
+- Work item IDs are zero-padded to 3 digits: `PREFIX-001`, not `PREFIX-1`
+- Plans live in `plans/modules/*.aps.md`
+- Decisions live in `plans/decisions/NNN-*.md` (or `NNN[a-z]-*.md` for variants)
 
 ## Quick Reference
 

@@ -74,7 +74,15 @@ eddacraft projects from using it.
   - **Result:** `Surface<T: Theme = EddaCraftTheme>` is now generic with
     backward-compatible default. `render_shell` accepts any `Theme`. Crate-level
     rustdoc added. Cargo.toml updated with publishing metadata.
-- [ ] TUIEXTRACT-004: Write widget catalogue documentation
-- [ ] TUIEXTRACT-005: Set up crates.io publish pipeline
-- [ ] TUIEXTRACT-006: Update Anvil to use published eddacraft-tui
-- [ ] TUIEXTRACT-007: Theme customisation guide and examples
+- [x] TUIEXTRACT-004: Write widget catalogue documentation
+  - **Result:** Comprehensive rustdoc in `lib.rs` with module table and quick-start
+    example; README.md with design system documentation (completed in external repo).
+- [x] TUIEXTRACT-005: Set up crates.io publish pipeline
+  - **Result:** CI/GitHub Actions workflow for crates.io publishing; Cargo.toml has
+    full publish metadata; RELEASE.md runbook (completed in external repo).
+- [x] TUIEXTRACT-006: Update Anvil to use published eddacraft-tui
+  - **Result:** Switched from git rev pin to crates.io v0.1.0 dependency
+    (commit e55d85f6, 2026-04-10).
+- [x] TUIEXTRACT-007: Theme customisation guide and examples
+  - **Result:** README.md includes EddaCraft Terminal Standard colour palette and
+    theming examples (completed in external repo).
