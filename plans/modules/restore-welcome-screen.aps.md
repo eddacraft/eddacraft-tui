@@ -495,12 +495,12 @@ The TUTOR module is retired. Mapping:
 
 ## Stats
 
-| Phase | Items | Done | Remaining |
-| ----- | ----- | ---- | --------- |
-| 1 — First-Run Onboarding | 3 | 2 | 003 (config persistence) |
-| 2 — Discovery Scan Infrastructure | 5 | 4 | 007 (wire discovery into flows) |
-| 3 — Fix Experience | 2 | 2 | — |
-| 4 — Executable Tutorial Steps | 3 | 2 | 013 (live file watching) |
-| 5 — Watch Demo & Hooks | 2 | 1 | 014 (watch demo overlay) |
-| 6 — Completion, Persistence & Resilience | 3 | 3 | — |
-| **Total** | **18** | **14** | **4 in progress** |
+| Phase | Items | Status |
+| ----- | ----- | ------ |
+| 1 — First-Run Onboarding | 3 | 2/3 done — remaining: WELCOME-003 (config persistence) |
+| 2 — Discovery Scan Infrastructure | 5 | 4/5 done — remaining: WELCOME-007 (wire discovery into flows) |
+| 3 — Fix Experience | 2 | 2/2 done |
+| 4 — Executable Tutorial Steps | 3 | 2/3 done — remaining: WELCOME-013 (live file watching) |
+| 5 — Watch Demo & Hooks | 2 | 1/2 done — remaining: WELCOME-014 (watch demo overlay) |
+| 6 — Completion, Persistence & Resilience | 3 | 3/3 done |
+| **Total** | **18** | **14/18 done — 4 in progress** |
