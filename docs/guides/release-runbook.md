@@ -2,6 +2,34 @@
 
 Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
+## Quick start
+
+The release process is split between an interactive script and a Claude skill:
+
+1. **Run the release script** — handles preflight, branching, and tagging:
+
+   ```bash
+   ./scripts/release.sh
+   ```
+
+   The script creates a GitHub Issue for tracking, runs all checks with
+   interactive gates, and writes `.release/manifest.json` as a handoff.
+
+2. **Run the `/release` skill** — handles post-release verification:
+
+   ```
+   /release
+   ```
+
+   The skill reads the manifest, verifies artefacts, reviews docs, drafts
+   comms, handles cleanup, and closes the tracking issue.
+
+The sections below are the **reference manual** — the script and skill
+automate and enforce these steps. Refer to them directly when something goes
+wrong or when you need to understand what a step does.
+
+---
+
 ## Release policy (current)
 
 - **Distribution:** pre-built binaries via GitHub Releases on `eddacraft/anvil`
