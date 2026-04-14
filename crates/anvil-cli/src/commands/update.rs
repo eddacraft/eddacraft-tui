@@ -339,9 +339,7 @@ mod tests {
     #[test]
     fn sidecar_name_matches_platform() {
         if cfg!(windows) {
-            assert!(SIDECAR_NAME
-                .to_ascii_lowercase()
-                .ends_with(".exe"));
+            assert!(SIDECAR_NAME.to_ascii_lowercase().ends_with(".exe"));
         } else {
             assert!(!SIDECAR_NAME.contains('.'));
         }
