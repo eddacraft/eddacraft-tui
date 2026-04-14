@@ -12,11 +12,12 @@ installers = ["shell", "powershell", "homebrew"]
 # Homebrew tap repo for formula auto-publish on release
 tap = "eddacraft/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
-# Note: aarch64-pc-windows-msvc is intentionally omitted — axoupdater has no
-# prebuilt binary for it, and `install-updater = true` fails the release build
-# on that target. Re-add once upstream publishes ARM64 Windows binaries.
+# install-updater is disabled globally so that aarch64-pc-windows-msvc can be
+# included — axoupdater has no prebuilt ARM64 Windows binary and breaks the
+# release build. Self-update will be restored when upstream publishes one.
 targets = [
   "aarch64-apple-darwin",
+  "aarch64-pc-windows-msvc",
   "aarch64-unknown-linux-gnu",
   "x86_64-apple-darwin",
   "x86_64-unknown-linux-gnu",
@@ -27,7 +28,7 @@ install-path = "CARGO_HOME"
 # Where to host releases
 hosting = "github"
 # Whether to install an updater program
-install-updater = true
+install-updater = false
 # PR dry-run mode (plan only, no builds)
 pr-run-mode = "plan"
 # Allow manual edits to generated CI (path filters, permissions)

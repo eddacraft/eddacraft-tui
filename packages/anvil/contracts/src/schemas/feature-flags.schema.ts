@@ -194,6 +194,28 @@ export const FeatureFlagDefinitionSchema = z
         path: ['variants'],
       });
     }
+    // Variant values must match the declared valueType
+    const { valueType } = ctx.value;
+    variants.forEach((v: { key: string; value: unknown }, i: number) => {
+      const { value } = v;
+      let mismatch = false;
+      if (valueType === 'boolean' && typeof value !== 'boolean') mismatch = true;
+      if (valueType === 'string' && typeof value !== 'string') mismatch = true;
+      if (valueType === 'number' && typeof value !== 'number') mismatch = true;
+      if (
+        valueType === 'object' &&
+        (typeof value !== 'object' || value === null || Array.isArray(value))
+      )
+        mismatch = true;
+      if (mismatch) {
+        ctx.issues.push({
+          code: 'custom',
+          input: value,
+          message: `Variant "${v.key}" value must be a ${valueType}, got ${typeof value}`,
+          path: ['variants', i, 'value'],
+        });
+      }
+    });
   });
 
 export type FeatureFlagDefinition = z.infer<typeof FeatureFlagDefinitionSchema>;
