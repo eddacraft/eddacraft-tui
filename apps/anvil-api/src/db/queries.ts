@@ -299,6 +299,7 @@ export async function findActiveOtpCodes(sql: NeonClient, userId: string): Promi
     WHERE user_id = ${userId}
       AND consumed_at IS NULL
       AND expires_at > now()
+    ORDER BY created_at DESC
   `
   );
   return z.array(OtpCodeSchema).parse(r);
