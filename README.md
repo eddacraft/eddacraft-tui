@@ -13,7 +13,7 @@ violations **before they ever leave the developer's machine.**
 
 **[→ Early access at eddacraft.ai](https://eddacraft.ai)** ·
 [Docs](https://docs.eddacraft.ai/anvil/overview) ·
-[GTM strategy](https://github.com/EddaCraft/eddacraft-gtm) ·
+[GTM strategy](https://github.com/eddacraft/eddacraft-gtm) ·
 [Brand & design](https://github.com/eddacraft/brand-and-design)
 
 ## Hero stats
@@ -30,7 +30,7 @@ build). Governance overhead is effectively zero — anvil is in a different
 category from SAST, not a faster scanner.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
-[the GTM benchmark report](https://github.com/EddaCraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
+[the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
 for marketing-ready proof points.
 
 ## What anvil is
@@ -43,7 +43,7 @@ AI coding tools (Cursor, Copilot, Codex) in real time, in the developer workflow
 
 For full positioning, ICP definition, competitive intelligence, and the GTM
 primer, see
-[`EddaCraft/eddacraft-gtm`](https://github.com/EddaCraft/eddacraft-gtm).
+[`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm).
 
 ## Why now
 
@@ -61,21 +61,21 @@ adjacent primitives in Q1–Q2 2026. The category is being built right now.
 
 Full market context and the parallel-track ICP framing that follows from this
 deadline live in
-[`eddacraft-gtm/GTM-PRIMER.md`](https://github.com/EddaCraft/eddacraft-gtm/blob/main/GTM-PRIMER.md).
+[`eddacraft-gtm/GTM-PRIMER.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/GTM-PRIMER.md).
 
 ## Related repos
 
 | Repo                                                                          | Purpose                                                                       |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`EddaCraft/eddacraft-gtm`](https://github.com/EddaCraft/eddacraft-gtm)       | GTM strategy, positioning, competitive radar, market signals, benchmark proof |
+| [`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm)       | GTM strategy, positioning, competitive radar, market signals, benchmark proof |
 | [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Visual identity, design system, deck templates, brand assets                  |
-| [`EddaCraft/anvil-plan-spec`](https://github.com/EddaCraft/anvil-plan-spec)   | The APS planning format used throughout this repo                             |
+| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec)   | The APS planning format used throughout this repo                             |
 
 ---
 
 ## For contributors
 
-[![CI](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml)
+[![CI](https://github.com/eddacraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/eddacraft/anvil-001/actions/workflows/ci.yml)
 [![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
@@ -234,7 +234,7 @@ and tooling.
 ### Setup
 
 ```bash
-git clone https://github.com/EddaCraft/anvil-001.git
+git clone https://github.com/eddacraft/anvil-001.git
 cd anvil-001
 pnpm install
 pnpm build
@@ -385,7 +385,7 @@ run (rayon-parallel parser, release build, Criterion 100 samples):
 | tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)  | Validated                         |
 
 Full benchmark report and marketing-ready angles:
-[`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/EddaCraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
+[`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
 
 ### Benchmark Groups
 

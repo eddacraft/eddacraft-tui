@@ -150,7 +150,7 @@ fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
 // ── Library fallback (axoupdater) ───────────────────────────────────
 
 /// GitHub release source for manual configuration when no install receipt exists.
-const GITHUB_OWNER: &str = "EddaCraft";
+const GITHUB_OWNER: &str = "eddacraft";
 const GITHUB_REPO: &str = "anvil";
 
 fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {

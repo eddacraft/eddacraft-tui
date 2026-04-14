@@ -34,7 +34,7 @@ A reality check on 2026-04-07 found:
   `eddacraft-anvil-kernel-types`) are all available.
 
 The decision needs to be made **now**, before any release on
-`EddaCraft/anvil` is cut, because the names will be baked into install
+`eddacraft/anvil` is cut, because the names will be baked into install
 scripts, GitHub Action artifact URLs, documentation, and (eventually)
 the crates.io registry itself. Renaming after publication is far more
 expensive than renaming today.
@@ -117,9 +117,9 @@ eddacraft-anvil` command in exchange for:
     feature; future contributors may be confused. **Mitigation:** the
     aliasing is documented in this ADR and the dep lines are
     self-explanatory.
-  - The workspace `repository` field still points to `EddaCraft/anvil-001`
+  - The workspace `repository` field still points to `eddacraft/anvil-001`
     (private). Before the first crates.io publish, this should be updated
-    to `https://github.com/EddaCraft/anvil` (the public mirror), or each
+    to `https://github.com/eddacraft/anvil` (the public mirror), or each
     published crate's listing will have a broken repository link.
     **Mitigation:** tracked as a follow-up under DIST-008.
   - The workspace license is `LicenseRef-Proprietary`, which crates.io

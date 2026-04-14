@@ -136,7 +136,7 @@ engineering maintenance are recorded in the
   - Shell and PowerShell installers served from `install.eddacraft.ai`
   - Homebrew tap (`brew install eddacraft/tap/anvil`)
   - Built-in self-updater (`anvil-update`)
-  - Cross-repo release workflow publishing to `EddaCraft/anvil`
+  - Cross-repo release workflow publishing to `eddacraft/anvil`
 - **Scan filter** — test fixture exclusion from check scans (`WELCOME-004`)
 - **OPA v1 and Regal linting in CI** — Rego policies migrated to OPA v1 syntax,
   Regal linter added to Rust workflow (`TFIX-003`, `TFIX-004`)
@@ -359,12 +359,12 @@ violations and anti-patterns at save time.
 - API response validation strengthened throughout
 
 [0.3.1-beta]:
-  https://github.com/EddaCraft/anvil-001/compare/v0.3.0-beta...v0.3.1-beta
+  https://github.com/eddacraft/anvil-001/compare/v0.3.0-beta...v0.3.1-beta
 [0.3.0-beta]:
-  https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta...v0.3.0-beta
+  https://github.com/eddacraft/anvil-001/compare/v0.2.1-beta...v0.3.0-beta
 [0.2.1-beta]:
-  https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.1-beta
-[0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
-[0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
-[0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
-[0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
+  https://github.com/eddacraft/anvil-001/compare/v0.1.3...v0.2.1-beta
+[0.1.3]: https://github.com/eddacraft/anvil-001/compare/v0.1.2-beta...v0.1.3
+[0.1.2-beta]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.2-beta
+[0.1.1]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.1
+[0.1.0]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.0

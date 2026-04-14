@@ -4,7 +4,7 @@
 
 ## Slide 1: Title
 
-**Headline**: Anvil by EddaCraft -- AI Governance for Developers **Purpose**:
+**Headline**: Anvil by eddacraft -- AI Governance for Developers **Purpose**:
 Establish brand, category, and tone in 5 seconds **Primary data point**: None --
 brand moment **Win themes**: N/A **One takeaway**: This is a developer
 governance tool for AI-assisted codebases

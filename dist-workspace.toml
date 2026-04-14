@@ -10,7 +10,7 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell", "powershell", "homebrew"]
 # Homebrew tap repo for formula auto-publish on release
-tap = "EddaCraft/homebrew-tap"
+tap = "eddacraft/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 # Note: aarch64-pc-windows-msvc is intentionally omitted — axoupdater has no
 # prebuilt binary for it, and `install-updater = true` fails the release build

@@ -156,7 +156,7 @@ export const myApp = new VercelApp('my-app', {
   name: 'my-app',
   framework: 'nextjs',
   rootDirectory: 'apps/my-app',
-  gitRepo: 'EddaCraft/anvil-001',
+  gitRepo: 'eddacraft/anvil-001',
   domains: ['my-app.eddacraft.ai'],
 });
 ```

@@ -16,4 +16,4 @@ contains no logic — only type definitions and serialisation derives.
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-kernel-types`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-kernel-types`).

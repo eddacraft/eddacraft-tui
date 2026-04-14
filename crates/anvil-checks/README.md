@@ -20,4 +20,4 @@ Benchmarks live in `benches/checks.rs`.
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-checks`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-checks`).

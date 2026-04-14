@@ -65,7 +65,7 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
   Node.js dependency.
 - **Kernel engine** — persistent daemon with incremental parsing and real-time
   semantic graph updates.
-- **Ratatui TUI** — rebuilt interactive surfaces with the EddaCraft Terminal
+- **Ratatui TUI** — rebuilt interactive surfaces with the eddacraft Terminal
   Standard design system.
 - **Welcome & onboarding** — first-run interactive experience; run
   `anvil welcome` anytime.
@@ -83,7 +83,7 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
   calls. Remove Node.js setup steps if Anvil was the only reason they existed.
 - **Docs access** — the `/anvil` documentation is now gated behind GitHub OAuth
   for beta users. Sign in with the GitHub account tied to your beta invite.
-  Public EddaCraft docs (APS, Kindling, edda-stack) remain open.
+  Public eddacraft docs (APS, Kindling, edda-stack) remain open.
 
 ## Upgrading to 0.2.1-beta
 
@@ -139,7 +139,7 @@ Upgrade guides are added here as new versions ship.
 If you encounter upgrade issues:
 
 1. Check the [Troubleshooting guide](/anvil/operations/troubleshooting)
-2. Search [existing issues](https://github.com/EddaCraft/anvil-001/issues)
+2. Search [existing issues](https://github.com/eddacraft/anvil-001/issues)
 3. Open a new issue with:
    - Old version
    - New version

@@ -99,20 +99,20 @@ APS provides remote install and update scripts from the official repository.
 
 **First-time install** (no `plans/` directory exists):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install | bash
+curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil-plan-spec/main/scaffold/install | bash
 ```
 Or for a specific target directory:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install | bash -s -- ./my-project
+curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil-plan-spec/main/scaffold/install | bash -s -- ./my-project
 ```
 
 **Update existing installation** (`plans/` directory already exists):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/update | bash
+curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil-plan-spec/main/scaffold/update | bash
 ```
 Or pin a specific version:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/update | VERSION=0.2.0 bash
+curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil-plan-spec/main/scaffold/update | VERSION=0.2.0 bash
 ```
 
 **What install creates:** `plans/` directory structure, `bin/aps` CLI, `aps-planning/` skill with hook scripts, `.claude/skills/` (plan, plan-status).

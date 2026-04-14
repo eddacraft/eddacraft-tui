@@ -1,4 +1,4 @@
-# Anvil by EddaCraft -- Executive Summary
+# Anvil by eddacraft -- Executive Summary
 
 ## 1. SITUATION OVERVIEW
 

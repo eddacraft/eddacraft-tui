@@ -131,6 +131,6 @@ Twitter: @eddacraft, summary_large_image
 
 - Product name is **anvil** (lowercase), never "Anvil" — except in all-caps
   contexts where **ANVIL** is acceptable
-- Company name is **eddacraft** (lowercase), never "EddaCraft"
+- Company name is **eddacraft** (lowercase), never "eddacraft"
 - Sentence-initial lowercase is intentional (e.g. "anvil enforces policy…") — do
   not capitalise to "correct" grammar

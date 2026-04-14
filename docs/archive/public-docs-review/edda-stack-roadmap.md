@@ -106,7 +106,7 @@ What we can say:
 
 Tell us what you need:
 
-- [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
+- [GitHub Issues](https://github.com/eddacraft/anvil-001/issues)
 - Feature requests
 - Bug reports
 

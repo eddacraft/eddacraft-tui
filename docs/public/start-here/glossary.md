@@ -1,13 +1,13 @@
 ---
 id: glossary
 title: Glossary
-description: Definitions of key terms used across EddaCraft documentation.
+description: Definitions of key terms used across eddacraft documentation.
 sidebar_position: 3
 ---
 
 # Glossary
 
-Key terms used throughout EddaCraft documentation. We use forge metaphors
+Key terms used throughout eddacraft documentation. We use forge metaphors
 sparingly—each term has a plain definition alongside.
 
 ---
@@ -16,7 +16,7 @@ sparingly—each term has a plain definition alongside.
 
 ### Anvil
 
-The EddaCraft tool for validating AI-generated code changes. Named for the
+The eddacraft tool for validating AI-generated code changes. Named for the
 blacksmith's anvil—the stable surface where raw material is shaped into
 something reliable.
 
@@ -131,7 +131,7 @@ The origin and lineage of data. Who created it, when, from what source.
 
 ### Edda Stack
 
-The complete EddaCraft architecture: Kindling (capture) → Ember (candidate) →
+The complete eddacraft architecture: Kindling (capture) → Ember (candidate) →
 Edda (curated).
 
 **Plain definition:** The layered system for capturing, promoting, and curating
@@ -178,10 +178,10 @@ Any file or data produced during execution that may be referenced later.
 
 ### Adapter
 
-A component that connects external tools to EddaCraft systems.
+A component that connects external tools to eddacraft systems.
 
 **Plain definition:** Code that translates between external formats and
-EddaCraft's internal formats.
+eddacraft's internal formats.
 
 ### MCP (Model Context Protocol)
 

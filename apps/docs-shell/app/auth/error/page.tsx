@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Sign-in error — EddaCraft Docs' };
+export const metadata: Metadata = { title: 'Sign-in error — eddacraft Docs' };
 
 const REASONS: Record<string, string> = {
   denied: 'You cancelled the GitHub sign-in.',

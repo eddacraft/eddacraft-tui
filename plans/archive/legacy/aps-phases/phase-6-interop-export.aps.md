@@ -1277,8 +1277,8 @@ export const openAPISpec = {
     version: '1.0.0',
     description: 'Curated memory layer for institutional knowledge',
     contact: {
-      name: 'EddaCraft',
-      url: 'https://github.com/EddaCraft',
+      name: 'eddacraft',
+      url: 'https://github.com/eddacraft',
     },
   },
   servers: [

@@ -35,7 +35,7 @@ src/
   services/             Business logic layer
     auth-store.ts       Token persistence (~/.anvil/auth.json)
     auth-client.ts      Token verification
-    api-client.ts       HTTP client for EddaCraft API
+    api-client.ts       HTTP client for eddacraft API
     admin-client.ts     Admin operations (invite/revoke)
     kindling-bootstrap  Kindling stack initialisation
     ...12 more service modules

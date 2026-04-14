@@ -2,7 +2,7 @@
 
 ## Context
 
-Anvil is a deterministic development automation platform from EddaCraft that catches
+Anvil is a deterministic development automation platform from eddacraft that catches
 architecture drift and AI anti-patterns at save-time. Currently in closed beta,
 distributed as `@eddacraft/anvil-cli` on npm with invite tokens. The product
 consists of: CLI, VS Code extension, MCP server, REST API (Hono/Vercel/Neon),
@@ -122,7 +122,7 @@ Harder to do seat management dynamically.
 
 ### Option C: Account-based auth (OAuth / SSO)
 
-Users create an EddaCraft account (email + password or OAuth). CLI
+Users create an eddacraft account (email + password or OAuth). CLI
 authenticates via device flow (like `gh auth login`). Teams are
 first-class entities.
 

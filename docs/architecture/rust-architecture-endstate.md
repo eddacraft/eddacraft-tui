@@ -72,7 +72,7 @@ crates/
 ├── eddacraft-tui/                  [DONE] RATS-001, PORT-001, PORT-002
 │   │                               # External git dep — not in workspace
 │   ├── src/keyboard/               KeyHandler, Action types
-│   ├── src/theme/                  EddaCraft dark theme
+│   ├── src/theme/                  eddacraft dark theme
 │   └── src/widgets/                15+ shared widgets
 │       ├── select.rs               Select list
 │       ├── text_input.rs           Text input field

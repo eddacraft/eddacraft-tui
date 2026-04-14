@@ -3,17 +3,17 @@
 # Downloads the pre-built native binary for your platform.
 #
 # Usage:
-#   curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+#   curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 #
 # For Windows (PowerShell):
-#   irm https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+#   irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
 #
 # This script fetches and runs the cargo-dist generated installer from the
-# latest release on the public EddaCraft/anvil repository.
+# latest release on the public eddacraft/anvil repository.
 
 set -e
 
-INSTALLER_URL="https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
+INSTALLER_URL="https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
 
 echo ""
 echo "  Anvil CLI Installer"

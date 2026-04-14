@@ -1,4 +1,4 @@
-# Market Sizing: Anvil by EddaCraft
+# Market Sizing: Anvil by eddacraft
 
 ## Executive Summary
 

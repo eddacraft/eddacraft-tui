@@ -1,4 +1,4 @@
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- This document is an archive of completed task-level detail. -->
 
 # Completed Work Archive

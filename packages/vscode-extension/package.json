@@ -11,19 +11,19 @@
   },
   "badges": [
     {
-      "url": "https://img.shields.io/github/actions/workflow/status/EddaCraft/anvil-001/ci.yml?branch=main&style=flat-square",
-      "href": "https://github.com/EddaCraft/anvil-001/actions",
+      "url": "https://img.shields.io/github/actions/workflow/status/eddacraft/anvil-001/ci.yml?branch=main&style=flat-square",
+      "href": "https://github.com/eddacraft/anvil-001/actions",
       "description": "Build Status"
     }
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/EddaCraft/anvil-001.git",
+    "url": "https://github.com/eddacraft/anvil-001.git",
     "directory": "packages/vscode-extension"
   },
-  "homepage": "https://github.com/EddaCraft/anvil-001#readme",
+  "homepage": "https://github.com/eddacraft/anvil-001#readme",
   "bugs": {
-    "url": "https://github.com/EddaCraft/anvil-001/issues"
+    "url": "https://github.com/eddacraft/anvil-001/issues"
   },
   "engines": {
     "vscode": "^1.85.0"

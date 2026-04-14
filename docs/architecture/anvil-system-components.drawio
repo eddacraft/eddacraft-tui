@@ -4,7 +4,7 @@
     <mxCell id="1" parent="0"/>
 
     <!-- Title -->
-    <mxCell id="title" value="EddaCraft / Anvil - System Component Map" style="text;html=1;fontSize=22;fontStyle=1;fontColor=#E0E0E0;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+    <mxCell id="title" value="eddacraft / Anvil - System Component Map" style="text;html=1;fontSize=22;fontStyle=1;fontColor=#E0E0E0;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
       <mxGeometry x="200" y="-30" width="900" height="50" as="geometry"/>
     </mxCell>
 

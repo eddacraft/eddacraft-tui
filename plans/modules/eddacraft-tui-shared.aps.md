@@ -1,7 +1,7 @@
 <!--
 APS Module: Eddacraft-TUI Shared Extraction
 ====================================
-Extract common TUI into a shared EddaCraft repo.
+Extract common TUI into a shared eddacraft repo.
 See: plans/aps-rules.md
 -->
 
@@ -14,7 +14,7 @@ See: plans/aps-rules.md
 ## Purpose
 
 Extract the common TUI widget library from `crates/eddacraft-tui` into a
-standalone shared repository so other EddaCraft projects can use the theme,
+standalone shared repository so other eddacraft projects can use the theme,
 keyboard, and widget library independently of Anvil.
 
 **Problem:** The `eddacraft-tui` crate contains 15+ reusable widgets (Select,
@@ -22,7 +22,7 @@ TextInput, ProgressBar, Spinner, StatusBadge, Header, Container, Divider,
 Confirm, LogPanel, ParallelProgress, QuickWinsPanel, ResultsDashboard), theme
 system, and keyboard abstraction — all useful beyond Anvil. Keeping it in
 the Anvil monorepo couples its release cycle to Anvil's and prevents other
-EddaCraft projects from using it.
+eddacraft projects from using it.
 
 ## In Scope
 
@@ -64,14 +64,14 @@ EddaCraft projects from using it.
 - [x] TUIEXTRACT-001: Audit eddacraft-tui for Anvil-specific imports
   - **Result:** Zero Anvil-specific imports found. Only deps are ratatui,
     crossterm, unicode-width. The `Surface` trait and `render_shell` function
-    referenced `EddaCraftTheme` concretely rather than the `Theme` trait — fixed
+    referenced `eddacraftTheme` concretely rather than the `Theme` trait — fixed
     by genericising both.
 - [x] TUIEXTRACT-002: Create separate repo/workspace for eddacraft-tui
   - **Result:** Extracted to `eddacraft/eddacraft` on GitHub. Standalone
     Cargo.toml with pinned deps (no workspace refs). All 54 tests pass. Apache-2.0
     licence.
 - [x] TUIEXTRACT-003: Stabilise public API surface (pub items, feature flags)
-  - **Result:** `Surface<T: Theme = EddaCraftTheme>` is now generic with
+  - **Result:** `Surface<T: Theme = eddacraftTheme>` is now generic with
     backward-compatible default. `render_shell` accepts any `Theme`. Crate-level
     rustdoc added. Cargo.toml updated with publishing metadata.
 - [ ] TUIEXTRACT-004: Write widget catalogue documentation

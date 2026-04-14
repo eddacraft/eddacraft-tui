@@ -85,7 +85,7 @@ Change status to **Ready** when:
 - [x] Design spec approved (ADR-012)
 - [x] All 10 TUI surfaces have `help_text()` and `surface_name()` methods
 - [x] Shared shell chrome implemented (header + footer)
-- [x] EddaCraft design system colours applied
+- [x] eddacraft design system colours applied
 - [x] `Surface` trait defined and implemented on all 10 states
 - [x] CLI binary builds and all 16 commands wired up
 
@@ -493,11 +493,11 @@ Commands that launch TUI surfaces without kernel integration.
 - **Status:** Superseded by DIST module
 - **Intent:** Create GitHub Actions release workflow that builds pre-built
   binaries for x86_64/aarch64 Linux, macOS, and Windows. Cross-repo publishing
-  to `EddaCraft/anvil` (public). Shell and PowerShell installers via cargo-dist.
+  to `eddacraft/anvil` (public). Shell and PowerShell installers via cargo-dist.
   Crates.io publishing and Homebrew tap deferred to DIST-008 and DIST-009
 - **Expected Outcome:** Tagged releases produce downloadable binaries for all
   six targets; install scripts work on supported platforms; releases appear on
-  public `EddaCraft/anvil` repo
+  public `eddacraft/anvil` repo
 - **Validation:** Install script downloads and runs `anvil --version`
   successfully on Linux, macOS, and Windows
 - **Files:** `.github/workflows/release.yml`, `dist-workspace.toml`,
@@ -726,10 +726,10 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 - **Intent:** Replace the generic figlet ASCII art in the welcome surface with
   the official Anvil block logo from the design system
   (`docs/specs/anvil_tui_context.md` §5). Render the block logo in EMBER
-  colour with `a n v i l` text in FG. Add the EddaCraft footer watermark
+  colour with `a n v i l` text in FG. Add the eddacraft footer watermark
   (`[ ■ ] e d d a c r a f t` + version) in MUTED at the bottom right
 - **Expected Outcome:** `anvil start` shows the branded block logo and
-  EddaCraft watermark matching the design system spec
+  eddacraft watermark matching the design system spec
 - **Validation:** Visual match against spec; snapshot test updated
 - **Files:** `crates/anvil-tui/src/surfaces/welcome/render.rs`
 - **Confidence:** high

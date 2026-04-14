@@ -1,4 +1,4 @@
-# Investor FAQ: Anvil by EddaCraft
+# Investor FAQ: Anvil by eddacraft
 
 Top 10 questions with concise answers.
 

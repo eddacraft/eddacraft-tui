@@ -35,7 +35,7 @@
 - No drop shadows, no gradients, no rounded corners
 - Generous whitespace (void-space) -- minimum 60px margins
 - Content grid: 12-column where applicable
-- EddaCraft brandmark in footer of every slide (small, `--text-muted`)
+- eddacraft brandmark in footer of every slide (small, `--text-muted`)
 
 ---
 
@@ -50,7 +50,7 @@ Full-width centred. Three vertical zones: upper (logo), middle (headline), lower
 
 1. Anvil brandmark (EMBER, centred, large)
 2. "AI governance for developers" (headline, `--text-primary`)
-3. EddaCraft identity + version (footer, `--text-muted`)
+3. eddacraft identity + version (footer, `--text-muted`)
 
 ### Visual Elements
 
@@ -232,7 +232,7 @@ Full-width product screenshot. Thin headline bar above, thin caption below.
   - Header: Macro anvil logo in EMBER
   - Left pane: Active policy display (`[ ≡ ] ACTIVE_POLICY`)
   - Right pane: Signal interceptor with live governance events, EMBER border
-  - Footer: System logs + EddaCraft watermark
+  - Footer: System logs + eddacraft watermark
 - Screenshot framed with `--structure` border, sharp corners
 - If no actual screenshot available: **generate a faithful mockup** using the
   TUI spec layout

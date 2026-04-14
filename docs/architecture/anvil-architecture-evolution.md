@@ -326,7 +326,7 @@ PlanDrift:
 
 ---
 
-## 8. H2 Architecture: Rust CLI/TUI Across EddaCraft Stack
+## 8. H2 Architecture: Rust CLI/TUI Across eddacraft Stack
 
 **H2 goal:** Promote Rust from "engine only" to a full Rust-native surface set
 (CLI + TUI), while keeping protocol compatibility for other clients.

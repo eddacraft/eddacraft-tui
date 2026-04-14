@@ -1789,7 +1789,7 @@ const LOGO: &str = r"
 
 const TAGLINE: &str = "Structural governance for AI-assisted development";
 
-pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
+pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &eddacraftTheme) {
     let chunks = Layout::vertical([
         Constraint::Length(8),  // Logo
         Constraint::Length(2),  // Tagline
@@ -2088,7 +2088,7 @@ use ratatui::Frame;
 
 use super::{CheckStatus, DoctorState};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCraftTheme) {
+pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &eddacraftTheme) {
     let chunks = Layout::vertical([
         Constraint::Length(3),  // Header + summary
         Constraint::Min(4),    // Check list
@@ -2455,7 +2455,7 @@ use ratatui::Frame;
 
 use super::{StatusPanel, StatusState};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCraftTheme) {
+pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &eddacraftTheme) {
     let chunks = Layout::vertical([
         Constraint::Length(1),  // Title
         Constraint::Ratio(1, 3), // Hooks panel
@@ -2495,7 +2495,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCr
     frame.render_widget(help, chunks[4]);
 }
 
-fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {
+fn panel_block<'a>(title: &'a str, focused: bool, theme: &eddacraftTheme) -> Block<'a> {
     let border_colour = if focused { theme.accent() } else { theme.muted() };
     let border_style = if focused {
         Borders::ALL
@@ -2515,7 +2515,7 @@ fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Blo
         })
 }
 
-fn render_hooks_panel(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCraftTheme) {
+fn render_hooks_panel(frame: &mut Frame, area: Rect, state: &StatusState, theme: &eddacraftTheme) {
     let focused = state.focused_panel == StatusPanel::Hooks;
     let block = panel_block("Hooks", focused, theme);
     let inner = block.inner(area);
@@ -2567,7 +2567,7 @@ fn render_profile_panel(
     frame: &mut Frame,
     area: Rect,
     state: &StatusState,
-    theme: &EddaCraftTheme,
+    theme: &eddacraftTheme,
 ) {
     let focused = state.focused_panel == StatusPanel::Profile;
     let block = panel_block("Profile", focused, theme);
@@ -2609,7 +2609,7 @@ fn render_results_panel(
     frame: &mut Frame,
     area: Rect,
     state: &StatusState,
-    theme: &EddaCraftTheme,
+    theme: &eddacraftTheme,
 ) {
     let focused = state.focused_panel == StatusPanel::Results;
     let block = panel_block("Recent Runs", focused, theme);
@@ -2957,7 +2957,7 @@ use ratatui::Frame;
 
 use super::{WizardState, WizardStep};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &WizardState, theme: &EddaCraftTheme) {
+pub fn render(frame: &mut Frame, area: Rect, state: &WizardState, theme: &eddacraftTheme) {
     let chunks = Layout::vertical([
         Constraint::Length(3), // Progress bar
         Constraint::Min(6),   // Step content
@@ -2990,7 +2990,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WizardState, theme: &EddaCr
     frame.render_widget(help, chunks[2]);
 }
 
-fn render_progress(frame: &mut Frame, area: Rect, state: &WizardState, theme: &EddaCraftTheme) {
+fn render_progress(frame: &mut Frame, area: Rect, state: &WizardState, theme: &eddacraftTheme) {
     let steps: Vec<Span> = (0..WizardStep::TOTAL)
         .map(|i| {
             let label = match i {
@@ -3029,7 +3029,7 @@ fn render_template_step(
     frame: &mut Frame,
     area: Rect,
     state: &WizardState,
-    theme: &EddaCraftTheme,
+    theme: &eddacraftTheme,
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -3071,7 +3071,7 @@ fn render_name_step(
     frame: &mut Frame,
     area: Rect,
     state: &WizardState,
-    theme: &EddaCraftTheme,
+    theme: &eddacraftTheme,
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -3097,7 +3097,7 @@ fn render_configure_step(
     frame: &mut Frame,
     area: Rect,
     state: &WizardState,
-    theme: &EddaCraftTheme,
+    theme: &eddacraftTheme,
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -3140,7 +3140,7 @@ fn render_summary_step(
     frame: &mut Frame,
     area: Rect,
     state: &WizardState,
-    theme: &EddaCraftTheme,
+    theme: &eddacraftTheme,
 ) {
     let block = Block::default()
         .borders(Borders::ALL)

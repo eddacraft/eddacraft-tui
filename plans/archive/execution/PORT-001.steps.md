@@ -5,7 +5,7 @@
 
 1. [x] Read Ink source: Header, Container, Divider, Spinner, StatusBadge, Confirm
 2. [x] Read existing eddacraft-tui widget patterns (Select, TextInput, ProgressBar, StatusBar)
-3. [x] Map Ink theme colours to EddaCraft Theme trait methods
+3. [x] Map Ink theme colours to eddacraft Theme trait methods
 4. [x] Implement Spinner widget with braille dot animation and SpinnerState
 5. [x] Implement Header widget with separator, title, subtitle, version
 6. [x] Implement Container widget with Primary/Secondary/Subtle variants

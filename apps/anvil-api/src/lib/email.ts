@@ -17,7 +17,7 @@ function getResendClient(): Resend | null {
   return client;
 }
 
-const FROM_ADDRESS = 'Josh at EddaCraft <anvil@updates.eddacraft.ai>';
+const FROM_ADDRESS = 'Josh at eddacraft <anvil@updates.eddacraft.ai>';
 const REPLY_TO = 'josh@eddacraft.ai';
 
 export interface EmailDeliveryResult {

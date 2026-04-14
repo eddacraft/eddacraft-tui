@@ -76,7 +76,7 @@ and those are already covered by RATS-002/RATS-003.
 - Keyboard conventions from RATS: j/k navigation, space/enter select, esc back,
   q quit
 - Must support terminal sizes down to 80x24
-- Theme follows EddaCraft design system (dark-only, 5-colour palette)
+- Theme follows eddacraft design system (dark-only, 5-colour palette)
 - Surfaces must accept data as trait objects or generic parameters — no coupling
   to specific service implementations
 - Tutorial port must preserve all 4 tutorial paths with their step sequences
@@ -86,7 +86,7 @@ and those are already covered by RATS-002/RATS-003.
 Change status to **Ready** when:
 
 - [x] RATS-001 (eddacraft-tui shared crate) is complete
-- [x] EddaCraft theme and keyboard conventions documented
+- [x] eddacraft theme and keyboard conventions documented
 - [ ] Ink surface inventory confirmed (this module documents it)
 - [ ] Port ordering agreed (proposed: shared components → simple → medium →
       complex)
@@ -176,7 +176,7 @@ Change status to **Ready** when:
 - **Status:** Done
 - **Intent:** Port the first-run welcome screen to Ratatui — static content,
   no service dependencies
-- **Expected Outcome:** Welcome screen renders with EddaCraft branding, value
+- **Expected Outcome:** Welcome screen renders with eddacraft branding, value
   proposition text, and quick-start guidance
 - **Validation:** Visual parity with Ink welcome; keyboard dismiss works
 - **Files:** `crates/anvil-tui/src/surfaces/welcome/`

@@ -28,4 +28,4 @@ Located in `src/surfaces/`:
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-tui`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-tui`).

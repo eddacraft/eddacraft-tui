@@ -16,7 +16,7 @@ All multi-step work MUST use APS format:
 Before starting implementation, check `plans/index.aps.md` for active work items
 and current status. Update task status as you progress.
 
-Reference spec: <https://github.com/EddaCraft/anvil-plan-spec>
+Reference spec: <https://github.com/eddacraft/anvil-plan-spec>
 
 ## Repository Operations — gx
 

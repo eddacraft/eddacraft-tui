@@ -7,7 +7,7 @@
 
 ## Overview
 
-Migrate the EddaCraft landing page from the standalone `EddaCraft/eddacraft-landing-page`
+Migrate the eddacraft landing page from the standalone `eddacraft/eddacraft-landing-page`
 repository into `apps/website/` in the anvil monorepo. The v0 repo stays alive as a
 design sandbox; the monorepo copy becomes the production path forward.
 
@@ -18,7 +18,7 @@ with anvil packages — so migration is a copy-and-adapt operation.
 ## Current State
 
 ```
-EddaCraft/eddacraft-landing-page (standalone repo)
+eddacraft/eddacraft-landing-page (standalone repo)
 ├── app/                  # Next.js App Router pages
 │   ├── globals.css       # Tailwind v4 + Nordic terminal theme
 │   ├── layout.tsx        # Root layout (JetBrains Mono + Inter, Vercel Analytics)

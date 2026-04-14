@@ -32,7 +32,7 @@ Global flags `--json`, `--verbose`, `--no-tui` apply as usual.
 
 **Bypass** — same group as `doctor`, `welcome`, `init`, etc.
 
-Rationale: release artefacts live on the public `EddaCraft/anvil` repo.
+Rationale: release artefacts live on the public `eddacraft/anvil` repo.
 Requiring auth to update would lock out users whose sessions have expired,
 which is precisely when they may need to update (e.g. if the update fixes an
 auth bug).
@@ -70,7 +70,7 @@ Stream sidecar stdout/stderr to the user. Exit with the sidecar's exit code.
 ### 3. Fall Back to axoupdater Library
 
 If no sidecar is found, use `axoupdater` as a Rust library dependency:
-- Construct an `AxoUpdater` pointed at `EddaCraft/anvil` GitHub Releases
+- Construct an `AxoUpdater` pointed at `eddacraft/anvil` GitHub Releases
 - Query latest release tag
 - Compare against current version (`env!("CARGO_PKG_VERSION")`)
 - If `--check`: print version info and exit

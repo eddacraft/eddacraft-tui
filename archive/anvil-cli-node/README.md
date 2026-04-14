@@ -85,14 +85,14 @@ For the legacy Node.js package:
 
 This is an early beta release. We welcome bug reports and feedback:
 
-- [Report a bug](https://github.com/EddaCraft/anvil-001/issues/new?template=bug_report.md)
-- [Request a feature](https://github.com/EddaCraft/anvil-001/issues/new?template=feature_request.md)
-- [Share feedback](https://github.com/EddaCraft/anvil-001/issues/new?template=feedback.md)
+- [Report a bug](https://github.com/eddacraft/anvil-001/issues/new?template=bug_report.md)
+- [Request a feature](https://github.com/eddacraft/anvil-001/issues/new?template=feature_request.md)
+- [Share feedback](https://github.com/eddacraft/anvil-001/issues/new?template=feedback.md)
 
 ## Documentation
 
 - [Beta Quickstart](https://eddacraft.ai/beta)
-- [CLI Command Reference](https://github.com/EddaCraft/anvil-001/blob/main/apps/anvil-cli/DEVELOPMENT.md)
+- [CLI Command Reference](https://github.com/eddacraft/anvil-001/blob/main/apps/anvil-cli/DEVELOPMENT.md)
 
 ## Licence
 

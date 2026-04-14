@@ -22,7 +22,7 @@ and refine the overall deck direction.
 
 ### Category Creator Energy
 
-EddaCraft/Anvil is positioned as the technical-first entrant in a white-hot new
+eddacraft/Anvil is positioned as the technical-first entrant in a white-hot new
 category (AI governance for developers). The framing is: "built what others are
 pitching." Competitors in the space are raising record rounds on decks and
 prototypes; Anvil is raising on a production-grade product.

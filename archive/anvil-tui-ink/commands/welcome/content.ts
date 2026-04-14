@@ -11,7 +11,7 @@ Validates plans through quality gates, maintains audit trails,
 and ensures every change is reversible.`;
 
 export const EDDACRAFT_BADGE = '╔═╗ ■ ╔═╗';
-export const EDDACRAFT_TEXT = 'Part of EddaCraft';
+export const EDDACRAFT_TEXT = 'Part of eddacraft';
 
 export const QUICK_START_OPTIONS = [
   {

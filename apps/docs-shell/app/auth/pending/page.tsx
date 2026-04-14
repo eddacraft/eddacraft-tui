@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Access Pending — EddaCraft Docs' };
+export const metadata: Metadata = { title: 'Access Pending — eddacraft Docs' };
 
 export default function PendingPage() {
   return (

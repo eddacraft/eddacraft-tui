@@ -1,6 +1,6 @@
 # @eddacraft/anvil-website
 
-Next.js marketing and documentation site for EddaCraft, deployed to
+Next.js marketing and documentation site for eddacraft, deployed to
 [eddacraft.ai](https://eddacraft.ai) via Vercel.
 
 ## Status

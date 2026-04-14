@@ -496,5 +496,5 @@ packages/adapters/
 
 ## Licence
 
-Copyright (c) 2026 EddaCraft. All rights reserved. See [LICENSE](../../LICENSE)
+Copyright (c) 2026 eddacraft. All rights reserved. See [LICENSE](../../LICENSE)
 for details.

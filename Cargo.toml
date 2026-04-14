@@ -16,7 +16,7 @@ members = [
 version = "0.3.1-beta"
 edition = "2024"
 license = "LicenseRef-Proprietary"
-repository = "https://github.com/EddaCraft/anvil-001"
+repository = "https://github.com/eddacraft/anvil-001"
 
 [workspace.dependencies]
 # Parsing

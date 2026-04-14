@@ -66,7 +66,7 @@ pub trait Surface {
     fn help_text(&self) -> &'static str;
     fn handle_key(&mut self, action: Action);
     fn should_quit(&self) -> bool;
-    fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
+    fn render(&self, frame: &mut Frame, area: Rect, theme: &eddacraftTheme);
 }
 ```
 

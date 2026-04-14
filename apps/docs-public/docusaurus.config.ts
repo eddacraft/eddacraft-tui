@@ -3,7 +3,7 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'EddaCraft',
+  title: 'eddacraft',
   tagline: 'The forge for governed AI-assisted work',
   favicon: 'img/favicon.svg',
 
@@ -14,7 +14,7 @@ const config: Config = {
   url: 'https://docs.eddacraft.ai',
   baseUrl: '/',
 
-  organizationName: 'EddaCraft',
+  organizationName: 'eddacraft',
   projectName: 'docs-public',
 
   // Cross-app links (e.g. to /anvil/overview) resolve at runtime via the
@@ -91,7 +91,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'EddaCraft',
+      title: 'eddacraft',
       items: [
         {
           label: 'APS',
@@ -114,7 +114,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/EddaCraft',
+          href: 'https://github.com/eddacraft',
           label: 'GitHub',
           position: 'right',
         },
@@ -134,8 +134,8 @@ const config: Config = {
         {
           title: 'Community',
           items: [
-            { label: 'GitHub', href: 'https://github.com/EddaCraft' },
-            { label: 'Releases', href: 'https://github.com/EddaCraft/anvil-001/releases' },
+            { label: 'GitHub', href: 'https://github.com/eddacraft' },
+            { label: 'Releases', href: 'https://github.com/eddacraft/anvil-001/releases' },
           ],
         },
         {
@@ -143,7 +143,7 @@ const config: Config = {
           items: [{ label: 'Blog', to: '/blog' }],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} EddaCraft. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} eddacraft. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

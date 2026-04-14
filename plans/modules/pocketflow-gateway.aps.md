@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Build PocketFlow as the runtime orchestration gateway for the EddaCraft system. PocketFlow sits between agents/tools/humans and all four downstream components (Kindling, Ember, Edda, Anvil). It mediates all memory I/O, manages capsule lifecycle, enforces scope and attribution, and mechanically applies policy — without interpreting, ranking, or remembering.
+Build PocketFlow as the runtime orchestration gateway for the eddacraft system. PocketFlow sits between agents/tools/humans and all four downstream components (Kindling, Ember, Edda, Anvil). It mediates all memory I/O, manages capsule lifecycle, enforces scope and attribution, and mechanically applies policy — without interpreting, ranking, or remembering.
 
 This is the glue layer that turns four independent components into a unified system. Without it, agents access components directly and the separation-of-concerns architecture cannot be enforced at runtime.
 
@@ -24,7 +24,7 @@ PocketFlow exists today in two forms, neither of which is the gateway:
 1. **Vendored library** in Kindling (`kindling-adapter-pocketflow/vendor/pocketflow/`) — provides Node/Flow/SharedStore primitives for building workflows
 2. **Kindling adapter** (`@eddacraft/kindling-adapter-pocketflow`) — lets users of the PocketFlow library get Kindling capture in their own workflows
 
-The gateway described here is a new component that uses the PocketFlow primitives to build the runtime orchestration layer for the full EddaCraft system. It is not a replacement for either existing piece.
+The gateway described here is a new component that uses the PocketFlow primitives to build the runtime orchestration layer for the full eddacraft system. It is not a replacement for either existing piece.
 
 ## In Scope
 

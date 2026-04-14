@@ -10,4 +10,4 @@ boundary validation, and file/import rule enforcement.
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-architecture`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-architecture`).

@@ -1,4 +1,4 @@
-# Anvil by EddaCraft — Product Information Sheet
+# Anvil by eddacraft — Product Information Sheet
 
 ## What Is Anvil?
 
@@ -179,7 +179,7 @@ Continuous validation as you code. Every save is checked in milliseconds.
 Add Anvil to CI with a single step. A reusable GitHub Action is provided:
 
 ```yaml
-- uses: EddaCraft/anvil-001/.github/actions/anvil-check@main
+- uses: eddacraft/anvil-001/.github/actions/anvil-check@main
 ```
 
 ---
@@ -263,6 +263,6 @@ Anvil is currently in **closed beta**. Request access at
 
 ---
 
-**EddaCraft** | [eddacraft.ai](https://eddacraft.ai) |
-[GitHub](https://github.com/EddaCraft/anvil-001) |
+**eddacraft** | [eddacraft.ai](https://eddacraft.ai) |
+[GitHub](https://github.com/eddacraft/anvil-001) |
 [Documentation](https://eddacraft.ai/beta)

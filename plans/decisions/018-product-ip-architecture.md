@@ -15,7 +15,7 @@ implicit assumption surfaced: that publishing the Anvil binary required
 either open-sourcing the CLI under a permissive license (Apache-2.0,
 open-core style) or picking a source-available license (BUSL, FSL).
 
-That framing turned out to be wrong. EddaCraft's actual product / IP
+That framing turned out to be wrong. eddacraft's actual product / IP
 architecture is **free at base tier, source proprietary** — the
 Postman / Cursor / Linear / Raycast / Warp model — with a deliberate,
 narrow OSS surface limited to three foundational repos. The closed
@@ -28,10 +28,10 @@ authoritative reference.
 
 ## Decision
 
-EddaCraft operates a **closed-source product with a deliberate
+eddacraft operates a **closed-source product with a deliberate
 three-piece open-source surface**.
 
-### The closed product (private monorepo: `EddaCraft/anvil-001`)
+### The closed product (private monorepo: `eddacraft/anvil-001`)
 
 Everything that makes Anvil "Anvil" lives in the closed monorepo:
 
@@ -53,21 +53,21 @@ Everything that makes Anvil "Anvil" lives in the closed monorepo:
 
 License: `LicenseRef-Proprietary`. Source never leaves the private
 repo. Distribution is binary-only via the public release repo
-(`EddaCraft/anvil`).
+(`eddacraft/anvil`).
 
 ### The OSS surface — three repos, all `Apache-2.0`
 
 | Repo | Layer | Purpose |
 |---|---|---|
-| `EddaCraft/eddacraft-tui` | Presentation primitive | Reusable Ratatui widget library implementing the EddaCraft Terminal Standard design system. Consumed by the closed CLI and by other EddaCraft tools. |
-| `EddaCraft/anvil-plan-spec` | Format / protocol | The APS planning format spec, parser, and validator. Anyone can adopt APS for their own AI-assisted development workflow without using Anvil. |
-| `EddaCraft/kindling` | Memory primitive | Small, composable memory primitives for agentic workflows — observation, capture, basic stores. Foundation that the closed Edda and Ember components consume. |
+| `eddacraft/eddacraft-tui` | Presentation primitive | Reusable Ratatui widget library implementing the eddacraft Terminal Standard design system. Consumed by the closed CLI and by other eddacraft tools. |
+| `eddacraft/anvil-plan-spec` | Format / protocol | The APS planning format spec, parser, and validator. Anyone can adopt APS for their own AI-assisted development workflow without using Anvil. |
+| `eddacraft/kindling` | Memory primitive | Small, composable memory primitives for agentic workflows — observation, capture, basic stores. Foundation that the closed Edda and Ember components consume. |
 
 These three are deliberately **protocol / primitive / infrastructure
 layers**, not the product. They are open because:
 
 - **They benefit from network effects.** An open APS spec is more
-  valuable to EddaCraft as an *adopted standard* than as a private
+  valuable to eddacraft as an *adopted standard* than as a private
   format. Same logic as OpenTelemetry vs proprietary APMs.
 - **They are a trust signal.** Publishing the format spec, the memory
   primitives, and the design system tells enterprise buyers "this is
@@ -210,7 +210,7 @@ open-sourcing as a community contribution surface.
 
 **Why it is not happening now:**
 
-- The current pack catalogue is small enough that EddaCraft can curate
+- The current pack catalogue is small enough that eddacraft can curate
   it directly
 - Opening before the engine is stable could create policy contributions
   that the engine cannot evaluate correctly
@@ -218,7 +218,7 @@ open-sourcing as a community contribution surface.
   Draft, 0/28)
 
 If/when this happens, it becomes a fourth ADR and a fourth OSS repo
-(`EddaCraft/anvil-policy-packs` or similar).
+(`eddacraft/anvil-policy-packs` or similar).
 
 ### Possible additional small OSS pieces
 
@@ -226,7 +226,7 @@ Other candidates that could be opened in the future without affecting
 the core product:
 
 - The Anvil GitHub Action (`.github/actions/anvil-check/`) — already
-  effectively public via `EddaCraft/anvil`
+  effectively public via `eddacraft/anvil`
 - The .anvil file format spec (separate from the implementation)
 - Tree-sitter language adapters for languages we add (lang-* modules)
 
@@ -239,9 +239,9 @@ These are not commitments — just a record that the door is open.
 - APS modules: DIST (deferral of DIST-008), CPACKS (future open candidate),
   BAUTH (activation foundation, complete)
 - OSS repos:
-  - <https://github.com/EddaCraft/eddacraft-tui>
-  - <https://github.com/EddaCraft/anvil-plan-spec>
-  - <https://github.com/EddaCraft/kindling>
+  - <https://github.com/eddacraft/eddacraft-tui>
+  - <https://github.com/eddacraft/anvil-plan-spec>
+  - <https://github.com/eddacraft/kindling>
 - Brainstorm (superseded by this ADR):
   `plans/brainstorms/2026-04-07-anvil-licensing-decision.md`
 - External references:

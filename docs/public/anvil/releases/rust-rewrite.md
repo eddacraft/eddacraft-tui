@@ -138,7 +138,7 @@ should still install project dependencies if those checks are enabled.
 ### Terminal UI
 
 The interactive surfaces (tutorial, watch, wizard, status) have been rebuilt
-using Ratatui with the EddaCraft Terminal Standard design system. The experience
+using Ratatui with the eddacraft Terminal Standard design system. The experience
 is smoother, more responsive, and consistent across all terminal emulators.
 
 ### What's New in Rust
@@ -215,7 +215,7 @@ Your `.anvilrc` and `.anvil/` directory work without changes.
 
 The Rust CLI is in beta. If you find something that worked in the Node.js
 version but doesn't in Rust, please
-[open an issue](https://github.com/EddaCraft/anvil-001/issues) with the
+[open an issue](https://github.com/eddacraft/anvil-001/issues) with the
 `rust-migration` label.
 
 ### What to include

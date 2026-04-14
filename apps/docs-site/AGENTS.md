@@ -1,6 +1,6 @@
 # Docs Site - AI Agent Instructions
 
-> **Docusaurus 3.9 documentation hub for the EddaCraft product suite**
+> **Docusaurus 3.9 documentation hub for the eddacraft product suite**
 
 ## Overview
 

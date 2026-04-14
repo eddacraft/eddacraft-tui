@@ -458,7 +458,7 @@ Change status to **Ready** when:
   points at the reconciled `dev` commit; branch protection and
   default-branch settings restored; freeze lifted
 - **Validation:** `git log origin/main ^origin/main-archive` is empty;
-  `gh api repos/EddaCraft/anvil-001` confirms default branch; freeze marker
+  `gh api repos/eddacraft/anvil-001` confirms default branch; freeze marker
   removed; AGENTS.md freeze notice removed
 - **Files:** `RECONCILIATION-IN-PROGRESS.md` (delete), `AGENTS.md`
 - **Result:** `main-archive` created at `4bf0c620` (old main tip).

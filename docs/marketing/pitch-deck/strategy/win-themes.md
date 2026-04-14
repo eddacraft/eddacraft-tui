@@ -1,4 +1,4 @@
-# Win Themes: Anvil by EddaCraft
+# Win Themes: Anvil by eddacraft
 
 ## Overview
 

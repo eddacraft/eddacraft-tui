@@ -204,7 +204,7 @@ runs:
         TMPFILE=$(mktemp)
         trap 'rm -f "$TMPFILE"' EXIT
         curl --proto '=https' --tlsv1.2 -LsSf \
-          https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh \
+          https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh \
           -o "$TMPFILE"
         sh "$TMPFILE"
 
@@ -328,7 +328,7 @@ runs:
             }
           }
 
-          body += '\n---\n*Powered by [Anvil](https://github.com/EddaCraft/anvil)*';
+          body += '\n---\n*Powered by [Anvil](https://github.com/eddacraft/anvil)*';
 
           // Find and update existing comment or create new one
           const { data: comments } = await github.rest.issues.listComments({

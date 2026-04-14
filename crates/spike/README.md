@@ -13,4 +13,4 @@ These are throwaway exploration binaries, not production code.
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/spike`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/spike`).

@@ -219,7 +219,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="The forge for governed AI-assisted work"
-      description="EddaCraft builds tools that make AI-generated code changes safe for production. Anvil validates. APS plans."
+      description="eddacraft builds tools that make AI-generated code changes safe for production. Anvil validates. APS plans."
     >
       <HomepageHeader />
       <main>

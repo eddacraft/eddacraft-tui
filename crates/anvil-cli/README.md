@@ -41,4 +41,4 @@ covering TUI surfaces, governance gates, policy management, and authentication.
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-cli`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-cli`).

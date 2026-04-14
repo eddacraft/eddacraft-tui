@@ -2,7 +2,7 @@
 
 ## SpecKit Adapter Format Detection Not Working (Week 7)
 
-**GitHub Issue**: [#28](https://github.com/EddaCraft/anvil-001/issues/28)
+**GitHub Issue**: [#28](https://github.com/eddacraft/anvil-001/issues/28)
 
 **Issue**: CLI format auto-detection cannot find SpecKit adapter
 
@@ -47,7 +47,7 @@ from the start, serving as reference for SpecKit migration.
 
 ## Hash Validation Failure in CLI (Week 7) - ✅ RESOLVED
 
-**GitHub Issue**: [#29](https://github.com/EddaCraft/anvil-001/issues/29)
+**GitHub Issue**: [#29](https://github.com/eddacraft/anvil-001/issues/29)
 
 **Issue**: Plans with valid hashes (generated via `generateHash()`) fail hash
 verification in CLI

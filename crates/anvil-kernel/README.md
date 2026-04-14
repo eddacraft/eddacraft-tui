@@ -31,4 +31,4 @@ tests (`tests/dual_run.rs`).
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-kernel`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-kernel`).

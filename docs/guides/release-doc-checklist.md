@@ -138,9 +138,9 @@ Only update packages that changed in this release.
 - [ ] `crates/anvil-tui/README.md`
 - [ ] `crates/eddacraft-tui/README.md`
 
-### Pre-release: public distribution repo (EddaCraft/anvil)
+### Pre-release: public distribution repo (eddacraft/anvil)
 
-The `EddaCraft/anvil` public repo hosts release binaries, the install landing
+The `eddacraft/anvil` public repo hosts release binaries, the install landing
 page, and the top-level README shown on GitHub. Review after any change that
 affects install commands, supported targets, or project status.
 
@@ -159,14 +159,14 @@ affects install commands, supported targets, or project status.
 - [ ] Verify crate published to crates.io (when applicable)
 - [ ] GitHub release notes include Rust-specific changes
 - [ ] Performance benchmarks documented if relevant
-- [ ] `EddaCraft/anvil` release marked `--latest` and `--prerelease=false`
+- [ ] `eddacraft/anvil` release marked `--latest` and `--prerelease=false`
       (cargo-dist auto-marks `-beta` tags as prerelease, which hides them from
       `/releases/latest/download/...`)
-- [ ] `EddaCraft/anvil-001` GitHub Release created for the tag with CHANGELOG
+- [ ] `eddacraft/anvil-001` GitHub Release created for the tag with CHANGELOG
       excerpt and a pointer to the public binaries:
 
       ```bash
-      gh release create vX.Y.Z --repo EddaCraft/anvil-001 --latest --notes-file <file>
+      gh release create vX.Y.Z --repo eddacraft/anvil-001 --latest --notes-file <file>
       ```
 
 - [ ] `install.eddacraft.ai` serves `HTTP/2 200` with a valid cert and the

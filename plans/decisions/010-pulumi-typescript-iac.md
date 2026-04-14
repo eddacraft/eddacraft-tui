@@ -11,7 +11,7 @@ Accepted
 ## Context
 
 This isn't "why Pulumi is cool". This is why Pulumi is the right tool given
-EddaCraft's constraints, goals, and posture.
+eddacraft's constraints, goals, and posture.
 
 ### The Problem We Are Actually Solving
 
@@ -54,7 +54,7 @@ authoring over system design.
 - :x: Heavier operational footprint
 - :x: Overkill for current stage
 
-**Verdict:** revisit later if EddaCraft becomes Kubernetes-as-platform-first.
+**Verdict:** revisit later if eddacraft becomes Kubernetes-as-platform-first.
 
 #### Pulumi (TypeScript)
 
@@ -68,12 +68,12 @@ authoring over system design.
 
 ## Decision
 
-**EddaCraft will adopt Pulumi (TypeScript) as its primary Infrastructure as
+**eddacraft will adopt Pulumi (TypeScript) as its primary Infrastructure as
 Code framework.**
 
 This decision prioritises authoring ergonomics, composability, governance, and
 AI-assisted workflows, while preserving access to the existing Terraform
-provider ecosystem. Pulumi enables EddaCraft to treat infrastructure as a
+provider ecosystem. Pulumi enables eddacraft to treat infrastructure as a
 governed platform capability rather than a collection of static configuration
 files, aligning directly with Anvil's validation and policy-first philosophy.
 
@@ -111,7 +111,7 @@ discipline. Pulumi makes it the default.
 
 ### 3. Governance & Policy Integration (High Weight)
 
-EddaCraft / Anvil is fundamentally about watching, validating, and enforcing.
+eddacraft / Anvil is fundamentally about watching, validating, and enforcing.
 
 Pulumi supports:
 
@@ -156,13 +156,13 @@ This matters more over time, not less.
 We want:
 
 - No unnecessary licensing landmines
-- Flexibility in how EddaCraft evolves commercially
+- Flexibility in how eddacraft evolves commercially
 - Clean separation between tooling and product IP
 
 Pulumi's model is predictable and less entangled with provider lock-in or sudden
 licence shifts compared to Terraform's recent history.
 
-## What Pulumi Gives EddaCraft Specifically
+## What Pulumi Gives eddacraft Specifically
 
 ### Structurally Enforceable Guardrails
 
@@ -209,7 +209,7 @@ Pulumi doesn't just work with governance — it expects it.
 
 | Risk                                                | Mitigation                                                                                                                            |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| "Pulumi is too powerful; people can shoot themselves in the foot" | No raw resources in application stacks. Everything goes through EddaCraft-owned component libraries. Policy enforcement at preview time. |
+| "Pulumi is too powerful; people can shoot themselves in the foot" | No raw resources in application stacks. Everything goes through eddacraft-owned component libraries. Policy enforcement at preview time. |
 | "Team members expect Terraform"                     | Terraform knowledge remains valuable at the provider/resource level. Existing modules can be wrapped or migrated incrementally. Clear messaging: Terraform ecosystem, Pulumi interface. |
 | "Language IaC becomes software engineering overhead" | Strict library boundaries. Opinionated patterns. Minimal surface area exposed to consumers. Treat infra code like platform code, not app code. |
 

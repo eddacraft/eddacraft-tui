@@ -511,7 +511,7 @@ appear only in the sweep report.
 - Check whether deps are declared in root, workspace packages, or both
 - Understand lock file pins in monorepos are almost always artifacts
 
-**EddaCraft/anvil-001 specialisation:**
+**eddacraft/anvil-001 specialisation:**
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`

@@ -1,6 +1,6 @@
-# EddaCraft OSS Surface
+# eddacraft OSS Surface
 
-EddaCraft operates a closed-source product (the Anvil platform) with a
+eddacraft operates a closed-source product (the Anvil platform) with a
 deliberate, narrow open-source surface limited to three foundational
 repositories. This document describes those repositories, why they are open, and
 how they relate to the closed product.
@@ -12,25 +12,25 @@ For the underlying decision, see
 
 | Repo                                                                        | Layer                  | License      | Status         |
 | --------------------------------------------------------------------------- | ---------------------- | ------------ | -------------- |
-| [`EddaCraft/eddacraft-tui`](https://github.com/EddaCraft/eddacraft-tui)     | Presentation primitive | `Apache-2.0` | Public, in use |
-| [`EddaCraft/anvil-plan-spec`](https://github.com/EddaCraft/anvil-plan-spec) | Format / protocol      | `Apache-2.0` | Public, in use |
-| [`EddaCraft/kindling`](https://github.com/EddaCraft/kindling)               | Memory primitive       | `Apache-2.0` | Public, in use |
+| [`eddacraft/eddacraft-tui`](https://github.com/eddacraft/eddacraft-tui)     | Presentation primitive | `Apache-2.0` | Public, in use |
+| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) | Format / protocol      | `Apache-2.0` | Public, in use |
+| [`eddacraft/kindling`](https://github.com/eddacraft/kindling)               | Memory primitive       | `Apache-2.0` | Public, in use |
 
 The Anvil product itself — CLI, kernel, policy engine, dashboard, compliance
 packs, Edda, Ember, agent governance, OPA enhancements, auth, infrastructure,
 the works — lives in the closed monorepo and is shipped as binary releases via
-[`EddaCraft/anvil`](https://github.com/EddaCraft/anvil).
+[`eddacraft/anvil`](https://github.com/eddacraft/anvil).
 
 ## The three open-source repos
 
 ### `eddacraft-tui` — Presentation primitive
 
-A reusable Ratatui widget library implementing the **EddaCraft Terminal
+A reusable Ratatui widget library implementing the **eddacraft Terminal
 Standard** design system: colour palette, theme trait, keybinding conventions,
 and a catalogue of TUI widgets (tables, badges, charts, panels, status bars,
 editors).
 
-**Why open:** Anyone building EddaCraft-styled or EddaCraft-compatible terminal
+**Why open:** Anyone building eddacraft-styled or eddacraft-compatible terminal
 applications benefits from sharing the same visual identity and component
 library. The widgets themselves have no Anvil-specific business logic — they are
 pure presentation primitives.
@@ -38,8 +38,8 @@ pure presentation primitives.
 **Consumed by:**
 
 - The closed Anvil CLI (via crates.io once published, currently via git rev)
-- Other EddaCraft tools, current and future
-- Any third-party Rust TUI application that wants the EddaCraft look
+- Other eddacraft tools, current and future
+- Any third-party Rust TUI application that wants the eddacraft look
 
 **Contribution surface:** new widgets, theme refinements, accessibility
 improvements, docs, examples.
@@ -51,7 +51,7 @@ lightweight markdown-based format for describing planning, task authorisation,
 and progress tracking in AI-assisted development workflows. It is the format the
 closed Anvil planning subsystem reads and writes.
 
-**Why open:** A planning format is more valuable to EddaCraft as an _adopted
+**Why open:** A planning format is more valuable to eddacraft as an _adopted
 standard_ than as a private file format. By open-sourcing the spec, the parser,
 and the validator, we let other tools, agents, and workflows produce
 APS-compatible plans that Anvil can consume — and we let teams adopt APS for
@@ -93,7 +93,7 @@ bindings, integration adapters, docs.
 These three repos are deliberately **protocol / primitive / infrastructure
 layers** — exactly the things that benefit from being open:
 
-- **Network effects.** An open APS spec is more valuable to EddaCraft as an
+- **Network effects.** An open APS spec is more valuable to eddacraft as an
   adopted standard than as a private format. Same logic as OpenTelemetry vs
   proprietary APMs, or LSP vs proprietary editor protocols.
 - **Trust signal.** Publishing the format spec, the memory primitives, and the
@@ -122,7 +122,7 @@ ship as binary releases only.
 ## How this is _not_ open core
 
 Open core typically splits a single product into "free OSS edition" and "paid
-enterprise edition" of the _same_ codebase. EddaCraft does not do that.
+enterprise edition" of the _same_ codebase. eddacraft does not do that.
 
 What we have is:
 
@@ -152,7 +152,7 @@ Because the product is closed-source, the install path is **binary-only**:
 - **Windows (WinGet):** `winget install eddacraft.anvil`
 - **Windows (scoop):** `scoop bucket add eddacraft … && scoop install anvil`
 - **Universal (GitHub Releases):** download the `.tar.xz` / `.zip` from
-  <https://github.com/EddaCraft/anvil/releases>
+  <https://github.com/eddacraft/anvil/releases>
 
 There is **no `cargo install anvil-cli`** path. The internal crates use the
 `eddacraft-anvil-*` package-name prefix in their `Cargo.toml` files (for
@@ -188,7 +188,7 @@ opening will be captured in its own ADR.
 - **`kindling`** — new store backends, additional event types, and integration
   adapters are the highest-value contributions.
 
-For contributions to the closed Anvil product itself, EddaCraft does not
+For contributions to the closed Anvil product itself, eddacraft does not
 currently accept outside PRs. Bug reports, feature requests, and feedback are
 welcome via the GitHub issue tracker on
-[`EddaCraft/anvil`](https://github.com/EddaCraft/anvil/issues).
+[`eddacraft/anvil`](https://github.com/eddacraft/anvil/issues).

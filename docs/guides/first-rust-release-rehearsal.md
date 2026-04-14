@@ -2,7 +2,7 @@
 
 > **Status:** Draft, never executed **Purpose:** Shakedown plan for the first
 > time the Rust cargo-dist release pipeline runs end-to-end. Use as a reference
-> while working through the actual rehearsal. **Audience:** EddaCraft release
+> while working through the actual rehearsal. **Audience:** eddacraft release
 > engineer (you) **Companion docs:**
 >
 > - [`docs/guides/release-runbook.md`](./release-runbook.md) — the operational
@@ -27,7 +27,7 @@ time simultaneously:
 - `cargo-dist` 0.31.0 build matrix across 6 platform targets
 - Cross-compilation for aarch64 Linux, both macOS arches, both Windows arches
 - The custom cross-repo push step that copies the release from the private
-  monorepo to `EddaCraft/anvil` (public)
+  monorepo to `eddacraft/anvil` (public)
 - The `ANVIL_RELEASES_TOKEN` cross-repo permissions
 - `GitHub Pages → install.eddacraft.ai` DNS resolution
 - The cargo-dist installer scripts (shell + powershell)
@@ -42,7 +42,7 @@ stacking Homebrew, WinGet, or scoop on top.
 | Phase                        | Goal                                                                             | Risk                                                                  | Reversible?                  |
 | ---------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------- |
 | **A — Pre-flight**           | Verify everything that can be checked statically before pushing a tag            | Zero                                                                  | n/a (no changes)             |
-| **B — First rehearsal tag**  | Push a clearly-labeled test tag, watch the workflow run, fix what breaks, repeat | Medium — burns Actions minutes, may leave a mess on `EddaCraft/anvil` | Yes (delete release + tag)   |
+| **B — First rehearsal tag**  | Push a clearly-labeled test tag, watch the workflow run, fix what breaks, repeat | Medium — burns Actions minutes, may leave a mess on `eddacraft/anvil` | Yes (delete release + tag)   |
 | **C — Verify install path**  | Confirm the installer artifact actually installs the binary on a clean machine   | Low                                                                   | Yes                          |
 | **D — Add layer-2 channels** | Wire up Homebrew, WinGet, scoop on top of the now-known-good pipeline            | Low (each layer is additive)                                          | Yes                          |
 | **E — First real release**   | `v0.3.0-beta.0` (or whatever the first real Rust release is)                     | Low — pipeline is shaken down                                         | Hard (it's a public release) |
@@ -60,17 +60,17 @@ The custom cross-repo push step in `release.yml` (the `push-to-public-repo` job)
 does:
 
 ```bash
-PUBLIC_HEAD=$(gh api repos/EddaCraft/anvil/git/ref/heads/main -q '.object.sha')
+PUBLIC_HEAD=$(gh api repos/eddacraft/anvil/git/ref/heads/main -q '.object.sha')
 ```
 
-If `EddaCraft/anvil` has no `main` branch (or has `main` but no commits), this
+If `eddacraft/anvil` has no `main` branch (or has `main` but no commits), this
 fails immediately and the entire release is dead in the water.
 
 **Check:**
 
 ```bash
-gh api repos/EddaCraft/anvil/branches/main --jq '.commit.sha' 2>&1
-gh api repos/EddaCraft/anvil/contents/README.md --jq '.name' 2>&1
+gh api repos/eddacraft/anvil/branches/main --jq '.commit.sha' 2>&1
+gh api repos/eddacraft/anvil/contents/README.md --jq '.name' 2>&1
 ```
 
 **Expected:** a commit SHA and `README.md`. If either errors, you need to
@@ -90,8 +90,8 @@ This is a one-time bootstrap. Do it before any tag push.
 The release workflow needs a fine-grained PAT (or classic PAT with `repo` scope)
 that has cross-repo write to:
 
-- `EddaCraft/anvil` — `contents:write` (releases, tags) and `metadata:read`
-- `EddaCraft/homebrew-tap` — `contents:write` (when DIST-009 lands)
+- `eddacraft/anvil` — `contents:write` (releases, tags) and `metadata:read`
+- `eddacraft/homebrew-tap` — `contents:write` (when DIST-009 lands)
 
 **Check:**
 
@@ -108,7 +108,7 @@ manually exercise it:
 
 ```bash
 # In a private gist or scratch repo, with the token exported as GH_TOKEN
-GH_TOKEN=ghp_xxx gh api repos/EddaCraft/anvil --jq '.permissions'
+GH_TOKEN=ghp_xxx gh api repos/eddacraft/anvil --jq '.permissions'
 ```
 
 If it returns `{"admin":true,"push":true,"pull":true}` or similar, the token has
@@ -194,7 +194,7 @@ If you don't want to gate the rehearsal on DNS, the alternative install URL is
 the direct GitHub Releases URL:
 
 ```bash
-curl -fsSL https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+curl -fsSL https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 ```
 
 This works without any DNS, just uses an uglier URL.
@@ -211,7 +211,7 @@ grep -E "version|installers|tap|targets|hosting|ci" <repo_root>/dist-workspace.t
 
 - `cargo-dist-version = "0.31.0"`
 - `installers = ["shell", "powershell", "homebrew"]`
-- `tap = "EddaCraft/homebrew-tap"`
+- `tap = "eddacraft/homebrew-tap"`
 - `targets = [6 platforms]`
 - `hosting = "github"`
 - `ci = "github"`
@@ -223,7 +223,7 @@ Phase B, the homebrew installer will be built as an artifact but never published
 
 ### Pre-flight checklist summary
 
-- [ ] A1 — `EddaCraft/anvil` has `main` with at least one commit
+- [ ] A1 — `eddacraft/anvil` has `main` with at least one commit
 - [ ] A2 — `ANVIL_RELEASES_TOKEN` secret exists with cross-repo write
 - [ ] A3 — `cargo-dist` 0.31.0 is reachable
 - [ ] A4 — `dist plan --tag v0.3.0-rc.0` succeeds locally
@@ -301,7 +301,7 @@ gh run list --workflow=release.yml --limit 1
 3. **`build-global-artifacts`** — installer scripts, manifest.
 4. **`host`** — uploads artifacts and creates the GitHub Release on the
    **private** repo first via `dist host`.
-5. **Custom step "Publish release to EddaCraft/anvil (public)"** — the
+5. **Custom step "Publish release to eddacraft/anvil (public)"** — the
    hand-written cross-repo push (lines 288–328 of `release.yml`). This is the
    highest-risk step because it's untested.
 6. **`announce`** — posts the announcement.
@@ -333,10 +333,10 @@ repo:
 
 ```bash
 # Delete the broken release on the public repo
-gh release delete v0.3.0-rc.0 --repo EddaCraft/anvil --yes
+gh release delete v0.3.0-rc.0 --repo eddacraft/anvil --yes
 
 # Delete the tag on the public repo
-gh api -X DELETE repos/EddaCraft/anvil/git/refs/tags/v0.3.0-rc.0
+gh api -X DELETE repos/eddacraft/anvil/git/refs/tags/v0.3.0-rc.0
 ```
 
 This is the only situation where deleting a tag is OK — it's a rehearsal release
@@ -347,9 +347,9 @@ that no users have ever seen.
 Phase B is done when, **on a single tag push**:
 
 - All jobs in `release.yml` complete successfully
-- A release exists on `EddaCraft/anvil` with all 6 platform binaries
+- A release exists on `eddacraft/anvil` with all 6 platform binaries
   - checksums + installer scripts
-- `gh release view v0.3.0-rc.N --repo EddaCraft/anvil` shows the expected
+- `gh release view v0.3.0-rc.N --repo eddacraft/anvil` shows the expected
   artifact list
 - No manual fixup was needed
 
@@ -370,7 +370,7 @@ On a clean Linux container:
 docker run --rm -it ubuntu:24.04 bash
 apt update && apt install -y curl
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 
 anvil --version
 ```
@@ -395,7 +395,7 @@ binary should run via Rosetta.
 ### C3. Test on Windows (PowerShell)
 
 ```powershell
-irm https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
 anvil --version
 ```
 
@@ -445,7 +445,7 @@ additive — adding one cannot break the others.
    - Use `ANVIL_RELEASES_TOKEN` for cross-repo write
    - Download the formula from the just-published release (or regenerate via
      `dist generate --mode=run -t homebrew`)
-   - `git clone https://github.com/EddaCraft/homebrew-tap`
+   - `git clone https://github.com/eddacraft/homebrew-tap`
    - Commit `Formula/anvil.rb`
    - Push
 
@@ -453,7 +453,7 @@ additive — adding one cannot break the others.
 cross-repo push step. Hand-write the new job.
 
 **Test:** push `v0.3.0-rc.N+1`, verify a commit lands in
-`EddaCraft/homebrew-tap`, then on a clean macOS machine:
+`eddacraft/homebrew-tap`, then on a clean macOS machine:
 
 ```bash
 brew install eddacraft/tap/anvil
@@ -479,7 +479,7 @@ publish-winget:
   steps:
     - uses: vedantmgoyal2009/winget-releaser@v2
       with:
-        identifier: EddaCraft.Anvil
+        identifier: eddacraft.Anvil
         installers-regex: '\.exe$|\.zip$'
         token: ${{ secrets.WINGET_TOKEN }}
 ```
@@ -493,7 +493,7 @@ Subsequent updates are auto-merged. Submit early.
 ### D3. Scoop bucket (DIST-011, optional)
 
 Lower priority. Pattern is the same as Homebrew tap: a public repo
-(`EddaCraft/scoop-bucket`) with a `bucket/anvil.json` manifest. Can be
+(`eddacraft/scoop-bucket`) with a `bucket/anvil.json` manifest. Can be
 hand-written or generated via cargo-dist's `installers = [..., "scoop"]` if you
 add it.
 
@@ -568,7 +568,7 @@ Stop and reassess if any of the following happens:
 - **Cross-repo push corrupts the public repo state** — e.g. force-push, reset,
   or accidentally overwrites `main`. Stop, restore from git reflog if possible,
   and investigate before trying again.
-- **The `EddaCraft/anvil` repo gets a real release with broken binaries that has
+- **The `eddacraft/anvil` repo gets a real release with broken binaries that has
   been linked publicly** — pull the release, communicate the issue, do not "fix
   forward" silently.
 - **Three consecutive rehearsal attempts fail at the same step with the same
@@ -585,14 +585,14 @@ Stop and reassess if any of the following happens:
 gh run watch $(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')
 
 # List all releases on the public repo
-gh release list --repo EddaCraft/anvil
+gh release list --repo eddacraft/anvil
 
 # Inspect a specific release
-gh release view v0.3.0-rc.0 --repo EddaCraft/anvil
+gh release view v0.3.0-rc.0 --repo eddacraft/anvil
 
 # Delete a rehearsal release (only on rehearsal tags!)
-gh release delete v0.3.0-rc.0 --repo EddaCraft/anvil --yes
-gh api -X DELETE repos/EddaCraft/anvil/git/refs/tags/v0.3.0-rc.0
+gh release delete v0.3.0-rc.0 --repo eddacraft/anvil --yes
+gh api -X DELETE repos/eddacraft/anvil/git/refs/tags/v0.3.0-rc.0
 
 # Check what cargo-dist thinks the next release looks like
 dist plan --tag v0.3.0-rc.0
@@ -616,7 +616,7 @@ files. Track them in commits.
 | `dist-workspace.toml`                             | Adjust if cargo-dist version needs bumping                           |
 | `.github/workflows/release.yml`                   | Add `publish-homebrew` job (Phase D), `publish-winget` job (Phase D) |
 | `infra/src/dns/eddacraft-ai.ts`                   | Already has the install CNAME; verify deployed                       |
-| `EddaCraft/anvil/README.md`                       | Bootstrap content if Phase A1 reveals it's empty                     |
-| `EddaCraft/anvil/LICENSE`                         | Bootstrap content if missing                                         |
-| `EddaCraft/anvil/index.html` or `docs/install.sh` | Bootstrap if GitHub Pages serves nothing                             |
+| `eddacraft/anvil/README.md`                       | Bootstrap content if Phase A1 reveals it's empty                     |
+| `eddacraft/anvil/LICENSE`                         | Bootstrap content if missing                                         |
+| `eddacraft/anvil/index.html` or `docs/install.sh` | Bootstrap if GitHub Pages serves nothing                             |
 | `plans/modules/distribution-pipeline.aps.md`      | Mark items complete as they pass each phase                          |

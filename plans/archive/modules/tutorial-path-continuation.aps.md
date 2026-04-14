@@ -1,6 +1,6 @@
 <\!-- Archived: 2026-03-01 | Reason: All work items complete -->
 
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- Executable only if tasks exist and status is Ready. -->
 
 # Tutorial Path Continuation

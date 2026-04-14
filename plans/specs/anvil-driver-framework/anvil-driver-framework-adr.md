@@ -2,7 +2,7 @@
 
 **Status:** Proposed  
 **Date:** 2026-04-02  
-**Decision Owner:** Joshua Boys / EddaCraft  
+**Decision Owner:** Joshua Boys / eddacraft  
 **Related Initiative:** Anvil Rust Kernel, TS integration surfaces, watch/daemon/session control
 
 ## Context

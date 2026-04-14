@@ -3,7 +3,7 @@
 > This file guides AI agents working with APS specs in this repository.
 > Keep it in `plans/` so agents discover it when exploring the planning directory.
 >
-> **Specification:** [github.com/EddaCraft/anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec)
+> **Specification:** [github.com/eddacraft/anvil-plan-spec](https://github.com/eddacraft/anvil-plan-spec)
 
 ## Core Principle
 
