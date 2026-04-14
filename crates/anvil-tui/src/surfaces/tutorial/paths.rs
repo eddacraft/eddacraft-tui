@@ -225,8 +225,8 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Install Git Hooks",
-            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks.",
-            "Run: anvil hooks install --husky",
+            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. Anvil auto-detects Husky; pass --husky to force the .husky/ directory.",
+            "Run: anvil hooks install",
         ),
         step(
             "Add CI Workflow",
@@ -235,7 +235,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Configure Exit Codes",
-            "Anvil uses structured exit codes: 0 for pass, 1 for gate failure, 2 for configuration errors. Map these codes to your CI system's pass/fail/error states.",
+            "Anvil uses structured exit codes: 0 for pass, 1 for errors, 2 for gate failure, 3 for auth required, and 4 for configuration errors. Map these codes to your CI system's pass/fail/error states.",
             "Verify exit code handling in your workflow file.",
         ),
         step_with_verify(
@@ -243,7 +243,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
             "Anvil auto-detects CI environments and adjusts its output format. In CI mode, it produces machine-readable JSON output suitable for downstream tooling.",
             "Run: anvil status --json to preview JSON output.",
             "anvil status --json",
-            Verify::OutputContains("status".to_string()),
+            Verify::OutputContains("\"status\":".to_string()),
             "Expected JSON output with status field.",
         ),
         step(

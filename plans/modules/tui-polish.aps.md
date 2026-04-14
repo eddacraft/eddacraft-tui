@@ -12,7 +12,7 @@ Scopes: POLISH (main)
 
 | ID     | Owner | Status |
 | ------ | ----- | ------ |
-| POLISH | —     | Ready  |
+| POLISH | —     | In Progress |
 
 ## Purpose
 
@@ -186,7 +186,7 @@ high-signal for users seeing Anvil for the first time.
 - **Priority:** Critical — this is the highest priority issue in the module.
   A user who runs the tutorial and types the commands will hit auth errors
   on nearly every instruction. This is a broken first experience.
-- **Status:** Ready
+- **Status:** Complete
 
 ---
 
