@@ -112,7 +112,7 @@ KERN is 22/25 done, RENG is complete, RCLI is in progress.
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./modules/tui-polish.aps.md) | POLISH | Ready | 0/7 | RCLI, RATS |
-| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | In Progress | — | RCLI, RATS |
+| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | In Progress | 14/18 | RCLI, RATS |
 | [distribution-pipeline](./modules/distribution-pipeline.aps.md) | DIST | Ready | 0/8 | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a

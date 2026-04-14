@@ -1,7 +1,7 @@
 # Welcome Screen & Interactive Onboarding
 
 Module: **WELCOME**
-Status: In Progress
+Status: In Progress (14/18)
 Owner: eddacraft
 
 ## Problem
@@ -306,7 +306,7 @@ to showcase mode rather than erroring out.
   automatically; step advances on success; graceful fallback without
   watcher.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/executor.rs`
-- **Dependencies:** WELCOME-012, KERN (watcher)
+- **Dependencies:** WELCOME-012 (KERN watcher is available)
 
 #### Phase 5 — Watch Demo & Hooks
 
@@ -324,7 +324,7 @@ to showcase mode rather than erroring out.
   change triggers visible update; "continue" option works; skip works.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/watch_demo.rs`,
   `crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs`
-- **Dependencies:** WELCOME-010, KERN (watcher)
+- **Dependencies:** WELCOME-010 (KERN watcher is available)
 
 ### WELCOME-015: Git hooks installation step
 
@@ -495,12 +495,12 @@ The TUTOR module is retired. Mapping:
 
 ## Stats
 
-| Phase | Items | Status |
-| ----- | ----- | ------ |
-| 1 — First-Run Onboarding | 3 | Proposed |
-| 2 — Discovery Scan Infrastructure | 5 | Proposed |
-| 3 — Fix Experience | 2 | Proposed |
-| 4 — Executable Tutorial Steps | 3 | Proposed |
-| 5 — Watch Demo & Hooks | 2 | Proposed |
-| 6 — Completion, Persistence & Resilience | 3 | Proposed |
-| **Total** | **18** | — |
+| Phase | Items | Done | Remaining |
+| ----- | ----- | ---- | --------- |
+| 1 — First-Run Onboarding | 3 | 2 | 003 (config persistence) |
+| 2 — Discovery Scan Infrastructure | 5 | 4 | 007 (wire discovery into flows) |
+| 3 — Fix Experience | 2 | 2 | — |
+| 4 — Executable Tutorial Steps | 3 | 2 | 013 (live file watching) |
+| 5 — Watch Demo & Hooks | 2 | 1 | 014 (watch demo overlay) |
+| 6 — Completion, Persistence & Resilience | 3 | 3 | — |
+| **Total** | **18** | **14** | **4 in progress** |
