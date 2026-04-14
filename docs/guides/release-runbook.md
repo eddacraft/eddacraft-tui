@@ -21,12 +21,12 @@ The release process is split between an interactive script and a Claude skill:
    /release
    ```
 
-   The skill reads the manifest, verifies artefacts, reviews docs, drafts
-   comms, handles cleanup, and closes the tracking issue.
+   The skill reads the manifest, verifies artefacts, reviews docs, drafts comms,
+   handles cleanup, and closes the tracking issue.
 
-The sections below are the **reference manual** — the script and skill
-automate and enforce these steps. Refer to them directly when something goes
-wrong or when you need to understand what a step does.
+The sections below are the **reference manual** — the script and skill automate
+and enforce these steps. Refer to them directly when something goes wrong or
+when you need to understand what a step does.
 
 ---
 
@@ -150,7 +150,7 @@ git push origin vX.Y.Z
 ```
 
 Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
-all 6 targets and creates a GitHub Release automatically (pre-release for beta
+all 5 targets and creates a GitHub Release automatically (pre-release for beta
 tags).
 
 For beta releases, either format works:
