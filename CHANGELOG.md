@@ -6,6 +6,54 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [0.3.2-beta] — Update Command & Onboarding Completion
+
+### Added
+
+- **`anvil update` subcommand** — self-update the CLI binary in-place with
+  version check, download, and verification (`RCLI`)
+- **`anvil admin invite` command** — invite beta users directly from the CLI
+  with dual-mode flow (email + approval) and updated test coverage (`BAUTH`)
+- **Welcome screen & onboarding complete** — all 18 WELCOME tasks finished;
+  first-run onboarding experience fully wired (`WELCOME`)
+  - Discovery mode, executable tutorial steps, live file watching demo
+  - Fix step with dual-mode editing
+  - Hook installer guidance
+  - Gate and watch accessible from welcome menu
+- **Interactive release script** — `scripts/release.sh` walks through preflight,
+  branching, tagging, and workflow kickoff; writes `.release/manifest.json` as
+  handoff contract for the `/release` Claude skill (`RMAN`)
+- **Feature flag inventory** — ad-hoc flag inventory documented with governance
+  guide (`FLAGS`)
+
+### Fixed
+
+- **API query ordering** — `ORDER BY` restored in `findActiveOtpCodes` to
+  prevent non-deterministic OTP code selection
+- **SQL centralisation** — inline SQL in API routes extracted to `db/queries.ts`
+  for consistency and auditability
+- **TUI tutorial commands** — tutorial paths synced with current CLI subcommands;
+  audit surface scroll fixed for long result lists
+- **Install script** — next-steps output always printed; Homebrew tap published
+  automatically on release
+- **CI stability** — Semgrep version pinned to prevent surprise breakage; OSSF
+  Scorecard scoped to default branch only
+
+### Improved
+
+- Branding lowercased to `eddacraft` and `anvil` across the entire repo
+- `aarch64-pc-windows-msvc` target added to cargo-dist (updater disabled pending
+  upstream ARM64 Windows binary)
+- Public docs aligned with branding changes (`DOCSYNC`)
+
+### Developer
+
+- ADR-020 (versioning strategy) published
+- Decision log (`DECISION-LOG.md`) created as single source of truth for ADRs
+- Completed APS modules archived; index reconciled
+- APS rules tightened for agent conventions
+- 59 unit tests for under-covered anvil-cli modules (`TCOV`)
+
 ## [0.3.1-beta] — Docs Cutover & Onboarding Fixes
 
 ### Added
@@ -358,6 +406,8 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
+[0.3.2-beta]:
+  https://github.com/eddacraft/anvil-001/compare/v0.3.1-beta...v0.3.2-beta
 [0.3.1-beta]:
   https://github.com/eddacraft/anvil-001/compare/v0.3.0-beta...v0.3.1-beta
 [0.3.0-beta]:
