@@ -204,7 +204,7 @@ gh run view <run-id> --repo eddacraft/anvil-001 --log-failed
 Expected behaviour:
 
 - `plan` job succeeds and identifies the release.
-- `build-local-artifacts` jobs compile for all 6 targets.
+- `build-local-artifacts` jobs compile for all 5 targets.
 - `build-global-artifacts` job produces shell and PowerShell installers.
 - `host` job creates the GitHub Release on `eddacraft/anvil` (public) with all
   artefacts. A copy is also retained on the private repo.
@@ -226,7 +226,7 @@ anvil auth login
 anvil gate
 ```
 
-Verify all 6 platform binaries are present in the GitHub Release:
+Verify all 5 platform binaries are present in the GitHub Release:
 
 ```bash
 gh release view vX.Y.Z --repo eddacraft/anvil
@@ -239,7 +239,6 @@ Expected artefacts:
 - `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
-- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
 - `eddacraft-anvil-installer.sh`
 - `eddacraft-anvil-installer.ps1`
 

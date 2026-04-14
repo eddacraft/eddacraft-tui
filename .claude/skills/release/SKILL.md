@@ -55,7 +55,7 @@ with other steps and come back.
 
 Expected jobs to verify:
 - `plan` — succeeded
-- `build-local-artifacts` — succeeded (6 targets)
+- `build-local-artifacts` — succeeded (5 targets)
 - `build-global-artifacts` — succeeded
 - `host` — created GitHub Release on `EddaCraft/anvil`
 - `announce` — posted release notes
@@ -70,13 +70,12 @@ Check the public release has all expected artefacts:
 gh release view <tag> --repo EddaCraft/anvil --json assets --jq '.assets[].name'
 ```
 
-Expected artefacts (8):
+Expected artefacts (7):
 - `eddacraft-anvil-aarch64-apple-darwin.tar.xz`
 - `eddacraft-anvil-x86_64-apple-darwin.tar.xz`
 - `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
-- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
 - `eddacraft-anvil-installer.sh`
 - `eddacraft-anvil-installer.ps1`
 

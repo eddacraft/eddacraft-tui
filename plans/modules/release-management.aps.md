@@ -280,9 +280,9 @@ release.
   - Skill refuses to start if manifest timestamp is older than 24h
   - Skill validates manifest fields against live state (tag exists, issue
     exists, workflow run ID resolves)
-  - All 8 expected artefacts verified on public repo
+  - All 7 expected artefacts verified on public repo
   - GitHub Issue updated with verification results and closed on completion
-- **Files:** `.claude/skills/release.md`
+- **Files:** `.claude/skills/release/SKILL.md`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** RELMGMT-009
@@ -292,7 +292,7 @@ release.
 1. Gate — read manifest, refuse if missing or stale
 2. Validate — confirm tag exists, issue exists, workflow run resolves
 3. Monitor workflow — poll until complete or prompt to wait
-4. Verify artefacts — check all 8 expected assets on `EddaCraft/anvil`
+4. Verify artefacts — check all 7 expected assets on `EddaCraft/anvil`
 5. Changelog review — assess completeness against diff summary
 6. Doc checklist triage — cross-reference changed paths against
    `release-doc-checklist.md`, present applicable items

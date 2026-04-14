@@ -119,6 +119,9 @@ infra/import.json
 target/
 **/*.rs.bk
 
+# Ephemeral release manifest
+.release/
+
 # Local machine state and secrets
 settings.local.json
 logs/
