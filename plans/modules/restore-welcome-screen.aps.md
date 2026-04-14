@@ -1,7 +1,7 @@
 # Welcome Screen & Interactive Onboarding
 
 Module: **WELCOME**
-Status: In Progress (14/18)
+Status: Complete (18/18)
 Owner: eddacraft
 
 ## Problem
@@ -139,7 +139,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-003: Guided init step
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Wire the existing `InitSurface` (5-step wizard: mode,
   format, directory, checks, summary) into the onboarding flow. After
   init completes, transition to the discovery scan (WELCOME-007). If
@@ -147,10 +147,9 @@ to showcase mode rather than erroring out.
   message and proceed directly to discovery.
 - **Validation:** Generated config is valid; `anvil doctor` passes after
   init; existing config detected and skipped.
-- **Files:** `crates/anvil-tui/src/surfaces/onboarding/mod.rs`
+- **Files:** `crates/anvil-tui/src/surfaces/onboarding/mod.rs`,
+  `crates/anvil-cli/src/commands/welcome.rs`
 - **Dependencies:** WELCOME-002
-- **Note:** Config persistence was never implemented — `TODO` stub at
-  `welcome.rs:156`. Reopened 2026-04-12.
 
 #### Phase 2 — Discovery Scan Infrastructure
 
@@ -197,7 +196,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-007: Wire discovery into welcome and onboarding flows
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Two integration points: (a) After "Interactive Tutorial"
   from the standard welcome menu, run discovery scan before entering
   tutorial path selection. (b) After guided init in onboarding flow,
@@ -293,7 +292,7 @@ to showcase mode rather than erroring out.
 
 ### WELCOME-013: Live file watching during tutorial steps
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** For steps that ask the user to edit a file (e.g. "Add a
   policy rule to no-todos.yaml"), start a file watcher on the target
   path. When the file changes, re-run verification automatically. This
@@ -305,14 +304,17 @@ to showcase mode rather than erroring out.
 - **Validation:** File change detected within 1s; verification runs
   automatically; step advances on success; graceful fallback without
   watcher.
-- **Files:** `crates/anvil-tui/src/surfaces/tutorial/executor.rs`
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/mod.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/executor.rs`,
+  `crates/anvil-cli/src/tui.rs`,
+  `crates/anvil-cli/src/commands/welcome.rs`
 - **Dependencies:** WELCOME-012 (KERN watcher is available)
 
 #### Phase 5 — Watch Demo & Hooks
 
 ### WELCOME-014: Watch mode demo with guided overlay
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Start `anvil watch` in a tutorial context — render the
   real watch dashboard with a semi-transparent guided overlay explaining
   each panel (file watcher status, check results, warning list). The
@@ -497,10 +499,10 @@ The TUTOR module is retired. Mapping:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — First-Run Onboarding | 3 | 2/3 done — remaining: WELCOME-003 (config persistence) |
-| 2 — Discovery Scan Infrastructure | 5 | 4/5 done — remaining: WELCOME-007 (wire discovery into flows) |
+| 1 — First-Run Onboarding | 3 | 3/3 done |
+| 2 — Discovery Scan Infrastructure | 5 | 5/5 done |
 | 3 — Fix Experience | 2 | 2/2 done |
-| 4 — Executable Tutorial Steps | 3 | 2/3 done — remaining: WELCOME-013 (live file watching) |
-| 5 — Watch Demo & Hooks | 2 | 1/2 done — remaining: WELCOME-014 (watch demo overlay) |
+| 4 — Executable Tutorial Steps | 3 | 3/3 done |
+| 5 — Watch Demo & Hooks | 2 | 2/2 done |
 | 6 — Completion, Persistence & Resilience | 3 | 3/3 done |
-| **Total** | **18** | **14/18 done — 4 in progress** |
+| **Total** | **18** | **18/18 done** |
