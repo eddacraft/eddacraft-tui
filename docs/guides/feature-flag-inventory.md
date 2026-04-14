@@ -15,20 +15,20 @@ Created for: `FLAGS-009`
 
 ## Summary Table
 
-| Control                          | Location                                     | Classification | Target class      |
-| -------------------------------- | -------------------------------------------- | -------------- | ----------------- |
-| CLI licence-gated actions        | `crates/anvil-cli/src/main.rs`               | migrate        | `entitlement`     |
-| Docs access gating               | `apps/docs-shell/proxy.ts`                   | migrate        | `entitlement`     |
-| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/main.rs:171`           | migrate        | `ops_kill_switch` |
-| `ANVIL_ADMIN_KEY` admin gating   | `apps/anvil-api/src/routes/admin.ts`         | defer          | `entitlement`     |
-| Beta access scopes               | `apps/anvil-api/src/routes/admin.ts:15`      | migrate        | `entitlement`     |
-| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`        | defer          | —                 |
-| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`          | defer          | —                 |
-| OPA agent orchestration rollout  | (no flag yet)                                | defer          | `rollout`         |
-| Tier-based product capabilities  | (no flag yet)                                | adopt          | `entitlement`     |
-| Web dashboard capabilities       | (no flag yet)                                | adopt          | `entitlement`     |
-| Dashboard AI builder             | (no flag yet)                                | adopt          | `rollout`         |
-| Tutorial / advanced TUI surfaces | (no flag yet)                                | adopt          | `rollout`         |
+| Control                          | Location                                | Classification | Target class      |
+| -------------------------------- | --------------------------------------- | -------------- | ----------------- |
+| CLI licence-gated actions        | `crates/anvil-cli/src/main.rs`          | migrate        | `entitlement`     |
+| Docs access gating               | `apps/docs-shell/proxy.ts`              | migrate        | `entitlement`     |
+| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/main.rs:171`      | migrate        | `ops_kill_switch` |
+| `ANVIL_ADMIN_KEY` admin gating   | `apps/anvil-api/src/routes/admin.ts`    | defer          | `entitlement`     |
+| Beta access scopes               | `apps/anvil-api/src/routes/admin.ts:15` | migrate        | `entitlement`     |
+| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`   | defer          | —                 |
+| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`     | defer          | —                 |
+| OPA agent orchestration rollout  | (no flag yet)                           | defer          | `rollout`         |
+| Tier-based product capabilities  | (no flag yet)                           | adopt          | `entitlement`     |
+| Web dashboard capabilities       | (no flag yet)                           | adopt          | `entitlement`     |
+| Dashboard AI builder             | (no flag yet)                           | adopt          | `rollout`         |
+| Tutorial / advanced TUI surfaces | (no flag yet)                           | adopt          | `rollout`         |
 
 ## Existing Controls — Migrate
 
@@ -57,8 +57,8 @@ Created for: `FLAGS-009`
   `apps/docs-shell/lib/jwt.ts`
 - **Current state:** Proxy middleware checks for a valid JWT in the
   `anvil-docs-session` cookie. It is a binary authenticated/not check with no
-  tier or plan awareness. Gated paths: `/anvil/*`. Public paths:
-  `/kindling/*`, `/aps/*`, `/edda-stack/*`, `/blog/*`, `/assets/*`, `/img/*`.
+  tier or plan awareness. Gated paths: `/anvil/*`. Public paths: `/kindling/*`,
+  `/aps/*`, `/edda-stack/*`, `/blog/*`, `/assets/*`, `/img/*`.
 - **Classification:** **migrate**
 - **Target flag:** `docs.access` (class: `entitlement`)
 - **Migration path:** After JWT validation, resolve the `docs.access` flag using
@@ -206,16 +206,16 @@ The following environment variables and controls were reviewed but are **not
 feature flags**. They are operational configuration, debug tooling, or
 infrastructure secrets and do not belong in the shared flagging model.
 
-| Control                         | Location                                          | Reason excluded                                  |
-| ------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
-| `ANVIL_DEBUG` / `DEBUG`         | `packages/anvil/core/src/utils/debug.ts`          | Debug logging — not feature gating               |
-| `ANVIL_OPA_VERSION`             | `packages/anvil/policy/src/opa-binary-manager.ts`  | Toolchain version override — not rollout control |
-| `ANVIL_OPA_PATH`                | `packages/anvil/policy/src/opa-binary-manager.ts`  | Custom binary path — infrastructure config       |
-| `ANVIL_AGENT_TYPE` and related  | `packages/anvil/runtime/src/concurrency/agent.ts` | Telemetry/metadata — not access gating           |
-| CI detection env vars           | `packages/anvil/core/src/provenance/collector.ts` | Build metadata collection — not rollout control  |
-| `RESEND_API_KEY`                | `apps/anvil-api/src/lib/email.ts`                 | Service credential — graceful degradation        |
-| `RESEND_BETA_AUDIENCE_ID`       | `apps/anvil-api/src/lib/audience.ts`              | Mailing list config — not feature gating         |
-| `DOCS_UPSTREAM_SECRET`          | `apps/docs-public/middleware.ts`                  | Infrastructure routing secret                    |
+| Control                        | Location                                          | Reason excluded                                  |
+| ------------------------------ | ------------------------------------------------- | ------------------------------------------------ |
+| `ANVIL_DEBUG` / `DEBUG`        | `packages/anvil/core/src/utils/debug.ts`          | Debug logging — not feature gating               |
+| `ANVIL_OPA_VERSION`            | `packages/anvil/policy/src/opa-binary-manager.ts` | Toolchain version override — not rollout control |
+| `ANVIL_OPA_PATH`               | `packages/anvil/policy/src/opa-binary-manager.ts` | Custom binary path — infrastructure config       |
+| `ANVIL_AGENT_TYPE` and related | `packages/anvil/runtime/src/concurrency/agent.ts` | Telemetry/metadata — not access gating           |
+| CI detection env vars          | `packages/anvil/core/src/provenance/collector.ts` | Build metadata collection — not rollout control  |
+| `RESEND_API_KEY`               | `apps/anvil-api/src/lib/email.ts`                 | Service credential — graceful degradation        |
+| `RESEND_BETA_AUDIENCE_ID`      | `apps/anvil-api/src/lib/audience.ts`              | Mailing list config — not feature gating         |
+| `DOCS_UPSTREAM_SECRET`         | `apps/docs-public/middleware.ts`                  | Infrastructure routing secret                    |
 
 ## Provider Swap Summary
 
