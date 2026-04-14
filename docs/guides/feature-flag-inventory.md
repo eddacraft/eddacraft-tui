@@ -15,20 +15,20 @@ Created for: `FLAGS-009`
 
 ## Summary Table
 
-| Control                          | Location                                | Classification | Target class      |
-| -------------------------------- | --------------------------------------- | -------------- | ----------------- |
-| CLI licence-gated actions        | `crates/anvil-cli/src/main.rs`          | migrate        | `entitlement`     |
-| Docs access gating               | `apps/docs-shell/proxy.ts`              | migrate        | `entitlement`     |
-| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/main.rs:171`      | migrate        | `ops_kill_switch` |
-| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer    | `entitlement`     |
-| Beta access scopes               | `apps/anvil-api/src/routes/admin.ts:15` | migrate        | `entitlement`     |
-| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`   | defer          | —                 |
-| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`     | defer          | —                 |
-| OPA agent orchestration rollout  | (no flag yet)                           | defer          | `rollout`         |
-| Tier-based product capabilities  | (no flag yet)                           | adopt          | `entitlement`     |
-| Web dashboard capabilities       | (no flag yet)                           | adopt          | `entitlement`     |
-| Dashboard AI builder             | (no flag yet)                           | adopt          | `rollout`         |
-| Tutorial / advanced TUI surfaces | (no flag yet)                           | adopt          | `rollout`         |
+| Control                          | Location                                      | Classification | Target class      |
+| -------------------------------- | --------------------------------------------- | -------------- | ----------------- |
+| CLI licence-gated actions        | `crates/anvil-cli/src/main.rs`                | migrate        | `entitlement`     |
+| Docs access gating               | `apps/docs-shell/proxy.ts`                    | migrate        | `entitlement`     |
+| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/main.rs:171`            | migrate        | `ops_kill_switch` |
+| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement`     |
+| Beta access scopes               | `apps/anvil-api/src/routes/admin.ts:15`       | migrate        | `entitlement`     |
+| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —                 |
+| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —                 |
+| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`         |
+| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement`     |
+| Web dashboard capabilities       | (no flag yet)                                 | adopt          | `entitlement`     |
+| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`         |
+| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`         |
 
 ## Existing Controls — Migrate
 
