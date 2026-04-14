@@ -32,7 +32,7 @@ release.
 - **Changelog governance:** Format (Keep a Changelog), automation, review
 - **Semver policy:** What constitutes major/minor/patch across packages
 - **Version coordination:** npm packages vs Rust crates — coupled or independent?
-- **Publish pipeline:** npm publish, cargo publish, Vercel deploy
+- **Publish pipeline:** cargo-dist binary release via GitHub Releases
 - **Pre-release strategy:** Two channels — beta (current) and production
 - **Release notes:** Auto-generated vs manual, communication strategy
 - **Breaking change process:** Migration guides, deprecation period
@@ -73,7 +73,7 @@ release.
 
 ---
 
-## Phase 1 — Policy (Draft)
+## Phase 1 — Policy (Ratified)
 
 ### RELMGMT-001: Release cadence policy and triggers
 
