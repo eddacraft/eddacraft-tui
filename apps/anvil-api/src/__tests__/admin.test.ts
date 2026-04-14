@@ -25,15 +25,13 @@ vi.mock('../db/client.js', () => ({
 // Mock queries
 vi.mock('../db/queries.js', () => ({
   findUserWithTokens: vi.fn(),
-  insertAuditLog: vi
-    .fn()
-    .mockResolvedValue({
-      id: 'audit-1',
-      action: '',
-      actor: '',
-      metadata: {},
-      created_at: new Date().toISOString(),
-    }),
+  insertAuditLog: vi.fn().mockResolvedValue({
+    id: 'audit-1',
+    action: '',
+    actor: '',
+    metadata: {},
+    created_at: new Date().toISOString(),
+  }),
   upsertWaitlistWithName: vi.fn().mockResolvedValue(undefined),
   findWaitlistEntryByEmail: vi.fn().mockResolvedValue({ id: '1' }),
   findUnapprovedWaitlistEntries: vi.fn().mockResolvedValue([]),
