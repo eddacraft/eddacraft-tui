@@ -551,7 +551,10 @@ mod tests {
         // past max_offset (15).
         let offset = viewport_scroll(18, 20, 5);
         assert!(offset <= 15, "offset {offset} exceeds max 15");
-        assert!(offset + 5 > 18, "selected item 18 not visible at offset {offset}");
+        assert!(
+            offset + 5 > 18,
+            "selected item 18 not visible at offset {offset}"
+        );
     }
 
     #[test]
@@ -566,7 +569,10 @@ mod tests {
     fn viewport_scroll_never_exceeds_max_offset() {
         for selected in 0..25 {
             let offset = viewport_scroll(selected, 20, 5);
-            assert!(offset <= 15, "selected={selected} offset={offset} exceeds max 15");
+            assert!(
+                offset <= 15,
+                "selected={selected} offset={offset} exceeds max 15"
+            );
         }
     }
 }
