@@ -32,8 +32,8 @@ engineering maintenance are recorded in the
   prevent non-deterministic OTP code selection
 - **SQL centralisation** — inline SQL in API routes extracted to `db/queries.ts`
   for consistency and auditability
-- **TUI tutorial commands** — tutorial paths synced with current CLI subcommands;
-  audit surface scroll fixed for long result lists
+- **TUI tutorial commands** — tutorial paths synced with current CLI
+  subcommands; audit surface scroll fixed for long result lists
 - **Install script** — next-steps output always printed; Homebrew tap published
   automatically on release
 - **CI stability** — Semgrep version pinned to prevent surprise breakage; OSSF
