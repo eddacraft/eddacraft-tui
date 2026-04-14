@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { getClient } from '../db/client.js';
+import { upsertWaitlistEntry } from '../db/queries.js';
 import { sendWaitlistConfirmation, sendWaitlistAdminNotification } from '../lib/email.js';
 import { addToWaitlistAudience } from '../lib/audience.js';
 
@@ -47,39 +48,25 @@ waitlist.post('/', async (c) => {
     }
 
     const sql = getClient();
-    const result = (await sql`
-      INSERT INTO waitlist (email, source)
-      VALUES (${trimmedEmail.toLowerCase()}, 'website')
-      ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
-      RETURNING id, email, created_at, (xmax = 0) AS is_new
-    `) as { id: number; email: string; created_at: string; is_new: boolean }[];
+    const entry = await upsertWaitlistEntry(sql, trimmedEmail.toLowerCase());
 
-    if (!Array.isArray(result) || result.length === 0) {
-      console.error('Waitlist insertion did not return a result');
-      return c.json({ error: 'Failed to join waitlist' }, 500);
-    }
-
-    const isNewSignup = result[0].is_new;
+    const isNewSignup = entry.is_new;
     let emailSent = false;
     let emailStatus = 'skipped';
 
     if (isNewSignup) {
-      const audienceUpdate = addToWaitlistAudience(result[0].email);
+      const audienceUpdate = addToWaitlistAudience(entry.email);
       try {
         c.executionCtx.waitUntil(audienceUpdate);
       } catch {
         void audienceUpdate;
       }
-      const delivery = await sendWaitlistConfirmation(result[0].email);
+      const delivery = await sendWaitlistConfirmation(entry.email);
       emailSent = delivery.sent;
       emailStatus = delivery.sent ? 'sent' : (delivery.code ?? 'failed');
     }
 
-    const adminNotification = sendWaitlistAdminNotification(
-      result[0].email,
-      isNewSignup,
-      emailSent
-    );
+    const adminNotification = sendWaitlistAdminNotification(entry.email, isNewSignup, emailSent);
     try {
       c.executionCtx.waitUntil(adminNotification);
     } catch {
@@ -89,7 +76,7 @@ waitlist.post('/', async (c) => {
     return c.json({
       success: true,
       message: 'Added to waitlist',
-      email: result[0].email,
+      email: entry.email,
       isNewSignup,
       emailSent,
       emailStatus,

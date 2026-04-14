@@ -8,6 +8,7 @@ import {
   consumeRefreshToken,
   revokeRefreshTokenFamily,
   insertRefreshToken,
+  findUserById,
 } from '../db/queries.js';
 import { hashToken } from '../lib/token.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
@@ -65,11 +66,7 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   }
 
   // Verify user is still active
-  const userRows = (await sql`
-    SELECT id, email, status FROM beta_users WHERE id = ${record.user_id} LIMIT 1
-  `) as { id: string; email: string; status: string }[];
-
-  const user = userRows[0];
+  const user = await findUserById(sql, record.user_id);
   if (!user || user.status !== 'active') {
     debug('user not active', { userId: record.user_id });
     return c.json({ error: 'User account is not active' }, 401);

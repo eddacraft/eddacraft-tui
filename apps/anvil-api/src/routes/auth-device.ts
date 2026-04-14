@@ -3,14 +3,21 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { getClient } from '../db/client.js';
-import { findUserByEmail } from '../db/queries.js';
+import {
+  findUserByEmail,
+  findUserById,
+  insertDeviceCode,
+  insertDummyDeviceCode,
+  findPendingDeviceCodeWithEmail,
+  confirmDeviceCode,
+  pollDeviceCode,
+  deviceCodeExistsByPollToken,
+  consumeDeviceCode,
+  insertRefreshToken,
+} from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
-
-function rows(result: unknown): Record<string, unknown>[] {
-  return result as Record<string, unknown>[];
-}
 
 const debug = createDebugger('auth-device');
 
@@ -68,19 +75,13 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
     userCode = generateUserCode();
     try {
       if (isValid) {
-        await sql`
-          INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-          VALUES (${user.id}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
-        `;
+        await insertDeviceCode(sql, user.id, userCode, pollTokenHash, expiresAt);
         debug('device code created', { userCode });
       } else {
         // F-C-003: insert a dummy row so /confirm has identical DB-query timing
         // for non-existent users. The null user_id ensures the JOIN in /confirm
         // never matches, and the row expires normally via cron cleanup.
-        await sql`
-          INSERT INTO device_codes (user_code, poll_token, expires_at)
-          VALUES (${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
-        `;
+        await insertDummyDeviceCode(sql, userCode, pollTokenHash, expiresAt);
         debug('anti-enumeration dummy device code created');
       }
       break;
@@ -117,23 +118,13 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
   const normalisedEmail = email.toLowerCase().trim();
   const sql = getClient();
 
-  const result = rows(
-    await sql`
-    SELECT dc.id, dc.confirmed_at, bu.email AS user_email
-    FROM device_codes dc
-    JOIN beta_users bu ON bu.id = dc.user_id
-    WHERE dc.user_code = ${normalisedCode}
-      AND dc.expires_at > now()
-      AND dc.confirmed_at IS NULL
-    LIMIT 1
-  `
-  );
+  const result = await findPendingDeviceCodeWithEmail(sql, normalisedCode);
 
-  if (!result[0] || result[0].user_email !== normalisedEmail) {
+  if (!result || result.user_email !== normalisedEmail) {
     return c.json({ error: 'Invalid or expired code' }, 400);
   }
 
-  await sql`UPDATE device_codes SET confirmed_at = now() WHERE id = ${result[0].id}`;
+  await confirmDeviceCode(sql, result.id);
 
   return c.json({ confirmed: true });
 });
@@ -155,32 +146,14 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
 
   // F-C-006: atomic per-token rate limiting — single UPDATE-with-WHERE
   // eliminates TOCTOU race between reading and stamping last_polled_at
-  const updated = rows(
-    await sql`
-    UPDATE device_codes
-    SET last_polled_at = now()
-    WHERE poll_token = ${pollTokenHash}
-      AND expires_at > now()
-      AND (last_polled_at IS NULL OR last_polled_at <= now() - make_interval(secs => ${POLL_INTERVAL_S}))
-    RETURNING *
-  `
-  );
-
-  const deviceCode = updated[0];
+  const deviceCode = await pollDeviceCode(sql, pollTokenHash, POLL_INTERVAL_S);
 
   if (!deviceCode) {
     // Either the token doesn't exist or the cooldown hasn't elapsed.
     // Distinguish "not found" from "rate limited" with a read-only check.
-    const existing = rows(
-      await sql`
-      SELECT id FROM device_codes
-      WHERE poll_token = ${pollTokenHash}
-        AND expires_at > now()
-      LIMIT 1
-    `
-    );
+    const exists = await deviceCodeExistsByPollToken(sql, pollTokenHash);
 
-    if (existing[0]) {
+    if (exists) {
       debug('poll rate limited (too frequent)');
       return c.json({ error: 'slow_down', retryAfter: POLL_INTERVAL_S }, 429);
     }
@@ -193,47 +166,39 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   }
 
   // Check expiry BEFORE any further side-effects (session minting)
-  const expiresAt = new Date(deviceCode['expires_at'] as string);
+  const expiresAt = new Date(deviceCode.expires_at);
   if (expiresAt.getTime() < Date.now()) {
     debug('device code expired');
     return c.json({ status: 'expired' });
   }
 
-  if (!deviceCode['confirmed_at']) {
+  if (!deviceCode.confirmed_at) {
     debug('device code pending');
     return c.json({ status: 'pending' });
   }
 
   // Confirmed — atomically consume the device code so concurrent polls
   // cannot both mint sessions (DELETE ... RETURNING ensures single-use)
-  const consumed = rows(
-    await sql`
-    DELETE FROM device_codes
-    WHERE poll_token = ${pollTokenHash}
-      AND confirmed_at IS NOT NULL
-    RETURNING user_id
-  `
-  );
+  const consumed = await consumeDeviceCode(sql, pollTokenHash);
 
-  if (!consumed[0]) {
+  if (!consumed) {
     debug('device code already consumed by concurrent request');
     return c.json({ status: 'expired' });
   }
 
   debug('device code confirmed, issuing licence');
-  const userId = String(consumed[0]['user_id']);
+  const userId = consumed.user_id;
 
-  const userRows = rows(await sql`SELECT * FROM beta_users WHERE id = ${userId} LIMIT 1`);
-  const user = userRows[0];
+  const user = await findUserById(sql, userId);
 
-  if (!user || user['status'] !== 'active') {
+  if (!user || user.status !== 'active') {
     debug('user not found or not active for confirmed device code');
     return c.json({ status: 'expired' });
   }
 
   const claims: LicenceClaims = {
-    sub: String(user['id']),
-    email: String(user['email']),
+    sub: user.id,
+    email: user.email,
     identity: { provider: 'email', id: null },
     org: null,
     tier: 'pro',
@@ -247,10 +212,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const familyId = randomUUID();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-  await sql`
-    INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
-    VALUES (${userId}, ${refreshHash}, ${familyId}, ${refreshExpiresAt.toISOString()})
-  `;
+  await insertRefreshToken(sql, userId, refreshHash, familyId, refreshExpiresAt);
 
   const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   debug('device code consumed, licence issued');

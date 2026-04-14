@@ -22,9 +22,22 @@ vi.mock('../db/client.js', () => ({
   getClient: vi.fn(() => mockSql),
 }));
 
-// Mock queries (findUserWithTokens is still used directly)
+// Mock queries
 vi.mock('../db/queries.js', () => ({
   findUserWithTokens: vi.fn(),
+  insertAuditLog: vi
+    .fn()
+    .mockResolvedValue({
+      id: 'audit-1',
+      action: '',
+      actor: '',
+      metadata: {},
+      created_at: new Date().toISOString(),
+    }),
+  upsertWaitlistWithName: vi.fn().mockResolvedValue(undefined),
+  findWaitlistEntryByEmail: vi.fn().mockResolvedValue({ id: '1' }),
+  findUnapprovedWaitlistEntries: vi.fn().mockResolvedValue([]),
+  findWaitlistBySource: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock token utilities
@@ -46,7 +59,7 @@ vi.mock('../lib/audience.js', () => ({
   removeFromBetaAudience: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { findUserWithTokens } from '../db/queries.js';
+import { findUserWithTokens, upsertWaitlistWithName } from '../db/queries.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -119,6 +132,12 @@ describe('admin endpoints', () => {
       expect(body.token).toBeUndefined();
       expect(body.user.email).toBe('alice@example.com');
       expect(body.scopes).toEqual(['beta']);
+      expect(vi.mocked(upsertWaitlistWithName)).toHaveBeenCalledWith(
+        expect.anything(),
+        'alice@example.com',
+        null,
+        'manual'
+      );
     });
 
     it('tokenOnly mode creates user and returns token', async () => {
@@ -206,6 +225,10 @@ describe('admin endpoints', () => {
       expect(body.tokens).toHaveLength(1);
       // token_hash should not be exposed
       expect(body.tokens[0]).not.toHaveProperty('token_hash');
+      expect(vi.mocked(findUserWithTokens)).toHaveBeenCalledWith(
+        expect.anything(),
+        'alice@example.com'
+      );
     });
 
     it('returns 404 for unknown user', async () => {
