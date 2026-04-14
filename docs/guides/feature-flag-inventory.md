@@ -20,7 +20,7 @@ Created for: `FLAGS-009`
 | CLI licence-gated actions        | `crates/anvil-cli/src/main.rs`          | migrate        | `entitlement`     |
 | Docs access gating               | `apps/docs-shell/proxy.ts`              | migrate        | `entitlement`     |
 | `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/main.rs:171`      | migrate        | `ops_kill_switch` |
-| `ANVIL_ADMIN_KEY` admin gating   | `apps/anvil-api/src/routes/admin.ts`    | defer          | `entitlement`     |
+| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer    | `entitlement`     |
 | Beta access scopes               | `apps/anvil-api/src/routes/admin.ts:15` | migrate        | `entitlement`     |
 | Policy profiles                  | `crates/anvil-policy/src/profiles.rs`   | defer          | —                 |
 | Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`     | defer          | —                 |
@@ -103,12 +103,11 @@ Created for: `FLAGS-009`
 
 ## Existing Controls — Defer
 
-### `ANVIL_ADMIN_KEY` admin gating
+### `ADMIN_KEY` admin gating
 
-- **Location:** `apps/anvil-api/src/routes/admin.ts` — `adminAuth` middleware
+- **Location:** `apps/anvil-api/src/middleware/admin-auth.ts`
 - **Current state:** All admin operations (user approval, waitlist management)
-  require `ANVIL_ADMIN_KEY` to be set. Requests without a matching key are
-  rejected.
+  require `ADMIN_KEY` to be set. Requests without a matching key are rejected.
 - **Classification:** **defer**
 - **Reason:** This is an infrastructure secret, not audience targeting. It
   protects sensitive admin endpoints and would remain as a server-side secret
@@ -137,10 +136,11 @@ Created for: `FLAGS-009`
 ### Per-policy enabled/disabled
 
 - **Location:** `crates/anvil-policy/src/config.rs` — `enabled: bool` field on
-  `PolicyConfig` entries; `crates/anvil-policy/src/bundle.rs` — bundle-level
-  enable/disable
+  `PolicyEntry`; `crates/anvil-policy/src/bundle.rs` — per-policy
+  `enabled: Option<bool>` in the bundle manifest
 - **Current state:** Individual policies can be toggled on or off in project
-  configuration. Bundles can also be enabled/disabled wholesale.
+  configuration. Bundle manifests can also override enablement on a per-policy
+  basis.
 - **Classification:** **defer**
 - **Reason:** Same reasoning as profiles — this is per-project configuration,
   not audience or rollout control. A policy being enabled or disabled is an
