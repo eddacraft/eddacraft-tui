@@ -62,6 +62,12 @@ These define how Anvil behaves by default. All features must align.
 | [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
 | [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
 
+## Agent Infrastructure
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [024](024-internal-agent-harness.md) | Thin agent runtime (literate-core, Apache-2.0) in monorepo; anvil-agent harness with zero-copy graph access | Proposed |
+
 ## Evaluation and Testing
 
 | ADR | Decision | Status |
