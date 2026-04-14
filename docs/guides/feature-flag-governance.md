@@ -59,7 +59,7 @@ local → preview → dev → staging → prod
 Within `prod`, use channels and deployment rings for further control:
 
 ```
-development → beta → rc → stable
+development → beta → production
 ```
 
 ### Percentage rollout

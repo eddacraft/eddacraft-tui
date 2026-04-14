@@ -43,7 +43,7 @@ export type FlagVariant = z.infer<typeof FlagVariantSchema>;
 export const EnvironmentNameSchema = z.enum(['local', 'preview', 'dev', 'staging', 'prod']);
 export type EnvironmentName = z.infer<typeof EnvironmentNameSchema>;
 
-export const ChannelSchema = z.enum(['development', 'beta', 'rc', 'stable']);
+export const ChannelSchema = z.enum(['development', 'beta', 'production']);
 export type Channel = z.infer<typeof ChannelSchema>;
 
 export const EnvironmentContextSchema = z.object({

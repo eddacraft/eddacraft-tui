@@ -123,7 +123,7 @@ git push origin vX.Y.Z
 
 Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
 all 6 targets and creates a GitHub Release automatically (pre-release for
-beta/alpha/rc tags).
+beta tags).
 
 For beta releases, either format works:
 

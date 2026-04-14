@@ -222,7 +222,7 @@ when specific work is identified.
 | [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **In Progress** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 6 | CI pipeline, all packages and crates |
+| [release-management](./modules/release-management.aps.md) | RELMGMT | 11 | CI pipeline, all packages and crates, DIST |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (6 done) | docs-site, feature modules — **In Progress** |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7 (3 done) | eddacraft-tui, RATS (done) — **In Progress** |

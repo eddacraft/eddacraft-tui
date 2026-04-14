@@ -297,7 +297,7 @@ describe('EnvironmentNameSchema', () => {
 });
 
 describe('ChannelSchema', () => {
-  it.each(['development', 'beta', 'rc', 'stable'])('accepts "%s"', (v) => {
+  it.each(['development', 'beta', 'production'])('accepts "%s"', (v) => {
     expect(ChannelSchema.parse(v)).toBe(v);
   });
 
@@ -370,7 +370,7 @@ describe('EvaluationContextSchema', () => {
   it('accepts full context', () => {
     const result = EvaluationContextSchema.safeParse({
       targetingKey: 'session-xyz',
-      environment: { environment: 'prod', channel: 'stable' },
+      environment: { environment: 'prod', channel: 'production' },
       audience: { accountTier: 'enterprise', userRole: 'admin' },
     });
     expect(result.success).toBe(true);

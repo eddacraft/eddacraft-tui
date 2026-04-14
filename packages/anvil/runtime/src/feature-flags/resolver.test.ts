@@ -38,7 +38,7 @@ function devContext(overrides: Partial<EvaluationContext> = {}): EvaluationConte
 function prodContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
   return {
     targetingKey: 'session-abc',
-    environment: { environment: 'prod', channel: 'stable' },
+    environment: { environment: 'prod', channel: 'production' },
     audience: { accountTier: 'pro' },
     ...overrides,
   } as EvaluationContext;
