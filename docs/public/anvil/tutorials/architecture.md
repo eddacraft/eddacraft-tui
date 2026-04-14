@@ -6,12 +6,12 @@ sidebar_position: 3
 
 # Architecture Boundaries
 
-Anvil enforces module boundaries by analysing import graphs. This tutorial
+anvil enforces module boundaries by analysing import graphs. This tutorial
 covers defining layers, writing an architecture file, and validating boundaries.
 
 ## Prerequisites
 
-- Anvil initialised (`anvil init`)
+- anvil initialised (`anvil init`)
 - A TypeScript or JavaScript project with at least a few directories under
   `src/`
 
@@ -74,12 +74,12 @@ Check that your architecture file is well-formed:
 anvil architecture validate
 ```
 
-If valid, Anvil confirms the layer count and dependency rules. Fix any errors
+If valid, anvil confirms the layer count and dependency rules. Fix any errors
 before proceeding.
 
 ## 4. Review the Loaded Architecture
 
-View the architecture as Anvil sees it:
+View the architecture as anvil sees it:
 
 ```bash
 anvil architecture show

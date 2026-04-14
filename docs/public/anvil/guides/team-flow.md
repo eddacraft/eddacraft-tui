@@ -1,13 +1,13 @@
 ---
 id: team-flow
 title: Team Flow
-description: Integrating Anvil into team workflows with CI/CD and code review.
+description: Integrating anvil into team workflows with CI/CD and code review.
 sidebar_position: 2
 ---
 
 # Team Flow
 
-This guide covers Anvil workflows for teams, including CI integration, PR
+This guide covers anvil workflows for teams, including CI integration, PR
 checks, and governance.
 
 ## Overview
@@ -15,18 +15,18 @@ checks, and governance.
 Team workflow adds layers to the solo flow:
 
 ```
-Developer → Local Anvil → Push → CI Anvil → PR Review → Merge
+Developer → Local anvil → Push → CI anvil → PR Review → Merge
               (catch)            (enforce)   (verify)
 ```
 
-**Local Anvil** catches issues early. **CI Anvil** enforces standards.
+**Local anvil** catches issues early. **CI anvil** enforces standards.
 **Review** verifies intent.
 
 ## CI Integration
 
 ### GitHub Actions
 
-Add Anvil to your CI workflow:
+Add anvil to your CI workflow:
 
 ```yaml
 # .github/workflows/ci.yml
@@ -44,10 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anvil
+      - name: Install anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
-      - name: Run Anvil
+      - name: Run anvil
         run: anvil gate --profile ci
 ```
 
@@ -83,10 +83,10 @@ Configure warning behaviour:
 
 ## PR Comments
 
-Anvil can post results as PR comments:
+anvil can post results as PR comments:
 
 ```yaml
-- name: Run Anvil
+- name: Run anvil
   run: anvil gate --profile ci --json > anvil-results.json
 
 - name: Comment on PR
@@ -104,12 +104,12 @@ API.
 
 ## Branch Protection
 
-Require Anvil to pass before merge:
+Require anvil to pass before merge:
 
 1. Go to **Settings → Branches → Branch protection rules**
 2. Add rule for `main`
 3. Check **Require status checks to pass**
-4. Select **Anvil** from the list
+4. Select **anvil** from the list
 
 ## Team Configuration
 
@@ -200,7 +200,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Anvil
+      - name: Install anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       # Evidence export is planned for a future release.
@@ -216,10 +216,10 @@ jobs:
 
 ### Phase 1: Shadow Mode
 
-Run Anvil in CI without blocking:
+Run anvil in CI without blocking:
 
 ```yaml
-- name: Run Anvil (Shadow)
+- name: Run anvil (Shadow)
   run: anvil gate --profile ci || true
   continue-on-error: true
 ```

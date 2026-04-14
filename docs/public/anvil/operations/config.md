@@ -1,13 +1,13 @@
 ---
 id: config
 title: Configuration
-description: Complete reference for Anvil configuration options.
+description: Complete reference for anvil configuration options.
 sidebar_position: 1
 ---
 
 # Configuration
 
-Anvil uses two configuration files and CLI flags for runtime options.
+anvil uses two configuration files and CLI flags for runtime options.
 
 ## Configuration Files
 
@@ -173,14 +173,14 @@ layers:
 
 :::caution
 
-The `schema_version` field must be exactly `"0.1.0"`. Anvil validates this on
+The `schema_version` field must be exactly `"0.1.0"`. anvil validates this on
 every run and rejects definitions with a different version.
 
 :::
 
 ### Templates
 
-Use `template` to start from a preset layer structure. Anvil fills in default
+Use `template` to start from a preset layer structure. anvil fills in default
 patterns and dependencies that you can then customise.
 
 | Template       | Layers                                                     |

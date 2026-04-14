@@ -1,13 +1,13 @@
 ---
 id: solo-dev-flow
 title: Solo Dev Flow
-description: How to use Anvil effectively as a solo developer.
+description: How to use anvil effectively as a solo developer.
 sidebar_position: 1
 ---
 
 # Solo Dev Flow
 
-This guide covers the optimal Anvil workflow for solo developers using AI
+This guide covers the optimal anvil workflow for solo developers using AI
 assistance.
 
 ## The Setup
@@ -19,7 +19,7 @@ As a solo dev, your workflow looks like:
 3. Validate as you go
 4. Commit when ready
 
-Anvil integrates at step 3, giving you confidence that AI-generated code meets
+anvil integrates at step 3, giving you confidence that AI-generated code meets
 your standards.
 
 ## Daily Workflow
@@ -41,7 +41,7 @@ Keep watch mode running in a visible terminal or use the VS Code extension.
 As you work with AI:
 
 1. **AI generates code** — you accept the suggestion
-2. **You save the file** — Anvil validates immediately
+2. **You save the file** — anvil validates immediately
 3. **Issues surface** — fix before moving on
 4. **Clean save** — continue to next task
 
@@ -112,7 +112,7 @@ Recommended config for solo development:
 
 ## VS Code Integration
 
-Install the Anvil VS Code extension for in-editor feedback (see
+Install the anvil VS Code extension for in-editor feedback (see
 [VS Code integration](/anvil/integrations/vscode) for installation
 instructions).
 
@@ -127,7 +127,7 @@ Benefits:
 
 ### 1. Trust the Feedback
 
-When Anvil warns you, don't dismiss it. The cost of fixing now is lower than
+When anvil warns you, don't dismiss it. The cost of fixing now is lower than
 fixing in production.
 
 ### 2. Suppress Thoughtfully
@@ -162,7 +162,7 @@ Even with watch mode, run a full check before pushing:
 anvil check --all && git push
 ```
 
-## When to Skip Anvil
+## When to Skip anvil
 
 Even solo, there are times to bypass:
 

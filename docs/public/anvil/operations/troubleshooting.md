@@ -7,7 +7,7 @@ sidebar_position: 3
 
 # Troubleshooting
 
-Common issues and solutions for Anvil.
+Common issues and solutions for anvil.
 
 ## Installation Issues
 
@@ -118,7 +118,7 @@ anvil check src/api/users.ts --verbose
 
 ### Watch Mode Not Detecting Changes
 
-Files changing but Anvil not responding.
+Files changing but anvil not responding.
 
 **Solutions:**
 
@@ -155,7 +155,7 @@ Files changing but Anvil not responding.
 
 ### High CPU Usage
 
-Anvil consuming too much CPU.
+anvil consuming too much CPU.
 
 **Solutions:**
 
@@ -180,7 +180,7 @@ Out of memory errors.
 
 ### False Positives
 
-Anvil flagging code that's actually fine.
+anvil flagging code that's actually fine.
 
 **Solutions:**
 
@@ -211,7 +211,7 @@ Anvil flagging code that's actually fine.
 
 ### Missing Issues
 
-Anvil not catching problems it should.
+anvil not catching problems it should.
 
 **Check:**
 
@@ -243,7 +243,7 @@ Boundary validation taking too long.
 
 ### Exit Code Always 0
 
-Anvil passing when it should fail.
+anvil passing when it should fail.
 
 **Check:**
 
@@ -308,7 +308,7 @@ Or restart VS Code.
 
 ### Path Separators in Configuration
 
-Anvil uses forward slashes (`/`) for glob patterns on all platforms. Do not use
+anvil uses forward slashes (`/`) for glob patterns on all platforms. Do not use
 backslashes in `.anvilrc` boundary patterns, even on Windows:
 
 ```json
@@ -322,7 +322,7 @@ Using `src\\api\\**` will not match.
 ### Antivirus Interference
 
 Some antivirus software (Windows Defender, Norton, etc.) can slow down watch
-mode by scanning files that Anvil accesses. If watch mode is unusually slow:
+mode by scanning files that anvil accesses. If watch mode is unusually slow:
 
 1. Add your project directory to the antivirus exclusion list
 2. Add `%USERPROFILE%\.eddacraft\` to the exclusion list
@@ -342,7 +342,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ### Long Path Support
 
-Anvil can work with long paths (> 260 characters) on Windows as long as Windows
+anvil can work with long paths (> 260 characters) on Windows as long as Windows
 long-path support is enabled and your tooling supports it. If you encounter
 path-related errors in deeply nested `node_modules`:
 
@@ -355,7 +355,7 @@ path-related errors in deeply nested `node_modules`:
 
 ### WSL vs Native Windows
 
-Anvil works in both native Windows (PowerShell/cmd) and WSL. If using WSL:
+anvil works in both native Windows (PowerShell/cmd) and WSL. If using WSL:
 
 - Use the Linux installer (`curl ... | sh`), not the Windows PowerShell one
 - File watching across the WSL/Windows boundary (e.g. `/mnt/c/`) is slow — keep
@@ -389,7 +389,7 @@ anvil check --all --verbose 2>&1 | Tee-Object anvil.log
 
 Include:
 
-- Anvil version: `anvil --version`
+- anvil version: `anvil --version`
 - OS, version, and architecture:
   - macOS / Linux: `uname -a`
   - Windows: `[System.Environment]::OSVersion` and `$env:PROCESSOR_ARCHITECTURE`
@@ -399,7 +399,7 @@ Include:
 - Steps to reproduce
 
 File at:
-[github.com/eddacraft/anvil-001/issues](https://github.com/eddacraft/anvil-001/issues)
+[github.com/eddacraft/anvil/issues](https://github.com/eddacraft/anvil/issues)
 
 ---
 

@@ -2,25 +2,25 @@
 id: beta-testing-guide
 title: Beta Testing Guide
 description:
-  Everything you need to get started testing Anvil during the early access,
+  Everything you need to get started testing anvil during the early access,
   including setup, what to test, and how to report issues.
 sidebar_position: 6
 ---
 
 # Beta Testing Guide
 
-Welcome to the Anvil early access. Thank you for helping us shape the tool —
+Welcome to the anvil early access. Thank you for helping us shape the tool —
 your feedback directly influences what we build next.
 
 **Current version:** 0.3.1-beta
 
-Anvil is a developer tool that analyses your codebase for architectural drift,
+anvil is a developer tool that analyses your codebase for architectural drift,
 anti-patterns, and convention violations, then helps you maintain consistency as
 your project evolves.
 
 :::info Native binary
 
-As of 0.3.0-beta, Anvil is a native Rust binary. The Node.js package
+As of 0.3.0-beta, anvil is a native Rust binary. The Node.js package
 (`@eddacraft/anvil-cli`) is deprecated. See
 [The Switch to Rust](./releases/rust-rewrite.md) for details and migration
 instructions.
@@ -107,7 +107,7 @@ useful.
 
 ### Core Scanning
 
-Anvil's primary function: analysing your codebase for issues.
+anvil's primary function: analysing your codebase for issues.
 
 **Commands to try:**
 
@@ -119,7 +119,7 @@ anvil watch              # Watch mode — re-scans on file changes
 **What we are looking for:**
 
 - False positives (findings that are not real issues)
-- Missed patterns (real issues that Anvil should have caught)
+- Missed patterns (real issues that anvil should have caught)
 - Performance on large projects (scan time, memory usage)
 - Accuracy of architecture detection and anti-pattern identification
 
@@ -143,7 +143,7 @@ anvil init               # Interactive setup wizard
 
 ### Interactive Tutorial
 
-A guided introduction to Anvil's features.
+A guided introduction to anvil's features.
 
 **Commands to try:**
 
@@ -181,7 +181,7 @@ anvil drift report               # Generate a drift report
 
 ### CI and Integrations
 
-Anvil integrates with your existing development workflow.
+anvil integrates with your existing development workflow.
 
 **Available integrations:**
 
@@ -198,11 +198,11 @@ Anvil integrates with your existing development workflow.
 
 Please report issues on GitHub:
 
-**[github.com/eddacraft/anvil-001/issues](https://github.com/eddacraft/anvil-001/issues)**
+**[github.com/eddacraft/anvil/issues](https://github.com/eddacraft/anvil/issues)**
 
 ### What to include
 
-- Anvil version (`anvil --version`)
+- anvil version (`anvil --version`)
 - Operating system, version, and architecture:
   - macOS / Linux: `uname -a`
   - Windows (PowerShell): `[System.Environment]::OSVersion` and
@@ -226,7 +226,7 @@ Please report issues on GitHub:
 - **False positives on unconventional structures** — some anti-pattern detectors
   may flag valid code in projects with non-standard layouts.
 - **Memory system is new** — pattern detection accuracy improves over time as
-  Anvil observes more of your project. Early results may be noisy.
+  anvil observes more of your project. Early results may be noisy.
 - **Windows ARM (aarch64)** — builds are provided but not yet tested on ARM
   Windows devices. Please report any issues you encounter.
 
@@ -235,10 +235,10 @@ Please report issues on GitHub:
 **Do I need to be online?** Authentication requires an internet connection.
 After initial setup, scanning works entirely offline.
 
-**Can I use this on private or proprietary code?** Yes. Anvil runs locally on
+**Can I use this on private or proprietary code?** Yes. anvil runs locally on
 your machine. No source code is sent to external services.
 
-**Do I need Node.js?** The Anvil binary itself has no runtime dependencies.
+**Do I need Node.js?** The anvil binary itself has no runtime dependencies.
 However, some gate checks (lint, test) shell out to your project's package
 manager, so Node.js and pnpm/npm are still needed if those checks are enabled.
 If you previously used the npm package, see

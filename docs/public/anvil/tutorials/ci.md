@@ -6,7 +6,7 @@ sidebar_position: 5
 
 # CI Integration
 
-Anvil provides three layers of protection. This tutorial covers all three:
+anvil provides three layers of protection. This tutorial covers all three:
 save-time, commit-time, and CI-time.
 
 ## Protection Layers
@@ -50,7 +50,7 @@ The final gate. Runs a full check on every push or pull request.
 
 ```yaml
 # .github/workflows/anvil.yml
-name: Anvil
+name: anvil
 
 on:
   pull_request:
@@ -63,10 +63,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anvil
+      - name: Install anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
-      - name: Run Anvil
+      - name: Run anvil
         run: anvil gate --profile ci
 ```
 
@@ -74,7 +74,7 @@ jobs:
 
 ```yaml
 # .github/workflows/anvil.yml
-name: Anvil
+name: anvil
 
 on:
   pull_request:
@@ -87,11 +87,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anvil
+      - name: Install anvil
         shell: pwsh
         run: irm https://install.eddacraft.ai/windows | iex
 
-      - name: Run Anvil
+      - name: Run anvil
         run: anvil gate --profile ci
 ```
 
@@ -114,11 +114,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anvil
+      - name: Install anvil
         shell: ${{ matrix.shell || 'bash' }}
         run: ${{ matrix.install }}
 
-      - name: Run Anvil
+      - name: Run anvil
         run: anvil gate --profile ci
 ```
 

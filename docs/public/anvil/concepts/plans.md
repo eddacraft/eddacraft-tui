@@ -8,12 +8,12 @@ sidebar_position: 4
 
 # Plans
 
-Plans define _what_ should be built. Anvil validates _how_ it's being built
+Plans define _what_ should be built. anvil validates _how_ it's being built
 against that definition.
 
 ## What is a Plan?
 
-A plan is an APS (Anvil Plan Specification) document that describes:
+A plan is an APS document that describes:
 
 - **Modules** — cohesive units of functionality
 - **Tasks** — authorised work with validation criteria
@@ -41,7 +41,7 @@ A plan is an APS (Anvil Plan Specification) document that describes:
 
 ### Determinism
 
-Plans are hash-stable. Given the same plan, Anvil produces the same validation.
+Plans are hash-stable. Given the same plan, anvil produces the same validation.
 This enables:
 
 - **Reproducible builds** — same inputs, same outputs
@@ -66,7 +66,7 @@ _what_ success looks like.
 
 ### Bounded Context
 
-Each module is a bounded context. Anvil can enforce that changes stay within
+Each module is a bounded context. anvil can enforce that changes stay within
 their module's boundaries:
 
 ```
@@ -141,17 +141,17 @@ A unit of authorised work:
 4. [ ] JWT contains user ID and expiry
 ```
 
-## Plans in Anvil
+## Plans in anvil
 
 ### Validation Against Plans
 
-When Anvil runs, it can validate that changes align with an active plan:
+When anvil runs, it can validate that changes align with an active plan:
 
 ```bash
 anvil plan validate plans/index.aps.md
 ```
 
-Anvil checks:
+anvil checks:
 
 - Are the modified files within an active task's scope?
 - Does the change align with the task's stated outcome?
@@ -159,7 +159,7 @@ Anvil checks:
 
 ### Plan-less Mode
 
-Anvil works without plans too. In this mode, it only runs gate checks
+anvil works without plans too. In this mode, it only runs gate checks
 (architecture, anti-patterns, etc.) without plan validation.
 
 ### Creating Plans
@@ -168,7 +168,7 @@ Plans can be created:
 
 - **Manually** — write APS markdown
 - **Via CLI** — `anvil plan create`
-- **From external formats** — Anvil adapters convert SpecKit, BMAD, etc.
+- **From external formats** — anvil adapters convert SpecKit, BMAD, etc.
 
 ---
 

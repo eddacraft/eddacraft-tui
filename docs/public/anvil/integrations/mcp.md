@@ -1,13 +1,13 @@
 ---
 id: mcp
 title: MCP Integration
-description: Using Anvil with Model Context Protocol servers.
+description: Using anvil with Model Context Protocol servers.
 sidebar_position: 3
 ---
 
 # MCP Integration
 
-Anvil provides an MCP (Model Context Protocol) server for AI agent integration.
+anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
 :::info Node.js package required
 
@@ -20,7 +20,7 @@ of the Rust CLI.
 
 ## What is MCP?
 
-MCP is a protocol for providing context to AI models. Anvil's MCP server
+MCP is a protocol for providing context to AI models. anvil's MCP server
 exposes:
 
 - Current project configuration and status
@@ -30,7 +30,7 @@ exposes:
 
 ## Configuration
 
-Add Anvil to your MCP configuration:
+Add anvil to your MCP configuration:
 
 ```json
 {
@@ -196,7 +196,7 @@ The MCP server exposes read-only resources:
 
 ## Example: Agent Loop
 
-An AI agent using Anvil MCP:
+An AI agent using anvil MCP:
 
 ```python
 # Pseudocode — adapt to your agent framework

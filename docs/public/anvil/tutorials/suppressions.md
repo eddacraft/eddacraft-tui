@@ -14,7 +14,7 @@ comments and `.anvil/suppressions.json` file-level suppressions work today.
 :::
 <!-- prettier-ignore-end -->
 
-Not every warning needs fixing right now. Anvil's suppression system lets you
+Not every warning needs fixing right now. anvil's suppression system lets you
 acknowledge known issues with a mandatory explanation, so nothing is silently
 ignored.
 
@@ -22,7 +22,7 @@ ignored.
 
 Suppressions are appropriate for:
 
-- **Legacy code** -- violations that exist before Anvil was adopted
+- **Legacy code** -- violations that exist before anvil was adopted
 - **Intentional decisions** -- an architectural shortcut with a documented
   reason
 - **Temporary exceptions** -- work planned for a future sprint
@@ -95,7 +95,7 @@ For files where many lines trigger the same rule, add entries to
 
 ## Bulk Suppression for Existing Codebases
 
-When adopting Anvil in a large project, you may have hundreds of existing
+When adopting anvil in a large project, you may have hundreds of existing
 violations. Add file-level suppressions to `.anvil/suppressions.json` grouped by
 directory and rule, then work through them incrementally:
 
@@ -104,7 +104,7 @@ directory and rule, then work through them incrementally:
   {
     "pattern": "src/**",
     "checks": ["AP-003", "AP-006"],
-    "reason": "Baseline: pre-Anvil adoption"
+    "reason": "Baseline: pre-anvil adoption"
   }
 ]
 ```

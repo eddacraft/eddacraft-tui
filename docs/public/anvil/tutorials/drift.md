@@ -7,12 +7,12 @@ sidebar_position: 4
 # Drift Detection
 
 Architecture drift is the gradual divergence between your intended design and
-what the code actually does. Anvil tracks drift by comparing dependency
+what the code actually does. anvil tracks drift by comparing dependency
 snapshots over time.
 
 ## Prerequisites
 
-- Anvil initialised with architecture boundaries configured
+- anvil initialised with architecture boundaries configured
 - At least one successful `anvil check --all` run
 
 ## 1. Capture a Baseline Snapshot

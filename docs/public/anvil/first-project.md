@@ -1,13 +1,13 @@
 ---
 id: first-project
 title: First Project
-description: Set up Anvil in an existing project with architecture boundaries.
+description: Set up anvil in an existing project with architecture boundaries.
 sidebar_position: 4
 ---
 
 # First Project
 
-This guide walks through setting up Anvil in an existing TypeScript project with
+This guide walks through setting up anvil in an existing TypeScript project with
 intentional architecture boundaries.
 
 ## Scenario
@@ -162,14 +162,14 @@ Now any new violations will surface immediately when you save.
 
 ## Step 6: Add to CI
 
-Add Anvil to your CI pipeline:
+Add anvil to your CI pipeline:
 
 ```yaml
 # .github/workflows/ci.yml (Linux runner)
-- name: Install Anvil
+- name: Install anvil
   run: curl -fsSL https://install.eddacraft.ai | sh
 
-- name: Run Anvil
+- name: Run anvil
   run: anvil gate --profile ci
 ```
 
@@ -177,11 +177,11 @@ For Windows runners:
 
 ```yaml
 # .github/workflows/ci.yml (Windows runner)
-- name: Install Anvil
+- name: Install anvil
   shell: pwsh
   run: irm https://install.eddacraft.ai/windows | iex
 
-- name: Run Anvil
+- name: Run anvil
   run: anvil gate --profile ci
 ```
 
@@ -190,7 +190,7 @@ appropriate exit codes.
 
 ## What You've Achieved
 
-- Anvil validates architecture boundaries on every save
+- anvil validates architecture boundaries on every save
 - New boundary violations are caught before commit
 - Anti-patterns surface immediately
 - CI blocks PRs with violations
@@ -207,5 +207,5 @@ appropriate exit codes.
 - [Architecture boundaries](/anvil/tutorials/architecture) -- templates and
   enforcement
 - [Drift detection](/anvil/tutorials/drift) -- track architectural changes
-- [CI integration](/anvil/tutorials/ci) -- add Anvil to your pipeline
+- [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
 - [Suppressions](/anvil/tutorials/suppressions) -- manage legacy warnings

@@ -6,12 +6,12 @@ sidebar_position: 2
 
 # Custom Policies
 
-Anvil evaluates custom rules written in OPA/Rego. This tutorial walks through
+anvil evaluates custom rules written in OPA/Rego. This tutorial walks through
 creating, testing, and running a policy that limits file length.
 
 ## Prerequisites
 
-- **Anvil** initialised in your project (`anvil init`)
+- **anvil** initialised in your project (`anvil init`)
 - **OPA** binary installed
   ([install guide](https://www.openpolicyagent.org/docs/latest/#running-opa))
 
@@ -27,7 +27,7 @@ opa version
 mkdir -p .anvil/policies
 ```
 
-Anvil loads every `.rego` file in this directory automatically.
+anvil loads every `.rego` file in this directory automatically.
 
 ## 2. Write the Policy
 
@@ -56,7 +56,7 @@ How it works:
 
 - `max_lines` defaults to 300 but can be overridden via `input.config`
 - The `violation` rule fires when a file exceeds the threshold
-- Anvil treats every string in the `violation` set as a warning
+- anvil treats every string in the `violation` set as a warning
 
 ## 3. Test the Policy
 
@@ -127,7 +127,7 @@ alongside the code they govern.
 | Export count       | Warn when a module exports more than a threshold           |
 
 Each policy is a standalone `.rego` file. Drop it into `.anvil/policies/` and
-Anvil picks it up on the next run.
+anvil picks it up on the next run.
 
 ---
 

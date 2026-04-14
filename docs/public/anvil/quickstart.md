@@ -1,13 +1,13 @@
 ---
 id: quickstart
 title: Quickstart
-description: Scan your project and see what Anvil finds in under 5 minutes.
+description: Scan your project and see what anvil finds in under 5 minutes.
 sidebar_position: 3
 ---
 
 # Quickstart
 
-Install Anvil, scan your project, and fix your first issue -- all in under 5
+Install anvil, scan your project, and fix your first issue -- all in under 5
 minutes.
 
 ## Prerequisites
@@ -19,7 +19,7 @@ minutes.
 
 :::info Closed beta
 
-Anvil is currently in early access. You need to
+anvil is currently in early access. You need to
 [request access](https://eddacraft.ai/#waitlist) before you can install.
 
 :::
@@ -35,9 +35,9 @@ irm https://install.eddacraft.ai/windows | iex
 brew install eddacraft/tap/anvil
 ```
 
-Anvil is a single native binary available for macOS, Linux, and Windows. Your
+anvil is a single native binary available for macOS, Linux, and Windows. Your
 project still needs Node.js and a package manager for lint and test gate checks,
-but Anvil itself has no runtime dependencies.
+but anvil itself has no runtime dependencies.
 
 :::tip Windows users
 
@@ -68,11 +68,11 @@ Run the setup wizard in your project root:
 anvil init
 ```
 
-Anvil detects your project type, creates an `.anvilrc` configuration file, and
+anvil detects your project type, creates an `.anvilrc` configuration file, and
 sets up the `.anvil/` directory:
 
 ```
-Initialising Anvil in current project...
+Initialising anvil in current project...
 
 Detected environment:
   Project: my-app
@@ -80,7 +80,7 @@ Detected environment:
   Git: yes
   TypeScript: yes
 
-Anvil initialised successfully!
+anvil initialised successfully!
 
 Created files:
   .anvilrc
@@ -89,7 +89,7 @@ Created files:
 
 ## Scan Your Project
 
-This is the moment you see what Anvil catches. Run a full scan:
+This is the moment you see what anvil catches. Run a full scan:
 
 ```bash
 anvil check --all
@@ -125,20 +125,20 @@ All gates passed.
 
 ## Turn On Watch Mode
 
-Start Anvil in the background so it validates on every save:
+Start anvil in the background so it validates on every save:
 
 ```bash
 anvil watch --source
 ```
 
 ```
-Anvil Watch
+anvil Watch
 
 Watching for changes...
 Press Ctrl+C to stop.
 ```
 
-Save a file and see Anvil catch it. Every change is validated in milliseconds,
+Save a file and see anvil catch it. Every change is validated in milliseconds,
 not minutes.
 
 :::tip
@@ -187,7 +187,7 @@ One warning down. Repeat for the rest at your own pace.
   inside your terminal
 - [Set up your first project](/anvil/first-project) -- architecture boundaries,
   suppressions, and CI
-- [Understand gates](/anvil/concepts/gates) -- what Anvil validates and why
+- [Understand gates](/anvil/concepts/gates) -- what anvil validates and why
 - [Configuration reference](/anvil/operations/config) -- customise checks,
   patterns, and watch behaviour
 
@@ -199,11 +199,11 @@ One warning down. Repeat for the rest at your own pace.
   module boundaries
 - [Drift detection](/anvil/tutorials/drift) -- capture snapshots and track
   architectural drift
-- [CI integration](/anvil/tutorials/ci) -- add Anvil to your pipeline
+- [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
 
 ---
 
 **Next:** [Set up your first project →](/anvil/first-project)
 
 **Need help?** Check [Troubleshooting](/anvil/operations/troubleshooting) or
-[open an issue](https://github.com/eddacraft/anvil-001/issues).
+[open an issue](https://github.com/eddacraft/anvil/issues).

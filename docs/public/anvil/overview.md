@@ -1,18 +1,18 @@
 ---
 id: overview
-title: What Anvil Does
+title: What anvil Does
 description:
-  Anvil catches architecture drift and AI anti-patterns at save-time, before
+  anvil catches architecture drift and AI anti-patterns at save-time, before
   they reach code review.
 sidebar_position: 1
 ---
 
-# What Anvil Does
+# What anvil Does
 
-Anvil is a deterministic development automation platform that makes AI-generated
+anvil is a deterministic development automation platform that makes AI-generated
 code changes safe for production.
 
-## The Problem Anvil Solves
+## The Problem anvil Solves
 
 AI coding assistants produce code that compiles and passes tests. But they also:
 
@@ -28,9 +28,9 @@ Code review _should_ catch these issues. But:
 - Architectural violations are subtle and easy to miss
 - By the time issues reach review, the cognitive load to fix them is high
 
-## How Anvil Works
+## How anvil Works
 
-Anvil validates changes **at save-time**—before they reach review.
+anvil validates changes **at save-time**—before they reach review.
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -41,7 +41,7 @@ Anvil validates changes **at save-time**—before they reach review.
 
 ### 1. Watch Mode
 
-Anvil runs in the background, watching for file changes:
+anvil runs in the background, watching for file changes:
 
 ```bash
 anvil watch
@@ -49,7 +49,7 @@ anvil watch
 
 ### 2. Gate Validation
 
-When files change, Anvil runs quality gates:
+When files change, anvil runs quality gates:
 
 - **Architecture boundaries** — catches new dependency edges crossing contexts
 - **Anti-pattern detection** — 13 built-in patterns (4 default, 9 opt-in)
@@ -110,16 +110,16 @@ Enable these in your `.anvilrc` when relevant to your project.
 | AP-012 | `!important` in CSS            | CSS          | warning  |
 | AP-013 | CSS `@import`                  | CSS          | info     |
 
-## What Anvil Doesn't Do
+## What anvil Doesn't Do
 
-Anvil is focused. It doesn't:
+anvil is focused. It doesn't:
 
 - **Run your tests** — use your existing test runner
 - **Format your code** — use Prettier/ESLint
 - **Deploy your code** — use your existing CI/CD
 - **Replace code review** — it augments review, not replaces it
 
-Anvil catches _structural_ and _architectural_ issues that other tools miss.
+anvil catches _structural_ and _architectural_ issues that other tools miss.
 
 ---
 

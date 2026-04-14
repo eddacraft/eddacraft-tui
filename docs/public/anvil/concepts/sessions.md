@@ -1,7 +1,7 @@
 ---
 id: sessions
 title: Sessions and Runs
-description: Understanding Anvil's execution model and artefact management.
+description: Understanding anvil's execution model and artefact management.
 sidebar_position: 2
 ---
 
@@ -11,12 +11,12 @@ sidebar_position: 2
 
 Session and run tracking commands (`anvil session start`, `anvil session end`,
 etc.) are planned for a future release. The conceptual model described here
-reflects the intended design. Currently, Anvil tracks runs internally but does
+reflects the intended design. Currently, anvil tracks runs internally but does
 not expose session management via the CLI.
 
 :::
 
-Anvil organises work into **sessions** (bounded development periods) and
+anvil organises work into **sessions** (bounded development periods) and
 **runs** (individual validation executions).
 
 ## Sessions
@@ -67,7 +67,7 @@ anvil session end
 
 ## Runs
 
-A run is a single execution of Anvil validation.
+A run is a single execution of anvil validation.
 
 ### When Runs Happen
 

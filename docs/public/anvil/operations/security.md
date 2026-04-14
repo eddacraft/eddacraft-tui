@@ -1,20 +1,20 @@
 ---
 id: security
 title: Security Model
-description: Understanding Anvil's security considerations and best practices.
+description: Understanding anvil's security considerations and best practices.
 sidebar_position: 2
 ---
 
 # Security Model
 
-Anvil is a security-conscious tool. This page covers its security model and best
+anvil is a security-conscious tool. This page covers its security model and best
 practices.
 
 ## Threat Model
 
-### What Anvil Protects Against
+### What anvil Protects Against
 
-| Threat                    | How Anvil Helps             |
+| Threat                    | How anvil helps             |
 | ------------------------- | --------------------------- |
 | Accidental secret commits | Pattern + entropy detection |
 | Architecture violations   | Import boundary enforcement |
@@ -22,20 +22,20 @@ practices.
 | Audit gaps                | Evidence trail              |
 | AI drift                  | Real-time validation        |
 
-### What Anvil Does NOT Protect Against
+### What anvil Does NOT Protect Against
 
 | Threat                   | Why Not                                |
 | ------------------------ | -------------------------------------- |
-| Malicious insiders       | Anvil is a tool, not access control    |
-| Zero-day vulnerabilities | Anvil validates patterns, not exploits |
+| Malicious insiders       | anvil is a tool, not access control    |
+| Zero-day vulnerabilities | anvil validates patterns, not exploits |
 | Supply chain attacks     | Use npm audit, Snyk, etc.              |
-| Runtime attacks          | Anvil is static analysis only          |
+| Runtime attacks          | anvil is static analysis only          |
 
 ## Secret Detection
 
 ### How It Works
 
-Anvil uses two detection methods:
+anvil uses two detection methods:
 
 1. **Pattern matching** — regex for known secret formats
 2. **Entropy analysis** — Shannon entropy for random strings
@@ -154,7 +154,7 @@ Suppressions bypass checks—govern them carefully.
 
 ### Require Explanations
 
-Anvil warns on unexplained suppressions:
+anvil warns on unexplained suppressions:
 
 ```typescript
 // ⚠️ Warning: suppression without explanation
@@ -203,7 +203,7 @@ env:
 
 ### Output Sanitisation
 
-CI output may be visible. Anvil:
+CI output may be visible. anvil:
 
 - Never logs detected secrets
 - Redacts sensitive file contents

@@ -1,13 +1,13 @@
 ---
 id: vscode
 title: VS Code Integration
-description: Using the Anvil VS Code extension for in-editor feedback.
+description: Using the anvil VS Code extension for in-editor feedback.
 sidebar_position: 2
 ---
 
 # VS Code Integration
 
-The Anvil VS Code extension provides real-time feedback directly in your editor.
+The anvil VS Code extension provides real-time feedback directly in your editor.
 
 ## Installation
 
@@ -17,7 +17,7 @@ The VS Code extension is not yet published to the VS Code Marketplace. During
 the closed beta, install it from the `.vsix` file provided with your beta
 access. If you don't have the file, contact us at
 [eddacraft.ai](https://eddacraft.ai) or check the
-[GitHub releases](https://github.com/eddacraft/anvil-001/releases) for your
+[GitHub releases](https://github.com/eddacraft/anvil/releases) for your
 version.
 
 :::
@@ -70,7 +70,7 @@ Available quick fixes:
 
 ### Status Bar
 
-The status bar shows current Anvil status:
+The status bar shows the current anvil status:
 
 - **✓ Anvil** — all clear
 - **⚠ Anvil (2)** — 2 warnings
@@ -148,20 +148,20 @@ Useful for debugging configuration issues.
 
 ### ESLint
 
-Anvil complements ESLint—they run independently:
+anvil complements ESLint—they run independently:
 
 - ESLint shows style/semantic issues
-- Anvil shows architecture/pattern issues
+- anvil shows architecture/pattern issues
 
 Both appear in Problems panel.
 
 ### Prettier
 
-Anvil doesn't interfere with Prettier formatting.
+anvil doesn't interfere with Prettier formatting.
 
 ### GitLens
 
-Anvil evidence can be viewed alongside GitLens blame info.
+anvil evidence can be viewed alongside GitLens blame info.
 
 ## Troubleshooting
 

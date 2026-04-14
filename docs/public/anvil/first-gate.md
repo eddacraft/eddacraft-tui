@@ -1,13 +1,13 @@
 ---
 id: first-gate
 title: Your First Gate Moment
-description: Experience Anvil catching an issue before it reaches review.
+description: Experience anvil catching an issue before it reaches review.
 sidebar_position: 5
 ---
 
 # Your First Gate Moment
 
-This page walks through the experience of Anvil catching an issue in real-time.
+This page walks through the experience of anvil catching an issue in real-time.
 
 ## The Scenario
 
@@ -56,7 +56,7 @@ export async function deleteUser(req: Request, res: Response) {
 
 ## Step 3: Save the File
 
-The moment you save, Anvil responds:
+The moment you save, anvil responds:
 
 ```
 Change detected: src/api/handlers/delete-user.ts
@@ -124,11 +124,11 @@ In traditional workflows:
 4. Reviewer spots the issue (hours later)
 5. You context-switch back to fix
 
-With Anvil:
+With anvil:
 
 1. AI generates code
 2. You save
-3. Anvil catches it (milliseconds)
+3. anvil catches it (milliseconds)
 4. You fix while context is fresh
 
 **Time saved:** Hours of review cycles, context-switching, and accumulated
@@ -136,7 +136,7 @@ technical debt.
 
 ## What Gates Provide
 
-| Traditional               | With Anvil                  |
+| Traditional               | With anvil                  |
 | ------------------------- | --------------------------- |
 | Issues found in review    | Issues found at save        |
 | Reviewer cognitive load   | Automated enforcement       |

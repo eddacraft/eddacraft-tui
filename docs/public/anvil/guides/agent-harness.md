@@ -1,13 +1,13 @@
 ---
 id: agent-harness
 title: Agent Harness Patterns
-description: Using Anvil as a harness for AI coding agents.
+description: Using anvil as a harness for AI coding agents.
 sidebar_position: 3
 ---
 
 # Agent Harness Patterns
 
-Anvil can serve as a "harness" for AI coding agents—constraining their actions
+anvil can serve as a "harness" for AI coding agents—constraining their actions
 and validating their outputs.
 
 ## The Problem
@@ -20,7 +20,7 @@ AI coding agents (Claude, GPT-Engineer, Aider, etc.) can:
 
 Without guardrails, agents drift from your intended architecture.
 
-## Anvil as a Harness
+## anvil as a Harness
 
 A harness constrains an agent's behaviour:
 
@@ -30,7 +30,7 @@ A harness constrains an agent's behaviour:
 │                                                 │
 │   Agent ──▶ Plan ──▶ Execute ──▶ Validate     │
 │              │                      │          │
-│              └──────── Anvil ───────┘          │
+│              └──────── anvil ───────┘          │
 │                                                 │
 └────────────────────────────────────────────────┘
 ```
@@ -61,9 +61,9 @@ Every change is validated before acceptance:
 
 ```
 Agent: "I've created src/auth/login.ts"
-Anvil: ✓ File is within allowed scope
-Anvil: ✓ No architecture violations
-Anvil: ✓ No anti-patterns detected
+anvil: ✓ File is within allowed scope
+anvil: ✓ No architecture violations
+anvil: ✓ No anti-patterns detected
 Harness: Accept change
 ```
 
@@ -71,7 +71,7 @@ Harness: Accept change
 
 ```
 Agent: "I've modified src/payments/processor.ts"
-Anvil: ✗ File outside task scope
+anvil: ✗ File outside task scope
 Harness: Reject change
 Agent: "Understood. I'll find another approach."
 ```
@@ -86,7 +86,7 @@ Wrap your agent invocation:
 #!/bin/bash
 # run-agent.sh
 
-# Start Anvil in watch mode with JSON output (background)
+# Start anvil in watch mode with JSON output (background)
 # --json is a global flag and must precede the subcommand
 anvil --json watch --source > anvil.log &
 ANVIL_PID=$!
@@ -94,7 +94,7 @@ ANVIL_PID=$!
 # Run agent
 your-agent-cli "$@"
 
-# Check Anvil results (WatchEvent uses snake_case fields)
+# Check anvil results (WatchEvent uses snake_case fields)
 if grep -q '"event_type":"violation"' anvil.log; then
   echo "Agent produced failing code"
   exit 1
@@ -105,7 +105,7 @@ kill $ANVIL_PID
 
 ### Pattern 2: MCP Integration
 
-Use Anvil's MCP server to give agents real-time access to architecture rules and
+Use anvil's MCP server to give agents real-time access to architecture rules and
 validation:
 
 ```json
@@ -139,7 +139,7 @@ Catch issues before they're committed:
 
 anvil check --changed --staged
 if [ $? -ne 0 ]; then
-  echo "Anvil validation failed. Commit blocked."
+  echo "anvil validation failed. Commit blocked."
   exit 1
 fi
 ```

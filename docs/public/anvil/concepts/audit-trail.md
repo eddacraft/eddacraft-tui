@@ -1,7 +1,7 @@
 ---
 id: audit-trail
 title: Audit Trail
-description: Understanding Anvil's provenance and trust model.
+description: Understanding anvil's provenance and trust model.
 sidebar_position: 3
 ---
 
@@ -15,7 +15,7 @@ runs but is not yet exposed via dedicated CLI commands.
 
 :::
 
-Every action in Anvil produces an auditable record. This page explains how
+Every action in anvil produces an auditable record. This page explains how
 provenance works and why it matters.
 
 ## Why Audit Trails?
@@ -27,7 +27,7 @@ When AI generates code, you need to answer:
 - **What was the result?** — pass, fail, warnings
 - **Can I reproduce it?** — same inputs, same outputs
 
-Anvil's audit trail answers all of these.
+anvil's audit trail answers all of these.
 
 ## Provenance Model
 
@@ -61,7 +61,7 @@ Provenance tracks the origin and lineage of every artefact:
 
 ## Trust Model
 
-Anvil's trust model is based on **verifiable claims**:
+anvil's trust model is based on **verifiable claims**:
 
 ### 1. Configuration is Versioned
 
@@ -166,15 +166,15 @@ anvil evidence export --session session_abc123 --format json > audit.json
 
 ## Integration with Git
 
-Anvil can attach evidence to commits:
+anvil can attach evidence to commits:
 
 ```bash
 # Include evidence reference in commit
 git commit -m "feat: add login endpoint" \
-  --trailer "Anvil-Evidence: evidence_001"
+  --trailer "anvil-evidence: evidence_001"
 ```
 
-Anvil's own commit helper (`anvil commit`) is planned for a future release.
+anvil's own commit helper (`anvil commit`) is planned for a future release.
 
 The evidence ID in the commit trailer links to the full audit record.
 

@@ -1,20 +1,20 @@
 ---
 id: github
 title: GitHub Integration
-description: Using Anvil with GitHub Actions and PR checks.
+description: Using anvil with GitHub Actions and PR checks.
 sidebar_position: 1
 ---
 
 # GitHub Integration
 
-Anvil integrates with GitHub for CI/CD validation and PR feedback.
+anvil integrates with GitHub for CI/CD validation and PR feedback.
 
 ## CI Setup
 
-Install the Anvil binary and run the gate check in your workflow:
+Install the anvil binary and run the gate check in your workflow:
 
 ```yaml
-name: Anvil CI
+name: anvil CI
 
 on:
   pull_request:
@@ -28,17 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anvil
+      - name: Install anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
-      - name: Run Anvil
+      - name: Run anvil
         run: anvil gate --profile ci
 ```
 
 For Windows runners, use the PowerShell installer:
 
 ```yaml
-- name: Install Anvil
+- name: Install anvil
   shell: pwsh
   run: irm https://install.eddacraft.ai/windows | iex
 ```
@@ -54,10 +54,10 @@ For Windows runners, use the PowerShell installer:
 
 ## PR Comments
 
-When enabled, Anvil posts a summary comment:
+When enabled, anvil posts a summary comment:
 
 ```markdown
-## Anvil Results
+## anvil Results
 
 ✓ All gates passed
 
@@ -73,7 +73,7 @@ When enabled, Anvil posts a summary comment:
 ### Comment on Failure
 
 ```markdown
-## Anvil Results
+## anvil Results
 
 ✗ 2 issues found
 
@@ -99,19 +99,19 @@ When enabled, Anvil posts a summary comment:
 
 ## Branch Protection
 
-Require Anvil before merge:
+Require anvil before merge:
 
 1. **Repository Settings** → **Branches**
 2. **Add branch protection rule** for `main`
 3. Enable **Require status checks to pass**
-4. Search and select **Anvil CI**
+4. Search and select **anvil CI**
 5. Save changes
 
-Now PRs cannot merge until Anvil passes.
+Now PRs cannot merge until anvil passes.
 
 ## Check Runs
 
-Anvil creates GitHub Check Runs for detailed inline feedback:
+anvil creates GitHub Check Runs for detailed inline feedback:
 
 - Annotations appear on specific lines in the PR diff
 - Expandable details for each issue
@@ -129,12 +129,12 @@ Anvil creates GitHub Check Runs for detailed inline feedback:
       await github.rest.checks.create({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        name: 'Anvil',
+        name: 'anvil',
         head_sha: context.sha,
         status: 'completed',
         conclusion: results.status === 'pass' ? 'success' : 'failure',
         output: {
-          title: 'Anvil Results',
+          title: 'anvil Results',
           summary: results.summary,
           annotations: results.issues.map(i => ({
             path: i.file,
@@ -149,7 +149,7 @@ Anvil creates GitHub Check Runs for detailed inline feedback:
 
 ## Monorepo Support
 
-For monorepos, run Anvil per-package using a matrix:
+For monorepos, run anvil per-package using a matrix:
 
 ```yaml
 jobs:
@@ -161,10 +161,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anvil
+      - name: Install anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
-      - name: Run Anvil
+      - name: Run anvil
         working-directory: packages/${{ matrix.package }}
         run: anvil gate --profile ci
 ```
