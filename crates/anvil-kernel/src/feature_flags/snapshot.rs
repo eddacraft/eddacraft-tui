@@ -35,7 +35,10 @@ impl Default for SnapshotConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnapshotError {
     InvalidJson(String),
-    UnsupportedSchemaVersion { got: u32, expected: u32 },
+    UnsupportedSchemaVersion {
+        got: u32,
+        expected: u32,
+    },
     MissingFields(String),
     ValueTypeMismatch {
         flag_key: String,
@@ -124,7 +127,7 @@ fn days_to_civil(days: u64) -> (u64, u64, u64) {
 // Value-type alignment
 // -------------------------------------------------------------------------
 
-fn flag_value_matches_type(value: &FlagValue, vt: &FlagValueType) -> bool {
+fn flag_value_matches_type(value: &FlagValue, vt: FlagValueType) -> bool {
     matches!(
         (value, vt),
         (FlagValue::Boolean(_), FlagValueType::Boolean)
@@ -143,7 +146,7 @@ fn flag_value_type_name(value: &FlagValue) -> &'static str {
     }
 }
 
-fn flag_value_type_label(vt: &FlagValueType) -> &'static str {
+fn flag_value_type_label(vt: FlagValueType) -> &'static str {
     match vt {
         FlagValueType::Boolean => "boolean",
         FlagValueType::String => "string",
@@ -182,11 +185,11 @@ pub fn load_snapshot(json: &str) -> Result<FeatureFlagSnapshot, SnapshotError> {
     // Validate variant values match declared value_type
     for flag in &snapshot.flags {
         for variant in &flag.variants {
-            if !flag_value_matches_type(&variant.value, &flag.value_type) {
+            if !flag_value_matches_type(&variant.value, flag.value_type) {
                 return Err(SnapshotError::ValueTypeMismatch {
                     flag_key: flag.key.clone(),
                     variant_key: variant.key.clone(),
-                    expected: flag_value_type_label(&flag.value_type).to_string(),
+                    expected: flag_value_type_label(flag.value_type).to_string(),
                     got: flag_value_type_name(&variant.value).to_string(),
                 });
             }
