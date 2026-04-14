@@ -184,7 +184,7 @@ In `crates/eddacraft-tui/src/theme/traits.rs`, add `fn border(&self) -> Color;`
 to the `Theme` trait. Update `border_unfocused()` to use `self.border()` instead
 of `self.muted()`.
 
-- [ ] **Step A2: Update eddacraftTheme to brand colours**
+- [ ] **Step A2: Update EddaCraftTheme to brand colours**
 
 Replace all colour constants in `crates/eddacraft-tui/src/theme/eddacraft.rs`
 with the eddacraft Terminal Standard:
@@ -219,7 +219,7 @@ pub fn render_shell(
     area: Rect,
     surface_name: &str,
     help_text: &str,
-    theme: &eddacraftTheme,
+    theme: &EddaCraftTheme,
 ) -> Rect
 ```
 
@@ -237,7 +237,7 @@ shows `[ ■ ] e d d a c r a f t` watermark in muted/border with version line.
 
 ```rust
 use eddacraft_tui::keyboard::Action;
-use eddacraft_tui::theme::eddacraftTheme;
+use eddacraft_tui::theme::EddaCraftTheme;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
@@ -246,7 +246,7 @@ pub trait Surface {
     fn help_text(&self) -> &'static str;
     fn handle_key(&mut self, action: Action);
     fn should_quit(&self) -> bool;
-    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &eddacraftTheme);
+    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
 }
 ```
 
@@ -274,7 +274,7 @@ impl Surface for TutorialState {
     fn help_text(&self) -> &'static str { self.help_text() }
     fn handle_key(&mut self, action: Action) { self.handle_key(action) }
     fn should_quit(&self) -> bool { self.should_quit }
-    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &eddacraftTheme) {
+    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
         render::render(frame, area, self, theme);
     }
 }

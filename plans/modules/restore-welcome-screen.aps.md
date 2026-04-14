@@ -435,7 +435,7 @@ crates/anvil-tui/src/surfaces/onboarding/complete.rs: WELCOME-017
 - `TextInputState` from `eddacraft-tui` as base for editor widget
 - `WatchEventAdapter` from `anvil-tui` watch surface for watch demo integration
 - `InitSurface` from `anvil-tui` init surface for guided init step
-- Existing `eddacraftTheme` for consistent styling
+- Existing `EddaCraftTheme` for consistent styling
 - KERN — kernel watcher for fix detection (WELCOME-010), file watching
   (WELCOME-013), and watch demo (WELCOME-014)
 

@@ -64,14 +64,14 @@ eddacraft projects from using it.
 - [x] TUIEXTRACT-001: Audit eddacraft-tui for Anvil-specific imports
   - **Result:** Zero Anvil-specific imports found. Only deps are ratatui,
     crossterm, unicode-width. The `Surface` trait and `render_shell` function
-    referenced `eddacraftTheme` concretely rather than the `Theme` trait — fixed
+    referenced `EddaCraftTheme` concretely rather than the `Theme` trait — fixed
     by genericising both.
 - [x] TUIEXTRACT-002: Create separate repo/workspace for eddacraft-tui
   - **Result:** Extracted to `eddacraft/eddacraft` on GitHub. Standalone
     Cargo.toml with pinned deps (no workspace refs). All 54 tests pass. Apache-2.0
     licence.
 - [x] TUIEXTRACT-003: Stabilise public API surface (pub items, feature flags)
-  - **Result:** `Surface<T: Theme = eddacraftTheme>` is now generic with
+  - **Result:** `Surface<T: Theme = EddaCraftTheme>` is now generic with
     backward-compatible default. `render_shell` accepts any `Theme`. Crate-level
     rustdoc added. Cargo.toml updated with publishing metadata.
 - [ ] TUIEXTRACT-004: Write widget catalogue documentation
