@@ -100,10 +100,9 @@ describe('admin endpoints', () => {
     it('default flow sends invite email and does not return token', async () => {
       // Mock waitlist insert (tagged template call)
       mockSql.mockResolvedValueOnce([]);
-      // Mock transaction: [0] = upsert user, [1] = insert token, [2] = insert device code, [3] = audit
+      // Mock transaction: [0] = upsert user, [1] = insert device code, [2] = audit
       mockSql.transaction.mockResolvedValue([
         [{ id: 'user-1', email: 'alice@example.com' }],
-        [{ id: 'token-1' }],
         [{ id: 'device-1' }],
         [{ id: 'audit-1' }],
       ]);

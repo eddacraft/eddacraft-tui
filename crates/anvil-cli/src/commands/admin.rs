@@ -23,7 +23,7 @@ enum AdminCommand {
         batch: Option<u32>,
     },
 
-    /// Invite a user to the beta (does not require waitlist signup)
+    /// Invite a user to the beta (records a manual waitlist entry for audit tracking)
     Invite {
         /// Email address to invite
         email: String,

@@ -426,6 +426,9 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/v1/admin/invite"))
+            .and(body_json(serde_json::json!({
+                "email": "new@example.com"
+            })))
             .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
                 "user": {"email": "new@example.com", "id": "uuid-1"},
                 "expiresAt": "2026-07-13T00:00:00.000Z",
@@ -447,6 +450,11 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/v1/admin/invite"))
+            .and(body_json(serde_json::json!({
+                "email": "vip@example.com",
+                "name": "VIP User",
+                "notes": "Priority access"
+            })))
             .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
                 "user": {"email": "vip@example.com", "id": "uuid-2"},
                 "expiresAt": "2026-07-13T00:00:00.000Z",
@@ -468,6 +476,10 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/v1/admin/invite"))
+            .and(body_json(serde_json::json!({
+                "email": "ci@example.com",
+                "tokenOnly": true
+            })))
             .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
                 "token": "anvil_beta_abc123",
                 "user": {"email": "ci@example.com", "id": "uuid-3"},

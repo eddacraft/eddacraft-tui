@@ -123,12 +123,8 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   // Default flow — approve via device code + invite email
   const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
 
-  const rawToken = generateToken();
-  const hash = hashToken(rawToken);
-  const tokenExpiry = new Date();
-  tokenExpiry.setDate(tokenExpiry.getDate() + days);
-
-  const userCode = 'ANVIL-' + randomBytes(8).toString('hex').toUpperCase();
+  // Device code for activation link (ANVIL- + 8 hex = 14 chars, within max(20))
+  const userCode = 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
   const pollToken = randomBytes(32).toString('hex');
   const pollTokenHash = hashToken(pollToken);
   const deviceExpiry = new Date();
@@ -141,12 +137,6 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
           name = COALESCE(${name ?? null}, beta_users.name),
           notes = COALESCE(${notes ?? null}, beta_users.notes),
           status = ${'active'}
-        RETURNING *`,
-    sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
-        VALUES (
-          (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-          ${hash}, ${scopes}, ${tokenExpiry.toISOString()}
-        )
         RETURNING *`,
     sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
         VALUES (
@@ -173,7 +163,6 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   return c.json(
     {
       user: { email: user.email, id: user.id },
-      expiresAt: tokenExpiry.toISOString(),
       scopes,
     },
     201
