@@ -72,7 +72,8 @@ docs/analysis/claude-code-safety-net-review.md
 .claude/scheduled_tasks.lock
 .claude/memory.json
 .claude/autonomous-state.json
-.claude/skills
+.claude/skills/*
+!.claude/skills/release/
 .claude/VERSION
 .claude/README.md
 .claude/CHANGELOG.md
