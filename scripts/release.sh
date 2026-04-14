@@ -122,6 +122,9 @@ create_release_issue() {
   local release_branch="$5"
 
   info "Creating release tracking issue..."
+  # Ensure the 'release' label exists (no-op if it already does)
+  gh label create "release" --repo "${REPO}" --color "0e8a16" --description "Release tracking" 2>/dev/null || true
+
   ISSUE_URL=$(gh issue create \
     --repo "${REPO}" \
     --label "release" \
