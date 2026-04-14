@@ -3,7 +3,15 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { getClient } from '../db/client.js';
-import { findUserByEmail } from '../db/queries.js';
+import {
+  findUserByEmail,
+  countActiveOtpCodes,
+  insertOtpCode,
+  findActiveOtpCodes,
+  incrementOtpAttemptsBatch,
+  consumeOtpCode,
+  insertRefreshToken,
+} from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
 import { signLicence } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
@@ -61,14 +69,9 @@ authOtp.post('/request', zValidator('json', requestSchema), async (c) => {
   }
 
   // Rate-limit: cap active (unconsumed, unexpired) codes per user
-  const activeRows = (await sql`
-    SELECT COUNT(*)::int AS count FROM otp_codes
-    WHERE user_id = ${user.id}
-      AND consumed_at IS NULL
-      AND expires_at > now()
-  `) as { count: number }[];
+  const activeCount = await countActiveOtpCodes(sql, user.id);
 
-  if (activeRows[0] && activeRows[0].count >= MAX_ACTIVE_CODES) {
+  if (activeCount >= MAX_ACTIVE_CODES) {
     debug('otp rate limit reached', { userId: user.id });
     return c.json(SUCCESS_RESPONSE);
   }
@@ -77,10 +80,7 @@ authOtp.post('/request', zValidator('json', requestSchema), async (c) => {
   const codeHash = hashOtp(code);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_SECONDS * 1000);
 
-  await sql`
-    INSERT INTO otp_codes (user_id, code_hash, expires_at)
-    VALUES (${user.id}, ${codeHash}, ${expiresAt.toISOString()})
-  `;
+  await insertOtpCode(sql, user.id, codeHash, expiresAt);
 
   const delivery = await sendOtpCode(normalised, code);
   if (!delivery.sent) {
@@ -111,13 +111,7 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
   }
 
   // Find active OTP codes for this user (unconsumed, unexpired)
-  const activeCodes = (await sql`
-    SELECT id, code_hash, attempts FROM otp_codes
-    WHERE user_id = ${user.id}
-      AND consumed_at IS NULL
-      AND expires_at > now()
-    ORDER BY created_at DESC
-  `) as { id: string; code_hash: string; attempts: number }[];
+  const activeCodes = await findActiveOtpCodes(sql, user.id);
 
   if (activeCodes.length === 0) {
     debug('no active otp codes', { userId: user.id });
@@ -131,26 +125,16 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
   if (!match || match.attempts >= MAX_ATTEMPTS) {
     // Increment attempts on all active codes
     const activeIds = activeCodes.map((row) => row.id);
-    await sql`
-      UPDATE otp_codes SET attempts = attempts + 1
-      WHERE id = ANY(${activeIds})
-    `;
+    await incrementOtpAttemptsBatch(sql, activeIds);
     debug('otp verify failed', { userId: user.id, reason: match ? 'max_attempts' : 'no_match' });
     return c.json(INVALID_CODE_ERROR, 400);
   }
 
   // Consume the matched OTP code atomically so concurrent verification
   // requests cannot both use the same code.
-  const consumedRows = (await sql`
-    UPDATE otp_codes
-    SET consumed_at = now()
-    WHERE id = ${match.id}
-      AND consumed_at IS NULL
-      AND expires_at > now()
-    RETURNING id
-  `) as { id: string }[];
+  const consumed = await consumeOtpCode(sql, match.id);
 
-  if (consumedRows.length === 0) {
+  if (!consumed) {
     debug('otp verify failed', { userId: user.id, reason: 'already_consumed_or_expired' });
     return c.json(INVALID_CODE_ERROR, 400);
   }
@@ -174,10 +158,7 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
   const familyId = randomUUID();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-  await sql`
-    INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
-    VALUES (${user.id}, ${refreshHash}, ${familyId}, ${refreshExpiresAt.toISOString()})
-  `;
+  await insertRefreshToken(sql, user.id, refreshHash, familyId, refreshExpiresAt);
 
   const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   debug('otp verified successfully', { userId: user.id });

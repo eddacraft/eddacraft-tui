@@ -6,7 +6,7 @@
 > checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Produce a 13-slide investor pitch deck (.pptx) from the approved
-direction spec and pipeline materials, following the EddaCraft design system
+direction spec and pipeline materials, following the eddacraft design system
 (Nordic Terminal / dark brutalist).
 
 **Architecture:** Three-phase approach — (1) sync pipeline source files with
@@ -16,7 +16,7 @@ two authoritative sources: `plans/pitch-deck/` (pipeline) and
 `docs/superpowers/specs/2026-03-18-pitch-deck-direction-design.md` (direction
 spec).
 
-**Tech Stack:** pptx skill (EddaCraft Design System enforced), markdown, git
+**Tech Stack:** pptx skill (eddacraft Design System enforced), markdown, git
 
 ---
 
@@ -227,7 +227,7 @@ git commit -m "docs(pitch): add valuation rationale to investor FAQ"
 
 - Create: `plans/pitch-deck/deliverables/eddacraft-anvil-pitch-deck.pptx`
 
-Use the `pptx` skill to generate the deck. The pptx skill enforces the EddaCraft
+Use the `pptx` skill to generate the deck. The pptx skill enforces the eddacraft
 Design System (dark-only, 5-colour palette, monospace headers, no decoration).
 
 **Token aliasing note:** The visual-specs.md and direction spec use shorthand
@@ -250,7 +250,7 @@ Generate a 13-slide .pptx deck using:
 - Slide copy from `plans/pitch-deck/content/slide-copy.md` (now updated)
 - Visual specs from `plans/pitch-deck/content/visual-specs.md` (now updated)
 - Data viz specs from `plans/pitch-deck/content/data-viz-specs.md`
-- EddaCraft design system palette and typography
+- eddacraft design system palette and typography
 
 Slides to generate:
 
@@ -297,7 +297,7 @@ pdftoppm -png -r 150 eddacraft-anvil-pitch-deck.pdf slide
 
 Verify visually:
 
-- EddaCraft palette applied (void background #0d0d0f, anvil-ember accent
+- eddacraft palette applied (void background #0d0d0f, anvil-ember accent
   #cc5500)
 - Typography correct (JetBrains Mono headlines, Inter body)
 - No rounded corners, no gradients, no shadows

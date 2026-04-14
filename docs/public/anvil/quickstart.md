@@ -206,4 +206,4 @@ One warning down. Repeat for the rest at your own pace.
 **Next:** [Set up your first project →](/anvil/first-project)
 
 **Need help?** Check [Troubleshooting](/anvil/operations/troubleshooting) or
-[open an issue](https://github.com/EddaCraft/anvil-001/issues).
+[open an issue](https://github.com/eddacraft/anvil-001/issues).

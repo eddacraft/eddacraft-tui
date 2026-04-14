@@ -96,7 +96,7 @@ Change status to **Ready** when:
 ## Phase 0 — Spike (Validation)
 
 > **Note:** Phase 0 spike work was validated in the standalone
-> [eddacraft-rust-kernel](https://github.com/EddaCraft/eddacraft-rust-kernel)
+> [eddacraft-rust-kernel](https://github.com/eddacraft/eddacraft-rust-kernel)
 > workspace. The `crates/spike/` path references that repo. Spike artefacts will
 > be vendored into this monorepo when Phase 1 begins.
 

@@ -1,4 +1,4 @@
-# Competitive Landscape: Anvil by EddaCraft
+# Competitive Landscape: Anvil by eddacraft
 
 ## Executive Summary
 

@@ -32,7 +32,7 @@ function findTriggeredRun(
         'run',
         'list',
         '--repo',
-        'EddaCraft/anvil-001',
+        'eddacraft/anvil-001',
         '--limit',
         '10',
         '--json',
@@ -72,14 +72,14 @@ export async function monitorWorkflow(
 ): Promise<number | undefined> {
   if (!execute) {
     print(`  ${chalk.yellow('[DRY RUN]')} Would run:`);
-    print(chalk.dim(`    gh run list --repo EddaCraft/anvil-001 --limit 5`));
-    print(chalk.dim(`    gh run watch <run-id> --repo EddaCraft/anvil-001`));
+    print(chalk.dim(`    gh run list --repo eddacraft/anvil-001 --limit 5`));
+    print(chalk.dim(`    gh run watch <run-id> --repo eddacraft/anvil-001`));
     return undefined;
   }
 
   if (!ghAvailable()) {
     print(chalk.dim('  gh CLI not found — skipping workflow monitoring'));
-    print(chalk.dim('  Run manually: gh run list --repo EddaCraft/anvil-001 --limit 5'));
+    print(chalk.dim('  Run manually: gh run list --repo eddacraft/anvil-001 --limit 5'));
     return undefined;
   }
 
@@ -89,7 +89,7 @@ export async function monitorWorkflow(
   const result = findTriggeredRun(workspaceRoot, tagName);
   if (!result) {
     print(chalk.dim('  Could not find workflow run. Check manually:'));
-    print(chalk.dim('    gh run list --repo EddaCraft/anvil-001 --limit 5'));
+    print(chalk.dim('    gh run list --repo eddacraft/anvil-001 --limit 5'));
     return undefined;
   }
 
@@ -117,7 +117,7 @@ export async function monitorWorkflow(
     await new Promise<void>((resolve) => {
       const child = spawn(
         'gh',
-        ['run', 'watch', String(run.databaseId), '--repo', 'EddaCraft/anvil-001'],
+        ['run', 'watch', String(run.databaseId), '--repo', 'eddacraft/anvil-001'],
         {
           cwd: workspaceRoot,
           stdio: 'inherit',

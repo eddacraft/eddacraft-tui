@@ -1,6 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { getClient } from '../db/client.js';
+import {
+  cleanupExpiredDeviceCodes,
+  cleanupExpiredOtpCodes,
+  cleanupExpiredRefreshTokens,
+} from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
 
 const debug = createDebugger('api');
@@ -36,28 +41,9 @@ cron.get('/cleanup', async (c) => {
   debug('GET /cron/cleanup');
   const sql = getClient();
 
-  const deviceResult = await sql`
-    DELETE FROM device_codes
-    WHERE expires_at < now() - interval '1 hour'
-    RETURNING id
-  `;
-
-  const otpResult = await sql`
-    DELETE FROM otp_codes
-    WHERE expires_at < now() - interval '1 hour'
-    RETURNING id
-  `;
-
-  const refreshResult = await sql`
-    DELETE FROM refresh_tokens
-    WHERE (expires_at < now() - interval '1 hour')
-       OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '7 days')
-    RETURNING id
-  `;
-
-  const deviceCount = Array.isArray(deviceResult) ? deviceResult.length : 0;
-  const otpCount = Array.isArray(otpResult) ? otpResult.length : 0;
-  const refreshCount = Array.isArray(refreshResult) ? refreshResult.length : 0;
+  const deviceCount = await cleanupExpiredDeviceCodes(sql);
+  const otpCount = await cleanupExpiredOtpCodes(sql);
+  const refreshCount = await cleanupExpiredRefreshTokens(sql);
 
   debug('cleanup complete', {
     deviceCodes: deviceCount,

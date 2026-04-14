@@ -1,4 +1,6 @@
-use anvil_kernel_types::{FEATURE_FLAG_SCHEMA_VERSION, FeatureFlagDefinition};
+use anvil_kernel_types::{
+    FEATURE_FLAG_SCHEMA_VERSION, FeatureFlagDefinition, FlagValue, FlagValueType,
+};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
@@ -33,8 +35,17 @@ impl Default for SnapshotConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnapshotError {
     InvalidJson(String),
-    UnsupportedSchemaVersion { got: u32, expected: u32 },
+    UnsupportedSchemaVersion {
+        got: u32,
+        expected: u32,
+    },
     MissingFields(String),
+    ValueTypeMismatch {
+        flag_key: String,
+        variant_key: String,
+        expected: String,
+        got: String,
+    },
 }
 
 impl std::fmt::Display for SnapshotError {
@@ -45,6 +56,15 @@ impl std::fmt::Display for SnapshotError {
                 write!(f, "Unsupported schema version: {got} (expected {expected})")
             }
             Self::MissingFields(msg) => write!(f, "Missing fields: {msg}"),
+            Self::ValueTypeMismatch {
+                flag_key,
+                variant_key,
+                expected,
+                got,
+            } => write!(
+                f,
+                "Flag \"{flag_key}\" variant \"{variant_key}\" value must be a {expected}, got {got}"
+            ),
         }
     }
 }
@@ -104,6 +124,38 @@ fn days_to_civil(days: u64) -> (u64, u64, u64) {
 }
 
 // -------------------------------------------------------------------------
+// Value-type alignment
+// -------------------------------------------------------------------------
+
+fn flag_value_matches_type(value: &FlagValue, vt: FlagValueType) -> bool {
+    matches!(
+        (value, vt),
+        (FlagValue::Boolean(_), FlagValueType::Boolean)
+            | (FlagValue::String(_), FlagValueType::String)
+            | (FlagValue::Number(_), FlagValueType::Number)
+            | (FlagValue::Object(_), FlagValueType::Object)
+    )
+}
+
+fn flag_value_type_name(value: &FlagValue) -> &'static str {
+    match value {
+        FlagValue::Boolean(_) => "boolean",
+        FlagValue::String(_) => "string",
+        FlagValue::Number(_) => "number",
+        FlagValue::Object(_) => "object",
+    }
+}
+
+fn flag_value_type_label(vt: FlagValueType) -> &'static str {
+    match vt {
+        FlagValueType::Boolean => "boolean",
+        FlagValueType::String => "string",
+        FlagValueType::Number => "number",
+        FlagValueType::Object => "object",
+    }
+}
+
+// -------------------------------------------------------------------------
 // Snapshot loading
 // -------------------------------------------------------------------------
 
@@ -128,6 +180,20 @@ pub fn load_snapshot(json: &str) -> Result<FeatureFlagSnapshot, SnapshotError> {
         return Err(SnapshotError::InvalidJson(
             "issuedAt must be a valid ISO timestamp".to_string(),
         ));
+    }
+
+    // Validate variant values match declared value_type
+    for flag in &snapshot.flags {
+        for variant in &flag.variants {
+            if !flag_value_matches_type(&variant.value, flag.value_type) {
+                return Err(SnapshotError::ValueTypeMismatch {
+                    flag_key: flag.key.clone(),
+                    variant_key: variant.key.clone(),
+                    expected: flag_value_type_label(flag.value_type).to_string(),
+                    got: flag_value_type_name(&variant.value).to_string(),
+                });
+            }
+        }
     }
 
     Ok(snapshot)
@@ -504,6 +570,35 @@ mod tests {
                 .to_string()
                 .contains("valid ISO timestamp")
         );
+    }
+
+    // --- value-type alignment ---
+
+    #[test]
+    fn load_snapshot_rejects_mismatched_value_type() {
+        let mut flags = test_flags();
+        // Declare boolean but supply a string variant value
+        flags[0].value_type = FlagValueType::Boolean;
+        flags[0].variants[0].value = FlagValue::String("yes".into());
+
+        let snap = create_snapshot(&flags);
+        let json = serde_json::to_string(&snap).unwrap();
+        let result = load_snapshot(&json);
+        assert!(matches!(
+            result,
+            Err(SnapshotError::ValueTypeMismatch { .. })
+        ));
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("boolean"));
+        assert!(err.to_string().contains("string"));
+    }
+
+    #[test]
+    fn load_snapshot_accepts_matching_value_types() {
+        // Already covered by load_snapshot_round_trip, but explicit for clarity
+        let snap = create_snapshot(&test_flags());
+        let json = serde_json::to_string(&snap).unwrap();
+        assert!(load_snapshot(&json).is_ok());
     }
 
     // --- C-013: clock-skew protection ---

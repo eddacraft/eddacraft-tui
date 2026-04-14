@@ -1,4 +1,4 @@
-# ADR-015: Shared Packages Restructure — Retire platform/, Consolidate into shared/
+# ADR-023: Shared Packages Restructure — Retire platform/, Consolidate into shared/
 
 ## Status
 

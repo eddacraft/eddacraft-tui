@@ -53,7 +53,7 @@ All notable changes to Anvil are documented here.
   Windows (6 targets via cargo-dist).
 - **Ratatui TUI** — all 10 interactive surfaces (welcome, tutorial, watch,
   wizard, status, doctor, init, audit, browser, gate) rebuilt using Ratatui with
-  the EddaCraft Terminal Standard design system.
+  the eddacraft Terminal Standard design system.
 - **Structured exit codes** — `0` (pass), `1` (general error), `2` (gate
   failure), `3` (auth required), `4` (config error).
 - **Docs gating** — the `/anvil` documentation is now gated behind GitHub OAuth

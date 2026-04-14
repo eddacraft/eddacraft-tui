@@ -34,14 +34,14 @@ it without breaking the public site.
 ### Threat model — what actually matters
 
 Anvil is pre-traction. Launch is 1–3 months out, but the window in which
-cloning would actually harm EddaCraft extends through traction — potentially
+cloning would actually harm eddacraft extends through traction — potentially
 6–18 months after launch. Today ~10 people are aware of the product, 1 of
 whom is an NDAd outsider, and existing public exposure of Anvil-specific
 content is near zero.
 
 The real worry driving this work is **category/clone risk**: a competitor,
 analyst, or motivated clone-builder using the high-quality Anvil
-documentation as a specification to rebuild the product before EddaCraft
+documentation as a specification to rebuild the product before eddacraft
 establishes brand and market presence. This risk does not end at launch —
 a public launch with gated docs is viable and desirable, and the gate is
 expected to remain on indefinitely for attribution and ToS leverage even

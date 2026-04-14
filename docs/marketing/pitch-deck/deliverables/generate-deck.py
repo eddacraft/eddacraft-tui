@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate the EddaCraft/Anvil 13-slide investor pitch deck.
+Generate the eddacraft/Anvil 13-slide investor pitch deck.
 
 Uses the Nordic Terminal design system:
 - Background: --void (#0d0d0f)
@@ -149,7 +149,7 @@ def add_line(slide, start_x, start_y, end_x, end_y, color=STRUCTURE, width=Pt(1)
 
 
 def add_footer(slide, text="[ \u25a0 ] e d d a c r a f t"):
-    """Add the EddaCraft footer to every slide."""
+    """Add the eddacraft footer to every slide."""
     add_textbox(
         slide, MARGIN, SLIDE_HEIGHT - Inches(0.5),
         CONTENT_W, Inches(0.4),
@@ -216,7 +216,7 @@ def build_slide_01_title(prs):
 
     # Tagline
     add_textbox(slide, MARGIN, Inches(5.0), CONTENT_W, Inches(0.6),
-                "Anvil by EddaCraft",
+                "Anvil by eddacraft",
                 font_name="Inter", font_size=24, color=TEXT_MUTED,
                 alignment=PP_ALIGN.CENTER)
 

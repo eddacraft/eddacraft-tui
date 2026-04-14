@@ -85,6 +85,8 @@ enum Commands {
     Auth(commands::auth::AuthArgs),
     /// Manage and evaluate policies.
     Policy(commands::policy::PolicyArgs),
+    /// Update anvil to the latest version.
+    Update(commands::update::UpdateArgs),
     /// Validate an APS plan file (structure, task format, hash integrity).
     Validate(commands::validate::ValidateArgs),
     /// Log in to Anvil (alias for `auth login`).
@@ -128,6 +130,7 @@ fn requires_auth(cmd: &Commands) -> bool {
         | Commands::New(_)
         | Commands::Wizard(_)
         | Commands::Hooks(_)
+        | Commands::Update(_)
         | Commands::Validate(_)
         | Commands::Login(_)
         | Commands::Logout(_) => false,
@@ -203,6 +206,22 @@ fn main() -> ExitCode {
         return ExitCode::from(code);
     }
 
+    // Update --check returns UpdateAvailable error when an update exists (exit 1).
+    if let Commands::Update(args) = &cli.command {
+        return match commands::update::run(args, &cli.global) {
+            Ok(()) => ExitCode::from(EXIT_OK),
+            Err(err) if err.is::<commands::update::UpdateAvailable>() => ExitCode::from(EXIT_ERROR),
+            Err(err) => {
+                if cli.global.json {
+                    eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
+                } else {
+                    eprintln!("Error: {err:#}");
+                }
+                ExitCode::from(EXIT_ERROR)
+            }
+        };
+    }
+
     // Gate returns Result<bool> (false = gate failed); all others return Result<()>.
     if let Commands::Gate(args) = &cli.command {
         return match commands::gate::run(args, &cli.global) {
@@ -232,7 +251,7 @@ fn main() -> ExitCode {
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
         Commands::Auth(args) => commands::auth::run(args, &cli.global),
-        Commands::Gate(_) => unreachable!("handled above"),
+        Commands::Update(_) | Commands::Gate(_) => unreachable!("handled above"),
         Commands::GateConfig(args) => commands::gate_config::run(args, &cli.global),
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
         Commands::Export(args) => commands::export::run(args, &cli.global),
@@ -376,6 +395,16 @@ mod tests {
     #[test]
     fn bypass_auth_hooks() {
         assert!(!requires_auth(&parse_command(&["hooks", "install"])));
+    }
+
+    #[test]
+    fn bypass_auth_update() {
+        assert!(!requires_auth(&parse_command(&["update"])));
+    }
+
+    #[test]
+    fn bypass_auth_update_check() {
+        assert!(!requires_auth(&parse_command(&["update", "--check"])));
     }
 
     #[test]

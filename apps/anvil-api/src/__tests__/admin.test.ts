@@ -22,9 +22,20 @@ vi.mock('../db/client.js', () => ({
   getClient: vi.fn(() => mockSql),
 }));
 
-// Mock queries (findUserWithTokens is still used directly)
+// Mock queries
 vi.mock('../db/queries.js', () => ({
   findUserWithTokens: vi.fn(),
+  insertAuditLog: vi.fn().mockResolvedValue({
+    id: 'audit-1',
+    action: '',
+    actor: '',
+    metadata: {},
+    created_at: new Date().toISOString(),
+  }),
+  upsertWaitlistWithName: vi.fn().mockResolvedValue(undefined),
+  findWaitlistEntryByEmail: vi.fn().mockResolvedValue({ id: '1' }),
+  findUnapprovedWaitlistEntries: vi.fn().mockResolvedValue([]),
+  findWaitlistBySource: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock token utilities
@@ -34,7 +45,19 @@ vi.mock('../lib/token.js', () => ({
   isValidTokenFormat: vi.fn().mockReturnValue(true),
 }));
 
-import { findUserWithTokens } from '../db/queries.js';
+// Mock email (invite flow sends beta invite)
+vi.mock('../lib/email.js', () => ({
+  sendBetaInvite: vi.fn().mockResolvedValue({ sent: true }),
+  sendWaitlistMigration: vi.fn().mockResolvedValue({ sent: true }),
+}));
+
+// Mock audience (invite flow moves to approved audience)
+vi.mock('../lib/audience.js', () => ({
+  moveToApprovedAudience: vi.fn().mockResolvedValue(undefined),
+  removeFromBetaAudience: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { findUserWithTokens, upsertWaitlistWithName } from '../db/queries.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -85,9 +108,40 @@ describe('admin endpoints', () => {
   });
 
   describe('POST /admin/invite', () => {
-    it('creates user and returns token', async () => {
-      // Mock the transaction to return results for each statement:
-      // [0] = upsert user rows, [1] = insert token rows, [2] = audit log rows
+    it('default flow sends invite email and does not return token', async () => {
+      // Mock waitlist insert (tagged template call)
+      mockSql.mockResolvedValueOnce([]);
+      // Mock transaction: [0] = upsert user, [1] = insert device code, [2] = audit
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'device-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'alice@example.com', notes: 'Design partner' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.token).toBeUndefined();
+      expect(body.user.email).toBe('alice@example.com');
+      expect(body.scopes).toEqual(['beta']);
+      expect(vi.mocked(upsertWaitlistWithName)).toHaveBeenCalledWith(
+        expect.anything(),
+        'alice@example.com',
+        null,
+        'manual'
+      );
+    });
+
+    it('tokenOnly mode creates user and returns token', async () => {
+      // Mock waitlist insert (tagged template call)
+      mockSql.mockResolvedValueOnce([]);
+      // Mock transaction: [0] = upsert user, [1] = insert token, [2] = audit
       mockSql.transaction.mockResolvedValue([
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
@@ -97,7 +151,7 @@ describe('admin endpoints', () => {
       const res = await request(
         'POST',
         '/admin/invite',
-        { email: 'alice@example.com', days: 90, notes: 'Design partner' },
+        { email: 'alice@example.com', days: 90, notes: 'CI account', tokenOnly: true },
         ADMIN_KEY
       );
 
@@ -169,6 +223,10 @@ describe('admin endpoints', () => {
       expect(body.tokens).toHaveLength(1);
       // token_hash should not be exposed
       expect(body.tokens[0]).not.toHaveProperty('token_hash');
+      expect(vi.mocked(findUserWithTokens)).toHaveBeenCalledWith(
+        expect.anything(),
+        'alice@example.com'
+      );
     });
 
     it('returns 404 for unknown user', async () => {

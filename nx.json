@@ -1,6 +1,8 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
-  "sync": { "applyChanges": true },
+  "sync": {
+    "applyChanges": true
+  },
   "azure": {
     "container": "nx-cache",
     "accountName": "stiacstateprod"
@@ -18,13 +20,21 @@
     ],
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
   },
-  "generators": { "@eddacraft/anvil-generators": { "package": { "directory": "packages" } } },
+  "generators": {
+    "@eddacraft/anvil-generators": {
+      "package": {
+        "directory": "packages"
+      }
+    }
+  },
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
       "exclude": ["archive/**"],
       "options": {
-        "typecheck": { "targetName": "typecheck" },
+        "typecheck": {
+          "targetName": "typecheck"
+        },
         "build": {
           "targetName": "build",
           "configName": "tsconfig.lib.json",
@@ -35,26 +45,49 @@
     {
       "plugin": "@nx/eslint/plugin",
       "exclude": ["archive/**"],
-      "options": { "targetName": "lint" }
+      "options": {
+        "targetName": "lint"
+      }
     },
     {
       "plugin": "@nx/vite/plugin",
       "exclude": ["archive/**"],
-      "options": { "testTarget": "test" }
+      "options": {
+        "testTarget": "test"
+      }
     }
   ],
   "targetDefaults": {
-    "build": { "dependsOn": ["^build"] },
-    "typecheck": { "dependsOn": ["^build"], "cache": true },
-    "test": { "dependsOn": ["^build"] },
-    "lint": { "dependsOn": ["eslint-plugin-anvil:build"] },
-    "watch-deps": { "cache": false },
+    "build": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["eslint-plugin-anvil:build"]
+    },
+    "watch-deps": {
+      "cache": false
+    },
     "@nx/js:tsc": {
       "cache": true,
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     },
-    "nx:run-commands": { "dependsOn": ["^build"], "inputs": ["production", "^production"] }
+    "nx:run-commands": {
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    }
   },
-  "release": { "version": { "preVersionCommand": "pnpm dlx nx run-many -t build" } }
+  "release": {
+    "version": {
+      "preVersionCommand": "pnpm dlx nx run-many -t build"
+    }
+  },
+  "analytics": true
 }

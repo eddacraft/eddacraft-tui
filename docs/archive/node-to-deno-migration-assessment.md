@@ -1,6 +1,6 @@
 # Node.js to Deno 2.6 Migration Assessment
 
-## EddaCraft Anvil Monorepo — Full End-to-End Impact Analysis
+## eddacraft Anvil Monorepo — Full End-to-End Impact Analysis
 
 **Date:** 2026-02-03 **Scope:** Complete assessment of migrating the Anvil
 monorepo from Node.js (>=20.0.0) to Deno 2.6 **Current Stack:** Node.js 24.x |

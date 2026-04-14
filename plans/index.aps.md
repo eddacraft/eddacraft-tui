@@ -1,4 +1,4 @@
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- This document is non-executable. -->
 
 # Anvil — Save-time Trust
@@ -66,7 +66,7 @@ over. See `docs/runbooks/branch-reconciliation.md` and the freeze notice in
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [branch-reconciliation](./modules/branch-reconciliation.aps.md) | BRECON | Complete | 14/14 |
+| [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md) | BRECON | Complete | 14/14 |
 
 ### Hardening & Maintenance (In Progress)
 
@@ -74,7 +74,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred, 1 in progress) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
@@ -89,7 +89,7 @@ backlog (complete) as tracked sub-modules.
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
 | [continuous-improvement](./modules/continuous-improvement.aps.md) | CI | Draft | 0/10 |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred, 1 in progress) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 ### Rust Engine (In Progress)
@@ -102,14 +102,18 @@ KERN is 22/25 done, RENG is complete, RCLI is in progress.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
+| [rust-core-engine](./archive/modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
-| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 32/62 | KERN, RATS, PORT |
-| [kernel-benchmarking](./modules/kernel-benchmarking.aps.md) | BENCH | In Progress | 6/16 | KERN Phases 1-2 |
+| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 43/64 | KERN, RATS, PORT |
+| [kernel-benchmarking](./modules/kernel-benchmarking.aps.md) | BENCH | In Progress | 15/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
+| [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
+| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./modules/tui-polish.aps.md) | POLISH | Ready | 0/7 | RCLI, RATS |
+| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
+| [distribution-pipeline](./modules/distribution-pipeline.aps.md) | DIST | Ready | 0/8 | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
@@ -128,7 +132,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
-| [docs-auth-gating](./modules/docs-auth-gating.aps.md) | DOCSAUTH | Ready | 0/7 | BAUTH, IAC |
+| [docs-auth-gating](./archive/modules/docs-auth-gating.aps.md) | DOCSAUTH | Complete | 7/7 | BAUTH, IAC |
 
 **Design specs:**
 - `docs/specs/2026-03-15-beta-auth-streamline-design.md`
@@ -159,7 +163,7 @@ to Azure Blob Storage + KeyVault. 12 tasks complete, 8 draft (Azure migration).
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [pulumi-iac](./modules/pulumi-iac.aps.md) | IAC | In Progress | 12/20 | — |
+| [pulumi-iac](./archive/modules/pulumi-iac.aps.md) | IAC | Complete | 20/20 | — |
 
 ### Web Dashboard (Ready)
 
@@ -206,6 +210,8 @@ implementation targets.
 | [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
 | [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
 | [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
+| [agent-governance-patterns](./modules/agent-governance-patterns.aps.md) | AGOV | Draft | opa-enhancements, ember |
+| [compliance-policy-packs](./modules/compliance-policy-packs.aps.md) | CPACKS | Draft | opa-enhancements, policy-pack-validation |
 
 **Why Policy:** Builds on the single-repo OPA infrastructure from 0.1.0. Requires
 multi-repo awareness, hierarchy resolution, and fleet-level aggregation that
@@ -219,13 +225,13 @@ when specific work is identified.
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
-| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **In Progress** |
+| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 8/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **In Progress** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 6 | CI pipeline, all packages and crates |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (6 done) | docs-site, feature modules — **In Progress** |
+| [release-management](./modules/release-management.aps.md) | RELMGMT | 11 | CI pipeline, all packages and crates, DIST |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (9 done) | docs-site, feature modules — **In Progress** |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
-| [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7 (3 done) | eddacraft-tui, RATS (done) — **In Progress** |
+| [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 
 ### Test Quality (Ready/Draft)
 
@@ -288,12 +294,18 @@ vision.
 
 ### Future
 
-| Feature | Description | Status |
-| ------- | ----------- | ------ |
-| Open-Spec Adapter | Parse open-spec format as planning source | Draft |
-| Real-Time Validation (Simple) | AI output validation via enhanced watch mode | Draft |
-| Real-Time Validation (Full) | Unified validation server (LSP, HTTP, stdin) | Draft |
-| PocketFlow Gateway | Gateway integration with pocketflow | Draft |
+| Module | Scope | Description | Status |
+| ------ | ----- | ----------- | ------ |
+| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Parse open-spec format as planning source | Draft |
+| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | AI output validation via enhanced watch mode | Draft |
+| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Unified validation server (LSP, HTTP, stdin) | Draft |
+| [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Gateway integration with pocketflow | Draft |
+| [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Early access migration tooling | Ready |
+| [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Early access test infrastructure | Ready |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Graph context delivery for policy evaluation | Draft |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model | Ready |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking | Ready |
+| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces | Proposed |
 
 ### What's NOT in Scope (Yet)
 

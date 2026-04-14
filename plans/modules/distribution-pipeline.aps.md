@@ -15,7 +15,7 @@ Scopes: DIST (main)
 
 ## Purpose
 
-Ship the `anvil` binary to users via a public repo (`EddaCraft/anvil`),
+Ship the `anvil` binary to users via a public repo (`eddacraft/anvil`),
 GitHub Releases, an install script at `install.eddacraft.ai`, a Homebrew
 tap, and a WinGet manifest.
 
@@ -32,14 +32,14 @@ managers (Homebrew, WinGet, scoop) that point at GitHub Release binaries.
 
 ## In Scope
 
-- Create `EddaCraft/anvil` public repo (release binaries + install docs)
+- Create `eddacraft/anvil` public repo (release binaries + install docs)
 - GitHub Actions release workflow in `anvil-001` that cross-compiles and
-  pushes binaries to `EddaCraft/anvil` Releases
+  pushes binaries to `eddacraft/anvil` Releases
 - Shell install script (Linux/macOS) and PowerShell install script (Windows)
-- GitHub Pages on `EddaCraft/anvil` serving install scripts
+- GitHub Pages on `eddacraft/anvil` serving install scripts
 - Azure DNS: CNAME `install.eddacraft.ai` → `eddacraft.github.io`
 - Pulumi resource for the DNS record
-- Homebrew tap (`EddaCraft/homebrew-tap`) for macOS users
+- Homebrew tap (`eddacraft/homebrew-tap`) for macOS users
 - WinGet manifest (`microsoft/winget-pkgs`) for Windows users
 - Optional scoop bucket for Windows developer audience
 
@@ -63,8 +63,8 @@ managers (Homebrew, WinGet, scoop) that point at GitHub Release binaries.
 **Exposes:**
 
 - `install.eddacraft.ai` — install script endpoint
-- `EddaCraft/anvil` — GitHub Releases with platform binaries
-- `EddaCraft/homebrew-tap` — Homebrew formula
+- `eddacraft/anvil` — GitHub Releases with platform binaries
+- `eddacraft/homebrew-tap` — Homebrew formula
 - `microsoft/winget-pkgs` — WinGet manifest
 
 ## Constraints
@@ -89,16 +89,16 @@ Change status to **Ready** when:
 
 ## Phase 1 — Public Repos
 
-### DIST-001: Create EddaCraft/anvil public repo
+### DIST-001: Create eddacraft/anvil public repo
 
 - **Status:** Ready
 - **Intent:** Create the public-facing repo that hosts release binaries,
   install docs, and the README that users see when they find Anvil
-- **Expected Outcome:** `github.com/EddaCraft/anvil` exists with README,
+- **Expected Outcome:** `github.com/eddacraft/anvil` exists with README,
   LICENSE, and placeholder for GitHub Pages
 - **Validation:** Repo is publicly accessible; README describes what Anvil is
   and how to install
-- **Files:** `EddaCraft/anvil/README.md`, `LICENSE`
+- **Files:** `eddacraft/anvil/README.md`, `LICENSE`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** None
@@ -107,7 +107,7 @@ Change status to **Ready** when:
 
 ## Phase 2 — Install Script + DNS
 
-> **Note:** `EddaCraft/eddacraft-tui` extraction is tracked separately in
+> **Note:** `eddacraft/eddacraft-tui` extraction is tracked separately in
 > the TUIEXTRACT module (3/7 done).
 
 ### DIST-003: Write install.sh (Linux/macOS)
@@ -121,7 +121,7 @@ Change status to **Ready** when:
   PATH instructions
 - **Validation:** Script works on Ubuntu x86_64, Ubuntu aarch64, macOS
   x86_64, macOS aarch64 (test in CI matrix)
-- **Files:** `EddaCraft/anvil/install.sh`
+- **Files:** `eddacraft/anvil/install.sh`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** DIST-001
@@ -136,24 +136,24 @@ Change status to **Ready** when:
 - **Expected Outcome:** `irm https://install.eddacraft.ai/windows | iex`
   installs the latest `anvil.exe`
 - **Validation:** Script works on Windows x86_64 (test in CI)
-- **Files:** `EddaCraft/anvil/install.ps1`
+- **Files:** `eddacraft/anvil/install.ps1`
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** DIST-001
 
 ---
 
-### DIST-005: Configure GitHub Pages on EddaCraft/anvil
+### DIST-005: Configure GitHub Pages on eddacraft/anvil
 
 - **Status:** Ready
 - **Intent:** Serve install scripts via GitHub Pages so
   `install.eddacraft.ai` resolves to the shell script and
   `install.eddacraft.ai/windows` resolves to the PowerShell script
-- **Expected Outcome:** GitHub Pages enabled on `EddaCraft/anvil`, serving
+- **Expected Outcome:** GitHub Pages enabled on `eddacraft/anvil`, serving
   from root or `/docs` directory, with a CNAME file for custom domain
 - **Validation:** `curl -fsSL https://eddacraft.github.io/anvil/install.sh`
   returns the install script
-- **Files:** `EddaCraft/anvil/CNAME`, `EddaCraft/anvil/index.html` (redirect
+- **Files:** `eddacraft/anvil/CNAME`, `eddacraft/anvil/index.html` (redirect
   to install.sh or landing page)
 - **Confidence:** high
 - **Priority:** High
@@ -184,10 +184,10 @@ Change status to **Ready** when:
 - **Status:** Ready
 - **Intent:** GitHub Actions workflow in `anvil-001` that builds release
   binaries for all 5 targets (Linux x86_64/aarch64, macOS x86_64/aarch64,
-  Windows x86_64) on tag push, then uploads them to `EddaCraft/anvil`
+  Windows x86_64) on tag push, then uploads them to `eddacraft/anvil`
   Releases via a deploy key
 - **Expected Outcome:** Pushing a `v*` tag to `anvil-001` produces a GitHub
-  Release on `EddaCraft/anvil` with 5 platform binaries + checksums
+  Release on `eddacraft/anvil` with 5 platform binaries + checksums
 - **Validation:** Tag `v0.3.0-beta`, verify all 5 binaries appear on the
   public release; checksums match local builds
 - **Files:** `.github/workflows/release.yml` (update existing cargo-dist
@@ -232,12 +232,12 @@ Change status to **Ready** when:
 ### DIST-009: Homebrew tap
 
 - **Status:** Ready
-- **Intent:** Create `EddaCraft/homebrew-tap` repo with a formula for
+- **Intent:** Create `eddacraft/homebrew-tap` repo with a formula for
   `anvil` that downloads the macOS binary from GitHub Releases
 - **Expected Outcome:** `brew install eddacraft/tap/anvil` installs the
   latest version
 - **Validation:** `brew install eddacraft/tap/anvil && anvil --version`
-- **Files:** `EddaCraft/homebrew-tap/Formula/anvil.rb`
+- **Files:** `eddacraft/homebrew-tap/Formula/anvil.rb`
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** DIST-007
@@ -266,7 +266,7 @@ Change status to **Ready** when:
   on a clean Windows VM.
 - **Files:**
   - WinGet manifest YAML in
-    `microsoft/winget-pkgs/manifests/e/EddaCraft/Anvil/<version>/`
+    `microsoft/winget-pkgs/manifests/e/eddacraft/Anvil/<version>/`
   - `anvil-001` release workflow extension to auto-generate and
     submit the manifest on each tagged release (use
     `vedantmgoyal2009/winget-releaser` or
@@ -282,16 +282,16 @@ Change status to **Ready** when:
 ### DIST-011: Scoop bucket (optional)
 
 - **Status:** Ready
-- **Intent:** Create `EddaCraft/scoop-bucket` repo with a manifest for
+- **Intent:** Create `eddacraft/scoop-bucket` repo with a manifest for
   `anvil` that downloads the Windows binary from GitHub Releases.
   Scoop is the popular community Windows package manager favoured
   by developer audiences (lighter weight than WinGet, single-line
   install).
-- **Expected Outcome:** `scoop bucket add eddacraft https://github.com/EddaCraft/scoop-bucket && scoop install anvil`
+- **Expected Outcome:** `scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket && scoop install anvil`
   installs the latest version.
 - **Validation:** clean Windows VM with scoop pre-installed,
   `scoop install eddacraft/anvil && anvil --version`.
-- **Files:** `EddaCraft/scoop-bucket/bucket/anvil.json`
+- **Files:** `eddacraft/scoop-bucket/bucket/anvil.json`
 - **Confidence:** high
 - **Priority:** Medium (WinGet is the primary Windows path; scoop is
   the developer-audience polish)
@@ -303,7 +303,7 @@ Change status to **Ready** when:
 
 | Risk | Likelihood | Impact | Mitigation |
 | ---- | ---------- | ------ | ---------- |
-| Cross-repo release auth (PAT/deploy key) | Medium | High | Use fine-grained PAT scoped to EddaCraft/anvil repo |
+| Cross-repo release auth (PAT/deploy key) | Medium | High | Use fine-grained PAT scoped to eddacraft/anvil repo |
 | DNS propagation delay | Low | Low | Set up CNAME early; 48h buffer before beta |
 | GitHub Pages HTTPS cert for custom domain | Low | Low | GitHub auto-provisions Let's Encrypt cert |
 | Install script platform detection edge cases | Medium | Low | Test in CI matrix; fall back to manual download |

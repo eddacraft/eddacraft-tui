@@ -14,6 +14,7 @@ pub mod new;
 pub mod policy;
 pub mod status;
 pub mod tutorial;
+pub mod update;
 pub mod validate;
 pub mod watch;
 pub mod welcome;

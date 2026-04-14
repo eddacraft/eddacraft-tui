@@ -530,7 +530,7 @@ The following are **OUT OF SCOPE** for v1:
 
 ## Licence
 
-Copyright (c) 2026 EddaCraft. All rights reserved. See [LICENSE](../../LICENSE)
+Copyright (c) 2026 eddacraft. All rights reserved. See [LICENSE](../../LICENSE)
 for details.
 
 ## See Also
@@ -538,5 +538,5 @@ for details.
 - [CONTRACTS.md](./CONTRACTS.md) -- One-page contract summary
 - [Kindling Integration Plan](../../plans/modules/kindling-integration.aps.md)
   -- APS module specification
-- [Kindling Repository](https://github.com/EddaCraft/kindling) -- Core Kindling
+- [Kindling Repository](https://github.com/eddacraft/kindling) -- Core Kindling
   implementation

@@ -12,11 +12,10 @@ fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize 
     if total <= visible_rows || visible_rows == 0 {
         return 0;
     }
-    if selected < visible_rows {
-        0
-    } else {
-        selected - visible_rows + 1
-    }
+    let max_offset = total.saturating_sub(visible_rows);
+    selected
+        .saturating_sub(visible_rows.saturating_sub(1))
+        .min(max_offset)
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
@@ -531,5 +530,49 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    // ── viewport_scroll unit tests ──────────────────────────────────
+
+    #[test]
+    fn viewport_scroll_zero_visible_rows() {
+        assert_eq!(viewport_scroll(5, 10, 0), 0);
+    }
+
+    #[test]
+    fn viewport_scroll_all_items_fit() {
+        assert_eq!(viewport_scroll(3, 5, 10), 0);
+        assert_eq!(viewport_scroll(0, 5, 5), 0);
+    }
+
+    #[test]
+    fn viewport_scroll_near_end() {
+        // 20 items, 5 visible — selecting item 18 should scroll but not
+        // past max_offset (15).
+        let offset = viewport_scroll(18, 20, 5);
+        assert!(offset <= 15, "offset {offset} exceeds max 15");
+        assert!(
+            offset + 5 > 18,
+            "selected item 18 not visible at offset {offset}"
+        );
+    }
+
+    #[test]
+    fn viewport_scroll_single_visible_row() {
+        // With only 1 visible row the selected item IS the scroll offset,
+        // clamped to max_offset.
+        assert_eq!(viewport_scroll(3, 10, 1), 3);
+        assert_eq!(viewport_scroll(9, 10, 1), 9);
+    }
+
+    #[test]
+    fn viewport_scroll_never_exceeds_max_offset() {
+        for selected in 0..25 {
+            let offset = viewport_scroll(selected, 20, 5);
+            assert!(
+                offset <= 15,
+                "selected={selected} offset={offset} exceeds max 15"
+            );
+        }
     }
 }

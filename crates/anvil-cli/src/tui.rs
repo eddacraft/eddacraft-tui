@@ -250,6 +250,29 @@ fn watch_demo_loop(
     Ok(())
 }
 
+/// Run the tutorial surface inside an already-initialised terminal session,
+/// with optional file-watcher integration (WELCOME-013). When `file_rx` is
+/// `Some`, file-change events trigger automatic re-verification on watched
+/// steps. The loop also exits on `wants_watch_demo` (WELCOME-014).
+pub fn run_tutorial_in(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    file_rx: Option<&Receiver<anvil_kernel::watcher::events::ChangeBatch>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    tutorial_loop(terminal, state, file_rx, theme)
+}
+
+/// Run the watch demo inside an already-initialised terminal session.
+pub fn run_watch_demo_in(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    mut state: anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
+    event_rx: &Receiver<EngineEvent>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    watch_demo_loop(terminal, &mut state, event_rx, theme)
+}
+
 /// Run the watch dashboard, draining kernel events from the given channel.
 #[allow(dead_code)]
 pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> anyhow::Result<()> {

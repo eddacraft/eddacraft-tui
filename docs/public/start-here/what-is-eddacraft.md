@@ -1,15 +1,15 @@
 ---
 id: what-is-eddacraft
-title: What is EddaCraft?
+title: What is eddacraft?
 description:
-  EddaCraft is the umbrella organisation building tools for governed AI-assisted
+  eddacraft is the umbrella organisation building tools for governed AI-assisted
   development.
 sidebar_position: 1
 ---
 
-# What is EddaCraft?
+# What is eddacraft?
 
-**EddaCraft** is the forge for governed AI-assisted work. We build tools that
+**eddacraft** is the forge for governed AI-assisted work. We build tools that
 make AI-generated code changes safe for production—without sacrificing velocity.
 
 ## The Problem
@@ -39,7 +39,7 @@ Every change is:
 
 ## The Products
 
-EddaCraft develops tools across three capability areas:
+eddacraft develops tools across three capability areas:
 
 - Deterministic planning
 - Save-time governance

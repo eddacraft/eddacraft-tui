@@ -42,24 +42,13 @@ jobs:
         uses: ./.github/actions/detect-changes
 
   # ── SAST: Semgrep ─────────────────────────────────────────────
-  # TODO(ci): Semgrep is currently non-functional:
-  #   1. .semgrep.yml has invalid format (mixes registry packs with rules: key)
-  #   2. returntocorp/semgrep-action@v1 is deprecated (always exits 0)
-  #   3. SARIF upload can still fail in restricted token contexts (for example,
-  #      pull requests from forks), even though this job already requests
-  #      security-events: write
-  # Tracked in: #852
-  # Fix: upgrade to semgrep/semgrep-action, fix .semgrep.yml, and ensure any
-  #      SARIF-uploading context has security-events: write or skips upload
-  #      when GitHub restricts the token.
   semgrep:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
     needs: detect-changes
-    # DISABLED: Semgrep is non-functional — see #852. Job is skipped so it
-    # does not appear as a passing security check in PR summaries.
-    if: false
+    if: needs.detect-changes.outputs.code-changed == 'true'
     permissions:
+      actions: read
       contents: read
       security-events: write
     steps:
@@ -67,12 +56,12 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Semgrep
-        uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
-        with:
-          config: .semgrep.yml
-          generateSarif: '1'
+        continue-on-error: true
+        run: |
+          python3 -m pip install --quiet semgrep==1.76.0
+          semgrep ci --sarif --output=semgrep.sarif
         env:
-          SEMGREP_RULES: p/owasp-top-ten p/typescript p/nodejs
+          SEMGREP_RULES: p/owasp-top-ten p/typescript p/nodejs .semgrep/
 
       - name: Upload SARIF to GitHub Security
         if: always()

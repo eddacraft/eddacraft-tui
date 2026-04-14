@@ -430,16 +430,77 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     })
 }
 
-/// Run the tutorial surface in a loop, handling 'f' fix requests.
-/// When the user presses 'f' in the tutorial, we exit the surface, create a
-/// `FixState` for the top finding, run it, then resume the tutorial.
+/// Try to start a file watcher for the tutorial. Returns the receiver and
+/// handle on success, or `None` if the watcher cannot be started (e.g.
+/// inotify limit reached, no project directory).
+fn try_start_tutorial_watcher() -> Option<(
+    std::sync::mpsc::Receiver<anvil_kernel::watcher::events::ChangeBatch>,
+    anvil_kernel::watcher::WatcherHandle,
+)> {
+    let root = crate::util::workspace_root().ok()?;
+    let config = anvil_kernel::watcher::WatcherConfig {
+        root,
+        debounce_window: std::time::Duration::from_millis(300),
+        filter: Some(anvil_kernel::watcher::filter::FileFilter::default()),
+        ..Default::default()
+    };
+    match anvil_kernel::watcher::start_watcher(&config) {
+        Ok((handle, rx)) => Some((rx, handle)),
+        Err(_) => None,
+    }
+}
+
+/// Run the tutorial surface in a loop, handling 'f' fix requests and watch
+/// demo launches. When a file watcher is available (WELCOME-013), file
+/// changes trigger automatic re-verification on watched steps. When the
+/// user triggers a watch demo step (WELCOME-014), the watch demo surface
+/// is launched and the tutorial resumes afterward.
 fn run_tutorial_with_fix(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
 ) -> anyhow::Result<SurfaceExit> {
+    // Try to start a file watcher for live verification (WELCOME-013).
+    // If unavailable, the tutorial enters static mode (all steps become
+    // informational press-enter-to-continue, commands are not executed).
+    let mut watcher = try_start_tutorial_watcher();
+
+    if watcher.is_none() {
+        tutorial_state.enable_static_mode();
+    }
+
     loop {
-        let exit = crate::tui::run_surface_in(terminal, tutorial_state, theme)?;
+        let file_rx = watcher.as_ref().map(|(rx, _)| rx);
+
+        // Use the tutorial-specific loop that drains file-change events
+        // and checks for wants_watch_demo exit.
+        crate::tui::run_tutorial_in(terminal, tutorial_state, file_rx, theme)?;
+
+        // Reset transient exit flags to prevent stale state from causing
+        // immediate re-exit on the next loop iteration.
+        tutorial_state.wants_back = false;
+
+        if tutorial_state.wants_watch_demo {
+            tutorial_state.wants_watch_demo = false;
+
+            // Drop the tutorial watcher before launching the watch demo
+            // to avoid two concurrent watchers over the same root, which
+            // would double inotify descriptor usage (C-001).
+            drop(watcher.take());
+
+            // Treat failures as best-effort so the welcome/tutorial flow
+            // resumes instead of aborting.
+            if let Err(err) = run_watch_demo_from_tutorial(terminal, theme) {
+                eprintln!("Watch demo unavailable: {err:#}");
+            }
+
+            // Advance past the watch demo step and resume.
+            tutorial_state.advance_step();
+
+            // Restart the tutorial watcher for remaining steps.
+            watcher = try_start_tutorial_watcher();
+            continue;
+        }
 
         if tutorial_state.wants_fix {
             tutorial_state.wants_fix = false;
@@ -480,12 +541,86 @@ fn run_tutorial_with_fix(
                     });
                 }
             }
-            // Resume the tutorial — loop back to run_surface_in.
+            // Resume the tutorial — loop back.
             continue;
         }
 
-        return Ok(exit);
+        if tutorial_state.should_quit {
+            return Ok(SurfaceExit::Quit);
+        }
+        return Ok(SurfaceExit::Back);
     }
+}
+
+/// Launch the watch mode demo from within a tutorial (WELCOME-014).
+/// Starts the kernel watcher, runs the demo surface with guided overlay,
+/// and cleans up the watcher on exit.
+fn run_watch_demo_from_tutorial(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    use anvil_tui::surfaces::watch::{WatchData, WatchStats, WatchStatus};
+
+    crate::tui::draw_loading(terminal, "Watch Demo", "Starting watch mode\u{2026}", theme)?;
+
+    let Ok(workspace_root) = crate::util::workspace_root() else {
+        timed_loading(
+            terminal,
+            "Watch Demo",
+            "Could not determine project root \u{2014} skipping demo.",
+            theme,
+            std::time::Duration::from_secs(1),
+        )?;
+        return Ok(());
+    };
+
+    let watcher_config = anvil_kernel::watcher::WatcherConfig {
+        root: workspace_root.clone(),
+        debounce_window: std::time::Duration::from_millis(300),
+        filter: Some(anvil_kernel::watcher::filter::FileFilter::default()),
+        ..Default::default()
+    };
+
+    let watch_config = anvil_kernel::watch::WatchConfig {
+        root: workspace_root,
+        architecture_config: None,
+        watcher: watcher_config,
+        include_patterns: vec!["**/*".to_string()],
+        exclude_patterns: Vec::new(),
+    };
+
+    let (event_tx, event_rx) = std::sync::mpsc::channel();
+
+    let Ok(handle) = anvil_kernel::watch::run_watch(&watch_config, event_tx) else {
+        timed_loading(
+            terminal,
+            "Watch Demo",
+            "File watcher unavailable \u{2014} skipping demo.",
+            theme,
+            std::time::Duration::from_secs(1),
+        )?;
+        return Ok(());
+    };
+
+    let data = WatchData {
+        status: WatchStatus::Idle,
+        queue: std::collections::VecDeque::new(),
+        history: Vec::new(),
+        stats: WatchStats {
+            total_runs: 0,
+            pass_rate: 0.0,
+            avg_duration_ms: 0,
+            files_watched: 0,
+        },
+    };
+
+    let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);
+    crate::tui::run_watch_demo_in(terminal, state, &event_rx, theme)?;
+
+    if let Err(error) = handle.stop() {
+        eprintln!("Failed to stop watch demo watcher: {error}");
+    }
+    Ok(())
 }
 
 /// Start watch mode from the welcome hub. Sets up the kernel watcher,
@@ -623,11 +758,7 @@ fn run_welcome_hub(
                 if let Some(results) = run_discovery(terminal, theme)? {
                     let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
                     tutorial_state.set_scan_results(results);
-                    // No file watcher available from the welcome hub, so run
-                    // in static mode (watch/demo steps become informational).
-                    tutorial_state.enable_static_mode();
-                    let sub_exit =
-                        crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
+                    let sub_exit = run_tutorial_with_fix(terminal, theme, &mut tutorial_state)?;
                     if sub_exit == SurfaceExit::Quit {
                         break;
                     }

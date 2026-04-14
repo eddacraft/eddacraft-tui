@@ -399,7 +399,7 @@ Include:
 - Steps to reproduce
 
 File at:
-[github.com/EddaCraft/anvil-001/issues](https://github.com/EddaCraft/anvil-001/issues)
+[github.com/eddacraft/anvil-001/issues](https://github.com/eddacraft/anvil-001/issues)
 
 ---
 

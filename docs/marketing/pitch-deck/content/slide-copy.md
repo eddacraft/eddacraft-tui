@@ -4,7 +4,7 @@
 
 ## Slide 1: Title
 
-**Headline**: AI governance for developers **Subhead**: Anvil by EddaCraft
+**Headline**: AI governance for developers **Subhead**: Anvil by eddacraft
 
 **Body**:
 

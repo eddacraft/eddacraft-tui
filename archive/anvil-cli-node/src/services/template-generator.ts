@@ -334,7 +334,7 @@ ${env.hasEslint ? '- ESLint (linting)' : ''}
 ## Appendix
 
 ### References
-- Anvil Documentation: https://github.com/EddaCraft/anvil-001
+- Anvil Documentation: https://github.com/eddacraft/anvil-001
 - BMAD Format Guide: See adapters documentation
 
 ### Revision History

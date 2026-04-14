@@ -7,6 +7,7 @@ tmp
 out-tsc
 *.tsbuildinfo
 .next
+.docusaurus
 
 # dependencies
 node_modules
@@ -72,7 +73,8 @@ docs/analysis/claude-code-safety-net-review.md
 .claude/scheduled_tasks.lock
 .claude/memory.json
 .claude/autonomous-state.json
-.claude/skills
+.claude/skills/*
+!.claude/skills/release/
 .claude/VERSION
 .claude/README.md
 .claude/CHANGELOG.md
@@ -118,6 +120,9 @@ infra/import.json
 target/
 **/*.rs.bk
 
+# Ephemeral release manifest
+.release/
+
 # Local machine state and secrets
 settings.local.json
 logs/
@@ -131,3 +136,4 @@ autonomous-state.json
 
 # Local review artefacts
 review/
+plans/reviews/

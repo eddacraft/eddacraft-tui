@@ -17,7 +17,7 @@ The VS Code extension is not yet published to the VS Code Marketplace. During
 the closed beta, install it from the `.vsix` file provided with your beta
 access. If you don't have the file, contact us at
 [eddacraft.ai](https://eddacraft.ai) or check the
-[GitHub releases](https://github.com/EddaCraft/anvil-001/releases) for your
+[GitHub releases](https://github.com/eddacraft/anvil-001/releases) for your
 version.
 
 :::

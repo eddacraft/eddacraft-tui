@@ -299,6 +299,7 @@ export async function findActiveOtpCodes(sql: NeonClient, userId: string): Promi
     WHERE user_id = ${userId}
       AND consumed_at IS NULL
       AND expires_at > now()
+    ORDER BY created_at DESC
   `
   );
   return z.array(OtpCodeSchema).parse(r);
@@ -315,12 +316,18 @@ export async function incrementOtpAttempts(sql: NeonClient, id: string): Promise
   return z.coerce.number().parse(r[0]?.attempts);
 }
 
+/**
+ * Atomically consume an OTP code. Includes expires_at > now() guard
+ * to prevent consuming expired codes in a race window.
+ */
 export async function consumeOtpCode(sql: NeonClient, id: string): Promise<boolean> {
   const r = rows(
     await sql`
-    UPDATE otp_codes SET consumed_at = now()
+    UPDATE otp_codes
+    SET consumed_at = now()
     WHERE id = ${id}
       AND consumed_at IS NULL
+      AND expires_at > now()
     RETURNING id
   `
   );
@@ -392,6 +399,309 @@ export async function revokeRefreshTokenFamily(sql: NeonClient, familyId: string
     UPDATE refresh_tokens SET revoked_at = now()
     WHERE family_id = ${familyId}
       AND revoked_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length;
+}
+
+// ---------------------------------------------------------------------------
+// Extended queries (centralised from route files)
+// ---------------------------------------------------------------------------
+
+export async function findUserById(sql: NeonClient, id: string): Promise<BetaUser | null> {
+  const r = rows(await sql`SELECT * FROM beta_users WHERE id = ${id} LIMIT 1`);
+  if (!r[0]) return null;
+  return BetaUserSchema.parse(r[0]);
+}
+
+/**
+ * Insert a device code with no user_id (anti-enumeration dummy row).
+ * The null user_id ensures JOINs in /confirm never match.
+ */
+export async function insertDummyDeviceCode(
+  sql: NeonClient,
+  userCode: string,
+  pollTokenHash: string,
+  expiresAt: Date
+): Promise<void> {
+  await sql`
+    INSERT INTO device_codes (user_code, poll_token, expires_at)
+    VALUES (${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+  `;
+}
+
+/**
+ * Find a pending (unconfirmed, unexpired) device code and its owner's email.
+ * Used by the /confirm endpoint to verify the code belongs to the right user.
+ */
+export async function findPendingDeviceCodeWithEmail(
+  sql: NeonClient,
+  userCode: string
+): Promise<{ id: string; user_email: string } | null> {
+  const r = rows(
+    await sql`
+    SELECT dc.id, bu.email AS user_email
+    FROM device_codes dc
+    JOIN beta_users bu ON bu.id = dc.user_id
+    WHERE dc.user_code = ${userCode}
+      AND dc.expires_at > now()
+      AND dc.confirmed_at IS NULL
+    LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return {
+    id: String(r[0].id),
+    user_email: String(r[0].user_email),
+  };
+}
+
+/**
+ * Atomic per-token rate-limited poll update. Returns the device code row
+ * if the cooldown has elapsed, or null if rate-limited or not found.
+ */
+export async function pollDeviceCode(
+  sql: NeonClient,
+  pollTokenHash: string,
+  intervalSeconds: number
+): Promise<DeviceCode | null> {
+  const r = rows(
+    await sql`
+    UPDATE device_codes
+    SET last_polled_at = now()
+    WHERE poll_token = ${pollTokenHash}
+      AND expires_at > now()
+      AND (last_polled_at IS NULL OR last_polled_at <= now() - make_interval(secs => ${intervalSeconds}))
+    RETURNING *
+  `
+  );
+  if (!r[0]) return null;
+  return DeviceCodeSchema.parse(r[0]);
+}
+
+/**
+ * Check whether an unexpired device code exists for the given poll token.
+ * Read-only — used to distinguish "not found" from "rate limited".
+ */
+export async function deviceCodeExistsByPollToken(
+  sql: NeonClient,
+  pollTokenHash: string
+): Promise<boolean> {
+  const r = rows(
+    await sql`
+    SELECT id FROM device_codes
+    WHERE poll_token = ${pollTokenHash}
+      AND expires_at > now()
+    LIMIT 1
+  `
+  );
+  return r.length > 0;
+}
+
+/**
+ * Atomically consume a confirmed device code (DELETE ... RETURNING).
+ * Ensures concurrent polls cannot both mint sessions.
+ */
+export async function consumeDeviceCode(
+  sql: NeonClient,
+  pollTokenHash: string
+): Promise<{ user_id: string } | null> {
+  const r = rows(
+    await sql`
+    DELETE FROM device_codes
+    WHERE poll_token = ${pollTokenHash}
+      AND confirmed_at IS NOT NULL
+    RETURNING user_id
+  `
+  );
+  if (!r[0]) return null;
+  return { user_id: String(r[0].user_id) };
+}
+
+/**
+ * Insert a new user with status 'pending'. Uses ON CONFLICT DO NOTHING
+ * to handle concurrent signups. Returns the inserted id or null if
+ * the email already existed.
+ */
+export async function insertPendingUser(
+  sql: NeonClient,
+  email: string,
+  name: string | null,
+  notes: string | null
+): Promise<string | null> {
+  const r = rows(
+    await sql`
+    INSERT INTO beta_users (email, name, status, notes)
+    VALUES (${email}, ${name}, 'pending', ${notes})
+    ON CONFLICT (email) DO NOTHING
+    RETURNING id
+  `
+  );
+  if (!r[0]) return null;
+  return String(r[0].id);
+}
+
+/**
+ * Count active (unconsumed, unexpired) OTP codes for a user.
+ * Used for rate-limiting OTP requests.
+ */
+export async function countActiveOtpCodes(sql: NeonClient, userId: string): Promise<number> {
+  const r = rows(
+    await sql`
+    SELECT COUNT(*)::int AS count FROM otp_codes
+    WHERE user_id = ${userId}
+      AND consumed_at IS NULL
+      AND expires_at > now()
+  `
+  );
+  return z.coerce.number().parse(r[0]?.count ?? 0);
+}
+
+/**
+ * Increment attempt counters on multiple OTP codes at once.
+ * Used when an incorrect code is submitted — all active codes get incremented.
+ */
+export async function incrementOtpAttemptsBatch(sql: NeonClient, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await sql`
+    UPDATE otp_codes SET attempts = attempts + 1
+    WHERE id = ANY(${ids})
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Waitlist
+// ---------------------------------------------------------------------------
+
+const WaitlistEntrySchema = z.object({
+  id: IdSchema,
+  email: z.string(),
+  created_at: DateStringSchema,
+  is_new: z.coerce.boolean(),
+});
+
+export type WaitlistEntry = z.infer<typeof WaitlistEntrySchema>;
+
+/**
+ * Upsert a waitlist entry. Uses Postgres xmax=0 trick to detect
+ * whether the row was newly inserted or already existed.
+ */
+export async function upsertWaitlistEntry(
+  sql: NeonClient,
+  email: string,
+  source: string = 'website'
+): Promise<WaitlistEntry> {
+  const r = rows(
+    await sql`
+    INSERT INTO waitlist (email, source)
+    VALUES (${email}, ${source})
+    ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
+    RETURNING id, email, created_at, (xmax = 0) AS is_new
+  `
+  );
+  return WaitlistEntrySchema.parse(r[0]);
+}
+
+/**
+ * Upsert a waitlist entry with optional name (used by admin invite).
+ */
+export async function upsertWaitlistWithName(
+  sql: NeonClient,
+  email: string,
+  name: string | null,
+  source: string = 'manual'
+): Promise<void> {
+  await sql`
+    INSERT INTO waitlist (email, name, source)
+    VALUES (${email}, ${name}, ${source})
+    ON CONFLICT (email) DO UPDATE SET
+      name = COALESCE(${name}, waitlist.name),
+      updated_at = NOW()
+  `;
+}
+
+export async function findWaitlistEntryByEmail(
+  sql: NeonClient,
+  email: string
+): Promise<{ id: string } | null> {
+  const r = rows(await sql`SELECT id FROM waitlist WHERE email = ${email}`);
+  if (!r[0]) return null;
+  return { id: String(r[0].id) };
+}
+
+export async function findUnapprovedWaitlistEntries(
+  sql: NeonClient,
+  limit: number
+): Promise<{ email: string }[]> {
+  const r = rows(
+    await sql`
+    SELECT w.email FROM waitlist w
+    LEFT JOIN beta_users bu ON bu.email = w.email
+    WHERE bu.id IS NULL
+    ORDER BY w.created_at ASC
+    LIMIT ${limit}
+  `
+  );
+  return r.map((row) => ({ email: String(row.email) }));
+}
+
+export async function findWaitlistBySource(
+  sql: NeonClient,
+  source: string,
+  limit: number
+): Promise<{ email: string; name: string | null }[]> {
+  const r = rows(
+    await sql`
+    SELECT email, name FROM waitlist WHERE source = ${source}
+    ORDER BY created_at ASC
+    LIMIT ${limit}
+  `
+  );
+  return r.map((row) => ({
+    email: String(row.email),
+    name: row.name as string | null,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup (cron)
+// ---------------------------------------------------------------------------
+
+/** Delete device codes expired more than 1 hour ago. */
+export async function cleanupExpiredDeviceCodes(sql: NeonClient): Promise<number> {
+  const r = rows(
+    await sql`
+    DELETE FROM device_codes
+    WHERE expires_at < now() - interval '1 hour'
+    RETURNING id
+  `
+  );
+  return r.length;
+}
+
+/** Delete OTP codes expired more than 1 hour ago. */
+export async function cleanupExpiredOtpCodes(sql: NeonClient): Promise<number> {
+  const r = rows(
+    await sql`
+    DELETE FROM otp_codes
+    WHERE expires_at < now() - interval '1 hour'
+    RETURNING id
+  `
+  );
+  return r.length;
+}
+
+/**
+ * Delete refresh tokens that are expired (1-hour grace) or
+ * revoked more than 7 days ago (audit retention).
+ */
+export async function cleanupExpiredRefreshTokens(sql: NeonClient): Promise<number> {
+  const r = rows(
+    await sql`
+    DELETE FROM refresh_tokens
+    WHERE (expires_at < now() - interval '1 hour')
+       OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '7 days')
     RETURNING id
   `
   );

@@ -187,7 +187,7 @@ of `self.muted()`.
 - [ ] **Step A2: Update EddaCraftTheme to brand colours**
 
 Replace all colour constants in `crates/eddacraft-tui/src/theme/eddacraft.rs`
-with the EddaCraft Terminal Standard:
+with the eddacraft Terminal Standard:
 
 ```rust
 const VOID: Color = Color::Rgb(13, 13, 15);        // bg

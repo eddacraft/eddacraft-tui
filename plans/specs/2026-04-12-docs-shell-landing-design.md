@@ -15,7 +15,7 @@ CSS — no Tailwind, no shadcn/ui — using the same design tokens as the websit
 ## Design Tokens
 
 Replace `globals.css` with the Nordic Terminal palette shared across all
-EddaCraft apps:
+eddacraft apps:
 
 | Token             | Value     | Usage                    |
 |-------------------|-----------|--------------------------|

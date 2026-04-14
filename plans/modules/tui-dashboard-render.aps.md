@@ -90,7 +90,7 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 - Spec format must match `@json-render/core` exactly — no Anvil-specific
   extensions to the spec structure (props, children, root, elements)
 - Must render at 80x24 minimum terminal size (components adapt via constraints)
-- Theme must use EddaCraft palette from `eddacraft-tui` (no custom colours)
+- Theme must use eddacraft palette from `eddacraft-tui` (no custom colours)
 - Rendering a spec must not panic — malformed specs produce error UI, not crashes
 - Data binding failures render as `—` (em dash), not errors
 

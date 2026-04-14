@@ -1,4 +1,4 @@
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- Executable only if tasks exist and status is Ready. -->
 
 # Early Access Migration
@@ -466,8 +466,8 @@ but they represent genuine improvements that should be addressed before GA.
 - **Confidence:** High
 - **Intent:** The PAT is exposed as a job-level env variable to all steps in
   the host job. Move to step-level env for only the steps that need it.
-  Confirm the token is a fine-grained PAT scoped to only EddaCraft/anvil
-  and EddaCraft/homebrew-tap.
+  Confirm the token is a fine-grained PAT scoped to only eddacraft/anvil
+  and eddacraft/homebrew-tap.
 - **Files:** `.github/workflows/release.yml`
 
 ### EAMIG-043 — Add artefact attestation to release workflow

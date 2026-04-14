@@ -185,7 +185,7 @@ Environment targeting is first-class and vendor-neutral. Initial dimensions:
 - `environment`
   - `local`, `preview`, `dev`, `staging`, `prod`
 - `channel`
-  - e.g. development, beta, rc, stable
+  - e.g. development, beta, production
 - `deploymentRing`
   - optional rollout ring when needed
 

@@ -159,7 +159,7 @@ export class DiagnosticsManager implements vscode.Disposable {
       value: warning.id,
       target: warning.documentationUrl
         ? vscode.Uri.parse(warning.documentationUrl)
-        : vscode.Uri.parse(`https://github.com/EddaCraft/anvil-001#${warning.id.toLowerCase()}`),
+        : vscode.Uri.parse(`https://github.com/eddacraft/anvil-001#${warning.id.toLowerCase()}`),
     };
 
     const infoLines = [warning.explanation, `\nSuggestion: ${warning.suggestion}`];

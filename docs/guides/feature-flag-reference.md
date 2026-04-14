@@ -150,7 +150,7 @@ draft → active → retiring → retired → (delete from manifest)
   targetingKey: "session-abc",      // unique per evaluation session (required)
   environment: {
     environment: "prod",            // local | preview | dev | staging | prod
-    channel: "stable",              // development | beta | rc | stable (optional)
+    channel: "production",          // development | beta | production (optional)
     deploymentRing: "canary"        // freeform string (optional)
   },
   audience: {                       // optional — omit if unauthenticated

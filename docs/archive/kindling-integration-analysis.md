@@ -561,7 +561,7 @@ then evidence bundles, plan tracking, and finally learning/suggestions.
 
 ## Appendix: Kindling Repository Details
 
-**Repository**: https://github.com/EddaCraft/kindling **Licence**: Apache 2.0
+**Repository**: https://github.com/eddacraft/kindling **Licence**: Apache 2.0
 **Status**: Work in Progress (10 commits, 1 star) **Language**: Likely
 TypeScript (based on ecosystem)
 
@@ -595,7 +595,7 @@ tooling.
 
 **Sources**:
 
-- [GitHub - EddaCraft/kindling](https://github.com/EddaCraft/kindling)
+- [GitHub - eddacraft/kindling](https://github.com/eddacraft/kindling)
 - [GitHub - basicmachines-co/basic-memory](https://github.com/basicmachines-co/basic-memory)
 - [GitHub - mem0ai/mem0](https://github.com/mem0ai/mem0)
 - [GitHub - steveyegge/beads](https://github.com/steveyegge/beads)

@@ -1,4 +1,4 @@
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- Executable when status is Ready and tasks are defined. -->
 
 # IDE Integration (VS Code Extension)

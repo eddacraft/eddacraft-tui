@@ -203,7 +203,7 @@ Infrastructure review, no application code.
 | `release.yml`         | Cross-platform build + publish | Merged (PR #708)     | CI/CD    |
 | `dist-workspace.toml` | cargo-dist (6 targets)         | In repo              | CI/CD    |
 | `install.sh`          | Shell installer wrapper        | In repo              | Security |
-| Homebrew tap          | `EddaCraft/homebrew-tap`       | Needs repo creation  | Infra    |
+| Homebrew tap          | `eddacraft/homebrew-tap`       | Needs repo creation  | Infra    |
 | DNS                   | `install.eddacraft.ai` CNAME   | Pulumi code ready    | Infra    |
 | crates.io             | Workspace dep publishing       | Blocked on dep order | Infra    |
 

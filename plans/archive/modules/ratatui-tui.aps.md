@@ -51,7 +51,7 @@ navigation, interactive widgets) that Ink cannot match.
 
 **Exposes:**
 
-- `eddacraft-tui` — shared crate for EddaCraft product family TUI components
+- `eddacraft-tui` — shared crate for eddacraft product family TUI components
 - TUI binary mode integrated into `anvil` binary (subcommand or default for
   watch)
 
@@ -60,7 +60,7 @@ navigation, interactive widgets) that Ink cannot match.
 - TUI render must not block kernel event processing
 - Keyboard conventions: j/k navigation, space/enter select, esc back, q quit
 - Must support terminal sizes down to 80x24
-- Theme follows EddaCraft design system (dark-only, 5-colour palette)
+- Theme follows eddacraft design system (dark-only, 5-colour palette)
 - Depends on KERN Phase 3 (event emission) before meaningful integration
 
 ## Ready Checklist
@@ -70,7 +70,7 @@ Change status to **Ready** when:
 - [x] KERN module Phase 3 (event emission) is complete
 - [x] Ratatui component library sufficiency validated (from KERN spike or
       separate prototype)
-- [x] EddaCraft theme and keyboard conventions documented
+- [x] eddacraft theme and keyboard conventions documented
 - [x] Watch dashboard wireframe approved
 
 ---
@@ -80,10 +80,10 @@ Change status to **Ready** when:
 ### RATS-001: eddacraft-tui shared crate (theme, keyboard, widgets)
 
 - **Status:** Done
-- **Intent:** Create a shared Ratatui component library with EddaCraft theme,
+- **Intent:** Create a shared Ratatui component library with eddacraft theme,
   keyboard conventions (j/k, space, enter, esc), and reusable widgets (Select,
   MultiSelect, TextInput, ProgressBar, StatusBar)
-- **Expected Outcome:** Themed widget library usable by all EddaCraft products
+- **Expected Outcome:** Themed widget library usable by all eddacraft products
   (Anvil, APS, Kindling)
 - **Validation:** Visual parity with current Ink components, keyboard navigation
   works consistently across all widgets

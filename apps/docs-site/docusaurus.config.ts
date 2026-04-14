@@ -3,7 +3,7 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'EddaCraft',
+  title: 'eddacraft',
   tagline: 'The forge for governed AI-assisted work',
   favicon: 'img/favicon.svg',
 
@@ -14,7 +14,7 @@ const config: Config = {
   url: 'https://docs.eddacraft.ai',
   baseUrl: '/',
 
-  organizationName: 'EddaCraft',
+  organizationName: 'eddacraft',
   projectName: 'eddacraft-docs',
 
   onBrokenLinks: 'throw',
@@ -41,7 +41,7 @@ const config: Config = {
             type: ['rss', 'atom'],
             xslt: true,
           },
-          editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/website/',
+          editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/website/',
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',
@@ -62,7 +62,7 @@ const config: Config = {
     //     path: '../../docs/public/start-here',
     //     routeBasePath: 'start-here',
     //     sidebarPath: './sidebars/start-here.ts',
-    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/start-here/',
+    //     editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/start-here/',
     //   },
     // ],
     // Anvil - primary product
@@ -73,7 +73,7 @@ const config: Config = {
         path: '../../docs/public/anvil',
         routeBasePath: 'anvil',
         sidebarPath: './sidebars/anvil.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/anvil/',
+        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/anvil/',
       },
     ],
     // APS - OSS spec
@@ -84,7 +84,7 @@ const config: Config = {
         path: '../../docs/public/aps',
         routeBasePath: 'aps',
         sidebarPath: './sidebars/aps.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/aps/',
+        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/aps/',
       },
     ],
     // Kindling - OSS memory capture
@@ -95,7 +95,7 @@ const config: Config = {
         path: '../../docs/public/kindling',
         routeBasePath: 'kindling',
         sidebarPath: './sidebars/kindling.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/kindling/',
+        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/kindling/',
       },
     ],
     [
@@ -105,7 +105,7 @@ const config: Config = {
         path: '../../docs/public/edda-stack',
         routeBasePath: 'edda-stack',
         sidebarPath: './sidebars/edda-stack.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/edda-stack/',
+        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/edda-stack/',
       },
     ],
     // Beta - unlisted quickstart for beta testers (not in navbar/footer)
@@ -116,7 +116,7 @@ const config: Config = {
         path: '../../docs/public/beta',
         routeBasePath: 'beta',
         sidebarPath: './sidebars/beta.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/beta/',
+        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/beta/',
       },
     ],
   ],
@@ -129,9 +129,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'EddaCraft',
+      title: 'eddacraft',
       logo: {
-        alt: 'EddaCraft Logo',
+        alt: 'eddacraft Logo',
         src: 'img/logo.svg',
         srcDark: 'img/logo-dark.svg',
       },
@@ -163,7 +163,7 @@ const config: Config = {
         },
         // Right side
         {
-          href: 'https://github.com/EddaCraft',
+          href: 'https://github.com/eddacraft',
           label: 'GitHub',
           position: 'right',
         },
@@ -193,11 +193,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/EddaCraft',
+              href: 'https://github.com/eddacraft',
             },
             {
               label: 'Releases',
-              href: 'https://github.com/EddaCraft/anvil-001/releases',
+              href: 'https://github.com/eddacraft/anvil-001/releases',
             },
           ],
         },
@@ -206,7 +206,7 @@ const config: Config = {
           items: [{ label: 'Blog', to: '/blog' }],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} EddaCraft. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} eddacraft. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

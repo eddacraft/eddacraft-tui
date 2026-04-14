@@ -3,17 +3,17 @@
 # Downloads the pre-built native binary for your platform.
 #
 # Usage:
-#   curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+#   curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 #
 # For Windows (PowerShell):
-#   irm https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+#   irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
 #
 # This script fetches and runs the cargo-dist generated installer from the
-# latest release on the public EddaCraft/anvil repository.
+# latest release on the public eddacraft/anvil repository.
 
 set -e
 
-INSTALLER_URL="https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
+INSTALLER_URL="https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
 
 echo ""
 echo "  Anvil CLI Installer"
@@ -40,7 +40,22 @@ if ! curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o "$TMPFILE"; then
   exit 1
 fi
 
+# Run the cargo-dist installer; capture its exit code so we can print follow-up
+# guidance before exiting on failure.
+set +e
 sh "$TMPFILE"
+INSTALL_EXIT=$?
+set -e
+
+if [ "$INSTALL_EXIT" -ne 0 ]; then
+  echo ""
+  echo "  [!] Installer exited with code $INSTALL_EXIT."
+  echo "  If the install failed, try Homebrew instead:"
+  echo ""
+  echo "    brew install eddacraft/tap/anvil"
+  echo ""
+  exit "$INSTALL_EXIT"
+fi
 
 echo ""
 echo "  Get started:"

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Anvil CLI — structural governance for AI-assisted development"
-repository = "https://github.com/EddaCraft/anvil"
+repository = "https://github.com/eddacraft/anvil"
 
 [package.metadata.dist]
 dist = true
@@ -40,6 +40,7 @@ regex = { workspace = true }
 sha2 = "0.11"
 hex = "0.4"
 ctrlc = "3"
+axoupdater = { version = "0.10", features = ["blocking"] }
 
 [dev-dependencies]
 temp-env = "0.3"

@@ -1,5 +1,5 @@
 <!-- Archived: 2026-03-27 | Reason: All work items complete (20/20) -->
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- Executable only if tasks exist and status is Ready. -->
 
 # Beta Auth Streamline

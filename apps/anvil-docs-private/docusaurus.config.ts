@@ -14,7 +14,7 @@ const config: Config = {
   url: 'https://docs.eddacraft.ai',
   baseUrl: '/anvil/',
 
-  organizationName: 'EddaCraft',
+  organizationName: 'eddacraft',
   projectName: 'anvil-docs-private',
 
   // Cross-app links (e.g. to /anvil/) resolve at runtime via the docs-shell

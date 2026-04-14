@@ -225,9 +225,9 @@ public key. No secret leakage.
 
 ### GitHub OAuth App
 
-Created manually under the EddaCraft GitHub organisation:
+Created manually under the eddacraft GitHub organisation:
 
-- **Application name:** EddaCraft Docs
+- **Application name:** eddacraft Docs
 - **Homepage URL:** `https://docs.eddacraft.ai`
 - **Authorisation callback URL:** `https://docs.eddacraft.ai/auth/callback`
 - **Scopes:** `read:user`, `user:email`

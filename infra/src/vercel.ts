@@ -1,7 +1,7 @@
 import { VercelApp } from './components/vercel-app.js';
 import { getSecret } from './keyvault.js';
 
-const gitRepo = 'EddaCraft/anvil-001';
+const gitRepo = 'eddacraft/anvil-001';
 
 const databaseUrl = getSecret('website-database-url');
 const resendApiKey = getSecret('resend-api-key');

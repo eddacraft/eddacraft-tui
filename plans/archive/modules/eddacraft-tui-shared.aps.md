@@ -1,7 +1,7 @@
 <!--
 APS Module: Eddacraft-TUI Shared Extraction
 ====================================
-Extract common TUI into a shared EddaCraft repo.
+Extract common TUI into a shared eddacraft repo.
 See: plans/aps-rules.md
 -->
 
@@ -14,7 +14,7 @@ See: plans/aps-rules.md
 ## Purpose
 
 Extract the common TUI widget library from `crates/eddacraft-tui` into a
-standalone shared repository so other EddaCraft projects can use the theme,
+standalone shared repository so other eddacraft projects can use the theme,
 keyboard, and widget library independently of Anvil.
 
 **Problem:** The `eddacraft-tui` crate contains 15+ reusable widgets (Select,
@@ -22,7 +22,7 @@ TextInput, ProgressBar, Spinner, StatusBadge, Header, Container, Divider,
 Confirm, LogPanel, ParallelProgress, QuickWinsPanel, ResultsDashboard), theme
 system, and keyboard abstraction — all useful beyond Anvil. Keeping it in
 the Anvil monorepo couples its release cycle to Anvil's and prevents other
-EddaCraft projects from using it.
+eddacraft projects from using it.
 
 ## In Scope
 
@@ -74,7 +74,15 @@ EddaCraft projects from using it.
   - **Result:** `Surface<T: Theme = EddaCraftTheme>` is now generic with
     backward-compatible default. `render_shell` accepts any `Theme`. Crate-level
     rustdoc added. Cargo.toml updated with publishing metadata.
-- [ ] TUIEXTRACT-004: Write widget catalogue documentation
-- [ ] TUIEXTRACT-005: Set up crates.io publish pipeline
-- [ ] TUIEXTRACT-006: Update Anvil to use published eddacraft-tui
-- [ ] TUIEXTRACT-007: Theme customisation guide and examples
+- [x] TUIEXTRACT-004: Write widget catalogue documentation
+  - **Result:** Comprehensive rustdoc in `lib.rs` with module table and quick-start
+    example; README.md with design system documentation (completed in external repo).
+- [x] TUIEXTRACT-005: Set up crates.io publish pipeline
+  - **Result:** CI/GitHub Actions workflow for crates.io publishing; Cargo.toml has
+    full publish metadata; RELEASE.md runbook (completed in external repo).
+- [x] TUIEXTRACT-006: Update Anvil to use published eddacraft-tui
+  - **Result:** Switched from git rev pin to crates.io v0.1.0 dependency
+    (commit e55d85f6, 2026-04-10).
+- [x] TUIEXTRACT-007: Theme customisation guide and examples
+  - **Result:** README.md includes EddaCraft Terminal Standard colour palette and
+    theming examples (completed in external repo).

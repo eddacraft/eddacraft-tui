@@ -5,7 +5,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'doc',
       id: 'what-is-eddacraft',
-      label: 'What is EddaCraft?',
+      label: 'What is eddacraft?',
     },
     {
       type: 'doc',

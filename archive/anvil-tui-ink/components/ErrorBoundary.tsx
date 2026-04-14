@@ -95,7 +95,7 @@ export function ErrorFallback({
         {onRetry && <Text color={theme.colours.smoke}>Press r to retry</Text>}
         <Text color={theme.colours.smoke}>Press q to exit</Text>
         <Text color={theme.colours.smoke}>
-          If this persists, please report: https://github.com/EddaCraft/anvil-001/issues
+          If this persists, please report: https://github.com/eddacraft/anvil-001/issues
         </Text>
       </Box>
     </Box>

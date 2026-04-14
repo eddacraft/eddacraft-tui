@@ -79,7 +79,7 @@ function pendingPage(): Response {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Access Pending — EddaCraft Docs</title>
+  <title>Access Pending — eddacraft Docs</title>
   <style>
     body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
     .card { text-align: center; max-width: 480px; padding: 2rem; }

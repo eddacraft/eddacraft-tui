@@ -161,7 +161,7 @@ If any asset leaks, **stop** and reopen brainstorming to switch to the subdomain
 - [ ] **Step 8: Commit the verdict**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 git add plans/specs/2026-04-11-docs-auth-spa-gap-design.md
 git commit -m "docs(docsauth): record baseUrl kill-switch verification"
 ```
@@ -277,7 +277,7 @@ export default defineConfig({
 - [ ] **Step 5: Install dependencies and verify scaffolding**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 pnpm install
 pnpm nx typecheck docs-shell
 ```
@@ -1317,7 +1317,7 @@ git commit -m "feat(docs-shell): add /auth/logout route"
 
 ```tsx
 // apps/docs-shell/app/auth/pending/page.tsx
-export const metadata = { title: 'Access Pending — EddaCraft Docs' };
+export const metadata = { title: 'Access Pending — eddacraft Docs' };
 
 export default function PendingPage() {
   return (
@@ -1355,7 +1355,7 @@ export default function PendingPage() {
 
 ```tsx
 // apps/docs-shell/app/auth/error/page.tsx
-export const metadata = { title: 'Sign-in error — EddaCraft Docs' };
+export const metadata = { title: 'Sign-in error — eddacraft Docs' };
 
 const REASONS: Record<string, string> = {
   denied: 'You cancelled the GitHub sign-in.',
@@ -1528,7 +1528,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'EddaCraft Docs',
+  title: 'eddacraft Docs',
   description: 'The forge for governed AI-assisted work',
 };
 
@@ -1549,7 +1549,7 @@ export default function HomePage() {
   return (
     <>
       <section className="hero">
-        <h1>EddaCraft</h1>
+        <h1>eddacraft</h1>
         <p className="tagline">The forge for governed AI-assisted work.</p>
         <a className="cta" href="/anvil/overview">
           Anvil docs
@@ -1637,7 +1637,7 @@ export async function GET() {
 // apps/docs-shell/app/llms.txt/route.ts
 export const runtime = 'nodejs';
 
-const BODY = `# EddaCraft Documentation
+const BODY = `# eddacraft Documentation
 # Anvil is a commercial product in closed beta. Anvil documentation is private.
 # Public sections: /kindling, /aps, /edda-stack, /blog
 
@@ -1809,7 +1809,7 @@ No code changes in this task. If preview deployment requires a `vercel.json` twe
 - [ ] **Step 1: Copy minimal Docusaurus shell from docs-site**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 mkdir -p apps/anvil-docs-private/sidebars apps/anvil-docs-private/src/css apps/anvil-docs-private/static/img
 cp apps/docs-site/sidebars/anvil.ts apps/anvil-docs-private/sidebars/anvil.ts
 cp apps/docs-site/src/css/custom.css apps/anvil-docs-private/src/css/custom.css
@@ -1867,7 +1867,7 @@ const config: Config = {
   url: 'https://docs.eddacraft.ai',
   baseUrl: '/anvil/',
 
-  organizationName: 'EddaCraft',
+  organizationName: 'eddacraft',
   projectName: 'anvil-docs',
 
   onBrokenLinks: 'throw',
@@ -1901,7 +1901,7 @@ const config: Config = {
         path: '../../docs/public/anvil',
         routeBasePath: '/',
         sidebarPath: './sidebars/anvil.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/anvil/',
+        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/anvil/',
       },
     ],
   ],
@@ -1915,7 +1915,7 @@ const config: Config = {
     navbar: {
       title: 'Anvil Docs',
       items: [
-        { href: 'https://docs.eddacraft.ai/', label: 'Back to EddaCraft', position: 'right' },
+        { href: 'https://docs.eddacraft.ai/', label: 'Back to eddacraft', position: 'right' },
         { href: '/auth/logout', label: 'Sign out', position: 'right' },
       ],
     },
@@ -1963,7 +1963,7 @@ Note: `routeBasePath: '/'` combined with `baseUrl: '/anvil/'` produces effective
 - [ ] **Step 6: Install and build locally**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 pnpm install
 pnpm nx build anvil-docs-private
 ```
@@ -2035,7 +2035,7 @@ Rather than renaming in place, copy to the new name and prune; retain `docs-site
 - [ ] **Step 1: Copy docs-site to docs-public**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 cp -r apps/docs-site apps/docs-public
 rm -rf apps/docs-public/node_modules apps/docs-public/.docusaurus apps/docs-public/build
 ```
@@ -2086,7 +2086,7 @@ Edit `apps/docs-public/vercel.json`: remove any `functions` or `rewrites` config
 - [ ] **Step 6: Install and build**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 pnpm install
 pnpm nx build docs-public
 ```
@@ -2224,7 +2224,7 @@ const anvilDocsPrivateApp = new VercelApp('anvil-docs-private', {
   name: 'eddacraft-anvil-docs-private',
   framework: 'docusaurus-2',
   rootDirectory: 'apps/anvil-docs-private',
-  gitRepo: 'EddaCraft/anvil-001',
+  gitRepo: 'eddacraft/anvil-001',
   domains: [ANVIL_DOCS_PRIVATE_DOMAIN],
   buildCommand: 'pnpm nx build anvil-docs-private',
   installCommand: 'pnpm install --frozen-lockfile',
@@ -2241,7 +2241,7 @@ const docsPublicApp = new VercelApp('docs-public', {
   name: 'eddacraft-docs-public',
   framework: 'docusaurus-2',
   rootDirectory: 'apps/docs-public',
-  gitRepo: 'EddaCraft/anvil-001',
+  gitRepo: 'eddacraft/anvil-001',
   domains: [DOCS_PUBLIC_DOMAIN],
   buildCommand: 'pnpm nx build docs-public',
   installCommand: 'pnpm install --frozen-lockfile',
@@ -2256,7 +2256,7 @@ const docsShellApp = new VercelApp('docs-shell', {
   name: 'eddacraft-docs-shell',
   framework: 'nextjs',
   rootDirectory: 'apps/docs-shell',
-  gitRepo: 'EddaCraft/anvil-001',
+  gitRepo: 'eddacraft/anvil-001',
   domains: ['docs.eddacraft.ai'],
   buildCommand: 'pnpm nx build docs-shell',
   installCommand: 'pnpm install --frozen-lockfile',
@@ -2292,7 +2292,7 @@ Expected: three projects created. Record their Vercel IDs from the output.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 git add infra/src/vercel.ts
 git commit -m "feat(infra): add docs-shell, anvil-docs-private, docs-public Vercel projects"
 ```
@@ -2373,7 +2373,7 @@ git commit -m "feat(infra): lock upstream docs projects behind deployment protec
 
 - [ ] **Step 1: Open GitHub OAuth App settings**
 
-Navigate to https://github.com/organizations/EddaCraft/settings/applications and select the Anvil Docs OAuth App.
+Navigate to https://github.com/organizations/eddacraft/settings/applications and select the Anvil Docs OAuth App.
 
 - [ ] **Step 2: Update callback URLs**
 
@@ -2435,7 +2435,7 @@ Expected: `/` 200 (landing), `/anvil/overview` 302 (login redirect), `/kindling/
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 git add infra/src/vercel.ts
 git commit -m "feat(infra): cutover docs.eddacraft.ai to docs-shell project"
 ```
@@ -2497,7 +2497,7 @@ Runs **after** Task 25 has been green for at least 24 hours in production.
 - [ ] **Step 1: Delete the directory**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 git rm -r apps/docs-site
 ```
 
@@ -2523,7 +2523,7 @@ pulumi up
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/aneki/Projects/src/EddaCraft/anvil-001
+cd /home/aneki/Projects/src/eddacraft/anvil-001
 git add apps/docs-site infra/src/vercel.ts
 git commit -m "chore(docs-site): retire old single-build project"
 ```
@@ -2773,7 +2773,7 @@ git commit -m "plan(docsauth2): add APS module for SPA gap remediation"
 
 - [ ] **Step 1: Add DOCSAUTH2 to the active modules list**
 
-Edit `/home/aneki/Projects/src/EddaCraft/anvil-001/CLAUDE.md`. Find the `## Active Modules` section. Update DOCSAUTH status to `7/7 Complete` (it was stale at 6/7). Add DOCSAUTH2 as `In Progress`.
+Edit `/home/aneki/Projects/src/eddacraft/anvil-001/CLAUDE.md`. Find the `## Active Modules` section. Update DOCSAUTH status to `7/7 Complete` (it was stale at 6/7). Add DOCSAUTH2 as `In Progress`.
 
 ```diff
 - DOCSAUTH: docs-auth-gating (6/7) — In Progress

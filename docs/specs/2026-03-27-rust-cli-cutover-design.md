@@ -154,7 +154,7 @@ welcome menu (RCLI-026 already implemented this navigation pattern).
 access — they authenticate via BAUTH (device code + OTP). Binaries must be
 downloadable without GitHub auth.
 
-**Solution:** Create `EddaCraft/anvil-releases` (public repo, contains only
+**Solution:** Create `eddacraft/anvil-releases` (public repo, contains only
 release assets and the install script). The CI workflow in the private repo
 cross-compiles, then pushes release assets to the public repo.
 
@@ -167,7 +167,7 @@ cross-compiles, then pushes release assets to the public repo.
    - `aarch64-unknown-linux-gnu`
    - `x86_64-apple-darwin`
    - `aarch64-apple-darwin`
-3. Modify the generated workflow to push assets to `EddaCraft/anvil-releases`
+3. Modify the generated workflow to push assets to `eddacraft/anvil-releases`
    instead of the private repo's releases
 4. Host install script at `install.eddacraft.ai` (static page, can be Vercel or
    a raw GitHub URL from the public repo)
@@ -199,7 +199,7 @@ anvil auth login
 1. Bump version in `crates/anvil-cli/Cargo.toml`
 2. `git tag v0.3.0-beta`
 3. `git push --tags`
-4. CI builds 4 binaries, pushes to `EddaCraft/anvil-releases` as a GitHub
+4. CI builds 4 binaries, pushes to `eddacraft/anvil-releases` as a GitHub
    Release with the same tag
 5. Install script auto-resolves to latest release
 

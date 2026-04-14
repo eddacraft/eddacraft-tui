@@ -1,11 +1,11 @@
-<!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- Executable only if tasks exist and status is Ready. -->
 
 # Feature Flagging
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLAGS | —     | high     | In Progress |
+| FLAGS | —     | high     | In Progress (8/9) |
 
 ## Purpose
 

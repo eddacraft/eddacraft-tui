@@ -1,6 +1,6 @@
 policies:
   org:
-    source: 'git@github.com:EddaCraft/anvil-policies.git'
+    source: 'git@github.com:eddacraft/anvil-policies.git'
     ref: 'v1.0.0'
   team:
     - name: 'secret-scan'

@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { getClient } from '../db/client.js';
-import { findUserByEmail, insertAuditLog } from '../db/queries.js';
+import {
+  findUserByEmail,
+  insertPendingUser,
+  insertAuditLog,
+  insertRefreshToken,
+} from '../db/queries.js';
 import { signLicence } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
@@ -164,12 +169,12 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
 
   if (!user) {
     // ON CONFLICT handles concurrent signups for the same email
-    const inserted = (await sql`
-      INSERT INTO beta_users (email, name, status, notes)
-      VALUES (${ghUser.email}, ${ghUser.login}, 'pending', ${`GitHub OAuth signup (github:${ghUser.id})`})
-      ON CONFLICT (email) DO NOTHING
-      RETURNING id
-    `) as { id: string }[];
+    const isNewUser = !!(await insertPendingUser(
+      sql,
+      ghUser.email,
+      ghUser.login,
+      `GitHub OAuth signup (github:${ghUser.id})`
+    ));
 
     user = await findUserByEmail(sql, ghUser.email);
     if (!user) {
@@ -177,7 +182,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
       return c.json({ error: 'GitHub authentication failed' }, 401);
     }
 
-    if (inserted.length > 0) {
+    if (isNewUser) {
       await insertAuditLog(sql, 'github_oauth_signup', ghUser.email, {
         githubId: ghUser.id,
         githubLogin: ghUser.login,
@@ -214,10 +219,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   const familyId = randomUUID();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-  await sql`
-    INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
-    VALUES (${user.id}, ${refreshHash}, ${familyId}, ${refreshExpiresAt.toISOString()})
-  `;
+  await insertRefreshToken(sql, user.id, refreshHash, familyId, refreshExpiresAt);
 
   await insertAuditLog(sql, 'github_oauth_login', user.email, {
     githubId: ghUser.id,

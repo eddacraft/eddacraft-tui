@@ -13,4 +13,4 @@ management.
 
 ## Part of
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/anvil-policy`).
+[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-policy`).

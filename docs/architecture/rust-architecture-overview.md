@@ -256,7 +256,7 @@ New TUI surfaces built on Ratatui, consuming kernel events in-process.
 
 ### Design Constraints
 
-- Dark-only theme, EddaCraft 5-colour palette
+- Dark-only theme, eddacraft 5-colour palette
 - Keyboard: j/k navigate, space/enter select, esc back, q quit
 - Minimum terminal size: 80x24
 - TUI render must not block kernel event processing

@@ -46,7 +46,7 @@ keeping open-source docs (APS, Kindling) freely available.
 
 - BAUTH module (complete) — JWT signing, `beta_users` table, `signLicence()`
 - Pulumi IAC (complete) — Vercel project config, Key Vault access
-- GitHub OAuth App (manual setup) — registered under EddaCraft org
+- GitHub OAuth App (manual setup) — registered under eddacraft org
 
 **Exposes:**
 
@@ -165,7 +165,7 @@ Change status to **Ready** when:
 ### DOCSAUTH-004: Store GitHub OAuth secrets in Key Vault
 
 - **Status:** Done
-- **Intent:** Register a GitHub OAuth App under EddaCraft org and store the
+- **Intent:** Register a GitHub OAuth App under eddacraft org and store the
   client ID, client secret, and ES256 public key in Azure Key Vault
   (`kv-iac-anvil`)
 - **Expected Outcome:** Four new secrets exist in Key Vault:

@@ -269,7 +269,7 @@ const openApiSpec = {
       'max_payload_bytes (default 1MB, max 10MB).',
     ].join('\n'),
     contact: {
-      name: 'EddaCraft',
+      name: 'eddacraft',
     },
     license: {
       name: 'Proprietary',

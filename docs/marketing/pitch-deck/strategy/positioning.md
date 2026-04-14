@@ -1,4 +1,4 @@
-# Positioning: Anvil by EddaCraft
+# Positioning: Anvil by eddacraft
 
 ## Category Definition
 

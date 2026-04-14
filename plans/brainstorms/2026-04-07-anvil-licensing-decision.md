@@ -16,7 +16,7 @@
 **Date:** 2026-04-07
 **Status:** Superseded by ADR-018
 **Decision needed by:** ~~before first `cargo publish` (DIST-008)~~ — DIST-008 deferred per ADR-018
-**Audience:** Joshua / EddaCraft IP holder
+**Audience:** Joshua / eddacraft IP holder
 
 ---
 
@@ -128,7 +128,7 @@ Sub-questions that fall out of "yes":
   actually publish? (recommend: whole workspace, for consistency and to avoid
   per-crate license drift)
 - Do we want a `NOTICE` file alongside `LICENSE`? (Apache-2.0 supports but
-  doesn't require — recommend: yes, add EddaCraft attribution)
+  doesn't require — recommend: yes, add eddacraft attribution)
 - Same license for `eddacraft-tui` (separate repo)? It is currently already
   `Apache-2.0` ✅ — no change needed.
 
@@ -155,7 +155,7 @@ Sub-questions that fall out of "no, drop DIST-008":
 
 1. Add `LICENSE` file at workspace root (canonical Apache-2.0 text)
 2. Update workspace `Cargo.toml`: `license = "Apache-2.0"`
-3. Update workspace `repository = "https://github.com/EddaCraft/anvil"`
+3. Update workspace `repository = "https://github.com/eddacraft/anvil"`
 4. Add `version.workspace = true` to all internal path-deps
 5. Publish `eddacraft-tui` from its branch, then publish the 7 workspace
    crates in dependency order
@@ -187,7 +187,7 @@ what FSL is and the auto-conversion clause.
    answer is almost certainly Apache and this conversation is short.
 2. **Are there any third-party code contributions in the workspace already
    that we would need to relicense?** A quick `git log --format='%aN' | sort
-   -u` will tell us. If all commits are EddaCraft-authored, relicense is
+   -u` will tell us. If all commits are eddacraft-authored, relicense is
    trivial.
 3. **What does the dashboard / web app license? What does the hosted SaaS
    ToS say about the CLI?** These should be coherent with whatever we pick

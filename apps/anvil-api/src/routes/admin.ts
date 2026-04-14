@@ -4,7 +4,14 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { adminAuth } from '../middleware/admin-auth.js';
 import { getClient } from '../db/client.js';
-import { findUserWithTokens } from '../db/queries.js';
+import {
+  findUserWithTokens,
+  insertAuditLog,
+  upsertWaitlistWithName,
+  findWaitlistEntryByEmail,
+  findUnapprovedWaitlistEntries,
+  findWaitlistBySource,
+} from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
@@ -20,6 +27,7 @@ const inviteSchema = z.object({
   notes: z.string().max(1000).optional(),
   days: z.number().int().positive().max(365).default(90),
   scopes: z.array(z.enum(ALLOWED_SCOPES)).default(['beta']),
+  tokenOnly: z.boolean().default(false),
 });
 
 const approveSchema = z.union([
@@ -57,48 +65,109 @@ function resolveAdminActor(c: { req: { header: (name: string) => string | undefi
 /**
  * POST /admin/invite
  *
- * Creates or finds a user by email, generates a new token.
- * Returns the raw token exactly once — it is never stored.
+ * Invite a user to the beta. Two modes:
+ *
+ * Default (tokenOnly=false): insert into waitlist with source 'manual',
+ * then run the full approve flow (upsert user, device code, invite email).
+ *
+ * tokenOnly=true: upsert user + waitlist entry, generate a raw access
+ * token returned exactly once. For CI/service accounts.
  */
 admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
-  const { email, name, notes, days, scopes } = c.req.valid('json');
-  debug('POST /admin/invite', { email, scopes, days });
+  const { email, name, notes, days, scopes, tokenOnly } = c.req.valid('json');
+  debug('POST /admin/invite', { email, scopes, days, tokenOnly });
   const sql = getClient();
   const actor = resolveAdminActor(c);
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  const rawToken = generateToken();
-  const hash = hashToken(rawToken);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + days);
+  // Always record in waitlist for tracking
+  await upsertWaitlistWithName(sql, normalizedEmail, name ?? null, 'manual');
 
-  // Transaction: upsert user + insert token + audit log atomically
+  if (tokenOnly) {
+    // Direct token flow — for CI/service accounts
+    const rawToken = generateToken();
+    const hash = hashToken(rawToken);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + days);
+
+    // Neon batch transaction — statements are interdependent and must be atomic
+    const txResult = await sql.transaction([
+      sql`INSERT INTO beta_users (email, name, notes, status)
+          VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
+          ON CONFLICT (email) DO UPDATE SET
+            name = COALESCE(${name ?? null}, beta_users.name),
+            notes = COALESCE(${notes ?? null}, beta_users.notes),
+            status = ${'active'}
+          RETURNING *`,
+      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+          VALUES (
+            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+            ${hash}, ${scopes}, ${expiresAt.toISOString()}
+          )
+          RETURNING *`,
+      sql`INSERT INTO audit_log (action, actor, metadata)
+          VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+          RETURNING *`,
+    ]);
+
+    const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
+
+    return c.json(
+      {
+        token: rawToken,
+        user: { email: user.email, id: user.id },
+        expiresAt: expiresAt.toISOString(),
+        scopes,
+      },
+      201
+    );
+  }
+
+  // Default flow — approve via device code + invite email
+  const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
+
+  // Device code for activation link (ANVIL- + 8 hex = 14 chars, within max(20))
+  const userCode = 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
+  const pollToken = randomBytes(32).toString('hex');
+  const pollTokenHash = hashToken(pollToken);
+  const deviceExpiry = new Date();
+  deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
+
+  // Neon batch transaction — statements are interdependent and must be atomic
   const txResult = await sql.transaction([
-    sql`INSERT INTO beta_users (email, name, notes)
-        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null})
+    sql`INSERT INTO beta_users (email, name, notes, status)
+        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
         ON CONFLICT (email) DO UPDATE SET
           name = COALESCE(${name ?? null}, beta_users.name),
-          notes = COALESCE(${notes ?? null}, beta_users.notes)
+          notes = COALESCE(${notes ?? null}, beta_users.notes),
+          status = ${'active'}
         RETURNING *`,
-    sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+    sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
         VALUES (
           (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-          ${hash}, ${scopes}, ${expiresAt.toISOString()}
+          ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
         )
         RETURNING *`,
     sql`INSERT INTO audit_log (action, actor, metadata)
-        VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+        VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
         RETURNING *`,
   ]);
 
   const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
 
+  moveToApprovedAudience(normalizedEmail).catch((err) => {
+    console.error('Failed to move audience (non-fatal):', err);
+  });
+
+  const activateUrl = `${ACTIVATE_BASE}?code=${userCode}`;
+  await sendBetaInvite(normalizedEmail, userCode, activateUrl).catch((err) => {
+    console.error('Failed to send invite email (non-fatal):', err);
+  });
+
   return c.json(
     {
-      token: rawToken,
       user: { email: user.email, id: user.id },
-      expiresAt: expiresAt.toISOString(),
       scopes,
     },
     201
@@ -118,7 +187,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
 
   if (email) {
     const normalizedEmail = email.toLowerCase().trim();
-    // Transaction: revoke tokens + audit log atomically
+    // Neon batch transaction — statements are interdependent and must be atomic
     const txResult = await sql.transaction([
       sql`UPDATE access_tokens SET revoked_at = now()
           WHERE user_id = (SELECT id FROM beta_users WHERE email = ${normalizedEmail})
@@ -137,7 +206,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
 
   if (token) {
     const hash = hashToken(token);
-    // Transaction: revoke token + audit log atomically
+    // Neon batch transaction — statements are interdependent and must be atomic
     const txResult = await sql.transaction([
       sql`UPDATE access_tokens SET revoked_at = now()
           WHERE token_hash = ${hash}
@@ -172,8 +241,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     const normalizedEmail = email.toLowerCase().trim();
 
     // Verify waitlisted
-    const waitlistRows = await sql`SELECT id FROM waitlist WHERE email = ${normalizedEmail}`;
-    const waitlistEntry = (waitlistRows as Record<string, unknown>[])[0];
+    const waitlistEntry = await findWaitlistEntryByEmail(sql, normalizedEmail);
     if (!waitlistEntry) {
       throw new Error(`not_found:${normalizedEmail}`);
     }
@@ -191,7 +259,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     const deviceExpiry = new Date();
     deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
 
-    // Transaction: upsert user + insert token + insert device code + audit log
+    // Neon batch transaction — statements are interdependent and must be atomic
     await sql.transaction([
       sql`INSERT INTO beta_users (email, status)
           VALUES (${normalizedEmail}, ${'active'})
@@ -241,13 +309,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   }
 
   // Batch mode: oldest N unapproved waitlist entries
-  const unapproved = (await sql`
-    SELECT w.email FROM waitlist w
-    LEFT JOIN beta_users bu ON bu.email = w.email
-    WHERE bu.id IS NULL
-    ORDER BY w.created_at ASC
-    LIMIT ${body.batch}
-  `) as { email: string }[];
+  const unapproved = await findUnapprovedWaitlistEntries(sql, body.batch);
 
   const approved: { email: string; expiresAt: string }[] = [];
   for (const row of unapproved) {
@@ -313,24 +375,20 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
 
   const { source, dryRun, limit } = c.req.valid('json');
 
-  const rows = (await sql`
-    SELECT email, name FROM waitlist WHERE source = ${source}
-    ORDER BY created_at ASC
-    LIMIT ${limit}
-  `) as { email: string; name: string | null }[];
+  const waitlistRows = await findWaitlistBySource(sql, source, limit);
 
   if (dryRun) {
     return c.json({
       dryRun: true,
       source,
-      count: rows.length,
-      recipients: rows.map((r) => ({ email: r.email, name: r.name })),
+      count: waitlistRows.length,
+      recipients: waitlistRows.map((r) => ({ email: r.email, name: r.name })),
     });
   }
 
   const results: { email: string; sent: boolean; error?: string }[] = [];
 
-  for (const row of rows) {
+  for (const row of waitlistRows) {
     const delivery = await sendWaitlistMigration(row.email, row.name ?? undefined);
     results.push({
       email: row.email,
@@ -342,10 +400,9 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   const sent = results.filter((r) => r.sent).length;
   const failed = results.filter((r) => !r.sent).length;
 
-  await sql`INSERT INTO audit_log (action, actor, metadata)
-    VALUES (${'migration.email.sent'}, ${actor}, ${JSON.stringify({ source, sent, failed })})`;
+  await insertAuditLog(sql, 'migration.email.sent', actor, { source, sent, failed });
 
-  return c.json({ source, total: rows.length, sent, failed, results });
+  return c.json({ source, total: waitlistRows.length, sent, failed, results });
 });
 
 export { admin };

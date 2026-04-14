@@ -1,7 +1,7 @@
 # Shared Packages
 
 Cross-cutting infrastructure packages used across the Anvil monorepo. Introduced
-by [ADR-015](../../plans/decisions/015-shared-packages-restructure.md) to break
+by [ADR-023](../../plans/decisions/023-shared-packages-restructure.md) to break
 circular dependencies and provide a clean dependency floor beneath domain
 packages.
 

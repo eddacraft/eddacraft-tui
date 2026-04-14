@@ -115,6 +115,71 @@ impl AnvilClient {
         })
     }
 
+    pub async fn invite_user(
+        &self,
+        email: &str,
+        name: Option<&str>,
+        notes: Option<&str>,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        struct InviteBody<'a> {
+            email: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            name: Option<&'a str>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            notes: Option<&'a str>,
+        }
+        #[derive(Deserialize)]
+        struct InviteResponse {
+            user: InviteUser,
+        }
+        #[derive(Deserialize)]
+        struct InviteUser {
+            email: String,
+        }
+
+        let resp: InviteResponse = self
+            .post("/admin/invite", InviteBody { email, name, notes })
+            .await?;
+        let _ = resp.user.email;
+        Ok(())
+    }
+
+    pub async fn invite_user_token(
+        &self,
+        email: &str,
+        name: Option<&str>,
+        notes: Option<&str>,
+    ) -> Result<String> {
+        #[derive(Serialize)]
+        struct InviteBody<'a> {
+            email: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            name: Option<&'a str>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            notes: Option<&'a str>,
+            #[serde(rename = "tokenOnly")]
+            token_only: bool,
+        }
+        #[derive(Deserialize)]
+        struct TokenResponse {
+            token: String,
+        }
+
+        let resp: TokenResponse = self
+            .post(
+                "/admin/invite",
+                InviteBody {
+                    email,
+                    name,
+                    notes,
+                    token_only: true,
+                },
+            )
+            .await?;
+        Ok(resp.token)
+    }
+
     pub async fn approve_user(&self, email: &str) -> Result<()> {
         #[derive(Serialize)]
         struct ApproveBody<'a> {
@@ -351,6 +416,100 @@ mod tests {
         let client = mock_client(&server.uri(), Some("admin-key"));
         let emails = client.approve_batch(5).await.unwrap();
         assert!(emails.is_empty());
+    }
+
+    // --- invite_user ---
+
+    #[tokio::test]
+    async fn invite_user_default_flow() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/invite"))
+            .and(body_json(serde_json::json!({
+                "email": "new@example.com"
+            })))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "user": {"email": "new@example.com", "id": "uuid-1"},
+                "expiresAt": "2026-07-13T00:00:00.000Z",
+                "scopes": ["beta"]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        client
+            .invite_user("new@example.com", None, None)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn invite_user_with_name_and_notes() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/invite"))
+            .and(body_json(serde_json::json!({
+                "email": "vip@example.com",
+                "name": "VIP User",
+                "notes": "Priority access"
+            })))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "user": {"email": "vip@example.com", "id": "uuid-2"},
+                "expiresAt": "2026-07-13T00:00:00.000Z",
+                "scopes": ["beta"]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        client
+            .invite_user("vip@example.com", Some("VIP User"), Some("Priority access"))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn invite_user_token_returns_token() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/invite"))
+            .and(body_json(serde_json::json!({
+                "email": "ci@example.com",
+                "tokenOnly": true
+            })))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "token": "anvil_beta_abc123",
+                "user": {"email": "ci@example.com", "id": "uuid-3"},
+                "expiresAt": "2026-07-13T00:00:00.000Z",
+                "scopes": ["beta"]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let token = client
+            .invite_user_token("ci@example.com", None, None)
+            .await
+            .unwrap();
+        assert_eq!(token, "anvil_beta_abc123");
+    }
+
+    #[tokio::test]
+    async fn invite_user_propagates_http_error() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/invite"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("bad-key"));
+        let err = client.invite_user("x@y.com", None, None).await.unwrap_err();
+        assert!(err.to_string().contains("API response"));
     }
 
     // --- HTTP error handling ---

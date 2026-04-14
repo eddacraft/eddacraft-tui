@@ -303,10 +303,10 @@ All running continuously, all with sub-second feedback.
 
 ## Architecture
 
-### Shared Rust Crates (EddaCraft Product Family)
+### Shared Rust Crates (eddacraft Product Family)
 
 ```
-eddacraft-tui           Ratatui components, EddaCraft theme,
+eddacraft-tui           Ratatui components, eddacraft theme,
                         keyboard conventions (j/k, space, enter, esc)
 
 eddacraft-engine        Policy engine, tree-sitter AST parsing,

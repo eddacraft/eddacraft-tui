@@ -31,14 +31,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/EddaCraft/anvil-001.git",
+    "url": "https://github.com/eddacraft/anvil-001.git",
     "directory": "apps/anvil-cli"
   },
   "bugs": {
-    "url": "https://github.com/EddaCraft/anvil-001/issues"
+    "url": "https://github.com/eddacraft/anvil-001/issues"
   },
-  "homepage": "https://github.com/EddaCraft/anvil-001#readme",
-  "author": "EddaCraft",
+  "homepage": "https://github.com/eddacraft/anvil-001#readme",
+  "author": "eddacraft",
   "dependencies": {
     "@eddacraft/kindling-core": "0.1.2",
     "@eddacraft/kindling-provider-local": "0.1.2",

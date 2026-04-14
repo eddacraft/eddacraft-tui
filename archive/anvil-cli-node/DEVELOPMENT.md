@@ -755,7 +755,7 @@ anvil gate spec.md --skip-checks coverage
 
 ## Support
 
-- **Issues:** https://github.com/EddaCraft/anvil-001/issues
+- **Issues:** https://github.com/eddacraft/anvil-001/issues
 - **Documentation:** See project root README.md and docs/
 
 ---

@@ -1,7 +1,7 @@
 # Anvil v0.2.1-beta Release Test Report (Edda/Ember/Stack + Tutorial)
 
 Date: 2026-03-15 Release: `v0.2.1-beta — Project Memory & Pattern Detection`
-Source: https://github.com/EddaCraft/anvil-001/releases/tag/v0.2.1-beta
+Source: https://github.com/eddacraft/anvil-001/releases/tag/v0.2.1-beta
 
 ## Test scope
 

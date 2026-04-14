@@ -201,6 +201,84 @@ describe('FeatureFlagDefinitionSchema', () => {
 });
 
 // ---------------------------------------------------------------------------
+// valueType-variant alignment
+// ---------------------------------------------------------------------------
+
+describe('FeatureFlagDefinitionSchema valueType-variant alignment', () => {
+  it('rejects boolean flag with string variant value', () => {
+    const result = FeatureFlagDefinitionSchema.safeParse(
+      validFlag({
+        valueType: 'boolean',
+        variants: [
+          { key: 'enabled', value: 'yes' },
+          { key: 'disabled', value: false },
+        ],
+      })
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects string flag with boolean variant value', () => {
+    const result = FeatureFlagDefinitionSchema.safeParse(
+      validFlag({
+        valueType: 'string',
+        variants: [
+          { key: 'on', value: true },
+          { key: 'off', value: 'off' },
+        ],
+      })
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects number flag with string variant value', () => {
+    const result = FeatureFlagDefinitionSchema.safeParse(
+      validFlag({
+        valueType: 'number',
+        variants: [
+          { key: 'high', value: 'ten' },
+          { key: 'low', value: 1 },
+        ],
+      })
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects object flag with primitive variant value', () => {
+    const result = FeatureFlagDefinitionSchema.safeParse(
+      validFlag({
+        valueType: 'object',
+        defaultVariant: 'full',
+        variants: [
+          { key: 'full', value: 42 },
+          { key: 'limited', value: { maxItems: 10 } },
+        ],
+      })
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts boolean flag with boolean variant values', () => {
+    const result = FeatureFlagDefinitionSchema.safeParse(validFlag());
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts object flag with object variant values', () => {
+    const result = FeatureFlagDefinitionSchema.safeParse(
+      validFlag({
+        valueType: 'object',
+        defaultVariant: 'full',
+        variants: [
+          { key: 'full', value: { maxItems: 100, tier: 'pro' } },
+          { key: 'limited', value: { maxItems: 10, tier: 'free' } },
+        ],
+      })
+    );
+    expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Feature Flag Manifest
 // ---------------------------------------------------------------------------
 
@@ -297,7 +375,7 @@ describe('EnvironmentNameSchema', () => {
 });
 
 describe('ChannelSchema', () => {
-  it.each(['development', 'beta', 'rc', 'stable'])('accepts "%s"', (v) => {
+  it.each(['development', 'beta', 'production'])('accepts "%s"', (v) => {
     expect(ChannelSchema.parse(v)).toBe(v);
   });
 
@@ -370,7 +448,7 @@ describe('EvaluationContextSchema', () => {
   it('accepts full context', () => {
     const result = EvaluationContextSchema.safeParse({
       targetingKey: 'session-xyz',
-      environment: { environment: 'prod', channel: 'stable' },
+      environment: { environment: 'prod', channel: 'production' },
       audience: { accountTier: 'enterprise', userRole: 'admin' },
     });
     expect(result.success).toBe(true);

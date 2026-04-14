@@ -3,7 +3,7 @@
 ## 1. PURPOSE
 
 This document is the single source of truth for all **customer-facing control
-surfaces** across the EddaCraft product suite. It governs visual identity,
+surfaces** across the eddacraft product suite. It governs visual identity,
 interaction patterns, and brand enforcement for every touchpoint an engineer
 encounters — from the first `anvil init` in their terminal to the web dashboard
 they open in their browser.
@@ -15,7 +15,7 @@ any Anvil surface.
 
 ## 2. THE SURFACES
 
-EddaCraft ships six distinct control surfaces. Each must feel like the same
+eddacraft ships six distinct control surfaces. Each must feel like the same
 system wearing different form factors.
 
 | #   | Surface                | Technology                          | Status         | Primary Audience                           |
@@ -190,7 +190,7 @@ We do not use metaphors (clouds, gears, shields). We use syntax.
   - `[ ]` — Context (neutral, structural)
   - `[ = ]` — Action (Anvil governance)
   - `[ ≡ ]` — History (Edda memory)
-  - `[ ■ ]` — Parent system (EddaCraft)
+  - `[ ■ ]` — Parent system (eddacraft)
   - `[ > ]` — Signal (live data, interception)
 
 ### 6.2 Macro Logos
@@ -209,7 +209,7 @@ Rendered in `--anvil-ember` with text in `--text-primary` / `--text-muted`:
 ████     ████
 ```
 
-#### EddaCraft Watermark (Footer / Credits)
+#### eddacraft Watermark (Footer / Credits)
 
 Rendered in `--text-muted` and `--structure`:
 
@@ -631,7 +631,7 @@ customer-facing because AI agents present its output to users.
 - **Imagery:** High-contrast terminal screenshots, architecture diagrams (white
   lines on dark), typography-only slides (big numbers). Never stock photos.
 - **Grid:** Visible. 5% opacity grid on slide master.
-- **Tool:** Generated via Node.js script using EddaCraft brand templates.
+- **Tool:** Generated via Node.js script using eddacraft brand templates.
 
 ### 13.2 OG / Social Images
 
@@ -787,7 +787,7 @@ All surfaces follow the same silence protocol:
 
 ## 16. INSTRUCTIONS FOR CLAUDE
 
-When working on any EddaCraft customer-facing surface:
+When working on any eddacraft customer-facing surface:
 
 - Adhere strictly to the colour token system. Never introduce arbitrary colours.
 - Never use rounded corners in TUI or dashboard components.

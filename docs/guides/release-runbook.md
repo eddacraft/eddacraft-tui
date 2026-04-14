@@ -2,9 +2,37 @@
 
 Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
+## Quick start
+
+The release process is split between an interactive script and a Claude skill:
+
+1. **Run the release script** — handles preflight, branching, and tagging:
+
+   ```bash
+   ./scripts/release.sh
+   ```
+
+   The script creates a GitHub Issue for tracking, runs all checks with
+   interactive gates, and writes `.release/manifest.json` as a handoff.
+
+2. **Run the `/release` skill** — handles post-release verification:
+
+   ```
+   /release
+   ```
+
+   The skill reads the manifest, verifies artefacts, reviews docs, drafts comms,
+   handles cleanup, and closes the tracking issue.
+
+The sections below are the **reference manual** — the script and skill automate
+and enforce these steps. Refer to them directly when something goes wrong or
+when you need to understand what a step does.
+
+---
+
 ## Release policy (current)
 
-- **Distribution:** pre-built binaries via GitHub Releases on `EddaCraft/anvil`
+- **Distribution:** pre-built binaries via GitHub Releases on `eddacraft/anvil`
   (public).
 - **Install method:** shell installer script (`curl ... | sh`).
 - **Targets:** x86_64 + aarch64 for Linux, macOS, and Windows.
@@ -122,8 +150,8 @@ git push origin vX.Y.Z
 ```
 
 Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
-all 6 targets and creates a GitHub Release automatically (pre-release for
-beta/alpha/rc tags).
+all 5 targets and creates a GitHub Release automatically (pre-release for beta
+tags).
 
 For beta releases, either format works:
 
@@ -163,22 +191,22 @@ gh pr create --base dev --head main \
 Watch run in real time:
 
 ```bash
-gh run list --repo EddaCraft/anvil-001 --limit 5
-gh run watch <run-id> --repo EddaCraft/anvil-001
+gh run list --repo eddacraft/anvil-001 --limit 5
+gh run watch <run-id> --repo eddacraft/anvil-001
 ```
 
 Or inspect a completed run:
 
 ```bash
-gh run view <run-id> --repo EddaCraft/anvil-001 --log-failed
+gh run view <run-id> --repo eddacraft/anvil-001 --log-failed
 ```
 
 Expected behaviour:
 
 - `plan` job succeeds and identifies the release.
-- `build-local-artifacts` jobs compile for all 6 targets.
+- `build-local-artifacts` jobs compile for all 5 targets.
 - `build-global-artifacts` job produces shell and PowerShell installers.
-- `host` job creates the GitHub Release on `EddaCraft/anvil` (public) with all
+- `host` job creates the GitHub Release on `eddacraft/anvil` (public) with all
   artefacts. A copy is also retained on the private repo.
 - `announce` job posts release notes.
 
@@ -190,7 +218,7 @@ Install on a clean machine (or container):
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 
 anvil --version
 anvil doctor
@@ -198,10 +226,10 @@ anvil auth login
 anvil gate
 ```
 
-Verify all 6 platform binaries are present in the GitHub Release:
+Verify all 5 platform binaries are present in the GitHub Release:
 
 ```bash
-gh release view vX.Y.Z --repo EddaCraft/anvil
+gh release view vX.Y.Z --repo eddacraft/anvil
 ```
 
 Expected artefacts:
@@ -211,7 +239,6 @@ Expected artefacts:
 - `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
-- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
 - `eddacraft-anvil-installer.sh`
 - `eddacraft-anvil-installer.ps1`
 
@@ -237,12 +264,12 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 ### If public release publish fails (partial release)
 
 The workflow creates the private release first (`dist host`), then publishes to
-`EddaCraft/anvil`. If the public step fails:
+`eddacraft/anvil`. If the public step fails:
 
 1. Download artefacts from the private release:
 
 ```bash
-gh release download vX.Y.Z --repo EddaCraft/anvil-001 --dir ./artifacts
+gh release download vX.Y.Z --repo eddacraft/anvil-001 --dir ./artifacts
 ```
 
 2. Remove manifests (the automated pipeline does this before publishing):
@@ -255,11 +282,11 @@ rm -f artifacts/*-dist-manifest.json
    tag-creation step to prevent tag drift):
 
 ```bash
-if gh api repos/EddaCraft/anvil/git/ref/tags/vX.Y.Z >/dev/null 2>&1; then
-  echo "Tag vX.Y.Z already exists on EddaCraft/anvil; skipping."
+if gh api repos/eddacraft/anvil/git/ref/tags/vX.Y.Z >/dev/null 2>&1; then
+  echo "Tag vX.Y.Z already exists on eddacraft/anvil; skipping."
 else
-  PUBLIC_HEAD=$(gh api repos/EddaCraft/anvil/git/ref/heads/main -q '.object.sha')
-  gh api repos/EddaCraft/anvil/git/refs \
+  PUBLIC_HEAD=$(gh api repos/eddacraft/anvil/git/ref/heads/main -q '.object.sha')
+  gh api repos/eddacraft/anvil/git/refs \
     -f ref="refs/tags/vX.Y.Z" \
     -f sha="$PUBLIC_HEAD"
 fi
@@ -269,7 +296,7 @@ fi
 
 ```bash
 gh release create vX.Y.Z \
-  --repo EddaCraft/anvil \
+  --repo eddacraft/anvil \
   --verify-tag \
   --title "Anvil CLI vX.Y.Z" \
   --notes "See changelog in private repo" \
@@ -291,8 +318,8 @@ git push origin :refs/tags/vX.Y.Z
 2. Delete the GitHub Release from both repos:
 
 ```bash
-gh release delete vX.Y.Z --repo EddaCraft/anvil --yes
-gh release delete vX.Y.Z --repo EddaCraft/anvil-001 --yes
+gh release delete vX.Y.Z --repo eddacraft/anvil --yes
+gh release delete vX.Y.Z --repo eddacraft/anvil-001 --yes
 ```
 
 3. Fix the issue, bump to a new version, and re-release.
@@ -313,11 +340,11 @@ gh release delete vX.Y.Z --repo EddaCraft/anvil-001 --yes
 - **Cross-compilation:** aarch64-linux uses cross-compilation in CI. If it
   fails, check the cross toolchain setup in the workflow.
 - **Dual release:** The workflow creates releases on both the private repo (via
-  `dist host`) and the public `EddaCraft/anvil` (via `gh release create`). The
+  `dist host`) and the public `eddacraft/anvil` (via `gh release create`). The
   private release is for internal traceability; the public one is for
   distribution.
 - **ANVIL_RELEASES_TOKEN:** A PAT/fine-grained token with `contents: write` on
-  `EddaCraft/anvil`. Must be set as a repository secret on `anvil-001`.
+  `eddacraft/anvil`. Must be set as a repository secret on `anvil-001`.
 
 ---
 
@@ -333,7 +360,7 @@ Example:
 
 ```text
 Anvil CLI vX.Y.Z is live.
-Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 Login: anvil auth login
 ```
 

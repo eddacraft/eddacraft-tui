@@ -1,4 +1,4 @@
-# ADR-011: OPA Agent Orchestration for Anvil
+# ADR-022: OPA Agent Orchestration for Anvil
 
 ## Status
 

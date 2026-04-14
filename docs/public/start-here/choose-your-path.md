@@ -13,7 +13,7 @@ Not sure where to start? Pick the path that matches your goal.
 
 ## I'm evaluating
 
-You want to understand what EddaCraft offers and whether it fits your needs.
+You want to understand what eddacraft offers and whether it fits your needs.
 
 | Goal                                 | Start here                                     |
 | ------------------------------------ | ---------------------------------------------- |

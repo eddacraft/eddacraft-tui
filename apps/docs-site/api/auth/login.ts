@@ -62,7 +62,7 @@ export default async function handler(request: Request): Promise<Response> {
 <head>
   <meta charset="utf-8">
   <meta http-equiv="refresh" content="0;url=${authorizeUrl.toString()}">
-  <title>Sign in — EddaCraft Docs</title>
+  <title>Sign in — eddacraft Docs</title>
   <style>
     body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
     .card { text-align: center; max-width: 400px; padding: 2rem; }

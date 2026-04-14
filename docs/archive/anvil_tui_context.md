@@ -6,7 +6,7 @@ You are assisting in the development of **Anvil**, a CLI/TUI tool built in Rust
 using the `ratatui` framework. Anvil is a deterministic policy engine that
 governs probabilistic AI workflows. It acts as the "adult in the room"—enforcing
 rules, watching file system changes, and blocking non-compliant AI agent actions
-at generation time. Anvil is part of the broader **EddaCraft** foundry suite.
+at generation time. Anvil is part of the broader **eddacraft** foundry suite.
 
 ## 2. BRAND & AESTHETIC LAWS
 
@@ -64,7 +64,7 @@ middle chunk split horizontally:
 3. Footer (Bottom): Fixed Constraint::Length(5). Split horizontally:
 
 - Left (80%): [ SYSTEM_LOGS ]. Standard CLI output.
-- Right (20%): EddaCraft watermark.
+- Right (20%): eddacraft watermark.
 
 ## 5. REQUIRED ICONOGRAPHY & LOGOS
 
@@ -72,7 +72,7 @@ Micro-Prefixes (For inline logs and statuses):
 
 - Anvil (Governance/Action): [ = ]
 - Edda (Memory/Context): [ ≡ ]
-- EddaCraft (Parent System): [ ■ ]
+- eddacraft (Parent System): [ ■ ]
 
 The Macro Anvil Header (Must be rendered perfectly in EMBER, with text in
 FG/MUTED):
@@ -87,7 +87,7 @@ FG/MUTED):
 ████     ████
 ```
 
-The EddaCraft Footer Watermark (Bottom right of the TUI, rendered in MUTED and
+The eddacraft Footer Watermark (Bottom right of the TUI, rendered in MUTED and
 BORDER):
 
 ```plaintext

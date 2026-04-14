@@ -1,4 +1,4 @@
-# EddaCraft Autonomy Constitution (v0)
+# eddacraft Autonomy Constitution (v0)
 
 Status: Draft for operational use  
 Owner: Harness Engineering  
@@ -6,7 +6,7 @@ Last updated: 2026-03-09
 
 ## 1) Purpose
 
-Define how autonomy is safely exercised in EddaCraft systems.
+Define how autonomy is safely exercised in eddacraft systems.
 
 This constitution exists to ensure:
 
@@ -21,7 +21,7 @@ This constitution exists to ensure:
 - **Harness Engineering**: runtime governance, controls, and operating model
   (how we reliably direct what agents do).
 
-**Policy:** EddaCraft prioritises Harness Engineering as the production
+**Policy:** eddacraft prioritises Harness Engineering as the production
 discipline.
 
 ## 3) Decision rights by autonomy tier

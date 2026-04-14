@@ -1,6 +1,6 @@
 # Anvil -- Investor One-Pager
 
-**AI Governance for Developers** | EddaCraft | anvil.eddacraft.ai
+**AI Governance for Developers** | eddacraft | anvil.eddacraft.ai
 
 ---
 
@@ -94,4 +94,4 @@ contracts.
 
 ---
 
-_Anvil by EddaCraft -- the adult in the room for AI-assisted development._
+_Anvil by eddacraft -- the adult in the room for AI-assisted development._

@@ -133,10 +133,10 @@ Check the Anvil output channel for detailed error messages. Common issues:
 
 ## Contributing
 
-See the main [Anvil repository](https://github.com/EddaCraft/anvil-001) for
+See the main [Anvil repository](https://github.com/eddacraft/anvil-001) for
 contribution guidelines.
 
 ## Licence
 
-Copyright (c) 2026 EddaCraft. All rights reserved. See [LICENSE](../../LICENSE)
+Copyright (c) 2026 eddacraft. All rights reserved. See [LICENSE](../../LICENSE)
 for details.

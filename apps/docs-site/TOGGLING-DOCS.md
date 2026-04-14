@@ -1,7 +1,7 @@
 # Toggling Documentation Sections
 
 This document explains how to enable/disable specific documentation sections in
-the EddaCraft Docusaurus site.
+the eddacraft Docusaurus site.
 
 ## Architecture
 
