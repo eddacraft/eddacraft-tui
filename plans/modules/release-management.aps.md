@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status    |
 | ------- | ----- | --------- |
-| RELMGMT | —     | Draft |
+| RELMGMT | —     | Complete |
 
 ## Purpose
 
@@ -155,7 +155,7 @@ release.
 
 ### RELMGMT-007: Release tracking issue template
 
-- **Status:** Draft
+- **Status:** Complete (2026-04-14)
 - **Intent:** GitHub Issue template that tracks a release from preflight
   through post-release verification. Created by the release script at the
   start of each release. Label: `release`. Title: `release/vX.Y.Z`.
@@ -174,7 +174,7 @@ release.
 
 ### RELMGMT-008: Gitignore ephemeral release manifest
 
-- **Status:** Draft
+- **Status:** Complete (2026-04-14)
 - **Intent:** Add `.release/` to `.gitignore` so the ephemeral manifest
   written by the release script is never committed
 - **Expected Outcome:** `.release/manifest.json` is ignored by git
@@ -189,7 +189,7 @@ release.
 
 ### RELMGMT-009: Interactive release shell script
 
-- **Status:** Draft
+- **Status:** Complete (2026-04-14)
 - **Intent:** Shell script that walks the operator through the mechanical
   release steps (preflight, branching, tagging, workflow kickoff) with
   interactive gates. Hard gates abort on failure (tests, version mismatch).
@@ -266,7 +266,7 @@ release.
 
 ### RELMGMT-010: Claude `/release` skill
 
-- **Status:** Draft
+- **Status:** Complete (2026-04-14)
 - **Intent:** Claude Code skill for post-script judgment steps. Reads the
   ephemeral manifest as a gate contract — refuses to start without a valid
   one. Handles workflow monitoring, artefact verification, changelog review,
@@ -308,7 +308,7 @@ release.
 
 ### RELMGMT-011: Update release runbook
 
-- **Status:** Draft
+- **Status:** Complete (2026-04-14)
 - **Intent:** Update the existing runbook to reference the interactive
   release script and `/release` skill. Keep incident playbook and known
   gotchas as-is — they're still the reference for when things go wrong.
@@ -340,5 +340,5 @@ Phase 2 dependency graph:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 1 — Policy | 6 | 6/6 ratified |
-| 2 — Interactive Tooling | 5 | Draft |
-| **Total** | **11** | **6/11 done** |
+| 2 — Interactive Tooling | 5 | 5/5 complete |
+| **Total** | **11** | **11/11 done** |
