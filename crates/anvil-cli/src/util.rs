@@ -99,7 +99,67 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
         .persist(path)
         .with_context(|| format!("persisting {tmp_display} -> {}", path.display()))?;
 
+    // On Windows, restrict the file to the current user only (matching Unix 0o600).
+    // icacls is available on all modern Windows (Vista+).
+    #[cfg(windows)]
+    {
+        restrict_windows_permissions(path);
+    }
+
     Ok(())
+}
+
+/// Restrict a file to the current user only on Windows via `icacls`.
+///
+/// Best-effort: emits a warning to stderr if the restriction cannot be
+/// applied (missing USERNAME, icacls failure, etc.) but does not fail
+/// the write operation. This mirrors the Unix 0o600 set at creation time.
+#[cfg(windows)]
+fn restrict_windows_permissions(path: &Path) {
+    let username = match std::env::var("USERNAME") {
+        Ok(name) if !name.is_empty() => name,
+        _ => {
+            eprintln!(
+                "Warning: cannot restrict file permissions on {}: USERNAME not set",
+                path.display()
+            );
+            return;
+        }
+    };
+
+    // Guard against usernames that would produce unintended icacls grants
+    // (e.g. "Everyone", names with special characters).
+    let is_safe = username
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b'.' || b == b'\\');
+    if !is_safe {
+        eprintln!(
+            "Warning: cannot restrict file permissions on {}: USERNAME contains special characters",
+            path.display()
+        );
+        return;
+    }
+
+    let status = std::process::Command::new("icacls")
+        .arg(path)
+        .args(["/inheritance:r", "/grant:r"])
+        .arg(format!("{username}:(F)"))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => eprintln!(
+            "Warning: failed to restrict file permissions on {} (icacls exit {})",
+            path.display(),
+            s
+        ),
+        Err(e) => eprintln!(
+            "Warning: failed to run icacls for {}: {e}",
+            path.display()
+        ),
+    }
 }
 
 #[cfg(test)]

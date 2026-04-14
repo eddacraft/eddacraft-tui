@@ -16,8 +16,7 @@ use crate::util::atomic_write;
 /// File name for the architecture definition.
 pub const ARCHITECTURE_YAML_FILENAME: &str = "architecture.yaml";
 
-/// Standard Anvil configuration directory.
-pub const ANVIL_DIR: &str = ".anvil";
+use crate::ANVIL_DIR;
 
 type LayersRecord = BTreeMap<String, Layer>;
 

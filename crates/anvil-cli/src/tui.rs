@@ -96,25 +96,42 @@ fn surface_loop<S: Surface>(
     state: &mut S,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<SurfaceExit> {
+    // Track whether state has changed since the last draw.
+    // Starts true so the first frame always renders.
+    let mut dirty = true;
+
     loop {
-        terminal.draw(|frame| {
-            let area = frame.area();
-            let content = render_shell(frame, area, state.surface_name(), state.help_text(), theme);
-            state.render(frame, content, theme);
-        })?;
-
-        if event::poll(Duration::from_millis(100))?
-            && let Event::Key(key) = event::read()?
-        {
-            let action = KeyHandler::map(key);
-            state.handle_key(action);
+        if dirty {
+            terminal.draw(|frame| {
+                let area = frame.area();
+                let content =
+                    render_shell(frame, area, state.surface_name(), state.help_text(), theme);
+                state.render(frame, content, theme);
+            })?;
+            dirty = false;
         }
 
-        if state.should_quit() {
-            return Ok(SurfaceExit::Quit);
-        }
-        if state.should_back() {
-            return Ok(SurfaceExit::Back);
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key) => {
+                    let action = KeyHandler::map(key);
+                    state.handle_key(action);
+                    dirty = true;
+
+                    // Check exit immediately after key — avoids waiting for
+                    // the next poll timeout before responding to quit/back.
+                    if state.should_quit() {
+                        return Ok(SurfaceExit::Quit);
+                    }
+                    if state.should_back() {
+                        return Ok(SurfaceExit::Back);
+                    }
+                }
+                Event::Resize(_, _) => {
+                    dirty = true;
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -328,16 +345,24 @@ fn watch_loop(
         } else {
             Duration::from_millis(50)
         };
+
+        // Drain all pending terminal events so resize is never deferred
+        // behind a burst of key events.
         if event::poll(poll_timeout)? {
-            match event::read()? {
-                Event::Key(key) => {
-                    let action = KeyHandler::map(key);
-                    state.handle_key(action);
+            loop {
+                match event::read()? {
+                    Event::Key(key) => {
+                        let action = KeyHandler::map(key);
+                        state.handle_key(action);
+                    }
+                    Event::Resize(_, _) => {
+                        state.mark_dirty();
+                    }
+                    _ => {}
                 }
-                Event::Resize(_, _) => {
-                    state.mark_dirty();
+                if !event::poll(Duration::ZERO)? {
+                    break;
                 }
-                _ => {}
             }
         }
 

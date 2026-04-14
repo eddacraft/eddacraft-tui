@@ -515,51 +515,49 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
 
 /// Extract import edges from source files using the kernel's tree-sitter parser.
 ///
-/// Walks source files, parses each with the kernel parser, resolves relative
-/// import specifiers to workspace-relative file paths.
-fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEdge> {
+/// When `source_files` is provided, only those files are parsed (avoids a
+/// redundant directory walk). Otherwise falls back to walking `project_root`.
+fn extract_import_edges(
+    project_root: &Path,
+    source_files: Option<&[String]>,
+) -> Vec<anvil_architecture::ImportEdge> {
     let mut parser = anvil_kernel::parser::Parser::new();
     let mut edges = Vec::new();
 
     let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs"];
 
-    let walker = walkdir::WalkDir::new(project_root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|e| {
-            let name = e.file_name().to_string_lossy();
-            if e.file_type().is_dir() {
-                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
-            }
-            true
-        });
+    // Collect file paths to parse — either from the pre-collected list or via walkdir.
+    let owned_paths: Vec<String>;
+    let file_paths: &[String] = if let Some(files) = source_files {
+        files
+    } else {
+        owned_paths = walk_source_files(project_root, &include_extensions);
+        &owned_paths
+    };
 
-    for entry in walker.flatten() {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path = entry.path();
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    for rel_path in file_paths {
+        // Filter to JS/TS — the pre-collected list from collect_source_files
+        // may include .rs and other file types matched by architecture layer globs.
+        let ext = std::path::Path::new(rel_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
         if !include_extensions.contains(&ext) {
             continue;
         }
 
-        let rel_path = path
-            .strip_prefix(project_root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let path = project_root.join(rel_path);
 
-        let Ok(content) = std::fs::read(path) else {
+        let Ok(content) = std::fs::read(&path) else {
             continue;
         };
 
-        let Ok(parse_result) = parser.parse_bytes(path, &content) else {
+        let Ok(parse_result) = parser.parse_bytes(&path, &content) else {
             continue;
         };
 
         let file_symbols =
-            anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, path, 0);
+            anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, &path, 0);
 
         for import in &file_symbols.imports {
             // Only resolve relative imports (starting with . or ..).
@@ -567,7 +565,7 @@ fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEd
                 continue;
             }
 
-            if let Some(resolved) = resolve_import(&rel_path, &import.to_source) {
+            if let Some(resolved) = resolve_import(rel_path, &import.to_source) {
                 edges.push(anvil_architecture::ImportEdge {
                     from_file: rel_path.clone(),
                     to_file: resolved,
@@ -580,11 +578,53 @@ fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEd
     edges
 }
 
+/// Walk the workspace directory and collect source file paths (relative).
+///
+/// When `extensions` is non-empty, only files with a matching extension are
+/// included. When empty, all files are collected.
+fn walk_source_files(project_root: &Path, extensions: &[&str]) -> Vec<String> {
+    let walker = walkdir::WalkDir::new(project_root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            if e.file_type().is_dir() {
+                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
+            }
+            true
+        });
+
+    let mut files = Vec::new();
+    for entry in walker.flatten() {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if !extensions.is_empty() {
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if !extensions.contains(&ext) {
+                continue;
+            }
+        }
+        let rel_path = path
+            .strip_prefix(project_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        files.push(rel_path);
+    }
+    files
+}
+
 /// Resolve a relative import specifier to a workspace-relative path.
 ///
 /// Given `from_file = "src/app/service.ts"` and `specifier = "../core/entity"`,
 /// returns `"src/core/entity"`. Does not verify the file exists on disk;
 /// the validator matches against assigned files by prefix.
+///
+/// Returns `None` if the specifier traverses above the workspace root
+/// (e.g. `"../../../outside"`). These imports are silently excluded from
+/// boundary analysis since they reference external code.
 fn resolve_import(from_file: &str, specifier: &str) -> Option<String> {
     let from_dir = from_file.rsplit_once('/').map_or("", |(dir, _)| dir);
 
@@ -601,6 +641,7 @@ fn resolve_import(from_file: &str, specifier: &str) -> Option<String> {
         match segment {
             "." | "" => {}
             ".." => {
+                // Returns None if traversal goes above workspace root.
                 parts.pop()?;
             }
             s => parts.push(s),
@@ -639,49 +680,44 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
         }
     };
 
-    let edges = extract_import_edges(project_root);
+    // Collect source files once and share between edge extraction and validation
+    // to avoid redundant directory walks (RCLI-053).
+    let source_files = anvil_architecture::collect_source_files(project_root, &definition);
+    let edges = extract_import_edges(project_root, Some(&source_files));
 
-    match anvil_architecture::validate_with_edges(project_root, &definition, &edges) {
-        Ok(result) => {
-            if result.valid {
-                CheckResult {
-                    name: "architecture".to_string(),
-                    passed: true,
-                    score: 100.0,
-                    message: "Architecture config is valid".to_string(),
-                }
-            } else {
-                let msgs: Vec<String> = result
-                    .violations
-                    .iter()
-                    .map(|v| {
-                        let boundary_name =
-                            v.boundary.as_ref().map_or("unknown", |b| b.name.as_str());
-                        let message = v
-                            .boundary
-                            .as_ref()
-                            .map_or("boundary violation", |b| b.message.as_str());
-                        format!("{}: {} ({})", boundary_name, message, v.edge.from)
-                    })
-                    .collect();
-                CheckResult {
-                    name: "architecture".to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!(
-                        "{} violation(s):\n{}",
-                        result.violations.len(),
-                        msgs.join("\n")
-                    ),
-                }
-            }
+    let result =
+        anvil_architecture::validate_with_files_and_edges(&definition, &source_files, &edges);
+
+    if result.valid {
+        CheckResult {
+            name: "architecture".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "Architecture config is valid".to_string(),
         }
-        Err(e) => CheckResult {
+    } else {
+        let msgs: Vec<String> = result
+            .violations
+            .iter()
+            .map(|v| {
+                let boundary_name = v.boundary.as_ref().map_or("unknown", |b| b.name.as_str());
+                let message = v
+                    .boundary
+                    .as_ref()
+                    .map_or("boundary violation", |b| b.message.as_str());
+                format!("{}: {} ({})", boundary_name, message, v.edge.from)
+            })
+            .collect();
+        CheckResult {
             name: "architecture".to_string(),
             passed: false,
             score: 0.0,
-            message: format!("Architecture validation failed: {e}"),
-        },
+            message: format!(
+                "{} violation(s):\n{}",
+                result.violations.len(),
+                msgs.join("\n")
+            ),
+        }
     }
 }
 
@@ -713,50 +749,34 @@ fn git_changed_files(project_root: &Path) -> Vec<String> {
 
 /// Build policy input with project context so policies can reference
 /// `input.workspace`, `input.files`, `input.changed_files`, etc.
+///
+/// When `all_files` is provided, filters it by policy-relevant extensions
+/// instead of walking the directory tree again.
 fn build_policy_input(
     project_root: &Path,
     profile: Option<&str>,
     plan_path: Option<&str>,
     plan_files: &std::collections::HashSet<String>,
+    all_files: Option<&[String]>,
 ) -> serde_json::Value {
-    let source_files: Vec<String> = walkdir::WalkDir::new(project_root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|e| {
-            let name = e.file_name().to_string_lossy();
-            if e.file_type().is_dir() {
-                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
-            }
-            true
-        })
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .is_some_and(|ext| {
-                    matches!(
-                        ext,
-                        "ts" | "tsx"
-                            | "js"
-                            | "jsx"
-                            | "mjs"
-                            | "cjs"
-                            | "rs"
-                            | "json"
-                            | "yaml"
-                            | "yml"
-                    )
-                })
-        })
-        .filter_map(|e| {
-            e.path()
-                .strip_prefix(project_root)
-                .ok()
-                .map(|p| p.to_string_lossy().replace('\\', "/"))
-        })
-        .collect();
+    let policy_extensions = [
+        "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "json", "yaml", "yml",
+    ];
+
+    let source_files: Vec<String> = if let Some(files) = all_files {
+        files
+            .iter()
+            .filter(|f| {
+                std::path::Path::new(f.as_str())
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|ext| policy_extensions.contains(&ext))
+            })
+            .cloned()
+            .collect()
+    } else {
+        walk_source_files(project_root, &policy_extensions)
+    };
 
     let changed_files = git_changed_files(project_root);
 
@@ -797,6 +817,7 @@ fn run_check_policy(
     profile: Option<&str>,
     plan_path: Option<&str>,
     plan_files: &std::collections::HashSet<String>,
+    all_files: Option<&[String]>,
 ) -> CheckResult {
     let policy_dir = project_root.join(".anvil/policies");
 
@@ -810,7 +831,7 @@ fn run_check_policy(
     }
 
     let evaluator = anvil_policy::evaluator::Evaluator::new(None);
-    let input = build_policy_input(project_root, profile, plan_path, plan_files);
+    let input = build_policy_input(project_root, profile, plan_path, plan_files, all_files);
 
     match evaluator.evaluate(project_root, &input, None) {
         Ok(result) => {
@@ -868,6 +889,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             ctx.profile.as_deref(),
             ctx.plan_path.as_deref(),
             &ctx.plan_files,
+            Some(&ctx.walked_files),
         ),
         _ => CheckResult {
             name: name.to_string(),
@@ -981,6 +1003,8 @@ struct GateContext {
     plan_files: std::collections::HashSet<String>,
     /// Path to the plan file, if provided.
     plan_path: Option<String>,
+    /// All workspace files (walked once, shared across checks).
+    walked_files: Vec<String>,
 }
 
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
@@ -1027,11 +1051,15 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         (std::collections::HashSet::new(), None)
     };
 
+    // Walk workspace files once — shared across architecture and policy checks.
+    let walked_files = walk_source_files(&root, &[]);
+
     let ctx = GateContext {
         workspace_root: root,
         profile: args.profile.clone(),
         plan_files,
         plan_path,
+        walked_files,
     };
 
     let mut checks = Vec::new();
@@ -1337,7 +1365,8 @@ mod tests {
     #[test]
     fn policy_no_bundle_skips() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
+        let result =
+            run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new(), None);
         assert!(result.passed);
         assert!(result.message.contains("Skipping"));
     }
@@ -1353,7 +1382,8 @@ mod tests {
             "package anvil.policies.noop\n",
         )
         .unwrap();
-        let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
+        let result =
+            run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new(), None);
         // With OPA installed: evaluates and passes (no violations in noop policy)
         // Without OPA: skips gracefully
         // OPA evaluation may also fail due to missing input structure — that's
@@ -1375,6 +1405,7 @@ mod tests {
             Some("ci"),
             None,
             &std::collections::HashSet::new(),
+            None,
         );
         assert_eq!(
             input["workspace"].as_str().unwrap(),
@@ -1393,7 +1424,7 @@ mod tests {
         std::fs::write(src.join("main.ts"), "export const x = 1;").unwrap();
         std::fs::write(src.join("readme.md"), "# Hi").unwrap();
 
-        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new(), None);
         let files: Vec<&str> = input["files"]
             .as_array()
             .unwrap()
@@ -1408,7 +1439,7 @@ mod tests {
     #[test]
     fn build_policy_input_defaults_profile() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new(), None);
         assert_eq!(input["profile"].as_str().unwrap(), "default");
     }
 
@@ -1477,7 +1508,7 @@ rules: []
         .unwrap();
         std::fs::write(app_dir.join("service.ts"), "export const service = 1;\n").unwrap();
 
-        let edges = extract_import_edges(tmp.path());
+        let edges = extract_import_edges(tmp.path(), None);
         assert!(!edges.is_empty(), "should extract at least one import edge");
 
         let definition = anvil_architecture::parse_architecture_definition(tmp.path()).unwrap();
@@ -1557,6 +1588,7 @@ rules: []
             None,
             Some("/plans/test.aps.md"),
             &std::collections::HashSet::new(),
+            None,
         );
         assert_eq!(input["plan_path"].as_str().unwrap(), "/plans/test.aps.md");
     }
@@ -1564,7 +1596,7 @@ rules: []
     #[test]
     fn build_policy_input_omits_plan_when_none() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new(), None);
         assert!(input.get("plan_path").is_none());
     }
 
@@ -1713,6 +1745,7 @@ rules: []
             profile: None,
             plan_files: std::collections::HashSet::new(),
             plan_path: None,
+            walked_files: Vec::new(),
         };
         let result = run_single_check("nonexistent", &ctx);
         assert!(!result.passed);
@@ -1732,7 +1765,7 @@ rules: []
         let mut plan_files = std::collections::HashSet::new();
         plan_files.insert("src/included.ts".to_string());
 
-        let input = build_policy_input(tmp.path(), None, None, &plan_files);
+        let input = build_policy_input(tmp.path(), None, None, &plan_files, None);
         let files: Vec<&str> = input["files"]
             .as_array()
             .unwrap()

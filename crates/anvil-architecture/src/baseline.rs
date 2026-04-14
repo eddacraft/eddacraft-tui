@@ -14,8 +14,7 @@ use crate::util::atomic_write;
 /// Baseline file name.
 pub const BASELINE_FILENAME: &str = "architecture.json";
 
-/// Anvil configuration directory.
-pub const ANVIL_DIR: &str = ".anvil";
+use crate::ANVIL_DIR;
 
 /// Errors from baseline operations.
 #[derive(Debug, thiserror::Error)]

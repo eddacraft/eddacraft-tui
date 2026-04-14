@@ -34,7 +34,19 @@ pub struct GlobalArgs {
 
 /// Anvil — structural governance for AI-assisted development.
 #[derive(Debug, Parser)]
-#[command(name = "anvil", version, about, long_about = None)]
+#[command(
+    name = "anvil",
+    version,
+    about,
+    long_about = None,
+    after_help = "\
+EXIT CODES:
+  0  Success
+  1  General error
+  2  Gate check failed (one or more checks did not pass)
+  3  Authentication required (missing or expired credentials)
+  4  Configuration error (invalid config file or options)"
+)]
 struct Cli {
     #[command(flatten)]
     global: GlobalArgs,
@@ -140,8 +152,13 @@ fn requires_auth(cmd: &Commands) -> bool {
 /// Evaluate a credential-load result and return the appropriate exit code.
 ///
 /// Separated from I/O so tests can call it with synthetic inputs.
+/// The underlying error from a failed credential load is always printed
+/// so that system faults (I/O errors, corrupt files) are distinguishable
+/// from a simple "not logged in" state in CI logs. When `verbose` is true,
+/// the full error chain is shown; otherwise only a short summary.
 fn evaluate_auth(
     loaded: &anyhow::Result<Option<auth::credentials::Credentials>>,
+    verbose: bool,
 ) -> Result<(), u8> {
     match loaded {
         Ok(Some(creds)) if auth::credentials::is_expired(creds) => {
@@ -149,7 +166,21 @@ fn evaluate_auth(
             Err(EXIT_AUTH_REQUIRED)
         }
         Ok(Some(_)) => Ok(()),
-        Ok(None) | Err(_) => {
+        Ok(None) => {
+            eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            Err(EXIT_AUTH_REQUIRED)
+        }
+        Err(err) => {
+            let msg = if verbose {
+                format!("{err:#}")
+            } else {
+                format!("{err}")
+            };
+            // Redact home directory to avoid leaking paths in CI logs.
+            let redacted = dirs::home_dir()
+                .map(|h| msg.replace(&h.to_string_lossy().as_ref(), "~"))
+                .unwrap_or(msg);
+            eprintln!("[auth] credential load failed: {redacted}");
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
             Err(EXIT_AUTH_REQUIRED)
         }
@@ -158,10 +189,10 @@ fn evaluate_auth(
 
 /// Validate that usable credentials exist.
 ///
-/// Returns `Ok(())` when valid credentials are found, `Ok(())` when
-/// `ANVIL_DEV=1` is set (local dev bypass — never active in production
-/// builds), or `Err(exit_code)` with `EXIT_AUTH_REQUIRED` otherwise.
-fn check_auth() -> Result<(), u8> {
+/// Returns `Ok(())` when valid credentials are found or when
+/// `ANVIL_DEV=1` is set (local dev bypass), or `Err(exit_code)` with
+/// `EXIT_AUTH_REQUIRED` otherwise.
+fn check_auth(verbose: bool) -> Result<(), u8> {
     // Local dev bypass: ANVIL_DEV=1 skips auth entirely.
     // Safe because:
     //   - All API calls still require a real token server-side.
@@ -169,9 +200,10 @@ fn check_auth() -> Result<(), u8> {
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
     if std::env::var("ANVIL_DEV").as_deref() == Ok("1") {
+        eprintln!("[dev] ANVIL_DEV=1: skipping local auth check");
         return Ok(());
     }
-    evaluate_auth(&auth::credentials::load())
+    evaluate_auth(&auth::credentials::load(), verbose)
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -195,7 +227,7 @@ fn main() -> ExitCode {
     };
 
     if requires_auth(&cli.command)
-        && let Err(code) = check_auth()
+        && let Err(code) = check_auth(cli.global.verbose)
     {
         if cli.global.json {
             eprintln!(
@@ -465,13 +497,13 @@ mod tests {
 
     #[test]
     fn evaluate_auth_returns_err_when_no_credentials() {
-        assert_eq!(evaluate_auth(&Ok(None)), Err(EXIT_AUTH_REQUIRED));
+        assert_eq!(evaluate_auth(&Ok(None), false), Err(EXIT_AUTH_REQUIRED));
     }
 
     #[test]
     fn evaluate_auth_returns_err_when_expired() {
         assert_eq!(
-            evaluate_auth(&Ok(Some(expired_creds()))),
+            evaluate_auth(&Ok(Some(expired_creds())), false),
             Err(EXIT_AUTH_REQUIRED),
         );
     }
@@ -479,19 +511,19 @@ mod tests {
     #[test]
     fn evaluate_auth_returns_err_on_load_error() {
         assert_eq!(
-            evaluate_auth(&Err(anyhow::anyhow!("disk failure"))),
+            evaluate_auth(&Err(anyhow::anyhow!("disk failure")), false),
             Err(EXIT_AUTH_REQUIRED),
         );
     }
 
     #[test]
     fn evaluate_auth_returns_ok_when_valid() {
-        assert!(evaluate_auth(&Ok(Some(valid_creds()))).is_ok());
+        assert!(evaluate_auth(&Ok(Some(valid_creds())), false).is_ok());
     }
 
     #[test]
     fn evaluate_auth_returns_ok_when_no_expiry() {
-        assert!(evaluate_auth(&Ok(Some(no_expiry_creds()))).is_ok());
+        assert!(evaluate_auth(&Ok(Some(no_expiry_creds())), false).is_ok());
     }
 
     #[test]
@@ -499,7 +531,10 @@ mod tests {
         // ANVIL_DEV=1 should allow unauthenticated access for local testing.
         // Without credentials, auth normally fails — but not in dev mode.
         temp_env::with_var("ANVIL_DEV", Some("1"), || {
-            assert!(check_auth().is_ok(), "ANVIL_DEV=1 should bypass auth check");
+            assert!(
+                check_auth(false).is_ok(),
+                "ANVIL_DEV=1 should bypass auth check"
+            );
         });
     }
 
@@ -513,7 +548,7 @@ mod tests {
                 ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
             ],
             || {
-                assert_eq!(check_auth(), Err(EXIT_AUTH_REQUIRED));
+                assert_eq!(check_auth(false), Err(EXIT_AUTH_REQUIRED));
             },
         );
     }

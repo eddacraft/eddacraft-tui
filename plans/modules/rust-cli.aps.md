@@ -11,7 +11,7 @@ Scopes: RCLI (main)
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RCLI | —     | In Progress | 43/64    |
+| RCLI | —     | In Progress | 63/64    |
 
 ## Purpose
 
@@ -763,7 +763,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-027: audit list viewport scrolling and item expansion
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Fix two issues with the audit surface list: (1) The selection
   index scrolls past the visible area — items move off-screen while the
   viewport stays fixed. Add viewport offset tracking so the list scrolls to
@@ -785,7 +785,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-028: doctor fix command execution
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** When doctor shows a fix command for a failing check, allow the
   user to press Enter to execute that command directly. Show a confirmation
   prompt before running. Display command output inline and re-run the check
@@ -914,7 +914,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-035: lift dirty flag to Surface trait
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `surface_loop` redraws unconditionally every 100ms while
   `watch_loop` uses a dirty flag. Add `is_dirty()`/`take_dirty()` with a
   default `true` implementation to the `Surface` trait so all surfaces can
@@ -935,7 +935,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-036: watch loop single-read resize deferral
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The watch loop reads one crossterm event per iteration. If key
   events queue ahead of a resize event, the resize is deferred until the key
   queue drains. Drain all pending terminal events per iteration so resize is
@@ -957,7 +957,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-037: deduplicate credential file-write logic
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `migrate_to_xdg` and `save` both use `atomic_write` but have
   slightly different setup logic. Extract a shared `write_credentials(path, creds)`
   that handles dir creation, serialisation, and atomic write in one place
@@ -972,7 +972,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-038: fix `create_first_run_marker` parameter type and path
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `create_first_run_marker` takes `&PathBuf` (should be `&Path`) and
   resolves the marker path relative to CWD rather than project root
 - **Expected Outcome:** Function takes `&Path`, marker path is relative to the
@@ -987,7 +987,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-039: cache workspace_root() in gate run
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `workspace_root()` is called multiple times per gate run (once per
   check). Cache the result at the start of `gate::run()` and pass it to each
   check function
@@ -1002,7 +1002,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-040: improve secret scan robustness
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Three issues with the secret scan check: (1) only 3 regex
   patterns — expand to cover common secret formats (generic high-entropy strings,
   private keys, JWT tokens); (2) walkdir has no depth limit — add a max depth
@@ -1021,7 +1021,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-041: preserve underlying error in evaluate_auth
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `evaluate_auth` maps `Err(_)` to a generic "authentication
   required" message, swallowing the underlying error (could be IO, JSON parse,
   permission denied). Log the error at verbose level before returning the user
@@ -1037,7 +1037,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-042: document exit codes for CI consumers
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Exit codes (0=ok, 1=error, 2=gate fail, 3=auth required,
   4=config error) are defined in code but not documented externally. Add a
   section to the CLI `--help` output and to the docs
@@ -1053,7 +1053,8 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-043: add deprecation notice for old credential files
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Notes:** Moot — legacy `~/.anvil/auth.json` migration path was never implemented in the Rust CLI
 - **Intent:** After migrating credentials from `~/.anvil/auth.json` to XDG,
   the old file remains. Print a one-time notice suggesting removal:
   "Legacy credentials at ~/.anvil/auth.json can now be removed."
@@ -1068,19 +1069,19 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-044: restrict credential permissions on non-Unix platforms
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** On non-Unix (Windows), credential files are written without
   permission restrictions. Use platform-appropriate ACL restriction via
   `std::fs::Permissions` or Windows-specific APIs to limit access to the
   current user
 - **Expected Outcome:** Credential files on Windows are not world-readable
-- **Validation:** Windows CI test verifying file ACLs (deferred until Windows
-  support is in scope)
-- **Files:** `crates/anvil-cli/src/auth/credentials.rs`
-- **Confidence:** low
+- **Validation:** Windows CI test verifying file ACLs
+- **Files:** `crates/anvil-cli/src/util.rs`
+- **Confidence:** high
 - **Priority:** Low
 - **Origin:** Council review D-012
-- **Dependencies:** Windows support (currently out of scope)
+- **Notes:** `atomic_write` now calls `icacls /inheritance:r /grant:r %USERNAME%:(F)`
+  on Windows after persisting, matching the Unix 0o600 restriction
 
 ---
 
@@ -1137,7 +1138,7 @@ findings deferred for later.
 
 ### RCLI-047: deduplicate ANVIL_DIR constant
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `ANVIL_DIR` is defined independently in both `baseline.rs` and
   `yaml_parser.rs` within the `anvil-architecture` crate. Extract to a shared
   constant in `lib.rs` or a `constants` module to prevent divergence
@@ -1209,7 +1210,7 @@ findings deferred for later.
 
 ### RCLI-051: deterministic baseline violation ordering
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `merge_violations` returns violations from HashMap iteration
   which is non-deterministic. Sort violations before serialising the baseline
   to produce stable git diffs
@@ -1242,7 +1243,7 @@ findings deferred for later.
 
 ### RCLI-053: deduplicate file-tree walks in gate command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `anvil gate` walks the workspace file tree three times with nearly
   identical logic: once in `collect_source_files` (validator), once in
   `extract_import_edges`, and once in `build_policy_input`. On large monorepos
@@ -1260,7 +1261,7 @@ findings deferred for later.
 
 ### RCLI-054: import edge line numbers from kernel parser
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** All `ImportEdge` entries are created with `line: 0` because the
   kernel's `extract_symbols` returns `ImportEdge { from_file, to_source }`
   without a line number. Boundary violations therefore cannot point users to the
@@ -1299,12 +1300,12 @@ findings deferred for later.
 | 1 — Foundation | 4 | Complete |
 | 2 — Static Surface Commands | 8 | Complete |
 | 3 — Kernel-Integrated Commands | 2 | Complete (gate, watch) |
-| 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Complete (RCLI-016) |
+| 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Proposed (RCLI-016) |
 | 5 — Policy & Architecture | 4 | Complete |
 | 6 — Utilities & Cutover | 4 | Complete (RCLI-021 merged in PR #697) |
 | 7 — Parity Rework | 11 | Complete (RCLI-014a merged in PR #698) |
-| 8 — TUI UX Polish | 12 | 7 Complete, 1 In Progress, 4 Proposed |
-| 9 — Council Review | 8 | Proposed |
-| 10 — Council Review | 6 | 3 Complete (048, 049, 052), 3 Proposed |
-| 11 — Council Deferred | 2 | Proposed |
-| **Total** | **64** | **43 Complete, 3 In Progress, 18 Proposed** |
+| 8 — TUI UX Polish | 12 | Complete |
+| 9 — Council Review | 8 | Complete |
+| 10 — Council Review | 6 | Complete (048, 049, 050, 052 + 047, 053) |
+| 11 — Council Deferred | 2 | Complete (RCLI-054, Superseded) |
+| **Total** | **64** | **62 Complete, 1 Superseded, 1 Proposed** |

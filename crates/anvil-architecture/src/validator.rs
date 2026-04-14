@@ -72,7 +72,28 @@ pub fn validate_with_edges(
     edges: &[ImportEdge],
 ) -> Result<ValidationResult, ValidateError> {
     let files = collect_source_files(workspace_root, definition);
-    let assignments = assign_layers(&files, &definition.layers);
+    Ok(validate_files(definition, &files, edges))
+}
+
+/// Validate architecture using a pre-collected file list and import edges.
+///
+/// This is a pure function — no I/O. Use it to avoid redundant file-tree
+/// walks when the caller has already collected source files (e.g. for
+/// import edge extraction).
+pub fn validate_with_files_and_edges(
+    definition: &ArchitectureDefinition,
+    files: &[String],
+    edges: &[ImportEdge],
+) -> ValidationResult {
+    validate_files(definition, files, edges)
+}
+
+fn validate_files(
+    definition: &ArchitectureDefinition,
+    files: &[String],
+    edges: &[ImportEdge],
+) -> ValidationResult {
+    let assignments = assign_layers(files, &definition.layers);
 
     let assigned_count = assignments.iter().filter(|a| a.layer.is_some()).count();
     let orphan_count = assignments.len() - assigned_count;
@@ -91,7 +112,7 @@ pub fn validate_with_edges(
             .is_some_and(|b| b.severity == BoundarySeverity::Error)
     });
 
-    Ok(ValidationResult {
+    ValidationResult {
         valid: !has_errors,
         assignments,
         violations,
@@ -102,7 +123,7 @@ pub fn validate_with_edges(
             violation_count,
         },
         boundary_checking_active: !edges.is_empty(),
-    })
+    }
 }
 
 /// Assign each file to a layer based on glob pattern matching.
@@ -307,7 +328,10 @@ pub fn check_boundaries(
 }
 
 /// Collect source files from the workspace, respecting exclude patterns.
-fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefinition) -> Vec<String> {
+///
+/// Public so callers can share a single file list across both import
+/// edge extraction and architecture validation (avoids redundant walks).
+pub fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefinition) -> Vec<String> {
     let empty = Vec::new();
     let exclude_patterns: Vec<Pattern> = definition
         .options
@@ -806,5 +830,59 @@ mod tests {
         let files = collect_source_files(tmp.path(), &def);
         assert_eq!(files.len(), 1);
         assert!(files[0].contains("lib.rs"));
+    }
+
+    fn sample_definition(layers: Layers) -> ArchitectureDefinition {
+        ArchitectureDefinition {
+            schema_version: "1".into(),
+            template: crate::definition::ArchitectureTemplate::Layered,
+            layers,
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        }
+    }
+
+    #[test]
+    fn validate_with_files_and_edges_produces_same_result() {
+        let definition = sample_definition(sample_layers());
+        let files = vec![
+            "src/core/entity.ts".into(),
+            "src/app/service.ts".into(),
+        ];
+        let edges = vec![ImportEdge {
+            from_file: "src/app/service.ts".into(),
+            to_file: "src/core/entity.ts".into(),
+            line: 1,
+        }];
+
+        let result = validate_with_files_and_edges(&definition, &files, &edges);
+
+        assert!(result.valid);
+        assert_eq!(result.stats.files_analysed, 2);
+        assert_eq!(result.stats.files_assigned, 2);
+        assert!(result.boundary_checking_active);
+        assert!(result.violations.is_empty());
+    }
+
+    #[test]
+    fn validate_with_files_and_edges_detects_violation() {
+        let definition = sample_definition(sample_layers());
+        // core importing from app violates the dependency direction.
+        let files = vec![
+            "src/core/entity.ts".into(),
+            "src/app/service.ts".into(),
+        ];
+        let edges = vec![ImportEdge {
+            from_file: "src/core/entity.ts".into(),
+            to_file: "src/app/service.ts".into(),
+            line: 5,
+        }];
+
+        let result = validate_with_files_and_edges(&definition, &files, &edges);
+
+        assert!(!result.valid);
+        assert!(!result.violations.is_empty());
+        assert_eq!(result.violations[0].edge.from, "src/core/entity.ts");
     }
 }
