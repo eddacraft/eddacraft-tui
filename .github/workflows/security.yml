@@ -56,9 +56,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Semgrep
+        continue-on-error: true
         run: |
-          python3 -m pip install --quiet semgrep
-          semgrep ci --sarif --output=semgrep.sarif || true
+          python3 -m pip install --quiet semgrep==1.76.0
+          semgrep ci --sarif --output=semgrep.sarif
         env:
           SEMGREP_RULES: p/owasp-top-ten p/typescript p/nodejs .semgrep/
 
