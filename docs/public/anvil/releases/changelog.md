@@ -1,13 +1,13 @@
 ---
 id: changelog
 title: Changelog
-description: Release history for Anvil.
+description: Release history for anvil.
 sidebar_position: 1
 ---
 
 # Changelog
 
-All notable changes to Anvil are documented here.
+All notable changes to anvil are documented here.
 
 ## [0.3.1-beta] — Docs Cutover & Onboarding Fixes
 
@@ -41,7 +41,7 @@ All notable changes to Anvil are documented here.
 
 ### Changed
 
-- **Native Rust binary** — Anvil is now distributed as a single static binary
+- **Native Rust binary** — anvil is now distributed as a single static binary
   with no Node.js runtime required. The Node.js package (`@eddacraft/anvil-cli`)
   is deprecated and will not receive further updates. See
   [The Switch to Rust](./rust-rewrite.md) for migration instructions.
@@ -107,7 +107,7 @@ All notable changes to Anvil are documented here.
 
 ### Added
 
-- **Project memory** — Anvil now tracks patterns and decisions in your codebase
+- **Project memory** — anvil now tracks patterns and decisions in your codebase
   via the Edda memory system and Ember proposal engine.
 - **Security hardening** — input validation and subprocess execution
   improvements across the platform.
@@ -209,7 +209,7 @@ All notable changes to Anvil are documented here.
 
 ## Versioning
 
-Anvil follows [Semantic Versioning](https://semver.org/):
+anvil follows [Semantic Versioning](https://semver.org/):
 
 - **MAJOR** — breaking changes to config or CLI
 - **MINOR** — new features, backward compatible

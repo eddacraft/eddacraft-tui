@@ -238,7 +238,7 @@ phase_preflight() {
   # TS workspace checks
   soft_gate "pnpm install" pnpm install --frozen-lockfile
   soft_gate "pnpm build" pnpm build
-  soft_gate "pnpm test" pnpm nx run-many -t test --skip-nx-cache
+  soft_gate "pnpm test" timeout 300 pnpm nx run-many -t test --skip-nx-cache
 
   # Sanity checks
   info "Checking CHANGELOG.md has entry for ${VERSION}..."
@@ -295,6 +295,13 @@ phase_branch_and_tag() {
     prompt_continue "Merge the PR on GitHub, then continue?"
 
   elif [[ "${BRANCH_STRATEGY}" == "stabilisation" ]]; then
+    # Merge dev into main first so the release branch has all dev work
+    info "Merging dev into main for stabilisation..."
+    git switch main
+    git pull --ff-only origin main
+    git merge dev --no-edit
+    git push origin main
+
     info "Creating stabilisation branch: ${RELEASE_BRANCH}"
     git switch -c "${RELEASE_BRANCH}"
     git push -u origin "${RELEASE_BRANCH}"
@@ -434,7 +441,7 @@ phase_manifest() {
   "tag": "${TAG}",
   "releaseType": "${RELEASE_TYPE}",
   "branchStrategy": "${BRANCH_STRATEGY}",
-  "releaseBranch": ${RELEASE_BRANCH:+\"${RELEASE_BRANCH}\"}${RELEASE_BRANCH:-null},
+  "releaseBranch": $(if [[ -n "${RELEASE_BRANCH}" ]]; then echo "\"${RELEASE_BRANCH}\""; else echo "null"; fi),
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "shas": {
     "dev": "${DEV_SHA}",

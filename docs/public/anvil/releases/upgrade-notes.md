@@ -1,13 +1,13 @@
 ---
 id: upgrade-notes
 title: Upgrade Notes
-description: Migration guides for major Anvil versions.
+description: Migration guides for major anvil versions.
 sidebar_position: 2
 ---
 
 # Upgrade Notes
 
-Guides for upgrading between Anvil versions.
+Guides for upgrading between anvil versions.
 
 ## Current Version: 0.3.1-beta
 
@@ -41,7 +41,7 @@ continue to work without modification.
 
 ## Upgrading to 0.3.0-beta
 
-**Major change:** Anvil is now a native Rust binary. The Node.js package
+**Major change:** anvil is now a native Rust binary. The Node.js package
 (`@eddacraft/anvil-cli`) is deprecated and will not receive further updates.
 
 ```bash
@@ -80,7 +80,7 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 - **Installation method** — `npm i -g @eddacraft/anvil-cli` no longer works. Use
   the install script or Homebrew.
 - **CI workflows** — replace `pnpm anvil` / `npx anvil` with direct `anvil`
-  calls. Remove Node.js setup steps if Anvil was the only reason they existed.
+  calls. Remove Node.js setup steps if anvil was the only reason they existed.
 - **Docs access** — the `/anvil` documentation is now gated behind GitHub OAuth
   for beta users. Sign in with the GitHub account tied to your beta invite.
   Public eddacraft docs (APS, Kindling, edda-stack) remain open.
@@ -92,7 +92,7 @@ required.
 
 ### What's New in 0.2.1
 
-- **Project memory** — Anvil now tracks patterns and decisions in your codebase
+- **Project memory** — anvil now tracks patterns and decisions in your codebase
   via the Edda memory system and Ember proposal engine.
 - **Security hardening** — input validation and subprocess execution
   improvements across the platform.
@@ -139,7 +139,7 @@ Upgrade guides are added here as new versions ship.
 If you encounter upgrade issues:
 
 1. Check the [Troubleshooting guide](/anvil/operations/troubleshooting)
-2. Search [existing issues](https://github.com/eddacraft/anvil-001/issues)
+2. Search [existing issues](https://github.com/eddacraft/anvil/issues)
 3. Open a new issue with:
    - Old version
    - New version
