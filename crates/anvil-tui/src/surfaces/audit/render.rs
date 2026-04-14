@@ -12,11 +12,10 @@ fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize 
     if total <= visible_rows || visible_rows == 0 {
         return 0;
     }
-    if selected < visible_rows {
-        0
-    } else {
-        selected - visible_rows + 1
-    }
+    let max_offset = total.saturating_sub(visible_rows);
+    selected
+        .saturating_sub(visible_rows.saturating_sub(1))
+        .min(max_offset)
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {

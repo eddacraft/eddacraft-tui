@@ -121,12 +121,12 @@ pub fn policy_steps() -> Vec<TutorialStep> {
         step(
             "See the Policy Fire",
             "Add a TODO comment to any source file, then run the gate. You should see the no-todos policy flag a warning with the file path and line number.",
-            "(anvil gate will evaluate custom policies once shipped)",
+            "Run: anvil gate to evaluate your custom policies against the codebase.",
         ),
         step(
             "Customise Severity",
             "Policies support four severity levels: critical, high, medium, and low. Critical findings block the gate; lower severities produce warnings. Adjust to match your team workflow.",
-            "Edit the severity field in no-todos.yaml. Gate will respect it once shipped.",
+            "Edit the severity field in no-todos.yaml, then re-run anvil gate to see the updated severity.",
         ),
     ]
 }
@@ -147,12 +147,12 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             ".anvil",
         ),
         step_with_verify(
-            "Compile the Architecture",
-            "The architecture definition in .anvil/architecture.yaml is compiled into an import graph. This graph maps which layers are allowed to import from which others.",
-            "Run: anvil architecture compile",
-            "anvil architecture compile",
+            "Validate the Architecture",
+            "The architecture definition in .anvil/architecture.yaml is validated against an import graph. This graph maps which layers are allowed to import from which others.",
+            "Run: anvil architecture validate",
+            "anvil architecture validate",
             Verify::ExitCode(0),
-            "Compilation failed. Check your architecture.yaml.",
+            "Validation failed. Check your architecture.yaml.",
         ),
         step_with_command(
             "Detect Violations",
@@ -167,7 +167,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Summary",
-            "You now have architecture enforcement configured. Once anvil gate ships, the architecture check will surface boundary violations in every commit review.",
+            "You now have architecture enforcement configured. The architecture check surfaces boundary violations in every commit review via anvil gate.",
             "Architecture enforcement is ready. Press enter to finish.",
         ),
     ]
@@ -183,16 +183,16 @@ pub fn drift_steps() -> Vec<TutorialStep> {
         step_with_verify(
             "Capture a Baseline",
             "Take an initial snapshot of your current configuration state. Anvil serialises the config into a versioned snapshot stored in .anvil/snapshots/.",
-            "Run: anvil drift capture --name baseline",
-            "anvil drift capture --name baseline",
+            "Run: anvil drift snapshot --name baseline",
+            "anvil drift snapshot --name baseline",
             Verify::ExitCode(0),
             "Capture failed. Is your project initialised?",
         ),
         step_with_command(
             "Capture Current State",
             "After making configuration changes, capture a second snapshot. Anvil stores each snapshot by name so you can compare them later.",
-            "Run: anvil drift capture --name current",
-            "anvil drift capture --name current",
+            "Run: anvil drift snapshot --name current",
+            "anvil drift snapshot --name current",
         ),
         step_with_command(
             "Compare Snapshots",
@@ -226,12 +226,12 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         step(
             "Install Git Hooks",
             "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks.",
-            "Run: npx husky init (anvil gate will be the hook command once shipped)",
+            "Run: npx husky init && echo 'anvil gate' > .husky/pre-commit",
         ),
         step(
             "Add CI Workflow",
             "Create a GitHub Actions workflow that runs anvil gate on every push and pull request. The workflow exits with a non-zero code when checks fail.",
-            "Add .github/workflows/anvil.yml (gate step will be added once shipped).",
+            "Add .github/workflows/anvil.yml with a step that runs anvil gate.",
         ),
         step(
             "Configure Exit Codes",
@@ -302,7 +302,7 @@ mod tests {
             &[
                 "Introduction",
                 "Choose a Template",
-                "Compile the Architecture",
+                "Validate the Architecture",
                 "Detect Violations",
                 "Validate Boundaries",
                 "Summary",
@@ -420,7 +420,7 @@ mod tests {
         );
         assert_eq!(
             steps[2].command.as_deref(),
-            Some("anvil architecture compile")
+            Some("anvil architecture validate")
         );
         assert!(
             steps[2].verify.is_some(),
@@ -453,7 +453,7 @@ mod tests {
         );
         assert_eq!(
             steps[1].command.as_deref(),
-            Some("anvil drift capture --name baseline")
+            Some("anvil drift snapshot --name baseline")
         );
         assert!(
             steps[1].verify.is_some(),
@@ -462,7 +462,7 @@ mod tests {
         assert!(steps[1].verify_hint.is_some());
         assert_eq!(
             steps[2].command.as_deref(),
-            Some("anvil drift capture --name current")
+            Some("anvil drift snapshot --name current")
         );
         assert!(
             steps[2].verify.is_none(),
