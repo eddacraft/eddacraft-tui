@@ -13,6 +13,19 @@
 
 set -e
 
+# Colour support — disabled when NO_COLOR is set, stdout is not a tty, or TERM is dumb.
+setup_colours() {
+  EMBER="" BOLD="" DIM="" RESET=""
+  if [ -n "${NO_COLOR:-}" ]; then return; fi
+  if [ "${TERM:-dumb}" = "dumb" ]; then return; fi
+  if ! [ -t 1 ]; then return; fi
+  EMBER='\033[38;2;204;85;0m'
+  BOLD='\033[1m'
+  DIM='\033[2m'
+  RESET='\033[0m'
+}
+setup_colours
+
 INSTALLER_URL="https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
 
 echo ""
@@ -57,10 +70,36 @@ if [ "$INSTALL_EXIT" -ne 0 ]; then
   exit "$INSTALL_EXIT"
 fi
 
-echo ""
-echo "  Get started:"
-echo "    cd your-project/"
-echo "    anvil start"
-echo ""
-echo "  Or run anvil --help for all commands."
-echo ""
+# Detect installed version — may fail if PATH not yet updated in this shell.
+ANVIL_VERSION=""
+if command -v anvil >/dev/null 2>&1; then
+  ANVIL_VERSION=$(anvil --version 2>/dev/null | head -1 | sed 's/^[^0-9]*//')
+fi
+if [ -n "$ANVIL_VERSION" ]; then
+  VERSION_LINE="  anvil v${ANVIL_VERSION} installed successfully!"
+else
+  VERSION_LINE="  anvil installed successfully!"
+fi
+
+printf "\n"
+printf "  ${EMBER}████         ████${RESET}\n"
+printf "  ${EMBER}██             ██${RESET}\n"
+printf "  ${EMBER}██  █████████  ██${RESET}\n"
+printf "  ${EMBER}██     ███     ██${RESET}   ${EMBER}${BOLD}a n v i l${RESET}\n"
+printf "  ${EMBER}██  █████████  ██${RESET}\n"
+printf "  ${EMBER}██             ██${RESET}\n"
+printf "  ${EMBER}████         ████${RESET}\n"
+printf "\n"
+printf "  ${DIM}Structural governance for AI-assisted development${RESET}\n"
+printf "\n"
+printf "%s\n" "$VERSION_LINE"
+printf "\n"
+printf "  Get started:\n"
+printf "    cd your-project/\n"
+printf "    anvil start\n"
+printf "\n"
+printf "  Or run anvil --help for all commands.\n"
+printf "  ${DIM}https://eddacraft.dev/docs${RESET}\n"
+printf "\n"
+printf "                        ${DIM}[ ■ ] e d d a c r a f t${RESET}\n"
+printf "\n"
