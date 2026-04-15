@@ -56,8 +56,15 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         delete_first_run_marker(&marker_path)?;
         // Also clear tutorial progress so the tutorial starts fresh.
         if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
-            if progress_path.exists() {
-                let _ = std::fs::remove_file(&progress_path);
+            match std::fs::remove_file(&progress_path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(err) => {
+                    eprintln!(
+                        "[welcome] warning: failed to remove tutorial progress at {}: {err}",
+                        progress_path.display()
+                    );
+                }
             }
         }
     }
@@ -785,11 +792,25 @@ fn run_welcome_hub(
             Some(QuickStartOption::RestartOnboarding) => {
                 let marker_path = first_run_marker_path()?;
                 delete_first_run_marker(&marker_path)?;
-                if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
-                    let _ = std::fs::remove_file(&progress_path);
+                match crate::commands::tutorial::progress_file_path() {
+                    Ok(progress_path) => match std::fs::remove_file(&progress_path) {
+                        Ok(()) => {}
+                        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(err) => {
+                            eprintln!(
+                                "[welcome] warning: failed to remove tutorial progress at {}: {err}",
+                                progress_path.display(),
+                            );
+                        }
+                    },
+                    Err(err) => {
+                        eprintln!(
+                            "[welcome] warning: failed to resolve tutorial progress path: {err}",
+                        );
+                    }
                 }
 
-                match run_onboarding(terminal, theme) {
+                let onboarding_ok = match run_onboarding(terminal, theme) {
                     Ok(OnboardingOutcome::Quit) => break,
                     Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
                         if let Some(results) = run_discovery(terminal, theme)? {
@@ -802,19 +823,22 @@ fn run_welcome_hub(
                                 break;
                             }
                         }
+                        true
                     }
-                    Ok(OnboardingOutcome::Skip) => {}
+                    Ok(OnboardingOutcome::Skip) => true,
                     Err(e) => {
                         welcome.status_message = Some(format!("Onboarding failed: {e}"));
+                        false
                     }
-                }
+                };
 
-                // Re-create marker after onboarding completes.
-                let marker_path = first_run_marker_path()?;
-                if let Err(err) = create_first_run_marker(&marker_path) {
-                    eprintln!(
-                        "[welcome] warning: failed to create first-run marker: {err}",
-                    );
+                // Only re-create marker after successful onboarding so users
+                // can retry on failure.
+                if onboarding_ok {
+                    let marker_path = first_run_marker_path()?;
+                    if let Err(err) = create_first_run_marker(&marker_path) {
+                        eprintln!("[welcome] warning: failed to create first-run marker: {err}",);
+                    }
                 }
 
                 welcome.should_quit = false;

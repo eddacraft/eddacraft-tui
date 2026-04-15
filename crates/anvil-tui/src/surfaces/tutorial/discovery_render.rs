@@ -97,8 +97,8 @@ fn render_results(
     let total = sorted.len();
 
     // Two-panel horizontal split: findings list (left) + detail (right).
-    let panels = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
+    let panels =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
 
     // ── Left panel: findings list ──────────────────────────────────────
     let list_title = if total == 0 {
@@ -153,7 +153,8 @@ fn render_results(
                             .add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(format!("{badge:<5} "), badge_style),
-                    Span::styled(location, theme.highlighted()),
+                    Span::styled(format!("{location}  "), theme.highlighted()),
+                    Span::styled(&f.title, theme.highlighted()),
                 ])
             } else {
                 let loc_style = match f.severity {
@@ -165,6 +166,8 @@ fn render_results(
                     Span::styled(indicator, Style::default()),
                     Span::styled(format!("{badge:<5} "), badge_style),
                     Span::styled(location, loc_style),
+                    Span::styled("  ", Style::default()),
+                    Span::styled(f.title.clone(), Style::default().fg(theme.fg())),
                 ])
             }
         })
@@ -202,18 +205,14 @@ fn render_results(
         let mut lines = vec![
             Line::from(Span::styled(
                 &finding.title,
-                Style::default()
-                    .fg(theme.fg())
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
             )),
             Line::default(),
             Line::from(vec![
                 Span::styled("Severity: ", Style::default().fg(theme.muted())),
                 Span::styled(
                     finding.severity.label(),
-                    Style::default()
-                        .fg(sev_colour)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(sev_colour).add_modifier(Modifier::BOLD),
                 ),
             ]),
             Line::from(vec![
@@ -225,7 +224,10 @@ fn render_results(
                 Span::styled(location, Style::default().fg(theme.accent())),
             ]),
             Line::default(),
-            Line::from(Span::styled(&finding.message, Style::default().fg(theme.fg()))),
+            Line::from(Span::styled(
+                &finding.message,
+                Style::default().fg(theme.fg()),
+            )),
         ];
 
         if !finding.suggestion.is_empty() {
