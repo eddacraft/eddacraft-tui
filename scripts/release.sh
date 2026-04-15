@@ -63,7 +63,7 @@ update_package_json_version() {
   package_version=$(grep '"version"' "$file" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
   if [[ "$package_version" != "$VERSION" ]]; then
     info "$file version is ${package_version}, updating to ${VERSION} on dev..."
-    sed -i "0,/\"version\": \".*\"/s//\"version\": \"${VERSION}\"/" "$file"
+    replace_first_match "$file" '"version": "[^"]*"' "\"version\": \"${VERSION}\""
     git add "$file"
   else
     info "$file version already ${VERSION} on dev"
@@ -311,8 +311,6 @@ PREFLIGHT_RESULTS
 phase_branch_and_tag() {
   header "Phase 2: Branch & Tag"
 
-  local promotion_head="dev"
-
   echo ""
   info "Release prep happens on dev before promotion."
   info "Review and update release-facing files now, then continue:"
@@ -329,7 +327,7 @@ phase_branch_and_tag() {
   cargo_version=$(grep '^version' "${CARGO_VERSION_FILE}" | head -1 | sed 's/.*"\(.*\)".*/\1/')
   if [[ "${cargo_version}" != "${VERSION}" ]]; then
     info "Workspace version is ${cargo_version}, updating to ${VERSION} on dev..."
-    sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" "${CARGO_VERSION_FILE}"
+    replace_first_match "${CARGO_VERSION_FILE}" '^version = "[^"]*"' "version = \"${VERSION}\""
     git add "${CARGO_VERSION_FILE}"
     if ! git diff --quiet Cargo.lock 2>/dev/null; then
       git add Cargo.lock
@@ -386,7 +384,6 @@ phase_branch_and_tag() {
     git pull --ff-only origin dev
     git switch -c "${RELEASE_BRANCH}"
     git push -u origin "${RELEASE_BRANCH}"
-    promotion_head="${RELEASE_BRANCH}"
 
     local pr_url
     pr_url=$(gh pr create \

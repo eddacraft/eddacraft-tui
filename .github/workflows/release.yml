@@ -288,6 +288,8 @@ jobs:
         run: |
           # Remove the granular manifests
           rm -f artifacts/*-dist-manifest.json
+          # Remove any subdirectories — gh release upload fails on directories
+          find artifacts -mindepth 1 -type d -exec rm -rf {} +
       - name: Publish release to eddacraft/anvil-001 (private)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -298,7 +300,7 @@ jobs:
           ANNOUNCEMENT_BODY: '${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}'
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
         run: |
-          echo "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/private-notes.txt"
+          printf '%s' "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/private-notes.txt"
 
           if gh release view "$RELEASE_TAG" --repo eddacraft/anvil-001 >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists on eddacraft/anvil-001; replacing assets and updating notes."
@@ -334,7 +336,7 @@ jobs:
             exit 1
           fi
 
-          echo "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/notes.txt"
+          printf '%s' "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/notes.txt"
 
           # Create the tag on the public repo first so gh release create
           # does not auto-create it from the default branch tip.
