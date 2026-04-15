@@ -14,8 +14,9 @@ The release process is split between an interactive script and a Claude skill:
    ```
 
    The script creates a GitHub Issue for tracking, runs all checks with
-   interactive gates, ensures release-facing docs are updated on `dev` before
-   promotion, and writes `.release/manifest.json` as a handoff.
+   interactive gates, prompts the operator to review and update
+   release-facing docs on `dev` before promotion, and writes
+   `.release/manifest.json` as a handoff.
 
 2. **Run the `/release` skill** — handles post-release verification:
 

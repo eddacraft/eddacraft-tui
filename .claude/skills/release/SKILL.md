@@ -89,9 +89,9 @@ Update the GitHub Issue (section 4) with results.
 ## Step 4 — Changelog & Docs Verification
 
 Read `CHANGELOG.md` and cross-reference against `diffSummary` from the
-manifest. The release script should already have ensured release-facing docs
-and notes were updated on `dev` before promotion and tagging. This step is
-verification, not drafting.
+manifest. The release script should already have prompted for review and
+updates to release-facing docs and notes on `dev` before promotion and
+tagging. This step is verification, not drafting.
 Assess:
 
 - Does the changelog mention all significant changes visible in the diff?
