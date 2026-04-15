@@ -94,13 +94,23 @@ fn render_results(
     };
 
     let sorted = results.sorted_findings();
-    let total = sorted.len();
 
     // Two-panel horizontal split: findings list (left) + detail (right).
     let panels =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
 
-    // ── Left panel: findings list ──────────────────────────────────────
+    render_findings_list(frame, panels[0], &sorted, selected, theme);
+    render_finding_detail(frame, panels[1], &sorted, selected, results, theme);
+}
+
+fn render_findings_list(
+    frame: &mut Frame,
+    area: Rect,
+    sorted: &[&super::discovery::Finding],
+    selected: usize,
+    theme: &EddaCraftTheme,
+) {
+    let total = sorted.len();
     let list_title = if total == 0 {
         " Findings ".to_string()
     } else {
@@ -115,8 +125,8 @@ fn render_results(
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
         );
-    let list_inner = list_block.inner(panels[0]);
-    frame.render_widget(list_block, panels[0]);
+    let list_inner = list_block.inner(area);
+    frame.render_widget(list_block, area);
 
     let visible_rows = list_inner.height as usize;
     let scroll_offset = viewport_scroll(selected, total, visible_rows);
@@ -176,8 +186,17 @@ fn render_results(
     #[allow(clippy::cast_possible_truncation)]
     let list_para = Paragraph::new(Text::from(finding_lines)).scroll((scroll_offset as u16, 0));
     frame.render_widget(list_para, list_inner);
+}
 
-    // ── Right panel: detail for selected finding ───────────────────────
+fn render_finding_detail(
+    frame: &mut Frame,
+    area: Rect,
+    sorted: &[&super::discovery::Finding],
+    selected: usize,
+    results: &super::discovery::ScanResults,
+    theme: &EddaCraftTheme,
+) {
+    let total = sorted.len();
     let detail_block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent()))
@@ -187,87 +206,89 @@ fn render_results(
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
         );
-    let detail_inner = detail_block.inner(panels[1]);
-    frame.render_widget(detail_block, panels[1]);
+    let detail_inner = detail_block.inner(area);
+    frame.render_widget(detail_block, area);
 
-    if let Some(finding) = sorted.get(selected) {
-        let location = match finding.line {
-            Some(l) => format!("{}:{l}", finding.file),
-            None => finding.file.clone(),
-        };
+    let Some(finding) = sorted.get(selected) else {
+        return;
+    };
 
-        let sev_colour = match finding.severity {
-            FindingSeverity::Error => theme.error(),
-            FindingSeverity::Warning => theme.warning(),
-            FindingSeverity::Info => theme.muted(),
-        };
+    let location = match finding.line {
+        Some(l) => format!("{}:{l}", finding.file),
+        None => finding.file.clone(),
+    };
 
-        let mut lines = vec![
-            Line::from(Span::styled(
-                &finding.title,
-                Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
-            )),
-            Line::default(),
-            Line::from(vec![
-                Span::styled("Severity: ", Style::default().fg(theme.muted())),
-                Span::styled(
-                    finding.severity.label(),
-                    Style::default().fg(sev_colour).add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled("Source:   ", Style::default().fg(theme.muted())),
-                Span::styled(finding.source.label(), Style::default().fg(theme.fg())),
-            ]),
-            Line::from(vec![
-                Span::styled("Location: ", Style::default().fg(theme.muted())),
-                Span::styled(location, Style::default().fg(theme.accent())),
-            ]),
-            Line::default(),
-            Line::from(Span::styled(
-                &finding.message,
-                Style::default().fg(theme.fg()),
-            )),
-        ];
+    let sev_colour = match finding.severity {
+        FindingSeverity::Error => theme.error(),
+        FindingSeverity::Warning => theme.warning(),
+        FindingSeverity::Info => theme.muted(),
+    };
 
-        if !finding.suggestion.is_empty() {
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                "Suggestion",
-                Style::default()
-                    .fg(theme.accent())
-                    .add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(Span::styled(
-                &finding.suggestion,
-                Style::default().fg(theme.fg()),
-            )));
-        }
+    let mut lines = vec![
+        Line::from(Span::styled(
+            &finding.title,
+            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
+        )),
+        Line::default(),
+        Line::from(vec![
+            Span::styled("Severity: ", Style::default().fg(theme.muted())),
+            Span::styled(
+                finding.severity.label(),
+                Style::default().fg(sev_colour).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Source:   ", Style::default().fg(theme.muted())),
+            Span::styled(finding.source.label(), Style::default().fg(theme.fg())),
+        ]),
+        Line::from(vec![
+            Span::styled("Location: ", Style::default().fg(theme.muted())),
+            Span::styled(location, Style::default().fg(theme.accent())),
+        ]),
+        Line::default(),
+        Line::from(Span::styled(
+            &finding.message,
+            Style::default().fg(theme.fg()),
+        )),
+    ];
 
-        // Summary at the bottom of the detail pane.
-        let duration_s = results.duration_ms / 1000;
-        let summary = format!(
-            "{total} issue{} in {} file{} ({duration_s}s)  —  enter to continue",
-            if total == 1 { "" } else { "s" },
-            results.files_scanned,
-            if results.files_scanned == 1 { "" } else { "s" },
-        );
-
-        // Fill space then add summary at the bottom.
-        let used_lines = lines.len();
-        let available = detail_inner.height as usize;
-        if available > used_lines + 1 {
-            for _ in 0..(available - used_lines - 1) {
-                lines.push(Line::default());
-            }
-        }
+    if !finding.suggestion.is_empty() {
+        lines.push(Line::default());
         lines.push(Line::from(Span::styled(
-            summary,
-            Style::default().fg(theme.muted()),
+            "Suggestion",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
         )));
-
-        frame.render_widget(Paragraph::new(Text::from(lines)), detail_inner);
+        lines.push(Line::from(Span::styled(
+            &finding.suggestion,
+            Style::default().fg(theme.fg()),
+        )));
     }
+
+    // Summary at the bottom of the detail pane.
+    let duration_s = results.duration_ms / 1000;
+    let summary = format!(
+        "{total} issue{} in {} file{} ({duration_s}s)  —  enter to continue",
+        if total == 1 { "" } else { "s" },
+        results.files_scanned,
+        if results.files_scanned == 1 { "" } else { "s" },
+    );
+
+    // Fill space then add summary at the bottom.
+    let used_lines = lines.len();
+    let available = detail_inner.height as usize;
+    if available > used_lines + 1 {
+        for _ in 0..(available - used_lines - 1) {
+            lines.push(Line::default());
+        }
+    }
+    lines.push(Line::from(Span::styled(
+        summary,
+        Style::default().fg(theme.muted()),
+    )));
+
+    frame.render_widget(Paragraph::new(Text::from(lines)), detail_inner);
 }
 
 fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme: &EddaCraftTheme) {
