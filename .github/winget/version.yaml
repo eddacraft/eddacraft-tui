@@ -1,0 +1,5 @@
+PackageIdentifier: eddacraft.anvil
+PackageVersion: "${VERSION}"
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.12.0

@@ -1,0 +1,13 @@
+PackageIdentifier: eddacraft.anvil
+PackageVersion: "${VERSION}"
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: anvil.exe
+    PortableCommandAlias: anvil
+Installers:
+  - Architecture: x64
+    InstallerUrl: "${X64_URL}"
+    InstallerSha256: "${X64_SHA256}"
+ManifestType: installer
+ManifestVersion: 1.12.0

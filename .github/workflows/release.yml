@@ -435,6 +435,11 @@ jobs:
   # Submit WinGet manifest to microsoft/winget-pkgs so Windows users
   # can `winget install eddacraft.anvil`.  Runs after the public
   # GitHub Release on eddacraft/anvil is created by the host job.
+  #
+  # We generate the manifest from templates in .github/winget/ because
+  # cargo-dist produces .zip archives (not .exe/.msi), and the standard
+  # winget-releaser action (Komac) does not support InstallerType: zip
+  # with NestedInstallerType: portable.
   winget:
     permissions: {}
     needs:
@@ -442,15 +447,102 @@ jobs:
       - host
     if: ${{ always() && needs.host.result == 'success' && needs.plan.outputs.publishing == 'true' }}
     runs-on: 'ubuntu-22.04'
+    env:
+      WINGET_ID: eddacraft.anvil
+      RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
     steps:
-      - uses: vedantmgoyal2009/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
-        continue-on-error: true
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          identifier: eddacraft.anvil
-          installers-regex: 'eddacraft-anvil-x86_64-pc-windows-msvc\.zip$'
-          release-repository: eddacraft/anvil
-          release-tag: ${{ needs.plan.outputs.tag }}
-          token: ${{ secrets.WINGET_TOKEN }}
+          persist-credentials: false
+          sparse-checkout: .github/winget
+
+      - name: Generate WinGet manifest from templates
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          REPO="eddacraft/anvil"
+          ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+
+          # Fetch the SHA256 checksum published alongside the artifact
+          X64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${ASSET}.sha256" \
+            --output - | awk '{print toupper($1)}')
+
+          X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
+
+          echo "Version:  $VERSION"
+          echo "URL:      $X64_URL"
+          echo "SHA256:   $X64_SHA256"
+
+          # Populate manifest templates
+          MANIFEST_DIR="$RUNNER_TEMP/winget-manifest"
+          mkdir -p "$MANIFEST_DIR"
+          for tmpl in .github/winget/*.yaml; do
+            sed \
+              -e "s|\${VERSION}|${VERSION}|g" \
+              -e "s|\${X64_URL}|${X64_URL}|g" \
+              -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
+              "$tmpl" > "$MANIFEST_DIR/$(basename "$tmpl")"
+          done
+
+          echo "--- Generated manifests ---"
+          for f in "$MANIFEST_DIR"/*.yaml; do
+            echo "=== $(basename "$f") ==="
+            cat "$f"
+            echo ""
+          done
+
+          # Fork winget-pkgs if not already forked
+          gh repo fork microsoft/winget-pkgs --clone=false 2>/dev/null || true
+
+          # Determine the fork owner from the token
+          FORK_USER=$(gh api user --jq '.login')
+
+          # Create a branch on the fork with the manifest files
+          BRANCH="eddacraft-anvil-${VERSION}"
+          PKG_PATH="manifests/e/eddacraft/anvil/${VERSION}"
+
+          # Get the default branch SHA to branch from
+          BASE_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/git/ref/heads/master" --jq '.object.sha')
+
+          # Create the branch
+          gh api "repos/${FORK_USER}/winget-pkgs/git/refs" \
+            -f ref="refs/heads/${BRANCH}" \
+            -f sha="$BASE_SHA" 2>/dev/null || true
+
+          # Upload each manifest file via the Contents API
+          for f in "$MANIFEST_DIR"/*.yaml; do
+            FILENAME=$(basename "$f")
+            # Map template names to WinGet naming convention
+            case "$FILENAME" in
+              version.yaml)       TARGET="${WINGET_ID}.yaml" ;;
+              installer.yaml)     TARGET="${WINGET_ID}.installer.yaml" ;;
+              defaultLocale.yaml) TARGET="${WINGET_ID}.locale.en-US.yaml" ;;
+              *)                  TARGET="$FILENAME" ;;
+            esac
+
+            CONTENT=$(base64 -w 0 "$f")
+            gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}" -X PUT \
+              -f message="New version: ${WINGET_ID} v${VERSION}" \
+              -f content="$CONTENT" \
+              -f branch="$BRANCH"
+          done
+
+          # Submit PR to microsoft/winget-pkgs
+          gh pr create \
+            --repo microsoft/winget-pkgs \
+            --head "${FORK_USER}:${BRANCH}" \
+            --base master \
+            --title "New version: ${WINGET_ID} v${VERSION}" \
+            --body "## Automated submission
+
+          Package: \`${WINGET_ID}\`
+          Version: \`${VERSION}\`
+
+          Submitted by the eddacraft/anvil-001 release pipeline."
 
   announce:
     needs:
