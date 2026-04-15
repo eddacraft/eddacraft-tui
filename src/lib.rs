@@ -39,6 +39,8 @@ pub mod theme;
 pub mod widgets;
 
 pub mod prelude {
+    pub use animate::{is_animating, tick as animate_tick};
+
     pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, KeyHandler};
     pub use crate::shell::{ShellBranding, render_shell};
