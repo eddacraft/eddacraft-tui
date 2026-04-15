@@ -12,7 +12,22 @@ readonly REPO="EddaCraft/anvil-001"
 readonly PUBLIC_REPO="EddaCraft/anvil"
 readonly MANIFEST_DIR=".release"
 readonly MANIFEST_FILE="${MANIFEST_DIR}/manifest.json"
-readonly CARGO_VERSION_FILE="crates/anvil-cli/Cargo.toml"
+readonly CARGO_VERSION_FILE="Cargo.toml"
+readonly ROOT_PACKAGE_JSON="package.json"
+readonly BETA_GUIDE_FILE="docs/public/anvil/beta-testing-guide.md"
+readonly UPGRADE_NOTES_FILE="docs/public/anvil/releases/upgrade-notes.md"
+readonly CHANGELOG_FILE="CHANGELOG.md"
+readonly BUNDLED_PACKAGE_JSONS=(
+  "apps/anvil-api/package.json"
+  "packages/adapters/package.json"
+  "packages/anvil/contracts/package.json"
+  "packages/anvil/core/package.json"
+  "packages/anvil/policy/package.json"
+  "packages/anvil/ports/package.json"
+  "packages/anvil/runtime/package.json"
+  "packages/shared/storage/package.json"
+  "packages/libs/render/package.json"
+)
 
 # --- Colours and output ---
 
@@ -28,6 +43,32 @@ success() { echo -e "${GREEN}✓${NC}  $*"; }
 warn()    { echo -e "${YELLOW}⚠${NC}  $*"; }
 error()   { echo -e "${RED}✗${NC}  $*"; }
 header()  { echo -e "\n${BOLD}━━━ $* ━━━${NC}\n"; }
+
+replace_first_match() {
+  local file="$1"
+  local pattern="$2"
+  local replacement="$3"
+  perl -0pi -e "s/${pattern}/${replacement}/m" "$file"
+}
+
+update_package_json_version() {
+  local file="$1"
+
+  if [[ ! -f "$file" ]]; then
+    warn "Expected package file missing: $file"
+    return 0
+  fi
+
+  local package_version
+  package_version=$(grep '"version"' "$file" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+  if [[ "$package_version" != "$VERSION" ]]; then
+    info "$file version is ${package_version}, updating to ${VERSION} on dev..."
+    sed -i "0,/\"version\": \".*\"/s//\"version\": \"${VERSION}\"/" "$file"
+    git add "$file"
+  else
+    info "$file version already ${VERSION} on dev"
+  fi
+}
 
 # --- Gate functions ---
 
@@ -222,8 +263,6 @@ phase_init() {
 phase_preflight() {
   header "Phase 1: Preflight"
 
-  local results=""
-
   # Rust checks
   hard_gate "cargo test" cargo test --workspace
   soft_gate "cargo clippy" cargo clippy --workspace --all-targets -- -D warnings
@@ -240,22 +279,13 @@ phase_preflight() {
   soft_gate "pnpm build" pnpm build
   soft_gate "pnpm test" timeout 300 pnpm nx run-many -t test --skip-nx-cache
 
-  # Sanity checks
-  info "Checking CHANGELOG.md has entry for ${VERSION}..."
-  if grep -q "${VERSION}" CHANGELOG.md; then
-    success "CHANGELOG.md has entry for ${VERSION}"
-    PREFLIGHT_CHANGELOG="pass"
-  else
-    warn "CHANGELOG.md does not mention ${VERSION}"
-    PREFLIGHT_CHANGELOG="missing"
-  fi
-
   # Record preflight results
   PREFLIGHT_CARGO_TEST="pass"
   PREFLIGHT_CARGO_CLIPPY="pass"
   PREFLIGHT_CARGO_BUILD="pass"
   PREFLIGHT_PNPM_BUILD="pass"
   PREFLIGHT_PNPM_TEST="pass"
+  PREFLIGHT_RELEASE_NOTES="pending"
 
   # Update issue
   update_issue_comment "$(cat <<PREFLIGHT_RESULTS
@@ -269,7 +299,7 @@ phase_preflight() {
 | binary version | ${binary_version} |
 | pnpm build | ✅ pass |
 | pnpm test | ✅ pass |
-| changelog | ${PREFLIGHT_CHANGELOG} |
+| release notes + docs | ⏳ pending pre-tag review |
 PREFLIGHT_RESULTS
 )"
 
@@ -280,6 +310,62 @@ PREFLIGHT_RESULTS
 
 phase_branch_and_tag() {
   header "Phase 2: Branch & Tag"
+
+  local promotion_head="dev"
+
+  echo ""
+  info "Release prep happens on dev before promotion."
+  info "Review and update release-facing files now, then continue:"
+  info "  - Cargo.toml"
+  info "  - package.json"
+  info "  - bundled workspace package.json files"
+  info "  - CHANGELOG.md"
+  info "  - docs/public/anvil/beta-testing-guide.md"
+  info "  - docs/public/anvil/releases/upgrade-notes.md"
+  prompt_continue "Is dev ready to promote for ${TAG}?"
+
+  # Prepare release commit on dev before promoting to main.
+  local cargo_version
+  cargo_version=$(grep '^version' "${CARGO_VERSION_FILE}" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+  if [[ "${cargo_version}" != "${VERSION}" ]]; then
+    info "Workspace version is ${cargo_version}, updating to ${VERSION} on dev..."
+    sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" "${CARGO_VERSION_FILE}"
+    git add "${CARGO_VERSION_FILE}"
+    if ! git diff --quiet Cargo.lock 2>/dev/null; then
+      git add Cargo.lock
+    fi
+  else
+    info "Workspace version already ${VERSION} on dev"
+  fi
+
+  update_package_json_version "${ROOT_PACKAGE_JSON}"
+
+  local bundled_package_json
+  for bundled_package_json in "${BUNDLED_PACKAGE_JSONS[@]}"; do
+    update_package_json_version "$bundled_package_json"
+  done
+
+  if [[ -f "${BETA_GUIDE_FILE}" ]]; then
+    replace_first_match "${BETA_GUIDE_FILE}" '\*\*Current version:\*\* [^\n]+' "**Current version:** ${VERSION}"
+    git add "${BETA_GUIDE_FILE}"
+  fi
+
+  if [[ -f "${UPGRADE_NOTES_FILE}" ]]; then
+    replace_first_match "${UPGRADE_NOTES_FILE}" '## Current Version: [^\n]+' "## Current Version: ${VERSION}"
+    git add "${UPGRADE_NOTES_FILE}"
+  fi
+
+  info "Committing release prep on dev..."
+  git add "${CARGO_VERSION_FILE}" "${ROOT_PACKAGE_JSON}" "${CHANGELOG_FILE}" \
+    "${BETA_GUIDE_FILE}" "${UPGRADE_NOTES_FILE}" \
+    "${BUNDLED_PACKAGE_JSONS[@]}" 2>/dev/null || true
+  if ! git diff --cached --quiet; then
+    git commit -m "chore(release): prepare ${TAG}"
+    DEV_SHA=$(git rev-parse HEAD)
+  else
+    info "No release prep changes to commit on dev"
+    DEV_SHA=$(git rev-parse HEAD)
+  fi
 
   if [[ "${BRANCH_STRATEGY}" == "direct" ]]; then
     info "Direct promotion: opening PR from dev to main"
@@ -295,16 +381,12 @@ phase_branch_and_tag() {
     prompt_continue "Merge the PR on GitHub, then continue?"
 
   elif [[ "${BRANCH_STRATEGY}" == "stabilisation" ]]; then
-    # Merge dev into main first so the release branch has all dev work
-    info "Merging dev into main for stabilisation..."
-    git switch main
-    git pull --ff-only origin main
-    git merge dev --no-edit
-    git push origin main
-
     info "Creating stabilisation branch: ${RELEASE_BRANCH}"
+    git switch dev
+    git pull --ff-only origin dev
     git switch -c "${RELEASE_BRANCH}"
     git push -u origin "${RELEASE_BRANCH}"
+    promotion_head="${RELEASE_BRANCH}"
 
     local pr_url
     pr_url=$(gh pr create \
@@ -325,34 +407,7 @@ phase_branch_and_tag() {
   git pull --ff-only origin main
   MAIN_SHA=$(git rev-parse HEAD)
 
-  # Check if version needs bumping in Cargo.toml
-  local cargo_version
-  cargo_version=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-  if [[ "${cargo_version}" != "${VERSION}" ]]; then
-    info "Workspace version is ${cargo_version}, updating to ${VERSION}..."
-    sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" Cargo.toml
-    git add Cargo.toml
-    # Cargo.lock will update on next build — add it if it changed
-    if ! git diff --quiet Cargo.lock 2>/dev/null; then
-      git add Cargo.lock
-    fi
-  else
-    info "Workspace version already ${VERSION}"
-  fi
-
-  # Prompt for changelog confirmation
-  echo ""
-  prompt_continue "Is CHANGELOG.md ready for ${TAG}?"
-
   # Commit and tag
-  info "Committing release..."
-  git add CHANGELOG.md 2>/dev/null || true
-  if ! git diff --cached --quiet; then
-    git commit -m "chore(release): ${TAG}"
-  else
-    info "No changes to commit — version and changelog already up to date"
-  fi
-
   TAG_SHA=$(git rev-parse HEAD)
 
   info "Creating tag ${TAG}..."
@@ -384,12 +439,13 @@ phase_workflow() {
   info "Waiting a moment for workflow to register..."
   sleep 5
 
-  # Try to find the workflow run
+  # Try to find the workflow run for the release tag specifically.
   WORKFLOW_RUN_ID=$(gh run list \
     --repo "${REPO}" \
     --limit 5 \
-    --json databaseId,headBranch,event \
-    --jq '.[] | select(.headBranch == "main" or .event == "push") | .databaseId' \
+    --workflow release.yml \
+    --json databaseId,headBranch,event,displayTitle \
+    --jq '.[] | select(.event == "push" and (.displayTitle | contains("'"${TAG}"'"))) | .databaseId' \
     | head -1 || echo "")
 
   if [[ -n "${WORKFLOW_RUN_ID}" ]]; then

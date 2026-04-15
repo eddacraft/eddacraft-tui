@@ -6,14 +6,16 @@ Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
 The release process is split between an interactive script and a Claude skill:
 
-1. **Run the release script** — handles preflight, branching, and tagging:
+1. **Run the release script** — handles preflight, release-note/doc preparation
+   on `dev`, promotion to `main`, and tagging:
 
    ```bash
    ./scripts/release.sh
    ```
 
    The script creates a GitHub Issue for tracking, runs all checks with
-   interactive gates, and writes `.release/manifest.json` as a handoff.
+   interactive gates, ensures release-facing docs are updated on `dev` before
+   promotion, and writes `.release/manifest.json` as a handoff.
 
 2. **Run the `/release` skill** — handles post-release verification:
 
@@ -21,7 +23,8 @@ The release process is split between an interactive script and a Claude skill:
    /release
    ```
 
-   The skill reads the manifest, verifies artefacts, reviews docs, drafts comms,
+   The skill reads the manifest, verifies the workflow and published artefacts,
+   verifies the changelog/docs against the shipped release, drafts comms,
    handles cleanup, and closes the tracking issue.
 
 The sections below are the **reference manual** — the script and skill automate
@@ -64,7 +67,7 @@ pnpm nx run-many -t test --skip-nx-cache
 
 Sanity assertions before release:
 
-- `crates/anvil-cli/Cargo.toml` version is correct.
+- `Cargo.toml` workspace version is correct.
 - `CHANGELOG.md` has release notes.
 - `docs/public/anvil/beta-testing-guide.md` version is current.
 - `docs/public/anvil/releases/upgrade-notes.md` has a section for this version.
@@ -132,25 +135,28 @@ Release branch scope is intentionally narrow:
 git switch main && git pull
 ```
 
-2. Bump version in `crates/anvil-cli/Cargo.toml`.
-3. Update `CHANGELOG.md`.
-4. Update `docs/public/anvil/beta-testing-guide.md` -- bump "Current version"
+2. On `dev`, bump version in `Cargo.toml` (`[workspace.package].version`).
+3. On `dev`, update `CHANGELOG.md`.
+4. On `dev`, update `docs/public/anvil/beta-testing-guide.md` -- bump "Current version"
    and add any new feature areas to "What to Test".
-5. Update `docs/public/anvil/releases/upgrade-notes.md` -- add a new section.
-6. Commit and tag:
+5. On `dev`, update `docs/public/anvil/releases/upgrade-notes.md` -- add a new section.
+6. Commit the release prep on `dev`, promote to `main`, then tag on `main`:
 
 ```bash
-git add crates/anvil-cli/Cargo.toml CHANGELOG.md \
+git switch dev && git pull --ff-only origin dev
+git add Cargo.toml CHANGELOG.md \
   docs/public/anvil/beta-testing-guide.md \
   docs/public/anvil/releases/upgrade-notes.md
-git commit -m "chore(release): vX.Y.Z"
+git commit -m "chore(release): prepare vX.Y.Z"
+
+# promote dev -> main (direct or via release/x.y.z)
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin main
 git push origin vX.Y.Z
 ```
 
 Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
-all 5 targets and creates a GitHub Release automatically (pre-release for beta
+all 6 targets and creates a GitHub Release automatically (pre-release for beta
 tags).
 
 For beta releases, either format works:
@@ -204,10 +210,10 @@ gh run view <run-id> --repo eddacraft/anvil-001 --log-failed
 Expected behaviour:
 
 - `plan` job succeeds and identifies the release.
-- `build-local-artifacts` jobs compile for all 5 targets.
+- `build-local-artifacts` jobs compile for all 6 targets.
 - `build-global-artifacts` job produces shell and PowerShell installers.
-- `host` job creates the GitHub Release on `eddacraft/anvil` (public) with all
-  artefacts. A copy is also retained on the private repo.
+- `host` job creates or updates GitHub Releases on both `eddacraft/anvil-001`
+  (private) and `eddacraft/anvil` (public) with all artefacts.
 - `announce` job posts release notes.
 
 ---
@@ -226,9 +232,10 @@ anvil auth login
 anvil gate
 ```
 
-Verify all 5 platform binaries are present in the GitHub Release:
+Verify all 6 platform binaries are present in both GitHub Releases:
 
 ```bash
+gh release view vX.Y.Z --repo eddacraft/anvil-001
 gh release view vX.Y.Z --repo eddacraft/anvil
 ```
 
@@ -239,6 +246,7 @@ Expected artefacts:
 - `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
+- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
 - `eddacraft-anvil-installer.sh`
 - `eddacraft-anvil-installer.ps1`
 
@@ -263,8 +271,8 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 
 ### If public release publish fails (partial release)
 
-The workflow creates the private release first (`dist host`), then publishes to
-`eddacraft/anvil`. If the public step fails:
+The workflow creates or updates the private release in `eddacraft/anvil-001`
+first, then publishes to `eddacraft/anvil`. If the public step fails:
 
 1. Download artefacts from the private release:
 
@@ -339,12 +347,12 @@ gh release delete vX.Y.Z --repo eddacraft/anvil-001 --yes
   `cargo dist init` re-runs.
 - **Cross-compilation:** aarch64-linux uses cross-compilation in CI. If it
   fails, check the cross toolchain setup in the workflow.
-- **Dual release:** The workflow creates releases on both the private repo (via
-  `dist host`) and the public `eddacraft/anvil` (via `gh release create`). The
-  private release is for internal traceability; the public one is for
-  distribution.
+- **Dual release:** The workflow creates releases on both the private repo
+  (`eddacraft/anvil-001`) and the public `eddacraft/anvil`. The private release
+  is the internal source-of-truth record; the public one is for distribution.
 - **ANVIL_RELEASES_TOKEN:** A PAT/fine-grained token with `contents: write` on
-  `eddacraft/anvil`. Must be set as a repository secret on `anvil-001`.
+  `eddacraft/anvil` and `eddacraft/homebrew-tap`. Must be set as a repository
+  secret on `anvil-001`.
 
 ---
 

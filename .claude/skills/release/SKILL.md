@@ -3,12 +3,12 @@ name: release
 description: Post-release verification, doc review, comms, and cleanup. Reads .release/manifest.json written by scripts/release.sh. Refuses to start without a valid manifest.
 ---
 
-# Release — Post-Script Verification & Cleanup
+# Release — Post-Tag Verification & Cleanup
 
 You are the second half of the Anvil release process. The release script
-(`scripts/release.sh`) has already run preflight, branching, and tagging.
-It wrote `.release/manifest.json` as your gate contract. Follow these steps
-in order.
+(`scripts/release.sh`) has already run preflight, prepared the release on `dev`,
+handled promotion to `main`, and created the tag. It wrote
+`.release/manifest.json` as your gate contract. Follow these steps in order.
 
 ## Gate — Read the Manifest
 
@@ -55,51 +55,56 @@ with other steps and come back.
 
 Expected jobs to verify:
 - `plan` — succeeded
-- `build-local-artifacts` — succeeded (5 targets)
+- `build-local-artifacts` — succeeded (6 targets)
 - `build-global-artifacts` — succeeded
-- `host` — created GitHub Release on `EddaCraft/anvil`
+- `host` — created or updated GitHub Releases on `EddaCraft/anvil-001` and `EddaCraft/anvil`
 - `announce` — posted release notes
 
 Update the GitHub Issue (section 3) with results.
 
 ## Step 3 — Verify Artefacts
 
-Check the public release has all expected artefacts:
+Check both releases have the expected artefacts:
 
 ```bash
+gh release view <tag> --repo EddaCraft/anvil-001 --json assets --jq '.assets[].name'
 gh release view <tag> --repo EddaCraft/anvil --json assets --jq '.assets[].name'
 ```
 
-Expected artefacts (7):
+Expected artefacts (8):
 - `eddacraft-anvil-aarch64-apple-darwin.tar.xz`
 - `eddacraft-anvil-x86_64-apple-darwin.tar.xz`
 - `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
 - `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
+- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
 - `eddacraft-anvil-installer.sh`
 - `eddacraft-anvil-installer.ps1`
 
-Report any missing artefacts. Check that the release is not stuck in
-prerelease if the release type is `production`.
+Report any missing artefacts in either repo. Check that the public release is
+not stuck in prerelease if the release type is `production`.
 
 Update the GitHub Issue (section 4) with results.
 
-## Step 4 — Changelog Review
+## Step 4 — Changelog & Docs Verification
 
 Read `CHANGELOG.md` and cross-reference against `diffSummary` from the
-manifest. Assess:
+manifest. The release script should already have ensured release-facing docs
+and notes were updated on `dev` before promotion and tagging. This step is
+verification, not drafting.
+Assess:
 
 - Does the changelog mention all significant changes visible in the diff?
 - Is the format consistent with Keep a Changelog?
 - Are there any changes in the diff that seem notable but missing from the
   changelog?
 
-Present findings to the operator. This is a judgment call — the operator
-decides whether to update the changelog.
+Present findings to the operator. If anything material is missing, treat it as
+a release follow-up or, if severe, ask whether the release needs remediation.
 
 Update the GitHub Issue (section 5) with results.
 
-## Step 5 — Documentation Triage
+## Step 5 — Documentation Verification
 
 Read `docs/guides/release-doc-checklist.md`. Cross-reference the
 `diffSummary.changedPaths` from the manifest against the checklist items.
@@ -161,7 +166,13 @@ gh pr create --repo EddaCraft/anvil-001 --base dev --head <releaseBranch> \
 git push origin --delete <releaseBranch>
 ```
 
-### Public repo release state
+### Release state
+
+Verify the private release exists:
+
+```bash
+gh release view <tag> --repo EddaCraft/anvil-001 --json url,isPrerelease
+```
 
 If the release type is `production`, verify the public release is not
 marked as prerelease:

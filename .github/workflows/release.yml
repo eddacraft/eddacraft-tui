@@ -288,6 +288,37 @@ jobs:
         run: |
           # Remove the granular manifests
           rm -f artifacts/*-dist-manifest.json
+      - name: Publish release to eddacraft/anvil-001 (private)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE_FLAG:
+            "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease'
+            || '' }}"
+          ANNOUNCEMENT_TITLE: '${{ fromJson(steps.host.outputs.manifest).announcement_title }}'
+          ANNOUNCEMENT_BODY: '${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}'
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          echo "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/private-notes.txt"
+
+          if gh release view "$RELEASE_TAG" --repo eddacraft/anvil-001 >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists on eddacraft/anvil-001; replacing assets and updating notes."
+            gh release upload "$RELEASE_TAG" \
+              --repo eddacraft/anvil-001 \
+              --clobber \
+              artifacts/*
+            gh release edit "$RELEASE_TAG" \
+              --repo eddacraft/anvil-001 \
+              ${PRERELEASE_FLAG:+"$PRERELEASE_FLAG"} \
+              --title "$ANNOUNCEMENT_TITLE" \
+              --notes-file "$RUNNER_TEMP/private-notes.txt"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo eddacraft/anvil-001 \
+              ${PRERELEASE_FLAG:+"$PRERELEASE_FLAG"} \
+              --title "$ANNOUNCEMENT_TITLE" \
+              --notes-file "$RUNNER_TEMP/private-notes.txt" \
+              artifacts/*
+          fi
       - name: Publish release to eddacraft/anvil (public)
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
@@ -322,15 +353,27 @@ jobs:
               -f sha="$PUBLIC_HEAD"
           fi
 
-          gh release create "$RELEASE_TAG" \
-            --repo eddacraft/anvil \
-            --verify-tag \
-            ${PRERELEASE_FLAG:+"$PRERELEASE_FLAG"} \
-            --title "$ANNOUNCEMENT_TITLE" \
-            --notes-file "$RUNNER_TEMP/notes.txt" \
-            artifacts/*
+          if gh release view "$RELEASE_TAG" --repo eddacraft/anvil >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists on eddacraft/anvil; replacing assets and updating notes."
+            gh release upload "$RELEASE_TAG" \
+              --repo eddacraft/anvil \
+              --clobber \
+              artifacts/*
+            gh release edit "$RELEASE_TAG" \
+              --repo eddacraft/anvil \
+              ${PRERELEASE_FLAG:+"$PRERELEASE_FLAG"} \
+              --title "$ANNOUNCEMENT_TITLE" \
+              --notes-file "$RUNNER_TEMP/notes.txt"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo eddacraft/anvil \
+              --verify-tag \
+              ${PRERELEASE_FLAG:+"$PRERELEASE_FLAG"} \
+              --title "$ANNOUNCEMENT_TITLE" \
+              --notes-file "$RUNNER_TEMP/notes.txt" \
+              artifacts/*
+          fi
       - name: Publish Homebrew formula to eddacraft/homebrew-tap
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
