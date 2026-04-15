@@ -132,7 +132,7 @@ anvil watch --source
 ```
 
 ```
-anvil Watch
+Anvil Watch
 
 Watching for changes...
 Press Ctrl+C to stop.

@@ -231,9 +231,9 @@ We are especially interested in feedback on these areas:
 
 Found a bug or have feedback?
 
-- [Report a bug](https://github.com/eddacraft/anvil/issues/new)
-- [Request a feature](https://github.com/eddacraft/anvil/issues/new)
-- [Share general feedback](https://github.com/eddacraft/anvil/issues/new)
+- [Report a bug](https://github.com/eddacraft/anvil/issues/new?template=bug_report.md)
+- [Request a feature](https://github.com/eddacraft/anvil/issues/new?template=feature_request.md)
+- [Share general feedback](https://github.com/eddacraft/anvil/issues/new?template=feedback.md)
 
 **When reporting, include:**
 

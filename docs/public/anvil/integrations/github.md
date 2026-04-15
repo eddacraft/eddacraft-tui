@@ -57,7 +57,8 @@ For Windows runners, use the PowerShell installer:
 When enabled, anvil posts a summary comment:
 
 ```markdown
-## anvil Results
+<!-- anvil-check-results -->
+## 🔨 Anvil Check Results
 
 ✓ All gates passed
 
@@ -73,7 +74,8 @@ When enabled, anvil posts a summary comment:
 ### Comment on Failure
 
 ```markdown
-## anvil Results
+<!-- anvil-check-results -->
+## 🔨 Anvil Check Results
 
 ✗ 2 issues found
 
@@ -104,7 +106,7 @@ Require anvil before merge:
 1. **Repository Settings** → **Branches**
 2. **Add branch protection rule** for `main`
 3. Enable **Require status checks to pass**
-4. Search and select **anvil CI**
+4. Search for and select **Anvil Check**
 5. Save changes
 
 Now PRs cannot merge until anvil passes.
@@ -129,12 +131,12 @@ anvil creates GitHub Check Runs for detailed inline feedback:
       await github.rest.checks.create({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        name: 'anvil',
+        name: 'Anvil Check',
         head_sha: context.sha,
         status: 'completed',
         conclusion: results.status === 'pass' ? 'success' : 'failure',
         output: {
-          title: 'anvil Results',
+          title: 'Anvil Check Results',
           summary: results.summary,
           annotations: results.issues.map(i => ({
             path: i.file,
