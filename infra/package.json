@@ -6,8 +6,8 @@
   "main": "index.ts",
   "dependencies": {
     "@azure/identity": "^4.13.1",
-    "@azure/keyvault-secrets": "^4.9.0",
-    "@pulumi/pulumi": "^3.229.0",
+    "@azure/keyvault-secrets": "^4.11.1",
+    "@pulumi/pulumi": "^3.230.0",
     "@pulumi/azure-native": "^3.16.0",
     "@pulumiverse/vercel": "^4.6.1"
   },
