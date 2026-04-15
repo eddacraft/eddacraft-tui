@@ -62,6 +62,11 @@ app.get('/health', async (c) => {
   }
 });
 
+app.onError((err, c) => {
+  console.error('[unhandled]', err.message, err.stack);
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
+
 app.route('/auth', auth);
 app.route('/auth/device', authDevice);
 app.route('/auth/otp', authOtp);
