@@ -11,7 +11,7 @@ Scopes: KERN (main)
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| KERN | —     | In Progress |
+| KERN | —     | Complete |
 
 ## Purpose
 
@@ -565,5 +565,5 @@ Incrementalupdate at 10µs is 10,000x under the 100ms target.
 | 2 — Semantic Graph | 4 | Done |
 | 3 — Policy Engine + Events | 4 | Done |
 | 4 — Integration & Validation | 5 | Done |
-| 5 — Daemon Mode (Deferred) | 3 | Draft |
-| **Total** | **25** | **22/25 done** |
+| 5 — Daemon Mode (Deferred) | 3 | Deferred post-H1 |
+| **Total** | **25** | **22/25 done (3 deferred)** |

@@ -97,11 +97,11 @@ backlog (complete) as tracked sub-modules.
 Rust kernel for structural graph analysis (KERN), performance-critical check
 ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
 TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard rendering.
-KERN is 22/25 done, RENG is complete, RCLI is in progress.
+KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI is in progress.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
+| [rust-kernel](./archive/modules/rust-kernel.aps.md) | KERN | Complete | 22/25 (3 deferred) | — |
 | [rust-core-engine](./archive/modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
