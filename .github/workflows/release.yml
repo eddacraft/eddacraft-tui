@@ -450,26 +450,40 @@ jobs:
     env:
       WINGET_ID: eddacraft.anvil
       RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+      GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           sparse-checkout: .github/winget
+          sparse-checkout-cone-mode: false
 
       - name: Generate WinGet manifest from templates
         continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
         run: |
+          set -euo pipefail
+
           VERSION="${RELEASE_TAG#v}"
           REPO="eddacraft/anvil"
           ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+
+          # Validate version looks like semver
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
+            echo "::error::VERSION '${VERSION}' does not match expected semver pattern"
+            exit 1
+          fi
 
           # Fetch the SHA256 checksum published alongside the artifact
           X64_SHA256=$(gh release download "$RELEASE_TAG" \
             --repo "$REPO" \
             --pattern "${ASSET}.sha256" \
             --output - | awk '{print toupper($1)}')
+
+          # Validate checksum is a 64-char uppercase hex string
+          if [[ ! "$X64_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
+            echo "::error::SHA256 '${X64_SHA256}' is not a valid 64-char hex digest"
+            exit 1
+          fi
 
           X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
 
@@ -501,14 +515,15 @@ jobs:
           # Determine the fork owner from the token
           FORK_USER=$(gh api user --jq '.login')
 
-          # Create a branch on the fork with the manifest files
-          BRANCH="eddacraft-anvil-${VERSION}"
+          # Use run ID in branch name for idempotency on retries
+          BRANCH="eddacraft-anvil-${VERSION}-${GITHUB_RUN_ID}"
           PKG_PATH="manifests/e/eddacraft/anvil/${VERSION}"
 
-          # Get the default branch SHA to branch from
-          BASE_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/git/ref/heads/master" --jq '.object.sha')
+          # Resolve the fork's default branch dynamically
+          DEFAULT_BRANCH=$(gh api "repos/${FORK_USER}/winget-pkgs" --jq '.default_branch')
+          BASE_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/git/ref/heads/${DEFAULT_BRANCH}" --jq '.object.sha')
 
-          # Create the branch
+          # Create the branch (ignore 422 if it already exists from this run)
           gh api "repos/${FORK_USER}/winget-pkgs/git/refs" \
             -f ref="refs/heads/${BRANCH}" \
             -f sha="$BASE_SHA" 2>/dev/null || true
@@ -531,18 +546,29 @@ jobs:
               -f branch="$BRANCH"
           done
 
-          # Submit PR to microsoft/winget-pkgs
-          gh pr create \
+          # Check for existing open PR before creating a new one
+          EXISTING_PR=$(gh pr list \
             --repo microsoft/winget-pkgs \
             --head "${FORK_USER}:${BRANCH}" \
-            --base master \
-            --title "New version: ${WINGET_ID} v${VERSION}" \
-            --body "## Automated submission
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || true)
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for this branch — skipping creation"
+          else
+            gh pr create \
+              --repo microsoft/winget-pkgs \
+              --head "${FORK_USER}:${BRANCH}" \
+              --base "$DEFAULT_BRANCH" \
+              --title "New version: ${WINGET_ID} v${VERSION}" \
+              --body "## Automated submission
 
           Package: \`${WINGET_ID}\`
           Version: \`${VERSION}\`
 
           Submitted by the eddacraft/anvil-001 release pipeline."
+          fi
 
   announce:
     needs:
