@@ -375,6 +375,19 @@ jobs:
               --notes-file "$RUNNER_TEMP/notes.txt" \
               artifacts/*
           fi
+      - name: Promote public release to Latest
+        env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          # GitHub's /releases/latest endpoint skips prereleases, which
+          # breaks install.eddacraft.ai. While every release is still
+          # beta, clear the prerelease flag and promote to Latest so the
+          # installer script always resolves to the newest release.
+          gh release edit "$RELEASE_TAG" \
+            --repo eddacraft/anvil \
+            --prerelease=false \
+            --latest
       - name: Publish Homebrew formula to eddacraft/homebrew-tap
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
