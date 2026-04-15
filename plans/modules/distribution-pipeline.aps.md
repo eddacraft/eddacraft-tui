@@ -269,7 +269,7 @@ Change status to **Ready** when:
     `vedantmgoyal2009/winget-releaser@v2` (SHA-pinned) that
     auto-generates and submits the manifest on each tagged release
   - WinGet manifest YAML auto-generated at
-    `microsoft/winget-pkgs/manifests/e/EddaCraft/Anvil/<version>/`
+    `microsoft/winget-pkgs/manifests/e/eddacraft/anvil/<version>/`
 - **Confidence:** high — well-trodden path, lots of prior art
 - **Priority:** High (replaces DIST-008 for the Windows install gap)
 - **Dependencies:** DIST-007 (release workflow producing the

@@ -385,6 +385,7 @@ jobs:
     runs-on: 'ubuntu-22.04'
     steps:
       - uses: vedantmgoyal2009/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
+        continue-on-error: true
         with:
           identifier: eddacraft.anvil
           installers-regex: 'eddacraft-anvil-x86_64-pc-windows-msvc\.zip$'
