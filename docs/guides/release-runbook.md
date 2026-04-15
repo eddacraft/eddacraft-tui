@@ -137,9 +137,10 @@ git switch main && git pull
 
 2. On `dev`, bump version in `Cargo.toml` (`[workspace.package].version`).
 3. On `dev`, update `CHANGELOG.md`.
-4. On `dev`, update `docs/public/anvil/beta-testing-guide.md` -- bump "Current version"
-   and add any new feature areas to "What to Test".
-5. On `dev`, update `docs/public/anvil/releases/upgrade-notes.md` -- add a new section.
+4. On `dev`, update `docs/public/anvil/beta-testing-guide.md` -- bump "Current
+   version" and add any new feature areas to "What to Test".
+5. On `dev`, update `docs/public/anvil/releases/upgrade-notes.md` -- add a new
+   section.
 6. Commit the release prep on `dev`, promote to `main`, then tag on `main`:
 
 ```bash
