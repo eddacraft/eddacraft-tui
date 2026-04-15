@@ -78,8 +78,8 @@ doesn't do so automatically.
 
 ### Commands
 
-Most commands remain the same. `anvil watch`, `anvil init`, and
-`anvil tutorial` still work as before from a user's perspective.
+Most commands remain the same. `anvil watch`, `anvil init`, and `anvil tutorial`
+still work as before from a user's perspective.
 
 :::note Command changes
 
@@ -137,10 +137,9 @@ should still install project dependencies if those checks are enabled.
 
 ### Terminal UI
 
-The interactive surfaces (tutorial, watch, wizard, and status) have been
-rebuilt using Ratatui with the eddacraft Terminal Standard design system. The
-experience is smoother, more responsive, and more consistent across terminal
-emulators.
+The interactive surfaces (tutorial, watch, wizard, and status) have been rebuilt
+using Ratatui with the eddacraft Terminal Standard design system. The experience
+is smoother, more responsive, and more consistent across terminal emulators.
 
 ### What's New in Rust
 

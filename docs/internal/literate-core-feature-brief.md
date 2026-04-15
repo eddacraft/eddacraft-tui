@@ -23,14 +23,14 @@ dependency edges, trust boundaries, policy violations — with sub-millisecond
 query times (800ns policy eval, 10us incremental update). Several high-value
 features require LLM reasoning over this graph:
 
-| Feature | What It Needs |
-|---------|---------------|
-| Violation remediation | "Here's the violation. Here's the fix." |
+| Feature                    | What It Needs                                               |
+| -------------------------- | ----------------------------------------------------------- |
+| Violation remediation      | "Here's the violation. Here's the fix."                     |
 | Behavioural diff narration | "This PR expanded the trust surface of your auth boundary." |
-| Policy authoring | "Describe what you want to prevent" -> working policy |
-| Headless CI review | Agent-powered PR review without Claude Code |
-| Plan-to-code alignment | "Does this diff match the declared APS work item?" |
-| Onboarding / `anvil init` | Agent analyses codebase, suggests initial rules |
+| Policy authoring           | "Describe what you want to prevent" -> working policy       |
+| Headless CI review         | Agent-powered PR review without Claude Code                 |
+| Plan-to-code alignment     | "Does this diff match the declared APS work item?"          |
+| Onboarding / `anvil init`  | Agent analyses codebase, suggests initial rules             |
 
 No external agent runtime can do this. Claude Code, Cursor, pi — they would all
 need to serialise the graph, send it over a protocol, parse it, reason about it,
@@ -125,12 +125,12 @@ be extracted to a standalone repo at any time via `git subtree split`.
 
 literate-core is designed to be consumed by any EddaCraft product:
 
-| Product | Custom Tools | Use Case |
-|---------|-------------|----------|
-| Anvil | graph_query, policy_eval | Remediation, behavioural diffs |
-| Kindling | memory_query, pattern_match | Knowledge retrieval |
-| Edda Stack | ember_recall, knowledge_graph | Memory-augmented agents |
-| CI Pipeline | diff_analyze, pr_comment | Headless PR review |
+| Product     | Custom Tools                  | Use Case                       |
+| ----------- | ----------------------------- | ------------------------------ |
+| Anvil       | graph_query, policy_eval      | Remediation, behavioural diffs |
+| Kindling    | memory_query, pattern_match   | Knowledge retrieval            |
+| Edda Stack  | ember_recall, knowledge_graph | Memory-augmented agents        |
+| CI Pipeline | diff_analyze, pr_comment      | Headless PR review             |
 
 Same runtime, same session format, different tools.
 
@@ -144,11 +144,11 @@ Same runtime, same session format, different tools.
 
 ### The Shift
 
-Today, Anvil catches violations. It says: *"cross-layer boundary violation in
-payments.service.ts."*
+Today, Anvil catches violations. It says: _"cross-layer boundary violation in
+payments.service.ts."_
 
-That is valuable. But it leaves the developer asking: *why does this matter? how
-do I fix it?*
+That is valuable. But it leaves the developer asking: _why does this matter? how
+do I fix it?_
 
 With the agent harness, Anvil bridges that gap. When it catches a violation, it
 can now reason about the structural context — what the violation means for your
@@ -164,7 +164,7 @@ architecture, which trust boundaries are affected, and what the fix looks like:
 > already re-exported there.
 
 That is the difference between a linter and a governance system that
-*understands your codebase*.
+_understands your codebase_.
 
 ### Key Differentiator
 
@@ -174,7 +174,7 @@ not text diffs.**
 Other tools send your code to an LLM and ask "is this OK?" Anvil's agent has
 direct access to a live structural model of your codebase — every symbol, every
 dependency edge, every trust boundary, every policy rule — updated in
-microseconds on every file save. It reasons about *structure and relationships*,
+microseconds on every file save. It reasons about _structure and relationships_,
 not just the text on screen.
 
 This is not bolt-on AI. The semantic graph is the kernel. The agent is a
@@ -189,14 +189,14 @@ model of your codebase.
 
 ### What This Unlocks (Customer-Facing)
 
-| Capability | Before | After |
-|------------|--------|-------|
-| **Violation response** | Warning message with file and line | Contextual explanation + suggested fix |
-| **PR review** | Text-based diff review | Behavioural diff: "this PR expanded the auth trust surface" |
-| **Policy authoring** | Write Rego by hand | Describe intent in English, get a working policy |
-| **Onboarding** | Read docs, write config | `anvil init` analyses your codebase and suggests rules |
-| **CI integration** | Pass/fail gate | Agent-powered review that posts structural findings on PRs |
-| **Drift explanation** | "Boundary stress increasing" | "Your payments module has added 4 new cross-layer imports this sprint, trending toward the cache layer" |
+| Capability             | Before                             | After                                                                                                   |
+| ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Violation response** | Warning message with file and line | Contextual explanation + suggested fix                                                                  |
+| **PR review**          | Text-based diff review             | Behavioural diff: "this PR expanded the auth trust surface"                                             |
+| **Policy authoring**   | Write Rego by hand                 | Describe intent in English, get a working policy                                                        |
+| **Onboarding**         | Read docs, write config            | `anvil init` analyses your codebase and suggests rules                                                  |
+| **CI integration**     | Pass/fail gate                     | Agent-powered review that posts structural findings on PRs                                              |
+| **Drift explanation**  | "Boundary stress increasing"       | "Your payments module has added 4 new cross-layer imports this sprint, trending toward the cache layer" |
 
 ### Personas
 
@@ -236,17 +236,17 @@ accepted. Provenance from detection through remediation.
    automatic. And every interaction is auditable.
 
 5. **The moat:** No external tool can replicate this. The graph lives in Anvil's
-   memory. The agent lives in Anvil's binary. There is no serialisation layer, no
-   API call, no approximation. The reasoning happens *inside the kernel*.
+   memory. The agent lives in Anvil's binary. There is no serialisation layer,
+   no API call, no approximation. The reasoning happens _inside the kernel_.
 
 ### Competitive Framing
 
-| Tool | Approach | Limitation |
-|------|----------|------------|
-| SonarQube, Semgrep | Pattern matching on AST | No structural graph, no reasoning, no remediation |
-| GitHub Copilot Code Review | LLM reads text diff | No architecture model, no policy awareness |
-| CodeScene | Historical analysis | Retrospective, not real-time; no enforcement |
-| Anvil + agent harness | LLM reasons over live semantic graph | Real-time, structural, enforceable, auditable |
+| Tool                       | Approach                             | Limitation                                        |
+| -------------------------- | ------------------------------------ | ------------------------------------------------- |
+| SonarQube, Semgrep         | Pattern matching on AST              | No structural graph, no reasoning, no remediation |
+| GitHub Copilot Code Review | LLM reads text diff                  | No architecture model, no policy awareness        |
+| CodeScene                  | Historical analysis                  | Retrospective, not real-time; no enforcement      |
+| Anvil + agent harness      | LLM reasons over live semantic graph | Real-time, structural, enforceable, auditable     |
 
 ### What This Is NOT
 
