@@ -1,5 +1,5 @@
 PackageIdentifier: eddacraft.anvil
-PackageVersion: "${VERSION}"
+PackageVersion: '${VERSION}'
 PackageLocale: en-US
 Publisher: eddacraft
 PublisherUrl: https://eddacraft.ai
