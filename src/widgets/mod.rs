@@ -1,3 +1,4 @@
+use animate::{Lerp, Once};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -16,6 +17,33 @@ pub mod spinner;
 pub mod status_badge;
 pub mod status_bar;
 pub mod text_input;
+
+/// Animated `f64` value that eases toward its target over [`ANIM_DURATION_MS`].
+pub(crate) type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+
+/// Animated `u8` value that eases toward its target over [`ANIM_DURATION_MS`].
+pub(crate) type AnimatedU8 = Once<u8, fn(f64) -> f64, fn(&u8, &u8, f64) -> u8>;
+
+/// Default animation duration shared by progress widgets (milliseconds).
+pub(crate) const ANIM_DURATION_MS: f64 = 250.0;
+
+pub(crate) fn animated_f64(initial: f64) -> AnimatedF64 {
+    Once::new(
+        initial,
+        ANIM_DURATION_MS,
+        animate::easing::quad_out as fn(f64) -> f64,
+        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+    )
+}
+
+pub(crate) fn animated_u8(initial: u8) -> AnimatedU8 {
+    Once::new(
+        initial,
+        ANIM_DURATION_MS,
+        animate::easing::quad_out as fn(f64) -> f64,
+        <u8 as Lerp>::lerp as fn(&u8, &u8, f64) -> u8,
+    )
+}
 
 /// Render an optional block with a border style, returning the inner area.
 /// If no block is provided, returns the original area unchanged.

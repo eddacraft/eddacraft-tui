@@ -1,5 +1,7 @@
+use std::fmt;
 use std::time::{Duration, Instant};
 
+use animate::Animate;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
@@ -9,6 +11,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::theme::Theme;
 use crate::widgets::spinner::SpinnerPreset;
+use crate::widgets::{AnimatedU8, animated_u8};
 
 const FRACTION_BLOCKS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
 
@@ -50,10 +53,31 @@ impl CheckProgress {
     }
 }
 
-#[derive(Debug, Default)]
 pub struct ParallelProgressState {
     pub checks: Vec<CheckProgress>,
     pub start_time: Option<Instant>,
+    anim_overall: AnimatedU8,
+    anim_overall_target: u8,
+}
+
+impl Default for ParallelProgressState {
+    fn default() -> Self {
+        Self {
+            checks: Vec::new(),
+            start_time: None,
+            anim_overall: animated_u8(0),
+            anim_overall_target: 0,
+        }
+    }
+}
+
+impl fmt::Debug for ParallelProgressState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ParallelProgressState")
+            .field("checks", &self.checks)
+            .field("start_time", &self.start_time)
+            .finish_non_exhaustive()
+    }
 }
 
 #[must_use]
@@ -249,7 +273,14 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
 
         let mut cursor = 1;
         if self.show_overall {
-            let overall = calculate_overall_progress(&state.checks);
+            let raw_overall = calculate_overall_progress(&state.checks);
+            if raw_overall != state.anim_overall_target {
+                state.anim_overall.set(raw_overall);
+                state.anim_overall_target = raw_overall;
+            }
+            state.anim_overall.update();
+            let overall = *state.anim_overall;
+
             let line = format!(
                 "Overall {} {:>3}%",
                 render_fractional_bar(
@@ -303,12 +334,11 @@ fn status_icon(check: &CheckProgress) -> &'static str {
 fn running_frame_index(start_time: Option<Instant>) -> usize {
     let interval_ms = SpinnerPreset::Anvil.interval().as_millis().max(1);
     let elapsed_ms = start_time
-        .map(|started| {
+        .map_or(0, |started| {
             Instant::now()
                 .saturating_duration_since(started)
                 .as_millis()
-        })
-        .unwrap_or(0);
+        });
     usize::try_from(elapsed_ms / interval_ms).unwrap_or(0)
 }
 
@@ -458,6 +488,7 @@ mod tests {
                 message: Some("Forging".to_string()),
             }],
             start_time: None,
+            ..Default::default()
         };
 
         ParallelProgress::new(&theme)
