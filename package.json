@@ -101,7 +101,8 @@
     "picomatch": ">=4.0.4",
     "smol-toml": ">=1.6.1",
     "serialize-javascript": ">=7.0.5",
-    "brace-expansion": ">=5.0.5"
+    "brace-expansion": ">=5.0.5",
+    "follow-redirects": ">=1.16.0"
   },
   "pnpm": {
     "overrides": {
@@ -145,7 +146,8 @@
       "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
       "smol-toml@<1.6.1": ">=1.6.1",
       "path-to-regexp@<0.1.13": "0.1.13",
-      "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0"
+      "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0",
+      "follow-redirects@<1.16.0": ">=1.16.0"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",
