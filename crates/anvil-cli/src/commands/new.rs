@@ -375,11 +375,22 @@ fn load_single_template(path: &Path) -> anyhow::Result<(TemplateEntry, String)> 
 }
 
 fn split_frontmatter(content: &str) -> Option<(&str, &str)> {
-    let content = content.strip_prefix("---\n")?;
-    let end = content.find("\n---\n")?;
-    let fm = &content[..end];
-    let body = &content[end + 5..]; // skip "\n---\n"
-    Some((fm, body))
+    // Handle both Unix (\n) and Windows (\r\n) line endings so templates
+    // authored on Windows with CRLF parse correctly.
+    let content = content
+        .strip_prefix("---\r\n")
+        .or_else(|| content.strip_prefix("---\n"))?;
+
+    if let Some(end) = content.find("\r\n---\r\n") {
+        let fm = &content[..end];
+        let body = &content[end + 7..]; // skip "\r\n---\r\n"
+        Some((fm, body))
+    } else {
+        let end = content.find("\n---\n")?;
+        let fm = &content[..end];
+        let body = &content[end + 5..]; // skip "\n---\n"
+        Some((fm, body))
+    }
 }
 
 fn derive_categories(templates: &[TemplateEntry]) -> Vec<TemplateCategory> {
@@ -650,6 +661,14 @@ mod tests {
         let (fm, body) = split_frontmatter(sample_frontmatter()).unwrap();
         assert!(fm.contains("id: test-tmpl"));
         assert!(body.contains("Hello"));
+    }
+
+    #[test]
+    fn split_frontmatter_parses_crlf() {
+        let crlf = "---\r\nid: test-tmpl\r\nname: CRLF Template\r\n---\r\n# Body\r\n";
+        let (fm, body) = split_frontmatter(crlf).unwrap();
+        assert!(fm.contains("id: test-tmpl"));
+        assert!(body.contains("Body"));
     }
 
     #[test]

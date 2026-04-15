@@ -810,6 +810,7 @@ fn run_loop(
 
         if event::poll(Duration::from_millis(100))?
             && let Event::Key(key_event) = event::read()?
+            && key_event.kind == crossterm::event::KeyEventKind::Press
         {
             let action = KeyHandler::map(key_event);
 

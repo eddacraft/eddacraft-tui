@@ -30,8 +30,9 @@ fn timed_loading(
                     crate::tui::draw_loading(terminal, surface_name, message, theme)?;
                 }
                 crossterm::event::Event::Key(key)
-                    if key.code == crossterm::event::KeyCode::Char('q')
-                        || key.code == crossterm::event::KeyCode::Esc =>
+                    if key.kind == crossterm::event::KeyEventKind::Press
+                        && (key.code == crossterm::event::KeyCode::Char('q')
+                            || key.code == crossterm::event::KeyCode::Esc) =>
                 {
                     return Ok(());
                 }

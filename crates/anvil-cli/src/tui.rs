@@ -7,7 +7,7 @@ use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::watch::WatchState;
 use anvil_tui::surfaces::watch::event_adapter::WatchEventAdapter;
-use crossterm::event::{self, Event};
+use crossterm::event::{self, Event, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use eddacraft_tui::keyboard::KeyHandler;
@@ -113,7 +113,7 @@ fn surface_loop<S: Surface>(
 
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
-                Event::Key(key) => {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
                     let action = KeyHandler::map(key);
                     state.handle_key(action);
                     dirty = true;
@@ -182,6 +182,7 @@ fn tutorial_loop(
 
         if event::poll(Duration::from_millis(100))?
             && let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
         {
             let action = KeyHandler::map(key);
             state.handle_key(action);
@@ -238,7 +239,7 @@ fn watch_demo_loop(
 
         if event::poll(poll_timeout)? {
             match event::read()? {
-                Event::Key(key) => {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
                     let action = KeyHandler::map(key);
                     state.handle_key(action);
                 }
@@ -351,7 +352,7 @@ fn watch_loop(
         if event::poll(poll_timeout)? {
             loop {
                 match event::read()? {
-                    Event::Key(key) => {
+                    Event::Key(key) if key.kind == KeyEventKind::Press => {
                         let action = KeyHandler::map(key);
                         state.handle_key(action);
                     }
