@@ -9,9 +9,11 @@ Scopes: LCORE (literate-core crate), AHARNESS (anvil-agent crate)
 
 # literate-core — Internal Agent Harness
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| LCORE | —     | medium   | Draft  |
+| ID    | Owner | Status |
+| ----- | ----- | ------ |
+| LCORE | —     | Draft  |
+
+Priority: medium.
 
 ## Purpose
 
@@ -321,7 +323,7 @@ Change status to **Ready** when:
 
 ## Phase 3 — Anvil Integration (anvil-agent)
 
-### LCORE-030: anvil-agent crate scaffold
+### AHARNESS-030: anvil-agent crate scaffold
 
 - **Intent:** Create the `crates/anvil-agent/` crate with dependencies on
   literate-core and anvil-kernel-types
@@ -334,7 +336,7 @@ Change status to **Ready** when:
 
 ---
 
-### LCORE-031: GraphQueryTool — semantic graph queries
+### AHARNESS-031: GraphQueryTool — semantic graph queries
 
 - **Intent:** Implement a Tool that queries the kernel's petgraph semantic graph
   with zero-copy access, supporting queries like "what imports this symbol",
@@ -344,11 +346,11 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-agent graph_query`
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** LCORE-030, KERN Phase 2 (semantic graph)
+- **Dependencies:** AHARNESS-030, KERN Phase 2 (semantic graph)
 
 ---
 
-### LCORE-032: PolicyEvalTool — policy evaluation
+### AHARNESS-032: PolicyEvalTool — policy evaluation
 
 - **Intent:** Implement a Tool that evaluates a structural policy against the
   current graph state and returns violations with context
@@ -357,11 +359,11 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-agent policy_eval`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** LCORE-030, KERN Phase 3 (policy engine)
+- **Dependencies:** AHARNESS-030, KERN Phase 3 (policy engine)
 
 ---
 
-### LCORE-033: Standard tools (read, edit, bash)
+### AHARNESS-033: Standard tools (read, edit, bash)
 
 - **Intent:** Implement standard file-operation and shell-execution tools for
   anvil-agent, with sandboxing appropriate for a governance context
@@ -370,11 +372,11 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-agent standard_tools`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** LCORE-030
+- **Dependencies:** AHARNESS-030
 
 ---
 
-### LCORE-034: Kernel event → agent trigger wiring
+### AHARNESS-034: Kernel event → agent trigger wiring
 
 - **Intent:** Wire kernel EngineEvents (violations, snapshot completions) to
   trigger agent reasoning, so the agent reacts to structural changes
@@ -384,11 +386,11 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-agent triggers`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** LCORE-031, LCORE-032
+- **Dependencies:** AHARNESS-031, AHARNESS-032
 
 ---
 
-### LCORE-035: AnvilHarness — pre-wired agent configuration
+### AHARNESS-035: AnvilHarness — pre-wired agent configuration
 
 - **Intent:** Provide a convenience struct that wires literate-core Agent with
   Anvil tools, a configured provider, and session persistence into a
@@ -398,7 +400,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-agent harness`
 - **Confidence:** high
 - **Priority:** Medium
-- **Dependencies:** LCORE-031, LCORE-032, LCORE-033, LCORE-034
+- **Dependencies:** AHARNESS-031, AHARNESS-032, AHARNESS-033, AHARNESS-034
 
 ---
 
@@ -439,7 +441,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-agent remediation_e2e`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** LCORE-034, LCORE-035
+- **Dependencies:** AHARNESS-034, AHARNESS-035
 
 ---
 

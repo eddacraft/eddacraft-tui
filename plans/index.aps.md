@@ -301,7 +301,7 @@ behavioural diff narration, policy authoring, and headless CI review.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [literate-core](./modules/literate-core.aps.md) | LCORE | Draft | 0/22 | KERN (anvil-agent only) |
+| [literate-core](./modules/literate-core.aps.md) | LCORE, AHARNESS | Draft | 0/22 | KERN (anvil-agent only) |
 
 **Architecture Decision:** [D-024: Internal Agent Harness](./decisions/024-internal-agent-harness.md)
 
