@@ -13,20 +13,24 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use anvil_bench::report::BenchReport;
+use anvil_bench::report::{BenchReport, ScenarioResult};
 use anvil_bench::scenarios::{
     cold_start_scaling, graph_memory, incremental_throughput, policy_scaling, watcher_saturation,
 };
+
+type Scenario = (&'static str, Box<dyn Fn() -> ScenarioResult>);
 
 fn main() {
     let filter = env::args().nth(1);
     let mut report = BenchReport::new("anvil-stress");
     let start = Instant::now();
 
-    let scenarios: Vec<(&str, Box<dyn Fn() -> anvil_bench::report::ScenarioResult>)> = vec![
+    let scenarios: Vec<Scenario> = vec![
         (
             "watcher_saturation",
-            Box::new(|| watcher_saturation::run(&watcher_saturation::WatcherSaturationConfig::default())),
+            Box::new(|| {
+                watcher_saturation::run(&watcher_saturation::WatcherSaturationConfig::default())
+            }),
         ),
         (
             "graph_memory",
@@ -51,10 +55,10 @@ fn main() {
     ];
 
     for (name, run_fn) in &scenarios {
-        if let Some(ref f) = filter {
-            if name != f {
-                continue;
-            }
+        if let Some(ref f) = filter
+            && name != f
+        {
+            continue;
         }
 
         eprintln!("▸ Running {name}...");
@@ -69,7 +73,7 @@ fn main() {
     }
 
     if report.results.is_empty() {
-        eprintln!("No scenarios matched filter {:?}", filter);
+        eprintln!("No scenarios matched filter {filter:?}");
         std::process::exit(1);
     }
 
@@ -100,7 +104,10 @@ fn print_summary(report: &BenchReport) {
     for result in &report.results {
         println!("── {} ({:.2}s)", result.scenario, result.duration_secs);
         for metric in &result.metrics {
-            println!("   {:<40} {:>10.2} {}", metric.name, metric.value, metric.unit);
+            println!(
+                "   {:<40} {:>10.2} {}",
+                metric.name, metric.value, metric.unit
+            );
         }
         println!();
     }
