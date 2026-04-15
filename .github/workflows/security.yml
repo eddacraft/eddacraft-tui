@@ -80,34 +80,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+      # pnpm audit uses the retired npm v1 audit endpoint (returns 410).
+      # Trivy reads pnpm-lock.yaml directly via NVD/OSV databases — no
+      # pnpm/node install required.
       - name: Audit production dependencies
-        run: |
-          echo "=== Dependency Vulnerability Audit ==="
-          echo ""
-          echo "Auditing production dependencies for high/critical CVEs..."
-          echo ""
-          pnpm audit --prod --audit-level=high || {
-            EXIT_CODE=$?
-            echo ""
-            echo "::error::Dependency audit found high/critical vulnerabilities."
-            echo "Run 'pnpm audit --prod' locally for details."
-            echo "Run 'pnpm audit --prod --fix' to attempt auto-fix."
-            exit $EXIT_CODE
-          }
-          echo ""
-          echo "PASS: No high/critical vulnerabilities in production dependencies."
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
 
   # ── Secret Scanning ────────────────────────────────────────────
   secret-scan:
