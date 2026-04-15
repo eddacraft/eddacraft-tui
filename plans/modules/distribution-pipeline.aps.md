@@ -11,7 +11,7 @@ Scopes: DIST (main)
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| DIST | —     | Ready  |
+| DIST | —     | In Progress |
 
 ## Purpose
 
@@ -254,7 +254,7 @@ Change status to **Ready** when:
 
 ### DIST-010: WinGet manifest
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Submit a WinGet manifest to `microsoft/winget-pkgs` so
   Windows users can `winget install eddacraft.anvil`. WinGet ships
   preinstalled on Windows 11 and is the official Microsoft package
@@ -265,12 +265,11 @@ Change status to **Ready** when:
 - **Validation:** `winget install eddacraft.anvil && anvil --version`
   on a clean Windows VM.
 - **Files:**
-  - WinGet manifest YAML in
-    `microsoft/winget-pkgs/manifests/e/eddacraft/Anvil/<version>/`
-  - `anvil-001` release workflow extension to auto-generate and
-    submit the manifest on each tagged release (use
-    `vedantmgoyal2009/winget-releaser` or
-    `microsoft/winget-create`)
+  - `.github/workflows/release.yml` — `winget` job using
+    `vedantmgoyal2009/winget-releaser@v2` (SHA-pinned) that
+    auto-generates and submits the manifest on each tagged release
+  - WinGet manifest YAML auto-generated at
+    `microsoft/winget-pkgs/manifests/e/EddaCraft/Anvil/<version>/`
 - **Confidence:** high — well-trodden path, lots of prior art
 - **Priority:** High (replaces DIST-008 for the Windows install gap)
 - **Dependencies:** DIST-007 (release workflow producing the
@@ -316,6 +315,6 @@ Change status to **Ready** when:
 | 1 — Public Repo | 1 | Ready |
 | 2 — Install Script + DNS | 4 | Ready |
 | 3 — Release Workflow | 2 (DIST-007, DIST-009; DIST-008 deferred) | Ready |
-| 4 — Windows Package Managers | 2 | Ready |
-| **Total active** | **9** | **0/9 done** |
+| 4 — Windows Package Managers | 2 | 1 done (DIST-010) |
+| **Total active** | **9** | **1/9 done** |
 | Deferred | 1 (DIST-008) | per ADR-018 |

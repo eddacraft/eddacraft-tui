@@ -373,10 +373,30 @@ jobs:
             -f content="$CONTENT" \
             $SHA_ARG
 
+  # Submit WinGet manifest to microsoft/winget-pkgs so Windows users
+  # can `winget install eddacraft.anvil`.  Runs after the public
+  # GitHub Release on eddacraft/anvil is created by the host job.
+  winget:
+    permissions: {}
+    needs:
+      - plan
+      - host
+    if: ${{ always() && needs.host.result == 'success' && needs.plan.outputs.publishing == 'true' }}
+    runs-on: 'ubuntu-22.04'
+    steps:
+      - uses: vedantmgoyal2009/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
+        with:
+          identifier: eddacraft.anvil
+          installers-regex: 'eddacraft-anvil-x86_64-pc-windows-msvc\.zip$'
+          release-repository: eddacraft/anvil
+          release-tag: ${{ needs.plan.outputs.tag }}
+          token: ${{ secrets.WINGET_TOKEN }}
+
   announce:
     needs:
       - plan
       - host
+      - winget
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!

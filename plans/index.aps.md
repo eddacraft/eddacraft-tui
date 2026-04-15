@@ -113,7 +113,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./modules/tui-polish.aps.md) | POLISH | In Progress | 1/7 | RCLI, RATS |
 | [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
-| [distribution-pipeline](./modules/distribution-pipeline.aps.md) | DIST | Ready | 0/8 | RCLI |
+| [distribution-pipeline](./modules/distribution-pipeline.aps.md) | DIST | In Progress | 1/9 | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
