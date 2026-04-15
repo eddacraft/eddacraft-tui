@@ -119,6 +119,7 @@ infra/import.json
 # Rust / Cargo
 target/
 **/*.rs.bk
+bench-results/
 
 # Ephemeral release manifest
 .release/

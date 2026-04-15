@@ -106,7 +106,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 63/64 | KERN, RATS, PORT |
-| [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 15/16 (1 deferred) | KERN Phases 1-2 |
+| [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |

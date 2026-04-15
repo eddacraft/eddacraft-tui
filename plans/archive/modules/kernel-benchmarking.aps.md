@@ -340,13 +340,13 @@ Change status to **Ready** when:
 
 ### BENCH-021: Nightly stress test workflow
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Run stress test scenarios nightly on dedicated hardware, storing
   JSON reports for trend analysis
 - **Expected Outcome:** Nightly workflow runs all scenarios, uploads JSON reports,
   posts summary to a tracking issue or artefact
 - **Validation:** Nightly run produces reports for all five scenarios
-- **Files:** `.github/workflows/`
+- **Files:** `.github/workflows/bench-nightly.yml`, `crates/anvil-bench/src/main.rs`
 - **Confidence:** medium (requires dedicated runner)
 - **Priority:** Low
 - **Dependencies:** BENCH-013 through BENCH-017
@@ -379,5 +379,5 @@ Change status to **Ready** when:
 | ----- | ----- | ------ |
 | 1 — Micro-Benchmark Extensions | 6 | Complete (6/6) |
 | 2 — Stress Test Harness | 8 | Complete (code landed via PR #681; needs validation runs) |
-| 3 — CI Integration | 2 | 1/2 complete (1 deferred — requires dedicated runner) |
-| **Total** | **16** | **15/16 done (1 deferred)** |
+| 3 — CI Integration | 2 | Complete (2/2) |
+| **Total** | **16** | **16/16 done** |
