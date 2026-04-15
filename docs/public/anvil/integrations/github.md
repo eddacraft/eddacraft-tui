@@ -58,6 +58,7 @@ When enabled, anvil posts a summary comment:
 
 ```markdown
 <!-- anvil-check-results -->
+
 ## 🔨 Anvil Check Results
 
 ✓ All gates passed
@@ -75,6 +76,7 @@ When enabled, anvil posts a summary comment:
 
 ```markdown
 <!-- anvil-check-results -->
+
 ## 🔨 Anvil Check Results
 
 ✗ 2 issues found
