@@ -5,6 +5,7 @@ use std::path::Path;
 
 use chrono::Utc;
 
+use crate::ANVIL_DIR;
 use crate::types::{
     ArchitectureBaseline, BaselineSnapshot, BaselineViolation, Boundary, EntryPoint, Layers,
     create_default_boundaries, create_default_layers,
@@ -13,8 +14,6 @@ use crate::util::atomic_write;
 
 /// Baseline file name.
 pub const BASELINE_FILENAME: &str = "architecture.json";
-
-use crate::ANVIL_DIR;
 
 /// Errors from baseline operations.
 #[derive(Debug, thiserror::Error)]

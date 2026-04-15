@@ -109,41 +109,70 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn current_user_sid() -> Result<String> {
+    let output = std::process::Command::new("whoami")
+        .args(["/user", "/fo", "csv", "/nh"])
+        .output()
+        .context("failed to run whoami /user")?;
+
+    if !output.status.success() {
+        anyhow::bail!("whoami /user exited with status {}", output.status);
+    }
+
+    let stdout =
+        String::from_utf8(output.stdout).context("whoami /user returned non-UTF-8 output")?;
+
+    let line = stdout
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .context("whoami returned no user information")?;
+
+    // CSV output: "DOMAIN\User","S-1-5-21-..."
+    let trimmed = line.trim().trim_matches('"');
+    let sid = trimmed
+        .rsplit("\",\"")
+        .next()
+        .context("whoami CSV output missing SID")?;
+
+    let is_valid_sid = sid.starts_with("S-")
+        && sid
+            .as_bytes()
+            .iter()
+            .skip(2)
+            .all(|b| b.is_ascii_digit() || *b == b'-');
+    if !is_valid_sid {
+        anyhow::bail!("whoami returned an invalid SID: {sid}");
+    }
+
+    Ok(sid.to_string())
+}
+
 /// Restrict a file to the current user only on Windows via `icacls`.
 ///
-/// Best-effort: emits a warning to stderr if the restriction cannot be
-/// applied (missing USERNAME, icacls failure, etc.) but does not fail
-/// the write operation. This mirrors the Unix 0o600 set at creation time.
+/// Uses the current user's SID (via `whoami /user`) instead of the
+/// USERNAME environment variable to avoid granting permissions to
+/// well-known group names like "Everyone" that happen to be
+/// alphanumeric. Best-effort: emits a warning to stderr if the
+/// restriction cannot be applied but does not fail the write operation.
+/// This mirrors the Unix 0o600 set at creation time.
 #[cfg(windows)]
 fn restrict_windows_permissions(path: &Path) {
-    let username = match std::env::var("USERNAME") {
-        Ok(name) if !name.is_empty() => name,
-        _ => {
+    let sid = match current_user_sid() {
+        Ok(sid) => sid,
+        Err(e) => {
             eprintln!(
-                "Warning: cannot restrict file permissions on {}: USERNAME not set",
+                "Warning: cannot restrict file permissions on {}: could not determine current user SID: {e}",
                 path.display()
             );
             return;
         }
     };
 
-    // Guard against usernames that would produce unintended icacls grants
-    // (e.g. "Everyone", names with special characters).
-    let is_safe = username
-        .bytes()
-        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b'.' || b == b'\\');
-    if !is_safe {
-        eprintln!(
-            "Warning: cannot restrict file permissions on {}: USERNAME contains special characters",
-            path.display()
-        );
-        return;
-    }
-
     let status = std::process::Command::new("icacls")
         .arg(path)
         .args(["/inheritance:r", "/grant:r"])
-        .arg(format!("{username}:(F)"))
+        .arg(format!("*{sid}:(F)"))
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
@@ -155,10 +184,7 @@ fn restrict_windows_permissions(path: &Path) {
             path.display(),
             s
         ),
-        Err(e) => eprintln!(
-            "Warning: failed to run icacls for {}: {e}",
-            path.display()
-        ),
+        Err(e) => eprintln!("Warning: failed to run icacls for {}: {e}", path.display()),
     }
 }
 

@@ -331,7 +331,10 @@ pub fn check_boundaries(
 ///
 /// Public so callers can share a single file list across both import
 /// edge extraction and architecture validation (avoids redundant walks).
-pub fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefinition) -> Vec<String> {
+pub fn collect_source_files(
+    workspace_root: &Path,
+    definition: &ArchitectureDefinition,
+) -> Vec<String> {
     let empty = Vec::new();
     let exclude_patterns: Vec<Pattern> = definition
         .options
@@ -846,10 +849,7 @@ mod tests {
     #[test]
     fn validate_with_files_and_edges_produces_same_result() {
         let definition = sample_definition(sample_layers());
-        let files = vec![
-            "src/core/entity.ts".into(),
-            "src/app/service.ts".into(),
-        ];
+        let files = vec!["src/core/entity.ts".into(), "src/app/service.ts".into()];
         let edges = vec![ImportEdge {
             from_file: "src/app/service.ts".into(),
             to_file: "src/core/entity.ts".into(),
@@ -869,10 +869,7 @@ mod tests {
     fn validate_with_files_and_edges_detects_violation() {
         let definition = sample_definition(sample_layers());
         // core importing from app violates the dependency direction.
-        let files = vec![
-            "src/core/entity.ts".into(),
-            "src/app/service.ts".into(),
-        ];
+        let files = vec!["src/core/entity.ts".into(), "src/app/service.ts".into()];
         let edges = vec![ImportEdge {
             from_file: "src/core/entity.ts".into(),
             to_file: "src/app/service.ts".into(),

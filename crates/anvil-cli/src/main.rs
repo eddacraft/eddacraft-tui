@@ -178,7 +178,7 @@ fn evaluate_auth(
             };
             // Redact home directory to avoid leaking paths in CI logs.
             let redacted = dirs::home_dir()
-                .map(|h| msg.replace(&h.to_string_lossy().as_ref(), "~"))
+                .map(|h| msg.replace(h.to_string_lossy().as_ref(), "~"))
                 .unwrap_or(msg);
             eprintln!("[auth] credential load failed: {redacted}");
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");

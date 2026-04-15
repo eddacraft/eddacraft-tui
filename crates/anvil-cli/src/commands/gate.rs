@@ -1365,8 +1365,13 @@ mod tests {
     #[test]
     fn policy_no_bundle_skips() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let result =
-            run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new(), None);
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
         assert!(result.passed);
         assert!(result.message.contains("Skipping"));
     }
@@ -1382,8 +1387,13 @@ mod tests {
             "package anvil.policies.noop\n",
         )
         .unwrap();
-        let result =
-            run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new(), None);
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
         // With OPA installed: evaluates and passes (no violations in noop policy)
         // Without OPA: skips gracefully
         // OPA evaluation may also fail due to missing input structure — that's
@@ -1424,7 +1434,13 @@ mod tests {
         std::fs::write(src.join("main.ts"), "export const x = 1;").unwrap();
         std::fs::write(src.join("readme.md"), "# Hi").unwrap();
 
-        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new(), None);
+        let input = build_policy_input(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
         let files: Vec<&str> = input["files"]
             .as_array()
             .unwrap()
@@ -1439,7 +1455,13 @@ mod tests {
     #[test]
     fn build_policy_input_defaults_profile() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new(), None);
+        let input = build_policy_input(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
         assert_eq!(input["profile"].as_str().unwrap(), "default");
     }
 
@@ -1596,7 +1618,13 @@ rules: []
     #[test]
     fn build_policy_input_omits_plan_when_none() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new(), None);
+        let input = build_policy_input(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
         assert!(input.get("plan_path").is_none());
     }
 

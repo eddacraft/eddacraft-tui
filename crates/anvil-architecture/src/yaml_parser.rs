@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use crate::ANVIL_DIR;
 use crate::definition::{
     ARCHITECTURE_DEFINITION_VERSION, ArchitectureDefinition, ArchitectureTemplate,
     get_default_options,
@@ -15,8 +16,6 @@ use crate::util::atomic_write;
 
 /// File name for the architecture definition.
 pub const ARCHITECTURE_YAML_FILENAME: &str = "architecture.yaml";
-
-use crate::ANVIL_DIR;
 
 type LayersRecord = BTreeMap<String, Layer>;
 
