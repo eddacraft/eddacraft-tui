@@ -5,7 +5,8 @@ use eddacraft_tui::theme::EddaCraftTheme;
 
 use crate::GlobalArgs;
 use crate::services::first_run::{
-    create_first_run_marker, first_run_marker_path, is_first_run, should_skip_welcome,
+    create_first_run_marker, delete_first_run_marker, first_run_marker_path, is_first_run,
+    should_skip_welcome,
 };
 use crate::tui::SurfaceExit;
 
@@ -42,10 +43,25 @@ fn timed_loading(
 }
 
 #[derive(Debug, clap::Args)]
-pub struct WelcomeArgs {}
+pub struct WelcomeArgs {
+    /// Reset onboarding state and re-run the first-time experience.
+    #[arg(long)]
+    pub reset: bool,
+}
 
-pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let marker_path = first_run_marker_path()?;
+
+    if args.reset {
+        delete_first_run_marker(&marker_path)?;
+        // Also clear tutorial progress so the tutorial starts fresh.
+        if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
+            if progress_path.exists() {
+                let _ = std::fs::remove_file(&progress_path);
+            }
+        }
+    }
+
     let first_run = is_first_run(&marker_path);
 
     if global.verbose {
@@ -509,7 +525,7 @@ fn run_tutorial_with_fix(
             let finding = tutorial_state
                 .domain_findings
                 .as_ref()
-                .and_then(|d| d.top_findings(1).into_iter().next().cloned());
+                .and_then(|d| d.sorted_findings().into_iter().next().cloned());
 
             if let Some(finding) = finding {
                 let mut fix_state =
@@ -763,6 +779,44 @@ fn run_welcome_hub(
                         break;
                     }
                 }
+                welcome.should_quit = false;
+                welcome.chosen = None;
+            }
+            Some(QuickStartOption::RestartOnboarding) => {
+                let marker_path = first_run_marker_path()?;
+                delete_first_run_marker(&marker_path)?;
+                if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
+                    let _ = std::fs::remove_file(&progress_path);
+                }
+
+                match run_onboarding(terminal, theme) {
+                    Ok(OnboardingOutcome::Quit) => break,
+                    Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
+                        if let Some(results) = run_discovery(terminal, theme)? {
+                            let mut tutorial_state =
+                                anvil_tui::surfaces::tutorial::TutorialState::new();
+                            tutorial_state.set_scan_results(results);
+                            let sub_exit =
+                                run_tutorial_with_fix(terminal, theme, &mut tutorial_state)?;
+                            if sub_exit == SurfaceExit::Quit {
+                                break;
+                            }
+                        }
+                    }
+                    Ok(OnboardingOutcome::Skip) => {}
+                    Err(e) => {
+                        welcome.status_message = Some(format!("Onboarding failed: {e}"));
+                    }
+                }
+
+                // Re-create marker after onboarding completes.
+                let marker_path = first_run_marker_path()?;
+                if let Err(err) = create_first_run_marker(&marker_path) {
+                    eprintln!(
+                        "[welcome] warning: failed to create first-run marker: {err}",
+                    );
+                }
+
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }

@@ -8,8 +8,6 @@ use crate::surface::Surface;
 use super::TutorialPath;
 use super::discovery_render;
 
-/// Maximum number of findings shown in the results phase.
-pub const MAX_FINDINGS_SHOWN: usize = 5;
 
 // ---------------------------------------------------------------------------
 // Domain types
@@ -32,6 +30,26 @@ pub enum FindingSource {
     Architecture,
     AntiPattern,
     Secret,
+}
+
+impl FindingSeverity {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Error => "ERROR",
+            Self::Warning => "WARN",
+            Self::Info => "INFO",
+        }
+    }
+}
+
+impl FindingSource {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Architecture => "Architecture",
+            Self::AntiPattern => "Anti-pattern",
+            Self::Secret => "Secret",
+        }
+    }
 }
 
 /// A unified finding from any scan source.
@@ -57,12 +75,11 @@ pub struct ScanResults {
 }
 
 impl ScanResults {
-    /// Return the top `n` findings sorted by severity descending (Error first).
-    pub fn top_findings(&self, n: usize) -> Vec<&Finding> {
+    /// Return all findings sorted by severity descending (Error first).
+    pub fn sorted_findings(&self) -> Vec<&Finding> {
         let mut sorted: Vec<&Finding> = self.findings.iter().collect();
         // Sort descending: Error > Warning > Info.
         sorted.sort_by(|a, b| b.severity.cmp(&a.severity));
-        sorted.truncate(n);
         sorted
     }
 
@@ -216,9 +233,10 @@ impl DiscoveryState {
             }
             Action::Down => {
                 if let DiscoveryPhase::Results { ref mut selected } = self.phase {
-                    let max = self.results.as_ref().map_or(0, |r| {
-                        r.top_findings(MAX_FINDINGS_SHOWN).len().saturating_sub(1)
-                    });
+                    let max = self
+                        .results
+                        .as_ref()
+                        .map_or(0, |r| r.findings.len().saturating_sub(1));
                     if *selected < max {
                         *selected += 1;
                     }
@@ -359,46 +377,32 @@ mod tests {
         assert!(FindingSeverity::Error > FindingSeverity::Info);
     }
 
-    // ── ScanResults::top_findings ────────────────────────────────────────
+    // ── ScanResults::sorted_findings ──────────────────────────────────────
 
     #[test]
-    fn top_findings_returns_sorted_by_severity_descending() {
+    fn sorted_findings_returns_sorted_by_severity_descending() {
         let results = make_results(vec![
             make_finding(FindingSeverity::Info, "info finding"),
             make_finding(FindingSeverity::Error, "error finding"),
             make_finding(FindingSeverity::Warning, "warning finding"),
         ]);
-        let top = results.top_findings(5);
-        assert_eq!(top.len(), 3);
-        assert_eq!(top[0].severity, FindingSeverity::Error);
-        assert_eq!(top[1].severity, FindingSeverity::Warning);
-        assert_eq!(top[2].severity, FindingSeverity::Info);
+        let sorted = results.sorted_findings();
+        assert_eq!(sorted.len(), 3);
+        assert_eq!(sorted[0].severity, FindingSeverity::Error);
+        assert_eq!(sorted[1].severity, FindingSeverity::Warning);
+        assert_eq!(sorted[2].severity, FindingSeverity::Info);
     }
 
     #[test]
-    fn top_findings_truncates_to_n() {
-        let results = make_results(vec![
-            make_finding(FindingSeverity::Error, "e1"),
-            make_finding(FindingSeverity::Error, "e2"),
-            make_finding(FindingSeverity::Warning, "w1"),
-            make_finding(FindingSeverity::Info, "i1"),
-            make_finding(FindingSeverity::Info, "i2"),
-            make_finding(FindingSeverity::Info, "i3"),
-        ]);
-        let top = results.top_findings(5);
-        assert_eq!(top.len(), 5);
-    }
-
-    #[test]
-    fn top_findings_empty_results() {
+    fn sorted_findings_empty_results() {
         let results = make_results(vec![]);
-        assert!(results.top_findings(5).is_empty());
+        assert!(results.sorted_findings().is_empty());
     }
 
     #[test]
-    fn top_findings_n_larger_than_findings() {
+    fn sorted_findings_single_item() {
         let results = make_results(vec![make_finding(FindingSeverity::Warning, "w")]);
-        assert_eq!(results.top_findings(10).len(), 1);
+        assert_eq!(results.sorted_findings().len(), 1);
     }
 
     // ── Initial state ────────────────────────────────────────────────────

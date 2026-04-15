@@ -11,16 +11,18 @@ pub enum QuickStartOption {
     StartWatch,
     RunTutorial,
     ViewDocs,
+    RestartOnboarding,
 }
 
 impl QuickStartOption {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::RunGate,
         Self::StartWatch,
         Self::RunAudit,
         Self::RunDoctor,
         Self::RunTutorial,
         Self::ViewDocs,
+        Self::RestartOnboarding,
     ];
 
     pub fn label(self) -> &'static str {
@@ -31,6 +33,7 @@ impl QuickStartOption {
             Self::RunDoctor => "Run diagnostics",
             Self::RunTutorial => "Interactive tutorial",
             Self::ViewDocs => "View documentation",
+            Self::RestartOnboarding => "Restart onboarding",
         }
     }
 
@@ -42,6 +45,7 @@ impl QuickStartOption {
             Self::RunDoctor => "Check your environment and fix common issues",
             Self::RunTutorial => "Learn Anvil with a guided walkthrough",
             Self::ViewDocs => "Open the Anvil documentation in your browser",
+            Self::RestartOnboarding => "Reset and re-run the first-time setup experience",
         }
     }
 }

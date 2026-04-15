@@ -44,6 +44,16 @@ pub fn should_skip_welcome() -> bool {
         .unwrap_or(false)
 }
 
+/// Remove the first-run marker so the next `welcome` invocation behaves as a
+/// fresh install.
+pub fn delete_first_run_marker(path: &Path) -> anyhow::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e).context("failed to remove first-run marker"),
+    }
+}
+
 /// Write the first-run marker file to disk atomically.
 pub fn create_first_run_marker(path: &Path) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
@@ -104,6 +114,25 @@ mod tests {
         let path = dir.path().join("first-run");
         create_first_run_marker(&path).unwrap();
         assert!(!is_first_run(&path));
+    }
+
+    #[test]
+    fn delete_marker_removes_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("first-run");
+        create_first_run_marker(&path).unwrap();
+        assert!(!is_first_run(&path));
+
+        delete_first_run_marker(&path).unwrap();
+        assert!(is_first_run(&path));
+    }
+
+    #[test]
+    fn delete_marker_noop_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("first-run");
+        // Should not error when file doesn't exist.
+        delete_first_run_marker(&path).unwrap();
     }
 
     #[test]

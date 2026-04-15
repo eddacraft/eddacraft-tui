@@ -9,6 +9,17 @@ use super::discovery::{DiscoveryPhase, DiscoveryState, FindingSeverity};
 
 const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
+/// Compute scroll offset to keep `selected` visible within `visible_rows`.
+fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize {
+    if total <= visible_rows || visible_rows == 0 {
+        return 0;
+    }
+    let max_offset = total.saturating_sub(visible_rows);
+    selected
+        .saturating_sub(visible_rows.saturating_sub(1))
+        .min(max_offset)
+}
+
 pub fn render(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme: &EddaCraftTheme) {
     match state.phase {
         DiscoveryPhase::Scanning {
@@ -82,96 +93,179 @@ fn render_results(
         return;
     };
 
-    let total_issues = results.findings.len();
-    let top = results.top_findings(super::discovery::MAX_FINDINGS_SHOWN);
+    let sorted = results.sorted_findings();
+    let total = sorted.len();
 
-    let block = Block::default()
+    // Two-panel horizontal split: findings list (left) + detail (right).
+    let panels = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+
+    // ── Left panel: findings list ──────────────────────────────────────
+    let list_title = if total == 0 {
+        " Findings ".to_string()
+    } else {
+        format!(" Findings ({}/{total}) ", selected + 1)
+    };
+    let list_block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent()))
-        .title(" Scan Results ");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+        .title(list_title)
+        .title_style(
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        );
+    let list_inner = list_block.inner(panels[0]);
+    frame.render_widget(list_block, panels[0]);
 
-    // Reserve bottom row for summary line.
-    let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(inner);
+    let visible_rows = list_inner.height as usize;
+    let scroll_offset = viewport_scroll(selected, total, visible_rows);
 
-    // Build findings list.
-    let finding_lines: Vec<Line> = top
+    let finding_lines: Vec<Line> = sorted
         .iter()
         .enumerate()
         .map(|(i, f)| {
             let is_selected = i == selected;
-            let (badge, badge_style) = match f.severity {
-                FindingSeverity::Error => (
-                    " ERR ",
-                    Style::default()
-                        .fg(theme.error())
-                        .add_modifier(Modifier::BOLD),
-                ),
-                FindingSeverity::Warning => (
-                    "WARN ",
-                    Style::default()
-                        .fg(theme.warning())
-                        .add_modifier(Modifier::BOLD),
-                ),
-                FindingSeverity::Info => ("INFO ", Style::default().fg(theme.muted())),
+            let badge = f.severity.label();
+            let badge_style = match f.severity {
+                FindingSeverity::Error => Style::default()
+                    .fg(theme.error())
+                    .add_modifier(Modifier::BOLD),
+                FindingSeverity::Warning => Style::default()
+                    .fg(theme.warning())
+                    .add_modifier(Modifier::BOLD),
+                FindingSeverity::Info => Style::default().fg(theme.muted()),
             };
 
             let location = match f.line {
-                Some(l) => format!("{}:{}", f.file, l),
+                Some(l) => format!("{}:{l}", f.file),
                 None => f.file.clone(),
             };
 
+            let indicator = if is_selected { ">> " } else { "   " };
+
             if is_selected {
-                let title_style = theme.highlighted();
                 Line::from(vec![
-                    Span::styled(badge, badge_style),
-                    Span::raw(" "),
-                    Span::styled(format!("{location}  {}", f.title), title_style),
+                    Span::styled(
+                        indicator,
+                        Style::default()
+                            .fg(theme.accent())
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(format!("{badge:<5} "), badge_style),
+                    Span::styled(location, theme.highlighted()),
                 ])
             } else {
-                let (loc_style, title_style) = match f.severity {
-                    FindingSeverity::Error => (
-                        Style::default().fg(theme.error()),
-                        Style::default().fg(theme.fg()),
-                    ),
-                    FindingSeverity::Warning => (
-                        Style::default().fg(theme.warning()),
-                        Style::default().fg(theme.fg()),
-                    ),
-                    FindingSeverity::Info => (
-                        Style::default().fg(theme.muted()),
-                        Style::default().fg(theme.muted()),
-                    ),
+                let loc_style = match f.severity {
+                    FindingSeverity::Error => Style::default().fg(theme.error()),
+                    FindingSeverity::Warning => Style::default().fg(theme.warning()),
+                    FindingSeverity::Info => Style::default().fg(theme.muted()),
                 };
                 Line::from(vec![
-                    Span::styled(badge, badge_style),
-                    Span::raw(" "),
+                    Span::styled(indicator, Style::default()),
+                    Span::styled(format!("{badge:<5} "), badge_style),
                     Span::styled(location, loc_style),
-                    Span::raw("  "),
-                    Span::styled(f.title.clone(), title_style),
                 ])
             }
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(finding_lines)), chunks[0]);
+    #[allow(clippy::cast_possible_truncation)]
+    let list_para = Paragraph::new(Text::from(finding_lines)).scroll((scroll_offset as u16, 0));
+    frame.render_widget(list_para, list_inner);
 
-    // Summary line.
-    let duration_s = results.duration_ms / 1000;
-    let summary = format!(
-        "Found {total_issues} issue{} in {} file{} ({duration_s}s)  —  enter to continue",
-        if total_issues == 1 { "" } else { "s" },
-        results.files_scanned,
-        if results.files_scanned == 1 { "" } else { "s" },
-    );
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
+    // ── Right panel: detail for selected finding ───────────────────────
+    let detail_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent()))
+        .title(" Detail ")
+        .title_style(
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        );
+    let detail_inner = detail_block.inner(panels[1]);
+    frame.render_widget(detail_block, panels[1]);
+
+    if let Some(finding) = sorted.get(selected) {
+        let location = match finding.line {
+            Some(l) => format!("{}:{l}", finding.file),
+            None => finding.file.clone(),
+        };
+
+        let sev_colour = match finding.severity {
+            FindingSeverity::Error => theme.error(),
+            FindingSeverity::Warning => theme.warning(),
+            FindingSeverity::Info => theme.muted(),
+        };
+
+        let mut lines = vec![
+            Line::from(Span::styled(
+                &finding.title,
+                Style::default()
+                    .fg(theme.fg())
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::default(),
+            Line::from(vec![
+                Span::styled("Severity: ", Style::default().fg(theme.muted())),
+                Span::styled(
+                    finding.severity.label(),
+                    Style::default()
+                        .fg(sev_colour)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("Source:   ", Style::default().fg(theme.muted())),
+                Span::styled(finding.source.label(), Style::default().fg(theme.fg())),
+            ]),
+            Line::from(vec![
+                Span::styled("Location: ", Style::default().fg(theme.muted())),
+                Span::styled(location, Style::default().fg(theme.accent())),
+            ]),
+            Line::default(),
+            Line::from(Span::styled(&finding.message, Style::default().fg(theme.fg()))),
+        ];
+
+        if !finding.suggestion.is_empty() {
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Suggestion",
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::styled(
+                &finding.suggestion,
+                Style::default().fg(theme.fg()),
+            )));
+        }
+
+        // Summary at the bottom of the detail pane.
+        let duration_s = results.duration_ms / 1000;
+        let summary = format!(
+            "{total} issue{} in {} file{} ({duration_s}s)  —  enter to continue",
+            if total == 1 { "" } else { "s" },
+            results.files_scanned,
+            if results.files_scanned == 1 { "" } else { "s" },
+        );
+
+        // Fill space then add summary at the bottom.
+        let used_lines = lines.len();
+        let available = detail_inner.height as usize;
+        if available > used_lines + 1 {
+            for _ in 0..(available - used_lines - 1) {
+                lines.push(Line::default());
+            }
+        }
+        lines.push(Line::from(Span::styled(
             summary,
             Style::default().fg(theme.muted()),
-        ))),
-        chunks[1],
-    );
+        )));
+
+        frame.render_widget(Paragraph::new(Text::from(lines)), detail_inner);
+    }
 }
 
 fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme: &EddaCraftTheme) {
