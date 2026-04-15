@@ -697,6 +697,7 @@ fn start_watch_from_hub(
     exit
 }
 
+#[allow(clippy::too_many_lines)]
 fn run_welcome_hub(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
