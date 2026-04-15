@@ -441,7 +441,8 @@ jobs:
   # winget-releaser action (Komac) does not support InstallerType: zip
   # with NestedInstallerType: portable.
   winget:
-    permissions: {}
+    permissions:
+      contents: read
     needs:
       - plan
       - host
@@ -462,6 +463,11 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::WINGET_TOKEN secret is not set — cannot submit WinGet manifest"
+            exit 1
+          fi
 
           VERSION="${RELEASE_TAG#v}"
           REPO="eddacraft/anvil"
@@ -523,10 +529,20 @@ jobs:
           DEFAULT_BRANCH=$(gh api "repos/${FORK_USER}/winget-pkgs" --jq '.default_branch')
           BASE_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/git/ref/heads/${DEFAULT_BRANCH}" --jq '.object.sha')
 
-          # Create the branch (ignore 422 if it already exists from this run)
-          gh api "repos/${FORK_USER}/winget-pkgs/git/refs" \
+          # Create the branch — only ignore "already exists" (422)
+          CREATE_ERR=$(mktemp)
+          if ! gh api "repos/${FORK_USER}/winget-pkgs/git/refs" \
             -f ref="refs/heads/${BRANCH}" \
-            -f sha="$BASE_SHA" 2>/dev/null || true
+            -f sha="$BASE_SHA" >/dev/null 2>"$CREATE_ERR"; then
+            if grep -q 'Reference already exists' "$CREATE_ERR"; then
+              echo "Branch ${BRANCH} already exists — continuing"
+            else
+              cat "$CREATE_ERR" >&2
+              rm -f "$CREATE_ERR"
+              exit 1
+            fi
+          fi
+          rm -f "$CREATE_ERR"
 
           # Upload each manifest file via the Contents API
           for f in "$MANIFEST_DIR"/*.yaml; do
@@ -540,10 +556,18 @@ jobs:
             esac
 
             CONTENT=$(base64 -w 0 "$f")
+            EXISTING_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}?ref=${BRANCH}" --jq '.sha' 2>/dev/null || true)
+
+            SHA_ARG=""
+            if [ -n "$EXISTING_SHA" ]; then
+              SHA_ARG="-f sha=$EXISTING_SHA"
+            fi
+
             gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}" -X PUT \
               -f message="New version: ${WINGET_ID} v${VERSION}" \
               -f content="$CONTENT" \
-              -f branch="$BRANCH"
+              -f branch="$BRANCH" \
+              $SHA_ARG
           done
 
           # Check for existing open PR before creating a new one
@@ -552,7 +576,7 @@ jobs:
             --head "${FORK_USER}:${BRANCH}" \
             --state open \
             --json number \
-            --jq '.[0].number' 2>/dev/null || true)
+            --jq '.[0].number // empty' 2>/dev/null || true)
 
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #${EXISTING_PR} already exists for this branch — skipping creation"
