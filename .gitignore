@@ -138,3 +138,6 @@ autonomous-state.json
 # Local review artefacts
 review/
 plans/reviews/
+
+# GitHub Local Runners
+.github/actions-runner
