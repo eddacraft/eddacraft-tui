@@ -16,6 +16,7 @@ import {
   insertRefreshToken,
 } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
+import { MAX_USER_CODE_RETRIES, generateUserCode, isUniqueViolation } from '../lib/device-code.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
 
@@ -23,12 +24,6 @@ const debug = createDebugger('auth-device');
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 90;
 const POLL_INTERVAL_S = 5;
-
-const MAX_USER_CODE_RETRIES = 3;
-
-function generateUserCode(): string {
-  return 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
-}
 
 function generatePollToken(): string {
   return randomBytes(32).toString('hex');
@@ -89,9 +84,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
       }
       break;
     } catch (err: unknown) {
-      const isUniqueViolation =
-        err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
-      if (!isUniqueViolation || attempt === MAX_USER_CODE_RETRIES - 1) throw err;
+      if (!isUniqueViolation(err) || attempt === MAX_USER_CODE_RETRIES - 1) throw err;
       debug('user_code collision, retrying', { attempt });
     }
   }

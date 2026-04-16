@@ -16,6 +16,7 @@ import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
+import { isUniqueViolation, withUserCodeRetry } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
 
@@ -127,32 +128,33 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   // Default flow — approve via device code + invite email
   const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
 
-  // Device code for activation link (ANVIL- + 8 hex = 14 chars, within max(20))
-  const userCode = 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
   const pollToken = randomBytes(32).toString('hex');
   const pollTokenHash = hashToken(pollToken);
-  const deviceExpiry = new Date();
-  deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
+  const deviceExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-  // Neon batch transaction — statements are interdependent and must be atomic
-  const txResult = await sql.transaction([
-    sql`INSERT INTO beta_users (email, name, notes, status)
-        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
-        ON CONFLICT (email) DO UPDATE SET
-          name = COALESCE(${name ?? null}, beta_users.name),
-          notes = COALESCE(${notes ?? null}, beta_users.notes),
-          status = ${'active'}
-        RETURNING *`,
-    sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-        VALUES (
-          (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-          ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
-        )
-        RETURNING *`,
-    sql`INSERT INTO audit_log (action, actor, metadata)
-        VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
-        RETURNING *`,
-  ]);
+  // Retry on user_code collision (23505). Entire transaction is re-run with
+  // a fresh code because the INSERT is part of an atomic batch.
+  const { userCode, txResult } = await withUserCodeRetry(async (code) => {
+    const result = await sql.transaction([
+      sql`INSERT INTO beta_users (email, name, notes, status)
+          VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
+          ON CONFLICT (email) DO UPDATE SET
+            name = COALESCE(${name ?? null}, beta_users.name),
+            notes = COALESCE(${notes ?? null}, beta_users.notes),
+            status = ${'active'}
+          RETURNING *`,
+      sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+          VALUES (
+            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+            ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
+          )
+          RETURNING *`,
+      sql`INSERT INTO audit_log (action, actor, metadata)
+          VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+          RETURNING *`,
+    ]);
+    return { userCode: code, txResult: result };
+  });
 
   const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
 
@@ -249,39 +251,38 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     // Generate access token (90-day expiry)
     const rawToken = generateToken();
     const hash = hashToken(rawToken);
-    const tokenExpiry = new Date();
-    tokenExpiry.setDate(tokenExpiry.getDate() + 90);
+    const tokenExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    // Generate device code for invite email (48-hour expiry).
-    // Match /start and /admin/invite: 4 bytes → 8 hex = 14 chars total.
-    const userCode = 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
     const pollToken = randomBytes(32).toString('hex');
     const pollTokenHash = hashToken(pollToken);
-    const deviceExpiry = new Date();
-    deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
+    const deviceExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-    // Neon batch transaction — statements are interdependent and must be atomic
-    await sql.transaction([
-      sql`INSERT INTO beta_users (email, status)
-          VALUES (${normalizedEmail}, ${'active'})
-          ON CONFLICT (email) DO UPDATE SET status = ${'active'}
-          RETURNING *`,
-      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
-          VALUES (
-            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${hash}, ${['beta']}, ${tokenExpiry.toISOString()}
-          )
-          RETURNING *`,
-      sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-          VALUES (
-            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
-          )
-          RETURNING *`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
-          RETURNING *`,
-    ]);
+    // Retry on user_code collision (23505). Entire transaction is re-run
+    // with a fresh code because the INSERT is part of an atomic batch.
+    const { userCode } = await withUserCodeRetry(async (code) => {
+      await sql.transaction([
+        sql`INSERT INTO beta_users (email, status)
+            VALUES (${normalizedEmail}, ${'active'})
+            ON CONFLICT (email) DO UPDATE SET status = ${'active'}
+            RETURNING *`,
+        sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+            VALUES (
+              (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+              ${hash}, ${['beta']}, ${tokenExpiry.toISOString()}
+            )
+            RETURNING *`,
+        sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+            VALUES (
+              (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+              ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
+            )
+            RETURNING *`,
+        sql`INSERT INTO audit_log (action, actor, metadata)
+            VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
+            RETURNING *`,
+      ]);
+      return { userCode: code };
+    });
 
     // Move from waitlist to beta audience (best-effort)
     moveToApprovedAudience(normalizedEmail).catch((err) => {
@@ -297,13 +298,32 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     return { email: normalizedEmail, expiresAt: tokenExpiry.toISOString() };
   }
 
+  type SkipReason = 'not_found' | 'collision' | 'error';
+
+  async function recordCollision(email: string): Promise<void> {
+    await insertAuditLog(sql, 'user.approve.collision', actor, { email }).catch((err) => {
+      console.error('Failed to record collision audit (non-fatal):', err);
+    });
+  }
+
+  function classifySkip(err: unknown): SkipReason {
+    if (err instanceof Error && err.message.startsWith('not_found:')) return 'not_found';
+    if (isUniqueViolation(err)) return 'collision';
+    return 'error';
+  }
+
   if ('email' in body) {
     try {
       const result = await approveOne(body.email);
       return c.json({ approved: [result] }, 200);
     } catch (err) {
-      if (err instanceof Error && err.message.startsWith('not_found:')) {
+      const reason = classifySkip(err);
+      if (reason === 'not_found') {
         return c.json({ error: 'Email not found on waitlist' }, 404);
+      }
+      if (reason === 'collision') {
+        await recordCollision(body.email.toLowerCase().trim());
+        return c.json({ error: 'user_code collision after retries, try again' }, 503);
       }
       throw err;
     }
@@ -313,16 +333,24 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   const unapproved = await findUnapprovedWaitlistEntries(sql, body.batch);
 
   const approved: { email: string; expiresAt: string }[] = [];
+  const skipped: { email: string; reason: SkipReason; message?: string }[] = [];
+
   for (const row of unapproved) {
     try {
       const result = await approveOne(row.email);
       approved.push(result);
     } catch (err) {
-      debug('Batch approve skip', { email: row.email, error: String(err) });
+      const reason = classifySkip(err);
+      const message = err instanceof Error ? err.message : String(err);
+      debug('Batch approve skip', { email: row.email, reason, error: message });
+      if (reason === 'collision') {
+        await recordCollision(row.email.toLowerCase().trim());
+      }
+      skipped.push({ email: row.email, reason, message });
     }
   }
 
-  return c.json({ approved }, 200);
+  return c.json({ approved, skipped }, 200);
 });
 
 /**

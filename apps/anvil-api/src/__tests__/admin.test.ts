@@ -57,7 +57,13 @@ vi.mock('../lib/audience.js', () => ({
   removeFromBetaAudience: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { findUserWithTokens, upsertWaitlistWithName } from '../db/queries.js';
+import {
+  findUserWithTokens,
+  upsertWaitlistWithName,
+  findWaitlistEntryByEmail,
+  findUnapprovedWaitlistEntries,
+  insertAuditLog,
+} from '../db/queries.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -238,6 +244,122 @@ describe('admin endpoints', () => {
     it('returns 400 for invalid email format', async () => {
       const res = await request('GET', '/admin/user/not-an-email', undefined, ADMIN_KEY);
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /admin/approve', () => {
+    function collisionError(): Error {
+      return Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+      });
+    }
+
+    it('single-email mode succeeds and returns approved entry', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'device-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approved).toHaveLength(1);
+      expect(body.approved[0].email).toBe('alice@example.com');
+    });
+
+    it('retries on user_code collision then succeeds', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction
+        .mockRejectedValueOnce(collisionError())
+        .mockResolvedValueOnce([
+          [{ id: 'user-1', email: 'alice@example.com' }],
+          [{ id: 'token-1' }],
+          [{ id: 'device-1' }],
+          [{ id: 'audit-1' }],
+        ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      expect(mockSql.transaction).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns 503 and records collision audit after max retries exhausted', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError());
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(503);
+      expect(mockSql.transaction).toHaveBeenCalledTimes(3);
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'user.approve.collision',
+        expect.any(String),
+        { email: 'alice@example.com' }
+      );
+    });
+
+    it('returns 404 when email not on waitlist', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue(null);
+
+      const res = await request('POST', '/admin/approve', { email: 'bob@example.com' }, ADMIN_KEY);
+      expect(res.status).toBe(404);
+    });
+
+    it('batch mode returns skipped entries with reasons', async () => {
+      vi.mocked(findUnapprovedWaitlistEntries).mockResolvedValue([
+        { email: 'alice@example.com' },
+        { email: 'bob@example.com' },
+      ]);
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-x' });
+      // First email succeeds, second hits collision on all retries
+      mockSql.transaction
+        .mockResolvedValueOnce([
+          [{ id: 'user-1', email: 'alice@example.com' }],
+          [{ id: 'token-1' }],
+          [{ id: 'device-1' }],
+          [{ id: 'audit-1' }],
+        ])
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError());
+
+      const res = await request('POST', '/admin/approve', { batch: 2 }, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approved).toHaveLength(1);
+      expect(body.approved[0].email).toBe('alice@example.com');
+      expect(body.skipped).toHaveLength(1);
+      expect(body.skipped[0]).toMatchObject({
+        email: 'bob@example.com',
+        reason: 'collision',
+      });
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'user.approve.collision',
+        expect.any(String),
+        { email: 'bob@example.com' }
+      );
     });
   });
 });
