@@ -81,6 +81,18 @@ update_package_json_version() {
   fi
 }
 
+run_bundled_pnpm_tests() {
+  local cmd=(timeout 180 pnpm -r)
+  local pkg
+
+  for pkg in "${BUNDLED_TEST_PACKAGES[@]}"; do
+    cmd+=(--filter "$pkg")
+  done
+
+  cmd+=(test -- --run)
+  "${cmd[@]}"
+}
+
 # --- Gate functions ---
 
 hard_gate() {
@@ -288,17 +300,7 @@ phase_preflight() {
   # TS workspace checks
   soft_gate "pnpm install" pnpm install --frozen-lockfile
   soft_gate "pnpm build" pnpm build
-  soft_gate "pnpm test" timeout 180 pnpm -r \
-    --filter @eddacraft/anvil-contracts \
-    --filter @eddacraft/anvil-core \
-    --filter @eddacraft/anvil-policy \
-    --filter @eddacraft/anvil-ports \
-    --filter @eddacraft/anvil-runtime \
-    --filter @eddacraft/shared-storage \
-    --filter @eddacraft/render \
-    --filter @eddacraft/anvil-adapters \
-    --filter @eddacraft/anvil-api \
-    test -- --run
+  soft_gate "pnpm test" run_bundled_pnpm_tests
 
   # Record preflight results
   PREFLIGHT_CARGO_TEST="pass"
