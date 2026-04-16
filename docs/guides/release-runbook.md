@@ -63,7 +63,7 @@ Verify TS workspace still builds (non-CLI packages):
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm nx run-many -t test --skip-nx-cache
+pnpm test
 ```
 
 Sanity assertions before release:
