@@ -277,7 +277,7 @@ phase_preflight() {
   # TS workspace checks
   soft_gate "pnpm install" pnpm install --frozen-lockfile
   soft_gate "pnpm build" pnpm build
-  soft_gate "pnpm test" timeout 300 pnpm nx run-many -t test --skip-nx-cache
+  soft_gate "pnpm test" timeout 180 pnpm test
 
   # Record preflight results
   PREFLIGHT_CARGO_TEST="pass"
