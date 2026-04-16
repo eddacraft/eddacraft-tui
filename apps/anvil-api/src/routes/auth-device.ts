@@ -39,7 +39,9 @@ const startSchema = z.object({
 });
 
 const confirmSchema = z.object({
-  userCode: z.string().min(1).max(20),
+  // 30 covers the 22-char codes from /admin/approve (randomBytes(8))
+  // and the 14-char codes from /start and /admin/invite (randomBytes(4))
+  userCode: z.string().min(1).max(30),
   email: z.string().email().max(254),
 });
 
