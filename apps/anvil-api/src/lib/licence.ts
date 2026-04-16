@@ -1,4 +1,4 @@
-import { SignJWT, importPKCS8, type KeyObject, type CryptoKey } from 'jose';
+import { SignJWT, importPKCS8, type CryptoKey } from 'jose';
 
 const LICENCE_TTL_DAYS = 90;
 const RC_AFTER_DAYS = 7;
@@ -15,9 +15,9 @@ export interface LicenceClaims {
   seats: number;
 }
 
-let cachedSigningKey: Promise<KeyObject | CryptoKey> | null = null;
+let cachedSigningKey: Promise<CryptoKey> | null = null;
 
-function loadSigningKey(): Promise<KeyObject | CryptoKey> {
+function loadSigningKey(): Promise<CryptoKey> {
   if (cachedSigningKey) return cachedSigningKey;
   const pem = process.env['LICENSE_SIGNING_KEY'];
   if (!pem) {

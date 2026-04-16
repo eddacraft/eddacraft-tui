@@ -13,9 +13,11 @@ import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
 import { verifySigningKey } from './lib/licence.js';
 
-// Cold-start probe: validate signing key is loadable at boot so misconfiguration
-// surfaces on startup rather than on the first device-flow mint. Fire-and-forget
-// — /health reports the result; we don't want boot to hang if the KMS is slow.
+// Cold-start probe: validate the signing-key PEM parses at boot so
+// misconfiguration surfaces at deploy time rather than on the first device-flow
+// mint. Fire-and-forget — /health reports the result; the result is cached via
+// the module-level signing-key promise in lib/licence.ts, so this does not
+// block request handling.
 verifySigningKey().then((result) => {
   if (!result.ok) {
     console.error('[boot] licence signing key unavailable:', result.error);

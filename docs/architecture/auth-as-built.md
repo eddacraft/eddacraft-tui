@@ -234,10 +234,10 @@ _Resolved 2026-04-16._ The env var is sourced from KeyVault secret
 `license-signing-key` and wired into `anvil-api` via `infra/src/vercel.ts`; the
 README env table (`apps/anvil-api/README.md`) lists it. A module-level
 cold-start probe in `apps/anvil-api/src/index.ts` parses the PEM at boot and
-logs `[boot] licence signing key unavailable` if the env var is missing or
-malformed, and `/health` reports `signingKey: unavailable` with HTTP 503 when
-the key can't load — so misconfiguration surfaces at deploy time rather than
-on the first `/device/poll` that reaches the licence-minting path.
+logs `[boot] licence signing key unavailable: <error>` if the env var is missing
+or malformed, and `/health` reports `signingKey: unavailable` with HTTP 503 when
+the key can't load — so misconfiguration surfaces at deploy time rather than on
+the first `/device/poll` that reaches the licence-minting path.
 
 ### G-02: Identity, org, tier, seats are hardcoded
 
