@@ -16,7 +16,11 @@ import {
   insertRefreshToken,
 } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
-import { MAX_USER_CODE_RETRIES, generateUserCode, isUniqueViolation } from '../lib/device-code.js';
+import {
+  MAX_USER_CODE_RETRIES,
+  generateUserCode,
+  isUserCodeCollision,
+} from '../lib/device-code.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
 
@@ -84,7 +88,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
       }
       break;
     } catch (err: unknown) {
-      if (!isUniqueViolation(err) || attempt === MAX_USER_CODE_RETRIES - 1) throw err;
+      if (!isUserCodeCollision(err) || attempt === MAX_USER_CODE_RETRIES - 1) throw err;
       debug('user_code collision, retrying', { attempt });
     }
   }

@@ -16,7 +16,7 @@ import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
-import { isUniqueViolation, withUserCodeRetry } from '../lib/device-code.js';
+import { isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
 
@@ -308,7 +308,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
 
   function classifySkip(err: unknown): SkipReason {
     if (err instanceof Error && err.message.startsWith('not_found:')) return 'not_found';
-    if (isUniqueViolation(err)) return 'collision';
+    if (isUserCodeCollision(err)) return 'collision';
     return 'error';
   }
 

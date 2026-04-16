@@ -251,6 +251,7 @@ describe('admin endpoints', () => {
     function collisionError(): Error {
       return Object.assign(new Error('duplicate key value violates unique constraint'), {
         code: '23505',
+        constraint: 'device_codes_user_code_key',
       });
     }
 
