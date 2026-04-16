@@ -9,7 +9,7 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.3.1-beta
+## Current Version: 0.3.3-beta
 
 ## Upgrading to 0.3.1-beta
 

@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-core",
-  "version": "0.3.0-beta",
+  "version": "0.3.3-beta",
   "description": "Core domain logic for Anvil — schemas, types, analysis, and validation",
   "license": "PROPRIETARY",
   "type": "module",

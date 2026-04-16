@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-ports",
-  "version": "0.3.0-beta",
+  "version": "0.3.3-beta",
   "description": "Interface definitions depending only on contracts",
   "type": "module",
   "main": "./dist/index.js",
