@@ -192,9 +192,9 @@ Zod request schemas keep the client and server in lockstep.
   - `apps/admin-cli/src/__tests__/{client,config,format}.test.ts`
   - Root `package.json` (bin + `admin` script)
 - **Dependencies:** ADMINCLI-001
-- **Validation:** `pnpm exec anvil-admin --help` exits 0 with command list
+- **Validation:** `pnpm admin --help` exits 0 and lists all seven subcommands
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 #### ADMINCLI-006: `list` command
 
