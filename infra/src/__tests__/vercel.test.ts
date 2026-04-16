@@ -15,6 +15,7 @@ vi.mock('../../src/keyvault.js', () => ({
       'github-oauth-client-id': 'mock-github-client-id',
       'github-oauth-client-secret': 'mock-github-client-secret',
       'license-public-key': 'mock-license-public-key',
+      'license-signing-key': 'mock-license-signing-key',
       'docs-state-secret': 'mock-docs-state-secret',
       'docs-upstream-secret': 'mock-upstream-secret',
     };
