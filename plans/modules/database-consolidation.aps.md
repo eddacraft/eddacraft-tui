@@ -18,7 +18,7 @@ project.
 
 - **Beta DB** (target): full schema per `apps/anvil-api/src/db/schema.sql`,
   has citext + pgcrypto extensions, all tables present. May have expired
-  device codes and OTP codes that the cron never cleaned up (cron was 500ing
+  device codes and OTP codes that the cron never cleaned up (the cron was returning HTTP 500s
   against the wrong DB for 24+ hours).
 - **Waitlist DB** (secondary): only the waitlist table with live rows.
   Missing: beta_users, access_tokens, audit_log, device_codes, otp_codes,
