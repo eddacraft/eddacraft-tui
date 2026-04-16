@@ -25,6 +25,10 @@ readonly BUNDLED_PACKAGE_JSONS=(
   "packages/anvil/policy/package.json"
   "packages/anvil/ports/package.json"
   "packages/anvil/runtime/package.json"
+  "packages/aps/package.json"
+  "packages/mcp-server/package.json"
+  "packages/edda-stack/package.json"
+  "packages/kindling-integration/package.json"
   "packages/shared/storage/package.json"
   "packages/libs/render/package.json"
 )
@@ -95,7 +99,13 @@ run_bundled_pnpm_tests() {
     filters+=(--filter "$pkg")
   done
 
-  matched=$(pnpm -r "${filters[@]}" exec pwd 2>/dev/null | wc -l | tr -d ' ')
+  # Capture pnpm's exit status explicitly — under `set -euo pipefail` a
+  # non-zero exit from pnpm (e.g. a filter that matches no workspaces) would
+  # otherwise short-circuit the whole script and skip the mismatch diagnostic.
+  if ! matched=$(pnpm -r "${filters[@]}" exec pwd 2>/dev/null | wc -l | tr -d ' '); then
+    error "pnpm filter lookup failed — check BUNDLED_TEST_PACKAGES names against pnpm-workspace.yaml"
+    return 1
+  fi
   if [[ "$matched" -ne "${#BUNDLED_TEST_PACKAGES[@]}" ]]; then
     error "pnpm filter mismatch: expected ${#BUNDLED_TEST_PACKAGES[@]}, matched ${matched}"
     return 1
@@ -404,6 +414,26 @@ phase_branch_and_tag() {
   # Push dev so the PR (direct) or stabilisation branch (later) carries
   # the release prep commit. Without this, the PR would be empty or
   # based on a stale dev HEAD.
+  #
+  # Before pushing, verify `origin` actually points at ${REPO}. `gh pr create`
+  # uses --repo ${REPO} regardless of remotes, so a forked or renamed `origin`
+  # would land the push somewhere unexpected while still opening a PR against
+  # the canonical repo — producing either an empty PR or silent divergence.
+  local origin_url origin_slug
+  origin_url=$(git remote get-url origin)
+  origin_slug=$(echo "${origin_url}" | sed -E '
+    s#^git@[^:]+:##
+    s#^ssh://git@[^/]+/##
+    s#^https?://[^/]+/##
+    s#\.git$##
+  ')
+  # GitHub repo names are case-insensitive; lowercase both sides to compare.
+  if [[ "${origin_slug,,}" != "${REPO,,}" ]]; then
+    error "origin remote points at '${origin_slug}' but REPO is '${REPO}'."
+    error "Refusing to push — fix your remote or run from the canonical checkout."
+    update_issue_comment "❌ origin remote mismatch: ${origin_slug} vs ${REPO}"
+    exit 1
+  fi
   info "Pushing dev with release prep..."
   git push origin dev
 

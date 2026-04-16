@@ -63,12 +63,14 @@ Verify TS workspace still builds (non-CLI packages):
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-./scripts/release.sh
 ```
 
-The script uses `BUNDLED_TEST_PACKAGES` in `scripts/release.sh` as the single
-source of truth for the bundled-package preflight test scope. Update that array
-when the shipped JS/TS package set changes.
+Bundled-package tests run as part of the release script's preflight — you do
+not need to invoke them separately here. See `BUNDLED_TEST_PACKAGES` in
+`scripts/release.sh` for the current scope; update that array when the shipped
+JS/TS package set changes. `./scripts/release.sh` is the full interactive
+release entrypoint (creates a tracking issue, prompts for version and branch
+strategy, pushes `dev`, opens the PR, tags) — do not run it here as a dry run.
 
 Sanity assertions before release:
 
