@@ -231,8 +231,8 @@ matures. Roughly ordered by risk.
 ### G-01: `LICENSE_SIGNING_KEY` not in README or infra — RESOLVED
 
 _Resolved 2026-04-16._ The env var is now sourced from KeyVault secret
-`license-signing-key` and wired into `anvil-api` via `infra/src/vercel.ts`;
-the README env table (`apps/anvil-api/README.md`) already lists it. A graceful
+`license-signing-key` and wired into `anvil-api` via `infra/src/vercel.ts`; the
+README env table (`apps/anvil-api/README.md`) already lists it. A graceful
 startup check is still worth considering so missing keys surface at boot rather
 than on the first `/device/poll` that reaches the licence-minting path.
 
