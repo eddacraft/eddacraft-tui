@@ -135,6 +135,8 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Files:**
   - Modify: `infra/src/vercel.ts`
+  - Modify: `infra/src/__tests__/vercel.test.ts`
+  - Modify: `infra/README.md`
 
 ### DBCON-004: decommission waitlist project
 
