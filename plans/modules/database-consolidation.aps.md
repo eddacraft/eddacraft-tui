@@ -58,17 +58,41 @@ project.
 ## Constraints
 
 - Data migration must be zero-downtime (both projects temporarily active)
+- Zero-downtime cutover must explicitly handle concurrent waitlist writes:
+  perform an initial copy while the source DB stays live, then pause new
+  waitlist signups briefly for a final delta sync immediately before
+  switching `DATABASE_URL`
 - No production connection strings in logs or CI output
 - Must stay within Neon free-tier limits
 - Both citext and pgcrypto extensions must be enabled in target DB
 
+## Migration Strategy
+
+1. Verify target beta DB schema matches `apps/anvil-api/src/db/schema.sql`
+   and confirm `citext` + `pgcrypto` are enabled.
+2. Take a backup/export of the waitlist DB before any writes are copied.
+3. Run an initial bulk copy of `waitlist` rows from the waitlist DB into the
+   beta DB while the existing waitlist DB remains the live write path.
+4. Compare row counts and sample a small set of records by deterministic key
+   (email) between source and target to confirm the initial copy succeeded.
+5. Immediately before cutover, temporarily pause new waitlist signups so no
+   new rows can land only in the source DB during the final migration window.
+6. Run a final delta sync from the waitlist DB to the beta DB for any rows
+   created after the initial copy, matching on email to avoid duplicates.
+7. Re-run row-count and spot-check verification, then switch KeyVault/Pulumi
+   from the old secret to `api-database-url` and update `DATABASE_URL` to the
+   consolidated beta DB.
+8. Resume waitlist signups after the env var change is live and validated.
+9. Keep the old waitlist DB available briefly as a rollback source, then
+   decommission it once production traffic is confirmed healthy.
+
 ## Risks
 
-| Risk                                        | Impact | Mitigation                                                |
-| ------------------------------------------- | ------ | --------------------------------------------------------- |
-| Data loss during waitlist row migration     | high   | Backup waitlist DB beforehand, dry-run with row counts    |
-| KeyVault rename breaks references           | high   | Grep for old secret name across all infra/config first    |
-| Connection string confusion during cutover  | medium | Stage env var changes, verify in preview before prod      |
+| Risk                                        | Impact | Mitigation                                                           |
+| ------------------------------------------- | ------ | -------------------------------------------------------------------- |
+| Data loss during waitlist row migration     | high   | Backup first, initial copy + final delta sync, pause signups briefly |
+| KeyVault rename breaks references           | high   | Grep for old secret name across all infra/config first               |
+| Connection string confusion during cutover  | medium | Stage env var changes, verify in preview before prod                 |
 
 ## Ready Checklist
 
