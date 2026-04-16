@@ -88,7 +88,9 @@ CREATE TABLE refresh_tokens (
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
 CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_actor ON audit_log(actor);
 CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
+CREATE INDEX idx_audit_log_metadata_email_lower ON audit_log (LOWER((metadata->>'email')));
 CREATE INDEX idx_device_codes_user_code ON device_codes(user_code);
 CREATE INDEX idx_device_codes_poll_token ON device_codes(poll_token);
 CREATE INDEX idx_device_codes_user_id ON device_codes(user_id);

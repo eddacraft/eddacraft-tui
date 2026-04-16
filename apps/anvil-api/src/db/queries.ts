@@ -664,6 +664,162 @@ export async function findWaitlistBySource(
   }));
 }
 
+export type WaitlistStatus = 'pending' | 'approved' | 'all';
+export type WaitlistSource = 'manual' | 'website' | 'import' | 'all';
+
+export interface WaitlistListFilters {
+  status: WaitlistStatus;
+  source: WaitlistSource;
+  limit: number;
+  offset: number;
+}
+
+export interface WaitlistListEntry {
+  email: string;
+  name: string | null;
+  source: string;
+  created_at: string;
+  approved_at: string | null;
+}
+
+/**
+ * Paginated waitlist listing for the admin CLI.
+ *
+ * Approval is derived by LEFT JOIN against beta_users — an entry is
+ * "approved" when a matching beta_users row exists. The join uses
+ * citext equality so email casing is handled by the column type.
+ *
+ * `approved_at` is a proxy for the approval event: it is
+ * `beta_users.created_at`, not an audit-log timestamp. A row directly
+ * inserted into beta_users (outside the waitlist flow) will still
+ * surface an `approved_at` in this listing.
+ *
+ * Total and items are computed from a single query via `COUNT(*) OVER ()`
+ * so pagination metadata matches the page contents under concurrent writes.
+ */
+export async function findWaitlistPaginated(
+  sql: NeonClient,
+  filters: WaitlistListFilters
+): Promise<{ total: number; items: WaitlistListEntry[] }> {
+  const { status, source, limit, offset } = filters;
+
+  // Build status/source predicates as SQL fragments so the driver
+  // keeps parameter binding. `sql` is a tagged template; literal
+  // SQL fragments are composed via nested template calls.
+  const statusPred =
+    status === 'pending'
+      ? sql`AND bu.id IS NULL`
+      : status === 'approved'
+        ? sql`AND bu.id IS NOT NULL`
+        : sql``;
+  const sourcePred = source === 'all' ? sql`` : sql`AND w.source = ${source}`;
+
+  const result = rows(
+    await sql`
+      SELECT
+        w.email,
+        w.name,
+        w.source,
+        w.created_at,
+        bu.created_at AS approved_at,
+        COUNT(*) OVER () AS total
+      FROM waitlist w
+      LEFT JOIN beta_users bu ON bu.email = w.email
+      WHERE 1=1 ${statusPred} ${sourcePred}
+      ORDER BY w.created_at ASC
+      LIMIT ${limit} OFFSET ${offset}
+    `
+  );
+
+  const totalRaw = result[0]?.total;
+  const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? 0);
+
+  return {
+    total,
+    items: result.map((row) => ({
+      email: String(row.email),
+      name: row.name as string | null,
+      source: String(row.source),
+      created_at:
+        row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      approved_at:
+        row.approved_at == null
+          ? null
+          : row.approved_at instanceof Date
+            ? row.approved_at.toISOString()
+            : String(row.approved_at),
+    })),
+  };
+}
+
+export interface AuditListFilters {
+  action?: string | undefined;
+  actor?: string | undefined;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Paginated audit log listing, most recent first. Optional action
+ * and actor filters apply exact-match equality. Total and items are
+ * computed from a single query via `COUNT(*) OVER ()` so pagination
+ * metadata matches the page contents under concurrent writes.
+ */
+export async function findAuditEntries(
+  sql: NeonClient,
+  filters: AuditListFilters
+): Promise<{ total: number; items: AuditEntry[] }> {
+  const { action, actor, limit, offset } = filters;
+
+  const actionPred = action == null ? sql`` : sql`AND action = ${action}`;
+  const actorPred = actor == null ? sql`` : sql`AND actor = ${actor}`;
+
+  const r = rows(
+    await sql`
+      SELECT id, action, actor, metadata, created_at,
+             COUNT(*) OVER () AS total
+      FROM audit_log
+      WHERE 1=1 ${actionPred} ${actorPred}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `
+  );
+
+  const totalRaw = r[0]?.total;
+  const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? 0);
+
+  return {
+    total,
+    items: z.array(AuditEntrySchema).parse(r.map(({ total: _t, ...rest }) => rest)),
+  };
+}
+
+/**
+ * Recent audit entries relating to a user, capped at 10, most recent first.
+ *
+ * Matches rows where either `metadata->>'email'` (admin-authored events
+ * like user.invited, tokens.revoked, migration.email.sent) or `actor`
+ * (github OAuth events which store the email as the actor) equals the
+ * lookup email. Uses `LOWER()` on the metadata expression so historical
+ * mixed-case rows still match the lowercased input.
+ */
+export async function findRecentAuditForEmail(
+  sql: NeonClient,
+  email: string
+): Promise<AuditEntry[]> {
+  const r = rows(
+    await sql`
+      SELECT id, action, actor, metadata, created_at
+      FROM audit_log
+      WHERE LOWER(metadata->>'email') = ${email}
+         OR actor = ${email}
+      ORDER BY created_at DESC
+      LIMIT 10
+    `
+  );
+  return z.array(AuditEntrySchema).parse(r);
+}
+
 // ---------------------------------------------------------------------------
 // Cleanup (cron)
 // ---------------------------------------------------------------------------

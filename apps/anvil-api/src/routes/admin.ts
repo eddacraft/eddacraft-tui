@@ -11,39 +11,25 @@ import {
   findWaitlistEntryByEmail,
   findUnapprovedWaitlistEntries,
   findWaitlistBySource,
+  findWaitlistPaginated,
+  findAuditEntries,
+  findRecentAuditForEmail,
 } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
+import {
+  inviteSchema,
+  approveSchema,
+  revokeSchema,
+  migrationSchema,
+  waitlistListQuerySchema,
+  auditListQuerySchema,
+} from './admin-schemas.js';
 import { isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
-
-const ALLOWED_SCOPES = ['beta', 'preview', 'internal'] as const;
-
-const inviteSchema = z.object({
-  email: z.string().email().max(254),
-  name: z.string().max(200).optional(),
-  notes: z.string().max(1000).optional(),
-  days: z.number().int().positive().max(365).default(90),
-  scopes: z.array(z.enum(ALLOWED_SCOPES)).default(['beta']),
-  tokenOnly: z.boolean().default(false),
-});
-
-const approveSchema = z.union([
-  z.object({ email: z.string().email().max(254) }),
-  z.object({ batch: z.number().int().min(1).max(100) }),
-]);
-
-const revokeSchema = z
-  .object({
-    email: z.string().email().max(254).optional(),
-    token: z.string().max(200).optional(),
-  })
-  .refine((data) => data.email || data.token, {
-    message: 'Either email or token must be provided',
-  });
 
 const admin = new Hono();
 
@@ -354,9 +340,50 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
 });
 
 /**
+ * GET /admin/waitlist
+ *
+ * Paginated waitlist listing. Filter by approval status (pending /
+ * approved / all), signup source (manual / website / import / all),
+ * with limit and offset for pagination.
+ *
+ * Approval is derived by join against beta_users — an entry is
+ * "approved" when a matching beta_users row exists.
+ */
+admin.get('/waitlist', zValidator('query', waitlistListQuerySchema), async (c) => {
+  const { status, source, limit, offset } = c.req.valid('query');
+  debug('GET /admin/waitlist', { status, source, limit, offset });
+  const sql = getClient();
+
+  const result = await findWaitlistPaginated(sql, { status, source, limit, offset });
+
+  return c.json(result);
+});
+
+/**
+ * GET /admin/audit
+ *
+ * Paginated audit log listing, most recent first. Optional action and
+ * actor filters apply exact-match equality. Bounded pagination
+ * (limit 1-200, default 50).
+ */
+admin.get('/audit', zValidator('query', auditListQuerySchema), async (c) => {
+  const { action, actor, limit, offset } = c.req.valid('query');
+  debug('GET /admin/audit', { action, actor, limit, offset });
+  const sql = getClient();
+
+  const result = await findAuditEntries(sql, { action, actor, limit, offset });
+
+  return c.json(result);
+});
+
+/**
  * GET /admin/user/:email
  *
- * Lookup a user and their token info.
+ * Lookup a user and their token info, plus up to 10 most-recent
+ * audit entries for that email. Audit entries are matched via
+ * metadata->>'email' OR actor = email (e.g. GitHub OAuth writes where
+ * user.email is the actor), so events logged under either shape are
+ * surfaced.
  */
 admin.get('/user/:email', async (c) => {
   debug('GET /admin/user/:email');
@@ -373,6 +400,17 @@ admin.get('/user/:email', async (c) => {
     return c.json({ error: 'User not found' }, 404);
   }
 
+  // recentAudit is an enrichment — degrade gracefully if the audit
+  // lookup fails so the primary user + tokens response still lands.
+  let recentAudit: Awaited<ReturnType<typeof findRecentAuditForEmail>> = [];
+  let auditError = false;
+  try {
+    recentAudit = await findRecentAuditForEmail(sql, email);
+  } catch (err) {
+    auditError = true;
+    console.error('findRecentAuditForEmail failed (non-fatal):', err);
+  }
+
   return c.json({
     user: result.user,
     tokens: result.tokens.map((t) => ({
@@ -382,6 +420,8 @@ admin.get('/user/:email', async (c) => {
       revoked_at: t.revoked_at,
       created_at: t.created_at,
     })),
+    recentAudit,
+    ...(auditError ? { auditError: true } : {}),
   });
 });
 
@@ -392,12 +432,6 @@ admin.get('/user/:email', async (c) => {
  * Optional `source` filter (default: 'import').
  * Optional `dryRun` to preview without sending.
  */
-const migrationSchema = z.object({
-  source: z.enum(['import', 'website', 'manual']).default('import'),
-  dryRun: z.boolean().default(false),
-  limit: z.number().int().min(1).max(100).default(20),
-});
-
 admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => {
   const sql = getClient();
   const actor = resolveAdminActor(c);
