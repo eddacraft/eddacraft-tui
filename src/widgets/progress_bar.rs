@@ -18,8 +18,8 @@ pub struct ProgressBar<'a, T: Theme> {
 pub struct ProgressBarState {
     pub current: u64,
     pub total: u64,
-    display_fraction: AnimatedF64,
-    target_fraction: f64,
+    pub display_fraction: AnimatedF64,
+    pub target_fraction: f64,
 }
 
 impl Default for ProgressBarState {
