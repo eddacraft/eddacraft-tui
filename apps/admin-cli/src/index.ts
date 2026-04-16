@@ -3,6 +3,7 @@ import { Command, Option } from 'commander';
 import { AdminError } from './client.js';
 import { MissingConfigError } from './config.js';
 import { formatError } from './format.js';
+import { runListCommand, type ListOptions } from './commands/list.js';
 
 const program = new Command();
 
@@ -29,7 +30,9 @@ program
   .option('--limit <n>', 'page size (1-200)', '50')
   .option('--offset <n>', 'page offset', '0')
   .option('--json', 'emit raw JSON')
-  .action(notImplemented('ADMINCLI-006'));
+  .action(async (_options, cmd: Command) => {
+    await runListCommand(cmd.optsWithGlobals() as ListOptions);
+  });
 
 program
   .command('show <email>')
