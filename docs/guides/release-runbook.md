@@ -63,18 +63,12 @@ Verify TS workspace still builds (non-CLI packages):
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm -r \
-  --filter @eddacraft/anvil-contracts \
-  --filter @eddacraft/anvil-core \
-  --filter @eddacraft/anvil-policy \
-  --filter @eddacraft/anvil-ports \
-  --filter @eddacraft/anvil-runtime \
-  --filter @eddacraft/shared-storage \
-  --filter @eddacraft/render \
-  --filter @eddacraft/anvil-adapters \
-  --filter @eddacraft/anvil-api \
-  test -- --run
+./scripts/release.sh
 ```
+
+The script uses `BUNDLED_TEST_PACKAGES` in `scripts/release.sh` as the single
+source of truth for the bundled-package preflight test scope. Update that array
+when the shipped JS/TS package set changes.
 
 Sanity assertions before release:
 

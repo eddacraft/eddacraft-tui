@@ -34,6 +34,10 @@ readonly BUNDLED_TEST_PACKAGES=(
   "@eddacraft/anvil-policy"
   "@eddacraft/anvil-ports"
   "@eddacraft/anvil-runtime"
+  "@eddacraft/anvil-aps"
+  "@eddacraft/anvil-mcp-server"
+  "@eddacraft/anvil-edda-stack"
+  "@eddacraft/anvil-kindling-integration"
   "@eddacraft/shared-storage"
   "@eddacraft/render"
   "@eddacraft/anvil-adapters"
@@ -82,13 +86,22 @@ update_package_json_version() {
 }
 
 run_bundled_pnpm_tests() {
-  local cmd=(timeout 180 pnpm -r)
+  local filters=()
+  local cmd=(timeout 300 pnpm -r)
   local pkg
+  local matched
 
   for pkg in "${BUNDLED_TEST_PACKAGES[@]}"; do
-    cmd+=(--filter "$pkg")
+    filters+=(--filter "$pkg")
   done
 
+  matched=$(pnpm -r "${filters[@]}" exec pwd 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$matched" -ne "${#BUNDLED_TEST_PACKAGES[@]}" ]]; then
+    error "pnpm filter mismatch: expected ${#BUNDLED_TEST_PACKAGES[@]}, matched ${matched}"
+    return 1
+  fi
+
+  cmd+=("${filters[@]}")
   cmd+=(test -- --run)
   "${cmd[@]}"
 }
@@ -387,6 +400,12 @@ phase_branch_and_tag() {
     info "No release prep changes to commit on dev"
     DEV_SHA=$(git rev-parse HEAD)
   fi
+
+  # Push dev so the PR (direct) or stabilisation branch (later) carries
+  # the release prep commit. Without this, the PR would be empty or
+  # based on a stale dev HEAD.
+  info "Pushing dev with release prep..."
+  git push origin dev
 
   local pr_url=""
   local pr_number=""
