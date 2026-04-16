@@ -16,18 +16,23 @@ project.
 
 ## Known State
 
-- **Beta DB** (target): full schema per `apps/anvil-api/src/db/schema.sql`,
-  has citext + pgcrypto extensions, all tables present. May have expired
-  device codes and OTP codes that the cron never cleaned up (the cron was returning HTTP 500s
-  against the wrong DB for 24+ hours).
-- **Waitlist DB** (secondary): only the waitlist table with live rows.
-  Missing: beta_users, access_tokens, audit_log, device_codes, otp_codes,
-  refresh_tokens.
+- **Beta DB** (target): now has all 7 tables after
+  `migrations/004-waitlist-on-beta-db.sql` landed on 2026-04-16. citext +
+  pgcrypto extensions enabled. Contains one manually-inserted validation
+  row (`dave.meloncelli@outlook.com`, `source='manual'`) from pre-consolidation
+  admin-flow testing — dedup against this when copying live rows.
+- **Waitlist DB** (source): only the waitlist table with live rows. Missing
+  beta_users, access_tokens, audit_log, device_codes, otp_codes,
+  refresh_tokens (will be decommissioned, not backfilled).
+- **Cron cleanup**: was returning 500 against the wrong DB for ~24h, fixed
+  2026-04-15 when DATABASE_URL was corrected. The hourly `/cron/cleanup` has
+  been clearing expired rows on the beta DB since. Backlog described in
+  DBCON-002 may already be empty — verify before running manual cleanup.
 - **KeyVault secret**: `website-database-url` is misleading — it's used by
   anvil-api, not the website. Rename to `api-database-url` during cutover.
-- **Env sync**: `DATABASE_URL` update via `pulumi up` is sufficient — no
-  redeploy needed since serverless functions read env vars at invocation
-  time.
+- **Env sync**: `DATABASE_URL` update via `pulumi up` sets the env var on
+  Vercel, but a redeploy of anvil-api is still needed for functions to pick
+  up the new value (env vars are baked into the deployment at build time).
 
 ## In Scope
 
@@ -100,38 +105,45 @@ Change status to **Ready** when:
 
 - [x] Inventory of data in both Neon projects documented
 - [x] Target Neon project chosen — beta DB survives
+- [x] Target schema present on beta DB (migration 004 landed 2026-04-16)
 
 ---
 
 ### DBCON-001: migrate waitlist data
 
 - **Intent:** Copy waitlist rows from the waitlist DB into the beta DB's
-  existing waitlist table. Verify row counts match after migration.
+  existing waitlist table (schema created by migration 004). Verify row
+  counts match after migration. Dedup against the pre-existing
+  `dave.meloncelli@outlook.com` row from admin-flow validation.
 - **Expected Outcome:** All waitlist rows present in the beta DB. Waitlist
   DB still operational as fallback.
-- **Validation:** Row count in beta DB waitlist table matches source.
-  Spot-check records by email.
+- **Validation:** Row count in beta DB waitlist table equals source count
+  (plus the one validation row). Spot-check records by email.
 - **Confidence:** high
 
 ### DBCON-002: clean up expired rows in beta DB
 
-- **Intent:** Run the expired-row cleanup that the cron has been failing to
-  do — clear out expired device codes, OTP codes, and refresh tokens that
-  accumulated while the cron was returning HTTP 500s.
+- **Intent:** Verify the expired-row backlog left over from the broken cron
+  window (2026-04-14 → 2026-04-15) has been cleared by the now-working
+  hourly `/cron/cleanup`. If anything is still lingering, run cleanup
+  manually.
 - **Expected Outcome:** No expired rows remain in device_codes, otp_codes,
   or refresh_tokens.
-- **Validation:** Query for rows past expiry returns zero.
+- **Validation:** `SELECT count(*) FROM device_codes WHERE expires_at < now() - interval '1 hour'`
+  (and analogous queries for otp_codes, refresh_tokens) return zero.
 - **Confidence:** high
 
 ### DBCON-003: infrastructure cutover
 
 - **Intent:** Rename KeyVault secret from `website-database-url` to
   `api-database-url`. Update Pulumi config to point `DATABASE_URL` at the
-  beta DB for all environments. Run `pulumi up` to sync.
+  beta DB for all environments. Run `pulumi up`, then trigger an anvil-api
+  redeploy so functions pick up the new env var (env vars are baked in at
+  deploy time; pulumi up alone is not sufficient).
 - **Expected Outcome:** All environments use the single Neon project.
   Secret name accurately reflects its consumer.
-- **Validation:** `pulumi preview` shows the rename and URL update.
-  All API routes functional in preview deployment.
+- **Validation:** `pulumi preview` shows the rename and URL update. After
+  anvil-api redeploy, all API routes functional against consolidated DB.
 - **Confidence:** medium
 - **Files:**
   - Modify: `infra/src/vercel.ts`
