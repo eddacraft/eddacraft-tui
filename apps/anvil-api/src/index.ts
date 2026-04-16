@@ -11,6 +11,16 @@ import { waitlist } from './routes/waitlist.js';
 import { cron } from './routes/cron.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
+import { verifySigningKey } from './lib/licence.js';
+
+// Cold-start probe: validate signing key is loadable at boot so misconfiguration
+// surfaces on startup rather than on the first device-flow mint. Fire-and-forget
+// — /health reports the result; we don't want boot to hang if the KMS is slow.
+verifySigningKey().then((result) => {
+  if (!result.ok) {
+    console.error('[boot] licence signing key unavailable:', result.error);
+  }
+});
 
 const app = new Hono().basePath('/api/v1');
 
@@ -53,13 +63,31 @@ app.use(
 app.use('*', rateLimiter());
 
 app.get('/health', async (c) => {
-  try {
-    const sql = getClient();
-    await sql`SELECT 1`;
-    return c.json({ status: 'ok' });
-  } catch {
-    return c.json({ status: 'degraded', db: 'unreachable' }, 503);
+  const [dbResult, keyResult] = await Promise.all([
+    (async () => {
+      try {
+        const sql = getClient();
+        await sql`SELECT 1`;
+        return { ok: true } as const;
+      } catch {
+        return { ok: false } as const;
+      }
+    })(),
+    verifySigningKey(),
+  ]);
+
+  if (dbResult.ok && keyResult.ok) {
+    return c.json({ status: 'ok', db: 'ok', signingKey: 'ok' });
   }
+
+  return c.json(
+    {
+      status: 'degraded',
+      db: dbResult.ok ? 'ok' : 'unreachable',
+      signingKey: keyResult.ok ? 'ok' : 'unavailable',
+    },
+    503
+  );
 });
 
 app.onError((err, c) => {
