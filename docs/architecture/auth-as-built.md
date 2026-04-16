@@ -228,14 +228,13 @@ patterns (e.g. `https://*.vercel.app`). Currently set to:
 Items below are known limitations that should be addressed as the system
 matures. Roughly ordered by risk.
 
-### G-01: `LICENSE_SIGNING_KEY` not in README or infra
+### G-01: `LICENSE_SIGNING_KEY` not in README or infra — RESOLVED
 
-The env var is required for verify and refresh to work, but is not documented in
-the API README or provisioned in `infra/src/vercel.ts`. If it's missing at
-runtime, the route throws an unhandled error (no graceful fallback).
-
-**Risk:** Deploy without it → 500 on every verify call. **Fix:** Add to README
-env table, add to infra config, consider a startup check.
+_Resolved 2026-04-16._ The env var is now sourced from KeyVault secret
+`license-signing-key` and wired into `anvil-api` via `infra/src/vercel.ts`;
+the README env table (`apps/anvil-api/README.md`) already lists it. A graceful
+startup check is still worth considering so missing keys surface at boot rather
+than on the first `/device/poll` that reaches the licence-minting path.
 
 ### G-02: Identity, org, tier, seats are hardcoded
 
