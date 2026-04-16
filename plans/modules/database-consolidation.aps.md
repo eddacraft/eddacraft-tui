@@ -80,8 +80,13 @@ project.
    beta DB while the existing waitlist DB remains the live write path.
 4. Compare row counts and sample a small set of records by deterministic key
    (email) between source and target to confirm the initial copy succeeded.
-5. Immediately before cutover, temporarily pause new waitlist signups so no
-   new rows can land only in the source DB during the final migration window.
+5. Immediately before cutover, temporarily pause new waitlist signups by
+   setting `WAITLIST_PAUSED=true` on the anvil-api Vercel project (see
+   `apps/anvil-api/src/routes/waitlist.ts`). This returns 503 from
+   `POST /waitlist` within one function cold-start, preventing new rows from
+   landing only in the source DB during the final migration window. The env
+   var is operator-managed in the Vercel UI (not Pulumi) so the toggle is
+   not fought on the next `pulumi up`.
 6. Run a final delta sync from the waitlist DB to the beta DB for any rows
    created after the initial copy, matching on email to avoid duplicates.
 7. Re-run row-count and spot-check verification, then switch KeyVault/Pulumi
@@ -139,11 +144,17 @@ Change status to **Ready** when:
   `api-database-url`. Update Pulumi config to point `DATABASE_URL` at the
   beta DB for all environments. Run `pulumi up`, then trigger an anvil-api
   redeploy so functions pick up the new env var (env vars are baked in at
-  deploy time; pulumi up alone is not sufficient).
+  deploy time; pulumi up alone is not sufficient). During the cutover, use
+  `WAITLIST_PAUSED=true` on the anvil-api Vercel project to freeze new
+  signups for the delta-sync window (implemented in #925, see
+  `apps/anvil-api/src/routes/waitlist.ts`). Unset the env once the new
+  `DATABASE_URL` is validated.
 - **Expected Outcome:** All environments use the single Neon project.
   Secret name accurately reflects its consumer.
 - **Validation:** `pulumi preview` shows the rename and URL update. After
   anvil-api redeploy, all API routes functional against consolidated DB.
+  `WAITLIST_PAUSED=true` returns 503 from `POST /waitlist` within one cold
+  start; unsetting it restores normal operation.
 - **Confidence:** medium
 - **Files:**
   - Modify: `infra/src/vercel.ts`

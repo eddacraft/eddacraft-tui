@@ -66,6 +66,12 @@ export const api = new VercelApp('anvil-api', {
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,
+    // DBCON-003: WAITLIST_PAUSED is intentionally NOT declared here. It is a
+    // zero-downtime kill switch for POST /waitlist (see waitlist.ts) and must
+    // be toggled directly in the Vercel project UI during the Neon cutover —
+    // if Pulumi managed it, the next `pulumi up` would clobber the operator's
+    // toggle. Set to "true" on the anvil-api project to return 503; unset or
+    // any other value = normal operation.
   },
 });
 

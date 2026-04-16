@@ -12,6 +12,13 @@ const EMAIL_REGEX =
 
 waitlist.post('/', async (c) => {
   try {
+    // DBCON-003: WAITLIST_PAUSED short-circuits new signups during the Neon
+    // consolidation cutover so the delta sync can't miss rows that only land
+    // in the source DB. Toggle via Vercel env (no redeploy required).
+    if (process.env.WAITLIST_PAUSED === 'true') {
+      return c.json({ error: 'Waitlist temporarily paused for maintenance' }, 503);
+    }
+
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
       console.error('DATABASE_URL not configured');
