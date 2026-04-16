@@ -80,6 +80,17 @@ describe('shouldUseColour', () => {
     }
   });
 
+  it('returns false when NO_COLOR env is empty string', () => {
+    const prev = process.env.NO_COLOR;
+    process.env.NO_COLOR = '';
+    try {
+      expect(shouldUseColour({}, true)).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = prev;
+    }
+  });
+
   it('returns false when not a TTY', () => {
     expect(shouldUseColour({}, false)).toBe(false);
   });

@@ -59,12 +59,12 @@ export function shouldUseColour(
   if (options.colour === false) return false;
   if (options.json) return false;
   if (options.quiet) return false;
-  if (process.env.NO_COLOR) return false;
+  if (process.env.NO_COLOR !== undefined) return false;
   return tty;
 }
 
 export function formatError(message: string, options: OutputOptions = {}): string {
-  if (shouldUseColour(options)) {
+  if (shouldUseColour(options, !!process.stderr.isTTY)) {
     return `${pc.red('error:')} ${message}`;
   }
   return `error: ${message}`;

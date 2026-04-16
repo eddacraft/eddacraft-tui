@@ -67,7 +67,7 @@ program
   .command('audit')
   .description('browse the audit log')
   .option('--action <action>', 'filter by action (exact match)')
-  .option('--actor <actor>', 'filter by actor email')
+  .option('--filter-actor <actor>', 'filter audit entries by actor email')
   .option('--limit <n>', 'page size (1-200)', '50')
   .option('--offset <n>', 'page offset', '0')
   .option('--json', 'emit raw JSON')
