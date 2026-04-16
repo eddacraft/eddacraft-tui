@@ -10,6 +10,7 @@ const resendApiKey = getSecret('resend-api-key');
 const githubClientId = getSecret('github-oauth-client-id');
 const githubClientSecret = getSecret('github-oauth-client-secret');
 const licensePublicKey = getSecret('license-public-key');
+const licenseSigningKey = getSecret('license-signing-key');
 const docsStateSecret = getSecret('docs-state-secret');
 const docsUpstreamSecret = getSecret('docs-upstream-secret');
 
@@ -60,6 +61,8 @@ export const api = new VercelApp('anvil-api', {
     CRON_SECRET: getSecret('cron-secret'),
     // BAUTH: pepper for SHA-256 token hashing (required in production)
     TOKEN_PEPPER: getSecret('token-pepper'),
+    // BAUTH: ES256 private key (PKCS#8 PEM) for signing licence JWTs
+    LICENSE_SIGNING_KEY: licenseSigningKey,
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,
