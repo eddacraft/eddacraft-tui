@@ -82,11 +82,12 @@ project.
    (email) between source and target to confirm the initial copy succeeded.
 5. Immediately before cutover, temporarily pause new waitlist signups by
    setting `WAITLIST_PAUSED=true` on the anvil-api Vercel project (see
-   `apps/anvil-api/src/routes/waitlist.ts`). This returns 503 from
-   `POST /waitlist` within one function cold-start, preventing new rows from
-   landing only in the source DB during the final migration window. The env
-   var is operator-managed in the Vercel UI (not Pulumi) so the toggle is
-   not fought on the next `pulumi up`.
+   `apps/anvil-api/src/routes/waitlist.ts`) and triggering a redeploy — env
+   vars are baked into each deployment, so the toggle only takes effect on
+   the next deploy. Once the redeploy completes, `POST /waitlist` returns
+   503, preventing new rows from landing only in the source DB during the
+   final migration window. The env var is operator-managed in the Vercel UI
+   (not Pulumi) so the toggle is not fought on the next `pulumi up`.
 6. Run a final delta sync from the waitlist DB to the beta DB for any rows
    created after the initial copy, matching on email to avoid duplicates.
 7. Re-run row-count and spot-check verification, then switch KeyVault/Pulumi
@@ -142,19 +143,22 @@ Change status to **Ready** when:
 
 - **Intent:** Rename KeyVault secret from `website-database-url` to
   `api-database-url`. Update Pulumi config to point `DATABASE_URL` at the
-  beta DB for all environments. Run `pulumi up`, then trigger an anvil-api
-  redeploy so functions pick up the new env var (env vars are baked in at
-  deploy time; pulumi up alone is not sufficient). During the cutover, use
-  `WAITLIST_PAUSED=true` on the anvil-api Vercel project to freeze new
-  signups for the delta-sync window (implemented in #925, see
-  `apps/anvil-api/src/routes/waitlist.ts`). Unset the env once the new
-  `DATABASE_URL` is validated.
+  beta DB for all environments. Because Vercel env vars are baked into
+  deployments at build time, each env change requires a redeploy. The
+  cutover sequence is: (1) set `WAITLIST_PAUSED=true` on the anvil-api
+  Vercel project and redeploy so new signups return 503 (implemented in
+  #925, see `apps/anvil-api/src/routes/waitlist.ts`); (2) run the final
+  delta sync; (3) run `pulumi up` to switch `DATABASE_URL` to the beta DB;
+  (4) redeploy anvil-api so functions pick up the new `DATABASE_URL`; (5)
+  validate the consolidated DB; (6) unset `WAITLIST_PAUSED` and redeploy
+  once more to restore normal operation.
 - **Expected Outcome:** All environments use the single Neon project.
   Secret name accurately reflects its consumer.
 - **Validation:** `pulumi preview` shows the rename and URL update. After
-  anvil-api redeploy, all API routes functional against consolidated DB.
-  `WAITLIST_PAUSED=true` returns 503 from `POST /waitlist` within one cold
-  start; unsetting it restores normal operation.
+  the pause redeploy, `POST /waitlist` returns 503. After the DATABASE_URL
+  redeploy, all API routes functional against the consolidated DB. After
+  the final redeploy with `WAITLIST_PAUSED` unset, `POST /waitlist`
+  resumes normal operation.
 - **Confidence:** medium
 - **Files:**
   - Modify: `infra/src/vercel.ts`

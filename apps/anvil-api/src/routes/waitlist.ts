@@ -14,7 +14,8 @@ waitlist.post('/', async (c) => {
   try {
     // DBCON-003: WAITLIST_PAUSED short-circuits new signups during the Neon
     // consolidation cutover so the delta sync can't miss rows that only land
-    // in the source DB. Toggle via Vercel env (no redeploy required).
+    // in the source DB. Set via Vercel env; changes require an anvil-api
+    // redeploy to take effect (env vars are baked into each deployment).
     if (process.env.WAITLIST_PAUSED === 'true') {
       return c.json({ error: 'Waitlist temporarily paused for maintenance' }, 503);
     }
