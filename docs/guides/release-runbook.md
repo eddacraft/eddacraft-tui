@@ -65,8 +65,8 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-Bundled-package tests run as part of the release script's preflight — you do
-not need to invoke them separately here. See `BUNDLED_TEST_PACKAGES` in
+Bundled-package tests run as part of the release script's preflight — you do not
+need to invoke them separately here. See `BUNDLED_TEST_PACKAGES` in
 `scripts/release.sh` for the current scope; update that array when the shipped
 JS/TS package set changes. `./scripts/release.sh` is the full interactive
 release entrypoint (creates a tracking issue, prompts for version and branch
