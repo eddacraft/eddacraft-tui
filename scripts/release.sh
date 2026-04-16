@@ -415,23 +415,37 @@ phase_branch_and_tag() {
   # the release prep commit. Without this, the PR would be empty or
   # based on a stale dev HEAD.
   #
-  # Before pushing, verify `origin` actually points at ${REPO}. `gh pr create`
-  # uses --repo ${REPO} regardless of remotes, so a forked or renamed `origin`
-  # would land the push somewhere unexpected while still opening a PR against
-  # the canonical repo — producing either an empty PR or silent divergence.
-  local origin_url origin_slug
-  origin_url=$(git remote get-url origin)
-  origin_slug=$(echo "${origin_url}" | sed -E '
+  # Before pushing, verify `origin` actually points at ${REPO} for both fetch
+  # and push. `gh pr create` uses --repo ${REPO} regardless of remotes, so a
+  # forked or renamed `origin` — or a separate push URL — would land the push
+  # somewhere unexpected while still opening a PR against the canonical repo,
+  # producing either an empty PR or silent divergence.
+  local origin_fetch_url origin_fetch_slug origin_push_url origin_push_slug
+  origin_fetch_url=$(git remote get-url origin)
+  origin_fetch_slug=$(echo "${origin_fetch_url}" | sed -E '
     s#^git@[^:]+:##
-    s#^ssh://git@[^/]+/##
+    s#^ssh://([^@/]+@)?[^/:]+(:[0-9]+)?/##
+    s#^https?://[^/]+/##
+    s#\.git$##
+  ')
+  origin_push_url=$(git remote get-url --push origin)
+  origin_push_slug=$(echo "${origin_push_url}" | sed -E '
+    s#^git@[^:]+:##
+    s#^ssh://([^@/]+@)?[^/:]+(:[0-9]+)?/##
     s#^https?://[^/]+/##
     s#\.git$##
   ')
   # GitHub repo names are case-insensitive; lowercase both sides to compare.
-  if [[ "${origin_slug,,}" != "${REPO,,}" ]]; then
-    error "origin remote points at '${origin_slug}' but REPO is '${REPO}'."
+  if [[ "${origin_fetch_slug,,}" != "${REPO,,}" ]]; then
+    error "origin fetch remote points at '${origin_fetch_slug}' but REPO is '${REPO}'."
     error "Refusing to push — fix your remote or run from the canonical checkout."
-    update_issue_comment "❌ origin remote mismatch: ${origin_slug} vs ${REPO}"
+    update_issue_comment "❌ origin fetch remote mismatch: ${origin_fetch_slug} vs ${REPO}"
+    exit 1
+  fi
+  if [[ "${origin_push_slug,,}" != "${REPO,,}" ]]; then
+    error "origin push remote points at '${origin_push_slug}' but REPO is '${REPO}'."
+    error "Refusing to push — fix your remote or run from the canonical checkout."
+    update_issue_comment "❌ origin push remote mismatch: ${origin_push_slug} vs ${REPO}"
     exit 1
   fi
   info "Pushing dev with release prep..."
