@@ -93,7 +93,7 @@ Change status to **Ready** when:
 
 - **Intent:** Run the expired-row cleanup that the cron has been failing to
   do — clear out expired device codes, OTP codes, and refresh tokens that
-  accumulated while the cron was 500ing.
+  accumulated while the cron was returning HTTP 500s.
 - **Expected Outcome:** No expired rows remain in device_codes, otp_codes,
   or refresh_tokens.
 - **Validation:** Query for rows past expiry returns zero.
