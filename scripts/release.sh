@@ -388,9 +388,11 @@ phase_branch_and_tag() {
     DEV_SHA=$(git rev-parse HEAD)
   fi
 
+  local pr_url=""
+  local pr_number=""
+
   if [[ "${BRANCH_STRATEGY}" == "direct" ]]; then
     info "Direct promotion: opening PR from dev to main"
-    local pr_url
     pr_url=$(gh pr create \
       --repo "${REPO}" \
       --base main \
@@ -408,7 +410,6 @@ phase_branch_and_tag() {
     git switch -c "${RELEASE_BRANCH}"
     git push -u origin "${RELEASE_BRANCH}"
 
-    local pr_url
     pr_url=$(gh pr create \
       --repo "${REPO}" \
       --base main \
@@ -421,20 +422,71 @@ phase_branch_and_tag() {
     prompt_continue "Merge the PR on GitHub, then continue?"
   fi
 
+  pr_number="${pr_url##*/}"
+
+  # Verify PR is actually merged before tagging. Race condition guard:
+  # the operator can hit "continue" before GitHub finishes processing the
+  # merge, which would tag the previous main HEAD (not the release commit).
+  info "Verifying PR #${pr_number} is merged..."
+  local pr_state="" merge_sha="" poll_attempts=0
+  local max_attempts=24 # 24 × 5s = 120s total
+  while true; do
+    pr_state=$(gh pr view "${pr_number}" --repo "${REPO}" --json state -q '.state' 2>/dev/null || echo "")
+    if [[ "${pr_state}" == "MERGED" ]]; then
+      break
+    fi
+    if (( poll_attempts >= max_attempts )); then
+      error "PR #${pr_number} state is '${pr_state}', not MERGED after $((max_attempts * 5))s"
+      error "Merge the PR on GitHub and re-run the release: ${pr_url}"
+      update_issue_comment "❌ Release aborted: PR #${pr_number} not merged"
+      exit 1
+    fi
+    warn "PR state is '${pr_state}', waiting 5s (attempt $((poll_attempts + 1))/${max_attempts})..."
+    sleep 5
+    poll_attempts=$((poll_attempts + 1))
+  done
+  merge_sha=$(gh pr view "${pr_number}" --repo "${REPO}" --json mergeCommit -q '.mergeCommit.oid')
+  if [[ -z "${merge_sha}" ]]; then
+    error "Could not resolve merge commit SHA for PR #${pr_number}"
+    update_issue_comment "❌ Release aborted: no merge commit SHA"
+    exit 1
+  fi
+  success "PR #${pr_number} merged at ${merge_sha}"
+
   # Switch to main and pull
   info "Switching to main..."
   git switch main
   git pull --ff-only origin main
   MAIN_SHA=$(git rev-parse HEAD)
 
-  # Commit and tag
+  # Verify local main matches the PR merge commit. If another commit landed
+  # on main between merge and pull, bail rather than tag the wrong SHA.
+  if [[ "${MAIN_SHA}" != "${merge_sha}" ]]; then
+    error "Local main HEAD (${MAIN_SHA}) does not match PR merge SHA (${merge_sha})"
+    error "Another commit may have landed on main after the release PR merged."
+    error "Investigate before continuing — do NOT force-push or tag manually."
+    update_issue_comment "❌ Release aborted: main HEAD mismatch after PR merge"
+    exit 1
+  fi
+
+  # Verify the workspace version on main actually matches the release version.
+  # Guards against the release prep commit failing to land on main.
+  local main_cargo_version
+  main_cargo_version=$(grep '^version' "${CARGO_VERSION_FILE}" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+  if [[ "${main_cargo_version}" != "${VERSION}" ]]; then
+    error "Cargo.toml on main has version ${main_cargo_version}, expected ${VERSION}"
+    error "The release prep commit did not make it to main."
+    update_issue_comment "❌ Release aborted: Cargo.toml version mismatch on main"
+    exit 1
+  fi
+  success "Verified Cargo.toml on main is ${VERSION}"
+
   TAG_SHA=$(git rev-parse HEAD)
 
   info "Creating tag ${TAG}..."
   git tag -a "${TAG}" -m "${TAG}"
 
-  info "Pushing main and tag..."
-  git push origin main
+  info "Pushing tag..."
   git push origin "${TAG}"
 
   update_issue_comment "$(cat <<TAG_RESULTS
