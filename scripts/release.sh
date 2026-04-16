@@ -28,6 +28,17 @@ readonly BUNDLED_PACKAGE_JSONS=(
   "packages/shared/storage/package.json"
   "packages/libs/render/package.json"
 )
+readonly BUNDLED_TEST_PACKAGES=(
+  "@eddacraft/anvil-contracts"
+  "@eddacraft/anvil-core"
+  "@eddacraft/anvil-policy"
+  "@eddacraft/anvil-ports"
+  "@eddacraft/anvil-runtime"
+  "@eddacraft/shared-storage"
+  "@eddacraft/render"
+  "@eddacraft/anvil-adapters"
+  "@eddacraft/anvil-api"
+)
 
 # --- Colours and output ---
 
@@ -68,6 +79,18 @@ update_package_json_version() {
   else
     info "$file version already ${VERSION} on dev"
   fi
+}
+
+run_bundled_pnpm_tests() {
+  local cmd=(pnpm -r)
+  local pkg
+
+  for pkg in "${BUNDLED_TEST_PACKAGES[@]}"; do
+    cmd+=(--filter "$pkg")
+  done
+
+  cmd+=(test -- --run)
+  "${cmd[@]}"
 }
 
 # --- Gate functions ---
@@ -277,7 +300,7 @@ phase_preflight() {
   # TS workspace checks
   soft_gate "pnpm install" pnpm install --frozen-lockfile
   soft_gate "pnpm build" pnpm build
-  soft_gate "pnpm test" timeout 180 pnpm test
+  soft_gate "pnpm test" timeout 180 run_bundled_pnpm_tests
 
   # Record preflight results
   PREFLIGHT_CARGO_TEST="pass"

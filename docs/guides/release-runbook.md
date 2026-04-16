@@ -63,7 +63,17 @@ Verify TS workspace still builds (non-CLI packages):
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm test
+pnpm -r \
+  --filter @eddacraft/anvil-contracts \
+  --filter @eddacraft/anvil-core \
+  --filter @eddacraft/anvil-policy \
+  --filter @eddacraft/anvil-ports \
+  --filter @eddacraft/anvil-runtime \
+  --filter @eddacraft/shared-storage \
+  --filter @eddacraft/render \
+  --filter @eddacraft/anvil-adapters \
+  --filter @eddacraft/anvil-api \
+  test -- --run
 ```
 
 Sanity assertions before release:
