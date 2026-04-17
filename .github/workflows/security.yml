@@ -9,9 +9,6 @@ on:
     branches:
       - main
       - dev
-  schedule:
-    # OSSF Scorecard: weekly on Monday at 06:00 UTC
-    - cron: '0 6 * * 1'
 
 concurrency:
   group:
@@ -27,8 +24,6 @@ jobs:
   detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
-    # Skip for scheduled runs (scorecard always runs)
-    if: github.event_name != 'schedule'
     outputs:
       code-changed: ${{ steps.changes.outputs.code-changed }}
     steps:
@@ -134,37 +129,12 @@ jobs:
       - name: Check licenses
         run: bash scripts/license-check.sh
 
-  # ── OSSF Scorecard (weekly + push to default branch) ────────────
-  # OSSF Scorecard only works on the repository's default branch.
-  # This repo's default branch is `dev`, not `main`.
-  scorecard:
-    name: OSSF Scorecard
-    runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'schedule' || (github.event_name == 'push' && github.ref ==
-      'refs/heads/dev')
-    permissions:
-      contents: read
-      security-events: write
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Run Scorecard
-        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
-        with:
-          results_file: scorecard-results.sarif
-          results_format: sarif
-          publish_results: true
-
-      - name: Upload Scorecard SARIF
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
-        with:
-          sarif_file: scorecard-results.sarif
-        continue-on-error: true
+  # ── OSSF Scorecard: disabled.
+  # Scorecard requires running on the repository's default branch with
+  # permissions that the GitHub App token on this repo does not currently
+  # grant (ListCommits → "Resource not accessible by integration"). Keeping
+  # the job off until the token/branch setup is sorted — re-enable by
+  # restoring the schedule trigger and a gated `scorecard:` job.
 
   # ── PR Summary Comment ─────────────────────────────────────────
   summary:
