@@ -460,7 +460,6 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Generate WinGet manifest from templates
-        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -581,17 +580,22 @@ jobs:
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #${EXISTING_PR} already exists for this branch — skipping creation"
           else
+            BODY_FILE="$RUNNER_TEMP/winget-pr-body.md"
+            {
+              echo "## Automated submission"
+              echo ""
+              echo "Package: \`${WINGET_ID}\`"
+              echo "Version: \`${VERSION}\`"
+              echo ""
+              echo "Submitted by the eddacraft/anvil-001 release pipeline."
+            } > "$BODY_FILE"
+
             gh pr create \
               --repo microsoft/winget-pkgs \
               --head "${FORK_USER}:${BRANCH}" \
               --base "$DEFAULT_BRANCH" \
               --title "New version: ${WINGET_ID} v${VERSION}" \
-              --body "## Automated submission
-
-          Package: \`${WINGET_ID}\`
-          Version: \`${VERSION}\`
-
-          Submitted by the eddacraft/anvil-001 release pipeline."
+              --body-file "$BODY_FILE"
           fi
 
   announce:
