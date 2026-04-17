@@ -179,17 +179,17 @@ API contract tweak)
 
 ### Snapshot token (ADMINCLIH-001)
 
-- [ ] Dry-run response includes a `previewToken`; real-send with
+- [x] Dry-run response includes a `previewToken`; real-send with
       `dryRun: false` requires it and rejects without it (400
       `preview_token_required`)
-- [ ] Server rejects with 409 `cohort_drift` and returns `DriftDiffResponse`
+- [x] Server rejects with 409 `cohort_drift` and returns `DriftDiffResponse`
       when the cohort would differ; CLI renders the diff before exit
-- [ ] Server rejects with 410 `preview_token_expired` after TTL;
+- [x] Server rejects with 410 `preview_token_expired` after TTL;
       CLI surfaces a distinct message directing the operator to re-run
       `--dry-run`
-- [ ] Server rejects with 410 `preview_token_consumed` on second use of the
+- [x] Server rejects with 410 `preview_token_consumed` on second use of the
       same token
-- [ ] Server rejects with 403 `preview_token_actor_mismatch` when the caller
+- [x] Server rejects with 403 `preview_token_actor_mismatch` when the caller
       differs from the snapshot creator; covered by a cross-operator test
 
 ### Per-operator keys (ADMINCLIH-002)
@@ -276,7 +276,7 @@ API contract tweak)
   a deliberate 11-minute pause to confirm 410 expiry fires
 - **Confidence:** medium (depends on snapshot-storage choice — DB table vs
   KV)
-- **Status:** In Progress
+- **Status:** Complete
 
 ### Phase B: Authenticated operator identity
 

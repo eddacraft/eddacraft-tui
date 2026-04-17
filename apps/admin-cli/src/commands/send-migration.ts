@@ -24,6 +24,8 @@ export interface DryRunResponse {
   source: MigrationSource;
   count: number;
   recipients: MigrationRecipient[];
+  previewToken: string;
+  expiresAt: string;
 }
 
 export interface SendResultEntry {
@@ -78,6 +80,9 @@ export async function runSendMigrationCommand(
   const stderr = deps.stderr ?? ((chunk) => process.stderr.write(chunk));
   const isTTY = deps.isTTY ?? isInteractiveTTY();
 
+  // Dry-run mode: fetch a preview + snapshot token and return. The token
+  // lets the operator follow up with a real-send pinned to this exact
+  // recipient set, within the 10-minute TTL.
   if (dryRun) {
     const preview = await client.post<DryRunResponse>('/admin/send-migration', {
       source,
@@ -88,23 +93,25 @@ export async function runSendMigrationCommand(
     return;
   }
 
+  // Real-send always starts with a fresh dry-run so the snapshot the
+  // server will consume matches what we're about to show the operator.
+  const preview = await client.post<DryRunResponse>('/admin/send-migration', {
+    source,
+    dryRun: true,
+    limit,
+  });
+
+  if (preview.count === 0) {
+    stdout('No recipients match the filter. Nothing to send.\n');
+    return;
+  }
+
   if (!options.yes) {
     if (!isTTY) {
       throw new AdminError(
         'refusing to send migration without --yes in a non-interactive session',
         4
       );
-    }
-
-    const preview = await client.post<DryRunResponse>('/admin/send-migration', {
-      source,
-      dryRun: true,
-      limit,
-    });
-
-    if (preview.count === 0) {
-      stdout('No recipients match the filter. Nothing to send.\n');
-      return;
     }
 
     stderr(
@@ -120,11 +127,17 @@ export async function runSendMigrationCommand(
     }
   }
 
-  const result = await client.post<SendResponse>('/admin/send-migration', {
-    source,
-    dryRun: false,
-    limit,
-  });
+  let result: SendResponse;
+  try {
+    result = await client.post<SendResponse>('/admin/send-migration', {
+      source,
+      dryRun: false,
+      limit,
+      previewToken: preview.previewToken,
+    });
+  } catch (err) {
+    throw rewriteSnapshotError(err);
+  }
   renderResult(result, { stdout, json: !!options.json });
 
   if (result.failed > 0) {
@@ -157,6 +170,10 @@ function renderResult(
     }
     out.stdout(`Dry run: ${result.count} recipient(s) from source "${result.source}"\n`);
     out.stdout(renderRecipientsTable(result.recipients) + '\n');
+    out.stdout(
+      `Preview token: ${result.previewToken} (expires ${result.expiresAt})\n` +
+        'Re-run without --dry-run within 10 minutes to send this exact set.\n'
+    );
     return;
   }
 
@@ -175,4 +192,67 @@ function renderResult(
       { key: 'error', header: 'ERROR' },
     ]) + '\n'
   );
+}
+
+/**
+ * Translate server-side snapshot error codes into tailored recovery
+ * messages. Leaves non-AdminError / non-coded failures untouched.
+ */
+function rewriteSnapshotError(err: unknown): unknown {
+  if (!(err instanceof AdminError) || !err.body) return err;
+  let parsed: { code?: unknown; added?: unknown; removed?: unknown };
+  try {
+    parsed = JSON.parse(err.body) as typeof parsed;
+  } catch {
+    return err;
+  }
+  if (typeof parsed.code !== 'string') return err;
+
+  switch (parsed.code) {
+    case 'cohort_drift': {
+      const added = Array.isArray(parsed.added) ? (parsed.added as string[]) : [];
+      const removed = Array.isArray(parsed.removed) ? (parsed.removed as string[]) : [];
+      const lines = ['recipient set changed since preview; re-run with --dry-run and retry'];
+      if (added.length) lines.push(`  added:   ${added.join(', ')}`);
+      if (removed.length) lines.push(`  removed: ${removed.join(', ')}`);
+      return new AdminError(lines.join('\n'), 1, err.status, err.body);
+    }
+    case 'preview_token_expired':
+      return new AdminError(
+        'preview token expired (10-minute TTL). Re-run with --dry-run and retry within 10 minutes.',
+        1,
+        err.status,
+        err.body
+      );
+    case 'preview_token_consumed':
+      return new AdminError(
+        'preview token already used. A prior send may have completed; re-run with --dry-run to verify recipients before retrying.',
+        1,
+        err.status,
+        err.body
+      );
+    case 'preview_token_missing':
+      return new AdminError(
+        'preview token not found. Re-run with --dry-run to generate a fresh snapshot.',
+        1,
+        err.status,
+        err.body
+      );
+    case 'preview_token_actor_mismatch':
+      return new AdminError(
+        'preview token was created by a different operator. Use the matching --actor (or ANVIL_ADMIN_ACTOR) or re-run with --dry-run.',
+        1,
+        err.status,
+        err.body
+      );
+    case 'preview_token_required':
+      return new AdminError(
+        'server rejected send without a preview token. This usually means the CLI skipped the dry-run step — re-run with --dry-run first.',
+        1,
+        err.status,
+        err.body
+      );
+    default:
+      return err;
+  }
 }

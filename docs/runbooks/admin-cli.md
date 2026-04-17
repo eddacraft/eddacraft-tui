@@ -180,9 +180,14 @@ send.
 anvil-admin send-migration                              # dry-run, source=import, limit=20
 anvil-admin send-migration --source website --limit 5   # dry-run, different filter
 anvil-admin send-migration --no-dry-run                  # preview → prompt → send (interactive)
-anvil-admin send-migration --no-dry-run --yes            # send without prompting (non-interactive)
-anvil-admin send-migration --json                        # raw JSON for the dry-run
+anvil-admin send-migration --no-dry-run --yes            # preview (silent) → send (non-interactive)
+anvil-admin send-migration --json                        # raw JSON for the dry-run (includes previewToken)
 ```
+
+A dry-run prints a preview token and an `expiresAt` stamp; you must re-run
+without `--dry-run` within 10 minutes for the send to consume that exact
+recipient snapshot. The CLI always re-fetches a fresh token when you run
+with `--no-dry-run`, so operators don't need to carry the token manually.
 
 Flags:
 
@@ -195,19 +200,52 @@ Flags:
 
 Flow when sending for real (`--no-dry-run`):
 
-1. CLI fetches a dry-run preview (count + recipient list) from the server
-2. If count is `0`, prints `No recipients match the filter. Nothing to send.` on
-   stdout and exits `0`
+1. CLI calls the server with `dryRun=true`. The server records a
+   **recipient snapshot** keyed by a single-use **preview token** (10-minute
+   TTL, bound to the calling operator) and returns the recipient list plus
+   the token.
+2. If count is `0`, prints `No recipients match the filter. Nothing to send.`
+   on stdout and exits `0`.
 3. Writes the recipient table plus the warning
    `About to send migration email to N recipient(s) …` to **stderr**, then
-   prompts on stderr: `Continue? [y/N]`
-4. On `y`/`yes`, calls the server again with `dryRun=false`
-5. Renders the per-recipient send/failure table
+   prompts on stderr: `Continue? [y/N]`. With `--yes`, the prompt is skipped
+   but the dry-run still runs — the token is always fetched.
+4. On `y`/`yes`, calls the server with `dryRun=false` and the preview token.
+   The server atomically consumes the token, compares the snapshotted
+   recipients against a fresh cohort query, and either sends (to the
+   **snapshotted** set, not a re-queried set) or rejects with a specific
+   error code.
+5. Renders the per-recipient send/failure table.
 
-The preview and the real send are two separate API calls. If rows are added or
-removed between them, the sent cohort may differ from the previewed one. For a
-migration rollout, snapshot the waitlist (`list --status all --json`) before
-starting if you need a stable record.
+This snapshot-plus-token flow is the defence against cohort drift: between
+preview and send, the waitlist may change (new signups, deletions, source
+re-tags), and the operator's intent is "send to the exact set I just saw" —
+not "send to whoever matches the filter at the moment of send".
+
+#### Real-send error recovery
+
+The real-send request can fail with distinct, actionable codes. The CLI
+surfaces these with recovery-specific messages; the runbook equivalents:
+
+| HTTP | `code`                         | What it means                                                              | Recovery                                                                                     |
+| ---- | ------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 409  | `cohort_drift`                 | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil-admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first |
+| 410  | `preview_token_expired`        | The 10-minute TTL elapsed                                                  | Re-run `anvil-admin send-migration --no-dry-run` (within 10 minutes next time)               |
+| 410  | `preview_token_consumed`       | A prior send call already used this token                                  | **Verify the previous send completed** in the audit log, then decide whether to re-send      |
+| 410  | `preview_token_missing`        | Token not found in the DB (expired+reaped, or never existed)               | Re-run `anvil-admin send-migration --no-dry-run`                                             |
+| 403  | `preview_token_actor_mismatch` | Token was created by a different operator                                  | Either run under the same `ANVIL_ADMIN_ACTOR` / `--actor`, or fetch a fresh preview          |
+| 400  | `preview_token_required`       | Should not occur via the CLI; indicates a client bug                       | File a ticket; workaround is to re-run the CLI (it always fetches a token first)             |
+
+For a `preview_token_consumed` recovery, confirm before re-sending:
+
+```bash
+anvil-admin audit --action migration.email.sent --limit 5
+```
+
+Look for an entry matching the source, count, and preview token you expect.
+If the previous send completed successfully, do **not** re-run. If it
+partially sent and was interrupted, coordinate in `#beta-ops` before
+re-running — the second run will re-email every recipient in the snapshot.
 
 Non-TTY refusal (`exit 4`) applies only to the **real-send** path. A plain
 dry-run works in any session. In non-TTY sessions without `--yes`, the CLI
@@ -267,6 +305,7 @@ logs request/response metadata in the Vercel logs for 7 days.
 ## Related
 
 - Admin CLI design spec: `plans/specs/2026-04-16-admin-cli-design.md`
-- Admin CLI module plan: `plans/modules/admin-cli.aps.md`
+- Admin CLI module plan (archived): `plans/archive/modules/admin-cli.aps.md`
+- Admin CLI hardening plan: `plans/modules/admin-cli-hardening.aps.md`
 - Waitlist email operations: `docs/runbooks/waitlist-email-operations.md`
 - Observability triage: `docs/runbooks/observability-triage.md`

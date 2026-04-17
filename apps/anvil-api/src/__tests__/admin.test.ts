@@ -40,6 +40,9 @@ vi.mock('../db/queries.js', () => ({
   findWaitlistPaginated: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   findAuditEntries: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   findRecentAuditForEmail: vi.fn().mockResolvedValue([]),
+  insertSendMigrationSnapshot: vi.fn(),
+  findSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
+  consumeSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock token utilities
@@ -71,7 +74,12 @@ import {
   findWaitlistEntryByEmail,
   findUnapprovedWaitlistEntries,
   insertAuditLog,
+  findWaitlistBySource,
+  insertSendMigrationSnapshot,
+  findSendMigrationSnapshot,
+  consumeSendMigrationSnapshot,
 } from '../db/queries.js';
+import { sendWaitlistMigration } from '../lib/email.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -813,6 +821,269 @@ describe('admin endpoints', () => {
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body.error).toBe('User was deleted during update');
+    });
+  });
+
+  describe('POST /admin/send-migration — snapshot token flow', () => {
+    const importedRecipients = [
+      { email: 'alice@example.com', name: 'Alice' },
+      { email: 'bob@example.com', name: null },
+    ];
+
+    function makeSnapshot(overrides: Partial<Record<string, unknown>> = {}) {
+      return {
+        token: 'snap-token-abc',
+        source: 'import',
+        recipients: importedRecipients,
+        created_by_actor: 'josh@arkahna.io',
+        created_at: '2026-04-17T09:00:00Z',
+        expires_at: '2026-04-17T09:10:00Z',
+        consumed_at: null,
+        ...overrides,
+      };
+    }
+
+    describe('dry-run', () => {
+      it('returns previewToken plus the recipient snapshot', async () => {
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(makeSnapshot());
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: true, limit: 20 },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.dryRun).toBe(true);
+        expect(body.source).toBe('import');
+        expect(body.count).toBe(2);
+        expect(body.recipients).toEqual(importedRecipients);
+        expect(body.previewToken).toBe('snap-token-abc');
+        expect(body.expiresAt).toBe('2026-04-17T09:10:00Z');
+
+        const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
+        expect(insertCall).toMatchObject({
+          source: 'import',
+          recipients: importedRecipients,
+          createdByActor: 'admin',
+          ttlSeconds: 600,
+        });
+        expect(typeof insertCall?.token).toBe('string');
+        expect(insertCall?.token.length).toBeGreaterThanOrEqual(16);
+      });
+
+      it('binds the snapshot to the X-Admin-Actor header', async () => {
+        vi.mocked(findWaitlistBySource).mockResolvedValue([]);
+        vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({ created_by_actor: 'josh@arkahna.io', recipients: [] })
+        );
+
+        const res = await app.request('/admin/send-migration', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${ADMIN_KEY}`,
+            'X-Admin-Actor': 'josh@arkahna.io',
+          },
+          body: JSON.stringify({ source: 'import', dryRun: true }),
+        });
+
+        expect(res.status).toBe(200);
+        const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
+        expect(insertCall?.createdByActor).toBe('josh@arkahna.io');
+      });
+    });
+
+    describe('real-send', () => {
+      it('returns 400 preview_token_required when the token is missing', async () => {
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_required');
+        expect(vi.mocked(consumeSendMigrationSnapshot)).not.toHaveBeenCalled();
+      });
+
+      it('returns 410 preview_token_missing when the token is unknown', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(null);
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'ghost-token' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_missing');
+      });
+
+      it('returns 403 preview_token_actor_mismatch when a different operator owns it', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({ created_by_actor: 'someone-else@arkahna.io' })
+        );
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(403);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_actor_mismatch');
+      });
+
+      it('returns 410 preview_token_consumed when the token was already used', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            consumed_at: '2026-04-17T09:05:00Z',
+          })
+        );
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_consumed');
+      });
+
+      it('returns 410 preview_token_expired when the token is past TTL', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            consumed_at: null,
+            expires_at: '2026-04-17T08:00:00Z',
+          })
+        );
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_expired');
+      });
+
+      it('returns 409 cohort_drift with added/removed when the cohort changed', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: [
+              { email: 'alice@example.com', name: 'Alice' },
+              { email: 'bob@example.com', name: null },
+            ],
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue([
+          { email: 'alice@example.com', name: 'Alice' },
+          { email: 'carol@example.com', name: 'Carol' },
+        ]);
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(409);
+        const body = await res.json();
+        expect(body.code).toBe('cohort_drift');
+        expect(body.added).toEqual(['carol@example.com']);
+        expect(body.removed).toEqual(['bob@example.com']);
+        // Must NOT have sent any emails on a drift rejection.
+        expect(vi.mocked(sendWaitlistMigration)).not.toHaveBeenCalled();
+      });
+
+      it('sends to the snapshot recipients on the golden path', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: importedRecipients,
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.source).toBe('import');
+        expect(body.total).toBe(2);
+        expect(body.sent).toBe(2);
+        expect(body.failed).toBe(0);
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledWith('alice@example.com', 'Alice');
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledWith('bob@example.com', undefined);
+        expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+          expect.anything(),
+          'migration.email.sent',
+          expect.any(String),
+          expect.objectContaining({
+            source: 'import',
+            sent: 2,
+            failed: 0,
+            previewToken: 'snap-token-abc',
+          })
+        );
+      });
+
+      it('records partial failures without aborting the send', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: importedRecipients,
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(sendWaitlistMigration)
+          .mockResolvedValueOnce({ sent: true })
+          .mockResolvedValueOnce({ sent: false, message: 'smtp blew up' });
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.sent).toBe(1);
+        expect(body.failed).toBe(1);
+        expect(body.results[1].error).toBe('smtp blew up');
+      });
     });
   });
 });

@@ -664,6 +664,136 @@ export async function findWaitlistBySource(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// send-migration snapshots (ADMINCLIH-001)
+// ---------------------------------------------------------------------------
+
+export interface SnapshotRecipient {
+  email: string;
+  name: string | null;
+}
+
+export interface SendMigrationSnapshot {
+  token: string;
+  source: string;
+  recipients: SnapshotRecipient[];
+  created_by_actor: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+}
+
+const SnapshotRecipientsSchema = z.array(
+  z.object({ email: z.string(), name: z.union([z.string(), z.null()]) })
+);
+
+function parseSnapshotRow(row: Record<string, unknown>): SendMigrationSnapshot {
+  const recipientsRaw = row['recipients'];
+  // Neon returns JSONB as either an object or a string depending on driver
+  // version; normalise both to the array shape we wrote in.
+  const recipientsValue =
+    typeof recipientsRaw === 'string' ? JSON.parse(recipientsRaw) : recipientsRaw;
+  const recipients = SnapshotRecipientsSchema.parse(recipientsValue);
+  const createdAt = row['created_at'];
+  const expiresAt = row['expires_at'];
+  const consumedAt = row['consumed_at'];
+  return {
+    token: String(row['token']),
+    source: String(row['source']),
+    recipients,
+    created_by_actor: String(row['created_by_actor']),
+    created_at: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
+    expires_at: expiresAt instanceof Date ? expiresAt.toISOString() : String(expiresAt),
+    consumed_at:
+      consumedAt === null || consumedAt === undefined
+        ? null
+        : consumedAt instanceof Date
+          ? consumedAt.toISOString()
+          : String(consumedAt),
+  };
+}
+
+export async function insertSendMigrationSnapshot(
+  sql: NeonClient,
+  params: {
+    token: string;
+    source: string;
+    recipients: SnapshotRecipient[];
+    createdByActor: string;
+    ttlSeconds: number;
+  }
+): Promise<SendMigrationSnapshot> {
+  // Lazy reap: any snapshot past a day old is uninteresting and exists
+  // only to consume index space. Do this in the same call as the insert
+  // so expired rows can't accumulate without write traffic.
+  await sql`
+    DELETE FROM send_migration_snapshots
+    WHERE expires_at < now() - interval '1 day'
+  `;
+
+  const r = rows(
+    await sql`
+    INSERT INTO send_migration_snapshots
+      (token, source, recipients, created_by_actor, expires_at)
+    VALUES (
+      ${params.token},
+      ${params.source},
+      ${JSON.stringify(params.recipients)}::jsonb,
+      ${params.createdByActor},
+      now() + make_interval(secs => ${params.ttlSeconds})
+    )
+    RETURNING *
+  `
+  );
+  return parseSnapshotRow(r[0] ?? {});
+}
+
+/**
+ * Look up a snapshot by token WITHOUT consuming it. Used to disambiguate
+ * the 410 sub-codes (expired vs consumed vs actor mismatch) after an
+ * atomic-consume attempt fails.
+ */
+export async function findSendMigrationSnapshot(
+  sql: NeonClient,
+  token: string
+): Promise<SendMigrationSnapshot | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM send_migration_snapshots
+    WHERE token = ${token}
+    LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return parseSnapshotRow(r[0]);
+}
+
+/**
+ * Atomically consume a snapshot: set consumed_at iff the token exists,
+ * belongs to the caller, has not been consumed, and has not expired.
+ * Returns the snapshot row on success; returns null on any failure so
+ * the caller can refetch (see findSendMigrationSnapshot) to produce a
+ * specific error code.
+ */
+export async function consumeSendMigrationSnapshot(
+  sql: NeonClient,
+  params: { token: string; actor: string }
+): Promise<SendMigrationSnapshot | null> {
+  const r = rows(
+    await sql`
+    UPDATE send_migration_snapshots
+    SET consumed_at = now()
+    WHERE token = ${params.token}
+      AND created_by_actor = ${params.actor}
+      AND consumed_at IS NULL
+      AND expires_at > now()
+    RETURNING *
+  `
+  );
+  if (!r[0]) return null;
+  return parseSnapshotRow(r[0]);
+}
+
 export type WaitlistStatus = 'pending' | 'approved' | 'all';
 export type WaitlistSource = 'manual' | 'website' | 'import' | 'all';
 

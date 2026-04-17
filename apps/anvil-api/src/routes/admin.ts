@@ -15,6 +15,10 @@ import {
   findWaitlistPaginated,
   findAuditEntries,
   findRecentAuditForEmail,
+  insertSendMigrationSnapshot,
+  consumeSendMigrationSnapshot,
+  findSendMigrationSnapshot,
+  type SnapshotRecipient,
 } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
@@ -427,33 +431,154 @@ admin.get('/user/:email', async (c) => {
   });
 });
 
+// Snapshot token TTL. Short enough to bound stale-preview risk, long
+// enough to accommodate a considered operator confirmation.
+const SEND_MIGRATION_SNAPSHOT_TTL_SECONDS = 10 * 60;
+
+function computeCohortDrift(
+  snapshot: SnapshotRecipient[],
+  current: SnapshotRecipient[]
+): { added: string[]; removed: string[] } {
+  const snapshotEmails = new Set(snapshot.map((r) => r.email));
+  const currentEmails = new Set(current.map((r) => r.email));
+  const added = [...currentEmails].filter((e) => !snapshotEmails.has(e));
+  const removed = [...snapshotEmails].filter((e) => !currentEmails.has(e));
+  return { added: added.sort(), removed: removed.sort() };
+}
+
 /**
  * POST /admin/send-migration
  *
- * Send migration email to imported waitlist users.
- * Optional `source` filter (default: 'import').
- * Optional `dryRun` to preview without sending.
+ * Send migration email to waitlist users filtered by source
+ * (default: 'import').
+ *
+ * Flow:
+ *   1. Dry-run (`dryRun: true`) records a snapshot of the recipient set
+ *      and returns it along with an opaque single-use `previewToken`
+ *      (TTL 10 min, bound to the admin actor).
+ *   2. Real-send (`dryRun: false`) requires that `previewToken`.
+ *      The handler atomically consumes it, refetches the current cohort,
+ *      and either sends to the snapshotted set or rejects with a
+ *      cohort_drift error describing the diff.
+ *
+ * Error codes (JSON `code` field, tested in admin.test.ts):
+ *   400 preview_token_required          — real-send with no token
+ *   410 preview_token_missing           — token not found (likely lost)
+ *   410 preview_token_expired           — TTL passed
+ *   410 preview_token_consumed          — token already used
+ *   403 preview_token_actor_mismatch    — different caller than creator
+ *   409 cohort_drift                    — body: DriftDiffResponse
  */
 admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => {
   const sql = getClient();
   const actor = resolveAdminActor(c);
-
-  const { source, dryRun, limit } = c.req.valid('json');
-
-  const waitlistRows = await findWaitlistBySource(sql, source, limit);
+  const { source, dryRun, limit, previewToken } = c.req.valid('json');
 
   if (dryRun) {
+    const waitlistRows = await findWaitlistBySource(sql, source, limit);
+    const recipients: SnapshotRecipient[] = waitlistRows.map((r) => ({
+      email: r.email,
+      name: r.name,
+    }));
+
+    const token = randomBytes(16).toString('hex');
+    const snapshot = await insertSendMigrationSnapshot(sql, {
+      token,
+      source,
+      recipients,
+      createdByActor: actor,
+      ttlSeconds: SEND_MIGRATION_SNAPSHOT_TTL_SECONDS,
+    });
+
     return c.json({
       dryRun: true,
       source,
-      count: waitlistRows.length,
-      recipients: waitlistRows.map((r) => ({ email: r.email, name: r.name })),
+      count: recipients.length,
+      recipients,
+      previewToken: snapshot.token,
+      expiresAt: snapshot.expires_at,
     });
   }
 
-  const results: { email: string; sent: boolean; error?: string }[] = [];
+  if (!previewToken) {
+    return c.json(
+      {
+        code: 'preview_token_required',
+        error: 'previewToken is required for real-sends; run with --dry-run first',
+      },
+      400
+    );
+  }
 
-  for (const row of waitlistRows) {
+  const consumed = await consumeSendMigrationSnapshot(sql, { token: previewToken, actor });
+
+  if (!consumed) {
+    // The atomic consume failed; figure out which distinct reason so the
+    // CLI can surface a tailored recovery message.
+    const existing = await findSendMigrationSnapshot(sql, previewToken);
+    if (!existing) {
+      return c.json(
+        {
+          code: 'preview_token_missing',
+          error: 'preview token is unknown; re-run with --dry-run for a fresh preview',
+        },
+        410
+      );
+    }
+    if (existing.created_by_actor !== actor) {
+      return c.json(
+        {
+          code: 'preview_token_actor_mismatch',
+          error: 'preview token was created by a different operator',
+        },
+        403
+      );
+    }
+    if (existing.consumed_at !== null) {
+      return c.json(
+        {
+          code: 'preview_token_consumed',
+          error: 'preview token has already been used; re-run with --dry-run',
+        },
+        410
+      );
+    }
+    // Only expiry remains.
+    return c.json(
+      {
+        code: 'preview_token_expired',
+        error: 'preview token has expired; re-run with --dry-run for a fresh preview',
+      },
+      410
+    );
+  }
+
+  // Refetch the current cohort against the same filter and compare to
+  // the snapshot. Any asymmetric difference means the recipient set
+  // the operator confirmed is not the set we would send to — abort.
+  const currentRows = await findWaitlistBySource(sql, source, limit);
+  const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
+    email: r.email,
+    name: r.name,
+  }));
+  const drift = computeCohortDrift(consumed.recipients, currentRecipients);
+
+  if (drift.added.length > 0 || drift.removed.length > 0) {
+    return c.json(
+      {
+        code: 'cohort_drift',
+        error: 'recipient set changed since preview; re-run with --dry-run',
+        added: drift.added,
+        removed: drift.removed,
+      },
+      409
+    );
+  }
+
+  // Use the snapshot as the source of truth for who to email — not a
+  // fresh query — so the operator's confirmation anchors the send.
+  const results: { email: string; sent: boolean; error?: string }[] = [];
+  for (const row of consumed.recipients) {
     const delivery = await sendWaitlistMigration(row.email, row.name ?? undefined);
     results.push({
       email: row.email,
@@ -465,9 +590,20 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   const sent = results.filter((r) => r.sent).length;
   const failed = results.filter((r) => !r.sent).length;
 
-  await insertAuditLog(sql, 'migration.email.sent', actor, { source, sent, failed });
+  await insertAuditLog(sql, 'migration.email.sent', actor, {
+    source,
+    sent,
+    failed,
+    previewToken,
+  });
 
-  return c.json({ source, total: waitlistRows.length, sent, failed, results });
+  return c.json({
+    source,
+    total: consumed.recipients.length,
+    sent,
+    failed,
+    results,
+  });
 });
 
 /**
