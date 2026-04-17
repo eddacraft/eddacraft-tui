@@ -45,6 +45,10 @@ const AccessTokenSchema = z.object({
   created_at: DateStringSchema,
 });
 
+const AuthMethodSchema = z.enum(['shared', 'per_operator']);
+
+export type AuthMethod = z.infer<typeof AuthMethodSchema>;
+
 const AuditEntrySchema = z.object({
   id: IdSchema,
   action: z.string(),
@@ -52,6 +56,11 @@ const AuditEntrySchema = z.object({
   metadata: z
     .union([z.record(z.string(), z.unknown()), z.null(), z.undefined()])
     .transform((v) => v ?? {}),
+  // `auth_method` is added in migration 009. Old rows written before the
+  // migration defaulted to `'shared'`; new rows are written by
+  // admin-auth middleware. Optional here so tests with legacy fixtures
+  // don't need to backfill the column.
+  auth_method: z.union([AuthMethodSchema, z.null(), z.undefined()]).optional(),
   created_at: DateStringSchema,
 });
 
@@ -176,12 +185,13 @@ export async function insertAuditLog(
   sql: NeonClient,
   action: string,
   actor: string,
-  metadata: Record<string, unknown> = {}
+  metadata: Record<string, unknown> = {},
+  authMethod: AuthMethod = 'shared'
 ): Promise<AuditEntry> {
   const r = rows(
     await sql`
-    INSERT INTO audit_log (action, actor, metadata)
-    VALUES (${action}, ${actor}, ${JSON.stringify(metadata)})
+    INSERT INTO audit_log (action, actor, metadata, auth_method)
+    VALUES (${action}, ${actor}, ${JSON.stringify(metadata)}, ${authMethod})
     RETURNING *
   `
   );
@@ -1005,4 +1015,38 @@ export async function cleanupExpiredRefreshTokens(sql: NeonClient): Promise<numb
   `
   );
   return r.length;
+}
+
+// ---------------------------------------------------------------------------
+// Admin keys (ADMINCLIH-002)
+// ---------------------------------------------------------------------------
+
+const AdminKeySchema = z.object({
+  id: IdSchema,
+  hashed_key: z.string(),
+  actor_email: z.string(),
+  note: z.union([z.string(), z.null()]),
+  created_at: DateStringSchema,
+  revoked_at: z.union([DateStringSchema, z.null()]),
+});
+
+export type AdminKey = z.infer<typeof AdminKeySchema>;
+
+/**
+ * Look up an admin key by its hashed form. The caller hashes the presented
+ * bearer (HMAC-SHA-256 keyed by the server pepper) and passes the result
+ * here. Returns the row regardless of revocation status so the middleware
+ * can distinguish "unknown" from "revoked" for the audit trail.
+ */
+export async function findAdminKeyByHash(
+  sql: NeonClient,
+  hashedKey: string
+): Promise<AdminKey | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM admin_keys WHERE hashed_key = ${hashedKey} LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return AdminKeySchema.parse(r[0]);
 }

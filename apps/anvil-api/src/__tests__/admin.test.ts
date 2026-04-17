@@ -43,6 +43,7 @@ vi.mock('../db/queries.js', () => ({
   insertSendMigrationSnapshot: vi.fn(),
   findSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
   consumeSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
+  findAdminKeyByHash: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock token utilities
@@ -78,6 +79,7 @@ import {
   insertSendMigrationSnapshot,
   findSendMigrationSnapshot,
   consumeSendMigrationSnapshot,
+  findAdminKeyByHash,
 } from '../db/queries.js';
 import { sendWaitlistMigration } from '../lib/email.js';
 
@@ -619,7 +621,8 @@ describe('admin endpoints', () => {
         expect.anything(),
         'user.approve.collision',
         expect.any(String),
-        { email: 'alice@example.com' }
+        { email: 'alice@example.com' },
+        'shared'
       );
     });
 
@@ -662,7 +665,8 @@ describe('admin endpoints', () => {
         expect.anything(),
         'user.approve.collision',
         expect.any(String),
-        { email: 'bob@example.com' }
+        { email: 'bob@example.com' },
+        'shared'
       );
     });
   });
@@ -868,32 +872,34 @@ describe('admin endpoints', () => {
         expect(insertCall).toMatchObject({
           source: 'import',
           recipients: importedRecipients,
-          createdByActor: 'admin',
+          createdByActor: 'shared-key@anvil',
           ttlSeconds: 600,
         });
         expect(typeof insertCall?.token).toBe('string');
         expect(insertCall?.token.length).toBeGreaterThanOrEqual(16);
       });
 
-      it('binds the snapshot to the X-Admin-Actor header', async () => {
+      it('binds the snapshot to the sentinel and ignores X-Admin-Actor on shared-key auth', async () => {
         vi.mocked(findWaitlistBySource).mockResolvedValue([]);
         vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(
-          makeSnapshot({ created_by_actor: 'josh@arkahna.io', recipients: [] })
+          makeSnapshot({ created_by_actor: 'shared-key@anvil', recipients: [] })
         );
 
+        // Under ADMINCLIH-002, X-Admin-Actor is no longer trusted as the
+        // creator — shared-key requests always record the sentinel.
         const res = await app.request('/admin/send-migration', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${ADMIN_KEY}`,
-            'X-Admin-Actor': 'josh@arkahna.io',
+            'X-Admin-Actor': 'mallory@evil.example',
           },
           body: JSON.stringify({ source: 'import', dryRun: true }),
         });
 
         expect(res.status).toBe(200);
         const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
-        expect(insertCall?.createdByActor).toBe('josh@arkahna.io');
+        expect(insertCall?.createdByActor).toBe('shared-key@anvil');
       });
     });
 
@@ -1108,7 +1114,8 @@ describe('admin endpoints', () => {
             sent: 2,
             failed: 0,
             previewToken: 'snap-token-abc',
-          })
+          }),
+          'shared'
         );
       });
 
@@ -1137,6 +1144,210 @@ describe('admin endpoints', () => {
         expect(body.failed).toBe(1);
         expect(body.results[1].error).toBe('smtp blew up');
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ADMINCLIH-002: per-operator admin keys
+  // -------------------------------------------------------------------------
+  describe('per-operator admin keys (ADMINCLIH-002)', () => {
+    const originalFlag = process.env['ADMIN_PER_OPERATOR_KEYS'];
+    const originalPepper = process.env['ADMIN_KEY_PEPPER'];
+
+    beforeEach(() => {
+      process.env['ADMIN_PER_OPERATOR_KEYS'] = '1';
+      process.env['ADMIN_KEY_PEPPER'] = 'test-pepper';
+    });
+
+    afterEach(() => {
+      if (originalFlag !== undefined) {
+        process.env['ADMIN_PER_OPERATOR_KEYS'] = originalFlag;
+      } else {
+        delete process.env['ADMIN_PER_OPERATOR_KEYS'];
+      }
+      if (originalPepper !== undefined) {
+        process.env['ADMIN_KEY_PEPPER'] = originalPepper;
+      } else {
+        delete process.env['ADMIN_KEY_PEPPER'];
+      }
+    });
+
+    function activeKey(
+      overrides: Partial<
+        Parameters<typeof vi.mocked<typeof findAdminKeyByHash>>[0] extends never
+          ? never
+          : NonNullable<Awaited<ReturnType<typeof findAdminKeyByHash>>>
+      > = {}
+    ): NonNullable<Awaited<ReturnType<typeof findAdminKeyByHash>>> {
+      return {
+        id: 'key-1',
+        hashed_key: 'hashed',
+        actor_email: 'alice@eddacraft.ai',
+        note: null,
+        created_at: new Date().toISOString(),
+        revoked_at: null,
+        ...overrides,
+      };
+    }
+
+    // Find the tagged-template call that issued the audit_log INSERT and
+    // return its bind values.
+    function findAuditInsertBinds(): unknown[] | undefined {
+      for (const call of mockSql.mock.calls as unknown[][]) {
+        const strings = call[0] as TemplateStringsArray | undefined;
+        if (!strings) continue;
+        if (strings.some((chunk) => chunk.includes('INSERT INTO audit_log'))) {
+          return call.slice(1);
+        }
+      }
+      return undefined;
+    }
+
+    it('authenticates via per-operator key and ignores X-Admin-Actor', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
+
+      mockSql.mockResolvedValueOnce([]); // upsertWaitlistWithName
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await app.request('/admin/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer operator-raw-bearer',
+          'X-Admin-Actor': 'mallory@evil.example',
+        },
+        body: JSON.stringify({ email: 'bob@example.com', tokenOnly: true }),
+      });
+
+      expect(res.status).toBe(201);
+      const binds = findAuditInsertBinds();
+      expect(binds).toBeDefined();
+      // Bind order (tokenOnly path): action, actor, metadata, auth_method
+      expect(binds).toContain('alice@eddacraft.ai');
+      expect(binds).toContain('per_operator');
+      expect(binds).not.toContain('mallory@evil.example');
+    });
+
+    it('returns 401 admin_key_revoked when the key is revoked', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(
+        activeKey({ revoked_at: new Date().toISOString() })
+      );
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        'revoked-bearer'
+      );
+
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.code).toBe('admin_key_revoked');
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'admin.auth.failed',
+        'admin-auth-failure@anvil',
+        expect.objectContaining({ outcome: 'rejected_revoked' }),
+        'shared'
+      );
+    });
+
+    it('returns 403 and audits unknown bearer when no key matches', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(null);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        'unknown-bearer'
+      );
+
+      expect(res.status).toBe(403);
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'admin.auth.failed',
+        'admin-auth-failure@anvil',
+        expect.objectContaining({
+          outcome: 'rejected_unknown',
+          hashed_bearer: expect.any(String),
+        }),
+        'shared'
+      );
+    });
+
+    it('falls back to shared-key path when admin_keys lookup throws', async () => {
+      vi.mocked(findAdminKeyByHash).mockRejectedValue(new Error('db down'));
+      // Shared-key comparison will succeed because the bearer is the ADMIN_KEY.
+      mockSql.mockResolvedValueOnce([]); // upsertWaitlistWithName
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(201);
+      const binds = findAuditInsertBinds();
+      expect(binds).toContain('shared-key@anvil');
+      expect(binds).toContain('shared');
+    });
+
+    it('shared-key path ignores X-Admin-Actor', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(null);
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await app.request('/admin/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ADMIN_KEY}`,
+          'X-Admin-Actor': 'mallory@evil.example',
+        },
+        body: JSON.stringify({ email: 'bob@example.com', tokenOnly: true }),
+      });
+
+      expect(res.status).toBe(201);
+      const binds = findAuditInsertBinds();
+      expect(binds).toContain('shared-key@anvil');
+      expect(binds).not.toContain('mallory@evil.example');
+    });
+
+    it('with flag off, bypasses admin_keys lookup entirely', async () => {
+      process.env['ADMIN_PER_OPERATOR_KEYS'] = 'false';
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(201);
+      expect(vi.mocked(findAdminKeyByHash)).not.toHaveBeenCalled();
+      const binds = findAuditInsertBinds();
+      expect(binds).toContain('shared-key@anvil');
     });
   });
 });
