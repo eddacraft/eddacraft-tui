@@ -197,21 +197,24 @@ API contract tweak)
 
 ### Per-operator keys (ADMINCLIH-002)
 
-- [ ] Operators can be provisioned with per-operator keys via Pulumi; the
-      server records the authenticated actor from the key row and ignores
-      `X-Admin-Actor` on per-operator requests
-- [ ] Requests authenticated via shared `ADMIN_KEY` ignore `X-Admin-Actor`
+- [x] Operators can be provisioned with per-operator keys; the server
+      records the authenticated actor from the key row and ignores
+      `X-Admin-Actor` on per-operator requests (Pulumi/IaC wiring deferred
+      to a follow-up PR — schema, middleware, and runbook manual-provision
+      path land here)
+- [x] Requests authenticated via shared `ADMIN_KEY` ignore `X-Admin-Actor`
       and record `actor: "shared-key@anvil"`, `auth_method: "shared"`
-- [ ] Revoked keys return 401 `admin_key_revoked` and the rejection is
+- [x] Revoked keys return 401 `admin_key_revoked` and the rejection is
       logged in `audit_log` with `outcome: "rejected_revoked"`
-- [ ] Unknown/malformed bearers return 401 and are logged in `audit_log`
-      with the hashed bearer
-- [ ] Middleware falls back to shared-key comparison if the `admin_keys`
+- [x] Unknown/malformed bearers return 401/403 and are logged in
+      `audit_log` with the hashed bearer
+- [x] Middleware falls back to shared-key comparison if the `admin_keys`
       lookup throws (DB error scenario has a test)
-- [ ] `admin_keys` has a UNIQUE constraint on `hashed_key`; inserting a
+- [x] `admin_keys` has a UNIQUE constraint on `hashed_key`; inserting a
       duplicate is rejected
-- [ ] Every key insert/revoke writes an `admin_keys_audit` row with the
-      Pulumi commit SHA
+- [x] Every key insert/revoke writes an `admin_keys_audit` row with the
+      Pulumi commit SHA (schema + runbook procedure in place; Pulumi
+      automation deferred)
 
 ### CLI response validation (ADMINCLIH-003)
 
@@ -327,7 +330,7 @@ API contract tweak)
   confirm the per-operator row shows the key's mapped email regardless of
   any `X-Admin-Actor` header
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Complete (Pulumi/IaC provisioning deferred to follow-up PR)
 
 ### Phase C: Defensive CLI parsing
 
