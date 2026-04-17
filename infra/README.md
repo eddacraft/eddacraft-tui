@@ -118,11 +118,11 @@ All application secrets are stored in Azure Key Vault (`kv-iac-anvil`) and read
 at deploy time using `@azure/keyvault-secrets`. The Pulumi code never stores
 secret values in stack config files.
 
-| Key Vault Secret       | Used By         | Purpose            |
-| ---------------------- | --------------- | ------------------ |
-| `vercel-token`         | CI workflow     | Vercel API auth    |
+| Key Vault Secret         | Used By         | Purpose                        |
+| ------------------------ | --------------- | ------------------------------ |
+| `vercel-token`           | CI workflow     | Vercel API auth                |
 | `anvil-api-database-url` | `src/vercel.ts` | Neon DB connection (anvil-api) |
-| `resend-api-key`       | `src/vercel.ts` | Resend email API   |
+| `resend-api-key`         | `src/vercel.ts` | Resend email API               |
 
 To add a new secret:
 

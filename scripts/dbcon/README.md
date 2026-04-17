@@ -6,18 +6,18 @@ Scripts for the Neon reset laid out in
 
 ## Env vars
 
-| Var               | Role                                                   |
-| ----------------- | ------------------------------------------------------ |
+| Var               | Role                                                             |
+| ----------------- | ---------------------------------------------------------------- |
 | `WAITLIST_DB_URL` | A legacy source being exported (eddacraft-web, beta-user-tokens) |
-| `BETA_DB_URL`     | The new target project — `anvil-api-prod`              |
+| `BETA_DB_URL`     | The new target project — `anvil-api-prod`                        |
 
 The variable names are kept (rather than renamed to SOURCE/TARGET) so the
 scripts stay identical to what the runbook snippets expect. Keep URLs in the
 shell — never paste them into a file.
 
-All three connection strings come from Neon (Vercel stores env vars
-encrypted and cannot read them back; KeyVault only has the old
-`eddacraft-web` URL under the misleading `website-database-url` name).
+All three connection strings come from Neon (Vercel stores env vars encrypted
+and cannot read them back; KeyVault only has the old `eddacraft-web` URL under
+the misleading `website-database-url` name).
 
 ```bash
 neonctl auth          # one-time OAuth
@@ -33,13 +33,13 @@ export ANVIL_API_PROD_URL=$(neonctl connection-string \
 
 ## Scripts
 
-| Script              | Purpose                                                   |
-| ------------------- | --------------------------------------------------------- |
-| `snapshot-db.sh`    | `pg_dump \| gzip` a Neon DB into `snapshots/` (gitignored) |
-| `apply-schema.sh`   | `psql -f apps/anvil-api/src/db/schema.sql` on a target DB |
-| `export-waitlist.sh`| Export waitlist rows from a source to CSV                 |
-| `import-waitlist.sh`| Idempotent import of a CSV into the target DB             |
-| `verify-counts.sh`  | Row-count + email-set parity between one source and target |
+| Script               | Purpose                                                    |
+| -------------------- | ---------------------------------------------------------- |
+| `snapshot-db.sh`     | `pg_dump \| gzip` a Neon DB into `snapshots/` (gitignored) |
+| `apply-schema.sh`    | `psql -f apps/anvil-api/src/db/schema.sql` on a target DB  |
+| `export-waitlist.sh` | Export waitlist rows from a source to CSV                  |
+| `import-waitlist.sh` | Idempotent import of a CSV into the target DB              |
+| `verify-counts.sh`   | Row-count + email-set parity between one source and target |
 
 ## Order of operations
 
@@ -67,8 +67,8 @@ WAITLIST_DB_URL="$BETA_USER_TOKENS_URL"  BETA_DB_URL="$ANVIL_API_PROD_URL" ./ver
 ```
 
 All scripts are idempotent — re-running after a partial success is safe.
-`import-waitlist.sh` runs inside a transaction, so a failure mid-copy rolls
-back without leaving partial rows.
+`import-waitlist.sh` runs inside a transaction, so a failure mid-copy rolls back
+without leaving partial rows.
 
 ## Snapshots
 
