@@ -161,6 +161,7 @@ Change status to **Ready** when:
 
 ### DBCON-001: snapshot legacy Neon projects
 
+- **Status:** Complete
 - **Intent:** Take gzipped `pg_dump` snapshots of both `eddacraft-web`
   and `beta-user-tokens` before any destructive action, using
   `scripts/dbcon/snapshot-db.sh`. Verify each archive is restorable into
@@ -180,6 +181,7 @@ Change status to **Ready** when:
 
 ### DBCON-002: provision anvil-api-prod and apply schema
 
+- **Status:** Complete
 - **Intent:** Create a new Neon project named `anvil-api-prod` via
   `neonctl` in region `aws-eu-west-2` (London). Apply the canonical
   schema from `apps/anvil-api/src/db/schema.sql`. Ensure `citext` and
@@ -197,6 +199,7 @@ Change status to **Ready** when:
 
 ### DBCON-003: selective import and infra cutover
 
+- **Status:** Complete
 - **Intent:** Import waitlist rows from the legacy projects into
   `anvil-api-prod` (deduped on email), then flip infra over. Sequence:
   (1) `WAITLIST_PAUSED=true` + redeploy so `POST /waitlist` returns
@@ -226,6 +229,7 @@ Change status to **Ready** when:
 
 ### DBCON-004: decommission legacy Neon projects
 
+- **Status:** Ready
 - **Intent:** After a ≥ 48h soak period on `anvil-api-prod`, delete both
   `eddacraft-web` and `beta-user-tokens` Neon projects. Retain local
   snapshots (gitignored) for 30+ days afterwards.
