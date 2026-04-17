@@ -8,6 +8,8 @@ out-tsc
 *.tsbuildinfo
 .next
 .docusaurus
+apps/docs-public/build/
+apps/anvil-docs-private/build/
 
 # dependencies
 node_modules
