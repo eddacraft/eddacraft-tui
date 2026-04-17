@@ -4,6 +4,7 @@ import { AdminError } from './client.js';
 import { MissingConfigError } from './config.js';
 import { formatError } from './format.js';
 import { runListCommand, type ListOptions } from './commands/list.js';
+import { runShowCommand, type ShowOptions } from './commands/show.js';
 import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
@@ -55,7 +56,9 @@ program
   .command('show <email>')
   .description('show user, tokens, and recent audit for an email')
   .option('--json', 'emit raw JSON')
-  .action(notImplemented('ADMINCLI-007'));
+  .action(async (email: string, _options, cmd: Command) => {
+    await runShowCommand(email, cmd.optsWithGlobals() as ShowOptions);
+  });
 
 program
   .command('approve [email]')
