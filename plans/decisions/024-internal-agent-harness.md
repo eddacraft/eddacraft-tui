@@ -1,8 +1,19 @@
-# ADR-024: Internal Agent Harness (literate-core)
+# ADR-024: Internal Agent Harness (weave)
 
 ## Status
 
 Proposed
+
+### Amendment — 2026-04-17
+
+Naming and hosting changed per `plans/specs/2026-04-17-weave-rs-standalone-design.md`:
+
+- **literate-core** → **weave** (crate name), repo `eddacraft/weave-rs` (standalone)
+- **anvil-agent** → **anvil-weave** (harness crate in monorepo)
+- **APS scope** LCORE → WEAVE
+- **Hosting** changed from monorepo-first to standalone from day one
+- **Distribution** changed from extract-later to path dep → pre-releases → crates.io
+- **Zero-dep invariant** now structurally enforced (separate repo) instead of CI cargo-metadata check
 
 ## Date
 
@@ -36,27 +47,26 @@ can be embedded in other binaries and composed with domain-specific tools.
 
 ## Decision
 
-Build **literate-core**, a thin, provider-agnostic agent runtime crate inside
-the Anvil monorepo at `crates/literate-core/`. It captures the irreducible
-kernel of an agent runtime (message loop, tool dispatch, provider abstraction,
-session persistence) with zero opinions about which LLM, which tools, or where
-sessions live.
+Build **weave**, a thin, provider-agnostic agent runtime crate in the standalone
+repo `eddacraft/weave-rs`. It captures the irreducible kernel of an agent
+runtime (message loop, tool dispatch, provider abstraction, session persistence)
+with zero opinions about which LLM, which tools, or where sessions live.
 
-Build **anvil-agent**, an Anvil-specific harness at `crates/anvil-agent/` that
-depends on literate-core and adds domain tools (`graph_query`, `policy_eval`)
-with direct, zero-copy access to the kernel's semantic graph.
+Build **anvil-weave**, an Anvil-specific harness at `crates/anvil-weave/` that
+depends on weave and adds domain tools (`graph_query`, `policy_eval`) with
+direct, zero-copy access to the kernel's semantic graph.
 
 ### Key constraints
 
-1. **Zero Anvil dependencies in literate-core** — the dependency arrow only
-   points inward. `literate-core` must never import any `anvil-*` crate. This
-   is the extractability invariant.
-2. **Apache-2.0 licence** — literate-core is Apache-2.0 from commit one,
-   distinct from Anvil's source-proprietary licence. This aligns with ADR-018's
-   designation of foundational repos as OSS.
-3. **Monorepo-first, extract later** — develop inside the Cargo workspace for
-   velocity. Extract to a standalone repo when the API stabilises and a second
-   consumer exists.
+1. **Zero Anvil dependencies in weave** — the dependency arrow only points
+   inward. `weave` must never import any `anvil-*` crate. This is structurally
+   enforced by the separate repo boundary.
+2. **Apache-2.0 licence** — weave is Apache-2.0 from commit one, distinct from
+   Anvil's source-proprietary licence. This aligns with ADR-018's designation
+   of foundational repos as OSS.
+3. **Standalone from day one** — `eddacraft/weave-rs` is a separate repo from
+   the start. Anvil consumes it via path dep during active development,
+   transitioning to pre-releases and then crates.io as the API stabilises.
 4. **~15 direct dependencies** — serde, tokio, futures, uuid, thiserror,
    async-trait, tokio-util, serde_json. Provider implementations (Anthropic,
    OpenAI) are feature-gated behind optional `reqwest` dependency.
@@ -67,7 +77,7 @@ with direct, zero-copy access to the kernel's semantic graph.
 ### Architecture
 
 ```
-literate-core (Apache-2.0, zero anvil-* deps)
+weave (Apache-2.0, standalone repo: eddacraft/weave-rs, zero anvil-* deps)
 ├── types       — Message, Content, Context, Model, StreamEvent
 ├── tool        — Tool trait, ToolResult, execution pipeline
 ├── provider    — Provider trait, registry, feature-gated impls
@@ -76,7 +86,7 @@ literate-core (Apache-2.0, zero anvil-* deps)
 ├── agent_loop  — Two-level loop (inner: tool calls, outer: follow-ups)
 └── session     — SessionStore trait, default JSONL-tree implementation
 
-anvil-agent (source-proprietary, depends on literate-core + anvil-kernel-types)
+anvil-weave (source-proprietary, depends on weave + anvil-kernel-types)
 ├── tools/
 │   ├── graph_query   — Query semantic graph (petgraph, zero-copy)
 │   ├── policy_eval   — Evaluate policy against current state
@@ -151,26 +161,28 @@ pub trait EventHandler: Send + Sync {
 | Anthropic-first opinions | Default model baked in, provider coverage biased |
 | SDK contract incomplete | `create_agent_session()` not fully specified, RPC parity gaps |
 
-### Why not a standalone repo from day one?
+### Why standalone from day one?
 
-| Factor | Monorepo | Standalone OSS |
-|--------|----------|----------------|
-| API churn during discovery | Private, free to break | Public, creates support burden |
-| Cross-boundary refactors | One PR, one CI | Two repos, two PRs, coordination overhead |
-| First-consumer feedback loop | `cargo test --workspace` | Integration tests across repo boundary |
-| Extractability | Guaranteed by zero-dep invariant | N/A (already separate) |
-| OSS positioning | Delayed (extract when stable) | Immediate |
+| Factor | Standalone OSS | Monorepo |
+|--------|----------------|----------|
+| Multiple consumers (EddaCraft products, personal projects) | Ships immediately, shared via crates.io path | Requires extract before other repos can consume |
+| Zero-dep invariant | Structurally enforced by repo boundary | Requires CI cargo-metadata check discipline |
+| API surface | Stable 7 primitives from pi-mono analysis | Same, but harder to signal stability |
+| OSS positioning | Immediate | Delayed (extract when stable) |
+| Cross-boundary refactors | Two repos, two PRs (acceptable given stable primitives) | One PR, one CI |
 
-Monorepo-first wins on velocity. The zero-dep invariant guarantees extractability
-at any point via `git subtree split -P crates/literate-core`.
+Standalone wins given multiple consumers need weave sooner than expected and the
+core trait surface is stable (7 primitives from pi-mono analysis). The separate
+repo is the pressure valve — Anvil-specific concerns stay in `anvil-weave`,
+never in `weave`.
 
 ### Alternatives Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **literate-core in monorepo** (chosen) | Velocity, co-evolution, extractable | Requires discipline on dep boundary |
+| **weave standalone** (chosen) | Clean separation, immediate OSS, multiple consumers, structural zero-dep enforcement | Two repos, two PRs for cross-boundary refactors |
 | pi_agent_rust as dependency | No build effort | 600+ crates, CLI-shaped, opinionated, not embeddable |
-| Standalone OSS repo from day one | Clean separation, immediate community | API churn is public, coordination overhead |
+| weave in monorepo (original) | Velocity, co-evolution | Cannot serve other consumers without extract; zero-dep relies on CI discipline |
 | No internal harness (external agents only) | No build effort | Cannot access kernel graph directly, MCP overhead, no headless CI agent |
 | TypeScript agent harness | Matches existing TS orchestration layer | Cannot call petgraph directly, FFI overhead, two runtimes in one binary |
 
@@ -181,22 +193,24 @@ at any point via `git subtree split -P crates/literate-core`.
   foundational repos. CI/CD review works without Claude Code.
 - **Positive:** The `graph_query` tool gives agents structural reasoning over
   a semantic graph — a capability no external agent runtime can replicate.
-- **Negative:** ~4-6 weeks of build effort for literate-core + anvil-agent MVP.
-- **Negative:** Maintaining the zero-dep invariant requires CI enforcement
-  (cargo-metadata check in CI).
+- **Positive:** `eddacraft/weave-rs` is immediately available to other EddaCraft
+  products and personal projects without a monorepo extraction step.
+- **Negative:** ~4-6 weeks of build effort for weave + anvil-weave MVP.
+- **Negative:** Cross-boundary refactors require PRs in two repos.
 - **Risk:** API may not stabilise quickly if Anvil's needs diverge from generic
   agent patterns.
-- **Mitigation:** Anvil-specific concerns go in `anvil-agent`, never in
-  `literate-core`. The boundary is the pressure valve.
+- **Mitigation:** Anvil-specific concerns go in `anvil-weave`, never in `weave`.
+  The boundary is the pressure valve.
 
 ## References
 
 - Related ADRs: ADR-018 (product IP architecture, OSS foundational repos),
   ADR-012 (Rust CLI replacement), ADR-014 (TS vs Rust allocation),
   ADR-015 (intercept loop enforcement)
-- APS modules: LCORE (literate-core implementation), KERN (Rust kernel)
+- APS modules: WEAVE (weave implementation), KERN (Rust kernel)
 - External: [pi-mono](https://github.com/badlogic/pi-mono) (architecture
   reference), [pi_agent_rust](https://github.com/Dicklesworthstone/pi_agent_rust)
   (evaluated, rejected as dependency)
 - Vision: `docs/vision/aspirational-ultimate-feature.md` (behavioural diff,
   plan-aware watching, provenance narration)
+- Design spec: `plans/specs/2026-04-17-weave-rs-standalone-design.md`
