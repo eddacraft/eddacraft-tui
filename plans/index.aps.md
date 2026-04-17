@@ -167,7 +167,7 @@ to Azure Blob Storage + KeyVault. 12 tasks complete, 8 draft (Azure migration).
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [pulumi-iac](./archive/modules/pulumi-iac.aps.md) | IAC | Complete | 20/20 | — |
-| [database-consolidation](./modules/database-consolidation.aps.md) | DBCON | Proposed | 0/4 | IAC |
+| [database-consolidation](./modules/database-consolidation.aps.md) | DBCON | In Progress | 0/4 | IAC |
 
 ### Web Dashboard (Ready)
 

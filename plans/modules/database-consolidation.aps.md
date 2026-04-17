@@ -1,175 +1,242 @@
 # Neon Project Consolidation
 
-| ID    | Owner      | Status   |
-| ----- | ---------- | -------- |
-| DBCON | @eddacraft | Proposed |
+| ID    | Owner      | Status      |
+| ----- | ---------- | ----------- |
+| DBCON | @eddacraft | In Progress |
 
 ## Purpose
 
-The anvil-api connects to two separate Neon projects — one for the waitlist
-and one for beta auth/tokens — despite only one being intended. The beta DB
-has all 7 tables (beta_users, access_tokens, audit_log, device_codes,
-otp_codes, refresh_tokens, waitlist) but is missing the actual waitlist rows.
-The waitlist DB only has the waitlist table with the live data. This module
-merges the waitlist data into the beta DB and decommissions the waitlist
-project.
+The anvil-api historically straddled two Neon projects — `eddacraft-web`
+(waitlist only) and `beta-user-tokens` (all seven tables) — with a misleading
+KeyVault secret (`website-database-url`) and Pulumi drift between the managed
+value and what was actually live on Vercel. Volume is effectively zero today
+and the data is almost entirely internal test rows, so rather than migrate the
+tangle forward we are resetting: provision a single new Neon project
+(`anvil-api-prod`) with the canonical schema, import only the waitlist rows we
+care about keeping, cut `anvil-api-database-url` over, and decommission both
+legacy projects.
 
 ## Known State
 
-- **Beta DB** (target): now has all 7 tables after
-  `migrations/004-waitlist-on-beta-db.sql` landed on 2026-04-16. citext +
-  pgcrypto extensions enabled. Contains one manually-inserted validation
-  row (`dave.meloncelli@outlook.com`, `source='manual'`) from pre-consolidation
-  admin-flow testing — dedup against this when copying live rows.
-- **Waitlist DB** (source): only the waitlist table with live rows. Missing
-  beta_users, access_tokens, audit_log, device_codes, otp_codes,
-  refresh_tokens (will be decommissioned, not backfilled).
-- **Cron cleanup**: was returning 500 against the wrong DB for ~24h, fixed
-  2026-04-15 when DATABASE_URL was corrected. The hourly `/cron/cleanup` has
-  been clearing expired rows on the beta DB since. Backlog described in
-  DBCON-002 may already be empty — verify before running manual cleanup.
-- **KeyVault secret**: `website-database-url` is misleading — it's used by
-  anvil-api, not the website. Rename to `api-database-url` during cutover.
-- **Env sync**: `DATABASE_URL` update via `pulumi up` sets the env var on
-  Vercel, but a redeploy of anvil-api is still needed for functions to pick
-  up the new value (env vars are baked into the deployment at build time).
+- **Two legacy Neon projects** — `eddacraft-web` and `beta-user-tokens` — are
+  both reachable and will both be snapshotted before any destructive action.
+- **Canonical schema** lives in `apps/anvil-api/src/db/schema.sql` (7 tables:
+  beta_users, access_tokens, audit_log, waitlist, device_codes, otp_codes,
+  refresh_tokens). Extensions required: `citext`, `pgcrypto`.
+- **KeyVault secret rename in flight:** `website-database-url` →
+  `anvil-api-database-url` has already been applied to the Pulumi program and
+  infra scripts in this branch (`infra/src/vercel.ts`,
+  `infra/src/__tests__/vercel.test.ts`, `infra/README.md`,
+  `infra/scripts/generate-import-json.sh`,
+  `infra/scripts/bootstrap-backend.sh`). The new KeyVault secret value is
+  set to the new project's connection string in DBCON-003.
+- **Pulumi drift:** the live Vercel `DATABASE_URL` was manually pointed at the
+  beta DB while KV still held the waitlist URL. Any `pulumi up` without this
+  module's changes would have reverted Vercel to the waitlist DB.
+- **`WAITLIST_PAUSED` kill switch** already exists on anvil-api (landed via
+  #925, see `apps/anvil-api/src/routes/waitlist.ts`); the operator toggles
+  it in the Vercel UI — Pulumi does not manage it.
+- **Snapshots retained** for at least 30 days after decommission so any
+  "oh wait we needed that one row" ask is recoverable.
 
 ## In Scope
 
-- Migrate waitlist rows into the beta DB
-- Run expired-row cleanup on beta DB (backlog from broken cron)
-- Rename KeyVault secret from `website-database-url` to `api-database-url`
-- Update Pulumi config and sync env vars via `pulumi up`
-- Decommission the waitlist Neon project
+- Snapshot both legacy Neon projects (pg_dump) before any destructive action.
+- Provision a new Neon project `anvil-api-prod` (Neon MCP / neonctl
+  preferred; Neon console as fallback).
+- Apply canonical schema from `apps/anvil-api/src/db/schema.sql` to the new
+  project.
+- Selectively import waitlist rows from `eddacraft-web` (and any curated
+  rows from `beta-user-tokens.waitlist`) into the new project, deduped on
+  email.
+- Set the `anvil-api-database-url` secret in KeyVault to the new project's
+  connection string.
+- Run `pulumi up` and redeploy anvil-api so functions pick up the new URL.
+- Smoke test all anvil-api routes against the new DB.
+- Delete the legacy KeyVault secret `website-database-url`.
+- Decommission both legacy Neon projects after a soak period.
 
 ## Out of Scope
 
-- Schema changes or new tables
-- ORM selection or migration
-- Query-layer test coverage (separate module)
-- Performance or load testing
+- Schema evolution (additive migrations land in separate modules).
+- Beta-user / access-token / audit-log / device-code / otp-code /
+  refresh-token row migration — these are test data, not retained.
+- ORM selection or query-layer rewrites.
+- Performance or load testing.
+- Any change to `WAITLIST_PAUSED` wiring — kept as an operator-only toggle.
 
 ## Interfaces
 
 **Depends on:**
 
-- `infra/src/vercel.ts` — environment variable configuration
-- `apps/anvil-api/src/db/client.ts` — database connection setup
+- `infra/src/vercel.ts` — env var wiring for `DATABASE_URL` via
+  `anvil-api-database-url`.
+- `infra/src/keyvault.ts` — KeyVault secret fetch during `pulumi up`.
+- `apps/anvil-api/src/db/schema.sql` — canonical schema applied to the new
+  project.
+- `apps/anvil-api/src/db/client.ts` — consumer of `DATABASE_URL`.
 
 **Exposes:**
 
-- Single consolidated database connection for all anvil-api routes
+- Single Neon project (`anvil-api-prod`) backing anvil-api.
+- KeyVault secret `anvil-api-database-url` with accurate naming.
 
 ## Constraints
 
-- Data migration must be zero-downtime (both projects temporarily active)
-- Zero-downtime cutover must explicitly handle concurrent waitlist writes:
-  perform an initial copy while the source DB stays live, then pause new
-  waitlist signups briefly for a final delta sync immediately before
-  switching `DATABASE_URL`
-- No production connection strings in logs or CI output
-- Must stay within Neon free-tier limits
-- Both citext and pgcrypto extensions must be enabled in target DB
+- No production connection strings in commits, logs, CI output, or
+  conversation transcripts — always fetch via `az keyvault secret show` at
+  the point of use and keep them in shell env vars.
+- Stay within Neon free-tier limits (one non-trivial project at a time
+  outside the migration window).
+- Both `citext` and `pgcrypto` extensions must be enabled on
+  `anvil-api-prod` before anvil-api connects.
+- Snapshots retained on local disk (and/or a private Azure Blob) for 30+
+  days post-decommission before purge.
+- Cutover window expects brief (≤ 5 min) waitlist write unavailability via
+  `WAITLIST_PAUSED=true` on anvil-api — acceptable at current volume.
 
 ## Migration Strategy
 
-1. Verify target beta DB schema matches `apps/anvil-api/src/db/schema.sql`
-   and confirm `citext` + `pgcrypto` are enabled.
-2. Take a backup/export of the waitlist DB before any writes are copied.
-3. Run an initial bulk copy of `waitlist` rows from the waitlist DB into the
-   beta DB while the existing waitlist DB remains the live write path.
-4. Compare row counts and sample a small set of records by deterministic key
-   (email) between source and target to confirm the initial copy succeeded.
-5. Immediately before cutover, temporarily pause new waitlist signups by
-   setting `WAITLIST_PAUSED=true` on the anvil-api Vercel project (see
-   `apps/anvil-api/src/routes/waitlist.ts`) and triggering a redeploy — env
-   vars are baked into each deployment, so the toggle only takes effect on
-   the next deploy. Once the redeploy completes, `POST /waitlist` returns
-   503, preventing new rows from landing only in the source DB during the
-   final migration window. The env var is operator-managed in the Vercel UI
-   (not Pulumi) so the toggle is not fought on the next `pulumi up`.
-6. Run a final delta sync from the waitlist DB to the beta DB for any rows
-   created after the initial copy, matching on email to avoid duplicates.
-7. Re-run row-count and spot-check verification, then switch KeyVault/Pulumi
-   from the old secret to `api-database-url` and update `DATABASE_URL` to the
-   consolidated beta DB.
-8. Resume waitlist signups after the env var change is live and validated.
-9. Keep the old waitlist DB available briefly as a rollback source, then
-   decommission it once production traffic is confirmed healthy.
+1. **Snapshot** both legacy Neon projects via `pg_dump` into
+   `scripts/dbcon/snapshots/` with ISO-8601 timestamps. Gzip. Verify each
+   archive is restorable by round-tripping into a throwaway local
+   container.
+2. **Provision** `anvil-api-prod` via `neonctl` (preferred — works from
+   this worktree) or Neon MCP if it proves reliable here. Prefer the same
+   region the Vercel functions sit in. Capture the connection string into
+   a local env var, never into a file.
+3. **Apply schema** by running `psql -f apps/anvil-api/src/db/schema.sql`
+   against the new project. Verify `\dt` shows all 7 tables and
+   `citext`/`pgcrypto` extensions are present.
+4. **Export waitlist rows** from `eddacraft-web` (and separately from
+   `beta-user-tokens.waitlist` if it has anything worth keeping) to CSV
+   via `scripts/dbcon/export-waitlist.sh`.
+5. **Import** into `anvil-api-prod` via `scripts/dbcon/import-waitlist.sh`
+   — uses a TEMP staging table and `INSERT … ON CONFLICT (email) DO
+   NOTHING` so two sources can be imported back-to-back without dupes.
+6. **Verify** counts and spot-check a few emails via
+   `scripts/dbcon/verify-counts.sh`.
+7. **Pause waitlist writes:** set `WAITLIST_PAUSED=true` on the anvil-api
+   Vercel project (Vercel UI, not Pulumi) and redeploy. `POST /waitlist`
+   now returns 503. At current volume this is a belt-and-braces step; it
+   can be skipped if we accept the tiny delta risk.
+8. **Set KeyVault secret** `anvil-api-database-url` to the new connection
+   string (`az keyvault secret set --vault-name kv-iac-anvil --name
+   anvil-api-database-url --value "$ANVIL_API_PROD_URL"`).
+9. **Merge rename branch** to `dev` so Pulumi reads the new secret name.
+10. **`pulumi up`** from the new state — Vercel `DATABASE_URL` now comes
+    from `anvil-api-prod`.
+11. **Redeploy anvil-api** so functions pick up the new env var.
+12. **Smoke test:** `/health`, `POST /waitlist` (after unpause),
+    admin-flow readbacks, cron cleanup endpoint.
+13. **Unset `WAITLIST_PAUSED`** and redeploy once more.
+14. **Delete legacy KV secret** `website-database-url` via
+    `az keyvault secret delete`.
+15. **Soak** for ~48h.
+16. **Decommission** both legacy Neon projects after the soak window, with
+    snapshots retained for 30+ days.
 
 ## Risks
 
-| Risk                                        | Impact | Mitigation                                                           |
-| ------------------------------------------- | ------ | -------------------------------------------------------------------- |
-| Data loss during waitlist row migration     | high   | Backup first, initial copy + final delta sync, pause signups briefly |
-| KeyVault rename breaks references           | high   | Grep for old secret name across all infra/config first               |
-| Connection string confusion during cutover  | medium | Stage env var changes, verify in preview before prod                 |
+| Risk                                         | Impact | Mitigation                                                                       |
+| -------------------------------------------- | ------ | -------------------------------------------------------------------------------- |
+| Losing a row someone actually cared about    | medium | Full pg_dump snapshots of both projects retained 30+ days before destructive act |
+| Schema drift between schema.sql and live DB  | high   | Apply schema.sql fresh on a new DB — becomes the definition, not the observer   |
+| Pulumi up reverts DATABASE_URL mid-migration | high   | Do KV set + merge rename before `pulumi up`; do not run `pulumi up` before step 8 |
+| Connection string leaks in logs/transcripts  | high   | Env-var indirection via `az keyvault secret show`; never paste into chat         |
+| MCP servers flaky from git worktrees         | low    | `neonctl` is the primary tool; MCP is a convenience only. Web console as last resort |
 
 ## Ready Checklist
 
 Change status to **Ready** when:
 
-- [x] Inventory of data in both Neon projects documented
-- [x] Target Neon project chosen — beta DB survives
-- [x] Target schema present on beta DB (migration 004 landed 2026-04-16)
+- [x] Inventory of data in both legacy Neon projects documented
+- [x] Target project name agreed (`anvil-api-prod`)
+- [x] Canonical schema confirmed at `apps/anvil-api/src/db/schema.sql`
+- [x] Secret rename (`website-database-url` → `anvil-api-database-url`)
+      applied across infra files in this branch
+- [ ] `neonctl` installed and authenticated locally (MCP is optional)
 
 ---
 
-### DBCON-001: migrate waitlist data
+### DBCON-001: snapshot legacy Neon projects
 
-- **Intent:** Copy waitlist rows from the waitlist DB into the beta DB's
-  existing waitlist table (schema created by migration 004). Verify row
-  counts match after migration. Dedup against the pre-existing
-  `dave.meloncelli@outlook.com` row from admin-flow validation.
-- **Expected Outcome:** All waitlist rows present in the beta DB. Waitlist
-  DB still operational as fallback.
-- **Validation:** Row count in beta DB waitlist table equals source count
-  (plus the one validation row). Spot-check records by email.
+- **Intent:** Take gzipped `pg_dump` snapshots of both `eddacraft-web`
+  and `beta-user-tokens` before any destructive action, using
+  `scripts/dbcon/snapshot-db.sh`. Verify each archive is restorable into
+  a throwaway local Postgres.
+- **Expected Outcome:** Two snapshot files under
+  `scripts/dbcon/snapshots/` (gitignored), each round-trip-tested.
+  Retained ≥ 30 days past decommission.
+- **Validation:** `ls scripts/dbcon/snapshots/*.sql.gz` shows two recent
+  archives. `gunzip -c <snap> | psql <throwaway> -f -` completes without
+  errors and row counts match `SELECT count(*)` against the live
+  source.
 - **Confidence:** high
+- **Files:**
+  - Add: `scripts/dbcon/snapshot-db.sh`
+  - Modify: `scripts/dbcon/README.md`
+  - Modify: `.gitignore` (exclude `scripts/dbcon/snapshots/`)
 
-### DBCON-002: clean up expired rows in beta DB
+### DBCON-002: provision anvil-api-prod and apply schema
 
-- **Intent:** Verify the expired-row backlog left over from the broken cron
-  window (2026-04-14 → 2026-04-15) has been cleared by the now-working
-  hourly `/cron/cleanup`. If anything is still lingering, run cleanup
-  manually.
-- **Expected Outcome:** No expired rows remain in device_codes, otp_codes,
-  or refresh_tokens.
-- **Validation:** `SELECT count(*) FROM device_codes WHERE expires_at < now() - interval '1 hour'`
-  (and analogous queries for otp_codes, refresh_tokens) return zero.
-- **Confidence:** high
-
-### DBCON-003: infrastructure cutover
-
-- **Intent:** Rename KeyVault secret from `website-database-url` to
-  `api-database-url`. Update Pulumi config to point `DATABASE_URL` at the
-  beta DB for all environments. Because Vercel env vars are baked into
-  deployments at build time, each env change requires a redeploy. The
-  cutover sequence is: (1) set `WAITLIST_PAUSED=true` on the anvil-api
-  Vercel project and redeploy so new signups return 503 (implemented in
-  #925, see `apps/anvil-api/src/routes/waitlist.ts`); (2) run the final
-  delta sync; (3) run `pulumi up` to switch `DATABASE_URL` to the beta DB;
-  (4) redeploy anvil-api so functions pick up the new `DATABASE_URL`; (5)
-  validate the consolidated DB; (6) unset `WAITLIST_PAUSED` and redeploy
-  once more to restore normal operation.
-- **Expected Outcome:** All environments use the single Neon project.
-  Secret name accurately reflects its consumer.
-- **Validation:** `pulumi preview` shows the rename and URL update. After
-  the pause redeploy, `POST /waitlist` returns 503. After the DATABASE_URL
-  redeploy, all API routes functional against the consolidated DB. After
-  the final redeploy with `WAITLIST_PAUSED` unset, `POST /waitlist`
-  resumes normal operation.
+- **Intent:** Create a new Neon project named `anvil-api-prod` via
+  `neonctl` (preferred — worktree-friendly); Neon MCP only if it proves
+  reliable. Apply the canonical schema from
+  `apps/anvil-api/src/db/schema.sql`. Ensure `citext` and `pgcrypto`
+  extensions are enabled. Keep the connection string in a local env var
+  — never commit or paste it.
+- **Expected Outcome:** `anvil-api-prod` exists, reachable via psql,
+  has all 7 tables from schema.sql and both required extensions.
+- **Validation:** `\dt` returns 7 tables; `SELECT extname FROM
+  pg_extension` includes `citext` and `pgcrypto`; `SELECT count(*) FROM
+  waitlist` returns 0.
 - **Confidence:** medium
 - **Files:**
-  - Modify: `infra/src/vercel.ts`
-  - Modify: `infra/src/__tests__/vercel.test.ts`
-  - Modify: `infra/README.md`
+  - Add: `scripts/dbcon/apply-schema.sh`
+  - Modify: `scripts/dbcon/README.md`
 
-### DBCON-004: decommission waitlist project
+### DBCON-003: selective import and infra cutover
 
-- **Intent:** After validation period, delete the waitlist Neon project.
-- **Expected Outcome:** Single Neon project with all tables and data.
-  No dangling references to old connection string or secret name.
-- **Validation:** `neon projects list` shows one project. Grep codebase
-  for old secret name returns zero hits.
+- **Intent:** Import waitlist rows from the legacy projects into
+  `anvil-api-prod` (deduped on email), then flip infra over. Sequence:
+  (1) `WAITLIST_PAUSED=true` + redeploy so `POST /waitlist` returns
+  503; (2) export/import waitlist rows from `eddacraft-web` and any
+  curated rows from `beta-user-tokens`; (3) set KeyVault secret
+  `anvil-api-database-url` to the new connection string; (4) merge the
+  rename branch so Pulumi reads the new secret name; (5) `pulumi up`;
+  (6) redeploy anvil-api; (7) smoke-test; (8) unset `WAITLIST_PAUSED`
+  + redeploy; (9) delete the legacy KV secret
+  `website-database-url`.
+- **Expected Outcome:** anvil-api serves all routes against
+  `anvil-api-prod`. Waitlist count on the new DB equals dedup union of
+  both sources. Legacy secret removed from KeyVault.
+- **Validation:**
+  - Pre-cutover: `POST /waitlist` returns 503 while paused.
+  - Post-cutover: `GET /health` 200; `POST /waitlist` 2xx; cron cleanup
+    returns 200; row counts on `anvil-api-prod.waitlist` match expected
+    dedup total.
+  - `az keyvault secret show --vault-name kv-iac-anvil --name
+    website-database-url` returns NotFound.
+- **Confidence:** medium
+- **Files:**
+  - Modify: `scripts/dbcon/export-waitlist.sh`
+  - Modify: `scripts/dbcon/import-waitlist.sh`
+  - Modify: `scripts/dbcon/verify-counts.sh`
+  - Modify: `scripts/dbcon/README.md`
+
+### DBCON-004: decommission legacy Neon projects
+
+- **Intent:** After a ≥ 48h soak period on `anvil-api-prod`, delete both
+  `eddacraft-web` and `beta-user-tokens` Neon projects. Retain local
+  snapshots (gitignored) for 30+ days afterwards.
+- **Expected Outcome:** Only `anvil-api-prod` remains in the Neon
+  account. No references to `website-database-url`,
+  `eddacraft-web`, or `beta-user-tokens` remain in the codebase or
+  infra.
+- **Validation:** Neon console/API lists exactly one project. `rg -n
+  "website-database-url|eddacraft-web|beta-user-tokens"` returns no
+  hits outside archived plan docs.
 - **Confidence:** high
+- **Files:**
+  - Modify: `scripts/dbcon/README.md` (decommission checklist)

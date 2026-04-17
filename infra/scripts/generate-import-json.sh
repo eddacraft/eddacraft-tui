@@ -118,7 +118,7 @@ cat > "$OUTPUT" <<ENDJSON
     {
       "type": "vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable",
       "name": "website-db-env",
-      "logicalName": "website-database-url",
+      "logicalName": "anvil-api-database-url",
       "id": "$website_prj/$website_env_db",
       "parent": "website-app"
     },

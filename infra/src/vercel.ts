@@ -3,7 +3,7 @@ import { getSecret } from './keyvault.js';
 
 const gitRepo = 'eddacraft/anvil-001';
 
-const databaseUrl = getSecret('website-database-url');
+const databaseUrl = getSecret('anvil-api-database-url');
 const resendApiKey = getSecret('resend-api-key');
 
 // DOCSAUTH: GitHub OAuth secrets

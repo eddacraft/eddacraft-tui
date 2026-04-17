@@ -143,3 +143,7 @@ plans/reviews/
 
 # GitHub Local Runners
 .github/actions-runner
+
+# DBCON operator scratch — snapshots and exported CSVs must never land in git
+scripts/dbcon/snapshots/
+scripts/dbcon/*.csv
