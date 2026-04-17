@@ -333,12 +333,11 @@ fn status_icon(check: &CheckProgress) -> &'static str {
 
 fn running_frame_index(start_time: Option<Instant>) -> usize {
     let interval_ms = SpinnerPreset::Anvil.interval().as_millis().max(1);
-    let elapsed_ms = start_time
-        .map_or(0, |started| {
-            Instant::now()
-                .saturating_duration_since(started)
-                .as_millis()
-        });
+    let elapsed_ms = start_time.map_or(0, |started| {
+        Instant::now()
+            .saturating_duration_since(started)
+            .as_millis()
+    });
     usize::try_from(elapsed_ms / interval_ms).unwrap_or(0)
 }
 
