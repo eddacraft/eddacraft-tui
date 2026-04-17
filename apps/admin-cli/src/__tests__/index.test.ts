@@ -1,7 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { handleError, run } from '../index.js';
 import { AdminError } from '../client.js';
 import { MissingConfigError } from '../config.js';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 class ExitSignal extends Error {
   constructor(readonly code: number) {
@@ -82,12 +86,8 @@ describe('handleError', () => {
 describe('run()', () => {
   it('exits 0 for --help', async () => {
     const { exits, exit } = harness();
-    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    try {
-      await catchExit(() => run({ argv: ['node', 'anvil-admin', '--help'], exit }));
-    } finally {
-      stdoutSpy.mockRestore();
-    }
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await catchExit(() => run({ argv: ['node', 'anvil-admin', '--help'], exit }));
     expect(exits).toEqual([0]);
   });
 });
