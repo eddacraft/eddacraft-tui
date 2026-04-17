@@ -24,6 +24,7 @@ vi.mock('../db/client.js', () => ({
 
 // Mock queries
 vi.mock('../db/queries.js', () => ({
+  findUserByEmail: vi.fn(),
   findUserWithTokens: vi.fn(),
   insertAuditLog: vi.fn().mockResolvedValue({
     id: 'audit-1',
@@ -61,6 +62,7 @@ vi.mock('../lib/audience.js', () => ({
 }));
 
 import {
+  findUserByEmail,
   findUserWithTokens,
   upsertWaitlistWithName,
   findWaitlistPaginated,
@@ -654,6 +656,132 @@ describe('admin endpoints', () => {
         expect.any(String),
         { email: 'bob@example.com' }
       );
+    });
+  });
+
+  describe('POST /admin/user/email-update', () => {
+    // vi.clearAllMocks() doesn't drop mockResolvedValueOnce queues, so reset
+    // findUserByEmail explicitly to avoid state leaking across tests here.
+    beforeEach(() => {
+      vi.mocked(findUserByEmail).mockReset();
+    });
+
+    const existingUser = {
+      id: 'user-1',
+      email: 'old@example.com',
+      status: 'active',
+      name: null,
+      notes: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    it('updates the email and writes an audit entry', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'new@example.com', status: 'active' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user).toEqual({ id: 'user-1', email: 'new@example.com', status: 'active' });
+      expect(body.previousEmail).toBe('old@example.com');
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('normalises mixed-case input before lookup', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'new@example.com', status: 'active' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'OLD@Example.com', newEmail: 'NEW@Example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findUserByEmail)).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        'old@example.com'
+      );
+      expect(vi.mocked(findUserByEmail)).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        'new@example.com'
+      );
+    });
+
+    it('returns 404 when the current user does not exist', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'missing@example.com', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(404);
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 when the new email is already taken', async () => {
+      vi.mocked(findUserByEmail)
+        .mockResolvedValueOnce(existingUser)
+        .mockResolvedValueOnce({ ...existingUser, id: 'user-2', email: 'taken@example.com' });
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'taken@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when new email matches current', async () => {
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'same@example.com', newEmail: 'same@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for invalid email format', async () => {
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'not-an-email', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 401 without admin auth', async () => {
+      const res = await request('POST', '/admin/user/email-update', {
+        currentEmail: 'old@example.com',
+        newEmail: 'new@example.com',
+      });
+      expect(res.status).toBe(401);
     });
   });
 });

@@ -31,6 +31,11 @@ export const migrationSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });
 
+export const userEmailUpdateSchema = z.object({
+  currentEmail: z.string().email().max(254),
+  newEmail: z.string().email().max(254),
+});
+
 // Query string schemas — numeric fields arrive as strings via URL and
 // are coerced to numbers with bounded ranges. Defaults mirror the design
 // spec (pending / all / 50 / 0).
@@ -67,5 +72,6 @@ export type InviteInput = z.infer<typeof inviteSchema>;
 export type ApproveInput = z.infer<typeof approveSchema>;
 export type RevokeInput = z.infer<typeof revokeSchema>;
 export type MigrationInput = z.infer<typeof migrationSchema>;
+export type UserEmailUpdateInput = z.infer<typeof userEmailUpdateSchema>;
 export type WaitlistListQuery = z.infer<typeof waitlistListQuerySchema>;
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>;

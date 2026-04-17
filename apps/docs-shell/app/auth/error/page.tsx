@@ -45,6 +45,13 @@ export default async function ErrorPage({
             Return home
           </a>
         </p>
+        <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '1.5rem' }}>
+          Still stuck? Email{' '}
+          <a href="mailto:help@eddacraft.ai" style={{ color: '#60a5fa' }}>
+            help@eddacraft.ai
+          </a>
+          .
+        </p>
       </div>
     </main>
   );

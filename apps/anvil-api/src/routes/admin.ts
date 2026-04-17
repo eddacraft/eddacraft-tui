@@ -5,6 +5,7 @@ import { zValidator } from '@hono/zod-validator';
 import { adminAuth } from '../middleware/admin-auth.js';
 import { getClient } from '../db/client.js';
 import {
+  findUserByEmail,
   findUserWithTokens,
   insertAuditLog,
   upsertWaitlistWithName,
@@ -24,6 +25,7 @@ import {
   approveSchema,
   revokeSchema,
   migrationSchema,
+  userEmailUpdateSchema,
   waitlistListQuerySchema,
   auditListQuerySchema,
 } from './admin-schemas.js';
@@ -466,6 +468,67 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   await insertAuditLog(sql, 'migration.email.sent', actor, { source, sent, failed });
 
   return c.json({ source, total: waitlistRows.length, sent, failed, results });
+});
+
+/**
+ * POST /admin/user/email-update
+ *
+ * Update a beta user's email. Used when the email a user registered with
+ * doesn't match any address verified on their GitHub account, and
+ * self-service (adding the beta email to github.com/settings/emails) isn't
+ * viable — typically because they've lost access to the original inbox.
+ *
+ * Scope: updates beta_users.email only. The waitlist row is left at the
+ * original address as the historical signup record. Existing licence JWTs
+ * continue to work (they authenticate on user.id, not email); new sign-ins
+ * will carry the updated email in claims.
+ */
+admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), async (c) => {
+  const { currentEmail, newEmail } = c.req.valid('json');
+  debug('POST /admin/user/email-update');
+  const sql = getClient();
+  const actor = resolveAdminActor(c);
+
+  const normalizedCurrent = currentEmail.toLowerCase().trim();
+  const normalizedNew = newEmail.toLowerCase().trim();
+
+  if (normalizedCurrent === normalizedNew) {
+    return c.json({ error: 'New email matches current email' }, 400);
+  }
+
+  const existing = await findUserByEmail(sql, normalizedCurrent);
+  if (!existing) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const collision = await findUserByEmail(sql, normalizedNew);
+  if (collision) {
+    return c.json({ error: 'New email already in use' }, 409);
+  }
+
+  const txResult = await sql.transaction([
+    sql`UPDATE beta_users SET email = ${normalizedNew}
+        WHERE id = ${existing.id}
+        RETURNING id, email, status`,
+    sql`INSERT INTO audit_log (action, actor, metadata)
+        VALUES (
+          ${'user.email.updated'},
+          ${actor},
+          ${JSON.stringify({ userId: existing.id, from: normalizedCurrent, to: normalizedNew })}
+        )
+        RETURNING *`,
+  ]);
+
+  const updated = (txResult as unknown[][])[0]?.[0] as {
+    id: string;
+    email: string;
+    status: string;
+  };
+
+  return c.json({
+    user: { id: updated.id, email: updated.email, status: updated.status },
+    previousEmail: normalizedCurrent,
+  });
 });
 
 export { admin };
