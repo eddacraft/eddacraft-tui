@@ -134,6 +134,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
 | [docs-auth-gating](./archive/modules/docs-auth-gating.aps.md) | DOCSAUTH | Complete | 7/7 | BAUTH, IAC |
 | [admin-cli](./modules/admin-cli.aps.md) | ADMINCLI | Complete | 13/13 | BAUTH |
+| [admin-cli-hardening](./modules/admin-cli-hardening.aps.md) | ADMINCLIH | Proposed | 0/3 | ADMINCLI |
 
 **Design specs:**
 - `docs/specs/2026-03-15-beta-auth-streamline-design.md`
