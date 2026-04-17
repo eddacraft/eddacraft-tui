@@ -6,7 +6,7 @@ import { formatError } from './format.js';
 import { runListCommand, type ListOptions } from './commands/list.js';
 import { runShowCommand, type ShowOptions } from './commands/show.js';
 import { runApproveCommand, type ApproveOptions } from './commands/approve.js';
-import { runInviteCommand, type InviteOptions } from './commands/invite.js';
+import { runInviteCommand, type InviteOptions, ALLOWED_SCOPES } from './commands/invite.js';
 import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
@@ -86,9 +86,7 @@ program
       .default(90)
       .argParser(parseBoundedInt('--days', 1, 365))
   )
-  .addOption(
-    new Option('--scope <scopes...>', 'token scopes').choices(['beta', 'preview', 'internal'])
-  )
+  .addOption(new Option('--scope <scopes...>', 'token scopes').choices([...ALLOWED_SCOPES]))
   .option('--token-only', 'skip invite email; return raw token once')
   .option('--json', 'emit raw JSON')
   .action(async (email: string, _options, cmd: Command) => {

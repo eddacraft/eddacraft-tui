@@ -114,6 +114,18 @@ describe('runInviteCommand', () => {
     ).rejects.toMatchObject({ name: 'AdminError', exitCode: 2 });
   });
 
+  it('rejects combining --token-only with --json (exitCode 64)', async () => {
+    const client = makeClient(tokenOnlyResponse);
+    await expect(
+      runInviteCommand(
+        'ci@example.com',
+        { tokenOnly: true, json: true },
+        { createClient: () => client, stdout: () => {}, stderr: () => {} }
+      )
+    ).rejects.toMatchObject({ name: 'AdminError', exitCode: 64 });
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
   it('rejects --days out of range (exitCode 64)', async () => {
     await expect(
       runInviteCommand(

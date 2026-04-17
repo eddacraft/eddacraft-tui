@@ -51,6 +51,13 @@ export async function runInviteCommand(
     }
   }
 
+  if (options.tokenOnly && options.json) {
+    throw new AdminError(
+      '--token-only and --json are mutually exclusive: --json would emit the raw token in a JSON blob, defeating the purpose of the one-time banner',
+      64
+    );
+  }
+
   const config = resolveConfig({
     key: options.key,
     url: options.url,
