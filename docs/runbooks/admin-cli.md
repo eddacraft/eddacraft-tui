@@ -37,14 +37,14 @@ Requires Node.js `>=22.13`.
 
 ## Configuration
 
-The CLI reads configuration from environment variables with per-invocation
-flag overrides. Every command uses the same resolution order.
+The CLI reads configuration from environment variables with per-invocation flag
+overrides. Every command uses the same resolution order.
 
-| Setting        | Env var              | Flag        | Default                      |
-| -------------- | -------------------- | ----------- | ---------------------------- |
-| API base URL   | `ANVIL_ADMIN_URL`    | `--url`     | `https://api.eddacraft.ai`   |
-| Admin API key  | `ANVIL_ADMIN_KEY`    | `--key`     | *(required — no default)*    |
-| Operator ident | `ANVIL_ADMIN_ACTOR`  | `--actor`   | `git config user.email`, else OS username |
+| Setting        | Env var             | Flag      | Default                                   |
+| -------------- | ------------------- | --------- | ----------------------------------------- |
+| API base URL   | `ANVIL_ADMIN_URL`   | `--url`   | `https://api.eddacraft.ai`                |
+| Admin API key  | `ANVIL_ADMIN_KEY`   | `--key`   | _(required — no default)_                 |
+| Operator ident | `ANVIL_ADMIN_ACTOR` | `--actor` | `git config user.email`, else OS username |
 
 - `--key` is sent as `Authorization: Bearer <key>`.
 - `--actor` is sent as `X-Admin-Actor: <actor>` and recorded in the audit log.
@@ -110,7 +110,8 @@ anvil-admin approve --batch 10 --yes   # skip confirmation
 
 Flags:
 
-- `--batch <1-100>` — approve the oldest N unapproved entries (mutually exclusive with `[email]`)
+- `--batch <1-100>` — approve the oldest N unapproved entries (mutually
+  exclusive with `[email]`)
 - `-y, --yes` — skip the confirmation prompt
 - `--json`
 
@@ -147,7 +148,8 @@ anvil-admin revoke --token "betatok_…"          # revoke one specific token
 
 Flags:
 
-- `--token <raw>` — revoke a specific raw token (mutually exclusive with `[email]`)
+- `--token <raw>` — revoke a specific raw token (mutually exclusive with
+  `[email]`)
 - `-y, --yes` — skip confirmation
 - `--json`
 
@@ -162,7 +164,8 @@ anvil-admin audit --offset 50
 
 Flags:
 
-- `--action <action>` — exact-match filter (e.g. `user.approved`, `token.revoked`)
+- `--action <action>` — exact-match filter (e.g. `user.approved`,
+  `token.revoked`)
 - `--filter-actor <email>` — filter by operator
 - `--limit <1-200>` (default `50`), `--offset <n>` (default `0`)
 - `--json`
@@ -193,18 +196,18 @@ Flags:
 Flow when sending for real (`--no-dry-run`):
 
 1. CLI fetches a dry-run preview (count + recipient list) from the server
-2. If count is `0`, prints `No recipients match the filter. Nothing to send.`
-   on stdout and exits `0`
-3. Writes the recipient table plus the warning `About to send migration email
-   to N recipient(s) …` to **stderr**, then prompts on stderr:
-   `Continue? [y/N]`
+2. If count is `0`, prints `No recipients match the filter. Nothing to send.` on
+   stdout and exits `0`
+3. Writes the recipient table plus the warning
+   `About to send migration email to N recipient(s) …` to **stderr**, then
+   prompts on stderr: `Continue? [y/N]`
 4. On `y`/`yes`, calls the server again with `dryRun=false`
 5. Renders the per-recipient send/failure table
 
-The preview and the real send are two separate API calls. If rows are added
-or removed between them, the sent cohort may differ from the previewed one.
-For a migration rollout, snapshot the waitlist (`list --status all --json`)
-before starting if you need a stable record.
+The preview and the real send are two separate API calls. If rows are added or
+removed between them, the sent cohort may differ from the previewed one. For a
+migration rollout, snapshot the waitlist (`list --status all --json`) before
+starting if you need a stable record.
 
 Non-TTY refusal (`exit 4`) applies only to the **real-send** path. A plain
 dry-run works in any session. In non-TTY sessions without `--yes`, the CLI
@@ -212,15 +215,15 @@ refuses to prompt and exits `4`.
 
 ## Exit codes
 
-| Code | Meaning                                      | Typical cause                              |
-| ---- | -------------------------------------------- | ------------------------------------------ |
-| `0`  | Success                                      | —                                          |
+| Code | Meaning                                               | Typical cause                                   |
+| ---- | ----------------------------------------------------- | ----------------------------------------------- |
+| `0`  | Success                                               | —                                               |
 | `1`  | HTTP 4xx, or `send-migration` had ≥1 failed recipient | Bad request, unauthorised, partial send failure |
-| `2`  | HTTP 5xx or malformed JSON response          | Server bug; check logs                     |
-| `3`  | Network / cannot reach the API               | DNS, TLS, connection refused               |
-| `4`  | Refused to prompt in a non-TTY session       | CI/script without `--yes` on a real send   |
-| `5`  | Missing required config                      | `ANVIL_ADMIN_KEY` not set                  |
-| `64` | Invalid argument (EX_USAGE)                  | Out-of-range `--limit`, bad enum choice    |
+| `2`  | HTTP 5xx or malformed JSON response                   | Server bug; check logs                          |
+| `3`  | Network / cannot reach the API                        | DNS, TLS, connection refused                    |
+| `4`  | Refused to prompt in a non-TTY session                | CI/script without `--yes` on a real send        |
+| `5`  | Missing required config                               | `ANVIL_ADMIN_KEY` not set                       |
+| `64` | Invalid argument (EX_USAGE)                           | Out-of-range `--limit`, bad enum choice         |
 
 All errors go to stderr; `--json` payloads go to stdout.
 
@@ -228,8 +231,8 @@ All errors go to stderr; `--json` payloads go to stdout.
 
 ### "missing admin key; set ANVIL_ADMIN_KEY or pass --key"
 
-Export `ANVIL_ADMIN_KEY` or pass `--key`. The value is in 1Password under
-"Anvil Admin API Key".
+Export `ANVIL_ADMIN_KEY` or pass `--key`. The value is in 1Password under "Anvil
+Admin API Key".
 
 ### "cannot reach …"
 
@@ -245,8 +248,8 @@ Rerun once the issue is cleared.
 
 ### "refusing to send migration without --yes in a non-interactive session"
 
-You're running in a script or CI job without a TTY. Either run interactively
-or pass `--yes` after you've verified the dry-run output.
+You're running in a script or CI job without a TTY. Either run interactively or
+pass `--yes` after you've verified the dry-run output.
 
 ### Sent the wrong thing
 
@@ -257,9 +260,9 @@ or pass `--yes` after you've verified the dry-run output.
 
 ### Looking for what happened
 
-Every admin mutation writes to the audit log. Use `anvil-admin audit` to
-review, filtering by `--filter-actor` (who) and `--action` (what). The admin
-API also logs request/response metadata in the Vercel logs for 7 days.
+Every admin mutation writes to the audit log. Use `anvil-admin audit` to review,
+filtering by `--filter-actor` (who) and `--action` (what). The admin API also
+logs request/response metadata in the Vercel logs for 7 days.
 
 ## Related
 
