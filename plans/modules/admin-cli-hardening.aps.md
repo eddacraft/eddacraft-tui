@@ -189,8 +189,11 @@ API contract tweak)
       `--dry-run`
 - [x] Server rejects with 410 `preview_token_consumed` on second use of the
       same token
-- [x] Server rejects with 403 `preview_token_actor_mismatch` when the caller
-      differs from the snapshot creator; covered by a cross-operator test
+- [x] Server rejects with 410 `preview_token_missing` when the caller
+      differs from the snapshot creator — the wrong-actor case is merged
+      with the missing case to avoid confirming token existence to
+      non-owners (council review finding, C-003); covered by a
+      cross-operator test
 
 ### Per-operator keys (ADMINCLIH-002)
 
@@ -324,7 +327,7 @@ API contract tweak)
   confirm the per-operator row shows the key's mapped email regardless of
   any `X-Admin-Actor` header
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### Phase C: Defensive CLI parsing
 
