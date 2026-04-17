@@ -66,11 +66,9 @@ modules.
   version in `opa-binary-manager.ts`
 - **Resolution:** Option (c) — match the version the TS binary manager downloads.
   Avoids version skew between CI and local dev.
-- **Status:** Resolved — **follow-up open:** current rust.yml uses
-  `open-policy-agent/setup-opa@v2.3.0` with `version: latest`, which does not
-  honour this decision. TFIX-003 must pin to `DEFAULT_OPA_VERSION` (`0.60.0`
-  as of 2026-04-17 in `packages/anvil/policy/src/opa-binary-manager.ts`) and
-  TFIX-004 must be amended to match.
+- **Status:** Resolved — CI workflows pin OPA to `v0.60.0` to match
+  `DEFAULT_OPA_VERSION` (`0.60.0` as of 2026-04-17 in
+  `packages/anvil/policy/src/opa-binary-manager.ts`).
 
 **D-TFIX-003:** E2E harness trigger scope
 
@@ -184,8 +182,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-policy` in CI runs OPA-dependent tests.
 - **Confidence:** high
 - **Status:** Complete — `rust.yml` uses `open-policy-agent/setup-opa@v2.3.0`
-  (lines 48-51). **Caveat:** `version: latest` does not match D-TFIX-002;
-  pin to `DEFAULT_OPA_VERSION` when TFIX-003 lands.
+  with OPA pinned to `v0.60.0`.
 
 #### TFIX-005: cache OPA binary in CI
 
