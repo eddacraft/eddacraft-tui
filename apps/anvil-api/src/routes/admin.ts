@@ -18,6 +18,7 @@ import {
   insertSendMigrationSnapshot,
   consumeSendMigrationSnapshot,
   findSendMigrationSnapshot,
+  type AuthMethod,
   type SnapshotRecipient,
 } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
@@ -44,15 +45,36 @@ admin.use('*', adminAuth);
 
 /**
  * Resolve the admin actor identity for audit logging.
- * Checks X-Admin-Actor header first, then falls back to 'admin'.
+ *
+ * Per ADMINCLIH-002, the identity is set by the admin-auth middleware —
+ * either from the `admin_keys.actor_email` row (per-operator path) or the
+ * sentinel `shared-key@anvil` (shared-key path). `X-Admin-Actor` is no
+ * longer trusted on either path, which closes the attribution-forgery
+ * vector.
  */
-function resolveAdminActor(c: { req: { header: (name: string) => string | undefined } }): string {
-  const actor = c.req.header('X-Admin-Actor');
-  if (actor && actor.length <= 200) {
-    // Sanitise: strip control characters, keep printable ASCII
-    return actor.replace(/[^\x20-\x7E]/g, '').trim() || 'admin';
+function resolveAdminActor(c: { get: (key: 'adminActor') => string | undefined }): string {
+  const actor = c.get('adminActor');
+  if (!actor) {
+    // Middleware always sets this on successful auth, so an undefined here
+    // is a programming error (e.g. route mounted without adminAuth). Fail
+    // loud rather than silently fabricate an actor.
+    throw new Error('resolveAdminActor: adminActor missing from context');
   }
-  return 'admin';
+  return actor;
+}
+
+/**
+ * Resolve the auth method (`shared` | `per_operator`) for the current
+ * request, for stamping into audit rows.
+ */
+function resolveAuthMethod(c: {
+  get: (key: 'adminAuthMethod') => AuthMethod | undefined;
+}): AuthMethod {
+  const method = c.get('adminAuthMethod');
+  if (!method) {
+    throw new Error('resolveAuthMethod: adminAuthMethod missing from context');
+  }
+  return method;
 }
 
 /**
@@ -71,6 +93,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   debug('POST /admin/invite', { email, scopes, days, tokenOnly });
   const sql = getClient();
   const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
 
   const normalizedEmail = email.toLowerCase().trim();
 
@@ -99,8 +122,8 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
             ${hash}, ${scopes}, ${expiresAt.toISOString()}
           )
           RETURNING *`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+          VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })}, ${authMethod})
           RETURNING *`,
     ]);
 
@@ -141,8 +164,8 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
             ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
           )
           RETURNING *`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+          VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })}, ${authMethod})
           RETURNING *`,
     ]);
     return { userCode: code, txResult: result };
@@ -178,6 +201,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
   debug('POST /admin/revoke', { hasEmail: !!email, hasToken: !!token });
   const sql = getClient();
   const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
 
   if (email) {
     const normalizedEmail = email.toLowerCase().trim();
@@ -187,8 +211,8 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
           WHERE user_id = (SELECT id FROM beta_users WHERE email = ${normalizedEmail})
             AND revoked_at IS NULL
           RETURNING id`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'tokens.revoked'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
+      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+          VALUES (${'tokens.revoked'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];
@@ -206,8 +230,8 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
           WHERE token_hash = ${hash}
             AND revoked_at IS NULL
           RETURNING id`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'token.revoked'}, ${actor}, ${JSON.stringify({ revoked: true })})
+      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+          VALUES (${'token.revoked'}, ${actor}, ${JSON.stringify({ revoked: true })}, ${authMethod})
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];
@@ -228,6 +252,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   debug('POST /admin/approve', { hasEmail: 'email' in body, hasBatch: 'batch' in body });
   const sql = getClient();
   const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
 
   const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
 
@@ -269,8 +294,8 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
               ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
             )
             RETURNING *`,
-        sql`INSERT INTO audit_log (action, actor, metadata)
-            VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
+        sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+            VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
             RETURNING *`,
       ]);
       return { userCode: code };
@@ -293,9 +318,11 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   type SkipReason = 'not_found' | 'collision' | 'error';
 
   async function recordCollision(email: string): Promise<void> {
-    await insertAuditLog(sql, 'user.approve.collision', actor, { email }).catch((err) => {
-      console.error('Failed to record collision audit (non-fatal):', err);
-    });
+    await insertAuditLog(sql, 'user.approve.collision', actor, { email }, authMethod).catch(
+      (err) => {
+        console.error('Failed to record collision audit (non-fatal):', err);
+      }
+    );
   }
 
   function classifySkip(err: unknown): SkipReason {
@@ -473,6 +500,7 @@ function computeCohortDrift(
 admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => {
   const sql = getClient();
   const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
   const { source, dryRun, limit, previewToken } = c.req.valid('json');
 
   if (dryRun) {
@@ -593,12 +621,18 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   const sent = results.filter((r) => r.sent).length;
   const failed = results.filter((r) => !r.sent).length;
 
-  await insertAuditLog(sql, 'migration.email.sent', actor, {
-    source: snapshotSource,
-    sent,
-    failed,
-    previewToken,
-  });
+  await insertAuditLog(
+    sql,
+    'migration.email.sent',
+    actor,
+    {
+      source: snapshotSource,
+      sent,
+      failed,
+      previewToken,
+    },
+    authMethod
+  );
 
   return c.json({
     source: snapshotSource,
@@ -627,6 +661,7 @@ admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), asyn
   debug('POST /admin/user/email-update');
   const sql = getClient();
   const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
 
   const normalizedCurrent = currentEmail.toLowerCase().trim();
   const normalizedNew = newEmail.toLowerCase().trim();
@@ -651,7 +686,7 @@ admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), asyn
       sql`UPDATE beta_users SET email = ${normalizedNew}
           WHERE id = ${existing.id}
           RETURNING id, email, status`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
+      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
           VALUES (
             ${'user.email.updated'},
             ${actor},
@@ -660,7 +695,8 @@ admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), asyn
               email: normalizedNew,
               from: normalizedCurrent,
               to: normalizedNew,
-            })}
+            })},
+            ${authMethod}
           )
           RETURNING *`,
     ])) as unknown[][];
