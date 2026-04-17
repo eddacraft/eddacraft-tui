@@ -122,15 +122,20 @@ API contract tweak)
   `actor_email` are allowed (rotation) but the CLI must present exactly one
   key per invocation.
 - `admin-auth` middleware hashes the presented bearer and performs a single
-  parameterised `SELECT ... WHERE hashed_key = $1 AND revoked_at IS NULL`.
-  Equality comparison uses constant-time primitives; no per-row iteration
-  over the keys table.
+  parameterised indexed SELECT on `hashed_key` (no per-row iteration over
+  the keys table). The Postgres equality is index-based, not constant-time,
+  so the plan does not rely on it for timing defense. Any in-process
+  comparison (e.g. the shared-key fallback) uses constant-time equality
+  (`crypto.timingSafeEqual`).
 - A request presenting a hashed key that matches a revoked row is rejected
   with 401 `admin_key_revoked`.
 - Authentication failures (unknown key, revoked key, malformed bearer) are
-  recorded in `audit_log` with `actor: null`, `outcome: "rejected_*"`, and
-  the hashed bearer (never the plaintext bearer) so repeated attempts can be
-  correlated.
+  recorded in `audit_log` with a sentinel
+  `actor: "admin-auth-failure@anvil"` (since `audit_log.actor` is
+  `NOT NULL`). Rejection details are stored under
+  `metadata.outcome: "rejected_*"` and `metadata.hashed_bearer` (never the
+  plaintext bearer) so repeated attempts can be correlated without
+  requiring an `audit_log` schema change for an `outcome` column.
 - During dual-auth rollout, requests authenticated via the shared
   `ADMIN_KEY` **ignore `X-Admin-Actor` entirely**. The audit row records
   `actor: "shared-key@anvil"` (sentinel) and `auth_method: "shared"`. This
@@ -152,13 +157,19 @@ API contract tweak)
 ### CLI response validation (ADMINCLIH-003)
 
 - Response schemas (`DryRunResponse`, `SendResponse`, `ListResponse`,
-  `ShowResponse`, `AuditResponse`, `DriftDiffResponse`) live in
-  `admin-schemas.ts` and are imported by both server and CLI. Schema
-  changes require both server and CLI tests to pass.
-- CLI response validation failures raise `AdminError` with **exit code 5**
-  (distinct from `2`, which is reserved for 5xx/network errors). The error
-  message names the offending field and includes an expected-vs-actual
-  shape summary.
+  `ShowResponse`, `AuditResponse`, `DriftDiffResponse`) live in a shared
+  contract module imported by both the server and `@eddacraft/admin-cli`.
+  Concrete location is decided at implementation time — options include a
+  new `packages/admin-contracts` workspace or an exported submodule on
+  `@eddacraft/anvil-api`. The CLI adds `zod` as a dependency (it does not
+  depend on it today). Schema changes require both server and CLI tests
+  to pass.
+- CLI response validation failures raise `AdminError` with **exit code 6**.
+  This is distinct from the existing mapping (`1` = 4xx business
+  failures, `2` = 5xx / invalid JSON, `3` = network errors, `4` = non-TTY
+  confirmation refusal, `5` = `MissingConfigError`, `64` = CLI argument
+  validation). The error message names the offending field and includes
+  an expected-vs-actual shape summary.
 
 ### Other
 
@@ -201,9 +212,9 @@ API contract tweak)
 
 ### CLI response validation (ADMINCLIH-003)
 
-- [ ] Response schemas exist in `admin-schemas.ts` and are the single
-      source of truth for both server and CLI
-- [ ] CLI rejects malformed admin-API responses with **exit code 5** and a
+- [ ] Response schemas exist in a shared contract module and are the
+      single source of truth for both server and CLI
+- [ ] CLI rejects malformed admin-API responses with **exit code 6** and a
       message naming the offending field; tests cover missing/mistyped
       fields on `DryRunResponse`, `SendResponse`, `ListResponse`,
       `ShowResponse`, `AuditResponse`
@@ -223,7 +234,7 @@ API contract tweak)
 | Per-operator key rollout leaves a window where audit rows are mixed | `auth_method` column on `audit_log`; shared-key rows use sentinel actor; dashboards filter by `auth_method` |
 | Attribution-forgery residual during dual-auth rollout | Shared-key path ignores `X-Admin-Actor` entirely, so no forgery during the window |
 | Audit-email filters silently miss shared-key rows | Runbook documents the dual-path query pattern; optional DB view normalises both |
-| CLI response validator becomes brittle as server evolves | Schemas live in `admin-schemas.ts`, imported by both server and CLI; schema change requires both test suites to pass |
+| CLI response validator becomes brittle as server evolves | Schemas live in a shared contract module imported by both server and CLI; schema change requires both test suites to pass |
 | Shared-key users break mid-rollout | `admin.per_operator_keys` feature flag; lookup-failure falls back to shared-key; shared path removed only after 7 consecutive zero-shared days |
 | Pulumi/IaC compromise during dual-auth window implies admin escalation | Two-person rule on IaC changes; `admin_keys_audit` table records every provisioning event with commit SHA; short rollout window |
 
@@ -300,8 +311,9 @@ API contract tweak)
   - `apps/anvil-api/src/middleware/admin-auth.ts`
   - `apps/anvil-api/src/__tests__/admin.test.ts` (auth-method matrix,
     revoked-key test, DB-failure fallback test, sentinel actor test)
-  - `apps/anvil-api/src/routes/admin-schemas.ts` (extend `AuditEntrySchema`
-    with `auth_method`)
+  - `apps/anvil-api/src/db/queries.ts` — extend `AuditEntrySchema` here
+    (the schema lives in `queries.ts`, not in `admin-schemas.ts`) with an
+    `auth_method` field
   - `docs/runbooks/admin-cli.md` (per-operator keys, revocation, rotation,
     local key storage guidance)
 - **Dependencies:** —
@@ -320,19 +332,24 @@ API contract tweak)
 
 - **Intent:** Surface malformed admin responses as a clean CLI error
   rather than an undefined-access crash inside the renderer
-- **Expected Outcome:** Response schemas added to `admin-schemas.ts` as
-  the single source of truth; CLI `client` hooks validation into every
-  admin response; validation failures throw `AdminError` with **exit
-  code 5** and a message naming the offending field; tests inject
-  malformed responses and assert the behaviour
-- **Scope:** `apps/admin-cli/src/`, `apps/anvil-api/src/routes/admin-schemas.ts`
+- **Expected Outcome:** Response schemas added to a shared contract module
+  (see Boundary Rules) as the single source of truth; CLI `client` hooks
+  validation into every admin response; validation failures throw
+  `AdminError` with **exit code 6** and a message naming the offending
+  field; tests inject malformed responses and assert the behaviour
+- **Scope:** `apps/admin-cli/src/`, new shared contract module (location
+  decided at implementation time — e.g. `packages/admin-contracts/` or an
+  exported submodule on `@eddacraft/anvil-api`)
 - **Non-scope:** Server-side response shape changes beyond adding
   response schemas, retries on malformed responses
 - **Files:**
-  - `apps/anvil-api/src/routes/admin-schemas.ts` (new `DryRunResponse`,
-    `SendResponse`, `ListResponse`, `ShowResponse`, `AuditResponse`
-    schemas — these do not exist today and must be created)
-  - `apps/admin-cli/src/client.ts` (hook in validation, exit code 5)
+  - New contract module containing `DryRunResponse`, `SendResponse`,
+    `ListResponse`, `ShowResponse`, `AuditResponse`, `DriftDiffResponse`
+    Zod schemas — these do not exist today and must be created; the
+    server imports them from the same module
+  - `apps/admin-cli/package.json` — add `zod` dependency (not currently
+    present) and dependency on the contract module
+  - `apps/admin-cli/src/client.ts` (hook in validation, exit code 6)
   - `apps/admin-cli/src/commands/*.ts` (consume validated types)
   - `apps/admin-cli/src/__tests__/` (fixtures with broken shapes)
 - **Dependencies:** ADMINCLIH-001 — -001 introduces `DriftDiffResponse`
