@@ -3,9 +3,9 @@
 
 # Admin CLI Hardening
 
-| Scope     | Owner  | Priority | Status   |
-| --------- | ------ | -------- | -------- |
-| ADMINCLIH | @aneki | medium   | Proposed |
+| Scope     | Owner  | Priority | Status      |
+| --------- | ------ | -------- | ----------- |
+| ADMINCLIH | @aneki | medium   | In Progress |
 
 ## Purpose
 
@@ -276,7 +276,7 @@ API contract tweak)
   a deliberate 11-minute pause to confirm 410 expiry fires
 - **Confidence:** medium (depends on snapshot-storage choice — DB table vs
   KV)
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### Phase B: Authenticated operator identity
 
