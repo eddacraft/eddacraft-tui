@@ -5,6 +5,7 @@ import { MissingConfigError } from './config.js';
 import { formatError } from './format.js';
 import { runListCommand, type ListOptions } from './commands/list.js';
 import { runShowCommand, type ShowOptions } from './commands/show.js';
+import { runApproveCommand, type ApproveOptions } from './commands/approve.js';
 import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
@@ -63,9 +64,16 @@ program
 program
   .command('approve [email]')
   .description('approve a single email or the oldest N pending entries')
-  .option('--batch <n>', 'approve the oldest N unapproved entries')
+  .addOption(
+    new Option('--batch <n>', 'approve the oldest N unapproved entries').argParser(
+      parseBoundedInt('--batch', 1, 100)
+    )
+  )
   .option('-y, --yes', 'skip confirmation prompt')
-  .action(notImplemented('ADMINCLI-008'));
+  .option('--json', 'emit raw JSON')
+  .action(async (email: string | undefined, _options, cmd: Command) => {
+    await runApproveCommand(email, cmd.optsWithGlobals() as ApproveOptions);
+  });
 
 program
   .command('invite <email>')
