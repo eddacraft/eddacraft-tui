@@ -29,7 +29,7 @@ import {
   waitlistListQuerySchema,
   auditListQuerySchema,
 } from './admin-schemas.js';
-import { isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
+import { isUniqueViolation, isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
 
@@ -506,24 +506,37 @@ admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), asyn
     return c.json({ error: 'New email already in use' }, 409);
   }
 
-  const txResult = await sql.transaction([
-    sql`UPDATE beta_users SET email = ${normalizedNew}
-        WHERE id = ${existing.id}
-        RETURNING id, email, status`,
-    sql`INSERT INTO audit_log (action, actor, metadata)
-        VALUES (
-          ${'user.email.updated'},
-          ${actor},
-          ${JSON.stringify({ userId: existing.id, from: normalizedCurrent, to: normalizedNew })}
-        )
-        RETURNING *`,
-  ]);
+  let txResult: unknown[][];
+  try {
+    txResult = (await sql.transaction([
+      sql`UPDATE beta_users SET email = ${normalizedNew}
+          WHERE id = ${existing.id}
+          RETURNING id, email, status`,
+      sql`INSERT INTO audit_log (action, actor, metadata)
+          VALUES (
+            ${'user.email.updated'},
+            ${actor},
+            ${JSON.stringify({
+              userId: existing.id,
+              email: normalizedNew,
+              from: normalizedCurrent,
+              to: normalizedNew,
+            })}
+          )
+          RETURNING *`,
+    ])) as unknown[][];
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'New email already in use' }, 409);
+    }
+    throw err;
+  }
 
-  const updated = (txResult as unknown[][])[0]?.[0] as {
-    id: string;
-    email: string;
-    status: string;
-  };
+  const updated = txResult[0]?.[0] as { id: string; email: string; status: string } | undefined;
+
+  if (!updated) {
+    return c.json({ error: 'User was deleted during update' }, 404);
+  }
 
   return c.json({
     user: { id: updated.id, email: updated.email, status: updated.status },

@@ -783,5 +783,36 @@ describe('admin endpoints', () => {
       });
       expect(res.status).toBe(401);
     });
+
+    it('returns 409 on concurrent unique violation', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      const uniqueError = Object.assign(new Error('duplicate key'), { code: '23505' });
+      mockSql.transaction.mockRejectedValueOnce(uniqueError);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'race@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+    });
+
+    it('returns 404 when user deleted between lookup and update', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([[], [{ id: 'audit-1' }]]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('User was deleted during update');
+    });
   });
 });
