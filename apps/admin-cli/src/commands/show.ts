@@ -66,6 +66,10 @@ export async function runShowCommand(
   const path = `/admin/user/${encodeURIComponent(email)}`;
   const result = await client.get<ShowResponse>(path);
 
+  if (result.auditError) {
+    stderr('warning: audit lookup failed; user and tokens still shown.\n');
+  }
+
   if (options.json) {
     stdout(formatJson(result) + '\n');
     return;
@@ -74,10 +78,6 @@ export async function runShowCommand(
   stdout(renderUserPanel(result.user) + '\n\n');
   stdout(renderTokensSection(result.tokens) + '\n\n');
   stdout(renderAuditSection(result.recentAudit) + '\n');
-
-  if (result.auditError) {
-    stderr('warning: audit lookup failed; user and tokens still shown.\n');
-  }
 }
 
 function renderUserPanel(user: ShowUser): string {

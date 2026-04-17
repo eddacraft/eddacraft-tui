@@ -144,6 +144,23 @@ describe('runShowCommand', () => {
     expect(errs.join('')).toContain('audit lookup failed');
   });
 
+  it('prints auditError warning on stderr in --json mode too', async () => {
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runShowCommand(
+      'alice@example.com',
+      { json: true },
+      {
+        createClient: () =>
+          makeClient({ ...sampleResponse, auditError: true } satisfies ShowResponse),
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+      }
+    );
+    expect(errs.join('')).toContain('audit lookup failed');
+    expect(outs.join('')).toContain('"auditError": true');
+  });
+
   it('propagates AdminError on 404 from client', async () => {
     const get = vi.fn(async () => {
       throw Object.assign(new Error('User not found'), {
