@@ -125,7 +125,7 @@ program
 
 program
   .command('send-migration')
-  .description('send migration email to imported waitlist users')
+  .description('send migration email to waitlist users from a selected source (default: import)')
   .addOption(
     new Option('--source <source>', 'filter by source')
       .choices([...MIGRATION_SOURCES])
