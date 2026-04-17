@@ -23,8 +23,11 @@ echo ""
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-psql "$WAITLIST_DB_URL" -tAc "SELECT email FROM waitlist ORDER BY email" > "$TMPDIR/src"
-psql "$BETA_DB_URL"     -tAc "SELECT email FROM waitlist ORDER BY email" > "$TMPDIR/tgt"
+# Normalise (lower) and byte-sort so `comm` compares deterministically —
+# `email` is citext (case-insensitive) and DB collation may differ from the
+# local locale, either of which can cause spurious MISSING/EXTRA output.
+psql "$WAITLIST_DB_URL" -tAc "SELECT lower(email) FROM waitlist" | LC_ALL=C sort > "$TMPDIR/src"
+psql "$BETA_DB_URL"     -tAc "SELECT lower(email) FROM waitlist" | LC_ALL=C sort > "$TMPDIR/tgt"
 
 MISSING=$(comm -23 "$TMPDIR/src" "$TMPDIR/tgt" | wc -l | tr -d ' ')
 EXTRA=$(  comm -13 "$TMPDIR/src" "$TMPDIR/tgt" | wc -l | tr -d ' ')

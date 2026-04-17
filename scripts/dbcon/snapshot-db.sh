@@ -22,6 +22,13 @@ fi
 DB_URL="$1"
 TAG="$2"
 
+# Guard against path traversal / weird characters in TAG — it becomes part of
+# the output filename, so keep it to a conservative slug charset.
+if ! [[ "$TAG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "tag must match [a-z0-9][a-z0-9-]* (got: $TAG)" >&2
+  exit 2
+fi
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/snapshots"
 mkdir -p "$DIR"
 

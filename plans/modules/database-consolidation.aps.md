@@ -219,9 +219,9 @@ Change status to **Ready** when:
     website-database-url` returns NotFound.
 - **Confidence:** medium
 - **Files:**
-  - Modify: `scripts/dbcon/export-waitlist.sh`
-  - Modify: `scripts/dbcon/import-waitlist.sh`
-  - Modify: `scripts/dbcon/verify-counts.sh`
+  - Add: `scripts/dbcon/export-waitlist.sh`
+  - Add: `scripts/dbcon/import-waitlist.sh`
+  - Add: `scripts/dbcon/verify-counts.sh`
   - Modify: `scripts/dbcon/README.md`
 
 ### DBCON-004: decommission legacy Neon projects
