@@ -201,7 +201,8 @@ export function makeAPSMarkdown(intent = 'E2E test plan'): string {
  * - AP-004 `@ts-ignore`
  * - AP-003 explicit `any`
  * - AP-006 empty catch block
- * - AP-007 `console.*` in production-shaped code
+ * - AP-007 `console.*` in production-shaped code (only when
+ *   `includeOptIn: true` is enabled)
  *
  * Intentionally contains no secret-shaped strings — the antipattern catalogue
  * has no secret-detection rule (see `patterns.ts`), so a fixture that claimed
