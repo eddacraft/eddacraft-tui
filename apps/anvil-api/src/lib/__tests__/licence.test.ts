@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { generateKeyPair, importSPKI, jwtVerify } from 'jose';
-import { signLicence, type LicenceClaims } from '../licence.js';
+import {
+  signLicence,
+  verifySigningKey,
+  _resetSigningKeyCacheForTests,
+  type LicenceClaims,
+} from '../licence.js';
 
 let originalSigningKey: string | undefined;
 let originalPublicKey: string | undefined;
@@ -147,10 +152,35 @@ describe('signLicence', () => {
   it('throws if LICENSE_SIGNING_KEY is not set', async () => {
     const saved = process.env['LICENSE_SIGNING_KEY'];
     delete process.env['LICENSE_SIGNING_KEY'];
+    _resetSigningKeyCacheForTests();
     try {
       await expect(signLicence(makeClaims())).rejects.toThrow('LICENSE_SIGNING_KEY');
     } finally {
       process.env['LICENSE_SIGNING_KEY'] = saved;
+      _resetSigningKeyCacheForTests();
+    }
+  });
+});
+
+describe('verifySigningKey', () => {
+  it('returns ok when LICENSE_SIGNING_KEY is valid', async () => {
+    const result = await verifySigningKey();
+    expect(result.ok).toBe(true);
+  });
+
+  it('returns error when LICENSE_SIGNING_KEY is missing', async () => {
+    const saved = process.env['LICENSE_SIGNING_KEY'];
+    delete process.env['LICENSE_SIGNING_KEY'];
+    _resetSigningKeyCacheForTests();
+    try {
+      const result = await verifySigningKey();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toMatch(/LICENSE_SIGNING_KEY/);
+      }
+    } finally {
+      process.env['LICENSE_SIGNING_KEY'] = saved;
+      _resetSigningKeyCacheForTests();
     }
   });
 });

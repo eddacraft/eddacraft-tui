@@ -230,11 +230,14 @@ matures. Roughly ordered by risk.
 
 ### G-01: `LICENSE_SIGNING_KEY` not in README or infra — RESOLVED
 
-_Resolved 2026-04-16._ The env var is now sourced from KeyVault secret
+_Resolved 2026-04-16._ The env var is sourced from KeyVault secret
 `license-signing-key` and wired into `anvil-api` via `infra/src/vercel.ts`; the
-README env table (`apps/anvil-api/README.md`) already lists it. A graceful
-startup check is still worth considering so missing keys surface at boot rather
-than on the first `/device/poll` that reaches the licence-minting path.
+README env table (`apps/anvil-api/README.md`) lists it. A module-level
+cold-start probe in `apps/anvil-api/src/index.ts` parses the PEM at boot and
+logs `[boot] licence signing key unavailable: <error>` if the env var is missing
+or malformed, and `/health` reports `signingKey: unavailable` with HTTP 503 when
+the key can't load — so misconfiguration surfaces at deploy time rather than on
+the first `/device/poll` that reaches the licence-minting path.
 
 ### G-02: Identity, org, tier, seats are hardcoded
 

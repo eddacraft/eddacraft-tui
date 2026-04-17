@@ -18,16 +18,9 @@ CREATE TABLE IF NOT EXISTS waitlist (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Keep updated_at in sync using the shared trigger function (created by
--- schema.sql if this is a fresh DB, or already present otherwise).
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
+-- update_updated_at() is defined by schema.sql. Relying on that definition
+-- here keeps a single source of truth and avoids silently overwriting
+-- live-patched function attributes (SECURITY DEFINER, COST, etc.).
 DROP TRIGGER IF EXISTS waitlist_updated_at ON waitlist;
 CREATE TRIGGER waitlist_updated_at
   BEFORE UPDATE ON waitlist

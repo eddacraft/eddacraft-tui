@@ -1,0 +1,40 @@
+{
+  "name": "@eddacraft/admin-cli",
+  "version": "0.1.0-beta",
+  "description": "Operator CLI for Anvil beta admin operations",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "anvil-admin": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "start": "tsx src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eddacraft/anvil-001.git",
+    "directory": "apps/admin-cli"
+  },
+  "author": "eddacraft",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.4"
+  }
+}

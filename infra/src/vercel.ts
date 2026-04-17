@@ -3,7 +3,7 @@ import { getSecret } from './keyvault.js';
 
 const gitRepo = 'eddacraft/anvil-001';
 
-const databaseUrl = getSecret('website-database-url');
+const databaseUrl = getSecret('anvil-api-database-url');
 const resendApiKey = getSecret('resend-api-key');
 
 // DOCSAUTH: GitHub OAuth secrets
@@ -66,6 +66,13 @@ export const api = new VercelApp('anvil-api', {
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,
+    // DBCON-003: WAITLIST_PAUSED is intentionally NOT declared here. It is a
+    // kill switch for POST /waitlist (see waitlist.ts) toggled directly in the
+    // Vercel project UI during the Neon cutover — if Pulumi managed it, the
+    // next `pulumi up` would clobber the operator's toggle. Env changes require
+    // an anvil-api redeploy to take effect (redeploy itself is zero-downtime).
+    // Set to "true" and redeploy to return 503; unset and redeploy to restore
+    // normal operation.
   },
 });
 

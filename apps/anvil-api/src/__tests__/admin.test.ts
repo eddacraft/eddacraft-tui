@@ -24,6 +24,7 @@ vi.mock('../db/client.js', () => ({
 
 // Mock queries
 vi.mock('../db/queries.js', () => ({
+  findUserByEmail: vi.fn(),
   findUserWithTokens: vi.fn(),
   insertAuditLog: vi.fn().mockResolvedValue({
     id: 'audit-1',
@@ -36,6 +37,9 @@ vi.mock('../db/queries.js', () => ({
   findWaitlistEntryByEmail: vi.fn().mockResolvedValue({ id: '1' }),
   findUnapprovedWaitlistEntries: vi.fn().mockResolvedValue([]),
   findWaitlistBySource: vi.fn().mockResolvedValue([]),
+  findWaitlistPaginated: vi.fn().mockResolvedValue({ total: 0, items: [] }),
+  findAuditEntries: vi.fn().mockResolvedValue({ total: 0, items: [] }),
+  findRecentAuditForEmail: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock token utilities
@@ -57,7 +61,17 @@ vi.mock('../lib/audience.js', () => ({
   removeFromBetaAudience: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { findUserWithTokens, upsertWaitlistWithName } from '../db/queries.js';
+import {
+  findUserByEmail,
+  findUserWithTokens,
+  upsertWaitlistWithName,
+  findWaitlistPaginated,
+  findAuditEntries,
+  findRecentAuditForEmail,
+  findWaitlistEntryByEmail,
+  findUnapprovedWaitlistEntries,
+  insertAuditLog,
+} from '../db/queries.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -238,6 +252,567 @@ describe('admin endpoints', () => {
     it('returns 400 for invalid email format', async () => {
       const res = await request('GET', '/admin/user/not-an-email', undefined, ADMIN_KEY);
       expect(res.status).toBe(400);
+    });
+
+    it('includes recentAudit for the looked-up email', async () => {
+      vi.mocked(findUserWithTokens).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'alice@example.com',
+          name: 'Alice',
+          status: 'active',
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        tokens: [],
+      });
+      vi.mocked(findRecentAuditForEmail).mockResolvedValue([
+        {
+          id: 'audit-1',
+          action: 'user.invited',
+          actor: 'josh@arkahna.io',
+          metadata: { email: 'alice@example.com', scopes: ['beta'], days: 30 },
+          created_at: '2026-04-17T09:00:00Z',
+        },
+        {
+          id: 'audit-2',
+          action: 'token.created',
+          actor: 'josh@arkahna.io',
+          metadata: { email: 'alice@example.com', scopes: ['beta'] },
+          created_at: '2026-04-17T10:00:00Z',
+        },
+      ]);
+
+      const res = await request('GET', '/admin/user/alice@example.com', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.recentAudit).toHaveLength(2);
+      expect(body.recentAudit[0].action).toBe('user.invited');
+      expect(vi.mocked(findRecentAuditForEmail)).toHaveBeenCalledWith(
+        expect.anything(),
+        'alice@example.com'
+      );
+    });
+
+    it('returns empty recentAudit when no entries match', async () => {
+      vi.mocked(findUserWithTokens).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'alice@example.com',
+          name: null,
+          status: 'active',
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        tokens: [],
+      });
+      vi.mocked(findRecentAuditForEmail).mockResolvedValue([]);
+
+      const res = await request('GET', '/admin/user/alice@example.com', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.recentAudit).toEqual([]);
+    });
+
+    it('degrades to empty recentAudit when audit lookup throws', async () => {
+      vi.mocked(findUserWithTokens).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'alice@example.com',
+          name: null,
+          status: 'active',
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        tokens: [],
+      });
+      vi.mocked(findRecentAuditForEmail).mockRejectedValue(new Error('db blew up'));
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await request('GET', '/admin/user/alice@example.com', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user.email).toBe('alice@example.com');
+      expect(body.recentAudit).toEqual([]);
+      expect(body.auditError).toBe(true);
+      errSpy.mockRestore();
+    });
+  });
+
+  describe('GET /admin/waitlist — waitlist list', () => {
+    it('defaults to pending status, all sources, limit 50, offset 0', async () => {
+      vi.mocked(findWaitlistPaginated).mockResolvedValue({ total: 0, items: [] });
+
+      const res = await request('GET', '/admin/waitlist', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findWaitlistPaginated)).toHaveBeenCalledWith(expect.anything(), {
+        status: 'pending',
+        source: 'all',
+        limit: 50,
+        offset: 0,
+      });
+    });
+
+    it('returns total and items in response body', async () => {
+      vi.mocked(findWaitlistPaginated).mockResolvedValue({
+        total: 2,
+        items: [
+          {
+            email: 'alice@example.com',
+            name: 'Alice',
+            source: 'website',
+            created_at: '2026-04-16T10:00:00Z',
+            approved_at: null,
+          },
+          {
+            email: 'bob@example.com',
+            name: null,
+            source: 'manual',
+            created_at: '2026-04-17T09:00:00Z',
+            approved_at: '2026-04-17T09:05:00Z',
+          },
+        ],
+      });
+
+      const res = await request('GET', '/admin/waitlist', undefined, ADMIN_KEY);
+      const body = await res.json();
+      expect(body.total).toBe(2);
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].email).toBe('alice@example.com');
+      expect(body.items[1].approved_at).toBe('2026-04-17T09:05:00Z');
+    });
+
+    it('passes status, source, limit, and offset filters through', async () => {
+      vi.mocked(findWaitlistPaginated).mockResolvedValue({ total: 0, items: [] });
+
+      const res = await request(
+        'GET',
+        '/admin/waitlist?status=approved&source=manual&limit=10&offset=20',
+        undefined,
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findWaitlistPaginated)).toHaveBeenCalledWith(expect.anything(), {
+        status: 'approved',
+        source: 'manual',
+        limit: 10,
+        offset: 20,
+      });
+    });
+
+    it('accepts status=all for unfiltered listing', async () => {
+      vi.mocked(findWaitlistPaginated).mockResolvedValue({ total: 0, items: [] });
+
+      const res = await request('GET', '/admin/waitlist?status=all', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findWaitlistPaginated)).toHaveBeenCalledWith(expect.anything(), {
+        status: 'all',
+        source: 'all',
+        limit: 50,
+        offset: 0,
+      });
+    });
+
+    it('rejects invalid status with 400', async () => {
+      const res = await request('GET', '/admin/waitlist?status=bogus', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects invalid source with 400', async () => {
+      const res = await request('GET', '/admin/waitlist?source=bogus', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects limit above 200 with 400', async () => {
+      const res = await request('GET', '/admin/waitlist?limit=500', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects negative offset with 400', async () => {
+      const res = await request('GET', '/admin/waitlist?offset=-1', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('requires admin auth', async () => {
+      const res = await request('GET', '/admin/waitlist', undefined);
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /admin/audit — audit list', () => {
+    it('defaults to limit 50, offset 0, no filters', async () => {
+      vi.mocked(findAuditEntries).mockResolvedValue({ total: 0, items: [] });
+
+      const res = await request('GET', '/admin/audit', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findAuditEntries)).toHaveBeenCalledWith(expect.anything(), {
+        action: undefined,
+        actor: undefined,
+        limit: 50,
+        offset: 0,
+      });
+    });
+
+    it('returns items and total in response body', async () => {
+      vi.mocked(findAuditEntries).mockResolvedValue({
+        total: 1,
+        items: [
+          {
+            id: 'audit-1',
+            action: 'user.approved',
+            actor: 'josh@arkahna.io',
+            metadata: { email: 'alice@example.com' },
+            created_at: '2026-04-17T09:00:00Z',
+          },
+        ],
+      });
+
+      const res = await request('GET', '/admin/audit', undefined, ADMIN_KEY);
+      const body = await res.json();
+      expect(body.total).toBe(1);
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].action).toBe('user.approved');
+      expect(body.items[0].actor).toBe('josh@arkahna.io');
+    });
+
+    it('passes action and actor filters through', async () => {
+      vi.mocked(findAuditEntries).mockResolvedValue({ total: 0, items: [] });
+
+      const res = await request(
+        'GET',
+        '/admin/audit?action=user.approved&actor=josh@arkahna.io&limit=25&offset=10',
+        undefined,
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findAuditEntries)).toHaveBeenCalledWith(expect.anything(), {
+        action: 'user.approved',
+        actor: 'josh@arkahna.io',
+        limit: 25,
+        offset: 10,
+      });
+    });
+
+    it('rejects limit above 200 with 400', async () => {
+      const res = await request('GET', '/admin/audit?limit=500', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects limit=0 with 400', async () => {
+      const res = await request('GET', '/admin/audit?limit=0', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects non-numeric limit with 400', async () => {
+      const res = await request('GET', '/admin/audit?limit=abc', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects negative offset with 400', async () => {
+      const res = await request('GET', '/admin/audit?offset=-1', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('accepts non-email actor like "admin" (matches write-time sanitisation)', async () => {
+      vi.mocked(findAuditEntries).mockResolvedValue({ total: 0, items: [] });
+      const res = await request('GET', '/admin/audit?actor=admin', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findAuditEntries)).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ actor: 'admin' })
+      );
+    });
+
+    it('rejects actor with control characters with 400', async () => {
+      const res = await request('GET', '/admin/audit?actor=bad%09actor', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects empty actor with 400', async () => {
+      const res = await request('GET', '/admin/audit?actor=', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
+    });
+
+    it('requires admin auth', async () => {
+      const res = await request('GET', '/admin/audit', undefined);
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /admin/approve', () => {
+    function collisionError(): Error {
+      return Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint: 'device_codes_user_code_key',
+      });
+    }
+
+    it('single-email mode succeeds and returns approved entry', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'device-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approved).toHaveLength(1);
+      expect(body.approved[0].email).toBe('alice@example.com');
+    });
+
+    it('retries on user_code collision then succeeds', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction
+        .mockRejectedValueOnce(collisionError())
+        .mockResolvedValueOnce([
+          [{ id: 'user-1', email: 'alice@example.com' }],
+          [{ id: 'token-1' }],
+          [{ id: 'device-1' }],
+          [{ id: 'audit-1' }],
+        ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      expect(mockSql.transaction).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns 503 and records collision audit after max retries exhausted', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError());
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(503);
+      expect(mockSql.transaction).toHaveBeenCalledTimes(3);
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'user.approve.collision',
+        expect.any(String),
+        { email: 'alice@example.com' }
+      );
+    });
+
+    it('returns 404 when email not on waitlist', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue(null);
+
+      const res = await request('POST', '/admin/approve', { email: 'bob@example.com' }, ADMIN_KEY);
+      expect(res.status).toBe(404);
+    });
+
+    it('batch mode returns skipped entries with reasons', async () => {
+      vi.mocked(findUnapprovedWaitlistEntries).mockResolvedValue([
+        { email: 'alice@example.com' },
+        { email: 'bob@example.com' },
+      ]);
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-x' });
+      // First email succeeds, second hits collision on all retries
+      mockSql.transaction
+        .mockResolvedValueOnce([
+          [{ id: 'user-1', email: 'alice@example.com' }],
+          [{ id: 'token-1' }],
+          [{ id: 'device-1' }],
+          [{ id: 'audit-1' }],
+        ])
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError())
+        .mockRejectedValueOnce(collisionError());
+
+      const res = await request('POST', '/admin/approve', { batch: 2 }, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approved).toHaveLength(1);
+      expect(body.approved[0].email).toBe('alice@example.com');
+      expect(body.skipped).toHaveLength(1);
+      expect(body.skipped[0]).toMatchObject({
+        email: 'bob@example.com',
+        reason: 'collision',
+      });
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'user.approve.collision',
+        expect.any(String),
+        { email: 'bob@example.com' }
+      );
+    });
+  });
+
+  describe('POST /admin/user/email-update', () => {
+    // vi.clearAllMocks() doesn't drop mockResolvedValueOnce queues, so reset
+    // findUserByEmail explicitly to avoid state leaking across tests here.
+    beforeEach(() => {
+      vi.mocked(findUserByEmail).mockReset();
+    });
+
+    const existingUser = {
+      id: 'user-1',
+      email: 'old@example.com',
+      status: 'active',
+      name: null,
+      notes: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    it('updates the email and writes an audit entry', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'new@example.com', status: 'active' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user).toEqual({ id: 'user-1', email: 'new@example.com', status: 'active' });
+      expect(body.previousEmail).toBe('old@example.com');
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('normalises mixed-case input before lookup', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'new@example.com', status: 'active' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'OLD@Example.com', newEmail: 'NEW@Example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findUserByEmail)).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        'old@example.com'
+      );
+      expect(vi.mocked(findUserByEmail)).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        'new@example.com'
+      );
+    });
+
+    it('returns 404 when the current user does not exist', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'missing@example.com', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(404);
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 when the new email is already taken', async () => {
+      vi.mocked(findUserByEmail)
+        .mockResolvedValueOnce(existingUser)
+        .mockResolvedValueOnce({ ...existingUser, id: 'user-2', email: 'taken@example.com' });
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'taken@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when new email matches current', async () => {
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'same@example.com', newEmail: 'same@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for invalid email format', async () => {
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'not-an-email', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 401 without admin auth', async () => {
+      const res = await request('POST', '/admin/user/email-update', {
+        currentEmail: 'old@example.com',
+        newEmail: 'new@example.com',
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 409 on concurrent unique violation', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      const uniqueError = Object.assign(new Error('duplicate key'), { code: '23505' });
+      mockSql.transaction.mockRejectedValueOnce(uniqueError);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'race@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+    });
+
+    it('returns 404 when user deleted between lookup and update', async () => {
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([[], [{ id: 'audit-1' }]]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/email-update',
+        { currentEmail: 'old@example.com', newEmail: 'new@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('User was deleted during update');
     });
   });
 });

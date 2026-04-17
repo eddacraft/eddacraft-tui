@@ -63,18 +63,14 @@ Verify TS workspace still builds (non-CLI packages):
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm -r \
-  --filter @eddacraft/anvil-contracts \
-  --filter @eddacraft/anvil-core \
-  --filter @eddacraft/anvil-policy \
-  --filter @eddacraft/anvil-ports \
-  --filter @eddacraft/anvil-runtime \
-  --filter @eddacraft/shared-storage \
-  --filter @eddacraft/render \
-  --filter @eddacraft/anvil-adapters \
-  --filter @eddacraft/anvil-api \
-  test -- --run
 ```
+
+Bundled-package tests run as part of the release script's preflight — you do not
+need to invoke them separately here. See `BUNDLED_TEST_PACKAGES` in
+`scripts/release.sh` for the current scope; update that array when the shipped
+JS/TS package set changes. `./scripts/release.sh` is the full interactive
+release entrypoint (creates a tracking issue, prompts for version and branch
+strategy, pushes `dev`, opens the PR, tags) — do not run it here as a dry run.
 
 Sanity assertions before release:
 

@@ -1,4 +1,4 @@
-import { SignJWT, importPKCS8 } from 'jose';
+import { SignJWT, importPKCS8, type CryptoKey } from 'jose';
 
 const LICENCE_TTL_DAYS = 90;
 const RC_AFTER_DAYS = 7;
@@ -15,17 +15,40 @@ export interface LicenceClaims {
   seats: number;
 }
 
+let cachedSigningKey: Promise<CryptoKey> | null = null;
+
+function loadSigningKey(): Promise<CryptoKey> {
+  if (cachedSigningKey) return cachedSigningKey;
+  const pem = process.env['LICENSE_SIGNING_KEY'];
+  if (!pem) {
+    return Promise.reject(new Error('LICENSE_SIGNING_KEY environment variable is required'));
+  }
+  cachedSigningKey = importPKCS8(pem, 'ES256');
+  return cachedSigningKey;
+}
+
+export async function verifySigningKey(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await loadSigningKey();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Test-only: clears the module-level cache so env-var changes take effect.
+// Production callers mutate env vars once at boot — a runtime rotation path
+// would need a proper invalidation strategy, not this.
+export function _resetSigningKeyCacheForTests(): void {
+  cachedSigningKey = null;
+}
+
 export async function signLicence(
   claims: LicenceClaims,
   tokenExpiresAt?: string | Date,
   ttlDays?: number
 ): Promise<string> {
-  const pem = process.env['LICENSE_SIGNING_KEY'];
-  if (!pem) {
-    throw new Error('LICENSE_SIGNING_KEY environment variable is required');
-  }
-
-  const privateKey = await importPKCS8(pem, 'ES256');
+  const privateKey = await loadSigningKey();
   const now = Math.floor(Date.now() / 1000);
   const effectiveTtl = ttlDays ?? LICENCE_TTL_DAYS;
   const maxExp = now + effectiveTtl * 86400;

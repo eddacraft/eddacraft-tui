@@ -5,44 +5,33 @@ import { zValidator } from '@hono/zod-validator';
 import { adminAuth } from '../middleware/admin-auth.js';
 import { getClient } from '../db/client.js';
 import {
+  findUserByEmail,
   findUserWithTokens,
   insertAuditLog,
   upsertWaitlistWithName,
   findWaitlistEntryByEmail,
   findUnapprovedWaitlistEntries,
   findWaitlistBySource,
+  findWaitlistPaginated,
+  findAuditEntries,
+  findRecentAuditForEmail,
 } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
+import {
+  inviteSchema,
+  approveSchema,
+  revokeSchema,
+  migrationSchema,
+  userEmailUpdateSchema,
+  waitlistListQuerySchema,
+  auditListQuerySchema,
+} from './admin-schemas.js';
+import { isUniqueViolation, isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
-
-const ALLOWED_SCOPES = ['beta', 'preview', 'internal'] as const;
-
-const inviteSchema = z.object({
-  email: z.string().email().max(254),
-  name: z.string().max(200).optional(),
-  notes: z.string().max(1000).optional(),
-  days: z.number().int().positive().max(365).default(90),
-  scopes: z.array(z.enum(ALLOWED_SCOPES)).default(['beta']),
-  tokenOnly: z.boolean().default(false),
-});
-
-const approveSchema = z.union([
-  z.object({ email: z.string().email().max(254) }),
-  z.object({ batch: z.number().int().min(1).max(100) }),
-]);
-
-const revokeSchema = z
-  .object({
-    email: z.string().email().max(254).optional(),
-    token: z.string().max(200).optional(),
-  })
-  .refine((data) => data.email || data.token, {
-    message: 'Either email or token must be provided',
-  });
 
 const admin = new Hono();
 
@@ -127,32 +116,33 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   // Default flow — approve via device code + invite email
   const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
 
-  // Device code for activation link (ANVIL- + 8 hex = 14 chars, within max(20))
-  const userCode = 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
   const pollToken = randomBytes(32).toString('hex');
   const pollTokenHash = hashToken(pollToken);
-  const deviceExpiry = new Date();
-  deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
+  const deviceExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-  // Neon batch transaction — statements are interdependent and must be atomic
-  const txResult = await sql.transaction([
-    sql`INSERT INTO beta_users (email, name, notes, status)
-        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
-        ON CONFLICT (email) DO UPDATE SET
-          name = COALESCE(${name ?? null}, beta_users.name),
-          notes = COALESCE(${notes ?? null}, beta_users.notes),
-          status = ${'active'}
-        RETURNING *`,
-    sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-        VALUES (
-          (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-          ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
-        )
-        RETURNING *`,
-    sql`INSERT INTO audit_log (action, actor, metadata)
-        VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
-        RETURNING *`,
-  ]);
+  // Retry on user_code collision (23505). Entire transaction is re-run with
+  // a fresh code because the INSERT is part of an atomic batch.
+  const { userCode, txResult } = await withUserCodeRetry(async (code) => {
+    const result = await sql.transaction([
+      sql`INSERT INTO beta_users (email, name, notes, status)
+          VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
+          ON CONFLICT (email) DO UPDATE SET
+            name = COALESCE(${name ?? null}, beta_users.name),
+            notes = COALESCE(${notes ?? null}, beta_users.notes),
+            status = ${'active'}
+          RETURNING *`,
+      sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+          VALUES (
+            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+            ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
+          )
+          RETURNING *`,
+      sql`INSERT INTO audit_log (action, actor, metadata)
+          VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+          RETURNING *`,
+    ]);
+    return { userCode: code, txResult: result };
+  });
 
   const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
 
@@ -249,39 +239,38 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     // Generate access token (90-day expiry)
     const rawToken = generateToken();
     const hash = hashToken(rawToken);
-    const tokenExpiry = new Date();
-    tokenExpiry.setDate(tokenExpiry.getDate() + 90);
+    const tokenExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    // Generate device code for invite email (48-hour expiry).
-    // Match /start and /admin/invite: 4 bytes → 8 hex = 14 chars total.
-    const userCode = 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
     const pollToken = randomBytes(32).toString('hex');
     const pollTokenHash = hashToken(pollToken);
-    const deviceExpiry = new Date();
-    deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
+    const deviceExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-    // Neon batch transaction — statements are interdependent and must be atomic
-    await sql.transaction([
-      sql`INSERT INTO beta_users (email, status)
-          VALUES (${normalizedEmail}, ${'active'})
-          ON CONFLICT (email) DO UPDATE SET status = ${'active'}
-          RETURNING *`,
-      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
-          VALUES (
-            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${hash}, ${['beta']}, ${tokenExpiry.toISOString()}
-          )
-          RETURNING *`,
-      sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-          VALUES (
-            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
-          )
-          RETURNING *`,
-      sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
-          RETURNING *`,
-    ]);
+    // Retry on user_code collision (23505). Entire transaction is re-run
+    // with a fresh code because the INSERT is part of an atomic batch.
+    const { userCode } = await withUserCodeRetry(async (code) => {
+      await sql.transaction([
+        sql`INSERT INTO beta_users (email, status)
+            VALUES (${normalizedEmail}, ${'active'})
+            ON CONFLICT (email) DO UPDATE SET status = ${'active'}
+            RETURNING *`,
+        sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+            VALUES (
+              (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+              ${hash}, ${['beta']}, ${tokenExpiry.toISOString()}
+            )
+            RETURNING *`,
+        sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+            VALUES (
+              (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+              ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
+            )
+            RETURNING *`,
+        sql`INSERT INTO audit_log (action, actor, metadata)
+            VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
+            RETURNING *`,
+      ]);
+      return { userCode: code };
+    });
 
     // Move from waitlist to beta audience (best-effort)
     moveToApprovedAudience(normalizedEmail).catch((err) => {
@@ -297,13 +286,32 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     return { email: normalizedEmail, expiresAt: tokenExpiry.toISOString() };
   }
 
+  type SkipReason = 'not_found' | 'collision' | 'error';
+
+  async function recordCollision(email: string): Promise<void> {
+    await insertAuditLog(sql, 'user.approve.collision', actor, { email }).catch((err) => {
+      console.error('Failed to record collision audit (non-fatal):', err);
+    });
+  }
+
+  function classifySkip(err: unknown): SkipReason {
+    if (err instanceof Error && err.message.startsWith('not_found:')) return 'not_found';
+    if (isUserCodeCollision(err)) return 'collision';
+    return 'error';
+  }
+
   if ('email' in body) {
     try {
       const result = await approveOne(body.email);
       return c.json({ approved: [result] }, 200);
     } catch (err) {
-      if (err instanceof Error && err.message.startsWith('not_found:')) {
+      const reason = classifySkip(err);
+      if (reason === 'not_found') {
         return c.json({ error: 'Email not found on waitlist' }, 404);
+      }
+      if (reason === 'collision') {
+        await recordCollision(body.email.toLowerCase().trim());
+        return c.json({ error: 'user_code collision after retries, try again' }, 503);
       }
       throw err;
     }
@@ -313,22 +321,71 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   const unapproved = await findUnapprovedWaitlistEntries(sql, body.batch);
 
   const approved: { email: string; expiresAt: string }[] = [];
+  const skipped: { email: string; reason: SkipReason; message?: string }[] = [];
+
   for (const row of unapproved) {
     try {
       const result = await approveOne(row.email);
       approved.push(result);
     } catch (err) {
-      debug('Batch approve skip', { email: row.email, error: String(err) });
+      const reason = classifySkip(err);
+      const message = err instanceof Error ? err.message : String(err);
+      debug('Batch approve skip', { email: row.email, reason, error: message });
+      if (reason === 'collision') {
+        await recordCollision(row.email.toLowerCase().trim());
+      }
+      skipped.push({ email: row.email, reason, message });
     }
   }
 
-  return c.json({ approved }, 200);
+  return c.json({ approved, skipped }, 200);
+});
+
+/**
+ * GET /admin/waitlist
+ *
+ * Paginated waitlist listing. Filter by approval status (pending /
+ * approved / all), signup source (manual / website / import / all),
+ * with limit and offset for pagination.
+ *
+ * Approval is derived by join against beta_users — an entry is
+ * "approved" when a matching beta_users row exists.
+ */
+admin.get('/waitlist', zValidator('query', waitlistListQuerySchema), async (c) => {
+  const { status, source, limit, offset } = c.req.valid('query');
+  debug('GET /admin/waitlist', { status, source, limit, offset });
+  const sql = getClient();
+
+  const result = await findWaitlistPaginated(sql, { status, source, limit, offset });
+
+  return c.json(result);
+});
+
+/**
+ * GET /admin/audit
+ *
+ * Paginated audit log listing, most recent first. Optional action and
+ * actor filters apply exact-match equality. Bounded pagination
+ * (limit 1-200, default 50).
+ */
+admin.get('/audit', zValidator('query', auditListQuerySchema), async (c) => {
+  const { action, actor, limit, offset } = c.req.valid('query');
+  debug('GET /admin/audit', { action, actor, limit, offset });
+  const sql = getClient();
+
+  const result = await findAuditEntries(sql, { action, actor, limit, offset });
+
+  return c.json(result);
 });
 
 /**
  * GET /admin/user/:email
  *
- * Lookup a user and their token info.
+ * Lookup a user and their token info, plus up to 10 most-recent
+ * audit entries for that email. Audit entries are matched via
+ * metadata->>'email' OR actor = email (e.g. GitHub OAuth writes where
+ * user.email is the actor), so events logged under either shape are
+ * surfaced.
  */
 admin.get('/user/:email', async (c) => {
   debug('GET /admin/user/:email');
@@ -345,6 +402,17 @@ admin.get('/user/:email', async (c) => {
     return c.json({ error: 'User not found' }, 404);
   }
 
+  // recentAudit is an enrichment — degrade gracefully if the audit
+  // lookup fails so the primary user + tokens response still lands.
+  let recentAudit: Awaited<ReturnType<typeof findRecentAuditForEmail>> = [];
+  let auditError = false;
+  try {
+    recentAudit = await findRecentAuditForEmail(sql, email);
+  } catch (err) {
+    auditError = true;
+    console.error('findRecentAuditForEmail failed (non-fatal):', err);
+  }
+
   return c.json({
     user: result.user,
     tokens: result.tokens.map((t) => ({
@@ -354,6 +422,8 @@ admin.get('/user/:email', async (c) => {
       revoked_at: t.revoked_at,
       created_at: t.created_at,
     })),
+    recentAudit,
+    ...(auditError ? { auditError: true } : {}),
   });
 });
 
@@ -364,12 +434,6 @@ admin.get('/user/:email', async (c) => {
  * Optional `source` filter (default: 'import').
  * Optional `dryRun` to preview without sending.
  */
-const migrationSchema = z.object({
-  source: z.enum(['import', 'website', 'manual']).default('import'),
-  dryRun: z.boolean().default(false),
-  limit: z.number().int().min(1).max(100).default(20),
-});
-
 admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => {
   const sql = getClient();
   const actor = resolveAdminActor(c);
@@ -404,6 +468,80 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   await insertAuditLog(sql, 'migration.email.sent', actor, { source, sent, failed });
 
   return c.json({ source, total: waitlistRows.length, sent, failed, results });
+});
+
+/**
+ * POST /admin/user/email-update
+ *
+ * Update a beta user's email. Used when the email a user registered with
+ * doesn't match any address verified on their GitHub account, and
+ * self-service (adding the beta email to github.com/settings/emails) isn't
+ * viable — typically because they've lost access to the original inbox.
+ *
+ * Scope: updates beta_users.email only. The waitlist row is left at the
+ * original address as the historical signup record. Existing licence JWTs
+ * continue to work (they authenticate on user.id, not email); new sign-ins
+ * will carry the updated email in claims.
+ */
+admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), async (c) => {
+  const { currentEmail, newEmail } = c.req.valid('json');
+  debug('POST /admin/user/email-update');
+  const sql = getClient();
+  const actor = resolveAdminActor(c);
+
+  const normalizedCurrent = currentEmail.toLowerCase().trim();
+  const normalizedNew = newEmail.toLowerCase().trim();
+
+  if (normalizedCurrent === normalizedNew) {
+    return c.json({ error: 'New email matches current email' }, 400);
+  }
+
+  const existing = await findUserByEmail(sql, normalizedCurrent);
+  if (!existing) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const collision = await findUserByEmail(sql, normalizedNew);
+  if (collision) {
+    return c.json({ error: 'New email already in use' }, 409);
+  }
+
+  let txResult: unknown[][];
+  try {
+    txResult = (await sql.transaction([
+      sql`UPDATE beta_users SET email = ${normalizedNew}
+          WHERE id = ${existing.id}
+          RETURNING id, email, status`,
+      sql`INSERT INTO audit_log (action, actor, metadata)
+          VALUES (
+            ${'user.email.updated'},
+            ${actor},
+            ${JSON.stringify({
+              userId: existing.id,
+              email: normalizedNew,
+              from: normalizedCurrent,
+              to: normalizedNew,
+            })}
+          )
+          RETURNING *`,
+    ])) as unknown[][];
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'New email already in use' }, 409);
+    }
+    throw err;
+  }
+
+  const updated = txResult[0]?.[0] as { id: string; email: string; status: string } | undefined;
+
+  if (!updated) {
+    return c.json({ error: 'User was deleted during update' }, 404);
+  }
+
+  return c.json({
+    user: { id: updated.id, email: updated.email, status: updated.status },
+    previousEmail: normalizedCurrent,
+  });
 });
 
 export { admin };

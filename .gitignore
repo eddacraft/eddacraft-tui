@@ -8,6 +8,8 @@ out-tsc
 *.tsbuildinfo
 .next
 .docusaurus
+apps/docs-public/build/
+apps/anvil-docs-private/build/
 
 # dependencies
 node_modules
@@ -141,3 +143,7 @@ plans/reviews/
 
 # GitHub Local Runners
 .github/actions-runner
+
+# DBCON operator scratch — snapshots and exported CSVs must never land in git
+scripts/dbcon/snapshots/
+scripts/dbcon/*.csv

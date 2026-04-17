@@ -27,6 +27,7 @@ app.route('/waitlist', waitlist);
 
 const originalDatabaseUrl = process.env['DATABASE_URL'];
 const originalAdminToken = process.env['WAITLIST_RESEND_ADMIN_TOKEN'];
+const originalWaitlistPaused = process.env['WAITLIST_PAUSED'];
 
 function request(path: string, body: BodyInit, headers: HeadersInit = {}) {
   return app.request(path, {
@@ -41,6 +42,7 @@ describe('waitlist routes', () => {
     vi.clearAllMocks();
     process.env['DATABASE_URL'] = 'postgres://waitlist-test';
     process.env['WAITLIST_RESEND_ADMIN_TOKEN'] = 'waitlist-secret';
+    delete process.env['WAITLIST_PAUSED'];
     waitlistMocks.getClient.mockReturnValue(waitlistMocks.sql);
   });
 
@@ -56,9 +58,48 @@ describe('waitlist routes', () => {
     } else {
       process.env['WAITLIST_RESEND_ADMIN_TOKEN'] = originalAdminToken;
     }
+
+    if (originalWaitlistPaused === undefined) {
+      delete process.env['WAITLIST_PAUSED'];
+    } else {
+      process.env['WAITLIST_PAUSED'] = originalWaitlistPaused;
+    }
   });
 
   describe('POST /waitlist', () => {
+    it('returns 503 and rejects signups when WAITLIST_PAUSED=true', async () => {
+      process.env['WAITLIST_PAUSED'] = 'true';
+
+      const response = await request('/waitlist', JSON.stringify({ email: 'person@example.com' }), {
+        'Content-Type': 'application/json',
+      });
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        error: 'Waitlist temporarily paused for maintenance',
+      });
+      expect(waitlistMocks.getClient).not.toHaveBeenCalled();
+      expect(waitlistMocks.sendWaitlistConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('ignores WAITLIST_PAUSED values other than "true"', async () => {
+      process.env['WAITLIST_PAUSED'] = '1';
+      waitlistMocks.sql.mockResolvedValue([
+        {
+          id: 1,
+          email: 'person@example.com',
+          created_at: '2026-03-14T00:00:00.000Z',
+          is_new: false,
+        },
+      ]);
+
+      const response = await request('/waitlist', JSON.stringify({ email: 'person@example.com' }), {
+        'Content-Type': 'application/json',
+      });
+
+      expect(response.status).toBe(200);
+    });
+
     it('adds a new signup and sends a confirmation email', async () => {
       waitlistMocks.sql.mockResolvedValue([
         {

@@ -4,7 +4,7 @@ import * as pulumi from '@pulumi/pulumi';
 vi.mock('../../src/keyvault.js', () => ({
   getSecret: (name: string) => {
     const secrets: Record<string, string> = {
-      'website-database-url': 'mock-database-url',
+      'anvil-api-database-url': 'mock-database-url',
       'resend-api-key': 'mock-resend-key',
       'anvil-admin-key': 'mock-admin-key',
       'waitlist-resend-admin-token': 'mock-waitlist-token',
