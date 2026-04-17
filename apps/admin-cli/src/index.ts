@@ -159,31 +159,33 @@ export interface RunDeps {
 }
 
 function isCommanderError(err: unknown): err is { exitCode: number; code: string } {
+  if (typeof err !== 'object' || err === null) return false;
+  const candidate = err as { exitCode?: unknown; code?: unknown };
   return (
-    typeof err === 'object' &&
-    err !== null &&
-    'exitCode' in err &&
-    'code' in err &&
-    typeof (err as { code: unknown }).code === 'string' &&
-    (err as { code: string }).code.startsWith('commander.')
+    typeof candidate.exitCode === 'number' &&
+    Number.isInteger(candidate.exitCode) &&
+    typeof candidate.code === 'string' &&
+    candidate.code.startsWith('commander.')
   );
 }
 
+// `exit` is typed `never`, but we still `return exit(...)` so a non-terminating
+// stub (tests, embedded use) cannot fall through and double-write or double-exit.
 export function handleError(
   err: unknown,
   stderr: { write: (chunk: string) => boolean | void },
   exit: (code: number) => never
 ): void {
   if (isCommanderError(err)) {
-    exit(err.exitCode);
+    return exit(err.exitCode);
   }
   if (err instanceof AdminError || err instanceof MissingConfigError) {
     stderr.write(formatError(err.message) + '\n');
-    exit(err.exitCode);
+    return exit(err.exitCode);
   }
   const message = err instanceof Error ? err.message : String(err);
   stderr.write(formatError(message) + '\n');
-  exit(2);
+  return exit(2);
 }
 
 export async function run({

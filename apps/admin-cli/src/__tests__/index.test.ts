@@ -81,6 +81,17 @@ describe('handleError', () => {
     expect(exits).toEqual([0]);
     expect(writes.join('')).toBe('');
   });
+
+  it('does not treat a non-numeric exitCode as a commander error', async () => {
+    const { writes, exits, stderr, exit } = harness();
+    const fake = Object.assign(new Error('bad'), {
+      exitCode: 'not-a-number',
+      code: 'commander.something',
+    });
+    await catchExit(() => handleError(fake, stderr, exit));
+    expect(exits).toEqual([2]);
+    expect(writes.join('')).toBe('error: bad\n');
+  });
 });
 
 describe('run()', () => {
