@@ -22,13 +22,21 @@ function normaliseCell(value: unknown): string {
   return JSON.stringify(value);
 }
 
+// Collapse control characters (newlines, tabs, etc.) to a single space so
+// user-controlled fields (notes, JSON blobs) cannot corrupt the table layout.
+function sanitiseCell(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\x00-\x1F\x7F]+/g, ' ').trim();
+}
+
 export function renderTable(rows: Row[], columns: Column[]): string {
   if (rows.length === 0) return '';
 
   const cells = rows.map((row) =>
     columns.map((col) => {
       const raw = row[col.key];
-      return col.format ? col.format(raw, row) : normaliseCell(raw);
+      const formatted = col.format ? col.format(raw, row) : normaliseCell(raw);
+      return sanitiseCell(formatted);
     })
   );
 

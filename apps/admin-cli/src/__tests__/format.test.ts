@@ -48,6 +48,28 @@ describe('renderTable', () => {
     const out = renderTable([{ email: 'a@b.c' }], [{ key: 'email' }]);
     expect(out.split('\n')[0]).toBe('email');
   });
+
+  it('collapses embedded control chars so rows stay single-line', () => {
+    const out = renderTable(
+      [
+        { email: 'a@b.c', notes: 'line1\nline2\tindented' },
+        { email: 'x@y.z', notes: 'ok' },
+      ],
+      [
+        { key: 'email', header: 'EMAIL' },
+        { key: 'notes', header: 'NOTES' },
+      ]
+    );
+    const lines = out.split('\n');
+    expect(lines).toHaveLength(4);
+    expect(lines[2]).not.toMatch(/[\n\t]/);
+    expect(lines[2]).toContain('line1 line2 indented');
+    expect(lines[3]).toContain('ok');
+    const widths = lines.map((l) => l.length);
+    expect(widths[0]).toBe(widths[1]);
+    expect(widths[0]).toBe(widths[2]);
+    expect(widths[0]).toBe(widths[3]);
+  });
 });
 
 describe('formatJson', () => {
