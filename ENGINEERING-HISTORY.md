@@ -45,9 +45,9 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **Licence key boot probe** — `anvil-api` now validates the ES256 signing key
   during startup and reports status through `/health`, surfacing secret/config
   failures before auth traffic hits runtime paths
-- **Admin approval collision handling** — approval flow now retries
-  `user_code` uniqueness collisions and accepts longer codes to reduce
-  back-to-back approval failures
+- **Admin approval collision handling** — approval flow now retries `user_code`
+  uniqueness collisions and accepts longer codes to reduce back-to-back approval
+  failures
 - **Structured auth logging** — waitlist and auth routes emit more consistent,
   structured operational logs for support and production debugging
 - **DBCON groundwork** — database consolidation module introduced for the Neon
@@ -60,8 +60,8 @@ delivery changes behind each release. For end-user feature summaries, see the
   engine performance regressions outside the tagged release path
 - **Dependency remediation** — `follow-redirects` pinned to a non-vulnerable
   range to close a known supply-chain issue
-- **ADR coverage** — ADR-024 published for the literate-core agent harness;
-  KERN and BENCH modules archived after completion
+- **ADR coverage** — ADR-024 published for the literate-core agent harness; KERN
+  and BENCH modules archived after completion
 
 ## [0.3.2-beta]
 
@@ -80,8 +80,8 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **Interactive release script** — `scripts/release.sh` now orchestrates
   preflight, branching, tagging, and workflow kickoff, and writes
   `.release/manifest.json` as a handoff contract for the release skill
-- **Feature flag operations docs** — feature-flag inventory and governance guides
-  published to make ad-hoc flags auditable across runtime surfaces
+- **Feature flag operations docs** — feature-flag inventory and governance
+  guides published to make ad-hoc flags auditable across runtime surfaces
 - **Windows target expansion** — `aarch64-pc-windows-msvc` added to cargo-dist
   configuration, with updater support explicitly deferred pending upstream
   binary availability
@@ -185,8 +185,8 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ### Architecture & Dependency Governance
 
-- **Dependency refresh** — key build and runtime dependencies updated,
-  including Criterion 0.8, Reqwest 0.13, Dirs 6, and Vite 8
+- **Dependency refresh** — key build and runtime dependencies updated, including
+  Criterion 0.8, Reqwest 0.13, Dirs 6, and Vite 8
 - **Architecture decisions published** — ADR-015 (shared packages restructure)
   and ADR-016 (unified config format) recorded the main design decisions behind
   the release
