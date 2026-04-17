@@ -62,7 +62,7 @@ API contract tweak)
 
 **Depends on:**
 
-- `apps/anvil-api/src/routes/admin.ts`, `admin-schemas.ts`
+- `apps/anvil-api/src/routes/admin.ts`, `apps/anvil-api/src/routes/admin-schemas.ts`
 - `apps/anvil-api/src/middleware/adminAuth.ts`
 - `apps/anvil-api/src/db/queries.ts` (audit writer, admin-key lookup)
 - `apps/admin-cli/src/client.ts`, `apps/admin-cli/src/commands/send-migration.ts`
@@ -106,7 +106,7 @@ API contract tweak)
 | Risk | Mitigation |
 | ---- | ---------- |
 | Snapshot storage bloats the DB during a migration burst | Ephemeral cache (TTL ≤10 min); fall back to recomputing if missing |
-| Per-operator key rollout leaves a window where some ops use shared key and audit rows are mixed | Annotate audit rows with `auth_method: "shared" \| "per_operator"` so post-hoc queries can distinguish |
+| Per-operator key rollout leaves a window where some ops use shared key and audit rows are mixed | Annotate audit rows with `auth_method` set to either `"shared"` or `"per_operator"` so post-hoc queries can distinguish |
 | CLI response validator becomes brittle as server evolves | Keep schemas in the shared `admin-schemas.ts` module that server + CLI both import |
 | Breaking shared-key users mid-rollout | Feature-flag per-operator lookup server-side; keep legacy path until telemetry shows shared key unused |
 
@@ -129,7 +129,7 @@ API contract tweak)
   - `apps/anvil-api/src/routes/admin-schemas.ts`
   - `apps/anvil-api/src/routes/admin.ts`
   - `apps/anvil-api/src/db/queries.ts` (snapshot storage)
-  - `apps/anvil-api/db/migrations/NNNN-admin-send-migration-snapshots.sql`
+  - `apps/anvil-api/src/db/migrations/NNNN-admin-send-migration-snapshots.sql`
   - `apps/admin-cli/src/commands/send-migration.ts`
   - `apps/admin-cli/src/__tests__/send-migration.test.ts`
   - `docs/runbooks/admin-cli.md`
@@ -154,12 +154,12 @@ API contract tweak)
   available; shared `ADMIN_KEY` still works and marks audit rows with
   `auth_method: "shared"`; CLI unchanged
 - **Scope:** `apps/anvil-api/src/middleware/`, `apps/anvil-api/src/db/`,
-  `apps/anvil-api/db/migrations/`, `apps/anvil-api/src/__tests__/`
+  `apps/anvil-api/src/db/migrations/`, `apps/anvil-api/src/__tests__/`
 - **Non-scope:** CLI-side provisioning flow (keys are provisioned via
   Pulumi/IaC for v1), removing the shared `ADMIN_KEY` (deferred to a
   follow-up once adoption ≥100%)
 - **Files:**
-  - `apps/anvil-api/db/migrations/NNNN-admin-keys.sql`
+  - `apps/anvil-api/src/db/migrations/NNNN-admin-keys.sql`
   - `apps/anvil-api/src/db/queries.ts`
   - `apps/anvil-api/src/middleware/adminAuth.ts`
   - `apps/anvil-api/src/__tests__/admin.test.ts`
