@@ -304,10 +304,9 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 
 ### Agent Infrastructure (Draft — no code yet)
 
-Thin, provider-agnostic agent runtime (literate-core, Apache-2.0) plus
-Anvil-specific harness (anvil-agent) with zero-copy semantic graph access.
-Enables LLM reasoning over the kernel's live graph for violation remediation,
-behavioural diff narration, policy authoring, and headless CI review.
+Thin, provider-agnostic agent runtime (weave, Apache-2.0) in standalone repo
+(`eddacraft/weave-rs`) plus Anvil-specific harness (anvil-weave) with
+zero-copy semantic graph access.
 
 **Implementation state:** No `literate-core` or `anvil-agent` crates exist
 in this repo. The upstream runtime lives at `~/Projects/src/weave-rs`
@@ -316,7 +315,7 @@ harness build — schedule after the intercept-loop thesis is proven.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [literate-core](./modules/literate-core.aps.md) | LCORE, AHARNESS | Draft | 0/22 | KERN (anvil-agent only) |
+| [weave](./modules/weave.aps.md) | WEAVE, AHARNESS | Draft | 0/21 | KERN (anvil-weave only) |
 
 **Architecture Decision:** [D-024: Internal Agent Harness](./decisions/024-internal-agent-harness.md)
 
@@ -401,7 +400,7 @@ Active module themes:
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
 | Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
-| Agent Infrastructure | [literate-core](./modules/literate-core.aps.md) |
+| Agent Infrastructure | [weave](./modules/weave.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
 
 ### Superseded
