@@ -1,6 +1,7 @@
 import { AdminClient, AdminError } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess } from '../format.js';
+import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
 
 export interface RevokeOptions extends ConfigFlags {
   token?: string;
@@ -49,7 +50,7 @@ export async function runRevokeCommand(
   const client: AdminWriter = deps.createClient?.(config) ?? new AdminClient(config);
   const stdout = deps.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = deps.stderr ?? ((chunk) => process.stderr.write(chunk));
-  const isTTY = deps.isTTY ?? !!process.stdout.isTTY;
+  const isTTY = deps.isTTY ?? isInteractiveTTY();
 
   const target = hasEmail ? `all tokens for ${email}` : 'the supplied token';
 
@@ -78,14 +79,4 @@ export async function runRevokeCommand(
 
   const subject = hasEmail ? email : 'token';
   stdout(formatSuccess(`Revoked ${result.revoked} token(s) for ${subject}`) + '\n');
-}
-
-async function defaultPrompt(message: string): Promise<string> {
-  const { createInterface } = await import('node:readline/promises');
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    return await rl.question(message);
-  } finally {
-    rl.close();
-  }
 }

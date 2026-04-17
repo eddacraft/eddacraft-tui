@@ -1,6 +1,7 @@
 import { AdminClient, AdminError } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess, renderTable, type Row } from '../format.js';
+import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
 
 export interface ApproveOptions extends ConfigFlags {
   batch?: number;
@@ -62,7 +63,7 @@ export async function runApproveCommand(
   const client: AdminWriter = deps.createClient?.(config) ?? new AdminClient(config);
   const stdout = deps.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = deps.stderr ?? ((chunk) => process.stderr.write(chunk));
-  const isTTY = deps.isTTY ?? !!process.stdout.isTTY;
+  const isTTY = deps.isTTY ?? isInteractiveTTY();
 
   const summary = hasEmail
     ? `Approve ${email}?`
@@ -112,15 +113,5 @@ export async function runApproveCommand(
       { key: 'message', header: 'MESSAGE', format: (v) => (v == null ? '' : String(v)) },
     ]);
     stderr(`Skipped ${result.skipped.length}:\n${table}\n`);
-  }
-}
-
-async function defaultPrompt(message: string): Promise<string> {
-  const { createInterface } = await import('node:readline/promises');
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    return await rl.question(message);
-  } finally {
-    rl.close();
   }
 }
