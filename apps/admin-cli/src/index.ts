@@ -7,6 +7,7 @@ import { runListCommand, type ListOptions } from './commands/list.js';
 import { runShowCommand, type ShowOptions } from './commands/show.js';
 import { runApproveCommand, type ApproveOptions } from './commands/approve.js';
 import { runInviteCommand, type InviteOptions, ALLOWED_SCOPES } from './commands/invite.js';
+import { runAuditCommand, type AuditOptions } from './commands/audit.js';
 import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
@@ -105,10 +106,20 @@ program
   .description('browse the audit log')
   .option('--action <action>', 'filter by action (exact match)')
   .option('--filter-actor <actor>', 'filter audit entries by actor email')
-  .option('--limit <n>', 'page size (1-200)', '50')
-  .option('--offset <n>', 'page offset', '0')
+  .addOption(
+    new Option('--limit <n>', 'page size (1-200)')
+      .default(50)
+      .argParser(parseBoundedInt('--limit', 1, 200))
+  )
+  .addOption(
+    new Option('--offset <n>', 'page offset (>=0)')
+      .default(0)
+      .argParser(parseBoundedInt('--offset', 0, Number.MAX_SAFE_INTEGER))
+  )
   .option('--json', 'emit raw JSON')
-  .action(notImplemented('ADMINCLI-011'));
+  .action(async (_options, cmd: Command) => {
+    await runAuditCommand(cmd.optsWithGlobals() as AuditOptions);
+  });
 
 program
   .command('send-migration')

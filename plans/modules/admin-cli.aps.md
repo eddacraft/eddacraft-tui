@@ -278,7 +278,7 @@ Zod request schemas keep the client and server in lockstep.
 - **Dependencies:** ADMINCLI-003, ADMINCLI-005
 - **Validation:** `pnpm -F @eddacraft/admin-cli test -- audit`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 #### ADMINCLI-012: `send-migration` command
 
