@@ -8,6 +8,7 @@ import { runShowCommand, type ShowOptions } from './commands/show.js';
 import { runApproveCommand, type ApproveOptions } from './commands/approve.js';
 import { runInviteCommand, type InviteOptions, ALLOWED_SCOPES } from './commands/invite.js';
 import { runAuditCommand, type AuditOptions } from './commands/audit.js';
+import { runRevokeCommand, type RevokeOptions } from './commands/revoke.js';
 import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
@@ -99,7 +100,10 @@ program
   .description('revoke tokens by email or a specific raw token')
   .option('--token <raw>', 'revoke a specific raw token')
   .option('-y, --yes', 'skip confirmation prompt')
-  .action(notImplemented('ADMINCLI-010'));
+  .option('--json', 'emit raw JSON')
+  .action(async (email: string | undefined, _options, cmd: Command) => {
+    await runRevokeCommand(email, cmd.optsWithGlobals() as RevokeOptions);
+  });
 
 program
   .command('audit')
