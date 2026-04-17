@@ -187,23 +187,63 @@ jobs:
             }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
           nx-shas: true
 
+      - name: Install OPA
+        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        with:
+          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          version: v0.60.0
+
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
 
       - name: Run unit tests (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e -- --run --coverage
+            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e \
+              -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           else
-            pnpm run test -- --run --coverage
+            pnpm run test -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           fi
+
+      - name: TypeScript coverage summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### TypeScript Coverage"
+            echo
+            echo "<details><summary>Per-project line/branch/function/statement coverage</summary>"
+            echo
+            echo "| Project | Lines | Branches | Functions | Statements |"
+            echo "| ------- | -----:| --------:| ---------:| ----------:|"
+            found=0
+            while IFS= read -r f; do
+              found=1
+              proj=$(dirname "$(dirname "$f")")
+              proj=${proj#./}
+              [ -z "$proj" ] && proj=.
+              row=$(jq -r '.total | "| \(.lines.pct)% | \(.branches.pct)% | \(.functions.pct)% | \(.statements.pct)% |"' "$f" 2>/dev/null || echo "| — | — | — | — |")
+              echo "| \`$proj\` $row"
+            done < <(find . -path '*/coverage/coverage-summary.json' \
+              -not -path '*/node_modules/*' \
+              -not -path '*/.nx/*' \
+              -not -path '*/dist/*' | sort)
+            if [ "$found" = "0" ]; then
+              echo "| _no coverage summaries found_ | — | — | — | — |"
+            fi
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report-22.x
-          path: coverage/
+          path: |
+            coverage/
+            packages/**/coverage/
+            apps/**/coverage/
 
   # NOTE: Cross-platform (macOS/Windows) and Node 22+ tests moved to
   # nightly workflow (ci-nightly.yml) to save CI minutes.
@@ -272,8 +312,47 @@ jobs:
       - name: Build all packages
         run: pnpm run build
 
-  # NOTE: Playwright E2E (e2e-tests), cross-surface E2E harness (e2e-harness),
-  # and TUI E2E (tui-tests) jobs removed — not in use before beta.
-  # Playwright: no tests written yet. Re-add when website E2E tests exist.
-  # E2E harness: disabled (TFIX-001 fixture drift). Re-add after stabilisation.
-  # TUI tests: were running cargo test in a Node job — covered by rust.yml.
+  # ── Job 5: E2E harness ──────────────────────────────────────────
+  # Cross-surface TypeScript E2E tests (apps/e2e) — runs when any TS
+  # source or the harness itself changes. CLI suites are Rust-only and
+  # skip themselves when the anvil binary is absent (see apps/e2e helpers),
+  # so the Rust CLI is not required in this job.
+  e2e-harness:
+    name: E2E Harness (Node 22.x)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.source-changed == 'true' ||
+      needs.detect-changes.outputs.e2e-changed == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          azure-login: true
+          azure-credentials:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
+      - name: Run E2E harness
+        run: pnpm --filter @eddacraft/anvil-e2e test
+
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-results
+          # Matches the outputFile.json target in apps/e2e/vitest.config.ts,
+          # which resolves to the repo-root coverage/ directory.
+          path: coverage/e2e-results.json
+          if-no-files-found: warn
+
+  # NOTE: Playwright E2E (e2e-tests) and TUI E2E (tui-tests) jobs removed
+  # pre-beta. Playwright: no tests written yet — re-add when website E2E
+  # exists. TUI tests: were cargo test in a Node job — covered by rust.yml.

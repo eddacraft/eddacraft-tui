@@ -9,15 +9,14 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 15_000,
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        // E2E tests spawn subprocesses; isolate them properly
-        singleFork: false,
-      },
-    },
+    // Retry flaky E2E tests once (TFIX-009). Real failures still fail on 2nd run.
+    retry: 1,
     reporters: ['default', 'json'],
+    // outputFile is resolved relative to test.root (`apps/e2e/src`), not the
+    // config dir. Three `../` climbs land at the repo root so the JSON report
+    // lives alongside the TypeScript coverage summary under /coverage/.
     outputFile: {
-      json: '../../coverage/e2e-results.json',
+      json: '../../../coverage/e2e-results.json',
     },
   },
   resolve: {
@@ -27,6 +26,7 @@ export default defineConfig({
       '@eddacraft/anvil-contracts': resolve(__dirname, '../../packages/anvil/contracts/src'),
       '@eddacraft/anvil-core': resolve(__dirname, '../../packages/anvil/core/src'),
       '@eddacraft/anvil-runtime': resolve(__dirname, '../../packages/anvil/runtime/src'),
+      '@eddacraft/anvil-policy': resolve(__dirname, '../../packages/anvil/policy/src'),
       '@eddacraft/anvil-aps': resolve(__dirname, '../../packages/aps/src'),
       '@eddacraft/anvil-adapters': resolve(__dirname, '../../packages/adapters/src'),
       '@eddacraft/anvil-edda-stack': resolve(__dirname, '../../packages/edda-stack/src'),

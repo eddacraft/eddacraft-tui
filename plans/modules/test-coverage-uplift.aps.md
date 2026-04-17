@@ -76,7 +76,8 @@ Change status to **Ready** when:
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
 - [x] Coverage targets set (≥80% per targeted package/crate)
-- [ ] TFIX Phase 1 complete (OPA in CI)
+- [ ] TFIX Phase 1 complete (OPA in CI) — Rust side done (TFIX-004/005/011);
+      TS side (TFIX-003) still open
 - [ ] Phase 1 tasks validated against current untested surface
 
 ## Tasks

@@ -111,14 +111,29 @@ export function makeTsSource(name = 'example'): string {
 
 /**
  * Create a SpecKit-format markdown document.
+ *
+ * Matches the SpecKit adapter's detection indicators (Specification header,
+ * Intent, Overview, Goals, Changes sections). See
+ * `packages/adapters/src/speckit/format-adapter.ts`.
  */
 export function makeSpecKitDoc(title = 'Test Spec'): string {
   return [
-    `# ${title}`,
+    '# Specification',
+    '',
+    `> ${title}`,
+    '',
+    '## Intent',
+    '',
+    `Document the ${title} requirement in SpecKit format.`,
     '',
     '## Overview',
     '',
-    'A test specification document.',
+    'A test specification document produced by the E2E harness.',
+    '',
+    '## Goals',
+    '',
+    '- Verify SpecKit adapter detection',
+    '- Exercise the format roundtrip pipeline',
     '',
     '## Changes',
     '',
@@ -136,6 +151,11 @@ export function makeSpecKitDoc(title = 'Test Spec'): string {
 
 /**
  * Create an APS-format markdown planning document.
+ *
+ * Produces an APS leaf spec matching the detection indicators in
+ * `packages/adapters/src/aps-markdown/adapter.ts` — H1 title, ID field,
+ * Tasks section with SCOPE-NNN headings, Intent/Confidence/Owner/Priority
+ * fields. See also: existing specs under `plans/modules/*.aps.md`.
  */
 export function makeAPSMarkdown(intent = 'E2E test plan'): string {
   return [
@@ -146,32 +166,59 @@ export function makeAPSMarkdown(intent = 'E2E test plan'): string {
     '',
     `# ${intent}`,
     '',
-    '## Proposed Changes',
+    '| ID    | Owner       | Status |',
+    '| ----- | ----------- | ------ |',
+    '| E2E-1 | e2e-harness | Draft  |',
     '',
-    '- **modify** `src/example.ts` — update implementation',
+    '## Purpose',
     '',
-    '## Provenance',
+    `Fixture plan for the ${intent} suite.`,
     '',
-    '| Field   | Value       |',
-    '| ------- | ----------- |',
-    '| author  | e2e-harness |',
-    '| source  | cli         |',
-    '| version | 0.1.0       |',
+    '## Tasks',
+    '',
+    '### E2E-001: initial change',
+    '',
+    '- **Intent:** update implementation of `src/example.ts`',
+    '- **Owner:** e2e-harness',
+    '- **Priority:** medium',
+    '- **Confidence:** high',
+    '- **Files:** `src/example.ts`',
+    '',
+    '### E2E-002: follow-up change',
+    '',
+    '- **Intent:** verify the update compiles',
+    '- **Owner:** e2e-harness',
+    '- **Priority:** low',
+    '- **Confidence:** high',
     '',
   ].join('\n');
 }
 
 /**
- * Create source content that contains a known anti-pattern
- * (hardcoded secret) for scanner testing.
+ * Create source content that deliberately triggers multiple anti-patterns
+ * from `packages/anvil/core/src/antipattern/patterns.ts`:
+ *
+ * - AP-004 `@ts-ignore`
+ * - AP-003 explicit `any`
+ * - AP-006 empty catch block
+ * - AP-007 `console.*` in production-shaped code
+ *
+ * Intentionally contains no secret-shaped strings — the antipattern catalogue
+ * has no secret-detection rule (see `patterns.ts`), so a fixture that claimed
+ * to exercise "secret detection" would be lying about coverage.
  */
-export function makeSourceWithSecret(): string {
+export function makeSourceWithAntipatterns(): string {
   return [
     '// config.ts',
-    "const API_KEY = 'sk-live-abc123def456ghi789';",
-    "const DB_HOST = 'localhost';",
+    '// @ts-ignore',
+    'const DB_HOST: any = process.env.DB_HOST;',
     '',
-    'export { API_KEY, DB_HOST };',
+    'export function load(): void {',
+    '  try {',
+    '    console.log("loading", DB_HOST);',
+    '  } catch (e) {',
+    '  }',
+    '}',
     '',
   ].join('\n');
 }
