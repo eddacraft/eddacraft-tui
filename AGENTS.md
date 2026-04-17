@@ -159,17 +159,17 @@ When introducing or modifying feature flags, follow the governance rules in
 
 ## Test Infrastructure
 
-Tests are split across three stacks. All run in CI via `.github/workflows/ci.yml`
-(TS) and `.github/workflows/rust.yml` (Rust).
+Tests are split across three stacks. All run in CI via
+`.github/workflows/ci.yml` (TS) and `.github/workflows/rust.yml` (Rust).
 
 ### Where tests live
 
-| Stack      | Location                            | Runner                | CI job                  |
-| ---------- | ----------------------------------- | --------------------- | ----------------------- |
-| Unit (TS)  | `packages/**/__tests__`, co-located | vitest (via nx)       | `ci.yml` → `test`       |
-| Unit (Rust)| `crates/**/src/**/tests`            | `cargo test`          | `rust.yml` → `test`     |
-| E2E        | `apps/e2e/src/**/*.e2e.test.ts`     | vitest (workspace)    | `ci.yml` → `e2e-harness`|
-| Rego       | `policies/fixtures/*.rego`          | `opa test`, `regal`   | `rust.yml` → `test`     |
+| Stack       | Location                            | Runner              | CI job                   |
+| ----------- | ----------------------------------- | ------------------- | ------------------------ |
+| Unit (TS)   | `packages/**/__tests__`, co-located | vitest (via nx)     | `ci.yml` → `test`        |
+| Unit (Rust) | `crates/**/src/**/tests`            | `cargo test`        | `rust.yml` → `test`      |
+| E2E         | `apps/e2e/src/**/*.e2e.test.ts`     | vitest (workspace)  | `ci.yml` → `e2e-harness` |
+| Rego        | `policies/fixtures/*.rego`          | `opa test`, `regal` | `rust.yml` → `test`      |
 
 ### Running locally
 
@@ -199,11 +199,10 @@ cargo llvm-cov --workspace --html            # needs `cargo install cargo-llvm-c
 Coverage is advisory only — no blocking threshold. Each PR produces:
 
 - **TypeScript**: per-project line/branch/function/statement table in the
-  `Unit Tests` job summary. Raw `coverage/coverage-summary.json` uploaded
-  as the `coverage-report-22.x` artifact.
-- **Rust**: per-file summary from `cargo llvm-cov report --summary-only`
-  in the `Rust / Test` job summary. Raw JSON uploaded as
-  `coverage-report-rust`.
+  `Unit Tests` job summary. Raw `coverage/coverage-summary.json` uploaded as the
+  `coverage-report-22.x` artifact.
+- **Rust**: per-file summary from `cargo llvm-cov report --summary-only` in the
+  `Rust / Test` job summary. Raw JSON uploaded as `coverage-report-rust`.
 
 ### E2E conventions
 
