@@ -250,7 +250,7 @@ Zod request schemas keep the client and server in lockstep.
 - **Dependencies:** ADMINCLI-005
 - **Validation:** `pnpm -F @eddacraft/admin-cli test -- invite`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 #### ADMINCLI-010: `revoke` command
 
