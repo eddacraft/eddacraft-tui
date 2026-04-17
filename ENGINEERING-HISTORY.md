@@ -13,7 +13,7 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 - **WinGet distribution pipeline** — Windows release automation now emits and
   submits WinGet manifests for tagged releases, extending the binary
-  distribution surface beyond direct install scripts and Homebrew
+  distribution surface beyond direct install scripts and Homebrew formulae
 - **Windows signing groundwork** — Authenticode signing path wired into the
   release pipeline via Azure Trusted Signing and SSL.com integration so Windows
   artefacts can move to signed distribution once identity provisioning clears
