@@ -93,6 +93,16 @@ export async function runSendMigrationCommand(
     return;
   }
 
+  // Refuse non-TTY real-sends without --yes before creating a server-side
+  // snapshot — otherwise the early abort would leave orphaned snapshot
+  // rows behind and burn a network round-trip for no gain.
+  if (!options.yes && !isTTY) {
+    throw new AdminError(
+      'refusing to send migration without --yes in a non-interactive session',
+      4
+    );
+  }
+
   // Real-send always starts with a fresh dry-run so the snapshot the
   // server will consume matches what we're about to show the operator.
   const preview = await client.post<DryRunResponse>('/admin/send-migration', {
@@ -107,13 +117,6 @@ export async function runSendMigrationCommand(
   }
 
   if (!options.yes) {
-    if (!isTTY) {
-      throw new AdminError(
-        'refusing to send migration without --yes in a non-interactive session',
-        4
-      );
-    }
-
     stderr(
       `About to send migration email to ${preview.count} recipient(s) (source: ${source}).\n` +
         renderRecipientsTable(preview.recipients) +
@@ -232,15 +235,11 @@ function rewriteSnapshotError(err: unknown): unknown {
         err.body
       );
     case 'preview_token_missing':
+      // The server merges the wrong-actor case into `preview_token_missing`
+      // to avoid confirming token existence to non-owners. Surface both
+      // recovery paths so the operator can fix actor mismatches too.
       return new AdminError(
-        'preview token not found. Re-run with --dry-run to generate a fresh snapshot.',
-        1,
-        err.status,
-        err.body
-      );
-    case 'preview_token_actor_mismatch':
-      return new AdminError(
-        'preview token was created by a different operator. Use the matching --actor (or ANVIL_ADMIN_ACTOR) or re-run with --dry-run.',
+        'preview token not found. If another operator created the preview, set --actor (or ANVIL_ADMIN_ACTOR) to the matching identity. Otherwise re-run with --dry-run to generate a fresh snapshot.',
         1,
         err.status,
         err.body

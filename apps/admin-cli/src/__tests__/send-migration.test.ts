@@ -386,10 +386,13 @@ describe('runSendMigrationCommand', () => {
     });
   });
 
-  it('rewrites 403 preview_token_actor_mismatch with actor guidance', async () => {
-    const body = JSON.stringify({ code: 'preview_token_actor_mismatch', error: 'mismatch' });
+  it('rewrites 410 preview_token_missing with merged actor/regenerate guidance', async () => {
+    // Server intentionally merges the wrong-actor case into
+    // `preview_token_missing` to avoid confirming token existence to
+    // non-owners; the CLI message must surface both recovery paths.
+    const body = JSON.stringify({ code: 'preview_token_missing', error: 'missing' });
     const client = makeClient(previewResponse, () => {
-      throw new AdminError('mismatch', 1, 403, body);
+      throw new AdminError('missing', 1, 410, body);
     });
     await expect(
       runSendMigrationCommand(
@@ -398,8 +401,8 @@ describe('runSendMigrationCommand', () => {
       )
     ).rejects.toMatchObject({
       name: 'AdminError',
-      status: 403,
-      message: expect.stringMatching(/different operator/),
+      status: 410,
+      message: expect.stringMatching(/--actor|ANVIL_ADMIN_ACTOR/),
     });
   });
 

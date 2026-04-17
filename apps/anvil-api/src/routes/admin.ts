@@ -547,13 +547,19 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
     );
   }
 
+  // The snapshot row is the source of truth for both `source` and the
+  // recipient set — the request's `source` field is redundant on the
+  // real-send path and a mismatch would otherwise produce a
+  // false-positive drift check against the wrong cohort.
+  const snapshotSource = consumed.source;
+
   // Refetch the current cohort and compare to the snapshot. Use the
   // snapshot size (not the request limit) so the fresh query returns
   // an apples-to-apples slice — a caller-supplied limit smaller or
   // larger than what the snapshot captured would otherwise produce a
   // false-positive drift rejection.
   const freshLimit = Math.max(consumed.recipients.length, 1);
-  const currentRows = await findWaitlistBySource(sql, source, freshLimit);
+  const currentRows = await findWaitlistBySource(sql, snapshotSource, freshLimit);
   const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
     email: r.email,
     name: r.name,
@@ -588,14 +594,14 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   const failed = results.filter((r) => !r.sent).length;
 
   await insertAuditLog(sql, 'migration.email.sent', actor, {
-    source,
+    source: snapshotSource,
     sent,
     failed,
     previewToken,
   });
 
   return c.json({
-    source,
+    source: snapshotSource,
     total: consumed.recipients.length,
     sent,
     failed,
