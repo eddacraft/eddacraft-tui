@@ -30,15 +30,29 @@ function perOperatorKeysEnabled(): boolean {
   return v === '1' || v.toLowerCase() === 'true';
 }
 
-function pepper(): string {
-  // Dedicated pepper for admin-key hashing, kept separate from TOKEN_PEPPER
-  // (which is used for access-token hashing) so rotation of either doesn't
-  // invalidate the other.
-  return process.env['ADMIN_KEY_PEPPER'] ?? '';
+// Dedicated pepper for admin-key hashing, kept separate from TOKEN_PEPPER
+// (which is used for access-token hashing) so rotation of either doesn't
+// invalidate the other. Returns null when unset/empty so callers can treat
+// that as a misconfiguration rather than silently hashing with ''.
+function pepper(): string | null {
+  const v = process.env['ADMIN_KEY_PEPPER'];
+  if (v === undefined || v === '') return null;
+  return v;
 }
 
-function hashBearer(bearer: string): string {
-  return createHmac('sha256', pepper()).update(bearer).digest('hex');
+function logPepperMisconfig(): void {
+  // Log every request this fires rather than once per process: this is a
+  // prod misconfiguration we WANT to be loud about — silencing after one
+  // line would let the condition hide in a long-running deployment.
+  console.error(
+    '[admin-auth] ADMIN_PER_OPERATOR_KEYS is enabled but ADMIN_KEY_PEPPER is unset/empty; ' +
+      'skipping per-operator lookup and falling through to shared-key path. ' +
+      'Provisioned per-operator keys will NOT authenticate until the pepper is set.'
+  );
+}
+
+function hashBearer(bearer: string, secret: string): string {
+  return createHmac('sha256', secret).update(bearer).digest('hex');
 }
 
 function sharedKeyMatches(adminKey: string, provided: string): boolean {
@@ -51,6 +65,7 @@ function sharedKeyMatches(adminKey: string, provided: string): boolean {
 async function auditAuthFailure(
   outcome: 'rejected_unknown' | 'rejected_revoked' | 'rejected_malformed',
   hashedBearer: string | null,
+  authMethod: AuthMethod,
   extra: Record<string, unknown> = {}
 ): Promise<void> {
   try {
@@ -60,7 +75,7 @@ async function auditAuthFailure(
       'admin.auth.failed',
       ADMIN_AUTH_FAILURE_ACTOR,
       { outcome, hashed_bearer: hashedBearer, ...extra },
-      'shared'
+      authMethod
     );
   } catch (err) {
     // Don't let an audit-write failure mask the auth rejection itself.
@@ -101,21 +116,31 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
   const header = c.req.header('Authorization');
   if (!header) {
     debug('admin auth: missing Authorization header');
-    await auditAuthFailure('rejected_malformed', null, { reason: 'missing_header' });
+    await auditAuthFailure('rejected_malformed', null, 'shared', { reason: 'missing_header' });
     return c.json({ error: 'Authorization header required' }, 401);
   }
 
   const match = header.match(/^Bearer\s+(.+)$/);
   if (!match) {
     debug('admin auth: invalid authorization format');
-    await auditAuthFailure('rejected_malformed', null, { reason: 'bad_format' });
+    await auditAuthFailure('rejected_malformed', null, 'shared', { reason: 'bad_format' });
     return c.json({ error: 'Invalid authorization format' }, 401);
   }
 
   const provided = match[1]!;
 
-  if (perOperatorKeysEnabled()) {
-    const hashed = hashBearer(provided);
+  // Per-operator lookup only runs when the feature flag is on AND a pepper
+  // is configured. Hashing with an empty pepper would (a) produce
+  // predictable hashes and (b) never match provisioned rows (which are
+  // hashed with the real pepper), so we refuse to hash without one.
+  const pepperValue = pepper();
+  const perOperatorActive = perOperatorKeysEnabled() && pepperValue !== null;
+  if (perOperatorKeysEnabled() && pepperValue === null) {
+    logPepperMisconfig();
+  }
+
+  if (perOperatorActive) {
+    const hashed = hashBearer(provided, pepperValue);
     let adminKeyRow = null;
     try {
       const sql = getClient();
@@ -129,7 +154,7 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
     if (adminKeyRow) {
       if (adminKeyRow.revoked_at) {
         debug('admin auth: revoked per-operator key presented');
-        await auditAuthFailure('rejected_revoked', hashed, {
+        await auditAuthFailure('rejected_revoked', hashed, 'per_operator', {
           admin_key_id: adminKeyRow.id,
           actor_email: adminKeyRow.actor_email,
         });
@@ -153,7 +178,7 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
   }
 
   debug('admin auth: unknown bearer');
-  const hashedForAudit = perOperatorKeysEnabled() ? hashBearer(provided) : null;
-  await auditAuthFailure('rejected_unknown', hashedForAudit);
+  const hashedForAudit = perOperatorActive ? hashBearer(provided, pepperValue) : null;
+  await auditAuthFailure('rejected_unknown', hashedForAudit, 'shared');
   return c.json({ error: 'Forbidden' }, 403);
 };

@@ -1252,7 +1252,7 @@ describe('admin endpoints', () => {
         'admin.auth.failed',
         'admin-auth-failure@anvil',
         expect.objectContaining({ outcome: 'rejected_revoked' }),
-        'shared'
+        'per_operator'
       );
     });
 
@@ -1348,6 +1348,37 @@ describe('admin endpoints', () => {
       expect(vi.mocked(findAdminKeyByHash)).not.toHaveBeenCalled();
       const binds = findAuditInsertBinds();
       expect(binds).toContain('shared-key@anvil');
+    });
+
+    it('with flag on but pepper unset, skips per-operator lookup and logs loudly', async () => {
+      delete process.env['ADMIN_KEY_PEPPER'];
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        const res = await request(
+          'POST',
+          '/admin/invite',
+          { email: 'bob@example.com', tokenOnly: true },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(201);
+        // Lookup MUST be skipped — hashing with an empty pepper would be
+        // both predictable and guaranteed not to match any provisioned row.
+        expect(vi.mocked(findAdminKeyByHash)).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('ADMIN_KEY_PEPPER is unset'));
+        const binds = findAuditInsertBinds();
+        expect(binds).toContain('shared-key@anvil');
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
   });
 });

@@ -85,18 +85,18 @@ export ANVIL_ADMIN_ACTOR="you@eddacraft.ai"
 The admin surface supports two authentication paths during the dual-auth
 rollout:
 
-1. **Shared `ADMIN_KEY`** — a single high-entropy key configured via Vercel
-   env. Every request authenticated this way is attributed to the sentinel
-   actor `shared-key@anvil` and marked `auth_method: "shared"` in the audit
-   log. The `X-Admin-Actor` header is **ignored** on this path.
+1. **Shared `ADMIN_KEY`** — a single high-entropy key configured via Vercel env.
+   Every request authenticated this way is attributed to the sentinel actor
+   `shared-key@anvil` and marked `auth_method: "shared"` in the audit log. The
+   `X-Admin-Actor` header is **ignored** on this path.
 2. **Per-operator keys** — rows in the `admin_keys` table keyed on a peppered
-   hash of the raw bearer. Each row maps to a real `actor_email`. Audit rows
-   are stamped with that email and `auth_method: "per_operator"`.
+   hash of the raw bearer. Each row maps to a real `actor_email`. Audit rows are
+   stamped with that email and `auth_method: "per_operator"`.
 
-The dual path is gated on the `ADMIN_PER_OPERATOR_KEYS` server env var (set
-to `1` or `true` to enable the lookup). When enabled, the middleware tries
-the per-operator path first; on hash miss or DB error it falls back to
-shared-key comparison so a DB hiccup does not take down the admin surface.
+The dual path is gated on the `ADMIN_PER_OPERATOR_KEYS` server env var (set to
+`1` or `true` to enable the lookup). When enabled, the middleware tries the
+per-operator path first; on hash miss or DB error it falls back to shared-key
+comparison so a DB hiccup does not take down the admin surface.
 
 ### Provisioning a per-operator key
 
@@ -125,9 +125,9 @@ Distribute the plaintext bearer to the operator **out-of-band** (1Password
 shared vault). Never store the plaintext in git, Slack, email, or ticket
 systems. The server only ever sees the hash.
 
-`ADMIN_KEY_PEPPER` is a server-side secret. It is separate from
-`TOKEN_PEPPER` (used for access-token hashing) so rotation of either does
-not invalidate the other.
+`ADMIN_KEY_PEPPER` is a server-side secret. It is separate from `TOKEN_PEPPER`
+(used for access-token hashing) so rotation of either does not invalidate the
+other.
 
 ### Revoking a per-operator key
 
@@ -140,11 +140,16 @@ SELECT id, 'revoked', 'ops-pair@eddacraft.ai', '<git-sha>', 'offboarding'
 FROM admin_keys WHERE actor_email = 'alice@eddacraft.ai' AND revoked_at IS NOT NULL;
 ```
 
-A revoked key that is presented authenticates with **401
-`admin_key_revoked`** and writes an audit row with
-`outcome: "rejected_revoked"`. Unknown or malformed bearers return **401**
-with `outcome: "rejected_unknown"` / `"rejected_malformed"`. The raw bearer
-is never logged — only its peppered hash.
+Status codes:
+
+- **401 `admin_key_revoked`** — a presented key matched a row that has been
+  revoked. Writes an audit row with `outcome: "rejected_revoked"`.
+- **401** for missing/malformed `Authorization` headers. Writes an audit row
+  with `outcome: "rejected_malformed"`.
+- **403 Forbidden** — the bearer did not match any per-operator key or the
+  shared `ADMIN_KEY`. Writes an audit row with `outcome: "rejected_unknown"`.
+
+The raw bearer is never logged — only its peppered hash.
 
 ### Rotating the shared `ADMIN_KEY`
 
@@ -154,8 +159,8 @@ offboarding, suspected exposure, or at least once per quarter:
 1. Generate a new random key (≥256 bits): `openssl rand -hex 32`.
 2. Update the Vercel env `ADMIN_KEY` for both preview and production.
 3. Redeploy — the old key stops working as soon as the new deploy is live.
-4. Distribute the new key to active operators via 1Password. Remove the old
-   item from the vault.
+4. Distribute the new key to active operators via 1Password. Remove the old item
+   from the vault.
 5. Confirm `anvil-admin list` works with the new key.
 
 The final cutover (removal of the shared-key path) happens only after the
@@ -164,17 +169,21 @@ shared-key request rate is zero for ≥7 consecutive days, tracked via the
 
 ### Rollout tracking
 
-Every mutation writes `auth_method` on the audit row. To monitor adoption:
+Every admin mutation writes `auth_method` on the audit row. To monitor adoption,
+filter to admin-authenticated rows only — `audit_log` also carries non-admin
+traffic (GitHub OAuth, auth failures) that would otherwise drown the signal:
 
 ```sql
 SELECT auth_method, COUNT(*)
 FROM audit_log
 WHERE occurred_at > now() - interval '7 days'
+  AND action <> 'admin.auth.failed'
+  AND (actor = 'shared-key@anvil' OR auth_method = 'per_operator')
 GROUP BY auth_method;
 ```
 
-When the `shared` count holds at zero for seven consecutive days, schedule
-the cutover PR that removes the shared-key branch.
+When the `shared` count holds at zero for seven consecutive days, schedule the
+cutover PR that removes the shared-key branch.
 
 ## Commands
 
