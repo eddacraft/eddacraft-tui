@@ -4,6 +4,7 @@ import { AdminError } from './client.js';
 import { MissingConfigError } from './config.js';
 import { formatError } from './format.js';
 import { runListCommand, type ListOptions } from './commands/list.js';
+import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
 
@@ -25,10 +26,26 @@ const notImplemented = (task: string) => () => {
 program
   .command('list')
   .description('list waitlist entries (default: pending)')
-  .option('--status <status>', 'pending | approved | all', 'pending')
-  .option('--source <source>', 'manual | website | import | all', 'all')
-  .option('--limit <n>', 'page size (1-200)', '50')
-  .option('--offset <n>', 'page offset', '0')
+  .addOption(
+    new Option('--status <status>', 'waitlist status filter')
+      .choices(['pending', 'approved', 'all'])
+      .default('pending')
+  )
+  .addOption(
+    new Option('--source <source>', 'waitlist source filter')
+      .choices(['manual', 'website', 'import', 'all'])
+      .default('all')
+  )
+  .addOption(
+    new Option('--limit <n>', 'page size (1-200)')
+      .default(50)
+      .argParser(parseBoundedInt('--limit', 1, 200))
+  )
+  .addOption(
+    new Option('--offset <n>', 'page offset (>=0)')
+      .default(0)
+      .argParser(parseBoundedInt('--offset', 0, Number.MAX_SAFE_INTEGER))
+  )
   .option('--json', 'emit raw JSON')
   .action(async (_options, cmd: Command) => {
     await runListCommand(cmd.optsWithGlobals() as ListOptions);

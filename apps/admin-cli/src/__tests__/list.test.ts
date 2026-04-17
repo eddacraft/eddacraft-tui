@@ -23,7 +23,7 @@ describe('runListCommand', () => {
   it('forwards filters to GET /admin/waitlist with numeric limit/offset', async () => {
     const client = makeClient({ total: 0, items: [] } satisfies WaitlistResponse);
     await runListCommand(
-      { status: 'approved', source: 'manual', limit: '25', offset: '10', json: true },
+      { status: 'approved', source: 'manual', limit: 25, offset: 10, json: true },
       { createClient: () => client, stdout: () => {} }
     );
     expect(client.get).toHaveBeenCalledWith('/admin/waitlist', {

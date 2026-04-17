@@ -5,8 +5,8 @@ import { formatJson, renderTable, type Row } from '../format.js';
 export interface ListOptions extends ConfigFlags {
   status?: string;
   source?: string;
-  limit?: string;
-  offset?: string;
+  limit?: number;
+  offset?: number;
   json?: boolean;
 }
 
@@ -47,8 +47,8 @@ export async function runListCommand(
   const query: Record<string, string | number | undefined> = {};
   if (options.status !== undefined) query.status = options.status;
   if (options.source !== undefined) query.source = options.source;
-  if (options.limit !== undefined) query.limit = Number(options.limit);
-  if (options.offset !== undefined) query.offset = Number(options.offset);
+  if (options.limit !== undefined) query.limit = options.limit;
+  if (options.offset !== undefined) query.offset = options.offset;
 
   const result = await client.get<WaitlistResponse>('/admin/waitlist', query);
 
