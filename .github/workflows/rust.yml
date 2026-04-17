@@ -27,6 +27,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  # Pinned so cache invalidation is intentional when we bump this.
+  CARGO_LLVM_COV_VERSION: '0.6.14'
 
 jobs:
   check:
@@ -69,12 +71,15 @@ jobs:
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
-          key: cargo-llvm-cov-${{ runner.os }}
+          # Version-scoped key so bumping CARGO_LLVM_COV_VERSION below
+          # invalidates the cache deterministically rather than serving a
+          # stale pre-upgrade binary forever.
+          key: cargo-llvm-cov-${{ runner.os }}-${{ env.CARGO_LLVM_COV_VERSION }}
 
       - name: Install cargo-llvm-cov
         if: steps.cache-llvm-cov.outputs.cache-hit != 'true'
         # TODO: swap to taiki-e/install-action@<verified-sha> for faster install
-        run: cargo install cargo-llvm-cov --locked
+        run: cargo install cargo-llvm-cov --locked --version ${{ env.CARGO_LLVM_COV_VERSION }}
 
       - name: Run tests with coverage
         run: |
