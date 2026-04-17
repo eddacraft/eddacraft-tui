@@ -101,10 +101,10 @@ legacy projects.
    `scripts/dbcon/snapshots/` with ISO-8601 timestamps. Gzip. Verify each
    archive is restorable by round-tripping into a throwaway local
    container.
-2. **Provision** `anvil-api-prod` via `neonctl` (preferred — works from
-   this worktree) or Neon MCP if it proves reliable here. Prefer the same
-   region the Vercel functions sit in. Capture the connection string into
-   a local env var, never into a file.
+2. **Provision** `anvil-api-prod` via `neonctl` in region
+   `aws-eu-west-2` (London). MCP is optional and known to misbehave from
+   git worktrees. Capture the connection string into a local env var,
+   never into a file.
 3. **Apply schema** by running `psql -f apps/anvil-api/src/db/schema.sql`
    against the new project. Verify `\dt` shows all 7 tables and
    `citext`/`pgcrypto` extensions are present.
@@ -181,11 +181,10 @@ Change status to **Ready** when:
 ### DBCON-002: provision anvil-api-prod and apply schema
 
 - **Intent:** Create a new Neon project named `anvil-api-prod` via
-  `neonctl` (preferred — worktree-friendly); Neon MCP only if it proves
-  reliable. Apply the canonical schema from
-  `apps/anvil-api/src/db/schema.sql`. Ensure `citext` and `pgcrypto`
-  extensions are enabled. Keep the connection string in a local env var
-  — never commit or paste it.
+  `neonctl` in region `aws-eu-west-2` (London). Apply the canonical
+  schema from `apps/anvil-api/src/db/schema.sql`. Ensure `citext` and
+  `pgcrypto` extensions are enabled. Keep the connection string in a
+  local env var — never commit or paste it.
 - **Expected Outcome:** `anvil-api-prod` exists, reachable via psql,
   has all 7 tables from schema.sql and both required extensions.
 - **Validation:** `\dt` returns 7 tables; `SELECT extname FROM

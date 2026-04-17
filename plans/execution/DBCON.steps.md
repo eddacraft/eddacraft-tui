@@ -29,14 +29,15 @@ rows curated from the legacy projects. Both legacy projects
 - Rename branch (this one) merged to `dev` before step 9 — Pulumi reads
   `anvil-api-database-url` from KV, so the secret must exist and the
   program must reference the new name before `pulumi up`
-- Legacy connection strings exported into the shell for snapshot + export:
+- Legacy connection strings exported into the shell for snapshot + export.
+  Source of truth is Neon itself (Vercel stores env vars encrypted and
+  cannot read them back). After `neonctl auth`:
   ```bash
-  export EDDACRAFT_WEB_URL=$(az keyvault secret show --vault-name kv-iac-anvil \
-    --name website-database-url --query value -o tsv)
-  # beta-user-tokens connection string is what's currently live on the
-  # anvil-api Vercel project (drift from KV). Copy it from the Vercel UI
-  # into the shell without pasting into any file:
-  read -rs -p 'BETA_USER_TOKENS_URL: ' BETA_USER_TOKENS_URL; export BETA_USER_TOKENS_URL; echo
+  neonctl projects list   # capture IDs for eddacraft-web and beta-user-tokens
+  export EDDACRAFT_WEB_URL=$(neonctl connection-string \
+    --project-id <eddacraft-web-id> --role-name <role> --database-name <db>)
+  export BETA_USER_TOKENS_URL=$(neonctl connection-string \
+    --project-id <beta-user-tokens-id> --role-name <role> --database-name <db>)
   ```
 
 ## Steps
@@ -77,11 +78,15 @@ rows curated from the legacy projects. Both legacy projects
 
 ### DBCON-002 — provision anvil-api-prod + apply schema
 
-5. **Create the project**
+5. **Create the project** (London region — `aws-eu-west-2`)
    ```bash
-   neonctl projects create --name anvil-api-prod --region-id <same-as-vercel>
-   # capture the connection string into a local env var — do NOT paste or log it
-   export ANVIL_API_PROD_URL=$(neonctl connection-string --project-id <id> --role-name <role>)
+   neonctl projects create --name anvil-api-prod --region-id aws-eu-west-2
+   # capture the project id, then the connection string
+   ANVIL_API_PROD_ID=$(neonctl projects list --output json \
+     | jq -r '.projects[] | select(.name=="anvil-api-prod") | .id')
+   export ANVIL_API_PROD_URL=$(neonctl connection-string \
+     --project-id "$ANVIL_API_PROD_ID")
+   # do NOT paste the connection string into any file or transcript
    ```
 
 6. **Apply canonical schema**

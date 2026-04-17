@@ -15,15 +15,20 @@ The variable names are kept (rather than renamed to SOURCE/TARGET) so the
 scripts stay identical to what the runbook snippets expect. Keep URLs in the
 shell — never paste them into a file.
 
-Fetch the legacy URL for `eddacraft-web` from KeyVault; grab the live
-`beta-user-tokens` URL from the Vercel UI (it's drifted from KV); grab the
-`anvil-api-prod` URL via `neonctl connection-string`.
+All three connection strings come from Neon (Vercel stores env vars
+encrypted and cannot read them back; KeyVault only has the old
+`eddacraft-web` URL under the misleading `website-database-url` name).
 
 ```bash
-export EDDACRAFT_WEB_URL=$(az keyvault secret show --vault-name kv-iac-anvil \
-  --name website-database-url --query value -o tsv)
-read -rs -p 'BETA_USER_TOKENS_URL: ' BETA_USER_TOKENS_URL; export BETA_USER_TOKENS_URL; echo
-export ANVIL_API_PROD_URL=$(neonctl connection-string --project-id <id> --role-name <role>)
+neonctl auth          # one-time OAuth
+neonctl projects list # grab the IDs
+
+export EDDACRAFT_WEB_URL=$(neonctl connection-string \
+  --project-id <eddacraft-web-id>)
+export BETA_USER_TOKENS_URL=$(neonctl connection-string \
+  --project-id <beta-user-tokens-id>)
+export ANVIL_API_PROD_URL=$(neonctl connection-string \
+  --project-id <anvil-api-prod-id>)
 ```
 
 ## Scripts
