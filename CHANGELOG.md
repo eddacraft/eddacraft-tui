@@ -6,6 +6,57 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [0.3.3-beta] — WinGet Distribution & Windows UX
+
+### Added
+
+- **WinGet distribution** — Windows users can now install and upgrade anvil via
+  WinGet; the release workflow submits a manifest to the community repo on every
+  tagged release
+- **Authenticode signing infrastructure** — release pipeline wired for
+  Authenticode signing of Windows binaries via Azure Trusted Signing and
+  SSL.com; signing activates once identity provisioning clears
+- **Branded post-install message** — installer prints a branded next-steps block
+  with colour support, pointing new users at `anvil auth login` and
+  `anvil welcome`
+- **Admin waitlist + audit list endpoints** — read-only list endpoints exposed
+  for the upcoming admin CLI (`ADMINCLI-001..004`)
+- **Nightly stress test workflow** — CI benchmark runner to catch performance
+  regressions in the native engine early (`BENCH`)
+
+### Fixed
+
+- **Windows TUI input** — crossterm key events filtered to Press-only on
+  Windows, eliminating duplicate keypresses in onboarding and discovery
+- **Discovery layout** — two-panel layout restored with full scrolling and a
+  reliable onboarding reset
+- **Tutorial exit codes** — corrected exit codes, `husky` flag handling, and the
+  verify-step sentinel so tutorials complete cleanly
+- **Licence signing key probe** — anvil-api probes the ES256 signing key at boot
+  and exposes the result in `/health`, surfacing missing-secret issues before
+  requests hit the auth endpoints (`BAUTH`)
+- **Admin approve reliability** — `/admin/approve` retries user_code constraint
+  collisions and accepts longer codes so back-to-back approvals succeed
+- **Auto-promote public release** — public GitHub Releases flip to Latest on
+  every tagged production release
+- **Dependency pin** — `follow-redirects` bumped to >=1.16.0 to close a known
+  vulnerability
+
+### Improved
+
+- Public docs branding normalised (`DOCSYNC`)
+- Structured error logging added to waitlist and auth routes
+
+### Developer
+
+- `scripts/release.sh` hardened across preflight, bundled tests, remote
+  validation, and manifest handoff; `/release` skill updated in lockstep
+- DBCON module landed for the Neon project consolidation; `WAITLIST_PAUSED` kill
+  switch and waitlist-table bridge migration ship as part of that
+  (operator-only, not exposed to CLI users)
+- ADR-024 published for the literate-core internal agent harness
+- KERN and BENCH APS modules archived
+
 ## [0.3.2-beta] — Update Command & Onboarding Completion
 
 ### Added
