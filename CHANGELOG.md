@@ -21,6 +21,10 @@ engineering maintenance are recorded in the
   `anvil welcome`
 - **Admin waitlist + audit list endpoints** — read-only list endpoints exposed
   for the upcoming admin CLI (`ADMINCLI-001..004`)
+- **Admin CLI operational commands** — `anvil admin` now includes `list`,
+  `show`, `approve`, `invite`, `audit`, `revoke`, and `send-migration` so beta
+  access operations can be handled from the CLI instead of ad-hoc API calls and
+  dashboards
 - **Nightly stress test workflow** — CI benchmark runner to catch performance
   regressions in the native engine early (`BENCH`)
 
@@ -37,6 +41,15 @@ engineering maintenance are recorded in the
   requests hit the auth endpoints (`BAUTH`)
 - **Admin approve reliability** — `/admin/approve` retries user_code constraint
   collisions and accepts longer codes so back-to-back approvals succeed
+- **Admin email correction flow** — clearer email-mismatch UX in auth flows,
+  plus an admin endpoint to correct beta-user email addresses without manual DB
+  changes
+- **Admin CLI robustness** — list flag validation, audit type alignment,
+  `--json` warning handling, TTY detection, table sanitisation, and error-path
+  handling tightened across the new admin surfaces
+- **Migration send safety** — `send-migration` now honours `--no-dry-run`
+  correctly, exits non-zero on delivery failures, and describes its audience
+  scope more clearly
 - **Auto-promote public release** — public GitHub Releases flip to Latest on
   every tagged production release
 - **Dependency pin** — `follow-redirects` bumped to >=1.16.0 to close a known
@@ -46,6 +59,7 @@ engineering maintenance are recorded in the
 
 - Public docs branding normalised (`DOCSYNC`)
 - Structured error logging added to waitlist and auth routes
+- Database consolidation guidance and admin runbooks expanded for operators
 
 ### Developer
 
@@ -54,6 +68,8 @@ engineering maintenance are recorded in the
 - DBCON module landed for the Neon project consolidation; `WAITLIST_PAUSED` kill
   switch and waitlist-table bridge migration ship as part of that
   (operator-only, not exposed to CLI users)
+- DBCON follow-on work now includes the option-B reset path and
+  `ANVIL_API_DATABASE_URL` rename for the next database cutover stage
 - ADR-024 published for the literate-core internal agent harness
 - KERN and BENCH APS modules archived
 
