@@ -9,6 +9,11 @@ import { runApproveCommand, type ApproveOptions } from './commands/approve.js';
 import { runInviteCommand, type InviteOptions, ALLOWED_SCOPES } from './commands/invite.js';
 import { runAuditCommand, type AuditOptions } from './commands/audit.js';
 import { runRevokeCommand, type RevokeOptions } from './commands/revoke.js';
+import {
+  runSendMigrationCommand,
+  type SendMigrationOptions,
+  MIGRATION_SOURCES,
+} from './commands/send-migration.js';
 import { parseBoundedInt } from './parsers.js';
 
 const program = new Command();
@@ -20,13 +25,6 @@ program
   .option('--key <key>', 'admin API key (overrides ANVIL_ADMIN_KEY)')
   .option('--url <url>', 'admin API base URL (overrides ANVIL_ADMIN_URL)')
   .option('--actor <actor>', 'operator identity for X-Admin-Actor (overrides ANVIL_ADMIN_ACTOR)');
-
-const notImplemented = (task: string) => () => {
-  process.stderr.write(
-    formatError(`command not yet implemented (pending ${task})`, { colour: false }) + '\n'
-  );
-  process.exit(64);
-};
 
 program
   .command('list')
@@ -127,12 +125,23 @@ program
 
 program
   .command('send-migration')
-  .description('send migration email to imported waitlist users')
-  .option('--source <source>', 'filter by source', 'import')
-  .option('--limit <n>', 'max recipients', '20')
-  .option('--dry-run', 'preview recipients without sending')
+  .description('send migration email to waitlist users from a selected source (default: import)')
+  .addOption(
+    new Option('--source <source>', 'filter by source')
+      .choices([...MIGRATION_SOURCES])
+      .default('import')
+  )
+  .addOption(
+    new Option('--limit <n>', 'max recipients (1-100)')
+      .default(20)
+      .argParser(parseBoundedInt('--limit', 1, 100))
+  )
+  .option('--no-dry-run', 'actually send (default is to preview only)')
   .option('-y, --yes', 'skip confirmation prompt')
-  .action(notImplemented('ADMINCLI-012'));
+  .option('--json', 'emit raw JSON')
+  .action(async (_options, cmd: Command) => {
+    await runSendMigrationCommand(cmd.optsWithGlobals() as SendMigrationOptions);
+  });
 
 program.exitOverride((err) => {
   process.exit(err.exitCode);

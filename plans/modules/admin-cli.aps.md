@@ -3,9 +3,9 @@
 
 # Admin CLI
 
-| Scope    | Owner  | Priority | Status      |
-| -------- | ------ | -------- | ----------- |
-| ADMINCLI | @aneki | high     | In Progress |
+| Scope    | Owner  | Priority | Status   |
+| -------- | ------ | -------- | -------- |
+| ADMINCLI | @aneki | high     | Complete |
 
 ## Purpose
 
@@ -292,7 +292,7 @@ Zod request schemas keep the client and server in lockstep.
 - **Dependencies:** ADMINCLI-005
 - **Validation:** `pnpm -F @eddacraft/admin-cli test -- send-migration`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### Phase C: Polish
 
@@ -307,4 +307,4 @@ Zod request schemas keep the client and server in lockstep.
 - **Dependencies:** ADMINCLI-006 … ADMINCLI-012
 - **Validation:** Peer read-through; linkcheck passes
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
