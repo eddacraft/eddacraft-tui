@@ -3,6 +3,8 @@
 
 package anvil.policies.coverage_min
 
+import rego.v1
+
 # Default minimum coverage (configurable via input.config)
 default min_coverage := 80
 

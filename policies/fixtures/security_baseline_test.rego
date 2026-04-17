@@ -2,6 +2,8 @@
 
 package anvil.policies.security_baseline_test
 
+import rego.v1
+
 import data.anvil.policies.security_baseline
 
 # Test that sensitive file without review triggers violation
