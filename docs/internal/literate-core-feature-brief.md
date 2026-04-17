@@ -6,14 +6,14 @@
 
 Two new Rust crates that embed LLM reasoning directly inside the Anvil binary:
 
-- **weave** — A minimal, provider-agnostic agent runtime library.
-  Apache-2.0 licensed, zero Anvil dependencies, lives in a standalone
-  open-source repo (`eddacraft/weave-rs`). Captures the irreducible kernel of
-  an agent: message loop, tool dispatch, provider abstraction, session
-  persistence. ~2500 LOC, ~15 dependencies.
+- **weave** — A minimal, provider-agnostic agent runtime library. Apache-2.0
+  licensed, zero Anvil dependencies, lives in a standalone open-source repo
+  (`eddacraft/weave-rs`). Captures the irreducible kernel of an agent: message
+  loop, tool dispatch, provider abstraction, session persistence. ~2500 LOC, ~15
+  dependencies.
 
-- **anvil-weave** — An Anvil-specific harness that depends on weave and
-  adds tools with zero-copy access to the kernel's live semantic graph.
+- **anvil-weave** — An Anvil-specific harness that depends on weave and adds
+  tools with zero-copy access to the kernel's live semantic graph.
   Source-proprietary, same licence as the rest of Anvil.
 
 ### Why Does This Exist?
@@ -53,8 +53,8 @@ The agent runtime is 7 primitives:
 7. **Event** — typed lifecycle notifications (agent_start, tool_call, etc.)
 
 Everything is a trait. Consumers bring their own tools, providers, and session
-backends. weave provides the loop and the types. anvil-weave provides
-Anvil's specific tools.
+backends. weave provides the loop and the types. anvil-weave provides Anvil's
+specific tools.
 
 ### Crate Layout
 
@@ -112,9 +112,8 @@ graph. No CI check needed — the invariant is architectural.
 
 ### How to Contribute
 
-- weave code goes in `eddacraft/weave-rs`. Never import from
-  `anvil-*` crates. If you need an Anvil type, that code belongs in
-  `anvil-weave` instead.
+- weave code goes in `eddacraft/weave-rs`. Never import from `anvil-*` crates.
+  If you need an Anvil type, that code belongs in `anvil-weave` instead.
 - All source files in weave carry Apache-2.0 headers.
 - Provider implementations live behind feature gates.
 - Follow the APS plan: `plans/modules/weave.aps.md` (WEAVE scope).
@@ -259,15 +258,14 @@ accepted. Provenance from detection through remediation.
 ### Open Source Strategy
 
 weave (the generic agent runtime) ships as Apache-2.0 open source in its own
-standalone repo (`eddacraft/weave-rs`) from day one — not extracted later.
-It is an opinion-free Rust crate that anyone can use to build agents. This
-positions EddaCraft as a platform company, not just a product company, and
-creates ecosystem gravity. The Anvil-specific harness (anvil-weave) remains
-proprietary.
+standalone repo (`eddacraft/weave-rs`) from day one — not extracted later. It is
+an opinion-free Rust crate that anyone can use to build agents. This positions
+EddaCraft as a platform company, not just a product company, and creates
+ecosystem gravity. The Anvil-specific harness (anvil-weave) remains proprietary.
 
 ### Timeline
 
-Draft status. ADR-024 proposed (amended 2026-04-17 for standalone strategy).
-21 work items across 5 phases. Estimate: 4-6 weeks to MVP (working agent loop
-with Anvil graph tools). Marketing-ready when the first demo shows a violation
--> explanation -> fix flow end-to-end.
+Draft status. ADR-024 proposed (amended 2026-04-17 for standalone strategy). 21
+work items across 5 phases. Estimate: 4-6 weeks to MVP (working agent loop with
+Anvil graph tools). Marketing-ready when the first demo shows a violation ->
+explanation -> fix flow end-to-end.
