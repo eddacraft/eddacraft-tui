@@ -463,10 +463,11 @@ function computeCohortDrift(
  *
  * Error codes (JSON `code` field, tested in admin.test.ts):
  *   400 preview_token_required          — real-send with no token
- *   410 preview_token_missing           — token not found (likely lost)
+ *   410 preview_token_missing           — token not found, or caller is
+ *                                         not the creator (merged to avoid
+ *                                         confirming existence to non-owners)
  *   410 preview_token_expired           — TTL passed
  *   410 preview_token_consumed          — token already used
- *   403 preview_token_actor_mismatch    — different caller than creator
  *   409 cohort_drift                    — body: DriftDiffResponse
  */
 admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => {
@@ -514,8 +515,10 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
 
   if (!consumed) {
     // The atomic consume failed; figure out which distinct reason so the
-    // CLI can surface a tailored recovery message.
-    const existing = await findSendMigrationSnapshot(sql, previewToken);
+    // CLI can surface a tailored recovery message. The find is scoped
+    // to (token, actor) so a non-owner caller falls into the `missing`
+    // branch and never learns that the token exists.
+    const existing = await findSendMigrationSnapshot(sql, { token: previewToken, actor });
     if (!existing) {
       return c.json(
         {
@@ -523,15 +526,6 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
           error: 'preview token is unknown; re-run with --dry-run for a fresh preview',
         },
         410
-      );
-    }
-    if (existing.created_by_actor !== actor) {
-      return c.json(
-        {
-          code: 'preview_token_actor_mismatch',
-          error: 'preview token was created by a different operator',
-        },
-        403
       );
     }
     if (existing.consumed_at !== null) {
@@ -553,10 +547,13 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
     );
   }
 
-  // Refetch the current cohort against the same filter and compare to
-  // the snapshot. Any asymmetric difference means the recipient set
-  // the operator confirmed is not the set we would send to — abort.
-  const currentRows = await findWaitlistBySource(sql, source, limit);
+  // Refetch the current cohort and compare to the snapshot. Use the
+  // snapshot size (not the request limit) so the fresh query returns
+  // an apples-to-apples slice — a caller-supplied limit smaller or
+  // larger than what the snapshot captured would otherwise produce a
+  // false-positive drift rejection.
+  const freshLimit = Math.max(consumed.recipients.length, 1);
+  const currentRows = await findWaitlistBySource(sql, source, freshLimit);
   const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
     email: r.email,
     name: r.name,

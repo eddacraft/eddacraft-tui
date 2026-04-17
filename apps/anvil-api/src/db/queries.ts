@@ -724,12 +724,18 @@ export async function insertSendMigrationSnapshot(
   }
 ): Promise<SendMigrationSnapshot> {
   // Lazy reap: any snapshot past a day old is uninteresting and exists
-  // only to consume index space. Do this in the same call as the insert
-  // so expired rows can't accumulate without write traffic.
-  await sql`
-    DELETE FROM send_migration_snapshots
-    WHERE expires_at < now() - interval '1 day'
-  `;
+  // only to consume index space. Best-effort — a failure here must not
+  // block the primary insert.
+  try {
+    await sql`
+      DELETE FROM send_migration_snapshots
+      WHERE expires_at < now() - interval '1 day'
+    `;
+  } catch (err) {
+    // Swallow: reap is opportunistic. The row will get reaped by a
+    // later successful sweep.
+    console.warn('send_migration_snapshots reap failed', err);
+  }
 
   const r = rows(
     await sql`
@@ -745,22 +751,29 @@ export async function insertSendMigrationSnapshot(
     RETURNING *
   `
   );
-  return parseSnapshotRow(r[0] ?? {});
+  if (!r[0]) {
+    throw new Error('insertSendMigrationSnapshot: INSERT returned no row');
+  }
+  return parseSnapshotRow(r[0]);
 }
 
 /**
- * Look up a snapshot by token WITHOUT consuming it. Used to disambiguate
- * the 410 sub-codes (expired vs consumed vs actor mismatch) after an
- * atomic-consume attempt fails.
+ * Look up a snapshot by (token, actor) WITHOUT consuming it. Used to
+ * disambiguate expired vs consumed after an atomic-consume attempt
+ * fails. The actor filter is intentional: a caller with the wrong
+ * actor is indistinguishable from a caller with a wrong token, so
+ * the failure surface is uniform (`preview_token_missing`) and the
+ * server never confirms a token's existence to a non-owner.
  */
 export async function findSendMigrationSnapshot(
   sql: NeonClient,
-  token: string
+  params: { token: string; actor: string }
 ): Promise<SendMigrationSnapshot | null> {
   const r = rows(
     await sql`
     SELECT * FROM send_migration_snapshots
-    WHERE token = ${token}
+    WHERE token = ${params.token}
+      AND created_by_actor = ${params.actor}
     LIMIT 1
   `
   );

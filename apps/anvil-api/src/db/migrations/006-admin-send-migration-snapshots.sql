@@ -6,7 +6,7 @@
 
 CREATE TABLE IF NOT EXISTS send_migration_snapshots (
   token             TEXT PRIMARY KEY,
-  source            TEXT NOT NULL,
+  source            TEXT NOT NULL CHECK (source IN ('import', 'website', 'manual')),
   recipients        JSONB NOT NULL,
   created_by_actor  TEXT NOT NULL,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),

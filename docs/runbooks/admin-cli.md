@@ -188,6 +188,9 @@ A dry-run prints a preview token and an `expiresAt` stamp; you must re-run
 without `--dry-run` within 10 minutes for the send to consume that exact
 recipient snapshot. The CLI always re-fetches a fresh token when you run
 with `--no-dry-run`, so operators don't need to carry the token manually.
+If you run multiple previews without sending, always use the **most recently
+printed** token on the real-send — earlier tokens remain valid (and bound to
+you) until they age out, which can cause confusion if you paste the wrong one.
 
 Flags:
 
@@ -232,8 +235,7 @@ surfaces these with recovery-specific messages; the runbook equivalents:
 | 409  | `cohort_drift`                 | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil-admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first |
 | 410  | `preview_token_expired`        | The 10-minute TTL elapsed                                                  | Re-run `anvil-admin send-migration --no-dry-run` (within 10 minutes next time)               |
 | 410  | `preview_token_consumed`       | A prior send call already used this token                                  | **Verify the previous send completed** in the audit log, then decide whether to re-send      |
-| 410  | `preview_token_missing`        | Token not found in the DB (expired+reaped, or never existed)               | Re-run `anvil-admin send-migration --no-dry-run`                                             |
-| 403  | `preview_token_actor_mismatch` | Token was created by a different operator                                  | Either run under the same `ANVIL_ADMIN_ACTOR` / `--actor`, or fetch a fresh preview          |
+| 410  | `preview_token_missing`        | Token not found, reaped, or owned by a different operator                  | Re-run `anvil-admin send-migration --no-dry-run` under the correct `ANVIL_ADMIN_ACTOR` / `--actor` |
 | 400  | `preview_token_required`       | Should not occur via the CLI; indicates a client bug                       | File a ticket; workaround is to re-run the CLI (it always fetches a token first)             |
 
 For a `preview_token_consumed` recovery, confirm before re-sending:

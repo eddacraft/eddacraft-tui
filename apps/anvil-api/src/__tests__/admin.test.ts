@@ -928,11 +928,12 @@ describe('admin endpoints', () => {
         expect(body.code).toBe('preview_token_missing');
       });
 
-      it('returns 403 preview_token_actor_mismatch when a different operator owns it', async () => {
+      it('returns 410 preview_token_missing when a different operator owns the token', async () => {
+        // The find is scoped to (token, actor) in the DB layer, so a
+        // caller who is not the creator receives `missing` — the server
+        // must never confirm to a non-owner that the token exists.
         vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
-        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
-          makeSnapshot({ created_by_actor: 'someone-else@arkahna.io' })
-        );
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(null);
 
         const res = await request(
           'POST',
@@ -941,9 +942,18 @@ describe('admin endpoints', () => {
           ADMIN_KEY
         );
 
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(410);
         const body = await res.json();
-        expect(body.code).toBe('preview_token_actor_mismatch');
+        expect(body.code).toBe('preview_token_missing');
+        // Find was called with the caller's actor, not with any
+        // foreign actor — the server does not widen the search.
+        expect(vi.mocked(findSendMigrationSnapshot)).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            token: 'snap-token-abc',
+            actor: expect.any(String),
+          })
+        );
       });
 
       it('returns 410 preview_token_consumed when the token was already used', async () => {
@@ -1018,6 +1028,49 @@ describe('admin endpoints', () => {
         expect(body.removed).toEqual(['bob@example.com']);
         // Must NOT have sent any emails on a drift rejection.
         expect(vi.mocked(sendWaitlistMigration)).not.toHaveBeenCalled();
+        // And must NOT write an audit log for a send that never happened.
+        expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalled();
+      });
+
+      it('rejects a second real-send with the same token as preview_token_consumed', async () => {
+        // Simulate two back-to-back real-sends racing on the same token.
+        // The first consume wins; the second finds a row whose
+        // consumed_at is set and returns `preview_token_consumed`.
+        const snap = makeSnapshot({
+          created_by_actor: 'admin',
+          recipients: importedRecipients,
+        });
+        vi.mocked(consumeSendMigrationSnapshot)
+          .mockResolvedValueOnce(snap)
+          .mockResolvedValueOnce(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValueOnce(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: importedRecipients,
+            consumed_at: '2026-04-17T09:05:00Z',
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
+
+        const first = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+        const second = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(410);
+        expect((await second.json()).code).toBe('preview_token_consumed');
+        // Recipients were emailed exactly once across both calls.
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledTimes(importedRecipients.length);
       });
 
       it('sends to the snapshot recipients on the golden path', async () => {
