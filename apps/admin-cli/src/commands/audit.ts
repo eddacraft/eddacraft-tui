@@ -11,10 +11,10 @@ export interface AuditOptions extends ConfigFlags {
 }
 
 export interface AuditItem {
-  id: number;
+  id: string;
   action: string;
   actor: string;
-  metadata: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
@@ -74,7 +74,12 @@ export async function runAuditCommand(
     {
       key: 'metadata',
       header: 'METADATA',
-      format: (v) => (v == null ? '' : JSON.stringify(v)),
+      format: (v) => {
+        if (v == null || typeof v !== 'object') return '';
+        const obj = v as Record<string, unknown>;
+        if (Object.keys(obj).length === 0) return '';
+        return JSON.stringify(obj);
+      },
     },
   ]);
   stdout(table + '\n');

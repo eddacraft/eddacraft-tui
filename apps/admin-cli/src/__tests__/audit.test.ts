@@ -12,17 +12,17 @@ const sampleResponse: AuditResponse = {
   total: 2,
   items: [
     {
-      id: 42,
+      id: '42',
       action: 'user.approved',
       actor: 'josh@arkahna.io',
       metadata: { email: 'alice@example.com' },
       created_at: '2026-04-17T12:34:56Z',
     },
     {
-      id: 41,
+      id: '41',
       action: 'user.invited',
       actor: 'admin',
-      metadata: null,
+      metadata: {},
       created_at: '2026-04-16T10:00:00Z',
     },
   ],
@@ -93,7 +93,7 @@ describe('runAuditCommand', () => {
     expect(out).toContain('Showing 2 of 2');
   });
 
-  it('serialises non-null metadata as JSON and leaves null metadata blank', async () => {
+  it('serialises non-empty metadata as JSON and leaves empty metadata blank', async () => {
     const writes: string[] = [];
     await runAuditCommand(
       {},
@@ -101,6 +101,7 @@ describe('runAuditCommand', () => {
     );
     const out = writes.join('');
     expect(out).toContain('{"email":"alice@example.com"}');
+    expect(out).not.toContain('{}');
   });
 
   it('prints "No audit entries." on empty result without --json', async () => {
