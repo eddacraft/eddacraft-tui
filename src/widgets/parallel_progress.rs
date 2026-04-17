@@ -53,6 +53,7 @@ impl CheckProgress {
     }
 }
 
+#[non_exhaustive]
 pub struct ParallelProgressState {
     pub checks: Vec<CheckProgress>,
     pub start_time: Option<Instant>,
@@ -468,6 +469,48 @@ mod tests {
         assert_eq!(format_duration(512), "512ms");
         assert_eq!(format_duration(12_000), "12s");
         assert_eq!(format_duration(61_000), "1m 1s");
+    }
+
+    #[test]
+    fn overall_progress_animates_toward_target() {
+        use crate::widgets::ANIM_DURATION_MS;
+
+        let theme = crate::theme::EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        let mut state = ParallelProgressState {
+            checks: vec![CheckProgress {
+                id: "a".to_string(),
+                name: "lint".to_string(),
+                status: CheckStatus::Passed,
+                progress: 100,
+                start_time: None,
+                end_time: None,
+                duration_ms: Some(100),
+                message: None,
+            }],
+            start_time: None,
+            ..Default::default()
+        };
+
+        // First render primes the animation toward overall=100.
+        ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
+        let first = *state.anim_overall;
+        assert!(
+            first <= 100,
+            "animation should start within [0, 100], got {first}"
+        );
+
+        // Advance past the configured animation duration and re-render.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let advance = ANIM_DURATION_MS as usize + 1;
+        animate::tick(advance);
+        ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
+
+        assert_eq!(
+            *state.anim_overall, 100,
+            "expected anim_overall to converge to target after full duration"
+        );
     }
 
     #[test]

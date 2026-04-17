@@ -173,4 +173,43 @@ mod tests {
         };
         assert!(state.fraction().abs() < f64::EPSILON);
     }
+
+    #[test]
+    fn display_fraction_converges_after_animation_duration() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        use crate::theme::EddaCraftTheme;
+        use crate::widgets::ANIM_DURATION_MS;
+
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = ProgressBarState {
+            current: 50,
+            total: 100,
+            ..Default::default()
+        };
+
+        // First render primes the animation toward the new target (0.5).
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+        let first = state.display_fraction();
+
+        // Advance the animate clock past the configured duration and re-render.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let advance = ANIM_DURATION_MS as usize + 1;
+        animate::tick(advance);
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+
+        let converged = state.display_fraction();
+        assert!(
+            first <= converged,
+            "expected display_fraction to move toward target, got {first} -> {converged}"
+        );
+        let diff = (converged - state.fraction()).abs();
+        assert!(
+            diff < 1e-6,
+            "expected convergence within duration, diff={diff}"
+        );
+    }
 }
