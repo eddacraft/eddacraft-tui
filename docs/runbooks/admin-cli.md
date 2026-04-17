@@ -185,31 +185,40 @@ Flags:
 
 - `--source <import|website|manual>` (default `import`)
 - `--limit <1-100>` (default `20`)
-- `--dry-run` / `--no-dry-run` — dry-run is ON by default; pass `--no-dry-run` to send
+- `--no-dry-run` — actually send; by default the command only previews
 - `-y, --yes` — skip the interactive confirmation when sending. **Required in
   non-TTY sessions** (scripts, CI) when sending for real
 - `--json`
 
-Flow when sending for real:
+Flow when sending for real (`--no-dry-run`):
 
-1. CLI fetches a dry-run preview (count + recipient list)
-2. If count is `0`, prints "Nothing to send" and exits
-3. Prints the recipient table and prompts `Continue? [y/N]`
-4. On `y`/`yes`, calls the server with `dryRun=false`
+1. CLI fetches a dry-run preview (count + recipient list) from the server
+2. If count is `0`, prints `No recipients match the filter. Nothing to send.`
+   on stdout and exits `0`
+3. Writes the recipient table plus the warning `About to send migration email
+   to N recipient(s) …` to **stderr**, then prompts on stderr:
+   `Continue? [y/N]`
+4. On `y`/`yes`, calls the server again with `dryRun=false`
 5. Renders the per-recipient send/failure table
 
-In non-TTY sessions without `--yes`, the CLI refuses (exit code `4`) rather
-than blocking on a prompt that can't be answered.
+The preview and the real send are two separate API calls. If rows are added
+or removed between them, the sent cohort may differ from the previewed one.
+For a migration rollout, snapshot the waitlist (`list --status all --json`)
+before starting if you need a stable record.
+
+Non-TTY refusal (`exit 4`) applies only to the **real-send** path. A plain
+dry-run works in any session. In non-TTY sessions without `--yes`, the CLI
+refuses to prompt and exits `4`.
 
 ## Exit codes
 
 | Code | Meaning                                      | Typical cause                              |
 | ---- | -------------------------------------------- | ------------------------------------------ |
 | `0`  | Success                                      | —                                          |
-| `1`  | HTTP 4xx (client error from the admin API)   | Bad request, unauthorised, not found       |
+| `1`  | HTTP 4xx, or `send-migration` had ≥1 failed recipient | Bad request, unauthorised, partial send failure |
 | `2`  | HTTP 5xx or malformed JSON response          | Server bug; check logs                     |
 | `3`  | Network / cannot reach the API               | DNS, TLS, connection refused               |
-| `4`  | Refused to prompt in a non-TTY session       | CI/script without `--yes`                  |
+| `4`  | Refused to prompt in a non-TTY session       | CI/script without `--yes` on a real send   |
 | `5`  | Missing required config                      | `ANVIL_ADMIN_KEY` not set                  |
 | `64` | Invalid argument (EX_USAGE)                  | Out-of-range `--limit`, bad enum choice    |
 

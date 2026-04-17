@@ -136,7 +136,7 @@ program
       .default(20)
       .argParser(parseBoundedInt('--limit', 1, 100))
   )
-  .option('--dry-run', 'preview recipients without sending (default: true)', true)
+  .option('--no-dry-run', 'actually send (default is to preview only)')
   .option('-y, --yes', 'skip confirmation prompt')
   .option('--json', 'emit raw JSON')
   .action(async (_options, cmd: Command) => {

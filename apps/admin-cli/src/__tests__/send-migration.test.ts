@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Command, Option } from 'commander';
 import {
   runSendMigrationCommand,
   type AdminWriter,
   type DryRunResponse,
   type SendResponse,
+  MIGRATION_SOURCES,
 } from '../commands/send-migration.js';
+import { parseBoundedInt } from '../parsers.js';
 
 const ENV_KEY = 'ANVIL_ADMIN_KEY';
 
@@ -35,6 +38,17 @@ const emptyPreviewResponse: DryRunResponse = {
 };
 
 const sendResponse: SendResponse = {
+  source: 'import',
+  total: 2,
+  sent: 2,
+  failed: 0,
+  results: [
+    { email: 'alice@example.com', sent: true },
+    { email: 'bob@example.com', sent: true },
+  ],
+};
+
+const partialFailureResponse: SendResponse = {
   source: 'import',
   total: 2,
   sent: 1,
@@ -135,9 +149,22 @@ describe('runSendMigrationCommand', () => {
       limit: 20,
     });
     const out = writes.join('');
-    expect(out).toContain('Sent 1/2 (failed: 1)');
+    expect(out).toContain('Sent 2/2 (failed: 0)');
     expect(out).toContain('alice@example.com');
-    expect(out).toContain('bounced');
+    expect(out).toContain('bob@example.com');
+  });
+
+  it('throws AdminError exitCode 1 when any recipient failed to send', async () => {
+    await expect(
+      runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => makeClient(partialFailureResponse), stdout: () => {} }
+      )
+    ).rejects.toMatchObject({
+      name: 'AdminError',
+      exitCode: 1,
+      message: expect.stringContaining('1 of 2 recipient(s) failed'),
+    });
   });
 
   it('interactive send: previews, confirms, then sends on "y"', async () => {
@@ -166,7 +193,7 @@ describe('runSendMigrationCommand', () => {
       limit: 20,
     });
     expect(errs.join('')).toContain('About to send migration email to 2 recipient(s)');
-    expect(outs.join('')).toContain('Sent 1/2');
+    expect(outs.join('')).toContain('Sent 2/2');
   });
 
   it('interactive send: aborts on non-"y" answer without calling the real send', async () => {
@@ -236,5 +263,53 @@ describe('runSendMigrationCommand', () => {
     await expect(
       runSendMigrationCommand({}, { createClient: () => makeClient(previewResponse) })
     ).rejects.toMatchObject({ exitCode: 5, name: 'MissingConfigError' });
+  });
+});
+
+describe('send-migration commander wiring', () => {
+  function buildProgram(): Command {
+    const prog = new Command();
+    prog.exitOverride();
+    prog
+      .command('send-migration')
+      .addOption(
+        new Option('--source <source>', 'filter by source')
+          .choices([...MIGRATION_SOURCES])
+          .default('import')
+      )
+      .addOption(
+        new Option('--limit <n>', 'max recipients (1-100)')
+          .default(20)
+          .argParser(parseBoundedInt('--limit', 1, 100))
+      )
+      .option('--no-dry-run', 'actually send (default is to preview only)')
+      .option('-y, --yes', 'skip confirmation prompt')
+      .option('--json', 'emit raw JSON')
+      .action(() => {});
+    return prog;
+  }
+
+  function parse(argv: string[]): Record<string, unknown> {
+    const prog = buildProgram();
+    prog.parse(['node', 'anvil-admin', 'send-migration', ...argv]);
+    const sub = prog.commands.find((c) => c.name() === 'send-migration')!;
+    return sub.opts();
+  }
+
+  it('dry-run defaults to true when no flag is passed', () => {
+    expect(parse([])).toMatchObject({ dryRun: true, source: 'import', limit: 20 });
+  });
+
+  it('--no-dry-run flips dryRun to false', () => {
+    expect(parse(['--no-dry-run'])).toMatchObject({ dryRun: false });
+  });
+
+  it('rejects --limit out of range at parse time', () => {
+    expect(() => parse(['--limit', '0'])).toThrow(/between 1 and 100/);
+    expect(() => parse(['--limit', '101'])).toThrow(/between 1 and 100/);
+  });
+
+  it('rejects an unknown --source choice', () => {
+    expect(() => parse(['--source', 'bogus'])).toThrow(/Allowed choices/);
   });
 });

@@ -126,6 +126,10 @@ export async function runSendMigrationCommand(
     limit,
   });
   renderResult(result, { stdout, json: !!options.json });
+
+  if (result.failed > 0) {
+    throw new AdminError(`${result.failed} of ${result.total} recipient(s) failed to send`, 1);
+  }
 }
 
 function renderRecipientsTable(recipients: MigrationRecipient[]): string {
