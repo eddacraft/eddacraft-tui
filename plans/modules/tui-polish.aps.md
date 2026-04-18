@@ -36,8 +36,7 @@ high-signal for users seeing Anvil for the first time.
 
 ## Out of Scope
 
-- Interactive tutorial rewrite (that's TUTOR)
-- New tutorial content or paths (that's TUTOR)
+- Interactive tutorial rewrite or new content (that shipped under WELCOME)
 - TUI dashboard features (that's TUIDASH)
 - Architecture or engine changes
 
