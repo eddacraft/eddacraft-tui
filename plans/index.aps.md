@@ -75,22 +75,24 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending |
+| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | Phase 1 done (23 .anvil files in 5 families); Phases 2–4 pending (scanner wiring, new patterns, TS cleanup) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
-### Continuous Improvement (Draft)
+### Continuous Improvement (In Progress)
 
-Ongoing refactoring, code quality, shared libraries, generators, and DX
-improvements. Includes codebase-maintenance (in progress) and code-review-
-backlog (complete) as tracked sub-modules.
+Codebase-maintenance drives ongoing refactoring, shared libraries, generators,
+and DX improvements. Code-review-backlog (complete) is retained for history.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [continuous-improvement](./modules/continuous-improvement.aps.md) | CI | Draft | 0/10 |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
+
+> ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
+> without executable tasks. All concrete intents map onto MAINT. See
+> [archived notice](./modules/continuous-improvement.aps.md).
 
 ### Rust Engine (In Progress)
 
@@ -108,12 +110,11 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 63/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
-| [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./modules/tui-polish.aps.md) | POLISH | In Progress | 1/7 | RCLI, RATS |
 | [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
-| [distribution-pipeline](./modules/distribution-pipeline.aps.md) | DIST | In Progress | 8/9 | RCLI |
+| [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
@@ -280,13 +281,18 @@ graph data.
 | ------ | ----- | ---------- | ------------ |
 | [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | 7 | architecture-safety |
 
-### Intercept Loop (Draft)
+### Intercept Loop (Draft — no code yet)
 
 Host-local enforcement daemon that detects policy violations from AI agent file
 changes and interrupts the correct session via process-group control. Shell-first,
 single-host initially, proving the core enforcement thesis. See
 [design spec](./specs/anvil-driver-framework/) for the broader driver framework
 vision.
+
+**Implementation state:** No intercept crates exist in `crates/`. All three
+modules are pure plans — design + ADR only. Pick these up only after the
+Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
+"wow" in the roadmap but also the largest greenfield build.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
@@ -296,16 +302,20 @@ vision.
 
 **Architecture Decision:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md)
 
-### Agent Infrastructure (Draft)
+### Agent Infrastructure (Draft — no code yet)
 
-Thin, provider-agnostic agent runtime (literate-core, Apache-2.0) plus
-Anvil-specific harness (anvil-agent) with zero-copy semantic graph access.
-Enables LLM reasoning over the kernel's live graph for violation remediation,
-behavioural diff narration, policy authoring, and headless CI review.
+Thin, provider-agnostic agent runtime (weave, Apache-2.0) in standalone repo
+(`eddacraft/weave-rs`) plus Anvil-specific harness (anvil-weave) with
+zero-copy semantic graph access.
+
+**Implementation state:** No `literate-core` or `anvil-agent` crates exist
+in this repo. The upstream runtime lives at `~/Projects/src/weave-rs`
+(see memory: reference_weave_rs). This module is a greenfield import plus
+harness build — schedule after the intercept-loop thesis is proven.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [literate-core](./modules/literate-core.aps.md) | LCORE, AHARNESS | Draft | 0/22 | KERN (anvil-agent only) |
+| [weave](./modules/weave.aps.md) | WEAVE, AHARNESS | Draft | 0/21 | KERN (anvil-weave only) |
 
 **Architecture Decision:** [D-024: Internal Agent Harness](./decisions/024-internal-agent-harness.md)
 
@@ -381,7 +391,7 @@ Active module themes:
 | ----- | ----------- |
 | Branch Recovery | [branch-reconciliation](./modules/branch-reconciliation.aps.md) |
 | Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
-| Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) |
+| Continuous Improvement | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
 | Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
@@ -390,13 +400,21 @@ Active module themes:
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
 | Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
-| Agent Infrastructure | [literate-core](./modules/literate-core.aps.md) |
+| Agent Infrastructure | [weave](./modules/weave.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
 
 ### Superseded
 
 > ~~tui-enhancement~~ (TUIENH) — see D-005: Ink over OpenTUI, then
 > ADR-011: Ratatui replaces Ink.
+
+> ~~interactive-tutorial~~ (TUTOR) — absorbed into
+> [WELCOME](./modules/restore-welcome-screen.aps.md) (18/18 complete). All 13
+> TUTOR items mapped to WELCOME phases. See
+> [archived plan](./archive/modules/interactive-tutorial.aps.md).
+
+> ~~continuous-improvement~~ (CI) — retired 2026-04-18; meta-module without
+> executable tasks. All concrete intents roll into MAINT.
 
 ### Task Status — Web Dashboard
 

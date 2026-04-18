@@ -66,7 +66,7 @@ These define how Anvil behaves by default. All features must align.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [024](024-internal-agent-harness.md) | Thin agent runtime (literate-core, Apache-2.0) in monorepo; anvil-agent harness with zero-copy graph access | Proposed |
+| [024](024-internal-agent-harness.md) | Thin agent runtime (weave, Apache-2.0) standalone at eddacraft/weave-rs; anvil-weave harness with zero-copy graph access | Proposed |
 
 ## Evaluation and Testing
 

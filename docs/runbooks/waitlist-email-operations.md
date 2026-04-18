@@ -37,7 +37,7 @@ The website only needs `NEXT_PUBLIC_API_URL` (defaults to
 From `packages/transactional`:
 
 ```bash
-pnpm exec react-email dev --dir emails
+pnpm exec email dev --dir emails
 ```
 
 Open the local preview URL and select the waitlist confirmation template.

@@ -7,9 +7,17 @@ See: plans/aps-rules.md
 
 # Testing Strategy
 
-| ID     | Owner | Status    |
-| ------ | ----- | --------- |
-| TEST   | —     | Draft |
+| ID     | Owner | Status   |
+| ------ | ----- | -------- |
+| TEST   | —     | Signpost |
+
+**Status note:** This module is a **signpost**, not an executable plan. It
+captures the cross-cutting policy that TFIX (done), TCOV, TINT, and TEXT
+implement. The six TEST-00X bullets below are intents that must land inside
+those modules as concrete work items — do not treat them as executable here.
+If you find a gap that doesn't fit any of those modules (e.g. `eslint-plugin-anvil`
+rule authoring, Rust↔TS parity framework, benchmark regression thresholds),
+open a focused module or add items to the closest fit.
 
 ## Purpose
 
