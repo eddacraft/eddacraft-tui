@@ -59,7 +59,7 @@ specific tools.
 ### Crate Layout
 
 ```
-eddacraft/weave-rs/         # Apache-2.0. ZERO anvil-* deps.
+eddacraft/weave-rs/         # Apache-2.0. ZERO eddacraft-anvil-* deps.
 ├── src/
 │   ├── types.rs            # Message, Context, Model, StreamEvent
 │   ├── tool.rs             # Tool trait, execution pipeline
@@ -106,13 +106,15 @@ summary node. Context building walks leaf-to-root. Append-only for auditability.
 `provider-anthropic` or `provider-openai` features to pull in reqwest. This
 keeps the base crate light for consumers who bring their own provider.
 
-**Structural separation.** weave lives in its own repo (`eddacraft/weave-rs`).
-It cannot import `anvil-*` crates because they don't exist in its dependency
-graph. No CI check needed — the invariant is architectural.
+**Structural separation.** weave lives in its own repo (`eddacraft/weave-rs`),
+which reduces accidental coupling but does not by itself prevent
+`eddacraft-anvil-*` crates from being added as normal cargo dependencies.
+Enforcement of the zero-dep invariant remains via automated CI /
+`cargo-deny` checks.
 
 ### How to Contribute
 
-- weave code goes in `eddacraft/weave-rs`. Never import from `anvil-*` crates.
+- weave code goes in `eddacraft/weave-rs`. Never import from `eddacraft-anvil-*` crates.
   If you need an Anvil type, that code belongs in `anvil-weave` instead.
 - All source files in weave carry Apache-2.0 headers.
 - Provider implementations live behind feature gates.

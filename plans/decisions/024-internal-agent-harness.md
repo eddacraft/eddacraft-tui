@@ -13,7 +13,7 @@ Naming and hosting changed per `plans/specs/2026-04-17-weave-rs-standalone-desig
 - **APS scope** LCORE → WEAVE
 - **Hosting** changed from monorepo-first to standalone from day one
 - **Distribution** changed from extract-later to path dep → pre-releases → crates.io
-- **Zero-dep invariant** now structurally enforced (separate repo) instead of CI cargo-metadata check
+- **Zero-dep invariant** tightened to **no `eddacraft-anvil-*` dependencies** in `weave`; standalone hosting reduces accidental coupling, but enforcement remains via automated CI / `cargo-deny` checks
 
 ## Date
 

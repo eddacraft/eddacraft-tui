@@ -22,7 +22,7 @@ These are documentation/plan file edits, not code changes.
 - Modify: `plans/decisions/DECISION-LOG.md` — update ADR-024 description
 - Rename: `plans/modules/literate-core.aps.md` → `plans/modules/weave.aps.md` — rename scope LCORE → WEAVE
 - Modify: `plans/index.aps.md` — update Agent Infrastructure table entry
-- Modify: `docs/internal/literate-core-feature-brief.md` — update naming throughout
+- Modify: `docs/internal/weave-feature-brief.md` — update naming throughout
 
 ### Workstream B: weave-rs standalone repo
 
@@ -420,7 +420,7 @@ EOF
 ### Task 4: Update feature brief
 
 **Files:**
-- Modify: `docs/internal/literate-core-feature-brief.md`
+- Modify: `docs/internal/weave-feature-brief.md`
 
 - [ ] **Step 1: Global rename literate-core → weave**
 
@@ -467,7 +467,7 @@ Replace "22 work items" with "21 work items" and "ADR-024 proposed" with
 - [ ] **Step 8: Commit**
 
 ```bash
-git add docs/internal/literate-core-feature-brief.md
+git add docs/internal/weave-feature-brief.md
 git commit -m "$(cat <<'EOF'
 docs: update feature brief for weave-rs naming and standalone strategy
 

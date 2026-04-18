@@ -196,7 +196,7 @@ It is the first real consumer, not a co-development target during the spike.
 2. **plans/modules/literate-core.aps.md** — rename scope LCORE → WEAVE, update
    file paths to reference `eddacraft/weave-rs` instead of `crates/literate-core/`
 3. **plans/index.aps.md** — update Agent Infrastructure table entry
-4. **docs/internal/literate-core-feature-brief.md** — update naming throughout
+4. **docs/internal/weave-feature-brief.md** — update naming throughout
 
 ## Risks
 
