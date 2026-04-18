@@ -91,7 +91,7 @@ Change status to **Ready** when:
 
 ### DIST-001: Create eddacraft/anvil public repo
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Create the public-facing repo that hosts release binaries,
   install docs, and the README that users see when they find Anvil
 - **Expected Outcome:** `github.com/eddacraft/anvil` exists with README,
@@ -112,7 +112,7 @@ Change status to **Ready** when:
 
 ### DIST-003: Write install.sh (Linux/macOS)
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Shell script that detects OS and architecture, downloads the
   correct binary from GitHub Releases, and installs it to `~/.eddacraft/bin`
   (or `/usr/local/bin` with sudo)
@@ -130,7 +130,7 @@ Change status to **Ready** when:
 
 ### DIST-004: Write install.ps1 (Windows)
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** PowerShell script that downloads the Windows x86_64 binary
   from GitHub Releases and installs it to `%LOCALAPPDATA%\eddacraft\bin`
 - **Expected Outcome:** `irm https://install.eddacraft.ai/windows | iex`
@@ -145,7 +145,7 @@ Change status to **Ready** when:
 
 ### DIST-005: Configure GitHub Pages on eddacraft/anvil
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Serve install scripts via GitHub Pages so
   `install.eddacraft.ai` resolves to the shell script and
   `install.eddacraft.ai/windows` resolves to the PowerShell script
@@ -163,7 +163,7 @@ Change status to **Ready** when:
 
 ### DIST-006: Azure DNS CNAME for install.eddacraft.ai
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Add a CNAME record pointing `install.eddacraft.ai` to
   `eddacraft.github.io` so the install script is served from a branded URL
 - **Expected Outcome:** `dig install.eddacraft.ai CNAME` returns
@@ -181,7 +181,7 @@ Change status to **Ready** when:
 
 ### DIST-007: Cross-compile release workflow
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** GitHub Actions workflow in `anvil-001` that builds release
   binaries for all 5 targets (Linux x86_64/aarch64, macOS x86_64/aarch64,
   Windows x86_64) on tag push, then uploads them to `eddacraft/anvil`
@@ -231,7 +231,7 @@ Change status to **Ready** when:
 
 ### DIST-009: Homebrew tap
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Create `eddacraft/homebrew-tap` repo with a formula for
   `anvil` that downloads the macOS binary from GitHub Releases
 - **Expected Outcome:** `brew install eddacraft/tap/anvil` installs the
@@ -280,7 +280,7 @@ Change status to **Ready** when:
 
 ### DIST-011: Scoop bucket (optional)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Create `eddacraft/scoop-bucket` repo with a manifest for
   `anvil` that downloads the Windows binary from GitHub Releases.
   Scoop is the popular community Windows package manager favoured

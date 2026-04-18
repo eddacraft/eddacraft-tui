@@ -14,5 +14,11 @@ Tags:
   - cli
   - developer-tools
   - guardrails
+Icons:
+  - IconUrl: https://github.com/eddacraft/anvil/releases/download/${RELEASE_TAG}/anvil-icon-256.png
+    IconFileType: png
+    IconResolution: '256x256'
+    IconTheme: default
+    IconSha256: ${ICON_SHA256}
 ManifestType: defaultLocale
 ManifestVersion: 1.12.0

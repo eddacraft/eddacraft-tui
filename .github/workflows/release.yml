@@ -290,6 +290,9 @@ jobs:
           rm -f artifacts/*-dist-manifest.json
           # Remove any subdirectories — gh release upload fails on directories
           find artifacts -mindepth 1 -type d -exec rm -rf {} +
+      - name: Include package-manager icon in release assets
+        run: |
+          cp .github/winget/anvil-icon-256.png artifacts/anvil-icon-256.png
       - name: Publish release to eddacraft/anvil-001 (private)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -490,11 +493,27 @@ jobs:
             exit 1
           fi
 
+          # Fetch the icon asset and compute its SHA256 (winget Icons entry
+          # requires a pinned digest; the icon is uploaded with every release).
+          ICON_ASSET="anvil-icon-256.png"
+          ICON_FILE="$RUNNER_TEMP/$ICON_ASSET"
+          gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "$ICON_ASSET" \
+            --output "$ICON_FILE"
+          ICON_SHA256=$(sha256sum "$ICON_FILE" | awk '{print toupper($1)}')
+
+          if [[ ! "$ICON_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
+            echo "::error::ICON_SHA256 '${ICON_SHA256}' is not a valid 64-char hex digest"
+            exit 1
+          fi
+
           X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
 
-          echo "Version:  $VERSION"
-          echo "URL:      $X64_URL"
-          echo "SHA256:   $X64_SHA256"
+          echo "Version:     $VERSION"
+          echo "URL:         $X64_URL"
+          echo "SHA256:      $X64_SHA256"
+          echo "ICON_SHA256: $ICON_SHA256"
 
           # Populate manifest templates
           MANIFEST_DIR="$RUNNER_TEMP/winget-manifest"
@@ -502,8 +521,10 @@ jobs:
           for tmpl in .github/winget/*.yaml; do
             sed \
               -e "s|\${VERSION}|${VERSION}|g" \
+              -e "s|\${RELEASE_TAG}|${RELEASE_TAG}|g" \
               -e "s|\${X64_URL}|${X64_URL}|g" \
               -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
+              -e "s|\${ICON_SHA256}|${ICON_SHA256}|g" \
               "$tmpl" > "$MANIFEST_DIR/$(basename "$tmpl")"
           done
 
@@ -598,11 +619,113 @@ jobs:
               --body-file "$BODY_FILE"
           fi
 
+  # Publish a Scoop manifest to eddacraft/scoop-bucket so developer-audience
+  # Windows users can `scoop install eddacraft/anvil`. Scoop is the lighter-
+  # weight community alternative to WinGet — no review queue, we own the
+  # bucket, so updates are immediate.
+  scoop:
+    permissions:
+      contents: read
+    needs:
+      - plan
+      - host
+    if: ${{ always() && needs.host.result == 'success' && needs.plan.outputs.publishing == 'true' }}
+    runs-on: 'ubuntu-22.04'
+    env:
+      RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+      GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scoop
+          sparse-checkout-cone-mode: false
+
+      - name: Generate Scoop manifest from template
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::ANVIL_RELEASES_TOKEN secret is not set — cannot publish Scoop manifest"
+            exit 1
+          fi
+
+          VERSION="${RELEASE_TAG#v}"
+          REPO="eddacraft/anvil"
+          X64_ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+          ARM64_ASSET="eddacraft-anvil-aarch64-pc-windows-msvc.zip"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
+            echo "::error::VERSION '${VERSION}' does not match expected semver pattern"
+            exit 1
+          fi
+
+          X64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${X64_ASSET}.sha256" \
+            --output - | awk '{print tolower($1)}')
+          ARM64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${ARM64_ASSET}.sha256" \
+            --output - | awk '{print tolower($1)}')
+
+          # Scoop accepts lowercase hex digests
+          for d in "$X64_SHA256" "$ARM64_SHA256"; do
+            if [[ ! "$d" =~ ^[a-f0-9]{64}$ ]]; then
+              echo "::error::SHA256 '$d' is not a valid 64-char hex digest"
+              exit 1
+            fi
+          done
+
+          echo "Version:       $VERSION"
+          echo "X64_SHA256:    $X64_SHA256"
+          echo "ARM64_SHA256:  $ARM64_SHA256"
+
+          sed \
+            -e "s|\${VERSION}|${VERSION}|g" \
+            -e "s|\${RELEASE_TAG}|${RELEASE_TAG}|g" \
+            -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
+            -e "s|\${ARM64_SHA256}|${ARM64_SHA256}|g" \
+            .github/scoop/anvil.json > "$RUNNER_TEMP/anvil.json"
+
+          echo "--- Generated scoop manifest ---"
+          cat "$RUNNER_TEMP/anvil.json"
+
+          # Validate it's well-formed JSON
+          jq . "$RUNNER_TEMP/anvil.json" > /dev/null
+
+      - name: Push manifest to eddacraft/scoop-bucket
+        run: |
+          set -euo pipefail
+
+          BUCKET="eddacraft/scoop-bucket"
+          TARGET="bucket/anvil.json"
+
+          # Use the GitHub contents API so we don't need to clone/push.
+          # Fetch the current SHA (required for PUT update) — ignore if missing.
+          EXISTING_SHA=$(gh api "repos/${BUCKET}/contents/${TARGET}" --jq '.sha' 2>/dev/null || true)
+
+          CONTENT_B64=$(base64 -w 0 < "$RUNNER_TEMP/anvil.json")
+
+          if [ -n "$EXISTING_SHA" ]; then
+            gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
+              -f message="chore: bump anvil to ${RELEASE_TAG}" \
+              -f content="$CONTENT_B64" \
+              -f sha="$EXISTING_SHA"
+          else
+            gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
+              -f message="chore: add anvil ${RELEASE_TAG}" \
+              -f content="$CONTENT_B64"
+          fi
+
+          echo "Pushed ${TARGET} to ${BUCKET} for ${RELEASE_TAG}"
+
   announce:
     needs:
       - plan
       - host
       - winget
+      - scoop
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
