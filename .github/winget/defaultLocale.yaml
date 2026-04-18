@@ -19,6 +19,6 @@ Icons:
     IconFileType: png
     IconResolution: '256x256'
     IconTheme: default
-    IconSha256: ${ICON_SHA256}
+    IconSha256: '${ICON_SHA256}'
 ManifestType: defaultLocale
 ManifestVersion: 1.12.0
