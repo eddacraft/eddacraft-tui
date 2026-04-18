@@ -34,6 +34,7 @@ describe('transactional templates render to valid HTML', () => {
     expect(html).toContain(`href="${activateUrl}"`);
     expect(html).toContain(`href="${UNSUBSCRIBE}"`);
     expect(html).not.toContain('undefined');
+    expect(html).toMatch(/^<!DOCTYPE html/i);
   });
 
   it('WaitlistConfirmation includes the email and unsubscribe link', async () => {
@@ -44,6 +45,7 @@ describe('transactional templates render to valid HTML', () => {
     expect(html).toContain('tester@example.com');
     expect(html).toContain(`href="${UNSUBSCRIBE}"`);
     expect(html).not.toContain('undefined');
+    expect(html).toMatch(/^<!DOCTYPE html/i);
   });
 
   it('WaitlistMigration includes the email and unsubscribe link (no name)', async () => {
@@ -54,6 +56,7 @@ describe('transactional templates render to valid HTML', () => {
     expect(html).toContain('tester@example.com');
     expect(html).toContain(`href="${UNSUBSCRIBE}"`);
     expect(html).not.toContain('undefined');
+    expect(html).toMatch(/^<!DOCTYPE html/i);
   });
 
   it('WaitlistMigration personalises when a name is provided', async () => {
@@ -64,5 +67,6 @@ describe('transactional templates render to valid HTML', () => {
     expect(html).toContain('Josh');
     expect(html).toContain('tester@example.com');
     expect(html).not.toContain('undefined');
+    expect(html).toMatch(/^<!DOCTYPE html/i);
   });
 });
