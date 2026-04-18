@@ -21,7 +21,9 @@
   ],
   "scripts": {
     "dev": "email dev --dir emails",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",
