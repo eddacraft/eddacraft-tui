@@ -55,7 +55,6 @@ the decision on current scope, and a revisit trigger.
 | **npm** | Cross-platform | Shelling out a Rust binary via npm is a footgun. Adds Node.js as a runtime dependency for no reason. |
 | **pip / PyPI** | Cross-platform | Same problem as npm — wrong runtime dependency. |
 | **MacPorts** | macOS | Negligible audience overlap. Homebrew covers macOS. |
-| **Chocolatey (near-term)** | Windows | Moved to 🟡 — still relevant for enterprise managed environments. |
 
 
 ---
