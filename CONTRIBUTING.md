@@ -56,7 +56,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
 Rules:
 
 - Subject: imperative mood, lowercase, no trailing period, ≤ 50 chars.
-- Body (when needed): wrap at 72 chars, explain *why* not *what*.
+- Body (when needed): wrap at 72 chars, explain _why_ not _what_.
 - Footer: `Fixes #N`, `Relates to #N`.
 - One logical change per commit — prefer small, atomic commits.
 
@@ -109,7 +109,7 @@ bumping the version requires re-running this command — see
   pattern (see `CheckProgress`, `ParallelProgressState`).
 - **Write tests.** New behaviour needs unit tests; bug fixes need
   regression tests.
-- **Comments explain *why*, not *what*.** Well-named code documents
+- **Comments explain _why_, not _what_.** Well-named code documents
   itself; reserve comments for non-obvious constraints.
 
 ## Reporting Bugs and Requesting Features
