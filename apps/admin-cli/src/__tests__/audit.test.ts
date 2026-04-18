@@ -52,18 +52,22 @@ describe('runAuditCommand', () => {
       },
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.get).toHaveBeenCalledWith('/admin/audit', {
-      action: 'user.approved',
-      actor: 'josh@arkahna.io',
-      limit: 25,
-      offset: 10,
-    });
+    expect(client.get).toHaveBeenCalledWith(
+      '/admin/audit',
+      {
+        action: 'user.approved',
+        actor: 'josh@arkahna.io',
+        limit: 25,
+        offset: 10,
+      },
+      expect.anything()
+    );
   });
 
   it('omits unset filters from the query object', async () => {
     const client = makeClient({ total: 0, items: [] } satisfies AuditResponse);
     await runAuditCommand({}, { createClient: () => client, stdout: () => {} });
-    expect(client.get).toHaveBeenCalledWith('/admin/audit', {});
+    expect(client.get).toHaveBeenCalledWith('/admin/audit', {}, expect.anything());
   });
 
   it('emits pretty-printed JSON when --json is set', async () => {

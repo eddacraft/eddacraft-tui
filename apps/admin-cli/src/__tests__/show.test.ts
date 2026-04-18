@@ -57,7 +57,11 @@ describe('runShowCommand', () => {
       { json: true },
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.get).toHaveBeenCalledWith('/admin/user/a%2Bb%40example.com');
+    expect(client.get).toHaveBeenCalledWith(
+      '/admin/user/a%2Bb%40example.com',
+      undefined,
+      expect.anything()
+    );
   });
 
   it('emits pretty-printed JSON when --json is set', async () => {

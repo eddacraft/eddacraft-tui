@@ -28,8 +28,10 @@
   },
   "author": "eddacraft",
   "dependencies": {
+    "@eddacraft/admin-contracts": "workspace:*",
     "commander": "^14.0.3",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

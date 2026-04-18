@@ -378,7 +378,7 @@ API contract tweak)
   `pnpm -F @eddacraft/anvil-api test` — server types unaffected;
   `tsc --noEmit` clean in both packages
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Complete
 
 ### Phase D: IaC provisioning (follow-up from ADMINCLIH-002)
 

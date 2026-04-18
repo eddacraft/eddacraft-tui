@@ -16,20 +16,11 @@
     "noUnusedLocals": true,
     "declaration": true,
     "declarationMap": true,
-    "emitDeclarationOnly": false,
     "importHelpers": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "composite": true
   },
   "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "**/__tests__/**"],
-  "references": [
-    {
-      "path": "../../packages/transactional"
-    },
-    {
-      "path": "../../packages/shared/admin-contracts"
-    }
-  ]
+  "exclude": ["**/*.test.ts", "**/__tests__/**", "dist", "node_modules"]
 }

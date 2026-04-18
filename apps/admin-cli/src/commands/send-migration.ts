@@ -1,10 +1,29 @@
+import type { ZodType } from 'zod';
+import {
+  DryRunResponseSchema,
+  MIGRATION_SOURCES,
+  SendResponseSchema,
+  type DryRunResponse,
+  type MigrationRecipient,
+  type MigrationSource,
+  type SendMigrationResponse,
+  type SendResponse,
+  type SendResultEntry,
+} from '@eddacraft/admin-contracts';
 import { AdminClient, AdminError } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess, renderTable, type Row } from '../format.js';
 import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
 
-export const MIGRATION_SOURCES = ['import', 'website', 'manual'] as const;
-export type MigrationSource = (typeof MIGRATION_SOURCES)[number];
+export type {
+  DryRunResponse,
+  MigrationRecipient,
+  MigrationSource,
+  SendMigrationResponse,
+  SendResponse,
+  SendResultEntry,
+};
+export { MIGRATION_SOURCES };
 
 export interface SendMigrationOptions extends ConfigFlags {
   source?: MigrationSource;
@@ -14,38 +33,8 @@ export interface SendMigrationOptions extends ConfigFlags {
   json?: boolean;
 }
 
-export interface MigrationRecipient {
-  email: string;
-  name: string | null;
-}
-
-export interface DryRunResponse {
-  dryRun: true;
-  source: MigrationSource;
-  count: number;
-  recipients: MigrationRecipient[];
-  previewToken: string;
-  expiresAt: string;
-}
-
-export interface SendResultEntry {
-  email: string;
-  sent: boolean;
-  error?: string;
-}
-
-export interface SendResponse {
-  source: MigrationSource;
-  total: number;
-  sent: number;
-  failed: number;
-  results: SendResultEntry[];
-}
-
-export type SendMigrationResponse = DryRunResponse | SendResponse;
-
 export interface AdminWriter {
-  post<T>(path: string, body?: unknown): Promise<T>;
+  post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T>;
 }
 
 export interface SendMigrationDeps {
@@ -84,11 +73,11 @@ export async function runSendMigrationCommand(
   // lets the operator follow up with a real-send pinned to this exact
   // recipient set, within the 10-minute TTL.
   if (dryRun) {
-    const preview = await client.post<DryRunResponse>('/admin/send-migration', {
-      source,
-      dryRun: true,
-      limit,
-    });
+    const preview = await client.post(
+      '/admin/send-migration',
+      { source, dryRun: true, limit },
+      DryRunResponseSchema
+    );
     renderResult(preview, { stdout, json: !!options.json });
     return;
   }
@@ -105,11 +94,11 @@ export async function runSendMigrationCommand(
 
   // Real-send always starts with a fresh dry-run so the snapshot the
   // server will consume matches what we're about to show the operator.
-  const preview = await client.post<DryRunResponse>('/admin/send-migration', {
-    source,
-    dryRun: true,
-    limit,
-  });
+  const preview = await client.post(
+    '/admin/send-migration',
+    { source, dryRun: true, limit },
+    DryRunResponseSchema
+  );
 
   if (preview.count === 0) {
     stdout('No recipients match the filter. Nothing to send.\n');
@@ -132,12 +121,11 @@ export async function runSendMigrationCommand(
 
   let result: SendResponse;
   try {
-    result = await client.post<SendResponse>('/admin/send-migration', {
-      source,
-      dryRun: false,
-      limit,
-      previewToken: preview.previewToken,
-    });
+    result = await client.post(
+      '/admin/send-migration',
+      { source, dryRun: false, limit, previewToken: preview.previewToken },
+      SendResponseSchema
+    );
   } catch (err) {
     throw rewriteSnapshotError(err);
   }

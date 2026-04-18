@@ -382,6 +382,7 @@ refuses to prompt and exits `4`.
 | `3`  | Network / cannot reach the API                        | DNS, TLS, connection refused                    |
 | `4`  | Refused to prompt in a non-TTY session                | CI/script without `--yes` on a real send        |
 | `5`  | Missing required config                               | `ANVIL_ADMIN_KEY` not set                       |
+| `6`  | Response validation failed (schema mismatch)          | Server/CLI contract drift; upgrade one side     |
 | `64` | Invalid argument (EX_USAGE)                           | Out-of-range `--limit`, bad enum choice         |
 
 All errors go to stderr; `--json` payloads go to stdout.
@@ -404,6 +405,31 @@ Admin API Key".
 The API is the issue, not the CLI. Check the observability dashboard
 (`docs/runbooks/observability-triage.md`) and the recent deploys on Vercel.
 Rerun once the issue is cleared.
+
+### "response validation failed at …" (exit 6)
+
+The admin-API returned a 2xx payload whose shape does not match the schema the
+CLI expects (defined in `@eddacraft/admin-contracts`). This is contract drift —
+server and CLI are on different versions. The failing field path is in the
+error message, and the raw response body is attached to the error (visible
+with `--verbose` / in CI logs).
+
+What to do:
+
+1. Note which endpoint failed (e.g. `response validation failed at
+   items.3.approved_at: Expected string, received null`).
+2. Check whether the CLI or the API was deployed most recently. The lagging
+   side needs to be upgraded.
+3. If the server change is intentional, update
+   `packages/shared/admin-contracts/src/index.ts` and publish a new CLI.
+4. If the CLI change is ahead of a rolled-back server, downgrade the CLI
+   (`npm i -g @eddacraft/admin-cli@<last-good-version>`) until the server
+   catches up.
+
+This code is strict on purpose: silently accepting a drifted payload would let
+us operate on stale or malformed admin data. If the drift is harmless and you
+need to unblock urgently, use the raw API directly (`curl`) while coordinating
+a fix.
 
 ### "refusing to send migration without --yes in a non-interactive session"
 

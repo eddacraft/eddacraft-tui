@@ -25,6 +25,7 @@
   },
   "author": "eddacraft",
   "dependencies": {
+    "@eddacraft/admin-contracts": "workspace:*",
     "@eddacraft/transactional": "workspace:*",
     "@hono/zod-validator": "^0.7.0",
     "@neondatabase/serverless": "^1.0.0",

@@ -37,7 +37,11 @@ describe('runRevokeCommand', () => {
       { yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/revoke', { email: 'alice@example.com' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/revoke',
+      { email: 'alice@example.com' },
+      expect.anything()
+    );
     const out = writes.join('');
     expect(out).toContain('Revoked 3 token(s)');
     expect(out).toContain('alice@example.com');
@@ -51,7 +55,11 @@ describe('runRevokeCommand', () => {
       { token: 'raw-token-abc', yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/revoke', { token: 'raw-token-abc' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/revoke',
+      { token: 'raw-token-abc' },
+      expect.anything()
+    );
     expect(writes.join('')).toContain('Revoked 1 token(s) for token');
   });
 

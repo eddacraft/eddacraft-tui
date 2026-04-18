@@ -84,11 +84,15 @@ describe('runSendMigrationCommand', () => {
     const client = makeClient(previewResponse);
     await runSendMigrationCommand({}, { createClient: () => client, stdout: () => {} });
     expect(client.post).toHaveBeenCalledTimes(1);
-    expect(client.post).toHaveBeenCalledWith('/admin/send-migration', {
-      source: 'import',
-      dryRun: true,
-      limit: 20,
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: true,
+        limit: 20,
+      },
+      expect.anything()
+    );
   });
 
   it('renders the dry-run recipient table with count and source', async () => {
@@ -128,11 +132,15 @@ describe('runSendMigrationCommand', () => {
       { source: 'website', limit: 5 },
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/send-migration', {
-      source: 'website',
-      dryRun: true,
-      limit: 5,
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/send-migration',
+      {
+        source: 'website',
+        dryRun: true,
+        limit: 5,
+      },
+      expect.anything()
+    );
   });
 
   it('rejects --limit out of range (exitCode 64)', async () => {
@@ -152,17 +160,27 @@ describe('runSendMigrationCommand', () => {
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
     expect(client.post).toHaveBeenCalledTimes(2);
-    expect(client.post).toHaveBeenNthCalledWith(1, '/admin/send-migration', {
-      source: 'import',
-      dryRun: true,
-      limit: 20,
-    });
-    expect(client.post).toHaveBeenNthCalledWith(2, '/admin/send-migration', {
-      source: 'import',
-      dryRun: false,
-      limit: 20,
-      previewToken: 'snap-token-abc',
-    });
+    expect(client.post).toHaveBeenNthCalledWith(
+      1,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: true,
+        limit: 20,
+      },
+      expect.anything()
+    );
+    expect(client.post).toHaveBeenNthCalledWith(
+      2,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: false,
+        limit: 20,
+        previewToken: 'snap-token-abc',
+      },
+      expect.anything()
+    );
     const out = writes.join('');
     expect(out).toContain('Sent 2/2 (failed: 0)');
     expect(out).toContain('alice@example.com');
@@ -211,17 +229,27 @@ describe('runSendMigrationCommand', () => {
         isTTY: true,
       }
     );
-    expect(client.post).toHaveBeenNthCalledWith(1, '/admin/send-migration', {
-      source: 'import',
-      dryRun: true,
-      limit: 20,
-    });
-    expect(client.post).toHaveBeenNthCalledWith(2, '/admin/send-migration', {
-      source: 'import',
-      dryRun: false,
-      limit: 20,
-      previewToken: 'snap-token-abc',
-    });
+    expect(client.post).toHaveBeenNthCalledWith(
+      1,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: true,
+        limit: 20,
+      },
+      expect.anything()
+    );
+    expect(client.post).toHaveBeenNthCalledWith(
+      2,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: false,
+        limit: 20,
+        previewToken: 'snap-token-abc',
+      },
+      expect.anything()
+    );
     expect(errs.join('')).toContain('About to send migration email to 2 recipient(s)');
     expect(outs.join('')).toContain('Sent 2/2');
   });
