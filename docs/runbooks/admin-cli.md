@@ -98,45 +98,93 @@ The dual path is gated on the `ADMIN_PER_OPERATOR_KEYS` server env var (set to
 per-operator path first; on hash miss or DB error it falls back to shared-key
 comparison so a DB hiccup does not take down the admin surface.
 
-### Provisioning a per-operator key
+### Provisioning a per-operator key (Pulumi / IaC)
 
-v1 provisions keys via reviewed IaC (Pulumi). A follow-up PR wires that up;
-until then, provision manually via a reviewed SQL migration or psql session
-executed by two operators:
+Per-operator keys are managed declaratively in `infra/src/admin-keys.ts`.
+The IaC review (a normal PR) acts as the two-person rule — a reviewer
+approves the actor_email + note pair before the key exists.
+
+1. Edit `infra/src/admin-keys.ts` and add an entry to the `seed` array:
+
+   ```ts
+   {
+     name: 'alice-eddacraft',       // Pulumi resource name (kebab-case)
+     actorEmail: 'alice@eddacraft.ai',
+     note: 'onboard 2026-04',
+   }
+   ```
+
+2. Open a PR. The reviewer confirms the actor is authorised to hold an
+   admin key.
+3. After merge, the `Pulumi Up` workflow runs (or an operator runs
+   `pulumi up` against the `dev` / `prod` stack). Pulumi:
+   - generates a 32-byte bearer via `random.RandomBytes`
+   - HMACs it with `ADMIN_KEY_PEPPER` (fetched from Key Vault)
+   - inserts a row in `admin_keys`
+   - writes a matching `admin_keys_audit` entry with
+     `action: 'created'`, `change_actor` = the CI/user running Pulumi,
+     `pulumi_commit_sha` = `GITHUB_SHA` (or `git rev-parse HEAD` for
+     local runs).
+
+4. Retrieve the bearer for distribution to the operator:
+
+   ```bash
+   pulumi stack select <dev|prod>
+   pulumi stack output adminKeyBearers --show-secrets --json \
+     | jq -r '."alice@eddacraft.ai"'
+   ```
+
+   The bearer lands in the operator's 1Password shared vault — never in
+   git, Slack, email, or ticket systems. The server only ever sees the
+   hash; losing the bearer means rotating the row.
+
+`ADMIN_KEY_PEPPER` is a server-side secret (Key Vault: `admin-key-pepper`).
+It is separate from `TOKEN_PEPPER` (access-token hashing) so rotation of
+either does not invalidate the other. Rotating the pepper invalidates every
+per-operator key and requires re-running Pulumi to re-seed them.
+
+### Revoking a per-operator key (Pulumi / IaC)
+
+Remove the entry from `seed` in `infra/src/admin-keys.ts` (or change the
+`actorEmail` — same thing). On the next `pulumi up`, the delete lifecycle
+runs: `admin_keys.revoked_at = now()` and a matching audit row with
+`action: 'revoked'`. The bearer is dropped from Pulumi state; presenting
+it to the API thereafter returns 401 `admin_key_revoked`.
+
+### Break-glass: manual SQL provisioning
+
+Only when the IaC path is unavailable (e.g. Pulumi backend down,
+emergency operator rotation outside a review window). Two operators must
+co-sign the change in `#beta-ops` before running.
 
 ```sql
--- 1. Generate a 32-byte random bearer out-of-band (e.g. `openssl rand -hex 32`).
--- 2. Compute hashed_key = HMAC-SHA-256(ADMIN_KEY_PEPPER, bearer) and insert:
+-- 1. Generate a 32-byte bearer out-of-band (`openssl rand -hex 32`).
+-- 2. Compute hashed_key = HMAC-SHA-256(ADMIN_KEY_PEPPER, bearer):
 INSERT INTO admin_keys (hashed_key, actor_email, note)
-VALUES ('<hex-digest>', 'alice@eddacraft.ai', 'onboard 2026-04');
+VALUES ('<hex-digest>', 'alice@eddacraft.ai', 'break-glass 2026-04');
 
--- 3. Record the provisioning event:
 INSERT INTO admin_keys_audit
   (admin_key_id, action, change_actor, pulumi_commit_sha, note)
 VALUES
   ((SELECT id FROM admin_keys WHERE hashed_key = '<hex-digest>'),
    'created',
    'ops-pair@eddacraft.ai',
-   '<git-sha-of-the-migration-PR>',
-   'manual provision pre-IaC');
+   '<git-sha-of-the-tracking-PR>',
+   'break-glass manual provision');
 ```
 
-Distribute the plaintext bearer to the operator **out-of-band** (1Password
-shared vault). Never store the plaintext in git, Slack, email, or ticket
-systems. The server only ever sees the hash.
+Follow up with a reviewed PR moving the entry into IaC — the manual row
+becomes a no-op once Pulumi observes the matching `hashed_key` for the
+same `actor_email`.
 
-`ADMIN_KEY_PEPPER` is a server-side secret. It is separate from `TOKEN_PEPPER`
-(used for access-token hashing) so rotation of either does not invalidate the
-other.
-
-### Revoking a per-operator key
+Revoking manually:
 
 ```sql
 UPDATE admin_keys SET revoked_at = now() WHERE actor_email = 'alice@eddacraft.ai'
   AND revoked_at IS NULL;
 
 INSERT INTO admin_keys_audit (admin_key_id, action, change_actor, pulumi_commit_sha, note)
-SELECT id, 'revoked', 'ops-pair@eddacraft.ai', '<git-sha>', 'offboarding'
+SELECT id, 'revoked', 'ops-pair@eddacraft.ai', '<git-sha>', 'break-glass revoke'
 FROM admin_keys WHERE actor_email = 'alice@eddacraft.ai' AND revoked_at IS NOT NULL;
 ```
 
