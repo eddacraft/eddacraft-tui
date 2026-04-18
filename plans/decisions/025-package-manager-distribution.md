@@ -42,6 +42,7 @@ the decision on current scope, and a revisit trigger.
 | **Nix / nixpkgs** | Linux/macOS | Medium-High | Medium-High — Nix users are senior devs who value reproducibility; strong overlap with Anvil target persona | Submit derivation to `nixpkgs` (takes weeks, community review) or maintain a personal flake overlay (instant, no review). Flake overlay is the right starting point. | When a Nix user files an issue or requests it, or when nixpkgs submission is strategically timed with a stable release |
 | **RPM / dnf (COPR)** | Fedora/RHEL | Medium | Medium — real enterprise Linux audience but smaller than Ubuntu at the developer/individual tier | Build `.rpm` in release workflow. Publish to Fedora COPR (free, self-serve, community hosting). No formal review. | When enterprise beta users on RHEL/Fedora request it (likely post-GA, not beta) |
 | **apk (Alpine)** | Alpine Linux | Low | Low-Medium — mostly container/server use; Anvil is a dev workstation tool | Add `apk` build target to release workflow. Submit to Alpine `aports` (community review) or ship in release assets. | When container-focused users request it (e.g. running Anvil in CI containers) |
+| **Chocolatey** | Windows | Low | Medium — enterprise Windows environments where WinGet is unavailable (older Windows 10, managed machines behind IT policy). Complements WinGet (official) and Scoop (developer). | Create `eddacraft/chocolatey-packages` repo with a `.nuspec` manifest pointing at the GitHub Release zip. Submit to Chocolatey Community Repository (moderated review, typically 1–3 days for new packages, auto-approved for updates). Add `choco` job to release workflow using `chocolatey/actions`. | When enterprise beta users report WinGet unavailable on their managed machines |
 
 ### ❌ Not worth pursuing
 
@@ -54,7 +55,8 @@ the decision on current scope, and a revisit trigger.
 | **npm** | Cross-platform | Shelling out a Rust binary via npm is a footgun. Adds Node.js as a runtime dependency for no reason. |
 | **pip / PyPI** | Cross-platform | Same problem as npm — wrong runtime dependency. |
 | **MacPorts** | macOS | Negligible audience overlap. Homebrew covers macOS. |
-| **Chocolatey** | Windows | WinGet has superseded Chocolatey for new tools. Scoop covers developer audience. |
+| **Chocolatey (near-term)** | Windows | Moved to 🟡 — still relevant for enterprise managed environments. |
+
 
 ---
 
@@ -72,7 +74,8 @@ time better spent on product.
 1. apt/deb personal repo — highest audience fit, self-serve, no review queue
 2. Nix flake overlay — high persona fit, low friction to maintain
 3. RPM/COPR — enterprise signal post-GA
-4. Alpine apk — container/CI use case only
+4. Chocolatey — enterprise managed Windows (no WinGet)
+5. Alpine apk — container/CI use case only
 
 ---
 
