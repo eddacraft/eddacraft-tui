@@ -109,13 +109,13 @@ keeps the base crate light for consumers who bring their own provider.
 **Structural separation.** weave lives in its own repo (`eddacraft/weave-rs`),
 which reduces accidental coupling but does not by itself prevent
 `eddacraft-anvil-*` crates from being added as normal cargo dependencies.
-Enforcement of the zero-dep invariant remains via automated CI /
-`cargo-deny` checks.
+Enforcement of the zero-dep invariant remains via automated CI / `cargo-deny`
+checks.
 
 ### How to Contribute
 
-- weave code goes in `eddacraft/weave-rs`. Never import from `eddacraft-anvil-*` crates.
-  If you need an Anvil type, that code belongs in `anvil-weave` instead.
+- weave code goes in `eddacraft/weave-rs`. Never import from `eddacraft-anvil-*`
+  crates. If you need an Anvil type, that code belongs in `anvil-weave` instead.
 - All source files in weave carry Apache-2.0 headers.
 - Provider implementations live behind feature gates.
 - Follow the APS plan: `plans/modules/weave.aps.md` (WEAVE scope).
