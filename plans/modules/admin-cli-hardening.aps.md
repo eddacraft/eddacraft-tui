@@ -225,6 +225,18 @@ API contract tweak)
       fields on `DryRunResponse`, `SendResponse`, `ListResponse`,
       `ShowResponse`, `AuditResponse`
 
+### Per-operator key IaC provisioning (ADMINCLIH-004)
+
+- [ ] Pulumi program provisions `admin_keys` rows (hashed via the same
+      HMAC pepper as the middleware) and writes the corresponding
+      `admin_keys_audit` entry with the Pulumi commit SHA
+- [ ] Key plaintext is generated out-of-band (1Password item or
+      `pulumi config set --secret`) and never checked into git
+- [ ] Revocation path flips `revoked_at` via the same reviewed IaC change
+      and writes an `admin_keys_audit` `revoked` row
+- [ ] Runbook's "Provisioning a per-operator key" and "Revoking" sections
+      replace the manual SQL procedure with the IaC-driven one
+
 ### Runbook
 
 - [ ] Runbook covers: per-operator key provisioning, key revocation,
@@ -366,4 +378,38 @@ API contract tweak)
   `pnpm -F @eddacraft/anvil-api test` — server types unaffected;
   `tsc --noEmit` clean in both packages
 - **Confidence:** high
+- **Status:** In Progress
+
+### Phase D: IaC provisioning (follow-up from ADMINCLIH-002)
+
+#### ADMINCLIH-004: Pulumi/IaC provisioning for per-operator admin keys
+
+- **Intent:** Replace the manual SQL provisioning procedure documented in
+  the runbook with a reviewed Pulumi program, so the two-person rule
+  called out in the Boundary Rules is enforced by the IaC review process
+  rather than by operator discipline
+- **Expected Outcome:** A Pulumi component (in the existing infra stack)
+  creates and revokes `admin_keys` rows; each change writes a matching
+  `admin_keys_audit` entry that includes the Pulumi commit SHA that
+  authored the change; the runbook's provisioning section is rewritten to
+  point at the IaC workflow and away from raw SQL; manual SQL remains
+  documented only as a break-glass procedure
+- **Scope:** Pulumi stack(s) holding Anvil infra, `docs/runbooks/admin-cli.md`
+- **Non-scope:** Changes to the middleware / hashing / lookup path
+  (landed in -002); CLI-side provisioning commands
+- **Files:**
+  - The Pulumi workspace(s) that own Anvil infra (exact path TBD at
+    implementation time — confirm in the stack catalogue before starting)
+  - `docs/runbooks/admin-cli.md` (swap manual SQL for IaC-driven flow;
+    keep manual as break-glass only)
+- **Dependencies:** ADMINCLIH-002 (schema, middleware, and audit-table
+  shape must be landed — they are)
+- **Validation:** `pulumi preview` on the stack shows the expected
+  `admin_keys` + `admin_keys_audit` diff for a real provisioning change;
+  preview-env smoke test: provision a test key via IaC, confirm a real
+  admin-CLI request under that key records the right actor and
+  `auth_method: per_operator`
+- **Confidence:** medium (depends on the existing Pulumi stack's
+  support for reading from the Anvil Postgres — may need a small
+  Postgres provider hookup)
 - **Status:** Proposed
