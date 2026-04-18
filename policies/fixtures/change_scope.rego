@@ -3,6 +3,8 @@
 
 package anvil.policies.change_scope
 
+import rego.v1
+
 # Default limits (configurable via input.config)
 default max_files := 20
 default max_directories := 5

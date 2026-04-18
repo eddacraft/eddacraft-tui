@@ -38,14 +38,14 @@ describe('MCP Config Generation', () => {
 
   it('generates config for each supported target', () => {
     for (const target of SUPPORTED_TARGETS) {
-      const config = generateMcpConfig({ target });
+      const config = generateMcpConfig(target);
       expect(config).toBeDefined();
       expect(typeof config).toBe('object');
     }
   });
 
   it('generated config contains server command info', () => {
-    const config = generateMcpConfig({ target: SUPPORTED_TARGETS[0] });
+    const config = generateMcpConfig(SUPPORTED_TARGETS[0]);
     // MCP config should specify how to launch the server
     expect(config).toBeDefined();
   });

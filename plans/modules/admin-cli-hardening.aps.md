@@ -3,9 +3,9 @@
 
 # Admin CLI Hardening
 
-| Scope     | Owner  | Priority | Status   |
-| --------- | ------ | -------- | -------- |
-| ADMINCLIH | @aneki | medium   | Proposed |
+| Scope     | Owner  | Priority | Status      |
+| --------- | ------ | -------- | ----------- |
+| ADMINCLIH | @aneki | medium   | In Progress |
 
 ## Purpose
 
@@ -179,36 +179,42 @@ API contract tweak)
 
 ### Snapshot token (ADMINCLIH-001)
 
-- [ ] Dry-run response includes a `previewToken`; real-send with
+- [x] Dry-run response includes a `previewToken`; real-send with
       `dryRun: false` requires it and rejects without it (400
       `preview_token_required`)
-- [ ] Server rejects with 409 `cohort_drift` and returns `DriftDiffResponse`
+- [x] Server rejects with 409 `cohort_drift` and returns `DriftDiffResponse`
       when the cohort would differ; CLI renders the diff before exit
-- [ ] Server rejects with 410 `preview_token_expired` after TTL;
+- [x] Server rejects with 410 `preview_token_expired` after TTL;
       CLI surfaces a distinct message directing the operator to re-run
       `--dry-run`
-- [ ] Server rejects with 410 `preview_token_consumed` on second use of the
+- [x] Server rejects with 410 `preview_token_consumed` on second use of the
       same token
-- [ ] Server rejects with 403 `preview_token_actor_mismatch` when the caller
-      differs from the snapshot creator; covered by a cross-operator test
+- [x] Server rejects with 410 `preview_token_missing` when the caller
+      differs from the snapshot creator — the wrong-actor case is merged
+      with the missing case to avoid confirming token existence to
+      non-owners (council review finding, C-003); covered by a
+      cross-operator test
 
 ### Per-operator keys (ADMINCLIH-002)
 
-- [ ] Operators can be provisioned with per-operator keys via Pulumi; the
-      server records the authenticated actor from the key row and ignores
-      `X-Admin-Actor` on per-operator requests
-- [ ] Requests authenticated via shared `ADMIN_KEY` ignore `X-Admin-Actor`
+- [x] Operators can be provisioned with per-operator keys; the server
+      records the authenticated actor from the key row and ignores
+      `X-Admin-Actor` on per-operator requests (Pulumi/IaC wiring deferred
+      to a follow-up PR — schema, middleware, and runbook manual-provision
+      path land here)
+- [x] Requests authenticated via shared `ADMIN_KEY` ignore `X-Admin-Actor`
       and record `actor: "shared-key@anvil"`, `auth_method: "shared"`
-- [ ] Revoked keys return 401 `admin_key_revoked` and the rejection is
+- [x] Revoked keys return 401 `admin_key_revoked` and the rejection is
       logged in `audit_log` with `outcome: "rejected_revoked"`
-- [ ] Unknown/malformed bearers return 401 and are logged in `audit_log`
-      with the hashed bearer
-- [ ] Middleware falls back to shared-key comparison if the `admin_keys`
+- [x] Unknown/malformed bearers return 401/403 and are logged in
+      `audit_log` with the hashed bearer
+- [x] Middleware falls back to shared-key comparison if the `admin_keys`
       lookup throws (DB error scenario has a test)
-- [ ] `admin_keys` has a UNIQUE constraint on `hashed_key`; inserting a
+- [x] `admin_keys` has a UNIQUE constraint on `hashed_key`; inserting a
       duplicate is rejected
-- [ ] Every key insert/revoke writes an `admin_keys_audit` row with the
-      Pulumi commit SHA
+- [x] Every key insert/revoke writes an `admin_keys_audit` row with the
+      Pulumi commit SHA (schema + runbook procedure in place; Pulumi
+      automation deferred)
 
 ### CLI response validation (ADMINCLIH-003)
 
@@ -276,7 +282,7 @@ API contract tweak)
   a deliberate 11-minute pause to confirm 410 expiry fires
 - **Confidence:** medium (depends on snapshot-storage choice — DB table vs
   KV)
-- **Status:** Proposed
+- **Status:** Complete
 
 ### Phase B: Authenticated operator identity
 
@@ -324,7 +330,7 @@ API contract tweak)
   confirm the per-operator row shows the key's mapped email regardless of
   any `X-Admin-Actor` header
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Complete (Pulumi/IaC provisioning deferred to follow-up PR)
 
 ### Phase C: Defensive CLI parsing
 

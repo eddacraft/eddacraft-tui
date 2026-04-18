@@ -133,8 +133,8 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | ------ | ----- | ------ | -------- | ------------ |
 | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
 | [docs-auth-gating](./archive/modules/docs-auth-gating.aps.md) | DOCSAUTH | Complete | 7/7 | BAUTH, IAC |
-| [admin-cli](./modules/admin-cli.aps.md) | ADMINCLI | Complete | 13/13 | BAUTH |
-| [admin-cli-hardening](./modules/admin-cli-hardening.aps.md) | ADMINCLIH | Proposed | 0/3 | ADMINCLI |
+| [admin-cli](./archive/modules/admin-cli.aps.md) | ADMINCLI | Complete | 13/13 | BAUTH |
+| [admin-cli-hardening](./modules/admin-cli-hardening.aps.md) | ADMINCLIH | In Progress | 2/3 | ADMINCLI |
 
 **Design specs:**
 - `docs/specs/2026-03-15-beta-auth-streamline-design.md`
@@ -246,7 +246,7 @@ TCOV/TINT/TEXT depend on it.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Ready | 0/10 | — |
+| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
 | [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | Draft | 0/25 | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |

@@ -126,9 +126,9 @@ describe('Schema Compatibility › Zod schemas parse valid data', () => {
   it('EvidenceEntrySchema validates evidence data', () => {
     const result = EvidenceEntrySchema.safeParse({
       check: 'lint',
-      status: 'pass',
-      score: 95,
+      status: 'passed',
       timestamp: new Date().toISOString(),
+      message: 'lint check clean',
     });
     expect(result.success).toBe(true);
   });

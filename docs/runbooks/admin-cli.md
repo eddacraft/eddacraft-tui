@@ -64,6 +64,127 @@ export ANVIL_ADMIN_KEY="sk_admin_…"       # from 1Password / Pulumi
 export ANVIL_ADMIN_ACTOR="you@eddacraft.ai"
 ```
 
+### Local key storage — guidance
+
+- **Do not `export ANVIL_ADMIN_KEY=…` inline** in a terminal session: the key
+  lands in `.zsh_history` / `.bash_history` and in `ps`-visible env for every
+  child process. If you've done this, rotate the key and scrub history.
+- Prefer a secrets-manager-backed loader: e.g. `op` (1Password CLI) shells that
+  inject the key only for the admin-cli subshell:
+  ```bash
+  op run --env-file=admin-cli.env -- anvil-admin list
+  ```
+  where `admin-cli.env` references 1Password items (`ANVIL_ADMIN_KEY="op://…"`).
+- Alternatively, source a private `~/.anvil-admin.env` file (mode `0600`,
+  outside the repo) and `unset ANVIL_ADMIN_KEY` when done. Never commit this
+  file.
+- For CI, inject via the platform's secret store; never echo the key in logs.
+
+## Per-operator admin keys
+
+The admin surface supports two authentication paths during the dual-auth
+rollout:
+
+1. **Shared `ADMIN_KEY`** — a single high-entropy key configured via Vercel env.
+   Every request authenticated this way is attributed to the sentinel actor
+   `shared-key@anvil` and marked `auth_method: "shared"` in the audit log. The
+   `X-Admin-Actor` header is **ignored** on this path.
+2. **Per-operator keys** — rows in the `admin_keys` table keyed on a peppered
+   hash of the raw bearer. Each row maps to a real `actor_email`. Audit rows are
+   stamped with that email and `auth_method: "per_operator"`.
+
+The dual path is gated on the `ADMIN_PER_OPERATOR_KEYS` server env var (set to
+`1` or `true` to enable the lookup). When enabled, the middleware tries the
+per-operator path first; on hash miss or DB error it falls back to shared-key
+comparison so a DB hiccup does not take down the admin surface.
+
+### Provisioning a per-operator key
+
+v1 provisions keys via reviewed IaC (Pulumi). A follow-up PR wires that up;
+until then, provision manually via a reviewed SQL migration or psql session
+executed by two operators:
+
+```sql
+-- 1. Generate a 32-byte random bearer out-of-band (e.g. `openssl rand -hex 32`).
+-- 2. Compute hashed_key = HMAC-SHA-256(ADMIN_KEY_PEPPER, bearer) and insert:
+INSERT INTO admin_keys (hashed_key, actor_email, note)
+VALUES ('<hex-digest>', 'alice@eddacraft.ai', 'onboard 2026-04');
+
+-- 3. Record the provisioning event:
+INSERT INTO admin_keys_audit
+  (admin_key_id, action, change_actor, pulumi_commit_sha, note)
+VALUES
+  ((SELECT id FROM admin_keys WHERE hashed_key = '<hex-digest>'),
+   'created',
+   'ops-pair@eddacraft.ai',
+   '<git-sha-of-the-migration-PR>',
+   'manual provision pre-IaC');
+```
+
+Distribute the plaintext bearer to the operator **out-of-band** (1Password
+shared vault). Never store the plaintext in git, Slack, email, or ticket
+systems. The server only ever sees the hash.
+
+`ADMIN_KEY_PEPPER` is a server-side secret. It is separate from `TOKEN_PEPPER`
+(used for access-token hashing) so rotation of either does not invalidate the
+other.
+
+### Revoking a per-operator key
+
+```sql
+UPDATE admin_keys SET revoked_at = now() WHERE actor_email = 'alice@eddacraft.ai'
+  AND revoked_at IS NULL;
+
+INSERT INTO admin_keys_audit (admin_key_id, action, change_actor, pulumi_commit_sha, note)
+SELECT id, 'revoked', 'ops-pair@eddacraft.ai', '<git-sha>', 'offboarding'
+FROM admin_keys WHERE actor_email = 'alice@eddacraft.ai' AND revoked_at IS NOT NULL;
+```
+
+Status codes:
+
+- **401 `admin_key_revoked`** — a presented key matched a row that has been
+  revoked. Writes an audit row with `outcome: "rejected_revoked"`.
+- **401** for missing/malformed `Authorization` headers. Writes an audit row
+  with `outcome: "rejected_malformed"`.
+- **403 Forbidden** — the bearer did not match any per-operator key or the
+  shared `ADMIN_KEY`. Writes an audit row with `outcome: "rejected_unknown"`.
+
+The raw bearer is never logged — only its peppered hash.
+
+### Rotating the shared `ADMIN_KEY`
+
+The shared key is the break-glass path and should be rotated on operator
+offboarding, suspected exposure, or at least once per quarter:
+
+1. Generate a new random key (≥256 bits): `openssl rand -hex 32`.
+2. Update the Vercel env `ADMIN_KEY` for both preview and production.
+3. Redeploy — the old key stops working as soon as the new deploy is live.
+4. Distribute the new key to active operators via 1Password. Remove the old item
+   from the vault.
+5. Confirm `anvil-admin list` works with the new key.
+
+The final cutover (removal of the shared-key path) happens only after the
+shared-key request rate is zero for ≥7 consecutive days, tracked via the
+`auth_method` audit column.
+
+### Rollout tracking
+
+Every admin mutation writes `auth_method` on the audit row. To monitor adoption,
+filter to admin-authenticated rows only — `audit_log` also carries non-admin
+traffic (GitHub OAuth, auth failures) that would otherwise drown the signal:
+
+```sql
+SELECT auth_method, COUNT(*)
+FROM audit_log
+WHERE occurred_at > now() - interval '7 days'
+  AND action <> 'admin.auth.failed'
+  AND (actor = 'shared-key@anvil' OR auth_method = 'per_operator')
+GROUP BY auth_method;
+```
+
+When the `shared` count holds at zero for seven consecutive days, schedule the
+cutover PR that removes the shared-key branch.
+
 ## Commands
 
 All commands accept `--json` for machine-readable output. Without `--json` they
@@ -180,9 +301,17 @@ send.
 anvil-admin send-migration                              # dry-run, source=import, limit=20
 anvil-admin send-migration --source website --limit 5   # dry-run, different filter
 anvil-admin send-migration --no-dry-run                  # preview → prompt → send (interactive)
-anvil-admin send-migration --no-dry-run --yes            # send without prompting (non-interactive)
-anvil-admin send-migration --json                        # raw JSON for the dry-run
+anvil-admin send-migration --no-dry-run --yes            # preview (silent) → send (non-interactive)
+anvil-admin send-migration --json                        # raw JSON for the dry-run (includes previewToken)
 ```
+
+A dry-run prints a preview token and an `expiresAt` stamp; you must re-run
+without `--dry-run` within 10 minutes for the send to consume that exact
+recipient snapshot. The CLI always re-fetches a fresh token when you run with
+`--no-dry-run`, so operators don't need to carry the token manually. If you run
+multiple previews without sending, always use the **most recently printed**
+token on the real-send — earlier tokens remain valid (and bound to you) until
+they age out, which can cause confusion if you paste the wrong one.
 
 Flags:
 
@@ -195,19 +324,49 @@ Flags:
 
 Flow when sending for real (`--no-dry-run`):
 
-1. CLI fetches a dry-run preview (count + recipient list) from the server
+1. CLI calls the server with `dryRun=true`. The server records a **recipient
+   snapshot** keyed by a single-use **preview token** (10-minute TTL, bound to
+   the calling operator) and returns the recipient list plus the token.
 2. If count is `0`, prints `No recipients match the filter. Nothing to send.` on
-   stdout and exits `0`
+   stdout and exits `0`.
 3. Writes the recipient table plus the warning
    `About to send migration email to N recipient(s) …` to **stderr**, then
-   prompts on stderr: `Continue? [y/N]`
-4. On `y`/`yes`, calls the server again with `dryRun=false`
-5. Renders the per-recipient send/failure table
+   prompts on stderr: `Continue? [y/N]`. With `--yes`, the prompt is skipped but
+   the dry-run still runs — the token is always fetched.
+4. On `y`/`yes`, calls the server with `dryRun=false` and the preview token. The
+   server atomically consumes the token, compares the snapshotted recipients
+   against a fresh cohort query, and either sends (to the **snapshotted** set,
+   not a re-queried set) or rejects with a specific error code.
+5. Renders the per-recipient send/failure table.
 
-The preview and the real send are two separate API calls. If rows are added or
-removed between them, the sent cohort may differ from the previewed one. For a
-migration rollout, snapshot the waitlist (`list --status all --json`) before
-starting if you need a stable record.
+This snapshot-plus-token flow is the defence against cohort drift: between
+preview and send, the waitlist may change (new signups, deletions, source
+re-tags), and the operator's intent is "send to the exact set I just saw" — not
+"send to whoever matches the filter at the moment of send".
+
+#### Real-send error recovery
+
+The real-send request can fail with distinct, actionable codes. The CLI surfaces
+these with recovery-specific messages; the runbook equivalents:
+
+| HTTP | `code`                   | What it means                                                              | Recovery                                                                                           |
+| ---- | ------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 409  | `cohort_drift`           | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil-admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first       |
+| 410  | `preview_token_expired`  | The 10-minute TTL elapsed                                                  | Re-run `anvil-admin send-migration --no-dry-run` (within 10 minutes next time)                     |
+| 410  | `preview_token_consumed` | A prior send call already used this token                                  | **Verify the previous send completed** in the audit log, then decide whether to re-send            |
+| 410  | `preview_token_missing`  | Token not found, reaped, or owned by a different operator                  | Re-run `anvil-admin send-migration --no-dry-run` under the correct `ANVIL_ADMIN_ACTOR` / `--actor` |
+| 400  | `preview_token_required` | Should not occur via the CLI; indicates a client bug                       | File a ticket; workaround is to re-run the CLI (it always fetches a token first)                   |
+
+For a `preview_token_consumed` recovery, confirm before re-sending:
+
+```bash
+anvil-admin audit --action migration.email.sent --limit 5
+```
+
+Look for an entry matching the source, count, and preview token you expect. If
+the previous send completed successfully, do **not** re-run. If it partially
+sent and was interrupted, coordinate in `#beta-ops` before re-running — the
+second run will re-email every recipient in the snapshot.
 
 Non-TTY refusal (`exit 4`) applies only to the **real-send** path. A plain
 dry-run works in any session. In non-TTY sessions without `--yes`, the CLI
@@ -267,6 +426,7 @@ logs request/response metadata in the Vercel logs for 7 days.
 ## Related
 
 - Admin CLI design spec: `plans/specs/2026-04-16-admin-cli-design.md`
-- Admin CLI module plan: `plans/modules/admin-cli.aps.md`
+- Admin CLI module plan (archived): `plans/archive/modules/admin-cli.aps.md`
+- Admin CLI hardening plan: `plans/modules/admin-cli-hardening.aps.md`
 - Waitlist email operations: `docs/runbooks/waitlist-email-operations.md`
 - Observability triage: `docs/runbooks/observability-triage.md`
