@@ -412,4 +412,4 @@ API contract tweak)
 - **Confidence:** medium (depends on the existing Pulumi stack's
   support for reading from the Anvil Postgres — may need a small
   Postgres provider hookup)
-- **Status:** Proposed
+- **Status:** In Progress
