@@ -26,9 +26,10 @@ import { z } from 'zod';
 const IdString = z.union([z.string(), z.number(), z.bigint()]).transform((v) => String(v));
 
 /** ISO-8601 timestamps. Dates are stringified for JSON transport. */
-const IsoTimestamp = z
-  .union([z.string(), z.date()])
-  .transform((v) => (v instanceof Date ? v.toISOString() : v));
+const IsoTimestamp = z.union([
+  z.string().datetime({ offset: true }),
+  z.date().transform((v) => v.toISOString()),
+]);
 
 const NullableIsoTimestamp = z.union([IsoTimestamp, z.null()]);
 
