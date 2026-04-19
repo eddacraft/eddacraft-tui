@@ -100,9 +100,9 @@ comparison so a DB hiccup does not take down the admin surface.
 
 ### Provisioning a per-operator key (Pulumi / IaC)
 
-Per-operator keys are managed declaratively in `infra/src/admin-keys.ts`.
-The IaC review (a normal PR) acts as the two-person rule — a reviewer
-approves the actor_email + note pair before the key exists.
+Per-operator keys are managed declaratively in `infra/src/admin-keys.ts`. The
+IaC review (a normal PR) acts as the two-person rule — a reviewer approves the
+actor_email + note pair before the key exists.
 
 1. Edit `infra/src/admin-keys.ts` and add an entry to the `seed` array:
 
@@ -114,17 +114,16 @@ approves the actor_email + note pair before the key exists.
    }
    ```
 
-2. Open a PR. The reviewer confirms the actor is authorised to hold an
-   admin key.
-3. After merge, the `Pulumi Up` workflow runs (or an operator runs
-   `pulumi up` against the `dev` / `prod` stack). Pulumi:
+2. Open a PR. The reviewer confirms the actor is authorised to hold an admin
+   key.
+3. After merge, the `Pulumi Up` workflow runs (or an operator runs `pulumi up`
+   against the `dev` / `prod` stack). Pulumi:
    - generates a 32-byte bearer via `random.RandomBytes`
    - HMACs it with `ADMIN_KEY_PEPPER` (fetched from Key Vault)
    - inserts a row in `admin_keys`
-   - writes a matching `admin_keys_audit` entry with
-     `action: 'created'`, `change_actor` = the CI/user running Pulumi,
-     `pulumi_commit_sha` = `GITHUB_SHA` (or `git rev-parse HEAD` for
-     local runs).
+   - writes a matching `admin_keys_audit` entry with `action: 'created'`,
+     `change_actor` = the CI/user running Pulumi, `pulumi_commit_sha` =
+     `GITHUB_SHA` (or `git rev-parse HEAD` for local runs).
 
 4. Retrieve the bearer for distribution to the operator:
 
@@ -134,28 +133,28 @@ approves the actor_email + note pair before the key exists.
      | jq -r '."alice@eddacraft.ai"'
    ```
 
-   The bearer lands in the operator's 1Password shared vault — never in
-   git, Slack, email, or ticket systems. The server only ever sees the
-   hash; losing the bearer means rotating the row.
+   The bearer lands in the operator's 1Password shared vault — never in git,
+   Slack, email, or ticket systems. The server only ever sees the hash; losing
+   the bearer means rotating the row.
 
-`ADMIN_KEY_PEPPER` is a server-side secret (Key Vault: `admin-key-pepper`).
-It is separate from `TOKEN_PEPPER` (access-token hashing) so rotation of
-either does not invalidate the other. Rotating the pepper invalidates every
+`ADMIN_KEY_PEPPER` is a server-side secret (Key Vault: `admin-key-pepper`). It
+is separate from `TOKEN_PEPPER` (access-token hashing) so rotation of either
+does not invalidate the other. Rotating the pepper invalidates every
 per-operator key and requires re-running Pulumi to re-seed them.
 
 ### Revoking a per-operator key (Pulumi / IaC)
 
 Remove the entry from `seed` in `infra/src/admin-keys.ts` (or change the
-`actorEmail` — same thing). On the next `pulumi up`, the delete lifecycle
-runs: `admin_keys.revoked_at = now()` and a matching audit row with
-`action: 'revoked'`. The bearer is dropped from Pulumi state; presenting
-it to the API thereafter returns 401 `admin_key_revoked`.
+`actorEmail` — same thing). On the next `pulumi up`, the delete lifecycle runs:
+`admin_keys.revoked_at = now()` and a matching audit row with
+`action: 'revoked'`. The bearer is dropped from Pulumi state; presenting it to
+the API thereafter returns 401 `admin_key_revoked`.
 
 ### Break-glass: manual SQL provisioning
 
-Only when the IaC path is unavailable (e.g. Pulumi backend down,
-emergency operator rotation outside a review window). Two operators must
-co-sign the change in `#beta-ops` before running.
+Only when the IaC path is unavailable (e.g. Pulumi backend down, emergency
+operator rotation outside a review window). Two operators must co-sign the
+change in `#beta-ops` before running.
 
 ```sql
 -- 1. Generate a 32-byte bearer out-of-band (`openssl rand -hex 32`).
@@ -173,9 +172,9 @@ VALUES
    'break-glass manual provision');
 ```
 
-Follow up with a reviewed PR moving the entry into IaC — the manual row
-becomes a no-op once Pulumi observes the matching `hashed_key` for the
-same `actor_email`.
+Follow up with a reviewed PR moving the entry into IaC — the manual row becomes
+a no-op once Pulumi observes the matching `hashed_key` for the same
+`actor_email`.
 
 Revoking manually:
 
@@ -458,16 +457,16 @@ Rerun once the issue is cleared.
 
 The admin-API returned a 2xx payload whose shape does not match the schema the
 CLI expects (defined in `@eddacraft/admin-contracts`). This is contract drift —
-server and CLI are on different versions. The failing field path is in the
-error message, and the raw response body is attached to the error (visible
-with `--verbose` / in CI logs).
+server and CLI are on different versions. The failing field path is in the error
+message, and the raw response body is attached to the error (visible with
+`--verbose` / in CI logs).
 
 What to do:
 
-1. Note which endpoint failed (e.g. `response validation failed at
-   items.3.approved_at: Expected string, received null`).
-2. Check whether the CLI or the API was deployed most recently. The lagging
-   side needs to be upgraded.
+1. Note which endpoint failed (e.g.
+   `response validation failed at items.3.approved_at: Expected string, received null`).
+2. Check whether the CLI or the API was deployed most recently. The lagging side
+   needs to be upgraded.
 3. If the server change is intentional, update
    `packages/shared/admin-contracts/src/index.ts` and publish a new CLI.
 4. If the CLI change is ahead of a rolled-back server, downgrade the CLI
@@ -476,8 +475,8 @@ What to do:
 
 This code is strict on purpose: silently accepting a drifted payload would let
 us operate on stale or malformed admin data. If the drift is harmless and you
-need to unblock urgently, use the raw API directly (`curl`) while coordinating
-a fix.
+need to unblock urgently, use the raw API directly (`curl`) while coordinating a
+fix.
 
 ### "refusing to send migration without --yes in a non-interactive session"
 
