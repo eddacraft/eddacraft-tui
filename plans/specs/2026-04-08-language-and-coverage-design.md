@@ -8,7 +8,7 @@
 **Date:** 2026-04-08
 **Last refreshed:** 2026-04-19
 **Status:** Accepted in principle (pending §10 + §17 actions)
-**Relates to:** All `lang-*` placeholder modules in `plans/modules/`, `plans/index.aps.md:220-236`, `plans/index.aps.md:756-764`
+**Relates to:** All `lang-*` placeholder modules in `plans/modules/`, the `### Multi-Language Support (Draft)` section of `plans/index.aps.md`, and the `### Task Status — Multi-Language (Draft)` section of `plans/index.aps.md`
 **Supersedes:** The Multi-Language Support section of `plans/index.aps.md` and all ten `lang-*.aps.md` placeholders (to be rewritten, merged, or archived per §10)
 
 ## Refresh log — 2026-04-19
@@ -658,15 +658,31 @@ language-and-coverage design a success.
 12. Track 4 item 3 — Next.js pack
 13. Track 4 item 5 — Hono pack
 14. Track 4 item 6 — Tokio pack (unblocks after Rust T2+ in step 6)
-15. Remaining Track 3 surfaces
-16. Remaining Track 4 packs (Django, FastAPI, Axum — as substrates and
-    User C's framework choice unblock)
+
+**━━━ Phase 2 line (named deliverables complete) ━━━**
+
+Steps 5–14 constitute Phase 2 — every named, user-visible deliverable
+scoped by this design. On completion of step 14, all three anchors are
+at T3, all five named TS packs ship, the Python-substrate LLM Provider
+extension ships, the top two governance surfaces (SQL, GitHub Actions)
+are at T2, the tail T1 wave has shipped, and the Tokio pack rides on
+Rust T3. References elsewhere in this spec to "end of Phase 2" or
+"by end of Phase 2" mean step 14 here.
+
+15. Remaining Track 3 surfaces (Dockerfile, shell, `.env`, and any new
+    surfaces that arrive with future user demand)
+16. Remaining Track 4 packs (Django, FastAPI, Axum — gated on substrate
+    tier and on User C's framework choice resolving)
+
+Steps 15 and 16 are **Phase 3 / open-ended** — explicitly not part of
+Phase 2's named scope. They ship when demand pulls them forward.
 
 This ordinal sequence is a sanity check, not a commitment. Real sequencing
 is decided in the APS modules produced downstream from this spec. Skipping
 or reordering items within a track is allowed as demand shifts. The Phase 1
-line, however, is **not** a reorderable boundary — it is the explicit
-shippable-MVP cut the design commits to.
+and Phase 2 lines, however, are **not** reorderable boundaries — they are
+the explicit shippable-MVP cut and the full-scope-complete cut the design
+commits to.
 
 ---
 
@@ -674,10 +690,10 @@ shippable-MVP cut the design commits to.
 
 On approval of this spec, the following cleanup in `plans/` is triggered:
 
-1. **Replace** `plans/index.aps.md:220-236` (the Multi-Language Support
-   section) with the Track 1-5 structure from this design.
-2. **Replace** `plans/index.aps.md:756-764` (the stale "Task Status —
-   Multi-Language" table) with the ranked tables from §8.
+1. **Replace** the `### Multi-Language Support (Draft)` section of
+   `plans/index.aps.md` with the Track 1-5 structure from this design.
+2. **Replace** the `### Task Status — Multi-Language (Draft)` section of
+   `plans/index.aps.md` with the ranked tables from §8.
 3. **Rewrite** the existing `lang-*.aps.md` placeholder modules:
    - `lang-rust.aps.md` → promoted to full module, rewritten for T3 target
      and tree-sitter reality.
@@ -1119,6 +1135,18 @@ Next concrete work, in order:
 7. Create `markdown-governance.aps.md`.
 8. Replace the Multi-Language section in `plans/index.aps.md` with the
    Track 1–5 structure.
+
+**Pack modules explicitly not in this list.** Django, FastAPI, and Axum
+are still named as Track 4 packs in §8.4 but have **no dedicated pack
+module scheduled here** because they are Phase 3 / open-ended deliverables
+(see §9 steps 15–16) gated on substrate tier and, for Django/FastAPI, on
+User C's framework choice resolving. A pack module file
+(`pack-django.aps.md`, `pack-fastapi.aps.md`, `pack-axum.aps.md`) is
+created only when that specific pack is promoted from Phase 3 to active
+work — not pre-stubbed here. If the "no Phase 3 pack stubs" choice turns
+out to create discovery friction for downstream planners, revisit in a
+future refresh; for now, keeping §17.3 to Phase 1 + Phase 2 modules
+avoids the rot that killed the original ten `lang-*` placeholders.
 
 Order of module creation matters only insofar as the Phase 1 modules
 (TS audit work item, `surface-sql-migrations.aps.md`, `pack-pulumi.aps.md`,
