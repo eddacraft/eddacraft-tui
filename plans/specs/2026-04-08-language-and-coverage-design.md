@@ -6,9 +6,40 @@
 > strategy grounded in real early-access user stacks.
 
 **Date:** 2026-04-08
-**Status:** Draft
+**Last refreshed:** 2026-04-19
+**Status:** Accepted in principle (pending §10 + §17 actions)
 **Relates to:** All `lang-*` placeholder modules in `plans/modules/`, `plans/index.aps.md:220-236`, `plans/index.aps.md:756-764`
-**Supersedes:** The Multi-Language Support section of `plans/index.aps.md` and all ten `lang-*.aps.md` placeholders (to be rewritten, merged, or archived per §13)
+**Supersedes:** The Multi-Language Support section of `plans/index.aps.md` and all ten `lang-*.aps.md` placeholders (to be rewritten, merged, or archived per §10)
+
+## Refresh log — 2026-04-19
+
+Eleven days after the original draft. Changes:
+
+1. **New early-access user (User C) added to §3.3** — an almost-pure Python
+   stack. Bumps Python demand from 1 → 2 and resolves the §12.1 open
+   question. Python is now a firm anchor, held in its existing sequence
+   position (third, after TS audit and Rust T3) — User C raises Python
+   *confidence*, not Python's relative priority versus Rust.
+2. **Python-substrate semantic packs re-scored** (§8.4): Django and FastAPI
+   each gain demand = 1 (unconfirmed which framework User C uses; treated
+   as a floor until implementation discovery). The Python-substrate LLM
+   Provider extension (§12.9) gains demand = 1.
+3. **Factual corrections applied** from the 2026-04-08 council review
+   (§16): C-001 Drizzle demand corrected 2 → 1; C-002 Dart marker in §11
+   corrected ✅ → 🟡 with the headline moving from "9 of 14" to "8 of 14".
+4. **Hard Phase 1 line added to §9** per council finding C-011/C-021:
+   TS audit + SQL T2 + Pulumi pack + LLM Provider pack (warn-only) is the
+   MVP; everything else is Phase 2+.
+5. **LLM Provider pack** (§8.4.1) explicitly scoped as **warn-only by
+   default** per council finding C-010, removing the fail-safe concern.
+6. **Open questions updated** (§12): 12.1 resolved, 12.9 promoted from
+   design-hedge to "plan this now".
+7. The deeper architectural amendments from §16.5 (kernel prerequisite
+   work, pack architecture decision, Rust T3 enforcement location, drift
+   schema versioning, feature-flag rollout, acceptance-bar revision) are
+   **not inlined here** — they belong in the implementation plans
+   produced downstream per §15. §16 remains the canonical record of the
+   council session; amendments that reshape §1–15 are listed in §17.
 
 ---
 
@@ -113,6 +144,27 @@ TypeScript, Rust, Python, Pulumi (as a TypeScript library), Postgres
 
 Twelve distinct coverage concerns for a single user. User B is used
 throughout this design as an explicit validation case — see §11.
+
+**User C** (added 2026-04-19, almost-pure Python stack):
+
+Python-first. The specific web framework (Django vs FastAPI) is not yet
+confirmed — design treats both as substrate candidates with demand = 1
+until implementation discovery pins it down. Python-side LLM provider
+calls (`openai`, `anthropic`, `langchain` family) are in scope — this is
+the demand signal that promotes the Python-substrate LLM Provider
+extension from "design leans same pack" to "plan this now" (§12.9).
+
+User C's impact on the design:
+
+- Python gains a second independent demand point (§7.2), resolving
+  the §12.1 open question. Python's position in the strict sequence
+  remains below Rust — User C raises Python *confidence*, not Python's
+  relative priority versus Rust's "governs systems code" strategic
+  unlock.
+- Django and FastAPI each gain demand = 1 (§8.4), moving from 0 to
+  "substrate-gated but demanded" on the semantic-pack roadmap.
+- The Python-substrate LLM Provider pack extension (§8.4.1) gains a
+  concrete demand point rather than being purely aspirational.
 
 ---
 
@@ -229,7 +281,7 @@ either sits in the tail at T1 or is not a programming language at all.
 |---|---|---|---|---|---|
 | **TypeScript / TSX / JavaScript / JSX** | 2 confirmed (Anvil, User B); assumed universal across early access | High | Unlocks (existing positioning) | +2 (Pulumi, Next.js, Drizzle, Hono, LLM Provider — effectively +5, capped to +2 for scoring hygiene) | The language Anvil already partially supports. **Not actually at T3 today.** First anchor work item is closing that gap before any new language is added. |
 | **Rust** | 2 (Anvil + User B) | High | Unlocks ("Anvil governs systems code") | +1 (Tokio) | Two independent demand confirmations. Anvil's own kernel is in Rust. Strategic: Rust is the credibility test for "governs systems code". |
-| **Python** | 1 (User B) | Medium-high | Unlocks ("Anvil governs AI/ML stacks") | +2 (Django, FastAPI) | Single demand point so far, but Python is the strongest strategic unlock on the anchor list. Pack potential is high. The single-user-demand risk is called out in §12 open questions. |
+| **Python** | 2 (User B + User C) | Medium-high | Unlocks ("Anvil governs AI/ML stacks") | +2 (Django, FastAPI) | Two independent demand points as of 2026-04-19. User C is an almost-pure Python stack (§3.3) and resolves the original single-user-demand risk. Python remains the strongest strategic unlock on the anchor list — AI/ML stacks and Python-substrate LLM Provider coverage (§12.9) both land here. Sequencing note: Python stays below Rust in the strict anchor order (§9 step 10) because Rust's "governs systems code" strategic narrative is still the higher-ROI next anchor after TS; the bump in Python demand raises confidence in committing to Python, not its ordering. |
 
 **Explicitly not in the anchor set:** Go, Java, Kotlin, C#/.NET, C/C++,
 Dart, Swift, Zig. Zero confirmed anchor-level demand. They sit in the tail
@@ -424,13 +476,13 @@ declares its substrate language and the minimum substrate tier it requires.
 | # | Pack | Substrate | Min substrate tier | Demand | Blast | Strategic | Notes |
 |---|---|---|---|---|---|---|---|
 | 1 | **Pulumi** | TS | T3 | 2 (User B + Anvil `infra/`) | **Critical** | Supports | First pack. Unlocks when TS audit (Track 1 item 0) completes. Catches: `acl: "public-read"` on S3, wide IAM trust policies, `versioning` disabled on state-holding resources, stack-crossing resource references, hardcoded secrets in resource definitions. |
-| 2 | **Drizzle** | TS | T3 | 2 (User B + Anvil) | **Critical** | Supports (data governance) | Patterns: `.delete()` without `.where()`, `.update()` without `.where()`, raw `sql` template interpolation of user input, missing transactions around multi-statement operations, schema drift between `schema.ts` and actual migrations, `.execute()` on prepared statements without input validation. |
+| 2 | **Drizzle** | TS | T3 | 1 (User B) | **Critical** | Supports (data governance) | Demand corrected per council finding C-001 — Anvil does not use Drizzle (`apps/anvil-api` uses raw SQL via NeonClient). Still ranked #2 on blast radius: a `.delete()` without `.where()` ships production data loss. Patterns: `.delete()` without `.where()`, `.update()` without `.where()`, raw `sql` template interpolation of user input, missing transactions around multi-statement operations, schema drift between `schema.ts` and actual migrations, `.execute()` on prepared statements without input validation. |
 | 3 | **Next.js** | TS | T3 | 2 (User B + Anvil `apps/website`) | Medium-high | Supports | Patterns: raw HTML insertion via React's dangerous prop without sanitisation, Server Components leaking secrets via props, `revalidate` misconfigurations, middleware matching root routes, client components with server-only imports, server actions without Zod validation. |
 | 4 | **LLM Provider** | TS (Python later) | T3 | 1 (User B) | **Critical** | **Unlocks** (AI governance) | Targets `openai`, `@anthropic-ai/sdk`, `ai` (Vercel AI SDK) imports. Catches: PII in prompt construction, hardcoded system prompts conflicting with policy, uncapped `max_tokens`, unsanitised response rendering (injection-shaped risks), missing streaming cancellation, tool calls without JSON schemas. **Strategically the most important pack on this list** — see §8.4.1. |
 | 5 | **Hono** | TS | T3 | 1 (Anvil `apps/anvil-api`) | **High** | Supports | Patterns: routes missing auth middleware, `c.req.parseBody()` without size limits, CORS with `origin: '*'`, `c.html()` with interpolated values, error handlers leaking stack traces, `c.env.SECRET` without typed Bindings, route order bugs (`app.get('*')` before specific routes), unvalidated `c.req.param()` / `c.req.query()` consumed into DB queries, missing `@hono/zod-validator` on body-accepting routes. |
 | 6 | **Tokio** | Rust | T2+ | 2 (Anvil kernel + User B) | High | Supports | Unblocks when Rust reaches T2 in Track 1. Catches: blocking calls in async context, `.await` on held locks, unbounded channels, `tokio::spawn` without `JoinHandle` tracking, missing `select!` cancellation branches. |
-| 7 | Django | Python | T2+ | 0 | High | Unlocks (AI/ML) | Strategic AI/ML holder. Unblocks when Python reaches T2. |
-| 8 | FastAPI | Python | T2+ | 0 | High | Unlocks (AI/ML) | Same. |
+| 7 | Django | Python | T2+ | 1 (User C floor) | High | Unlocks (AI/ML) | Strategic AI/ML holder. User C is a Python-first stack but the specific framework is not yet confirmed — Django and FastAPI each carry demand = 1 as a floor until implementation discovery pins it to one of them (at which point the other drops back to 0). Unblocks when Python reaches T2. |
+| 8 | FastAPI | Python | T2+ | 1 (User C floor) | High | Unlocks (AI/ML) | Same floor-of-1 logic as Django. One of these becomes demand = 1 and the other becomes 0 once User C's framework is confirmed. |
 | 9 | Axum | Rust | T2+ | 0 | Medium | Supports | Deferred. |
 
 **Cut for now:** Express, NestJS, Flask, Spring, Rails. Low or zero current
@@ -467,6 +519,15 @@ wrong abstraction layer.
 The LLM Provider pack deserves a dedicated note because it may be the
 single most strategically valuable item in this entire design.
 
+- **Warn-only by default** (per council finding C-010, 2026-04-08). Static
+  PII detection in LLM calls is heuristic — a false positive could break a
+  production call path, not just a build. The pack ships in warn-only mode
+  so findings surface without blocking exit codes. Projects that want
+  hard-fail behaviour opt in per-rule via the standard policy-hook mechanism
+  once their own FP profile is known. This also removes the §6 methodology
+  concern where "Unlocks" was scored twice (strategic + sequencing) —
+  warn-only behaviour is now the explicit reason the pack can ship on thin
+  demand without risking user call paths.
 - **Strategic = Unlocks.** Only two items on this entire design score
   "Unlocks" on strategic: Python (for AI/ML anchor) and the LLM Provider
   pack. The LLM Provider pack alone proves the AI/ML governance story from
@@ -483,9 +544,18 @@ single most strategically valuable item in this entire design.
 - **Aligned with the vision doc.** `docs/vision/anvil-vision.md` opens with
   *"Anvil exists to ensure that AI and humans cannot produce unsafe
   software."* The LLM Provider pack is that sentence made concrete.
+- **Python-substrate extension is now demand-backed** (updated 2026-04-19).
+  User C's Python-first stack (§3.3) includes Python-side LLM calls
+  (`openai`, `anthropic`, `langchain`). That promotes the Python-substrate
+  LLM Provider extension from the §12.9 design hedge ("same pack, multiple
+  substrates — TBD") to a concrete Phase 2 deliverable that unblocks as
+  soon as Python reaches T2. The TS-first LLM Provider pack remains the
+  Phase 1 deliverable; the Python extension follows Python-T2 completion
+  (§9 step 10) and reuses the same rule catalogue where semantics align.
 
 The spec's implementation plan (produced in the next phase) should treat the
-LLM Provider pack as a priority deliverable despite its demand count of 1.
+TS LLM Provider pack as a priority Phase 1 deliverable (§9 Phase 1 line) at
+demand count 1. The Python extension is Phase 2, gated on Python T2.
 
 ### 8.5 Track 5 — Markdown
 
@@ -562,24 +632,41 @@ Tracks do not share engineering attention equally:
 
 1. Track 1 item 0 — TS audit + gap-close (anchor item zero)
 2. Track 3 item 1 — SQL migrations T2 (parallel; does not depend on anchor)
-3. Track 5 — Markdown M1 (parallel; self-contained)
-4. Track 1 item 1 — Rust → T3
-5. Track 4 item 1 — Pulumi pack (unblocks after step 1)
-6. Track 3 item 2 — GitHub Actions YAML T2
-7. Track 4 item 2 — Drizzle pack
-8. Track 4 item 4 — LLM Provider pack (promoted ahead of strict rank order
-   because of strategic-unlocks priority — see §8.4.1)
+3. Track 4 item 1 — Pulumi pack (unblocks after step 1)
+4. Track 4 item 4 — TS LLM Provider pack, warn-only (unblocks after step 1
+   — see §8.4.1)
+
+**━━━ Phase 1 line (MVP) ━━━**
+
+Steps 1–4 constitute the hard Phase 1 / MVP boundary added per council
+findings C-011/C-021. On completion of step 4, Anvil has a shippable
+"coverage + governance + strategic narrative" bundle: TS at audited T3,
+SQL migrations governed, Pulumi infrastructure governed, and the AI/ML
+governance story provable via warn-only LLM Provider detection. Every
+item below this line is Phase 2+ and is not required to declare the
+language-and-coverage design a success.
+
+5. Track 5 — Markdown M1 (parallel; self-contained — can slot anywhere
+   in Phase 2 or earlier if bandwidth allows)
+6. Track 1 item 1 — Rust → T3
+7. Track 3 item 2 — GitHub Actions YAML T2
+8. Track 4 item 2 — Drizzle pack
 9. Track 2 — Tail T1 wave (single sprint)
 10. Track 1 item 2 — Python → T3
-11. Track 4 item 3 — Next.js pack
-12. Track 4 item 5 — Hono pack
-13. Track 4 item 6 — Tokio pack (unblocks after Rust T2+ in step 4)
-14. Remaining Track 3 surfaces
-15. Remaining Track 4 packs (Django, FastAPI, Axum — as substrates unblock)
+11. Track 4 item 4b — Python-substrate LLM Provider extension (unblocks
+    after step 10 — see §8.4.1, §12.9)
+12. Track 4 item 3 — Next.js pack
+13. Track 4 item 5 — Hono pack
+14. Track 4 item 6 — Tokio pack (unblocks after Rust T2+ in step 6)
+15. Remaining Track 3 surfaces
+16. Remaining Track 4 packs (Django, FastAPI, Axum — as substrates and
+    User C's framework choice unblock)
 
 This ordinal sequence is a sanity check, not a commitment. Real sequencing
 is decided in the APS modules produced downstream from this spec. Skipping
-or reordering items within a track is allowed as demand shifts.
+or reordering items within a track is allowed as demand shifts. The Phase 1
+line, however, is **not** a reorderable boundary — it is the explicit
+shippable-MVP cut the design commits to.
 
 ---
 
@@ -618,35 +705,71 @@ implementation planning.
 
 ---
 
-## 11. User B validation case
+## 11. User validation cases
 
 Because User B has the polyglot test stack that exercises the most
-dimensions of this design, the spec commits to a concrete validation case:
-**after the first round of execution (Track 1 item 0 through Track 4 item 4
-in the §9 ordinal sequence), when User B opens Anvil on their repo, what
-can Anvil see?**
+dimensions of this design, and User C is the first almost-pure Python
+stack surveyed, the spec commits to concrete validation cases against
+both. The question: **by end of Phase 2 (§9 step 14), when each user
+opens Anvil on their repo, what can Anvil see?**
 
-| User B stack item | Covered after first execution round | By |
+### 11.1 User B (polyglot stack)
+
+| User B stack item | Covered by end of Phase 2 | By |
 |---|---|---|
-| TypeScript | ✅ T3 | Track 1 item 0 (TS audit + gap-close) |
+| TypeScript | ✅ T3 | Track 1 item 0 (TS audit + gap-close; Phase 1) |
 | Rust | ✅ T3 | Track 1 item 1 |
 | Python | ⚠️ In progress toward T3 | Track 1 item 2 |
-| Pulumi | ✅ Pack | Track 4 item 1 |
+| Pulumi | ✅ Pack | Track 4 item 1 (Phase 1) |
 | Drizzle | ✅ Pack | Track 4 item 2 |
-| OpenAI API calls | ✅ Pack (LLM Provider) | Track 4 item 4 |
-| Postgres SQL migrations | ✅ T2 | Track 3 item 1 |
+| OpenAI API calls (TS-side) | ✅ Pack (LLM Provider, warn-only) | Track 4 item 4 (Phase 1) |
+| Postgres SQL migrations | ✅ T2 | Track 3 item 1 (Phase 1) |
 | GitHub Actions | ✅ T2 | Track 3 item 2 |
-| Dart (mobile) | ✅ T1 (appears in graph) | Track 2 wave |
+| Dart (mobile) | 🟡 T1 queued — unblocks after tail wave | Track 2 wave |
 | Next.js | 🟡 Follow-up round | Track 4 item 3 |
 | Hono | 🟡 Follow-up round | Track 4 item 5 |
 | Tokio | 🟡 Follow-up round (after Rust T2+) | Track 4 item 6 |
-| Zod usage | ✅ Cross-cutting | TS anchor T2 anti-patterns |
+| Zod usage | ✅ Cross-cutting | TS anchor T2 anti-patterns (Phase 1) |
 | React Query | ⬜ Deferred | See §12 open questions |
 
-**9 of 14 items covered by end of first round, remaining 4 queued for
-follow-up work.** If the ranking ever produces a spec where User B can see
-less than this, the ranking is wrong and needs re-scoring. This is the
-design's sanity check.
+**8 of 14 items ✅ by end of Phase 2** (Dart marker corrected from ✅ to 🟡
+per council finding C-002 — Track 2 wave is §9 step 9, past the original
+first-round boundary). 5 items queued for follow-up (🟡 Dart, Next.js,
+Hono, Tokio plus ⬜ React Query), 1 in progress toward T3 (Python).
+
+If the ranking ever produces a spec where User B can see less than this,
+the ranking is wrong and needs re-scoring. This is the design's sanity
+check for the polyglot case.
+
+### 11.2 User C (Python-first stack, added 2026-04-19)
+
+User C's stack is not yet surveyed in the per-item detail that User B has.
+What is known so far:
+
+| User C stack item | Covered by end of Phase 2 | By |
+|---|---|---|
+| Python (general) | ⚠️ In progress toward T3 | Track 1 item 2 |
+| Python-side LLM calls (`openai`, `anthropic`, `langchain`) | 🟡 Follow-up round (Python-substrate LLM Provider, unblocks after Python T2) | Track 4 item 4b (§8.4.1, §9 step 11) |
+| Django (if User C's framework) | 🟡 Follow-up round | Track 4 item 7 |
+| FastAPI (if User C's framework) | 🟡 Follow-up round | Track 4 item 8 |
+| Python SQL migration usage (if any) | ✅ T2 (covered by SQL migrations surface regardless of substrate) | Track 3 item 1 (Phase 1) |
+| Python `.env` / secrets | ✅ T1 | Track 3 item 5 |
+| GitHub Actions (assumed) | ✅ T2 | Track 3 item 2 |
+
+**Phase 1 coverage for User C is thin on purpose.** Python anchor work is
+explicitly sequenced below Rust (§7.2, §9 step 10) because Rust's
+strategic unlock is the higher-ROI next anchor after TS. User C is the
+second-demand point that justifies the Python commitment; they are not
+the signal to reorder Python ahead of Rust. What Phase 1 *does* deliver
+for User C: governance of SQL migrations, `.env` files, and GitHub
+Actions — surfaces that apply regardless of the surrounding source
+language. User C's stack-specific coverage arrives in Phase 2 as Python
+progresses toward T3.
+
+This table is a sketch, not a commitment — User C's concrete validation
+run happens when implementation reaches Python T2 and we can actually
+run the checks against their repo. Expect this section to be rewritten
+at that point with real findings.
 
 ---
 
@@ -655,14 +778,15 @@ design's sanity check.
 Things the design consciously does not settle — either because data is
 missing, or because the call belongs to implementation planning.
 
-1. **Is Python really an anchor on one demand point?** Single-user demand is
-   thin. The design keeps Python in the anchor set because of strategic and
-   pack-unlock reasoning, but if a second Python user does not appear by
-   the time Rust-T3 completes, the anchor decision should be re-evaluated.
-   Possible outcomes: (a) hold and ship anyway because of pack/strategic
-   reasoning; (b) demote Python to tail T1 until a second user appears;
-   (c) delay Python anchor work and promote additional governance surfaces
-   instead.
+1. **Is Python really an anchor on one demand point?** **RESOLVED
+   2026-04-19.** User C (§3.3) added as a second independent Python demand
+   point. Python remains an anchor, at its existing sequence position
+   (§9 step 10 — below Rust). No further re-evaluation required unless
+   Python demand drops back to 1. Original concern preserved for history:
+   *"Single-user demand is thin. The design keeps Python in the anchor
+   set because of strategic and pack-unlock reasoning, but if a second
+   Python user does not appear by the time Rust-T3 completes, the anchor
+   decision should be re-evaluated."*
 2. **Are there other early-access users whose stacks would reorder Track 2
    or Track 3?** Only two mixes have been surveyed at time of writing
    (Anvil + User B). The design should be re-scored whenever a new
@@ -694,12 +818,16 @@ missing, or because the call belongs to implementation planning.
    ("Zod validator actually applied at a Hono route") go into each
    framework pack. This split may turn out to be awkward in implementation
    and may need revisiting.
-9. **Python-substrate LLM Provider coverage.** The initial LLM Provider
-   pack targets TS imports. A Python version (targeting `openai`,
-   `anthropic`, `langchain`, etc.) unlocks when Python reaches T2. Should
-   this be a second pack (`pack-llm-provider-python`) or an extension of
-   the first? Design leans "same pack, multiple substrates" — TBD in
-   implementation.
+9. **Python-substrate LLM Provider coverage.** **Plan this now (updated
+   2026-04-19).** User C's Python-first stack (§3.3) includes
+   `openai`/`anthropic`/`langchain` usage — concrete demand, not
+   speculation. The Python-substrate LLM Provider extension is a Phase 2
+   deliverable (§9 step 11) that unblocks after Python T2 (§9 step 10).
+   Design still leans "same pack, multiple substrates" — the rule
+   catalogue reuses across TS and Python wherever semantics align, with
+   substrate-specific rules added only where the language forces it (e.g.
+   `langchain` has no TS equivalent). Final one-pack-vs-two decision
+   belongs in the `pack-llm-provider.aps.md` module when it is written.
 
 ---
 
@@ -920,3 +1048,79 @@ amendment**. Minimum edits before transitioning to implementation planning:
   kernel-maintainer).
 
 These are captured in the council session but not reproduced here.
+
+---
+
+## 17. Amendments applied (2026-04-19 refresh)
+
+This section tracks the concrete edits the 2026-04-19 refresh made to
+§1–15 of the spec. The §16 council review record is preserved unchanged
+as the canonical snapshot of the original review; amendments that
+reshape §1–15 are listed here so future readers can see what the spec
+originally said and how it changed.
+
+### 17.1 Amendments inlined in this refresh
+
+| # | Section touched | Amendment | Council finding(s) addressed |
+|---|---|---|---|
+| 1 | §3.3 | Added User C (almost-pure Python stack) as a third surveyed user. | — (new data) |
+| 2 | §7.2 | Python demand 1 → 2 (User B + User C). Rationale rewritten to cover the new demand point and to explicitly state that sequence position (below Rust) is unchanged. | C-012 (partial — the single-demand concern is now moot; the TS-first AI/ML story is already prioritised in §9 Phase 1) |
+| 3 | §8.4 Drizzle row | Demand corrected 2 → 1. Rank held at #2 on blast radius. | **C-001** |
+| 4 | §8.4 Django row | Demand 0 → 1 (User C floor). | — (new data) |
+| 5 | §8.4 FastAPI row | Demand 0 → 1 (User C floor). | — (new data) |
+| 6 | §8.4.1 | LLM Provider pack declared warn-only by default. Python-substrate extension promoted to a concrete Phase 2 deliverable. | **C-010**, **C-015** (warn-only removes the fail-safe concern and the double-counting concern in one edit) |
+| 7 | §9 | Hard Phase 1 / MVP line inserted after step 4 (TS audit + SQL T2 + Pulumi pack + LLM Provider pack warn-only). Python-substrate LLM Provider added as Phase 2 step 11. | **C-011**, **C-021** |
+| 8 | §11 | Dart marker ✅ → 🟡. Headline "9 of 14" → "8 of 14". Section renamed "User validation cases". User C validation table added as §11.2. | **C-002** |
+| 9 | §12.1 | Marked RESOLVED (Python now has 2 demand points). Original text preserved for history. | — (question answered by new data) |
+| 10 | §12.9 | Promoted from "design leans same pack — TBD" to "plan this now" with a Phase 2 sequence position. | — (question answered by new data) |
+
+### 17.2 Amendments **not** inlined — belong in downstream APS modules
+
+The council review recommended deeper architectural amendments (§16.5
+items 3–12) that would reshape the spec itself. These are **intentionally
+not** inlined here because they belong in the implementation plans
+produced under §15 (`writing-plans`), not in the design spec. Listing
+them so no one believes they were dropped:
+
+| Council item | Owning module when written |
+|---|---|
+| 16.5 #3 — kernel prerequisite work (extractor refactor, grammar version in cache key, parser thread-safety, panic removal, grammar maturity audit) | Track 1 item 0.5, in the TS-audit APS module |
+| 16.5 #4 — pack architecture decision (symbol-graph vs content-only, named crate location) | `pack-pulumi.aps.md` (first pack; sets the pattern) |
+| 16.5 #5 — Rust T3 architecture enforcement decision (TS shim vs Rust-native) | `lang-rust.aps.md` rewrite |
+| 16.5 #7 — operational supplement (check registry, drift schema versioning + `anvil drift migrate`, per-track feature flags, CI wall-time budgets, FP reporting) | New operational module or companion doc, referenced from each track module |
+| 16.5 #8 — anchor re-scoring process gate | Governance process, owner named in `lang-rust.aps.md` rewrite |
+| 16.5 #9 — acceptance bar revision (FP rate + external codebase validation) | Referenced in each track's acceptance section |
+| 16.5 #10 — Markdown M1 acceptance softening | `markdown-governance.aps.md` |
+| 16.5 #11 — Track 5 crate assignment (not the Rust kernel) | `markdown-governance.aps.md` |
+| 16.5 #12 — parallelism-is-logical-dependency clarification | Inline in §9 of whichever track module is first to bake against it |
+
+### 17.3 What is left to action for the 2026-04-19 refresh
+
+The §10 archival/replacement actions from the original 2026-04-08 spec
+are still **not yet executed** — the placeholder `lang-*.aps.md` modules
+remain in `plans/modules/`. The 2026-04-19 refresh does not change the
+§10 action list; it still reads cleanly with the updated content above.
+Next concrete work, in order:
+
+1. Archive `lang-swift.aps.md` and `lang-zig.aps.md`.
+2. Merge `lang-dart.aps.md`, `lang-go.aps.md`, `lang-java.aps.md`,
+   `lang-kotlin.aps.md`, `lang-dotnet.aps.md`, `lang-c-cpp.aps.md` into
+   `lang-tail-wave.aps.md`.
+3. Rewrite `lang-rust.aps.md` for T3 target (incorporates §16.5 #3, #5,
+   #8).
+4. Rewrite `lang-python.aps.md` for T3 target.
+5. Create surface modules: `surface-sql-migrations.aps.md` (Phase 1),
+   `surface-github-actions.aps.md`, `surface-dockerfile.aps.md`,
+   `surface-shell.aps.md`, `surface-env-files.aps.md`.
+6. Create pack modules: `pack-pulumi.aps.md` (Phase 1),
+   `pack-llm-provider.aps.md` (Phase 1, TS + Python-substrate extension
+   in one module per §12.9), `pack-drizzle.aps.md`, `pack-nextjs.aps.md`,
+   `pack-hono.aps.md`, `pack-tokio.aps.md`.
+7. Create `markdown-governance.aps.md`.
+8. Replace the Multi-Language section in `plans/index.aps.md` with the
+   Track 1–5 structure.
+
+Order of module creation matters only insofar as the Phase 1 modules
+(TS audit work item, `surface-sql-migrations.aps.md`, `pack-pulumi.aps.md`,
+`pack-llm-provider.aps.md`) are the ones that need to exist for the MVP
+to be actionable. Everything else can lag.
