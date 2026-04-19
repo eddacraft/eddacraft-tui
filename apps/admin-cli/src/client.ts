@@ -104,7 +104,17 @@ export class AdminClient {
       throw new AdminError(message, 1, response.status, text);
     }
 
-    if (!text) return undefined as T;
+    if (!text) {
+      if (opts.schema) {
+        throw new AdminError(
+          `empty response body (expected ${response.status} with JSON content)`,
+          6,
+          response.status,
+          text
+        );
+      }
+      return undefined as T;
+    }
 
     let parsed: unknown;
     try {
@@ -124,8 +134,8 @@ export class AdminClient {
     if (!result.success) {
       // Pick the first issue as the headline — most real malformed
       // responses trip one field and chaining every issue makes the
-      // error line unusably long. The full zod tree is still available
-      // via err.body for anyone debugging manually.
+      // error line unusably long. `err.body` carries the raw response
+      // text for anyone debugging manually (not the Zod issue tree).
       const issue = result.error.issues[0];
       const fieldPath = issue?.path.length ? issue.path.join('.') : '<root>';
       const reason = issue?.message ?? 'validation failed';
