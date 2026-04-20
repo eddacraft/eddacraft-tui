@@ -347,10 +347,12 @@ Design spec: `plans/specs/2026-04-20-relmgmt-agent-driven-release-design.md`.
   and an exit code equal to the count of failed steps. No prompts, no git,
   no GitHub, no manifest.
 - **Expected Outcome:** `./scripts/release.sh` is re-runnable, side-effect-
-  free, and exits 0 only when every preflight step passes. The bundled-
-  package filter from the current script is preserved; everything else
-  (issue creation, branching, tagging, workflow kickoff, manifest writing)
-  is removed.
+  free, and exits 0 only when every preflight step passes. The pnpm steps
+  call root scripts (`format:check`, `lint:check`, `typecheck`, `test`) so
+  package scope lives in `nx.json` / workspace config rather than an
+  in-script filter list; the old bundled-package helper is retired along
+  with everything else (issue creation, branching, tagging, workflow
+  kickoff, manifest writing).
 - **Validation:**
   - `./scripts/release.sh` on clean `dev` exits 0 and prints the summary
     table with all steps `PASS`.

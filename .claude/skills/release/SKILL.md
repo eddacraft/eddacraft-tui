@@ -288,7 +288,6 @@ Append verification to the tracking issue.
 Re-read `CHANGELOG.md` against the live diff:
 
 ```bash
-git log --oneline main..<previous-tag>   # no — inverse
 git log --oneline <previous-tag>..main   # commits shipped in this release
 ```
 

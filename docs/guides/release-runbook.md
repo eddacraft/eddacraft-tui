@@ -52,31 +52,40 @@ wrong or when you need to understand what a step does.
 
 ## 1) Preflight checklist (required)
 
-From repo root:
+### Automated — run `./scripts/release.sh`
+
+This is the required preflight gate before invoking `/release`. It runs, in
+order:
+
+- `cargo fmt --all --check`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo test --workspace`
+- `pnpm format:check`
+- `pnpm lint:check`
+- `pnpm typecheck`
+- `pnpm test`
+
+The `pnpm test` step uses the root
+`nx run-many -t test --exclude=@eddacraft/anvil-e2e` command, so bundled package
+scope is managed in `nx.json` / workspace config rather than in the script.
+
+The script does not prompt, touch git, or call GitHub. It is re-runnable and
+exits with the count of failed steps (0 = clean). You can run it any time to
+sanity-check the workspace before release work.
+
+### Additional manual checks (not covered by the script)
+
+Run these from repo root after the script passes — they exercise the release
+binary and a full TS build, which the script intentionally skips:
 
 ```bash
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release -p eddacraft-anvil
 ./target/release/anvil --help
 ./target/release/anvil --version
-```
 
-Verify TS workspace still builds (non-CLI packages):
-
-```bash
 pnpm install --frozen-lockfile
 pnpm build
 ```
-
-`./scripts/release.sh` runs preflight-only — `cargo fmt`, `cargo clippy`,
-`cargo test`, `pnpm format:check`, `pnpm lint:check`, `pnpm typecheck`,
-`pnpm test` — and exits with the count of failed steps. It does not prompt,
-touch git, or call GitHub. Running it is the prerequisite for invoking
-`/release`; you can also run it any time to sanity-check the workspace before
-release work. The `pnpm test` step uses the root
-`nx run-many -t test --exclude=@eddacraft/anvil-e2e` command, so bundled package
-scope is managed in `nx.json` / workspace config rather than in the script.
 
 Sanity assertions before release:
 

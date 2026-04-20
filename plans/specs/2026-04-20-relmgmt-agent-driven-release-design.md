@@ -69,12 +69,15 @@ Runs in order, printing `PASS <step>` / `FAIL <step> (reason)` to stderr:
 1. `cargo fmt --all --check`
 2. `cargo clippy --workspace --all-targets -- -D warnings`
 3. `cargo test --workspace`
-4. `pnpm -r --filter ...<bundled> lint`
-5. `pnpm -r --filter ...<bundled> typecheck`
-6. `pnpm -r --filter ...<bundled> test`
+4. `pnpm format:check`
+5. `pnpm lint:check`
+6. `pnpm typecheck`
+7. `pnpm test`
 
-Where `<bundled>` is the existing bundled-package list already encoded in
-the current script. Keep that helper; drop everything else.
+The `pnpm test` step invokes the root script, which runs
+`nx run-many -t test --exclude=@eddacraft/anvil-e2e`. Package scope is
+managed in `nx.json` / workspace config, not via an in-script filter list —
+the old bundled-package helper is retired.
 
 Prints a summary table at the end:
 
@@ -84,9 +87,10 @@ step                                  result
 cargo fmt                             PASS
 cargo clippy                          PASS
 cargo test                            PASS
-pnpm lint (bundled)                   PASS
-pnpm typecheck (bundled)              PASS
-pnpm test (bundled)                   PASS
+pnpm format:check                     PASS
+pnpm lint:check                       PASS
+pnpm typecheck                        PASS
+pnpm test                             PASS
 ```
 
 Exits with the count of failed steps (0 on clean pass). Operator invokes
@@ -116,8 +120,8 @@ From that point the skill works from live repo state only:
    if stabilisation.
 5. **Monitor workflow.** `gh run watch` on the cargo-dist workflow. Re-read
    on each wake; resumable.
-6. **Verify artefacts.** Check the 7 expected assets on
-   `EddaCraft/anvil`.
+6. **Verify artefacts.** Check the 8 expected assets (6 archives + 2
+   installers) on both `EddaCraft/anvil-001` and `EddaCraft/anvil`.
 7. **Changelog review.** Cross-reference diff against `CHANGELOG.md`
    entries; surface gaps.
 8. **Docs triage.** Apply `docs/guides/release-doc-checklist.md` against
