@@ -698,7 +698,7 @@ resolved before RCLI-023 (cutover) can proceed.
   markdown structure (frontmatter, phases, work items) into the same
   intermediate representation used by YAML/JSON export, then serialise to the
   target format
-- **Expected Outcome:** `anvil export plans/modules/rust-cli.aps.md --to json`
+- **Expected Outcome:** `anvil export plans/archive/modules/rust-cli.aps.md --to json`
   produces valid JSON plan output
 - **Validation:** Exported JSON matches Node.js CLI output for same APS file;
   round-trip fidelity for all APS fields

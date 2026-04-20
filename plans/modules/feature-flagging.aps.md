@@ -225,7 +225,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** CLI feature access and `/anvil` docs access are driven
   through the shared manifest, targeting contract, and snapshot-backed
   OpenFeature flow rather than bespoke per-surface checks alone.
-- **Scope:** `plans/modules/rust-cli.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `apps/anvil-cli/`, `apps/docs-site/`, `apps/anvil-api/`, `packages/anvil/runtime/`
+- **Scope:** `plans/archive/modules/rust-cli.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `apps/anvil-cli/`, `apps/docs-site/`, `apps/anvil-api/`, `packages/anvil/runtime/`
 - **Non-scope:** Migrating unrelated product surfaces in the same work item
 - **Dependencies:** FLAGS-003, FLAGS-004, FLAGS-005
 - **Validation:** `pnpm test -- --runInBand feature-flag-exemplars`
@@ -250,7 +250,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** CLI licence gating, policy rollout controls, docs/auth
   gating, and future entitlement hooks are classified as migrate/adopt/defer,
   including what a later Featureboard provider swap would change.
-- **Scope:** `plans/modules/rust-cli.aps.md`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `docs/specs/`, `plans/decisions/`
+- **Scope:** `plans/archive/modules/rust-cli.aps.md`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `docs/specs/`, `plans/decisions/`
 - **Non-scope:** Migrating every consumer in the same work item
 - **Dependencies:** FLAGS-001, FLAGS-002, FLAGS-003
 - **Validation:** `grep -q "migrate" docs/guides/feature-flag-inventory.md`
