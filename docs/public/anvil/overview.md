@@ -85,30 +85,50 @@ failed, and when.
 
 ## Anti-Patterns Detected
 
+Anvil ships 18 rules organised into five **families**, each representing
+a shared meta-issue:
+
+- **guardrail-suppression** — disabling tools that were there to help
+  (AP-001, AP-002, AP-004, AP-005, GS-001)
+- **type-system-evasion** — escape hatches around the type system (AP-003)
+- **error-visibility** — hiding failures that should surface (AP-006, AP-007)
+- **responsibility-laundering** — shifting blame or deferring review
+  (RL-001..RL-006)
+- **deferred-debt** — recording work the author won't do now (DD-001..DD-004)
+
 ### Default patterns (enabled out of the box)
 
-| ID     | Pattern                      | Severity |
-| ------ | ---------------------------- | -------- |
-| AP-001 | Broad `/* eslint-disable */` | warning  |
-| AP-003 | Explicit `any` type          | warning  |
-| AP-004 | `@ts-ignore` directive       | warning  |
-| AP-006 | Empty catch block            | warning  |
+| ID     | Family                    | Pattern                                  | Severity |
+| ------ | ------------------------- | ---------------------------------------- | -------- |
+| AP-001 | guardrail-suppression     | Broad `eslint-disable`                   | warning  |
+| AP-003 | type-system-evasion       | Explicit `any` type                      | warning  |
+| AP-004 | guardrail-suppression     | `@ts-ignore` directive                   | warning  |
+| AP-006 | error-visibility          | Empty catch block                        | warning  |
+| GS-001 | guardrail-suppression     | Non-null assertion overrides nullability | warning  |
+| RL-001 | responsibility-laundering | Unverified "pre-existing" claim          | warning  |
+| RL-002 | responsibility-laundering | Phantom follow-up tracking               | warning  |
+| RL-003 | responsibility-laundering | Blanket unrelated dismissal              | error    |
+| RL-004 | responsibility-laundering | Unverified "not touched" claim           | warning  |
+| RL-005 | responsibility-laundering | Deferred without artifact                | warning  |
+| RL-006 | responsibility-laundering | Reply disguised as fix                   | info     |
+| DD-001 | deferred-debt             | TODO/FIXME without tracking reference    | warning  |
+| DD-002 | deferred-debt             | HACK comment without tracking reference  | warning  |
+| DD-003 | deferred-debt             | Temporary code without expiry            | info     |
+| DD-004 | deferred-debt             | Completion claim with outstanding TODOs  | warning  |
 
 ### Opt-in patterns
 
 Enable these in your `.anvilrc` when relevant to your project.
 
-| ID     | Pattern                        | Category     | Severity |
-| ------ | ------------------------------ | ------------ | -------- |
-| AP-002 | Rule-specific `eslint-disable` | escape hatch | info     |
-| AP-005 | `@ts-expect-error` directive   | type safety  | info     |
-| AP-007 | Console in production code     | code quality | info     |
-| AP-008 | Inline `style` attribute       | HTML         | warning  |
-| AP-009 | Inline `<script>` block        | HTML         | warning  |
-| AP-010 | Inline event handler           | HTML         | warning  |
-| AP-011 | Deprecated HTML tag            | HTML         | warning  |
-| AP-012 | `!important` in CSS            | CSS          | warning  |
-| AP-013 | CSS `@import`                  | CSS          | info     |
+| ID     | Family                | Pattern                         | Severity |
+| ------ | --------------------- | ------------------------------- | -------- |
+| AP-002 | guardrail-suppression | Rule-specific `eslint-disable`  | info     |
+| AP-005 | guardrail-suppression | `@ts-expect-error` directive    | info     |
+| AP-007 | error-visibility      | Console statement in production | info     |
+
+> HTML and CSS anti-patterns (formerly AP-008..AP-013) were retired because
+> dedicated linters — HTMLHint, Stylelint — cover that territory better.
+> See `docs/vision/anvil-scope-guard.md` for the scope guardrail.
 
 ## What anvil Doesn't Do
 

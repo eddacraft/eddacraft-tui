@@ -653,7 +653,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Dependencies:** ANVFMT-014, ANVFMT-015
 - **Validation:** `pnpm docs:build` (or equivalent)
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 ## Interfaces
 
@@ -958,3 +958,37 @@ Remaining in this module:
 - ANVFMT-013 (pr-description artifact path through CLI) — blocked on CLI
   scope clarification; the TS CLI referenced in the plan has been archived.
 - ANVFMT-016 (docs refresh)
+
+### 2026-04-21 — ANVFMT-016 complete (docs refresh)
+
+Refreshed the public pattern reference to match the 18-rule family-based
+catalogue and published a contributor guide for rule authors.
+
+What changed:
+
+- **`docs/public/anvil/operations/config.md`**: "Anti-Patterns" intro
+  rewritten to describe the five families and the 15-default / 3-opt-in
+  split. Default-pattern table expanded from 4 → 15 rules (adds GS-001,
+  RL-001..RL-006, DD-001..DD-004). Opt-in table pruned of AP-008..AP-013.
+  Tables now include a family column.
+- **`docs/public/anvil/overview.md`**: added a family summary above the
+  pattern tables, expanded the default table to 15 rules, pruned
+  HTML/CSS entries from the opt-in table, added a footnote explaining
+  HTML/CSS retirement per D-002 and pointing at `anvil-scope-guard.md`.
+- **`docs/public/anvil/concepts/gates.md`**: default-patterns table
+  expanded from 4 → 15 rules; opt-in table reduced to the three
+  non-retired entries; added a family-provenance intro paragraph.
+- **`docs/guides/anvil-rule-authoring.md`** (new): contributor guide
+  covering layout, rule ID conventions, the frontmatter schema,
+  `detection`/`targets`/`allowlist` semantics, the compile step,
+  merge checklist, and retirement guidance.
+
+Verification:
+
+- `grep -r "AP-008\|AP-00[89]\|AP-01[0-3]" docs/public` → only a single
+  historical footnote remains.
+- Pattern list in docs now matches `patterns/compiled/registry.json`
+  (18 patterns, 5 families).
+
+Module status: ANVFMT-016 Complete. Only ANVFMT-013 remains and is
+blocked on CLI scope clarification.
