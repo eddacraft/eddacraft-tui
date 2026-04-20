@@ -74,7 +74,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | Phase 1 done (23 .anvil files in 5 families); Phases 2–4 pending (scanner wiring, new patterns, TS cleanup) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
@@ -87,7 +87,7 @@ and DX improvements. Code-review-backlog (complete) is retained for history.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 > ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
@@ -751,7 +751,7 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
 | MAINT-009 | maint  | Edda list filters parity with release claims        | Complete | Medium   |
 | MAINT-010 | maint  | Authenticated release smoke harness                 | Deferred | Medium   |
-| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | In Progress | Medium |
+| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | Complete | Medium |
 
 ### Task Status — Hardening & Maintenance (Nx Task Migration)
 
