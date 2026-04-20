@@ -416,7 +416,7 @@ Change status to **Ready** when:
 > below: there is no `theme/` or `keyboard/` subdirectory, and the widget set
 > is `results_dashboard.rs` + `quick_wins_panel.rs` rather than the
 > text_input/select/confirm/log_panel widgets these items were drafted
-> against. Treat TCOV-022..025 as **Blocked — scope drift** until the items
+> against. Treat TCOV-022..024 as **Blocked — scope drift** until the items
 > are rewritten against the current `anvil-tui` structure.
 
 #### TCOV-022: anvil-tui widget interaction tests
@@ -429,7 +429,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-tui/src/widgets/`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-tui` passes; llvm-cov shows ≥80%.
+- **Validation:** `cargo test -p eddacraft-anvil-tui` passes; llvm-cov shows ≥80%.
 - **Confidence:** low — original widget list is stale
 - **Status:** Blocked — scope refresh
 
