@@ -220,22 +220,36 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Outcome:** Added `apps/anvil-api/src/lib/feature-flags.ts` with three
   `api.scope.*` entitlement flag definitions (`beta`, `preview`,
-  `internal`), `API_SCOPE_NAMES` as the single source of truth, a
-  `Object.freeze`d `API_SCOPE_FLAGS` manifest keyed by scope name, and a
-  module-load invariant that refuses to boot if the flag keys drift from
-  the tuple. Exposed `resolveApiScope` / `isScopeAllowed` helpers that
-  route through `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags`
-  with a `defaultApiEvaluationContext` for unauthenticated callers.
-  `apps/anvil-api/src/routes/admin-schemas.ts` now imports
-  `API_SCOPE_NAMES` and re-exports `ALLOWED_SCOPES` from that derived
-  list — the inline `['beta', 'preview', 'internal']` tuple is gone.
-  Parity proven by `apps/anvil-api/src/lib/__tests__/feature-flags.test.ts`:
-  three design-spec cases (enabled / disabled-unknown-scope / default), a
-  sweep over every legacy scope, and a rejection sweep over unknown
-  strings. The legacy constant lives only inside the test file and
-  retires in FLAGM-006. Wired `@eddacraft/anvil-contracts` and
-  `@eddacraft/anvil-runtime` as workspace deps + project references on
-  `apps/anvil-api`.
+  `internal`), `API_SCOPE_NAMES` as the single source of truth, and an
+  `API_SCOPE_FLAGS` manifest typed as
+  `Readonly<Record<ApiScopeName, …>>` so manifest-vs-tuple agreement is
+  enforced at compile time. Exposed `resolveApiScope` /
+  `isScopeAllowed` helpers that route through `resolveFlag` from
+  `@eddacraft/anvil-runtime/feature-flags` with a
+  `defaultApiEvaluationContext` whose environment is read from
+  `VERCEL_ENV`/`NODE_ENV` at call time (mapping `production→prod`,
+  `development|test→dev`, unknown→`'dev'` fail-safe).
+  `ApiScopeResolution.details` is typed as `ResolutionDetails<boolean>`.
+  `admin-schemas.ts` now imports `API_SCOPE_NAMES` directly; the inline
+  `['beta', 'preview', 'internal']` tuple is gone. `POST /admin/invite`
+  calls `resolveApiScope` for each body scope and returns 403
+  `scope_not_allowed` if the flag resolves disabled — operator override
+  has real runtime effect on the hot path. `/admin/approve` reads
+  `DEFAULT_APPROVAL_SCOPES` from the manifest module instead of
+  hardcoding `['beta']`. Parity proven by
+  `apps/anvil-api/src/lib/__tests__/feature-flags.test.ts` (14 tests):
+  three design-spec cases, a sweep over every legacy scope, a rejection
+  sweep over unknown strings, an override-disabled divergence case (the
+  one meaningful flag-vs-legacy divergence the suite must guarantee),
+  and a `ResolutionDetails<boolean>` type assertion. The legacy constant
+  lives only inside the test file and retires in FLAGM-006. Wired
+  `@eddacraft/anvil-contracts` and `@eddacraft/anvil-runtime` as
+  workspace deps + project references on `apps/anvil-api`. Council
+  session `council-f8ed0137` converged 9 fixed / 3 deferred (read-path
+  validation, `feature_flag.evaluated` telemetry, shared manifest
+  catalogue registration — all FLAGM-006) / 1 waived (entitlement
+  default `'enabled'` for day-1 legacy parity; fail-closed satisfied
+  via override precedence).
 
 ### FLAGM-006: Retire dual-evaluation shims and close the migration
 
