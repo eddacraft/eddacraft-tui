@@ -3,9 +3,9 @@
 
 # Feature Flag Migration
 
-| Scope  | Owner | Priority | Status |
-| ------ | ----- | -------- | ------ |
-| FLAGM  | —     | medium   | Draft  |
+| Scope  | Owner | Priority | Status      |
+| ------ | ----- | -------- | ----------- |
+| FLAGM  | —     | medium   | In Progress |
 
 ## Purpose
 
@@ -90,10 +90,11 @@ ad-hoc checks in place keeps two sources of truth for the same decision.
 
 ## Design Spec
 
-_None yet — see FLAGS design spec at
+See [`plans/specs/2026-04-20-feature-flag-migration-design.md`](../specs/2026-04-20-feature-flag-migration-design.md)
+for the per-control migration plan, parity-test shape, dual-evaluation
+window, and rollback rules. Background is in the FLAGS design at
 `plans/specs/2026-04-09-feature-flagging-design.md` and the inventory at
-`docs/guides/feature-flag-inventory.md` for background. A short migration
-design note will land with FLAGM-001 if the approach diverges from FLAGS-008._
+`docs/guides/feature-flag-inventory.md`.
 
 ## Ready Checklist
 
@@ -101,8 +102,8 @@ Change status to **Ready** when:
 
 - [x] Purpose and scope are clear
 - [x] Inventory of migrate targets is explicit
-- [ ] Per-control migration approach is agreed (FLAGM-001)
-- [ ] Parity-test approach for each control is agreed (FLAGM-001)
+- [x] Per-control migration approach is agreed (FLAGM-001)
+- [x] Parity-test approach for each control is agreed (FLAGM-001)
 - [ ] Docs-side snapshot loader path is decided (blocks FLAGM-004)
 
 ## Risks & Mitigations
@@ -117,7 +118,7 @@ Change status to **Ready** when:
 
 ## Tasks
 
-### FLAGM-001: Agree migration approach and parity-test pattern
+### FLAGM-001: Agree migration approach and parity-test pattern — Complete
 
 - **Intent:** Before changing any runtime, agree per-control how the flag
   replaces the ad-hoc check and how parity is proven.
@@ -128,6 +129,14 @@ Change status to **Ready** when:
 - **Non-scope:** Any code change
 - **Validation:** `grep -q "parity test" docs/guides/feature-flag-inventory.md`
 - **Confidence:** high
+- **Outcome:** Design spec at
+  `plans/specs/2026-04-20-feature-flag-migration-design.md` defines the
+  four-phase migration pattern (dual-evaluate → cut over → retire → close),
+  the three-case parity-test shape (enabled / disabled / default), and the
+  rollback rules. Per-control plans are documented for `cli.licence-gate`,
+  `cli.dev-bypass`, `docs.access`, and `api.scope.*`. The inventory at
+  `docs/guides/feature-flag-inventory.md` now points at the spec and records
+  that each migrate entry lands a parity test before legacy removal.
 
 ### FLAGM-002: Migrate `requires_auth()` to flag-driven command gating
 

@@ -5,6 +5,13 @@ them onto the shared flagging model defined in `FLAGS`.
 
 Created for: `FLAGS-009`
 
+**Migration status:** The **migrate** controls below are being retired under
+the `FLAGM` module. Per-control flag keys, evaluation context, dual-evaluation
+window, parity test cases, and rollback paths are defined in
+[`plans/specs/2026-04-20-feature-flag-migration-design.md`](../../plans/specs/2026-04-20-feature-flag-migration-design.md).
+Each migrate entry in this inventory lands a parity test alongside the control
+it replaces before the legacy check is removed.
+
 ## Classification Key
 
 | Action      | Meaning                                                             |
