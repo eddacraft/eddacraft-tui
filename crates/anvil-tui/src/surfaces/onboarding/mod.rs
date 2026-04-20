@@ -81,8 +81,7 @@ mod tests {
 
     #[test]
     fn config_exists_detects_anvilrc() {
-        let tmp = std::env::temp_dir()
-            .join(format!("anvil_test_anvilrc_{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("anvil_test_anvilrc_{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         std::fs::write(tmp.join(".anvilrc"), "{}").unwrap();
 
@@ -92,8 +91,8 @@ mod tests {
 
     #[test]
     fn config_exists_ignores_empty_anvilrc() {
-        let tmp = std::env::temp_dir()
-            .join(format!("anvil_test_empty_anvilrc_{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("anvil_test_empty_anvilrc_{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         std::fs::write(tmp.join(".anvilrc"), b"").unwrap();
 

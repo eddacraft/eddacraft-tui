@@ -129,38 +129,34 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
         "local cache"
     };
 
-    let mut lines: Vec<Line> = Vec::new();
-
-    lines.push(Line::from(Span::styled(
-        "\u{2713}  Anvil is ready",
-        Style::default()
-            .fg(theme.success())
-            .add_modifier(Modifier::BOLD),
-    )));
-    lines.push(Line::default());
-    lines.push(Line::from(Span::styled(
-        "We wrote these to your project:",
-        Style::default().fg(theme.fg()),
-    )));
-    lines.push(Line::default());
-
-    lines.push(path_line(&s.config_path, "configuration", gap, theme));
-    lines.push(path_line(
-        &s.plans_dir,
-        "where your architecture plans live",
-        gap,
-        theme,
-    ));
-    lines.push(path_line(&s.cache_dir, cache_suffix, gap, theme));
+    let mut lines: Vec<Line> = vec![
+        Line::from(Span::styled(
+            "\u{2713}  Anvil is ready",
+            Style::default()
+                .fg(theme.success())
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::default(),
+        Line::from(Span::styled(
+            "We wrote these to your project:",
+            Style::default().fg(theme.fg()),
+        )),
+        Line::default(),
+        path_line(&s.config_path, "configuration", gap, theme),
+        path_line(
+            &s.plans_dir,
+            "where your architecture plans live",
+            gap,
+            theme,
+        ),
+        path_line(&s.cache_dir, cache_suffix, gap, theme),
+    ];
 
     if !s.checks_enabled.is_empty() {
         lines.push(Line::default());
         lines.push(Line::from(vec![
             Span::styled("Enabled checks: ", Style::default().fg(theme.muted())),
-            Span::styled(
-                s.checks_enabled.join(", "),
-                Style::default().fg(theme.fg()),
-            ),
+            Span::styled(s.checks_enabled.join(", "), Style::default().fg(theme.fg())),
         ]));
     }
 
@@ -200,7 +196,7 @@ fn path_line<'a>(
     theme: &EddaCraftTheme,
 ) -> Line<'a> {
     let pad = gap.saturating_sub(path.chars().count());
-    let padding: String = std::iter::repeat(' ').take(pad).collect();
+    let padding: String = " ".repeat(pad);
     Line::from(vec![
         Span::styled("  ", Style::default()),
         Span::styled(

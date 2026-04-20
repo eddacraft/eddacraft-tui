@@ -19,6 +19,7 @@ unicode-width = "0.2"
 [dev-dependencies]
 insta = { workspace = true }
 eddacraft-tui = { workspace = true, features = ["test-utils"] }
+temp-env = "0.3"
 
 [[example]]
 name = "demo"

@@ -987,6 +987,7 @@ dependencies = [
  "eddacraft-tui",
  "insta",
  "ratatui",
+ "temp-env",
  "thiserror 2.0.18",
  "unicode-width 0.2.2",
 ]

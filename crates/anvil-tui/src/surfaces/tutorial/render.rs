@@ -4,11 +4,55 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
+use unicode_width::UnicodeWidthStr;
 
 use super::{TutorialPhase, TutorialState};
 use crate::shell::inset_content;
 
 const MAX_OUTPUT_LINES: usize = 5;
+
+/// Some terminals (notably older Windows consoles and a few SSH multiplexers)
+/// render the geometric-shape glyphs we use for the step progress indicator
+/// as double-wide or as replacement boxes. Setting `ANVIL_ASCII=1` swaps the
+/// progress glyphs for their ASCII counterparts so the layout stays aligned.
+///
+/// Returns `(complete, current, pending)`.
+fn progress_glyphs() -> (&'static str, &'static str, &'static str) {
+    if std::env::var_os("ANVIL_ASCII").is_some_and(|v| v != "0" && !v.is_empty()) {
+        ("#", ">", "-")
+    } else {
+        ("\u{25cf}", "\u{25c9}", "\u{25cb}")
+    }
+}
+
+/// Fit `title` inside a block whose outer width is `area_width`. A Ratatui
+/// block title is rendered between two border cells and a space on each side,
+/// so the effective budget is `area_width - 4`. Overflowing titles are
+/// truncated with an ellipsis so they never punch through the border line.
+fn fit_block_title(title: &str, area_width: u16) -> String {
+    let budget = (area_width as usize).saturating_sub(4);
+    if budget == 0 {
+        return String::new();
+    }
+    if UnicodeWidthStr::width(title) <= budget {
+        return title.to_string();
+    }
+    let ellipsis = "…";
+    let ellipsis_w = UnicodeWidthStr::width(ellipsis);
+    let target = budget.saturating_sub(ellipsis_w);
+    let mut out = String::new();
+    let mut w = 0;
+    for ch in title.chars() {
+        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        if w + cw > target {
+            break;
+        }
+        out.push(ch);
+        w += cw;
+    }
+    out.push_str(ellipsis);
+    out
+}
 
 /// Strip ANSI escape sequences from a string so raw control codes don't garble
 /// the Ratatui output. Handles:
@@ -145,7 +189,9 @@ fn render_path_select(
     // Height: one row per path + top/bottom internal padding + two borders.
     // Clamp to area.height so the bottom border is never clipped on short terminals.
     #[allow(clippy::cast_possible_truncation)]
-    let box_height = (state.paths.len() as u16).saturating_add(4).min(area.height);
+    let box_height = (state.paths.len() as u16)
+        .saturating_add(4)
+        .min(area.height);
     let chunks = Layout::vertical([Constraint::Length(box_height), Constraint::Min(0)]).split(area);
     let box_area = chunks[0];
     let below = chunks[1];
@@ -202,9 +248,12 @@ fn render_path_select(
 
     // Helpful hint beneath the list to give the negative space purpose.
     if below.height >= 2 {
-        let hint_chunks =
-            Layout::vertical([Constraint::Length(1), Constraint::Length(1), Constraint::Min(0)])
-                .split(below);
+        let hint_chunks = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(below);
         let hint = Paragraph::new(Line::from(Span::styled(
             "Each path takes about 5 minutes. Complete them in any order.",
             Style::default().fg(theme.muted()),
@@ -224,20 +273,21 @@ fn render_step_progress(
     let total = state.steps.len();
     let current_human = state.current_step.saturating_add(1).min(total.max(1));
 
+    let (g_complete, g_current, g_pending) = progress_glyphs();
     let spans: Vec<Span> = state
         .steps
         .iter()
         .enumerate()
         .flat_map(|(i, _step)| {
             let (marker, style) = match i.cmp(&state.current_step) {
-                std::cmp::Ordering::Less => ("\u{25cf}", Style::default().fg(theme.success())),
+                std::cmp::Ordering::Less => (g_complete, Style::default().fg(theme.success())),
                 std::cmp::Ordering::Equal => (
-                    "\u{25c9}",
+                    g_current,
                     Style::default()
                         .fg(theme.accent())
                         .add_modifier(Modifier::BOLD),
                 ),
-                std::cmp::Ordering::Greater => ("\u{25cb}", Style::default().fg(theme.muted())),
+                std::cmp::Ordering::Greater => (g_pending, Style::default().fg(theme.muted())),
             };
             let separator = if i + 1 < total { "  " } else { "" };
             vec![
@@ -286,7 +336,7 @@ fn render_step_content(
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
         .padding(Padding::horizontal(1))
-        .title(format!(" {} ", step.title));
+        .title(format!(" {} ", fit_block_title(&step.title, area.width)));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -307,8 +357,9 @@ fn render_step_content(
 
     // Show a watching hint when the step has a watch_path and isn't in static mode.
     if step.watch_path.is_some() && !state.static_mode {
+        let (_, g_current, _) = progress_glyphs();
         lines.push(Line::from(Span::styled(
-            "\u{25c9} Watching for file changes\u{2026}",
+            format!("{g_current} Watching for file changes\u{2026}"),
             Style::default()
                 .fg(theme.muted())
                 .add_modifier(Modifier::ITALIC),
@@ -375,6 +426,34 @@ fn render_step_content(
     );
 }
 
+fn path_is_done(state: &TutorialState, path: super::TutorialPath) -> bool {
+    state.completed_paths.contains(&path) || state.chosen_path == Some(path)
+}
+
+fn build_paths_progress<'a>(state: &'a TutorialState, theme: &'a EddaCraftTheme) -> Vec<Span<'a>> {
+    let (g_complete, _, g_pending) = progress_glyphs();
+    let total = state.paths.len();
+    state
+        .paths
+        .iter()
+        .enumerate()
+        .flat_map(|(i, p)| {
+            let done = path_is_done(state, *p);
+            let marker = if done { g_complete } else { g_pending };
+            let style = if done {
+                Style::default().fg(theme.success())
+            } else {
+                Style::default().fg(theme.muted())
+            };
+            let sep = if i + 1 < total { "  " } else { "" };
+            vec![
+                Span::styled(marker, style),
+                Span::styled(sep, Style::default().fg(theme.muted())),
+            ]
+        })
+        .collect()
+}
+
 fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -389,42 +468,20 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
         .map_or("the tutorial", TutorialPath::label);
     let total = state.steps.len();
 
-    // Completion across all paths (include the just-finished path even if the
-    // persistence layer hasn't flushed it into completed_paths yet).
     let all_paths = state.paths.len();
     let completed_count = state
         .paths
         .iter()
-        .filter(|p| {
-            state.completed_paths.contains(p) || state.chosen_path.as_ref() == Some(*p)
-        })
+        .filter(|p| path_is_done(state, **p))
         .count();
 
-    // Progress dots across all paths.
-    let progress_spans: Vec<Span> = state
+    let progress_spans = build_paths_progress(state, theme);
+
+    let next_path = state
         .paths
         .iter()
-        .enumerate()
-        .flat_map(|(i, p)| {
-            let done = state.completed_paths.contains(p) || state.chosen_path.as_ref() == Some(p);
-            let marker = if done { "\u{25cf}" } else { "\u{25cb}" };
-            let style = if done {
-                Style::default().fg(theme.success())
-            } else {
-                Style::default().fg(theme.muted())
-            };
-            let sep = if i + 1 < all_paths { "  " } else { "" };
-            vec![
-                Span::styled(marker, style),
-                Span::styled(sep, Style::default().fg(theme.muted())),
-            ]
-        })
-        .collect();
-
-    // Suggest the next unfinished path, if any.
-    let next_path = state.paths.iter().find(|p| {
-        !state.completed_paths.contains(p) && state.chosen_path.as_ref() != Some(*p)
-    });
+        .find(|p| !path_is_done(state, **p))
+        .copied();
 
     let mut lines = vec![
         Line::from(Span::styled(
@@ -449,10 +506,7 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
 
     if let Some(next) = next_path {
         lines.push(Line::from(vec![
-            Span::styled(
-                "Up next: ",
-                Style::default().fg(theme.muted()),
-            ),
+            Span::styled("Up next: ", Style::default().fg(theme.muted())),
             Span::styled(
                 next.label(),
                 Style::default()
@@ -510,6 +564,70 @@ mod tests {
     use crate::surface::Surface;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
+
+    #[test]
+    fn progress_glyphs_default_is_unicode() {
+        temp_env::with_var_unset("ANVIL_ASCII", || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("\u{25cf}", "\u{25c9}", "\u{25cb}"));
+        });
+    }
+
+    #[test]
+    fn progress_glyphs_env_var_forces_ascii() {
+        temp_env::with_var("ANVIL_ASCII", Some("1"), || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("#", ">", "-"));
+            for g in [a, b, c] {
+                assert_eq!(
+                    UnicodeWidthStr::width(g),
+                    1,
+                    "ASCII fallback glyphs must be single-cell: {g}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn progress_glyphs_empty_env_uses_unicode() {
+        temp_env::with_var("ANVIL_ASCII", Some(""), || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("\u{25cf}", "\u{25c9}", "\u{25cb}"));
+        });
+    }
+
+    #[test]
+    fn progress_glyphs_zero_env_uses_unicode() {
+        temp_env::with_var("ANVIL_ASCII", Some("0"), || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("\u{25cf}", "\u{25c9}", "\u{25cb}"));
+        });
+    }
+
+    #[test]
+    fn fit_block_title_passes_through_short_title() {
+        let out = fit_block_title("Run gate", 80);
+        assert_eq!(out, "Run gate");
+    }
+
+    #[test]
+    fn fit_block_title_truncates_with_ellipsis() {
+        let out = fit_block_title(
+            "a-very-long-unbreakable-step-title-that-would-overflow-the-border",
+            20,
+        );
+        // 20 cells, minus 4 for border+padding = 16 budget. Last char is ellipsis.
+        assert!(out.ends_with('\u{2026}'));
+        assert!(UnicodeWidthStr::width(out.as_str()) <= 16);
+    }
+
+    #[test]
+    fn fit_block_title_handles_tiny_areas() {
+        // Width 4 or less leaves no budget for content.
+        assert_eq!(fit_block_title("anything", 4), "");
+        // Width 5 → 1 char budget, must be just the ellipsis.
+        assert_eq!(fit_block_title("anything", 5), "\u{2026}");
+    }
 
     #[test]
     fn renders_without_panic_path_select() {

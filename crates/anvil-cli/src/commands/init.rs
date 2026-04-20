@@ -56,19 +56,19 @@ fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<(
 
     if global.json {
         let config = AnvilConfig::default();
-        generate_config(&config, root)?;
+        generate_config_with_force(&config, root, args.force)?;
         let json = serde_json::to_string_pretty(&config)?;
         println!("{json}");
     } else if global.no_tui || !std::io::stdout().is_terminal() {
-        run_plain(root)?;
+        run_plain(root, args.force)?;
     } else {
-        run_tui(root)?;
+        run_tui(root, args.force)?;
     }
 
     Ok(())
 }
 
-fn run_tui(root: &Path) -> anyhow::Result<()> {
+fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
     let available = default_available_checks();
     let state = InitState::new(available);
     let state = crate::tui::run_surface(state)?;
@@ -100,26 +100,38 @@ fn run_tui(root: &Path) -> anyhow::Result<()> {
         checks: checks.clone(),
     };
 
-    generate_config(&config, &init_root)?;
+    generate_config_with_force(&config, &init_root, force)?;
     print_success(&config.planning_dir, &checks);
     Ok(())
 }
 
-fn run_plain(root: &Path) -> anyhow::Result<()> {
+fn run_plain(root: &Path, force: bool) -> anyhow::Result<()> {
     let config = AnvilConfig::default();
-    generate_config(&config, root)?;
+    generate_config_with_force(&config, root, force)?;
     print_success(&config.planning_dir, &config.checks);
     Ok(())
 }
 
 pub(crate) fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
+    generate_config_with_force(config, root, false)
+}
+
+pub(crate) fn generate_config_with_force(
+    config: &AnvilConfig,
+    root: &Path,
+    force: bool,
+) -> anyhow::Result<()> {
     let content = match config.format.as_str() {
         "toml" => toml_serialise(config),
         "yaml" => yaml_serialise(config),
         _ => serde_json::to_string_pretty(config).context("failed to serialise config")?,
     };
-    crate::util::atomic_write(&root.join(".anvilrc"), content.as_bytes())
-        .context("failed to write .anvilrc")?;
+    let path = root.join(".anvilrc");
+    if force {
+        crate::util::atomic_write(&path, content.as_bytes()).context("failed to write .anvilrc")?;
+    } else {
+        crate::util::write_new(&path, content.as_bytes()).context("failed to write .anvilrc")?;
+    }
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
@@ -260,7 +272,7 @@ mod tests {
     fn creates_anvilrc_and_anvil_dir() {
         let dir = tempfile::tempdir().unwrap();
 
-        let result = run_plain(dir.path());
+        let result = run_plain(dir.path(), false);
 
         assert!(result.is_ok());
         assert!(dir.path().join(".anvilrc").exists());
