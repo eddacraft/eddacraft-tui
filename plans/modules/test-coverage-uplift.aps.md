@@ -10,9 +10,13 @@
   `auth/device_flow.rs` test files now carry their own `#[cfg(test)]` modules
   (hooks 26 tests, admin 12, export 37, architecture 15, policy 19, gate
   regression for removed `--no-cache`, watch 29, device_flow 34).
-- **Phase 2 — OPA Real-Binary:** Not started (0/5). `packages/anvil/policy` and
-  `crates/anvil-policy` still mock the binary; no `__fixtures__/policies/` dir
-  and no `crates/anvil-policy/tests/` directory exist yet.
+- **Phase 2 — OPA Real-Binary:** In progress (4/5). TCOV-009 (TS),
+  TCOV-010 (Rust), TCOV-011 (`opa test` against fixtures), and TCOV-012
+  (gate-runner → policy.check → real OPA pipeline) are landed and use
+  `policies/fixtures/` as the canonical fixture root. TCOV-010 surfaced
+  and fixed a latent stdio-pipe bug in
+  `crates/anvil-policy/src/opa.rs::evaluate`. TCOV-013 (docs guide)
+  remains.
 - **Phase 3 — TypeScript Packages:** Partial (1/8). `edda-stack` contracts have
   8 dedicated test files (TCOV-014). `kindling-integration` still has only
   `malicious-ai.test.ts`; `mcp-server` resources remain in a single
@@ -237,6 +241,10 @@ Change status to **Ready** when:
 - **Dependencies:** TFIX-003 (OPA in CI)
 - **Validation:** Tests pass locally with OPA installed and in CI.
 - **Confidence:** high
+- **Status:** Complete — landed in d1067241; new
+  `packages/anvil/policy/src/opa-real.integration.test.ts` runs 6 evaluate
+  cases against `policies/fixtures/` and skips gracefully when `opa` is
+  absent.
 
 #### TCOV-010: Rust OPA executor real-binary integration test
 
@@ -250,6 +258,10 @@ Change status to **Ready** when:
 - **Dependencies:** TFIX-004 (OPA in Rust CI)
 - **Validation:** `cargo test -p eddacraft-anvil-policy` passes with OPA installed.
 - **Confidence:** high
+- **Status:** Complete — landed in 9d993071; new
+  `crates/anvil-policy/tests/opa_real_binary.rs` runs 7 cases (6 evaluate +
+  1 `opa test`) and surfaced a latent stdio-pipe bug in
+  `OpaExecutor::evaluate()` which was fixed in the same commit.
 
 #### TCOV-011: run opa test against fixture Rego files
 
@@ -264,6 +276,10 @@ Change status to **Ready** when:
 - **Dependencies:** TFIX-003
 - **Validation:** `opa test` passes against all fixture Rego files.
 - **Confidence:** high
+- **Status:** Complete — covered in d1067241 (TS, via `OPAExecutor.runTests`
+  call in `opa-real.integration.test.ts`) and 9d993071 (Rust, via
+  `opa_test_fixture_rego_files_all_pass`); fixtures live at
+  `policies/fixtures/` not under `packages/anvil/runtime/.../__fixtures__/`.
 
 #### TCOV-012: gate pipeline integration with real OPA
 
@@ -277,6 +293,12 @@ Change status to **Ready** when:
 - **Dependencies:** TFIX-003, TCOV-009
 - **Validation:** Integration test passes with OPA installed.
 - **Confidence:** medium — may surface latent issues in the policy check wiring
+- **Status:** Complete — landed in this branch via
+  `packages/anvil/runtime/src/gate/policy.integration.test.ts`. Three cases
+  drive `GateRunner.runGate` with `policy_dir=.anvil/policies` populated from
+  `policies/fixtures/`: large plan fails with `change_scope` violations,
+  small plan with `security-review` tag passes, and the loaded policy set
+  is asserted to be `change_scope`/`coverage_min`/`security_baseline`.
 
 #### TCOV-013: OPA test pattern documentation
 
