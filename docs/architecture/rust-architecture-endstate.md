@@ -99,7 +99,7 @@ crates/
 │   │   └── types.rs                Result types
 │   ├── src/antipattern/            Anti-pattern detection (registry-driven)
 │   │   ├── registry_loader.rs      Loads patterns/compiled/registry.json
-│   │   ├── patterns.rs             LazyLock wrapper over the registry (18 rules)
+│   │   ├── patterns.rs             LazyLock populated from the registry at first use
 │   │   ├── scanner.rs              rayon-parallel pattern scanner
 │   │   ├── check.rs                Check interface impl
 │   │   └── types.rs                Result types (with family provenance)
@@ -385,12 +385,16 @@ semantic graph. They operate on file content directly.
 
 > The Rust anti-pattern scanner is authoritative per [ADR-026]. It loads
 > `patterns/compiled/registry.json` on first use (cached via `LazyLock`) and
-> scans artifacts in parallel with `rayon::par_iter`, giving linear speedup
-> across cores on multi-artifact workloads (watch fan-out, multi-PR gate
-> checks, full-repo CI scans). The TypeScript scanner in
+> scans artifacts in parallel with `rayon::par_iter`, achieving parallel
+> throughput scaling on multi-artifact workloads (watch fan-out, multi-PR
+> gate checks, full-repo CI scans). The TypeScript scanner in
 > `packages/anvil/core/src/antipattern/` is still used from in-process
 > surfaces (VSCode extension, MCP server); both engines consume the same
-> registry and are held in parity by `tests/scanner-parity/` (see RSCAN-007).
+> registry and are held in partial parity by `tests/scanner-parity/` (see
+> RSCAN-007). Known engine divergences — lookaround patterns the Rust
+> `regex` crate cannot compile, and the `flags: "i"` case-insensitive flag
+> dropped by the Rust loader — are enumerated in
+> `tests/scanner-parity/README.md` and tracked as follow-ups to ADR-026.
 > The TS scanner will retire once a napi-rs / WASM binding makes the Rust
 > engine callable from Node surfaces (future module, out of scope here).
 >

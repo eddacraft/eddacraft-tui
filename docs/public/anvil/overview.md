@@ -52,8 +52,9 @@ anvil watch
 When files change, anvil runs quality gates:
 
 - **Architecture boundaries** — catches new dependency edges crossing contexts
-- **Anti-pattern detection** — 18 registry-driven rules across 5 families,
-  scanned in parallel by the Rust engine (tens of artifacts at once)
+- **Anti-pattern detection** — 18 registry-driven rules across 5 families
+  (15 default, 3 opt-in), scanned in parallel by the Rust engine (tens of
+  artifacts at once)
 - **Policy evaluation** — custom rules via OPA/Rego
 - **Secret detection** — pattern + entropy analysis
 

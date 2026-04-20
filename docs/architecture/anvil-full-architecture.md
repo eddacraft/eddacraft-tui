@@ -184,7 +184,7 @@ checks against repository state and produces pass/fail/warn results.
 | Check                | What It Does                             | Engine     | Status              |
 | -------------------- | ---------------------------------------- | ---------- | ------------------- |
 | `SecretCheck`        | Entropy + pattern-based secret detection | Rust       | **Done** (RENG-001) |
-| `AntipatternCheck`   | Anti-patterns (18 registry rules, rayon-parallel) | Rust | **Done** (RENG-002, RSCAN) |
+| `AntipatternCheck`   | Anti-patterns (18 registry rules, rayon-parallel) | Rust | **Done** (RENG-002, RSCAN-008) |
 | `CommandSafetyCheck` | Validates shell commands (36 rules)      | Rust       | **Done** (RENG-003) |
 | `ArchitectureCheck`  | Layer violations via dependency analysis | Rust       | **Done** (RENG-004) |
 | `PolicyCheck`        | OPA Rego policy evaluation               | Rust       | **Done** (KERN-031) |

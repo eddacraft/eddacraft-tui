@@ -139,11 +139,18 @@ A failing compile step points at the offending file and field; fix and rerun.
 
 The Rust scanner uses the `regex` crate (RE2-style: no backtracking, no
 lookaround). The TypeScript scanner uses V8's PCRE-ish engine, which supports
-lookaround. Patterns that rely on lookaround compile fine for the TS engine but
-are skipped by the Rust engine and will be flagged in the scanner-parity
-harness (`pnpm test:scanner-parity`). When possible, rewrite to avoid
-lookaround so both engines stay in parity; when not possible, document the
-divergence in `tests/scanner-parity/README.md`.
+lookaround. Patterns that rely on lookaround compile fine for the TS engine
+but fail to compile under the Rust `regex` crate; when that happens the Rust
+scanner stores no compiled regex for that rule and silently emits zero
+matches — there is no runtime diagnostic. The parity harness
+(`pnpm test:scanner-parity`) only covers rules that both engines can run; the
+set of rules with known divergence (lookaround patterns, the `flags: "i"`
+case-insensitive flag dropped by the Rust loader) is enumerated in
+`tests/scanner-parity/README.md` and those rules are deliberately excluded
+from the fixture set. When possible, rewrite to avoid lookaround and case
+folding so both engines stay in parity; when not possible, add an entry to
+the README's "Known divergence" list and open a follow-up to fix the engine
+gap.
 
 ## Checklist before merge
 
