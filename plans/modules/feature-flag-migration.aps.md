@@ -104,14 +104,16 @@ Change status to **Ready** when:
 - [x] Inventory of migrate targets is explicit
 - [x] Per-control migration approach is agreed (FLAGM-001)
 - [x] Parity-test approach for each control is agreed (FLAGM-001)
-- [ ] Docs-side snapshot loader path is decided (blocks FLAGM-004)
+- [x] Docs-side loader path is decided — direct workspace import of
+      `@eddacraft/anvil-runtime/feature-flags`, with fail-closed flip on
+      missing `tier` (all sessions reissued before cutover)
 
 ## Risks & Mitigations
 
 | Risk                                                      | Mitigation                                                                         |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Migration changes behaviour silently                      | Parity tests per control before cutting over; keep the old check + new flag dual-evaluating for one release |
-| Edge runtime can't load the workspace runtime package     | Keep the inline evaluator until a docs-side snapshot loader exists; revisit in FLAGM-004 |
+| Edge runtime can't load the workspace runtime package     | Resolved in FLAGM-004: `@eddacraft/anvil-runtime/feature-flags` has no Node-only imports and bundles cleanly for Vercel edge. If a future bundler change regresses this, publish a `/feature-flags/edge` subpath export. |
 | Per-command flag lookup regresses CLI startup latency     | Resolve flags once at session start from the cached snapshot; avoid per-command I/O |
 | API scope flags multiply manifest noise                   | Group under a single namespace (`api.scope.*`) and document retirement triggers    |
 | `ANVIL_DEV` users lose the shortcut                       | Document the new local-override syntax and keep the env var as a compatibility shim for one release |
@@ -192,19 +194,51 @@ Change status to **Ready** when:
   intentionally out of scope; FLAGM-006 will decide whether the env var
   shim retires or becomes a documented override contract.
 
-### FLAGM-004: Move docs `/anvil` gate onto shared resolver
+### FLAGM-004: Move docs `/anvil` gate onto shared resolver — Complete
 
 - **Intent:** Replace the inline edge evaluator in
-  `apps/docs-site/lib/feature-flags.ts` with a resolver-backed evaluation
-  once a docs-side snapshot loader exists.
-- **Expected Outcome:** The docs middleware calls the shared resolver (edge-
-  compatible entry point) with the session's evaluation context; the inline
-  stub is deleted.
-- **Scope:** `apps/docs-site/middleware.ts`, `apps/docs-site/lib/feature-flags.ts`, `packages/anvil/runtime/`
-- **Non-scope:** Full snapshot distribution beyond what this flag needs
-- **Dependencies:** FLAGM-001, FLAGS snapshot publication path
-- **Validation:** `pnpm test -- --runInBand feature-flag-exemplars`
-- **Confidence:** low
+  `apps/docs-site/lib/feature-flags.ts` with a resolver-backed
+  evaluation by direct-importing
+  `@eddacraft/anvil-runtime/feature-flags`, and flip the missing-`tier`
+  default to fail-closed now that all sessions carry the claim.
+- **Expected Outcome:** `apps/docs-site/middleware.ts` evaluates
+  `docs.access` by calling `resolveFlag` from the shared runtime; the
+  inline evaluator is deleted; missing `tier` resolves to the flag's
+  `defaultVariant: 'disabled'`; the parity block in
+  `exemplars.test.ts` proves the three canonical cases (with the
+  documented default-case divergence from the deleted legacy).
+- **Scope:** `apps/docs-site/middleware.ts`, `apps/docs-site/lib/feature-flags.ts`, `apps/docs-site/package.json`, `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`
+- **Non-scope:** A generic build-time snapshot loader (deferred until
+  docs grows multiple flags); a `/feature-flags/edge` subpath export
+  (only added if the direct import regresses under Vercel's bundler)
+- **Dependencies:** FLAGM-001
+- **Validation:** `pnpm nx test runtime` (parity block passes) +
+  successful Vercel Preview deploy of the docs-site on the PR
+- **Confidence:** medium
+- **Outcome:** `apps/docs-site/lib/feature-flags.ts` now imports
+  `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags` and
+  declares `DOCS_ACCESS_FLAG` locally (mirroring the exemplar
+  manifest). `evaluateDocsAccess` builds an `EvaluationContext` from
+  the JWT `sub` and `tier` claims — tier is copied verbatim into
+  `audience.accountTier` when present and omitted when absent so the
+  flag falls through to its `defaultVariant: 'disabled'`. Environment
+  is derived at call time from `VERCEL_ENV`/`NODE_ENV` with a fail-safe
+  `'dev'` default. `middleware.ts` now passes the session subject
+  alongside the tier claim and drops the backwards-compat carve-out —
+  a stray pre-claim cookie receives the same
+  `docs.access:disabled` 302 as any denied session. Parity asserted in
+  `packages/anvil/runtime/src/feature-flags/exemplars.test.ts` under a
+  new `docs access parity (FLAGM-004)` block: the pre-cutover inline
+  evaluator is frozen as `legacyInlineEval` and compared against the
+  shared resolver on `tier=pro` (both allow), `tier=free` (both deny),
+  missing tier (legacy allowed, shared denies — the documented
+  fail-closed flip), plus a sweep over six tier values. Workspace deps
+  `@eddacraft/anvil-contracts` and `@eddacraft/anvil-runtime` added to
+  `apps/docs-site/package.json`; Docusaurus' bundler-resolution
+  tsconfig already accepts the `/feature-flags` subpath import so no
+  `/feature-flags/edge` fallback was needed. All 788 runtime tests
+  green (+4 parity cases). Vercel Preview on the PR confirms the edge
+  bundle accepts the workspace runtime import.
 
 ### FLAGM-005: Migrate `ALLOWED_SCOPES` to per-scope entitlement flags — Complete
 

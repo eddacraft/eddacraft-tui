@@ -354,6 +354,12 @@ importers:
       '@docusaurus/types':
         specifier: 3.10.0
         version: 3.10.0(@swc/core@1.15.26(@swc/helpers@0.5.21))(esbuild@0.28.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@eddacraft/anvil-contracts':
+        specifier: workspace:*
+        version: link:../../packages/anvil/contracts
+      '@eddacraft/anvil-runtime':
+        specifier: workspace:*
+        version: link:../../packages/anvil/runtime
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

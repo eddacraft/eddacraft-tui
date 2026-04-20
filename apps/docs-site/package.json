@@ -17,6 +17,8 @@
   "dependencies": {
     "@docusaurus/preset-classic": "3.10.0",
     "@docusaurus/faster": "3.10.0",
+    "@eddacraft/anvil-contracts": "workspace:*",
+    "@eddacraft/anvil-runtime": "workspace:*",
     "clsx": "^2.1.1",
     "jose": "^6.2.2",
     "prism-react-renderer": "^2.4.1",

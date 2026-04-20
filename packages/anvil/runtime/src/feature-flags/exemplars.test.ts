@@ -183,3 +183,54 @@ describe('docs access resolution', () => {
     expect(result.reason).toBe('emergency_override');
   });
 });
+
+// -----------------------------------------------------------------------------
+// FLAGM-004 parity — the shared resolver replaces the inline evaluator that
+// lived in apps/docs-site/lib/feature-flags.ts before cutover. Two cases must
+// agree (enabled/disabled) and one case is an intentional divergence: the
+// pre-cutover inline evaluator granted access to missing-tier sessions as a
+// backwards-compat carve-out; the resolver denies them because the flag is
+// fail-closed. All sessions were reissued with a `tier` claim before the flip
+// so no real user hits the divergence.
+// -----------------------------------------------------------------------------
+
+type LegacyVariant = 'enabled' | 'disabled';
+
+function legacyInlineEval(accountTier: string | null): LegacyVariant {
+  const ALLOWED = ['beta', 'pro', 'enterprise'];
+  if (accountTier && ALLOWED.indexOf(accountTier) !== -1) return 'enabled';
+  if (!accountTier) return 'enabled'; // pre-FLAGM-004 carve-out
+  return 'disabled';
+}
+
+function sharedVariant(accountTier: string | null): LegacyVariant {
+  const context: EvaluationContext = {
+    targetingKey: 'parity-subject',
+    environment: { environment: 'prod' },
+    ...(accountTier !== null ? { audience: { accountTier } } : {}),
+  } as EvaluationContext;
+  return resolveFlag(docsAccessFlag, context).variant === 'enabled' ? 'enabled' : 'disabled';
+}
+
+describe('docs access parity (FLAGM-004)', () => {
+  it('enabled: tier=pro agrees on both paths', () => {
+    expect(legacyInlineEval('pro')).toBe('enabled');
+    expect(sharedVariant('pro')).toBe('enabled');
+  });
+
+  it('disabled: tier=free agrees on both paths', () => {
+    expect(legacyInlineEval('free')).toBe('disabled');
+    expect(sharedVariant('free')).toBe('disabled');
+  });
+
+  it('default: missing tier diverges — legacy allowed, shared denies (fail-closed flip)', () => {
+    expect(legacyInlineEval(null)).toBe('enabled');
+    expect(sharedVariant(null)).toBe('disabled');
+  });
+
+  it('sweep over every known tier agrees on both paths', () => {
+    for (const tier of ['beta', 'pro', 'enterprise', 'free', 'student', 'trial']) {
+      expect(sharedVariant(tier)).toBe(legacyInlineEval(tier));
+    }
+  });
+});

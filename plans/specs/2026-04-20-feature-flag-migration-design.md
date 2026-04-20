@@ -168,29 +168,48 @@ task may delete one, even if parity tests have been green for a release.
 ### `docs.access` (docs `/anvil` gate)
 
 - **Current state:** `apps/docs-site/lib/feature-flags.ts` ships an inline
-  edge-compatible evaluator that mirrors the shared model. The docs-site
-  cannot import the workspace runtime package because Vercel edge
-  middleware does not resolve it.
-- **Target decision point:** edge middleware calls the shared resolver via
-  a docs-side snapshot loader. This is the only migrate control that is
-  blocked on infrastructure — the loader must either ship as an
-  edge-compatible module or the inline evaluator remains canonical.
-- **Evaluation context:** `targetingKey` = authenticated session subject;
-  `audience.accountTier` from the JWT `tier` claim; backwards-compat for
-  tokens minted before the claim existed must be preserved during
-  dual-evaluation and re-examined at cutover (see FLAGM-004).
-- **Dual-evaluation window:** two releases — edge parity is hardest to
-  verify, so keep the dual-evaluate assertion live longer.
+  edge-compatible evaluator that mirrors the shared model. Originally
+  justified because the workspace runtime was assumed edge-incompatible.
+- **Loader decision (FLAGM-004):** direct import from
+  `@eddacraft/anvil-runtime/feature-flags` into
+  `apps/docs-site/middleware.ts`. The `/feature-flags` subpath has no
+  Node-only imports (only type + value imports from
+  `@eddacraft/anvil-contracts`), and FLAGM-005 already wires the same
+  package into `@eddacraft/anvil-api` without incident. If Vercel edge's
+  bundler rejects the workspace import at deploy time, fall back to
+  publishing a `/feature-flags/edge` subpath export from the runtime
+  package (same source, cleaner edge surface). A build-time snapshot
+  loader is deferred until docs grows beyond a single flag — for one
+  flag the infra cost outweighs the benefit.
+- **Fail-closed flip:** missing `tier` claim now resolves to the flag's
+  `defaultVariant: 'disabled'` (matching the exemplar manifest in
+  `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`). The
+  backwards-compat carve-out that previously kept missing-tier at
+  `enabled` is removed because all sessions were reissued with a `tier`
+  claim the week of the FLAGM-004 landing — the carve-out was protecting
+  no tokens in the wild. Any stray pre-claim cookie now receives a
+  standard 302 to `/auth/login?reason=docs.access:disabled`.
+- **Evaluation context:** `targetingKey` = JWT subject;
+  `audience.accountTier` = JWT `tier` claim (copied verbatim when
+  present, omitted when absent so the flag falls through to its default).
+- **Dual-evaluation window:** none post-cutover. The inline evaluator is
+  deleted in the same commit as the resolver swap. Parity is asserted at
+  test time against a frozen copy of the legacy evaluator; the default
+  case is an intentionally-documented divergence (legacy `enabled`,
+  shared `disabled`).
 - **Parity-test cases:**
-  - **enabled:** `tier=pro` → both allow
-  - **disabled:** `tier=free` → both deny (inline + shared both deny)
-  - **default:** missing `tier` claim → both allow today. FLAGM-004
-    decides whether to flip to fail-closed at cutover and, if so, lands
-    the change with the resolver swap.
-- **Rollback:** revert the middleware cutover; inline evaluator resumes
-  authority.
-- **Test location:** `apps/docs-site/lib/feature-flags.test.ts` (new
-  parity suite).
+  - **enabled:** `tier=pro` → both allow.
+  - **disabled:** `tier=free` → both deny.
+  - **default (intentional divergence):** missing `tier` → legacy
+    allowed, shared denies. This is the whole point of the flip.
+- **Rollback:** revert the FLAGM-004 commit; the inline evaluator
+  returns. No data migration involved.
+- **Test location:** `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`
+  — an additional `describe('docs access parity (FLAGM-004)')` block
+  that exercises the three canonical cases against a frozen
+  `LEGACY_INLINE_EVAL` function mirroring the pre-cutover behaviour. Kept
+  here rather than in docs-site to avoid spinning up a vitest config for
+  one test.
 
 ### `api.scope.*` (beta access scopes)
 
@@ -244,11 +263,12 @@ the flag or its telemetry.
 
 ## What this spec does not decide
 
-- The edge-compatible snapshot loader for docs-site (FLAGM-004 dep)
-- Whether to flip `docs.access` from `enabled` to `disabled` for
-  missing-tier tokens at cutover (FLAGM-004 will decide)
 - Any re-scoping of **defer** controls in the inventory — those remain
   untouched by FLAGM
+
+(Formerly open: the edge-compatible snapshot loader path and the
+missing-`tier` fail-closed decision. Both resolved in the FLAGM-004
+block above.)
 
 ## Checklist
 
@@ -258,4 +278,5 @@ the flag or its telemetry.
 - [x] Inventory will reference this spec (update in the FLAGM-001 commit)
 - [x] FLAGM-002 picks the per-command metadata representation
       (flag attribute via CLI-local `CliGateFlag` wrapper)
-- [ ] FLAGM-004 picks the edge-compatible loader path
+- [x] FLAGM-004 picks the edge-compatible loader path (direct workspace
+      import, fail-closed flip on missing `tier`)

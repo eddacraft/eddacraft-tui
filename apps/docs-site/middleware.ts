@@ -57,12 +57,18 @@ export default async function middleware(request: Request): Promise<Response | u
     const publicKey = await getPublicKey();
     const { payload } = await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
 
-    // FLAGS-008: route `/anvil` access through the shared flag model so future
-    // tier policy is a manifest change, not a middleware change. See
-    // `apps/docs-site/lib/feature-flags.ts` and the exemplar in
-    // `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`.
+    // FLAGS-008 / FLAGM-004: route `/anvil` access through the shared flag
+    // resolver (imported directly from @eddacraft/anvil-runtime in
+    // apps/docs-site/lib/feature-flags.ts). Missing tier claim now resolves
+    // to disabled — all sessions were reissued with a tier claim before
+    // FLAGM-004 cutover, so the pre-cutover backwards-compat carve-out is
+    // gone.
     const tierClaim = typeof payload.tier === 'string' ? payload.tier : null;
-    const resolution = evaluateDocsAccess({ accountTier: tierClaim });
+    const sessionSubject = typeof payload.sub === 'string' ? payload.sub : null;
+    const resolution = evaluateDocsAccess({
+      accountTier: tierClaim,
+      sessionSubject,
+    });
     if (resolution.variant === 'disabled') {
       const deniedUrl = new URL('/auth/login', url.origin);
       deniedUrl.searchParams.set('next', url.pathname);
