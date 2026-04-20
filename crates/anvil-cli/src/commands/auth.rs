@@ -63,10 +63,8 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
 
             match rt.block_on(client.whoami()) {
                 Ok(whoami) => {
-                    let gate = evaluate_cli_licence_gate(
-                        whoami.email.as_str(),
-                        whoami.plan.as_deref(),
-                    );
+                    let gate =
+                        evaluate_cli_licence_gate(whoami.email.as_str(), whoami.plan.as_deref());
                     let data = WhoamiData {
                         email: whoami.email,
                         plan: whoami.plan,
