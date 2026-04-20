@@ -5,10 +5,10 @@ them onto the shared flagging model defined in `FLAGS`.
 
 Created for: `FLAGS-009`
 
-**Migration status:** All **migrate** controls below are **retired** — the
-`FLAGM` module closed under FLAGM-006. Each migrate entry now routes through the
-shared resolver as its sole source of truth; the legacy hard-coded checks and
-dual-evaluation parity scaffolding have been deleted. Per-control flag keys,
+**Migration status:** All **migrated** controls below are **retired** — the
+`FLAGM` module closed under FLAGM-006. Each migrated entry now routes through
+the shared resolver as its sole source of truth; the legacy hard-coded checks
+and dual-evaluation parity scaffolding have been deleted. Per-control flag keys,
 evaluation context, and rollback paths are documented in
 [`plans/specs/2026-04-20-feature-flag-migration-design.md`](../../plans/specs/2026-04-20-feature-flag-migration-design.md).
 
@@ -22,20 +22,20 @@ evaluation context, and rollback paths are documented in
 
 ## Summary Table
 
-| Control                          | Location                                      | Classification | Flag class     |
-| -------------------------------- | --------------------------------------------- | -------------- | -------------- |
-| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement`  |
-| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement`  |
-| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | local override |
-| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement`  |
-| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement`  |
-| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —              |
-| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —              |
-| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`      |
-| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement`  |
-| Web dashboard capabilities       | (no flag yet)                                 | adopt          | `entitlement`  |
-| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`      |
-| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`      |
+| Control                          | Location                                      | Classification | Flag class    | Mechanism      |
+| -------------------------------- | --------------------------------------------- | -------------- | ------------- | -------------- |
+| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target |
+| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement` | targeting      |
+| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override |
+| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —              |
+| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default        |
+| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —             | —              |
+| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —             | —              |
+| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`     | —              |
+| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement` | —              |
+| Web dashboard capabilities       | (no flag yet)                                 | adopt          | `entitlement` | —              |
+| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`     | —              |
+| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`     | —              |
 
 ## Retired Controls — Migrated
 
@@ -63,7 +63,7 @@ is now the sole source of truth.
 ### Docs access gating — Migrated (FLAGM-004, closed FLAGM-006)
 
 - **Resolver location:** `apps/docs-site/lib/feature-flags.ts` —
-  `resolveDocsAccess()` is called from the Docusaurus middleware.
+  `evaluateDocsAccess()` is called from the Docusaurus middleware.
 - **Flag key:** `docs.access` (class: `entitlement`).
 - **Current state:** After JWT validation, the middleware resolves `docs.access`
   directly via `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags`.
