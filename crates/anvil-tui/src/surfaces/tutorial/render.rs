@@ -3,11 +3,39 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
 
 use super::{TutorialPhase, TutorialState};
 
 const MAX_OUTPUT_LINES: usize = 5;
+
+/// Horizontal gutter between terminal edge and tutorial content, in cells.
+const OUTER_H_MARGIN: u16 = 2;
+/// Rows of breathing room above the tutorial content under the shell header.
+const OUTER_TOP_MARGIN: u16 = 1;
+
+/// Carve a padded sub-rect out of the shell content area so the tutorial
+/// doesn't hug the top-left corner. Degrades gracefully on narrow/short
+/// terminals by dropping margins when there isn't room.
+fn inset_content(area: Rect) -> Rect {
+    let h = if area.width > OUTER_H_MARGIN * 2 {
+        OUTER_H_MARGIN
+    } else {
+        0
+    };
+    let t = if area.height > OUTER_TOP_MARGIN {
+        OUTER_TOP_MARGIN
+    } else {
+        0
+    };
+    let inner = Layout::horizontal([
+        Constraint::Length(h),
+        Constraint::Min(0),
+        Constraint::Length(h),
+    ])
+    .split(area)[1];
+    Layout::vertical([Constraint::Length(t), Constraint::Min(0)]).split(inner)[1]
+}
 
 /// Strip ANSI escape sequences from a string so raw control codes don't garble
 /// the Ratatui output. Handles:
@@ -62,6 +90,7 @@ fn collect_lines(text: &str) -> (Vec<String>, bool) {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
+    let area = inset_content(area);
     match state.phase {
         TutorialPhase::PathSelect => {
             render_path_select(frame, area, state, theme);
@@ -140,12 +169,20 @@ fn render_path_select(
     state: &TutorialState,
     theme: &EddaCraftTheme,
 ) {
+    // Height: one row per path + top/bottom internal padding + two borders.
+    #[allow(clippy::cast_possible_truncation)]
+    let box_height = (state.paths.len() as u16).saturating_add(4);
+    let chunks = Layout::vertical([Constraint::Length(box_height), Constraint::Min(0)]).split(area);
+    let box_area = chunks[0];
+    let below = chunks[1];
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent()))
+        .padding(Padding::new(1, 1, 1, 1))
         .title(" Choose a Tutorial Path ");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+    let inner = block.inner(box_area);
+    frame.render_widget(block, box_area);
 
     let items: Vec<Line> = state
         .paths
@@ -184,7 +221,22 @@ fn render_path_select(
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(items)), inner);
+    frame.render_widget(
+        Paragraph::new(Text::from(items)).wrap(Wrap { trim: false }),
+        inner,
+    );
+
+    // Helpful hint beneath the list to give the negative space purpose.
+    if below.height >= 2 {
+        let hint_chunks =
+            Layout::vertical([Constraint::Length(1), Constraint::Length(1), Constraint::Min(0)])
+                .split(below);
+        let hint = Paragraph::new(Line::from(Span::styled(
+            "Each path takes about 5 minutes. Complete them in any order.",
+            Style::default().fg(theme.muted()),
+        )));
+        frame.render_widget(hint, hint_chunks[1]);
+    }
 }
 
 fn render_step_progress(
@@ -196,26 +248,24 @@ fn render_step_progress(
     let path_label = state.chosen_path.map_or("Tutorial", TutorialPath::label);
 
     let total = state.steps.len();
-    let completed = state.steps.iter().filter(|s| s.completed).count();
+    let current_human = state.current_step.saturating_add(1).min(total.max(1));
 
     let spans: Vec<Span> = state
         .steps
         .iter()
         .enumerate()
         .flat_map(|(i, _step)| {
-            let style = match i.cmp(&state.current_step) {
-                std::cmp::Ordering::Less => Style::default().fg(theme.success()),
-                std::cmp::Ordering::Equal => Style::default()
-                    .fg(theme.accent())
-                    .add_modifier(Modifier::BOLD),
-                std::cmp::Ordering::Greater => Style::default().fg(theme.muted()),
+            let (marker, style) = match i.cmp(&state.current_step) {
+                std::cmp::Ordering::Less => ("\u{25cf}", Style::default().fg(theme.success())),
+                std::cmp::Ordering::Equal => (
+                    "\u{25c9}",
+                    Style::default()
+                        .fg(theme.accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
+                std::cmp::Ordering::Greater => ("\u{25cb}", Style::default().fg(theme.muted())),
             };
-            let marker = match i.cmp(&state.current_step) {
-                std::cmp::Ordering::Less => "*",
-                std::cmp::Ordering::Equal => ">",
-                std::cmp::Ordering::Greater => "o",
-            };
-            let separator = if i < total - 1 { " - " } else { "" };
+            let separator = if i < total - 1 { "  " } else { "" };
             vec![
                 Span::styled(marker, style),
                 Span::styled(separator, Style::default().fg(theme.muted())),
@@ -223,15 +273,21 @@ fn render_step_progress(
         })
         .collect();
 
-    let lines = vec![
-        Line::from(Span::styled(
-            format!("{path_label}  ({completed}/{total})"),
+    let header = Line::from(vec![
+        Span::styled(
+            path_label,
             Style::default()
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
-        )),
-        Line::from(spans),
-    ];
+        ),
+        Span::styled("  \u{00b7}  ", Style::default().fg(theme.muted())),
+        Span::styled(
+            format!("Step {current_human} of {total}"),
+            Style::default().fg(theme.fg()),
+        ),
+    ]);
+
+    let lines = vec![header, Line::from(spans)];
 
     frame.render_widget(Paragraph::new(Text::from(lines)), area);
 }
@@ -255,6 +311,7 @@ fn render_step_content(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
+        .padding(Padding::horizontal(1))
         .title(format!(" {} ", step.title));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -338,13 +395,17 @@ fn render_step_content(
         }
     }
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    frame.render_widget(
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+        inner,
+    );
 }
 
 fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.success()))
+        .padding(Padding::new(2, 2, 1, 1))
         .title(" Well Done ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -354,20 +415,118 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
         .map_or("the tutorial", TutorialPath::label);
     let total = state.steps.len();
 
-    let lines = vec![
+    // Completion across all paths (include the just-finished path even if the
+    // persistence layer hasn't flushed it into completed_paths yet).
+    let all_paths = state.paths.len();
+    let completed_count = state
+        .paths
+        .iter()
+        .filter(|p| {
+            state.completed_paths.contains(p) || state.chosen_path.as_ref() == Some(*p)
+        })
+        .count();
+
+    // Progress dots across all paths.
+    let progress_spans: Vec<Span> = state
+        .paths
+        .iter()
+        .enumerate()
+        .flat_map(|(i, p)| {
+            let done = state.completed_paths.contains(p) || state.chosen_path.as_ref() == Some(p);
+            let marker = if done { "\u{25cf}" } else { "\u{25cb}" };
+            let style = if done {
+                Style::default().fg(theme.success())
+            } else {
+                Style::default().fg(theme.muted())
+            };
+            let sep = if i < all_paths - 1 { "  " } else { "" };
+            vec![
+                Span::styled(marker, style),
+                Span::styled(sep, Style::default().fg(theme.muted())),
+            ]
+        })
+        .collect();
+
+    // Suggest the next unfinished path, if any.
+    let next_path = state.paths.iter().find(|p| {
+        !state.completed_paths.contains(p) && state.chosen_path.as_ref() != Some(*p)
+    });
+
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "\u{2713}  Great work!",
+            Style::default()
+                .fg(theme.success())
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::default(),
         Line::from(Span::styled(
-            format!("You completed all {total} steps of the {path_label} tutorial."),
+            format!("You finished all {total} steps of the {path_label} tutorial."),
             Style::default().fg(theme.fg()),
         )),
         Line::default(),
-        Line::from(Span::styled(
-            "Press enter to choose another tutorial path, or q to quit.",
-            Style::default().fg(theme.accent()),
-        )),
+        Line::from(vec![
+            Span::styled(
+                format!("Progress: {completed_count} of {all_paths} paths  "),
+                Style::default().fg(theme.muted()),
+            ),
+        ])
+        .patch_style(Style::default()),
+        Line::from(progress_spans),
+        Line::default(),
     ];
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    if let Some(next) = next_path {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "Up next: ",
+                Style::default().fg(theme.muted()),
+            ),
+            Span::styled(
+                next.label(),
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(Span::styled(
+            next.description(),
+            Style::default().fg(theme.fg()),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            "You've completed every tutorial path. Nice.",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+
+    lines.push(Line::default());
+    lines.push(Line::from(vec![
+        Span::styled(
+            "[enter] ",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "choose another path   ",
+            Style::default().fg(theme.fg()),
+        ),
+        Span::styled(
+            "[q] ",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("quit", Style::default().fg(theme.fg())),
+    ]));
+
+    frame.render_widget(
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+        inner,
+    );
 }
 
 use super::TutorialPath;

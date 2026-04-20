@@ -9,8 +9,7 @@ pub use hooks::HooksState;
 pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 
 /// Check whether an Anvil configuration file already exists in the
-/// current working directory. Checks for `.anvil.yaml`, `.anvil.json`,
-/// and `.anvil.toml`.
+/// current working directory.
 pub fn config_exists() -> bool {
     let Ok(cwd) = std::env::current_dir() else {
         return false;
@@ -19,8 +18,12 @@ pub fn config_exists() -> bool {
 }
 
 /// Check whether an Anvil configuration file exists under `dir`.
+///
+/// The CLI writes `.anvilrc` regardless of serialisation format; the
+/// `.anvil.{yaml,json,toml}` names are retained for tolerance against
+/// hand-authored configs or future layout changes.
 pub fn config_exists_in(dir: &std::path::Path) -> bool {
-    [".anvil.yaml", ".anvil.json", ".anvil.toml"]
+    [".anvilrc", ".anvil.yaml", ".anvil.json", ".anvil.toml"]
         .iter()
         .any(|name| dir.join(name).try_exists().unwrap_or(false))
 }
@@ -63,6 +66,17 @@ mod tests {
         std::fs::create_dir_all(&tmp).unwrap();
 
         assert!(!config_exists_in(&tmp));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn config_exists_detects_anvilrc() {
+        let tmp = std::env::temp_dir()
+            .join(format!("anvil_test_anvilrc_{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join(".anvilrc"), "{}").unwrap();
+
+        assert!(config_exists_in(&tmp));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
