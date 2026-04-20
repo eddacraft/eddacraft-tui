@@ -74,7 +74,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | Phase 1 done (23 .anvil files in 5 families); Phases 2–4 pending (scanner wiring, new patterns, TS cleanup) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
@@ -87,7 +87,7 @@ and DX improvements. Code-review-backlog (complete) is retained for history.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 > ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
@@ -99,7 +99,7 @@ and DX improvements. Code-review-backlog (complete) is retained for history.
 Rust kernel for structural graph analysis (KERN), performance-critical check
 ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
 TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard rendering.
-KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI is in progress.
+KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI is complete.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
@@ -107,7 +107,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-core-engine](./archive/modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
-| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 63/64 | KERN, RATS, PORT |
+| [rust-cli](./modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
@@ -135,7 +135,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
 | [docs-auth-gating](./archive/modules/docs-auth-gating.aps.md) | DOCSAUTH | Complete | 7/7 | BAUTH, IAC |
 | [admin-cli](./archive/modules/admin-cli.aps.md) | ADMINCLI | Complete | 13/13 | BAUTH |
-| [admin-cli-hardening](./modules/admin-cli-hardening.aps.md) | ADMINCLIH | In Progress | 3/4 | ADMINCLI |
+| [admin-cli-hardening](./archive/modules/admin-cli-hardening.aps.md) | ADMINCLIH | Complete | 4/4 | ADMINCLI |
 
 **Design specs:**
 - `docs/specs/2026-03-15-beta-auth-streamline-design.md`
@@ -230,7 +230,8 @@ when specific work is identified.
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
-| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 8/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **In Progress** |
+| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
+| [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 0/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Draft** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./modules/release-management.aps.md) | RELMGMT | 11 | CI pipeline, all packages and crates, DIST |
@@ -398,7 +399,7 @@ Active module themes:
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
-| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
+| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [feature-flag-migration](./modules/feature-flag-migration.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
 | Agent Infrastructure | [weave](./modules/weave.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
@@ -751,7 +752,7 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
 | MAINT-009 | maint  | Edda list filters parity with release claims        | Complete | Medium   |
 | MAINT-010 | maint  | Authenticated release smoke harness                 | Deferred | Medium   |
-| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | In Progress | Medium |
+| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | Complete | Medium |
 
 ### Task Status — Hardening & Maintenance (Nx Task Migration)
 
