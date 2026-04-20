@@ -76,6 +76,9 @@ pub enum AntiPatternCategory {
     ErrorHandling,
     CodeQuality,
     TypeSafety,
+    TypeEvasion,
+    Accountability,
+    DeferredDebt,
     Html,
     Css,
 }

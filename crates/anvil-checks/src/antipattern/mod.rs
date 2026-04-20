@@ -1,7 +1,14 @@
 pub mod check;
 pub mod patterns;
+pub mod registry_loader;
 pub mod scanner;
 pub mod types;
+
+pub use registry_loader::{
+    CompiledPattern, CompiledRegistry, Detection, FamilyEntry, LoadRegistryOptions,
+    LoadRegistryResult, compiled_to_antipattern, load_compiled_registry, load_registry_patterns,
+    reset_registry_cache,
+};
 
 pub use check::run_antipattern_check;
 pub use patterns::{

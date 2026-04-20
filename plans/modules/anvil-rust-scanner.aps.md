@@ -8,9 +8,9 @@ ADR-026. Closes the deferred ANVFMT-013 work. See: plans/aps-rules.md
 
 # Anvil Rust Scanner
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| RSCAN | —     | Ready  |
+| ID    | Owner | Status      |
+| ----- | ----- | ----------- |
+| RSCAN | —     | In Progress |
 
 ## Purpose
 
@@ -111,7 +111,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Scope:** `crates/anvil-checks/src/antipattern/registry_loader.rs`
 - **Validation:** `cargo test -p anvil-checks -- registry_loader`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-002: Artifact model and API
 
@@ -226,3 +226,19 @@ non-negotiable reason the Rust scanner is the authoritative one.
   ANVFMT produces. ANVFMT-013 is formally reparented here as RSCAN-006.
 - **Future "retire TS scanner" module:** Depends on M4 landing. Not in
   scope here.
+
+## Progress Log
+
+- **2026-04-21 — RSCAN-001 landed.** New
+  `crates/anvil-checks/src/antipattern/registry_loader.rs` loads
+  `patterns/compiled/registry.json`, validates schema_version=1 with
+  `serde_json`, caches per resolved path, and implements the four-tier
+  path resolution (explicit → `ANVIL_REGISTRY_PATH` → cwd walk → exe-dir
+  walk). Exposes `load_compiled_registry`, `load_registry_patterns`,
+  `compiled_to_antipattern`, and `reset_registry_cache`. Extended
+  `AntiPatternCategory` with `TypeEvasion` / `Accountability` /
+  `DeferredDebt` variants so the mapper round-trips family categories
+  faithfully. AST-detection rules are skipped pending future scanner
+  AST support. 10 loader unit tests cover load/cache/schema rejection
+  paths plus regex-mapping fidelity and the AST skip. Clippy clean at
+  `-D warnings`.
