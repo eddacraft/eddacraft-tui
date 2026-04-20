@@ -75,7 +75,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | Phase 1 done (23 .anvil files in 5 families + compiler producing `patterns/compiled/registry.json`, 18 patterns, `patterns:compile`/`patterns:check` scripts, unit+golden tests); Phases 2–4 pending (scanner wiring, new patterns, TS cleanup) |
+| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | 8/16 (format + compiler + all rule .anvil files done; scanner wiring, pr-description scanning, TS catalogue cleanup pending) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 

@@ -496,6 +496,165 @@ rather than hardcoded on each pattern constant.
 3. Update documentation and pattern reference
 4. Consider splitting AP-003 into declaration vs assertion variants
 
+## Tasks
+
+Phase 1 tasks delivered the format and build step. Phase 2 tasks wire the
+scanner to the compiled registry. Phase 3 tasks cover the pr-description
+artifact path (the RL / DD / GS rule files themselves were authored in
+parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
+
+### ANVFMT-001: `.anvil` frontmatter schemas
+
+- **Intent:** Type-check rule and definition frontmatter at build time
+- **Expected Outcome:** Discriminated Zod schemas for `definition` and `rule` files with regex-compile validation and JS-legal flag checks
+- **Scope:** `packages/anvil/core/src/antipattern/format/schemas.ts`
+- **Validation:** `pnpm --filter @eddacraft/anvil-core test -- schemas`
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-002: Family definitions for the five seed families
+
+- **Intent:** Author the narrative `definition.anvil` file for every family the format ships with
+- **Expected Outcome:** `definition.anvil` exists for guardrail-suppression, type-system-evasion, error-visibility, responsibility-laundering, and deferred-debt, each with the required body sections (What It Is / Why It's Harmful / The Right Response)
+- **Scope:** `patterns/*/definition.anvil`
+- **Validation:** `pnpm --filter @eddacraft/anvil-core patterns:compile` emits 5 families
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-003: Migrate AP-001 through AP-007 to `.anvil` rule files
+
+- **Intent:** Port the historical TS catalogue entries into the new per-file rule format
+- **Expected Outcome:** AP-001, AP-002, AP-004, AP-005 in `patterns/guardrail-suppression/`; AP-003 in `patterns/type-system-evasion/`; AP-006, AP-007 in `patterns/error-visibility/`
+- **Scope:** `patterns/`
+- **Dependencies:** ANVFMT-001, ANVFMT-002
+- **Validation:** `patterns:compile` produces AP-001..AP-007 in the compiled registry
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-004: Compiled registry builder
+
+- **Intent:** Produce a deterministic `CompiledRegistry` JSON from the `patterns/` tree
+- **Expected Outcome:** `compilePatterns({ patternsDir, referenceRoot })` hydrates rules with their family narrative, enforces ambiguous-prefix / orphan / missing-section rules, and `scripts/compile-patterns.ts` writes `patterns/compiled/registry.json`. `--check` mode exits non-zero on errors, warnings, or drift (JSON-compared, ignoring `compiled_at`).
+- **Scope:** `packages/anvil/core/src/antipattern/format/`, `packages/anvil/core/scripts/`
+- **Dependencies:** ANVFMT-001, ANVFMT-002, ANVFMT-003
+- **Validation:** `pnpm --filter @eddacraft/anvil-core patterns:check`
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-005: Compiler test suite
+
+- **Intent:** Prevent silent drift in the compiler via unit + golden tests
+- **Expected Outcome:** Golden test compiles the real `patterns/` tree; synthetic fixtures cover orphan rules, duplicate rule/family ids, prefix collisions, missing required sections, symlink skip, and file-size cap
+- **Scope:** `packages/anvil/core/src/antipattern/format/*.test.ts`
+- **Dependencies:** ANVFMT-004
+- **Validation:** `pnpm --filter @eddacraft/anvil-core test`
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-006: `Artifact` type and `scanArtifact` API
+
+- **Intent:** Generalise the scanner entry point so non-source inputs (PR descriptions, agent output) can be scanned
+- **Expected Outcome:** `Artifact` discriminated type, `scanArtifact(artifact, options)` returning warnings; existing `scanFile`/`scanFiles` remain as wrappers
+- **Scope:** `packages/anvil/core/src/antipattern/`
+- **Validation:** `pnpm --filter @eddacraft/anvil-core test -- scanner`
+- **Confidence:** high
+- **Status:** Ready
+
+### ANVFMT-007: Extend `Warning` with family provenance
+
+- **Intent:** Let warnings carry the family context needed for rendering and deep-linking
+- **Expected Outcome:** `Warning` gains `family`, `definition_ref`, `spectrum_position`; downstream renderers compile
+- **Scope:** `packages/anvil/contracts/src/` (warning type), scanner + renderer call sites
+- **Validation:** `pnpm -r typecheck`
+- **Confidence:** high
+- **Status:** Ready
+
+### ANVFMT-008: Scanner consumes the compiled registry
+
+- **Intent:** Remove the hardcoded TS `PATTERNS` array in favour of the compiled registry
+- **Expected Outcome:** Scanner loads `patterns/compiled/registry.json` at startup (or via injected loader in tests), produces the same warnings for AP-001..AP-007 as the TS catalogue did
+- **Scope:** `packages/anvil/core/src/antipattern/scanner.ts`
+- **Dependencies:** ANVFMT-006, ANVFMT-007
+- **Validation:** `pnpm --filter @eddacraft/anvil-core test -- scanner`
+- **Confidence:** medium
+- **Status:** Ready
+
+### ANVFMT-009: Migrate downstream consumers
+
+- **Intent:** CLI, MCP server, and VS Code extension use the new registry-backed scanner
+- **Expected Outcome:** No consumer imports `patterns.ts` / `patterns-html.ts` / `patterns-css.ts`; all read family metadata from warnings
+- **Scope:** `apps/anvil-cli/`, MCP server package, VS Code extension package
+- **Dependencies:** ANVFMT-008
+- **Validation:** `pnpm -r test`
+- **Confidence:** medium
+- **Status:** Ready
+
+### ANVFMT-010: Responsibility Laundering rule set
+
+- **Intent:** RL-001 through RL-006 live as `.anvil` rule files under the RL family
+- **Expected Outcome:** Six rule files present, each with valid frontmatter and nudge body; compiler emits them
+- **Scope:** `patterns/responsibility-laundering/`
+- **Validation:** `patterns:compile` reports RL-001..RL-006
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-011: Deferred Debt rule set
+
+- **Intent:** DD-001 through DD-004 live as `.anvil` rule files under the DD family
+- **Expected Outcome:** Four rule files present and compile cleanly
+- **Scope:** `patterns/deferred-debt/`
+- **Validation:** `patterns:compile` reports DD-001..DD-004
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-012: Guardrail Suppression — non-null assertion rule
+
+- **Intent:** Add GS-001 covering the non-null assertion operator
+- **Expected Outcome:** `patterns/guardrail-suppression/GS-001.anvil` exists with a regex detection and nudge
+- **Scope:** `patterns/guardrail-suppression/GS-001.anvil`
+- **Validation:** `patterns:compile` reports GS-001
+- **Confidence:** high
+- **Status:** Complete
+
+### ANVFMT-013: PR description artifact scanning
+
+- **Intent:** Wire `scanArtifact` through the CLI / CI entry for `pr-description` targets
+- **Expected Outcome:** `anvil scan --artifact pr-description <file>` (or equivalent) emits warnings for RL rules that target PR descriptions
+- **Scope:** `apps/anvil-cli/src/commands/`, scanner glue
+- **Dependencies:** ANVFMT-006, ANVFMT-008
+- **Validation:** `pnpm --filter anvil-cli test -- pr-description`
+- **Confidence:** medium
+- **Status:** Draft
+
+### ANVFMT-014: Retire AP-008 through AP-013 (HTML/CSS)
+
+- **Intent:** HTML and CSS anti-patterns are out of scope for the `.anvil` format; remove them rather than port
+- **Expected Outcome:** No AP-008..AP-013 references remain in catalogues, tests, docs, or registry
+- **Scope:** `packages/anvil/core/src/antipattern/patterns-html.ts`, `patterns-css.ts`, related tests and references
+- **Validation:** `pnpm --filter @eddacraft/anvil-core test`; grep for AP-008..AP-013 returns no hits
+- **Confidence:** high
+- **Status:** Draft
+
+### ANVFMT-015: Remove legacy TS catalogues
+
+- **Intent:** Delete `patterns.ts`, `patterns-html.ts`, `patterns-css.ts` once the scanner is registry-backed
+- **Expected Outcome:** Files removed, no import resolves to them, typecheck clean
+- **Scope:** `packages/anvil/core/src/antipattern/`
+- **Dependencies:** ANVFMT-009, ANVFMT-014
+- **Validation:** `pnpm -r typecheck && pnpm -r test`
+- **Confidence:** high
+- **Status:** Draft
+
+### ANVFMT-016: Documentation and pattern reference refresh
+
+- **Intent:** Public docs describe the `.anvil` format, the compile step, and the family/rule taxonomy
+- **Expected Outcome:** Pattern reference page regenerated from the compiled registry; contributor guide explains adding a new rule
+- **Scope:** `docs/`
+- **Dependencies:** ANVFMT-014, ANVFMT-015
+- **Validation:** `pnpm docs:build` (or equivalent)
+- **Confidence:** medium
+- **Status:** Draft
+
 ## Interfaces
 
 **Depends on:**
