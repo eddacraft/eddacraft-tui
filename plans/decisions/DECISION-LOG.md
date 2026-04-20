@@ -48,6 +48,7 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [016](016-unified-config-format.md) | Consolidate three config files into single TOML with source delegation | Proposed |
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
+| [026](026-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) | Proposed |
 
 ## Intercept and Enforcement
 
