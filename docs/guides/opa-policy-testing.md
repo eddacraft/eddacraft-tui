@@ -6,20 +6,20 @@ toolchain, and the minimum set of tests every policy pack should ship.
 
 ## Where policies live
 
-| Location | Purpose |
-| --- | --- |
-| `policies/fixtures/` | Repo-wide fixture pack used by all integration tests (TS + Rust) |
-| `<workspace>/.anvil/policies/` | Default `policy_dir` resolved by `PolicyCheck` at runtime |
-| `<workspace>/<custom>/` | Override via `gate.yaml` `checks[].config.policy_dir` |
+| Location                       | Purpose                                                          |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `policies/fixtures/`           | Repo-wide fixture pack used by all integration tests (TS + Rust) |
+| `<workspace>/.anvil/policies/` | Default `policy_dir` resolved by `PolicyCheck` at runtime        |
+| `<workspace>/<custom>/`        | Override via `gate.yaml` `checks[].config.policy_dir`            |
 
-`PolicyLoader` walks the policy dir, treating `*.rego` files as policies
-while excluding `*_test.rego` files from policy discovery, and treating each
+`PolicyLoader` walks the policy dir, treating `*.rego` files as policies while
+excluding `*_test.rego` files from policy discovery, and treating each
 `*_test.rego` sibling as its unit-test file. Policy packages should be
 `anvil.policies.<policy_name>` and test packages
-`anvil.policies.<policy_name>_test`. The loader does not validate package
-names during discovery (it uses filenames), but Anvil's OPA queries read
-results from `data.anvil.policies`, so policies whose package sits outside
-that hierarchy will load but their results won't surface in evaluation.
+`anvil.policies.<policy_name>_test`. The loader does not validate package names
+during discovery (it uses filenames), but Anvil's OPA queries read results from
+`data.anvil.policies`, so policies whose package sits outside that hierarchy
+will load but their results won't surface in evaluation.
 
 ## Anatomy of a policy pack
 
@@ -75,8 +75,8 @@ Rules:
 - Tests use `with input as { ... }` to inject fixtures; never read the real
   filesystem from a policy or test.
 - Both `violation` and `warning` rule sets are recognised by the gate;
-  `violation` becomes severity `error` by default, `warning` becomes
-  severity `warning`.
+  `violation` becomes severity `error` by default, `warning` becomes severity
+  `warning`.
 
 ## Minimum tests per policy
 
@@ -86,8 +86,8 @@ Each policy must ship at least:
    `count(<policy>.violation) > 0`.
 2. **Negative case** — input that should pass, asserted with
    `count(<policy>.violation) == 0`.
-3. **Threshold case** — if the policy has tunables (e.g. `max_files`), one
-   test that drives the boundary.
+3. **Threshold case** — if the policy has tunables (e.g. `max_files`), one test
+   that drives the boundary.
 
 `coverage_min_test.rego` and `security_baseline_test.rego` in
 `policies/fixtures/` are the reference shape.
@@ -101,8 +101,8 @@ opa test policies/fixtures            # quiet
 opa test policies/fixtures --verbose  # per-test PASS/FAIL lines
 ```
 
-`PASS: N/N` with no `FAIL` lines is the success condition. The integration
-tests assert exactly that.
+`PASS: N/N` with no `FAIL` lines is the success condition. The integration tests
+assert exactly that.
 
 ### Via the TS executor
 
@@ -112,8 +112,8 @@ pnpm -F @eddacraft/anvil-policy build
 pnpm -F @eddacraft/anvil-policy exec vitest run src/opa-real.integration.test.ts
 ```
 
-The suite skips automatically when `opa` is not on `PATH` and
-`ANVIL_OPA_PATH` is unset.
+The suite skips automatically when `opa` is not on `PATH` and `ANVIL_OPA_PATH`
+is unset.
 
 ### Via the Rust executor
 
@@ -126,8 +126,8 @@ Same skip behaviour.
 ### Through the gate pipeline
 
 `packages/anvil/runtime/src/gate/policy.integration.test.ts` exercises
-`GateRunner` → `PolicyCheck` → `OPAExecutor` against a temp workspace
-populated with the fixture pack. Run it with:
+`GateRunner` → `PolicyCheck` → `OPAExecutor` against a temp workspace populated
+with the fixture pack. Run it with:
 
 ```bash
 pnpm -F @eddacraft/anvil-runtime exec vitest run src/gate/policy.integration.test.ts
@@ -145,54 +145,52 @@ To bump:
 
 1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
 2. Update the `version:` input in both workflows.
-3. Run all three integration suites locally (TS executor, Rust executor,
-   gate pipeline) plus `opa test policies/fixtures`.
-4. Note the bump in the relevant ADR / decision log entry if the version
-   change is load-bearing for a policy.
+3. Run all three integration suites locally (TS executor, Rust executor, gate
+   pipeline) plus `opa test policies/fixtures`.
+4. Note the bump in the relevant ADR / decision log entry if the version change
+   is load-bearing for a policy.
 
 ## Adding a new policy pack
 
 1. Decide on a package name: `anvil.policies.<name>`.
 2. Create `policies/fixtures/<name>.rego` with `violation`/`warning` rules.
-3. Create `policies/fixtures/<name>_test.rego` covering positive, negative,
-   and threshold cases (see "Minimum tests per policy").
-4. Run `opa test policies/fixtures` — must show `PASS: N/N` with `N`
-   strictly greater than before.
-5. Add an integration assertion if the policy is part of the always-on
-   fixture set: extend
-   `packages/anvil/runtime/src/gate/policy.integration.test.ts` and the TS +
-   Rust executor suites so a real run against your `.rego` produces the
+3. Create `policies/fixtures/<name>_test.rego` covering positive, negative, and
+   threshold cases (see "Minimum tests per policy").
+4. Run `opa test policies/fixtures` — must show `PASS: N/N` with `N` strictly
+   greater than before.
+5. Add an integration assertion if the policy is part of the always-on fixture
+   set: extend `packages/anvil/runtime/src/gate/policy.integration.test.ts` and
+   the TS + Rust executor suites so a real run against your `.rego` produces the
    expected violation/passing case.
-6. If the policy ships in a downstream user pack rather than the fixture
-   set, document the input schema your rules expect (`input.plan.*`,
+6. If the policy ships in a downstream user pack rather than the fixture set,
+   document the input schema your rules expect (`input.plan.*`,
    `input.context.*`, `input.architecture.*`, `input.config.*`).
 
 ## Input schema reference
 
 `PolicyCheck.buildOPAInput` provides:
 
-- `input.plan` — id, hash, intent, schema_version, proposed_changes (each
-  with `type`, `path`, `description`, `metadata`, derived `extension` and
+- `input.plan` — id, hash, intent, schema_version, proposed_changes (each with
+  `type`, `path`, `description`, `metadata`, derived `extension` and
   `directory`), provenance, validations, tags, `change_count`,
   `affected_directories`.
-- `input.context` — `workspace_root`, `timestamp`, optional `git`
-  (branch, base_branch, commit_sha, author, author_email), optional `ci`
-  (provider, build_id, pr_number, pr_author).
-- `input.architecture` — populated by `ArchitectureCheck` when it runs
-  upstream of policy: `layers`, `boundaries`, `dependencies`, `summary`,
-  `violations`.
+- `input.context` — `workspace_root`, `timestamp`, optional `git` (branch,
+  base_branch, commit_sha, author, author_email), optional `ci` (provider,
+  build_id, pr_number, pr_author).
+- `input.architecture` — populated by `ArchitectureCheck` when it runs upstream
+  of policy: `layers`, `boundaries`, `dependencies`, `summary`, `violations`.
 - `input.config` — the per-check config from `gate.yaml`.
 
 Policies should use the **most specific** field they need; reading
-`input.plan.proposed_changes` directly is safe and stable, but reaching
-into `input.context.git.branch` only makes sense when the gate caller
-includes git context (`include_git_context: true`, the default).
+`input.plan.proposed_changes` directly is safe and stable, but reaching into
+`input.context.git.branch` only makes sense when the gate caller includes git
+context (`include_git_context: true`, the default).
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Integration tests skip silently | `opa` not on `PATH` and `ANVIL_OPA_PATH` unset | Install OPA at the pinned version, or set `ANVIL_OPA_PATH=/abs/path/to/opa`. |
-| `EOF while parsing a value` from Rust executor | Output not piped from spawned `opa eval` (regression of fix in `crates/anvil-policy/src/opa.rs`) | Re-check `evaluate()` builds child with `.stdout(Stdio::piped()).stderr(Stdio::piped())`. |
-| Policy loaded but never fires | Package name mismatch (`anvil.policies.<X>` ≠ filename `<X>.rego`) | Rename file or package so they agree. |
-| Tests pass with `opa test` but gate says "no policies configured" | Policy dir resolved relative to wrong workspace root | Set `policy_dir` to a path that exists under the workspace passed to `runGate`. |
+| Symptom                                                           | Cause                                                                                            | Fix                                                                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Integration tests skip silently                                   | `opa` not on `PATH` and `ANVIL_OPA_PATH` unset                                                   | Install OPA at the pinned version, or set `ANVIL_OPA_PATH=/abs/path/to/opa`.              |
+| `EOF while parsing a value` from Rust executor                    | Output not piped from spawned `opa eval` (regression of fix in `crates/anvil-policy/src/opa.rs`) | Re-check `evaluate()` builds child with `.stdout(Stdio::piped()).stderr(Stdio::piped())`. |
+| Policy loaded but never fires                                     | Package name mismatch (`anvil.policies.<X>` ≠ filename `<X>.rego`)                               | Rename file or package so they agree.                                                     |
+| Tests pass with `opa test` but gate says "no policies configured" | Policy dir resolved relative to wrong workspace root                                             | Set `policy_dir` to a path that exists under the workspace passed to `runGate`.           |
