@@ -8,6 +8,43 @@ pub enum WarningCategory {
     Architecture,
 }
 
+/// Artifact kinds that the scanner understands. Must stay in sync with the
+/// `.anvil` frontmatter `targets` enum and the TS `ArtifactKind` type so both
+/// engines filter rules identically.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "kebab-case")]
+pub enum ArtifactKind {
+    Source,
+    PrDescription,
+    CommitMessage,
+    AgentOutput,
+}
+
+impl ArtifactKind {
+    /// Wire-format string (matches the `targets` values in compiled
+    /// registry patterns).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::PrDescription => "pr-description",
+            Self::CommitMessage => "commit-message",
+            Self::AgentOutput => "agent-output",
+        }
+    }
+
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        match s {
+            "source" => Some(Self::Source),
+            "pr-description" => Some(Self::PrDescription),
+            "commit-message" => Some(Self::CommitMessage),
+            "agent-output" => Some(Self::AgentOutput),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum WarningSeverity {

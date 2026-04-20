@@ -757,6 +757,9 @@ mod tests {
             },
             pattern: Some("AP-003".to_string()),
             suppressed: None,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
         }];
         let summary = WarningSummary {
             total: 1,

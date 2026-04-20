@@ -121,7 +121,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-001
 - **Validation:** `cargo test -p anvil-checks -- scan_artifact`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-003: Family provenance on AntiPattern and Warning
 
@@ -242,6 +242,20 @@ non-negotiable reason the Rust scanner is the authoritative one.
   AST support. 10 loader unit tests cover load/cache/schema rejection
   paths plus regex-mapping fidelity and the AST skip. Clippy clean at
   `-D warnings`.
+- **2026-04-21 — RSCAN-002 landed.** Rust now mirrors the TS artifact
+  surface: `ArtifactKind` enum (Source / PrDescription / CommitMessage
+  / AgentOutput, serialised as kebab-case to match the registry
+  `targets`), `Artifact` struct (`kind` / `reference` / `content`), and
+  `scan_artifact(&Artifact, Option<&ScanOptions>) -> ScanResult`. The
+  new entry point honours `pattern.targets` when present and falls
+  back to source-only for legacy patterns. Extension + allowlist +
+  suppression checks are now gated on `kind == Source` — PR bodies,
+  commit messages, and agent outputs skip those filters because their
+  `reference` is not a filesystem path. `scan_file` stays as a
+  backward-compatible wrapper; `scan_artifacts` added for bulk scans.
+  `ScanResult` carries the new `artifact_type` field. Three new tests
+  verify source parity, legacy-pattern non-propagation to PR artifacts,
+  and registry-pattern `targets` enforcement end-to-end.
 - **2026-04-21 — RSCAN-003 landed (M1 complete).** `AntiPattern` and
   `Warning` now carry optional `family` / `definition_ref` /
   `spectrum_position` fields, plus `targets` on `AntiPattern`. All four
