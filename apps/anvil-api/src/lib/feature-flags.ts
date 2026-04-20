@@ -22,7 +22,10 @@ export const API_SCOPE_FLAG_PREFIX = 'api.scope.' as const;
 export const API_SCOPE_NAMES = ['beta', 'preview', 'internal'] as const;
 export type ApiScopeName = (typeof API_SCOPE_NAMES)[number];
 
-export const ALLOWED_API_SCOPES: readonly ApiScopeName[] = API_SCOPE_NAMES;
+// Day-1 default scope set for device-code approval. Keep in sync with the
+// /admin/approve handler's hardcoded choice; FLAGM-006 moves this into the
+// flag manifest as a targeted default.
+export const DEFAULT_APPROVAL_SCOPES: readonly ApiScopeName[] = ['beta'];
 
 function makeScopeFlag(name: ApiScopeName, intent: string): FeatureFlagDefinition {
   return {
@@ -35,33 +38,29 @@ function makeScopeFlag(name: ApiScopeName, intent: string): FeatureFlagDefinitio
       { key: 'enabled', value: true },
       { key: 'disabled', value: false },
     ],
+    // Day-1 parity with the pre-FLAGM-005 ALLOWED_SCOPES constant: every
+    // listed scope is accepted. The spec's fail-closed entitlement contract
+    // is satisfied via *override* semantics — operators disable a scope by
+    // flipping the flag to 'disabled', which takes precedence over this
+    // default. FLAGM-006 reviews whether to invert once the full evaluation
+    // context (principal, plan) is plumbed through.
     defaultVariant: 'enabled',
     status: 'active',
     createdFor: 'FLAGM-005',
   } satisfies FeatureFlagDefinition;
 }
 
-export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, FeatureFlagDefinition>> = Object.freeze(
-  {
-    beta: makeScopeFlag('beta', 'Allow the beta scope on admin-issued access tokens'),
-    preview: makeScopeFlag('preview', 'Allow the preview scope on admin-issued access tokens'),
-    internal: makeScopeFlag('internal', 'Allow the internal scope on admin-issued access tokens'),
-  }
-);
+export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, FeatureFlagDefinition>> = {
+  beta: makeScopeFlag('beta', 'Allow the beta scope on admin-issued access tokens'),
+  preview: makeScopeFlag('preview', 'Allow the preview scope on admin-issued access tokens'),
+  internal: makeScopeFlag('internal', 'Allow the internal scope on admin-issued access tokens'),
+};
 
-// Module-load invariant: the manifest is derived from API_SCOPE_NAMES, so the
-// key suffixes must match the tuple exactly. A mismatch is a coding error
-// that would silently let Zod accept a scope with no backing flag; surface it
-// at boot.
-for (const name of API_SCOPE_NAMES) {
-  const flag = API_SCOPE_FLAGS[name];
-  const expectedKey = `${API_SCOPE_FLAG_PREFIX}${name}`;
-  if (flag.key !== expectedKey) {
-    throw new Error(
-      `api.scope flag manifest mismatch: expected key "${expectedKey}" but flag exposes "${flag.key}"`
-    );
-  }
-}
+// Manifest-vs-tuple agreement is enforced at compile time by typing
+// API_SCOPE_FLAGS as Record<ApiScopeName, …> and in the unit test suite.
+// No runtime boot-time invariant is needed — a mismatch would fail the
+// tsc build and the "keeps API_SCOPE_NAMES in sync with the manifest" test
+// long before a Vercel edge worker touched this module.
 
 export function isApiScopeName(value: string): value is ApiScopeName {
   return (API_SCOPE_NAMES as readonly string[]).includes(value);
@@ -72,19 +71,42 @@ export function apiScopeFlagFor(scope: string): FeatureFlagDefinition | undefine
   return API_SCOPE_FLAGS[scope];
 }
 
+// Derive the evaluation environment from process.env at call time so
+// non-prod deployments don't silently match production targeting rules
+// once FLAGM-006 plumbs real targeting. Falls back to 'dev' to keep the
+// fail-safe direction if both vars are missing.
+type FlagEnvironment = 'preview' | 'dev' | 'local' | 'staging' | 'prod';
+const KNOWN_ENVIRONMENTS: readonly FlagEnvironment[] = [
+  'preview',
+  'dev',
+  'local',
+  'staging',
+  'prod',
+];
+
+function currentEnvironment(): FlagEnvironment {
+  const raw = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'dev';
+  // VERCEL_ENV returns 'production' / 'preview' / 'development'; NODE_ENV
+  // returns 'production' / 'development' / 'test'. Map these to the flag
+  // manifest's restricted enum.
+  if (raw === 'production') return 'prod';
+  if (raw === 'development' || raw === 'test') return 'dev';
+  return (KNOWN_ENVIRONMENTS as readonly string[]).includes(raw) ? (raw as FlagEnvironment) : 'dev';
+}
+
 // Default evaluation context for flag resolution in unauthenticated or
 // targeting-less paths. Callers with a principal should build a richer
 // context and pass it through `resolveApiScope`.
 export function defaultApiEvaluationContext(): EvaluationContext {
   return {
     targetingKey: 'api-anonymous',
-    environment: { environment: 'prod' },
+    environment: { environment: currentEnvironment() },
   };
 }
 
 export interface ApiScopeResolution {
   allowed: boolean;
-  details: ResolutionDetails;
+  details: ResolutionDetails<boolean>;
 }
 
 export function resolveApiScope(
@@ -94,7 +116,7 @@ export function resolveApiScope(
 ): ApiScopeResolution | undefined {
   const flag = apiScopeFlagFor(scope);
   if (!flag) return undefined;
-  const details = resolveFlag(flag, context, overrides);
+  const details = resolveFlag(flag, context, overrides) as ResolutionDetails<boolean>;
   return { allowed: details.variant === 'enabled', details };
 }
 

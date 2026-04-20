@@ -2,7 +2,6 @@ import type { EvaluationContext } from '@eddacraft/anvil-contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
-  ALLOWED_API_SCOPES,
   API_SCOPE_FLAGS,
   API_SCOPE_FLAG_PREFIX,
   API_SCOPE_NAMES,
@@ -27,11 +26,11 @@ describe('api.scope.* flag manifest', () => {
     }
   });
 
-  it('keeps ALLOWED_API_SCOPES in sync with the manifest', () => {
+  it('keeps API_SCOPE_NAMES in sync with the manifest', () => {
     const fromManifest = Object.values(API_SCOPE_FLAGS)
       .map((f) => f.key.slice(API_SCOPE_FLAG_PREFIX.length))
       .sort();
-    expect([...ALLOWED_API_SCOPES].sort()).toEqual(fromManifest);
+    expect([...API_SCOPE_NAMES].sort()).toEqual(fromManifest);
   });
 
   it('recognises only the manifest scopes as valid names', () => {
@@ -77,6 +76,16 @@ describe('resolveApiScope', () => {
     expect(result?.allowed).toBe(false);
     expect(result?.details.variant).toBe('disabled');
     expect(result?.details.reason).toBe('local_override');
+  });
+
+  it('exposes boolean-typed variant values via generic ResolutionDetails', () => {
+    // Compile-time shape check — details.value must be boolean, not unknown.
+    const result = resolveApiScope('beta');
+    expect(result?.details.value).toBe(true);
+    if (result) {
+      const value: boolean | undefined = result.details.value;
+      expect(value).toBe(true);
+    }
   });
 });
 
@@ -125,5 +134,15 @@ describe('FLAGM-005 parity: api.scope.* vs legacy ALLOWED_SCOPES', () => {
       expect(isScopeAllowed(scope)).toBe(false);
       expect(legacyAccepts(scope)).toBe(false);
     }
+  });
+
+  // The flag path MUST diverge from the legacy constant when an operator
+  // disables a scope via override — this is the migration's whole point.
+  // Without this case the parity suite just confirms trivial agreement
+  // against the day-1 default.
+  it('diverges from legacy when an override disables a known scope', () => {
+    const overrides = { local: { 'api.scope.internal': 'disabled' } };
+    expect(isScopeAllowed('internal', defaultApiEvaluationContext(), overrides)).toBe(false);
+    expect(legacyAccepts('internal')).toBe(true);
   });
 });

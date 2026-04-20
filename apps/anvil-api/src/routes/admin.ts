@@ -25,6 +25,7 @@ import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
+import { DEFAULT_APPROVAL_SCOPES, resolveApiScope } from '../lib/feature-flags.js';
 import {
   inviteSchema,
   approveSchema,
@@ -94,6 +95,24 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   const sql = getClient();
   const actor = resolveAdminActor(c);
   const authMethod = resolveAuthMethod(c);
+
+  // Flag gate: Zod already restricts scope values to the manifest names, but
+  // the api.scope.* entitlement flags let operators disable a scope without
+  // a redeploy. Reject here so a flipped flag is honoured on the hot path.
+  for (const scope of scopes) {
+    const resolution = resolveApiScope(scope);
+    if (!resolution || !resolution.allowed) {
+      return c.json(
+        {
+          error: 'scope_not_allowed',
+          message: `Scope '${scope}' is currently disabled by feature flag`,
+          scope,
+          reason: resolution?.details.reason ?? 'unknown_scope',
+        },
+        403
+      );
+    }
+  }
 
   const normalizedEmail = email.toLowerCase().trim();
 
@@ -285,7 +304,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
         sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
             VALUES (
               (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-              ${hash}, ${['beta']}, ${tokenExpiry.toISOString()}
+              ${hash}, ${[...DEFAULT_APPROVAL_SCOPES]}, ${tokenExpiry.toISOString()}
             )
             RETURNING *`,
         sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
