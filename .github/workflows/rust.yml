@@ -29,6 +29,8 @@ env:
   CARGO_INCREMENTAL: 0
   # Pinned so cache invalidation is intentional when we bump this.
   CARGO_LLVM_COV_VERSION: '0.6.14'
+  # Pinned so nextest behaviour (retry/timeout/output) is reproducible.
+  CARGO_NEXTEST_VERSION: '0.9.133'
 
 jobs:
   check:
@@ -90,7 +92,7 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
       - name: Run tests with coverage (nextest)
         run: |
@@ -99,7 +101,10 @@ jobs:
 
       # nextest does not run doctests, so we run them separately to preserve
       # the same test surface as the pre-RUSTNX-002 `cargo test` invocation.
+      # `if: always()` so doctest failures surface even if the coverage step
+      # failed — we want both signals, not a short-circuit.
       - name: Run doctests
+        if: always()
         run: cargo test --doc --workspace
 
       - name: Rust coverage summary
