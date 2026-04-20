@@ -133,7 +133,7 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   version. `format` uses `save-if: 'false'` because rustfmt doesn't
   populate `target/` and an empty save would overwrite useful state.
 
-### RUSTNX-002: Adopt cargo-nextest for workspace test runs
+### RUSTNX-002: Adopt cargo-nextest for workspace test runs [Complete]
 
 - **Intent:** Replace `cargo test` with `cargo-nextest` for faster,
   parallel, better-reported test execution
@@ -150,6 +150,12 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Risks:** A small number of tests may rely on `cargo test`-specific
   behaviour (e.g. ignored doctest handling). `cargo test --doc` must still
   run for doctests since nextest does not cover them
+- **Resolution:** CI `test` job installs `cargo-nextest` via
+  `taiki-e/install-action@v2.75.18` (SHA-pinned), runs coverage through
+  `cargo llvm-cov nextest --workspace --json`, and invokes
+  `cargo test --doc --workspace` as a separate step so doctests still
+  execute. Root `pnpm test:coverage:rust` now calls
+  `cargo llvm-cov nextest --workspace --html` for parity.
 
 ### RUSTNX-003: Parallelise Rust CI jobs behind shared cache
 

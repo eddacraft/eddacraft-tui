@@ -14,7 +14,7 @@
     "test": "nx run-many -t test --exclude=@eddacraft/anvil-e2e",
     "test:coverage": "pnpm test:coverage:ts && pnpm test:coverage:rust",
     "test:coverage:ts": "nx run-many -t test --exclude=@eddacraft/anvil-e2e -- --coverage",
-    "test:coverage:rust": "cargo llvm-cov --workspace --html",
+    "test:coverage:rust": "cargo llvm-cov nextest --workspace --html",
     "test:e2e": "playwright test",
     "test:e2e:harness": "pnpm --filter @eddacraft/anvil-e2e test",
     "test:e2e:smoke": "pnpm --filter @eddacraft/anvil-e2e test:smoke",
