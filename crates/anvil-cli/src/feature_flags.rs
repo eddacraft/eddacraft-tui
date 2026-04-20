@@ -14,10 +14,17 @@ pub const CLI_LICENCE_GATE_KEY: &str = "cli.licence-gate";
 
 /// Builds the inline exemplar definition for `cli.licence-gate`.
 ///
-/// Mirrors `packages/anvil/runtime/src/feature-flags/exemplars.test.ts` so
-/// TypeScript and Rust surfaces evaluate the same flag contract. The shared
-/// snapshot pipeline will supersede this inline definition once the CLI
-/// gains a local snapshot loader; keep the shape in sync until then.
+/// Follows the shared model exercised in
+/// `packages/anvil/runtime/src/feature-flags/exemplars.test.ts` with one
+/// intentional compatibility difference: the exemplar's `default_variant`
+/// is `disabled` (Entitlement class fails closed), but the CLI keeps its
+/// existing `enabled` default here so existing licensed sessions are not
+/// regressed by the exemplar wiring. The full cutover to a fail-closed
+/// default is scoped to FLAGM-002.
+///
+/// The shared snapshot pipeline will supersede this inline definition
+/// once the CLI gains a local snapshot loader; keep the shape in sync
+/// with the exemplar until then.
 pub fn cli_licence_gate_flag() -> FeatureFlagDefinition {
     FeatureFlagDefinition {
         key: CLI_LICENCE_GATE_KEY.into(),
@@ -47,8 +54,11 @@ pub fn cli_licence_gate_flag() -> FeatureFlagDefinition {
 /// Build an OpenFeature-aligned evaluation context for the current CLI session.
 ///
 /// `plan` comes from the `/api/v1/auth/verify` response (`WhoamiResponse.plan`).
-/// `targeting_key` should be a stable per-session identifier; the CLI uses the
-/// credential `sub` when available and falls back to `"cli-session"`.
+/// `targeting_key` is supplied by the caller and should be a stable identifier
+/// for this CLI session. Callers should prefer a non-PII stable identifier when
+/// available, and may fall back to a constant such as `"cli-session"`. Today
+/// `commands::auth::whoami` passes the authenticated email; a follow-up
+/// (FLAGM-002) will plumb a JWT `sub` through instead.
 pub fn cli_evaluation_context(
     targeting_key: impl Into<String>,
     plan: Option<&str>,
@@ -84,17 +94,13 @@ pub fn evaluate_cli_licence_gate(
 ///
 /// Exposed for future callers (e.g. per-command entitlement checks); the
 /// current exemplar wiring in `commands::auth::whoami` uses the lower-level
-/// `evaluate_cli_licence_gate` to surface the resolved variant.
+/// `evaluate_cli_licence_gate` to surface the resolved variant. Access is
+/// determined from the resolved variant itself so any resolver-supported
+/// path to `"enabled"` (including emergency overrides) is treated as enabled.
 #[allow(dead_code)]
 pub fn is_cli_licence_enabled(plan: Option<&str>) -> bool {
     let details = evaluate_cli_licence_gate("cli-session", plan);
     details.variant == "enabled"
-        && matches!(
-            details.reason,
-            ResolutionReason::Default
-                | ResolutionReason::TargetingMatch
-                | ResolutionReason::LocalOverride
-        )
 }
 
 #[cfg(test)]

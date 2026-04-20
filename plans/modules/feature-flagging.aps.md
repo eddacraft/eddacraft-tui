@@ -235,8 +235,13 @@ Change status to **Ready** when:
   via `anvil_kernel::feature_flags::resolve_flag` and surfaces the variant;
   docs-site middleware routes `/anvil` access through the inline `docs.access`
   evaluator (Vercel edge runtime cannot import the workspace runtime package
-  yet). Both surfaces mirror
-  `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`.
+  yet). Both surfaces follow the shared model exercised in
+  `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`, with
+  intentional compatibility differences documented alongside the code: the
+  Rust `cli.licence-gate` path keeps its existing default variant of
+  `enabled` rather than the exemplar's `disabled`, and the docs inline
+  evaluator still allows a missing `tier` rather than defaulting that case
+  to `disabled`. Full fail-closed cutover is scoped to FLAGM-002/FLAGM-004.
 
 ### FLAGS-009: Map current ad-hoc flags and rollout toggles onto the shared model — Complete
 
