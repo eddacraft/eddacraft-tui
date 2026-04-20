@@ -10,9 +10,9 @@ Scopes: POLISH (main)
 
 # TUI Polish
 
-| ID     | Owner | Status      | Progress |
-| ------ | ----- | ----------- | -------- |
-| POLISH | —     | In Progress | 7/8      |
+| ID     | Owner | Status   | Progress |
+| ------ | ----- | -------- | -------- |
+| POLISH | —     | Complete | 8/8      |
 
 ## Purpose
 
@@ -257,28 +257,30 @@ high-signal for users seeing Anvil for the first time.
 
 - **Deferred from April 2026 council review (session council-d4d5df8b) —
   roll into this work item:**
-  - `render_complete` multi-completed-paths snapshot fixture missing
-    (`crates/anvil-tui/src/surfaces/tutorial/render.rs:248`).
-  - `Wrap { trim: false }` does not break long unbreakable tokens; `step.title`
-    is unwrapped and can overflow border line
-    (`crates/anvil-tui/src/surfaces/tutorial/render.rs:398`).
-  - Unicode geometric shapes (`● ◉ ○`) may render double-wide on some
-    Windows/SSH terminals — consider ASCII fallback via env var or a
-    `unicode-width` assertion test (`render.rs:259`).
-  - Tutorial snapshots are not width-parameterised (no coverage below
-    40 columns); add snapshots at (20, 10) and (40, 10)
-    (`render.rs:541`).
-  - TOCTOU race between `config_exists` and `generate_config` — use
-    `OpenOptions::create_new(true)` when writing
-    (`crates/anvil-cli/src/commands/welcome.rs:206`).
-  - Copy owner for landing-screen text not yet assigned; block item 2
-    on the copy decision before starting.
-- **Confidence:** high for items 1 and 3; medium for item 2 (needs design for
-  summary copy — what exactly should the landing page say?).
-- **Priority:** Medium — items 1, 2, and 3 shipped; only the council-deferred
-  follow-ups below remain.
-- **Status:** In Progress — config detection, landing screen, and shared
-  outer padding all landed; council-deferred follow-ups remain.
+  - [x] C-010 — `render_complete` multi-completed-paths snapshot fixture.
+    Added `snapshot_complete_phase_multiple_paths` (2/4 paths done, "Up next"
+    suggests remaining) and `snapshot_complete_phase_all_paths` (all paths
+    done, celebration copy) in `tutorial/render.rs`.
+  - [x] C-011 — `step.title` overflow into block border. `fit_block_title`
+    truncates titles with an ellipsis so they can never punch through the
+    border at narrow widths. Tested across short/long/tiny inputs.
+  - [x] C-012 — ASCII fallback for progress glyphs. `ANVIL_ASCII=1` swaps
+    `● ◉ ○` for `# > -` via `progress_glyphs()`; threaded through the three
+    glyph call sites. Tests cover default, forced, empty, and `0` values.
+  - [x] C-013 — width-parameterised tutorial snapshots at 40x10 and 20x10
+    for both path-select and running phases (4 new fixtures).
+  - [x] C-014 — TOCTOU race. Guided init now writes `.anvilrc` via
+    `OpenOptions::create_new(true)` (new `util::write_new`) on the
+    non-force path; force path keeps `atomic_write` for overwrite. Unix
+    mode 0o600 preserved in both paths.
+  - [x] C-016 — moot: landing-screen copy (Option A) already shipped in
+    `5ea3daee feat(tui): add post-init landing screen before tutorial`.
+- **Confidence:** high across the board now that all six council follow-ups
+  are resolved.
+- **Priority:** Medium — item complete; ready to archive on the next
+  index.aps.md pass.
+- **Status:** Complete — config detection, landing screen, shared outer
+  padding, and all six council-deferred follow-ups landed.
 
 ---
 

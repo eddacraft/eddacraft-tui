@@ -723,6 +723,117 @@ mod tests {
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
     }
 
+    /// Lock in the narrow-terminal layout for the path-select phase at 40x10:
+    /// panic-free isn't enough — the menu copy has to stay readable and the
+    /// bottom border must not be clipped. Regressions in `box_height` clamping
+    /// or the shell gutter logic will shift this snapshot visibly.
+    #[test]
+    fn snapshot_path_select_narrow_40x10() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// At 20x10 we're past the point where the full menu copy fits, but the
+    /// frame must still render without border clipping or overlap. Guards
+    /// against layout arithmetic underflow at the small-terminal floor.
+    #[test]
+    fn snapshot_path_select_tiny_20x10() {
+        let backend = TestBackend::new(20, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Running phase at 40x10 — locks in the narrow-width content layout
+    /// (step progress row, step block, wrapped body) end-to-end through the
+    /// shell + render path so regressions in the vertical chunk math or the
+    /// step content block surface visibly in the snapshot diff.
+    #[test]
+    fn snapshot_running_phase_narrow_40x10() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Running phase at 20x10 is the extreme lower bound — progress dots and
+    /// block chrome should still render, even if content wraps aggressively.
+    #[test]
+    fn snapshot_running_phase_tiny_20x10() {
+        let backend = TestBackend::new(20, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
     #[test]
     fn snapshot_complete_phase() {
         let backend = TestBackend::new(80, 20);
@@ -733,6 +844,81 @@ mod tests {
         for step in &mut state.steps {
             step.completed = true;
         }
+        state.phase = TutorialPhase::Complete;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Multiple paths completed — the progress indicator should show two
+    /// filled dots, the "Up next" section should suggest an unfinished path
+    /// (not the all-paths-complete copy), and the completed count should
+    /// reflect both finishes. Catches regressions in `build_paths_progress`
+    /// and `path_is_done` for the multi-completion case.
+    #[test]
+    fn snapshot_complete_phase_multiple_paths() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Drift);
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        // Policy was finished in a prior session; Drift is finishing now.
+        state.completed_paths = vec![TutorialPath::Policy];
+        state.phase = TutorialPhase::Complete;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Every path finished — the "Up next" section should switch to the
+    /// all-paths-complete celebration copy and the progress row should be
+    /// fully filled.
+    #[test]
+    fn snapshot_complete_phase_all_paths() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Drift);
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        // All other paths already done before this final one.
+        state.completed_paths = state
+            .paths
+            .iter()
+            .copied()
+            .filter(|p| *p != TutorialPath::Drift)
+            .collect();
         state.phase = TutorialPhase::Complete;
         let theme = EddaCraftTheme;
 
