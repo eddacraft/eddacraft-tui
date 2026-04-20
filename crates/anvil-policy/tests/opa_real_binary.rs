@@ -29,13 +29,13 @@ fn fixtures_dir() -> PathBuf {
     repo_root().join("policies/fixtures")
 }
 
-fn require_opa() -> Option<(OpaExecutor, Vec<anvil_policy::loader::LoadedPolicy>)> {
-    let binary = find_opa_binary()?;
+fn require_opa() -> Result<(OpaExecutor, Vec<anvil_policy::loader::LoadedPolicy>), String> {
+    let binary =
+        find_opa_binary().ok_or_else(|| "opa not on PATH and ANVIL_OPA_PATH unset".to_string())?;
     let binary_str = binary.to_string_lossy();
     let executor = OpaExecutor::new(Some(&binary_str), Some(10_000));
     if !executor.is_available() {
-        eprintln!("[opa-real] opa binary at {binary_str} reports unavailable; skipping");
-        return None;
+        return Err(format!("opa binary at {binary_str} reports unavailable"));
     }
     let loader = PolicyLoader::new();
     let policies = loader
@@ -46,7 +46,23 @@ fn require_opa() -> Option<(OpaExecutor, Vec<anvil_policy::loader::LoadedPolicy>
         "expected fixture policies to load from {}",
         fixtures_dir().display()
     );
-    Some((executor, policies))
+    Ok((executor, policies))
+}
+
+/// Visible skip: prints `[SKIP] <test_name>: <reason>` to stderr so `cargo
+/// test -- --nocapture` (and CI logs that surface stderr) show which tests
+/// didn't actually run. Without this, a contributor shipping a regression
+/// that only the real-binary suite would catch gets a silent green.
+fn require_opa_or_skip(
+    test_name: &str,
+) -> Option<(OpaExecutor, Vec<anvil_policy::loader::LoadedPolicy>)> {
+    match require_opa() {
+        Ok(x) => Some(x),
+        Err(reason) => {
+            eprintln!("[SKIP] {test_name}: {reason}");
+            None
+        }
+    }
 }
 
 fn base_input() -> serde_json::Value {
@@ -68,8 +84,8 @@ fn base_input() -> serde_json::Value {
 
 #[test]
 fn change_scope_flags_oversized_plans() {
-    let Some((executor, policies)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, policies)) = require_opa_or_skip("change_scope_flags_oversized_plans")
+    else {
         return;
     };
 
@@ -107,8 +123,7 @@ fn change_scope_flags_oversized_plans() {
 
 #[test]
 fn change_scope_passes_small_plans() {
-    let Some((executor, policies)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, policies)) = require_opa_or_skip("change_scope_passes_small_plans") else {
         return;
     };
 
@@ -133,8 +148,9 @@ fn change_scope_passes_small_plans() {
 
 #[test]
 fn security_baseline_flags_sensitive_paths_without_review_tag() {
-    let Some((executor, policies)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, policies)) =
+        require_opa_or_skip("security_baseline_flags_sensitive_paths_without_review_tag")
+    else {
         return;
     };
 
@@ -166,8 +182,9 @@ fn security_baseline_flags_sensitive_paths_without_review_tag() {
 
 #[test]
 fn security_baseline_passes_with_review_tag() {
-    let Some((executor, policies)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, policies)) =
+        require_opa_or_skip("security_baseline_passes_with_review_tag")
+    else {
         return;
     };
 
@@ -194,8 +211,8 @@ fn security_baseline_passes_with_review_tag() {
 
 #[test]
 fn coverage_min_flags_below_threshold() {
-    let Some((executor, policies)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, policies)) = require_opa_or_skip("coverage_min_flags_below_threshold")
+    else {
         return;
     };
 
@@ -215,8 +232,7 @@ fn coverage_min_flags_below_threshold() {
 
 #[test]
 fn coverage_min_passes_at_threshold() {
-    let Some((executor, policies)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, policies)) = require_opa_or_skip("coverage_min_passes_at_threshold") else {
         return;
     };
 
@@ -238,8 +254,7 @@ fn coverage_min_passes_at_threshold() {
 
 #[test]
 fn opa_test_fixture_rego_files_all_pass() {
-    let Some((executor, _)) = require_opa() else {
-        eprintln!("[opa-real] OPA not available; skipping");
+    let Some((executor, _)) = require_opa_or_skip("opa_test_fixture_rego_files_all_pass") else {
         return;
     };
 

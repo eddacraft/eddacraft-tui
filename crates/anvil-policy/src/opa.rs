@@ -68,6 +68,26 @@ pub enum OpaError {
     Json(#[from] serde_json::Error),
     #[error("OPA timed out after {0}ms")]
     Timeout(u64),
+    #[error("unexpected OPA output shape at {pointer}: {snippet}")]
+    UnexpectedShape {
+        pointer: String,
+        /// Truncated raw output for diagnosis; full output may be very large.
+        snippet: String,
+    },
+}
+
+const UNEXPECTED_SHAPE_SNIPPET_LIMIT: usize = 512;
+
+fn snippet_for_error(raw: &str) -> String {
+    if raw.len() <= UNEXPECTED_SHAPE_SNIPPET_LIMIT {
+        raw.to_string()
+    } else {
+        format!(
+            "{}…<truncated {} bytes>",
+            &raw[..UNEXPECTED_SHAPE_SNIPPET_LIMIT],
+            raw.len()
+        )
+    }
 }
 
 pub struct OpaExecutor {
@@ -147,21 +167,50 @@ impl OpaExecutor {
                 }
             })?;
 
+        // Drain stdout/stderr in dedicated threads so a full OS pipe buffer
+        // cannot wedge the child — and so we don't have to call
+        // wait_with_output() after wait_timeout(). Calling both on the same
+        // Child is undefined: on Linux the second wait can return a bogus
+        // ExitStatus of 0 (masking real failures as silent passes); on macOS
+        // it can surface ECHILD. This rewrite uses a single wait path.
+        let mut stdout_handle = child
+            .stdout
+            .take()
+            .expect("stdout is piped above; take() is called once");
+        let mut stderr_handle = child
+            .stderr
+            .take()
+            .expect("stderr is piped above; take() is called once");
+        let stdout_reader = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = std::io::Read::read_to_end(&mut stdout_handle, &mut buf);
+            buf
+        });
+        let stderr_reader = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = std::io::Read::read_to_end(&mut stderr_handle, &mut buf);
+            buf
+        });
+
         let timeout = std::time::Duration::from_millis(self.timeout_ms);
-        if child.wait_timeout(timeout)?.is_none() {
+        let Some(status) = child.wait_timeout(timeout)? else {
             let _ = child.kill();
             let _ = child.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
             return Err(OpaError::Timeout(self.timeout_ms));
-        }
-        let output = child.wait_with_output()?;
+        };
+
+        let stdout_bytes = stdout_reader.join().unwrap_or_default();
+        let stderr_bytes = stderr_reader.join().unwrap_or_default();
 
         #[allow(clippy::cast_possible_truncation)]
         let elapsed = start.elapsed().as_millis() as u64;
 
         let opa_version = self.version();
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if !status.success() {
+            let stderr = String::from_utf8_lossy(&stderr_bytes).to_string();
             return Ok(OpaResult {
                 success: false,
                 violations: Vec::new(),
@@ -174,7 +223,7 @@ impl OpaExecutor {
             });
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = String::from_utf8_lossy(&stdout_bytes);
         let violations = self.extract_violations(&stdout, policies)?;
 
         Ok(OpaResult {
@@ -294,13 +343,39 @@ impl OpaExecutor {
         let parsed: serde_json::Value = serde_json::from_str(stdout)?;
         let mut violations = Vec::new();
 
-        let value = parsed
-            .pointer("/result/0/expressions/0/value")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        // `opa eval --format json` emits `{"result": [{"expressions": [{"value": ...}]}]}`.
+        // Distinguish three cases that used to collapse into "zero violations":
+        //   - `result` missing or not an array → OPA output doesn't match the contract
+        //     we understand; raise UnexpectedShape so callers don't silently mark the
+        //     gate as passed.
+        //   - `result` present but empty → the query matched no rules ("no decisions"),
+        //     which we map to zero violations (the only sensible gate mapping, but
+        //     semantically distinct from "no violations from rules that ran").
+        //   - `result[0].expressions[0].value` missing → schema has drifted; raise
+        //     UnexpectedShape. This is the bit that previously masked OPA minor-version
+        //     output changes as silent passes.
+        let Some(result_array) = parsed.get("result").and_then(|v| v.as_array()) else {
+            return Err(OpaError::UnexpectedShape {
+                pointer: "/result".to_string(),
+                snippet: snippet_for_error(stdout),
+            });
+        };
+
+        if result_array.is_empty() {
+            // No decisions — no rule produced a value. Not the same as "no violations",
+            // but the closest gate mapping is an empty violations list.
+            return Ok(violations);
+        }
+
+        let value = result_array[0]
+            .pointer("/expressions/0/value")
+            .ok_or_else(|| OpaError::UnexpectedShape {
+                pointer: "/result/0/expressions/0/value".to_string(),
+                snippet: snippet_for_error(stdout),
+            })?;
 
         if let serde_json::Value::Object(map) = value {
-            for (policy_name, policy_output) in &map {
+            for (policy_name, policy_output) in map {
                 self.extract_from_policy_output(
                     policy_name,
                     policy_output,
@@ -539,5 +614,136 @@ mod tests {
     fn opa_executor_detects_missing_binary() {
         let executor = OpaExecutor::new(Some("/nonexistent/opa"), None);
         assert!(!executor.is_available());
+    }
+
+    #[test]
+    fn extract_violations_empty_result_is_no_decisions() {
+        // Empty `result` array means the query matched no rules. That is NOT
+        // the same as "rules ran and found zero violations" — but for a gate
+        // that's asking "any violations?" we return an empty list.
+        let executor = OpaExecutor::new(Some("opa"), None);
+        let stdout = r#"{"result":[]}"#;
+        let vs = executor
+            .extract_violations(stdout, &[])
+            .expect("empty result ok");
+        assert!(vs.is_empty());
+    }
+
+    #[test]
+    fn extract_violations_missing_result_is_unexpected_shape() {
+        let executor = OpaExecutor::new(Some("opa"), None);
+        let stdout = r#"{"foo":"bar"}"#;
+        let err = executor
+            .extract_violations(stdout, &[])
+            .expect_err("missing /result should error");
+        match err {
+            OpaError::UnexpectedShape { pointer, .. } => {
+                assert_eq!(pointer, "/result");
+            }
+            other => panic!("expected UnexpectedShape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn extract_violations_missing_expressions_is_unexpected_shape() {
+        let executor = OpaExecutor::new(Some("opa"), None);
+        // `result[0]` present but no `expressions` — future OPA schema drift.
+        let stdout = r#"{"result":[{"bindings":{}}]}"#;
+        let err = executor
+            .extract_violations(stdout, &[])
+            .expect_err("missing expressions should error");
+        match err {
+            OpaError::UnexpectedShape { pointer, .. } => {
+                assert_eq!(pointer, "/result/0/expressions/0/value");
+            }
+            other => panic!("expected UnexpectedShape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn extract_violations_happy_path_still_works() {
+        let executor = OpaExecutor::new(Some("opa"), None);
+        let stdout = r#"{
+            "result": [{
+                "expressions": [{
+                    "value": {
+                        "security_baseline": {
+                            "deny": [
+                                {"rule": "no-secrets", "message": "API key exposed", "severity": "error"}
+                            ]
+                        }
+                    }
+                }]
+            }]
+        }"#;
+        let vs = executor
+            .extract_violations(stdout, &[])
+            .expect("happy path should parse");
+        assert_eq!(vs.len(), 1);
+        assert_eq!(vs[0].rule, "no-secrets");
+        assert_eq!(vs[0].severity, "error");
+    }
+
+    #[test]
+    fn snippet_truncates_large_raw() {
+        let big = "x".repeat(2 * UNEXPECTED_SHAPE_SNIPPET_LIMIT);
+        let out = snippet_for_error(&big);
+        assert!(out.contains("truncated"));
+        assert!(out.len() < big.len());
+    }
+
+    #[cfg(unix)]
+    fn write_fake_opa_script(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join(name);
+        let mut f = std::fs::File::create(&path).expect("create fake opa");
+        writeln!(f, "#!/bin/sh").unwrap();
+        f.write_all(body.as_bytes()).unwrap();
+        drop(f);
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evaluate_times_out_on_hanging_binary() {
+        // Regression guard for the double-wait bug: a hanging child must
+        // produce a deterministic Timeout error, not a silent success.
+        let dir = tempfile::TempDir::new().unwrap();
+        // `exec` so the shell is replaced by `sleep` — otherwise killing the
+        // child (the shell) leaves `sleep` holding the stdout/stderr pipes and
+        // the reader threads block until `sleep` naturally exits.
+        let script = write_fake_opa_script(dir.path(), "fake_opa_hang", "exec sleep 30\n");
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(200));
+        let err = executor
+            .evaluate(&[], &serde_json::json!({}))
+            .expect_err("hanging binary must time out");
+        match err {
+            OpaError::Timeout(ms) => assert_eq!(ms, 200),
+            other => panic!("expected Timeout, got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evaluate_propagates_stderr_on_nonzero_exit() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let script = write_fake_opa_script(
+            dir.path(),
+            "fake_opa_fail",
+            "echo 'boom: parse error' >&2\nexit 2\n",
+        );
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(5_000));
+        let result = executor
+            .evaluate(&[], &serde_json::json!({}))
+            .expect("non-zero exit is returned as Ok with error set, not a hard Err");
+        assert!(!result.success, "non-zero exit must set success=false");
+        assert!(result.violations.is_empty());
+        let err_msg = result.error.as_deref().unwrap_or("");
+        assert!(
+            err_msg.contains("boom: parse error"),
+            "expected stderr text propagated, got {err_msg:?}"
+        );
     }
 }
