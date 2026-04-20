@@ -241,19 +241,30 @@ fn run_guided_init(
 
         let mut config = crate::commands::init::AnvilConfig::default();
         config.format = crate::commands::init::format_label(init_state.config.format);
-        config.checks = checks;
+        config.checks = checks.clone();
 
-        let msg = match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(()) => "Config saved to .anvilrc. Proceeding to scan\u{2026}".to_string(),
-            Err(e) => format!("Warning: could not save config: {e}"),
-        };
-        timed_loading(
-            terminal,
-            "Init",
-            &msg,
-            theme,
-            std::time::Duration::from_millis(400),
-        )?;
+        match crate::commands::init::generate_config(&config, &init_root) {
+            Ok(()) => {
+                let summary = onboarding::InitCompleteSummary {
+                    config_path: ".anvilrc".to_string(),
+                    plans_dir: format!("{}/", config.planning_dir),
+                    cache_dir: ".anvil/cache/".to_string(),
+                    gitignore_updated: true,
+                    checks_enabled: checks,
+                };
+                let mut landing = onboarding::InitCompleteState::new(summary);
+                crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+            }
+            Err(e) => {
+                timed_loading(
+                    terminal,
+                    "Init",
+                    &format!("Warning: could not save config: {e}"),
+                    theme,
+                    std::time::Duration::from_millis(400),
+                )?;
+            }
+        }
     }
 
     Ok(())

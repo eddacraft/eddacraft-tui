@@ -1,11 +1,13 @@
 pub mod complete;
 pub mod hooks;
 mod hooks_render;
+pub mod init_complete;
 pub mod welcome;
 mod welcome_render;
 
 pub use complete::{CompletionState, OnboardingSummary};
 pub use hooks::HooksState;
+pub use init_complete::{InitCompleteState, InitCompleteSummary};
 pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 
 /// Check whether an Anvil configuration file already exists in the

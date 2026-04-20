@@ -203,12 +203,18 @@ high-signal for users seeing Anvil for the first time.
      config in an already-onboarded repo. Fix: include `.anvilrc` in the
      filename set (`crates/anvil-tui/src/surfaces/onboarding/mod.rs`) with a
      regression test covering `.anvilrc`.
-  2. **No landing screen between init and tutorial.** `CompletionState` /
-     `OnboardingSummary` exist in `crates/anvil-tui/src/surfaces/onboarding/complete.rs`
-     but are only exercised by their own unit tests — `run_onboarding` /
-     `run_guided_init` in `crates/anvil-cli/src/commands/welcome.rs` drop
-     straight from init → `run_discovery` → `run_tutorial_with_fix` with no
-     explanation of what was written to disk or what the tutorial is about.
+  2. **No landing screen between init and tutorial (fixed).** `CompletionState`
+     / `OnboardingSummary` existed in
+     `crates/anvil-tui/src/surfaces/onboarding/complete.rs` but were only
+     exercised by their own unit tests — `run_onboarding` / `run_guided_init`
+     in `crates/anvil-cli/src/commands/welcome.rs` dropped straight from init →
+     `run_discovery` → `run_tutorial_with_fix` with no explanation of what was
+     written to disk or what the tutorial is about. Fix: added focused
+     `InitCompleteState` / `InitCompleteSummary` in
+     `crates/anvil-tui/src/surfaces/onboarding/init_complete.rs`, wired into
+     `run_guided_init` after `generate_config` succeeds. Copy follows the
+     user-approved minimal receipt-style pattern (what was written, what
+     happens next, takes ~5 min).
   3. **Onboarding surfaces don't share the tutorial's new outer padding.**
      The `inset_content` helper added in POLISH-001 applies to tutorial
      surfaces only. Discovery, init, and the onboarding welcome surface
@@ -264,10 +270,11 @@ high-signal for users seeing Anvil for the first time.
     on the copy decision before starting.
 - **Confidence:** high for items 1 and 3; medium for item 2 (needs design for
   summary copy — what exactly should the landing page say?).
-- **Priority:** Medium — item 1 is shipped in this commit, items 2 and 3 are
-  the remaining scope.
-- **Status:** In Progress — config detection landed; completion screen and
-  shared padding still pending.
+- **Priority:** Medium — items 1 and 2 shipped; item 3 and deferred council
+  items are the remaining scope.
+- **Status:** In Progress — config detection and landing screen landed;
+  shared outer padding for discovery/init/welcome still pending, plus the
+  council-deferred follow-ups below.
 
 ---
 
