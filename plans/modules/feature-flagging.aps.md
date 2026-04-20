@@ -238,7 +238,7 @@ Change status to **Ready** when:
   yet). Both surfaces mirror
   `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`.
 
-### FLAGS-009: Map current ad-hoc flags and rollout toggles onto the shared model
+### FLAGS-009: Map current ad-hoc flags and rollout toggles onto the shared model — Complete
 
 - **Intent:** Inventory existing feature-flag-like controls so the new system
   starts from real usage rather than a clean-room design.
@@ -250,3 +250,9 @@ Change status to **Ready** when:
 - **Dependencies:** FLAGS-001, FLAGS-002, FLAGS-003
 - **Validation:** `grep -q "migrate" docs/guides/feature-flag-inventory.md`
 - **Confidence:** medium
+- **Files:** `docs/guides/feature-flag-inventory.md`
+- **Outcome:** Inventory landed in commit `c3a217dc` (2026-04-14) with a
+  migrate/adopt/defer summary table, four new migrate/defer entries
+  (ANVIL_DEV bypass, admin key, beta scopes, policy profiles, per-policy
+  toggles), four adopt entries for future capabilities, and an exclusions
+  table for env vars that are operational config rather than feature gates.
