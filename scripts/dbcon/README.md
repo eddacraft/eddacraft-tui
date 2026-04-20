@@ -1,8 +1,8 @@
 # DBCON operator scripts (Option B — Neon reset)
 
 Scripts for the Neon reset laid out in
-`plans/modules/database-consolidation.aps.md` and the runbook at
-`plans/execution/DBCON.steps.md`.
+`plans/archive/modules/database-consolidation.aps.md` and the runbook at
+`plans/archive/execution/DBCON.steps.md` (both archived post-cutover).
 
 ## Env vars
 
@@ -43,7 +43,7 @@ export ANVIL_API_PROD_URL=$(neonctl connection-string \
 
 ## Order of operations
 
-Full sequence lives in `plans/execution/DBCON.steps.md`. In short:
+Full sequence lives in `plans/archive/execution/DBCON.steps.md`. In short:
 
 ```bash
 cd scripts/dbcon
@@ -74,3 +74,21 @@ without leaving partial rows.
 
 `snapshots/` is gitignored. Retain snapshots for ≥ 30 days after DBCON-004
 decommissions the legacy projects before purging.
+
+## Decommission checklist (DBCON-004)
+
+Legacy Neon projects `eddacraft-web` and `beta-user-tokens` were deleted on
+2026-04-21 after a ≥ 72h soak on `anvil-api-prod`. Retain local snapshots until
+≥ 2026-05-21 before purging.
+
+- [x] `az keyvault secret show --vault-name kv-iac-anvil --name website-database-url`
+      returns NotFound
+- [x] Vercel `DATABASE_URL` sourced from `anvil-api-database-url`
+- [x] Waitlist count on `anvil-api-prod` matches deduped union of legacy sources
+- [x] `neonctl projects list` shows only `anvil-api-prod`
+- [x] Both legacy projects deleted via `neonctl projects delete`
+- [x] Local `pg_dump` snapshots retained under `scripts/dbcon/snapshots/`
+      (gitignored); purge on or after 2026-05-21
+
+The operator scripts in this directory still reference the legacy project names
+as historical context — they are no longer wired to any live infrastructure.

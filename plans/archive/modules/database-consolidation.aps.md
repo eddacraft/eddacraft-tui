@@ -1,8 +1,8 @@
 # Neon Project Consolidation
 
-| ID    | Owner      | Status      |
-| ----- | ---------- | ----------- |
-| DBCON | @eddacraft | In Progress |
+| ID    | Owner      | Status   |
+| ----- | ---------- | -------- |
+| DBCON | @eddacraft | Complete |
 
 ## Purpose
 
@@ -155,7 +155,7 @@ Change status to **Ready** when:
 - [x] Canonical schema confirmed at `apps/anvil-api/src/db/schema.sql`
 - [x] Secret rename (`website-database-url` → `anvil-api-database-url`)
       applied across infra files in this branch
-- [ ] `neonctl` installed and authenticated locally (MCP is optional)
+- [x] `neonctl` installed and authenticated locally (MCP is optional)
 
 ---
 
@@ -229,17 +229,21 @@ Change status to **Ready** when:
 
 ### DBCON-004: decommission legacy Neon projects
 
-- **Status:** Ready
+- **Status:** Complete
+- **Completed:** 2026-04-21 (post ≥ 72h soak on `anvil-api-prod`).
 - **Intent:** After a ≥ 48h soak period on `anvil-api-prod`, delete both
   `eddacraft-web` and `beta-user-tokens` Neon projects. Retain local
   snapshots (gitignored) for 30+ days afterwards.
-- **Expected Outcome:** Only `anvil-api-prod` remains in the Neon
-  account. No references to `website-database-url`,
-  `eddacraft-web`, or `beta-user-tokens` remain in the codebase or
-  infra.
-- **Validation:** Neon console/API lists exactly one project. `rg -n
-  "website-database-url|eddacraft-web|beta-user-tokens"` returns no
-  hits outside archived plan docs.
+- **Outcome:** Both legacy projects deleted via `neonctl projects
+  delete`. Only `anvil-api-prod` remains in the Neon account. Local
+  `pg_dump` snapshots under `scripts/dbcon/snapshots/` retained until
+  ≥ 2026-05-21 per the 30-day rule. Operator scripts and the DBCON
+  runbook remain as historical references (now in `plans/archive/`).
+- **Validation:** Neon project list confirmed by operator on
+  2026-04-21. `rg -n "website-database-url|eddacraft-web|beta-user-tokens"`
+  returns no hits in live code or infra — remaining hits are
+  confined to `scripts/dbcon/` operator scripts (historical),
+  `plans/archive/`, and this module doc.
 - **Confidence:** high
 - **Files:**
   - Modify: `scripts/dbcon/README.md` (decommission checklist)
