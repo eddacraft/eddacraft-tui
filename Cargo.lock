@@ -988,6 +988,7 @@ dependencies = [
  "insta",
  "ratatui",
  "temp-env",
+ "tempfile",
  "thiserror 2.0.18",
  "unicode-width 0.2.2",
 ]

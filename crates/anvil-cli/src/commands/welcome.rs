@@ -258,8 +258,11 @@ fn run_guided_init(
                     checks_enabled: checks,
                 };
                 let mut landing = onboarding::InitCompleteState::new(summary);
-                let landing_exit = crate::tui::run_surface_in(terminal, &mut landing, theme)?;
-                if landing_exit == SurfaceExit::Quit && !landing.wants_continue {
+                crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+                // InitCompleteState::should_quit returns true for both Enter
+                // (wants_continue) and q/Esc; wants_continue is the authoritative
+                // signal for whether to proceed past the landing screen.
+                if !landing.wants_continue {
                     return Ok(true);
                 }
             }

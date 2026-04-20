@@ -13,16 +13,27 @@ const MAX_OUTPUT_LINES: usize = 5;
 
 /// Some terminals (notably older Windows consoles and a few SSH multiplexers)
 /// render the geometric-shape glyphs we use for the step progress indicator
-/// as double-wide or as replacement boxes. Setting `ANVIL_ASCII=1` swaps the
-/// progress glyphs for their ASCII counterparts so the layout stays aligned.
+/// as double-wide or as replacement boxes. Setting `ANVIL_ASCII=1` (or
+/// `true`, case-insensitive) swaps the progress glyphs for their ASCII
+/// counterparts so the layout stays aligned. Any other value — including
+/// `ANVIL_ASCII=false` — leaves the Unicode glyphs in place.
 ///
 /// Returns `(complete, current, pending)`.
 fn progress_glyphs() -> (&'static str, &'static str, &'static str) {
-    if std::env::var_os("ANVIL_ASCII").is_some_and(|v| v != "0" && !v.is_empty()) {
+    if ascii_mode() {
         ("#", ">", "-")
     } else {
         ("\u{25cf}", "\u{25c9}", "\u{25cb}")
     }
+}
+
+fn ascii_mode() -> bool {
+    std::env::var("ANVIL_ASCII")
+        .map(|v| {
+            let v = v.trim();
+            v.eq_ignore_ascii_case("1") || v.eq_ignore_ascii_case("true")
+        })
+        .unwrap_or(false)
 }
 
 /// Fit `title` inside a block whose outer width is `area_width`. A Ratatui
@@ -247,7 +258,9 @@ fn render_path_select(
     );
 
     // Helpful hint beneath the list to give the negative space purpose.
-    if below.height >= 2 {
+    // Skip it when no paths are registered — promising a 5-minute tutorial
+    // while the picker is empty is worse than showing nothing.
+    if below.height >= 2 && !state.paths.is_empty() {
         let hint_chunks = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
@@ -322,6 +335,14 @@ fn render_step_content(
     state: &TutorialState,
     theme: &EddaCraftTheme,
 ) {
+    // A bordered block with 1-cell horizontal padding consumes 4 columns and
+    // 2 rows before any content fits, so anything smaller than a 4x3 area
+    // leaves a zero-area `inner` that causes `Paragraph` with wrapping to
+    // divide by zero. Bail out rather than render garbage.
+    if area.width < 4 || area.height < 3 {
+        return;
+    }
+
     let Some(step) = state.steps.get(state.current_step) else {
         return;
     };

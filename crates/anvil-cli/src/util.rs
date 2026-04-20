@@ -131,6 +131,15 @@ pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
         .with_context(|| format!("writing {}", path.display()))?;
     file.flush()
         .with_context(|| format!("flushing {}", path.display()))?;
+
+    // On Windows, restrict the file to the current user only (matching the
+    // Unix 0o600 set at creation time). Best-effort; emits a warning rather
+    // than failing the write if icacls is unavailable.
+    #[cfg(windows)]
+    {
+        restrict_windows_permissions(path);
+    }
+
     Ok(())
 }
 

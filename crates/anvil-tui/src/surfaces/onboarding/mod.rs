@@ -71,36 +71,27 @@ mod tests {
 
     #[test]
     fn config_exists_returns_false_in_empty_dir() {
-        let tmp =
-            std::env::temp_dir().join(format!("anvil_test_config_exists_{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).unwrap();
-
-        assert!(!config_exists_in(&tmp));
-        let _ = std::fs::remove_dir_all(&tmp);
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(!config_exists_in(tmp.path()));
     }
 
     #[test]
     fn config_exists_detects_anvilrc() {
-        let tmp = std::env::temp_dir().join(format!("anvil_test_anvilrc_{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).unwrap();
-        std::fs::write(tmp.join(".anvilrc"), "{}").unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
 
-        assert!(config_exists_in(&tmp));
-        let _ = std::fs::remove_dir_all(&tmp);
+        assert!(config_exists_in(tmp.path()));
     }
 
     #[test]
     fn config_exists_ignores_empty_anvilrc() {
-        let tmp =
-            std::env::temp_dir().join(format!("anvil_test_empty_anvilrc_{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).unwrap();
-        std::fs::write(tmp.join(".anvilrc"), b"").unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), b"").unwrap();
 
         assert!(
-            !config_exists_in(&tmp),
+            !config_exists_in(tmp.path()),
             "zero-byte .anvilrc must be treated as missing config"
         );
-        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

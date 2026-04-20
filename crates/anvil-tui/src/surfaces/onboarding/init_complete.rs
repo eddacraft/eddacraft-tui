@@ -13,6 +13,7 @@ use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
+use unicode_width::UnicodeWidthStr;
 
 use crate::shell::inset_content;
 use crate::surface::Surface;
@@ -111,14 +112,17 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
 
     let s = &state.summary;
 
-    // Determine the longest path so the descriptions align.
+    // Determine the longest path so the descriptions align. We use terminal
+    // cell width (via unicode-width) rather than char count so CJK glyphs
+    // and emoji-wide paths line up with the description column instead of
+    // bleeding into it.
     let widest = [
         s.config_path.as_str(),
         s.plans_dir.as_str(),
         s.cache_dir.as_str(),
     ]
     .iter()
-    .map(|p| p.chars().count())
+    .map(|p| UnicodeWidthStr::width(*p))
     .max()
     .unwrap_or(0);
     let gap = widest + 2;
@@ -195,7 +199,7 @@ fn path_line<'a>(
     gap: usize,
     theme: &EddaCraftTheme,
 ) -> Line<'a> {
-    let pad = gap.saturating_sub(path.chars().count());
+    let pad = gap.saturating_sub(UnicodeWidthStr::width(path));
     let padding: String = " ".repeat(pad);
     Line::from(vec![
         Span::styled("  ", Style::default()),

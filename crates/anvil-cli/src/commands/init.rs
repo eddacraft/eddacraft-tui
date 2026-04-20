@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{BufRead, IsTerminal, Write};
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use anvil_tui::surfaces::init::{AvailableCheck, InitState};
@@ -48,10 +48,27 @@ pub fn run(args: &InitArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<()> {
-    let config_path = root.join(".anvilrc");
-
-    if config_path.exists() && !args.force {
+    // Use the shared `config_exists_in` helper so `init` and the onboarding
+    // flow agree on whether a config exists — they previously diverged on
+    // zero-byte `.anvilrc` files, leaving onboarding calling `init` and
+    // `init` immediately bailing on the empty file it could not see.
+    if anvil_tui::surfaces::onboarding::config_exists_in(root) && !args.force {
         anyhow::bail!(".anvilrc already exists. Use --force to overwrite.");
+    }
+
+    // A zero-byte `.anvilrc` is treated as "missing" by `config_exists_in`,
+    // but `write_new` (O_CREAT | O_EXCL) would still fail because the inode
+    // exists. Remove the empty stub so the upcoming create proceeds cleanly
+    // — the only information it could possibly hold is "nothing".
+    if !args.force {
+        let config_path = root.join(".anvilrc");
+        if let Ok(meta) = fs::metadata(&config_path)
+            && meta.is_file()
+            && meta.len() == 0
+        {
+            fs::remove_file(&config_path)
+                .with_context(|| format!("failed to remove empty {}", config_path.display()))?;
+        }
     }
 
     if global.json {
@@ -126,6 +143,11 @@ pub(crate) fn generate_config_with_force(
         "yaml" => yaml_serialise(config),
         _ => serde_json::to_string_pretty(config).context("failed to serialise config")?,
     };
+    // Ensure the root exists before any file writes — `write_new` opens with
+    // O_CREAT | O_EXCL and will fail with NotFound rather than a useful
+    // "directory missing" error if a caller passes a freshly-picked path.
+    fs::create_dir_all(root)
+        .with_context(|| format!("failed to create directory {}", root.display()))?;
     let path = root.join(".anvilrc");
     if force {
         crate::util::atomic_write(&path, content.as_bytes()).context("failed to write .anvilrc")?;
@@ -150,23 +172,44 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
     let gitignore = root.join(".gitignore");
     let entry = ".anvil/cache/";
 
-    if gitignore.exists() {
-        let file = fs::File::open(&gitignore).context("failed to read .gitignore")?;
-        let reader = std::io::BufReader::new(file);
-        for line in reader.lines() {
-            let line = line.context("failed to read .gitignore line")?;
+    // Refuse to modify a symlinked .gitignore — a hostile symlink could
+    // redirect the append into a file outside the project root. We use
+    // `symlink_metadata` so we see the link itself rather than following it.
+    match fs::symlink_metadata(&gitignore) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            anyhow::bail!(
+                ".gitignore is a symbolic link; refusing to modify for safety. Resolve manually and re-run."
+            );
+        }
+        Ok(_) | Err(_) => {}
+    }
+
+    // Read the file once so we can both scan for the existing entry and
+    // decide whether a leading newline is needed. A missing file is not an
+    // error; any other read failure is surfaced rather than silently
+    // swallowed with `unwrap_or_default`.
+    let existing: Option<String> = match fs::read_to_string(&gitignore) {
+        Ok(s) => Some(s),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(e).context("failed to read .gitignore"),
+    };
+
+    if let Some(contents) = existing.as_deref() {
+        // Simple trimmed-line equality check. We do not strip trailing
+        // inline comments (e.g. `".anvil/cache/ # keep"`), so a
+        // hand-authored entry with a trailing comment will trigger a
+        // duplicate append. Anvil never writes that form itself, and the
+        // duplicate is harmless to git's ignore semantics.
+        for line in contents.lines() {
             if line.trim() == entry {
                 return Ok(false);
             }
         }
     }
 
-    let needs_newline = if gitignore.exists() {
-        let contents = fs::read_to_string(&gitignore).unwrap_or_default();
-        !contents.is_empty() && !contents.ends_with('\n')
-    } else {
-        false
-    };
+    let needs_newline = existing
+        .as_deref()
+        .is_some_and(|c| !c.is_empty() && !c.ends_with('\n'));
 
     let mut file = fs::OpenOptions::new()
         .create(true)
