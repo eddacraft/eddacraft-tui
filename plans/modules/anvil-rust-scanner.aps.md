@@ -171,7 +171,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-004, RSCAN-006
 - **Validation:** `pnpm test:scanner-parity` (or equivalent) passes with zero diffs
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-008: Documentation refresh
 
@@ -287,6 +287,27 @@ non-negotiable reason the Rust scanner is the authoritative one.
   a new `patterns_count()` helper replaces the stale `PATTERNS: usize
   = 13` constant. 156 `anvil-checks` + 572 `anvil-cli` tests green;
   clippy clean at `-D warnings`.
+- **2026-04-21 — RSCAN-007 landed.** New `tests/scanner-parity/`
+  directory hosts the canonical fixture set (`fixtures.json`) shared
+  between the two engines: `crates/anvil-checks/tests/scanner_parity.rs`
+  runs them through `scan_artifact` in Rust, and
+  `packages/anvil/core/src/antipattern/scanner-parity.test.ts` runs
+  them through `scanArtifact` in TS. Both suites assert the same
+  `expected_matches` (rule id + line), so "both engines match" is a
+  mechanical consequence of both suites passing. A root-level
+  `pnpm test:scanner-parity` script runs the TS vitest + Rust cargo
+  test back-to-back. Initial fixture set covers 9 cases across source /
+  pr-description / commit-message kinds, exercising AP-001 (via the
+  Rust split-regex workaround), AP-003, AP-004, AP-006, RL-002, and
+  RL-004 plus two "clean input → zero warnings" fixtures. Known
+  divergences — rules whose registry regex uses PCRE lookaround that
+  the `regex` crate cannot compile (DD-001..003, GS-001, RL-001,
+  RL-005), and the dropped case-insensitive `flags: "i"` on RL-*/DD-004
+  — are documented in `tests/scanner-parity/README.md` as explicit
+  out-of-scope parity gaps tracked under ADR-026's
+  regex-engine-differences risk. Columns are deliberately excluded
+  from fixtures because engines differ in offset counting on
+  alternation patterns; line + id is the durable shape.
 - **2026-04-21 — RSCAN-006 landed (M3 complete).** New `--artifact
   <kind>` flag on `anvil check` routes `pr-description` /
   `commit-message` / `agent-output` inputs through `scan_artifact` with
