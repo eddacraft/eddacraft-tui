@@ -8,9 +8,9 @@ ADR-026. Closes the deferred ANVFMT-013 work. See: plans/aps-rules.md
 
 # Anvil Rust Scanner
 
-| ID    | Owner | Status      |
-| ----- | ----- | ----------- |
-| RSCAN | —     | In Progress |
+| ID    | Owner | Status   |
+| ----- | ----- | -------- |
+| RSCAN | —     | Complete |
 
 ## Purpose
 
@@ -181,7 +181,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-004, RSCAN-006
 - **Validation:** Grep finds no stale references to Rust AP-008..AP-013 or "Rust scanner has its own patterns"
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ## Risks
 
@@ -326,6 +326,28 @@ non-negotiable reason the Rust scanner is the authoritative one.
   the blocking threshold path. Closes the original ANVFMT-013 intent
   that was reparented under ADR-026. 581 `anvil-cli` tests green;
   clippy clean at `-D warnings`.
+- **2026-04-21 — RSCAN-008 landed (M4 complete, module complete).**
+  Documentation refreshed to describe the authoritative Rust scanner and
+  the parity story per ADR-026. `docs/guides/anvil-rule-authoring.md` now
+  states up front that `registry.json` is the contract both engines
+  consume, and a new "Engine compatibility" subsection explains the Rust
+  `regex` crate vs V8 PCRE difference and points authors at
+  `pnpm test:scanner-parity` and the parity README. Public overview
+  (`docs/public/anvil/overview.md`) switched the "13 built-in patterns
+  (4 default, 9 opt-in)" bullet + table row to "18 registry-driven rules
+  (15 default, 3 opt-in)" and added a **Parallel Scan Engine** row calling
+  out the rayon-driven throughput. `docs/architecture/rust-architecture-endstate.md`
+  updated the `anvil-checks` crate map (added `registry_loader.rs`,
+  changed `patterns.rs` description to the LazyLock registry wrapper, noted
+  `scanner.rs` is rayon-parallel) and added an ADR-026 block under the
+  RENG ports table describing the two-engine state, parity harness, and
+  future napi-rs retirement path for the TS scanner. `docs/architecture/anvil-full-architecture.md`
+  reflected the same change on the Gate Checks table row for
+  `AntipatternCheck`. Validation grep confirms no remaining stale
+  references to Rust `AP-008..AP-013` outside archived proposal docs and
+  no "Rust scanner has its own patterns" phrasing anywhere. Closes RSCAN
+  module; the separate "retire TS scanner" work remains an out-of-scope
+  follow-up tracked under ADR-026.
 - **2026-04-21 — RSCAN-005 landed.** Pattern regex compilation moved
   to a process-wide `PREPARED_PATTERNS: LazyLock<Vec<PreparedPattern>>`
   so every scan reuses the already-compiled `regex::Regex` instances

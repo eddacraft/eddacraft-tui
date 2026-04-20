@@ -97,11 +97,12 @@ crates/
 │   │   ├── git_scanner.rs          Git-aware scanning
 │   │   ├── check.rs                Check interface impl
 │   │   └── types.rs                Result types
-│   ├── src/antipattern/            Anti-pattern detection
-│   │   ├── patterns.rs             13 patterns (AP-001..AP-013)
-│   │   ├── scanner.rs              Pattern scanner
+│   ├── src/antipattern/            Anti-pattern detection (registry-driven)
+│   │   ├── registry_loader.rs      Loads patterns/compiled/registry.json
+│   │   ├── patterns.rs             LazyLock wrapper over the registry (18 rules)
+│   │   ├── scanner.rs              rayon-parallel pattern scanner
 │   │   ├── check.rs                Check interface impl
-│   │   └── types.rs                Result types
+│   │   └── types.rs                Result types (with family provenance)
 │   ├── src/command_safety/         Command safety validation
 │   │   ├── parser.rs               Shell command parser
 │   │   ├── matcher.rs              Rule matcher
@@ -378,9 +379,22 @@ semantic graph. They operate on file content directly.
 | ID       | Check          | TS Latency | Rust Latency | Speedup | Patterns                  |
 | -------- | -------------- | ---------- | ------------ | ------- | ------------------------- |
 | RENG-001 | Secret scan    | 200-800ms  | 5-20ms       | **40x** | Entropy + regex patterns  |
-| RENG-002 | Anti-pattern   | 500-2000ms | 20-100ms     | **25x** | 13 patterns (AP-001..013) |
+| RENG-002 | Anti-pattern   | 500-2000ms | 20-100ms     | **25x** | 18 registry rules (ADR-026) |
 | RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs) |
 | RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness         |
+
+> The Rust anti-pattern scanner is authoritative per [ADR-026]. It loads
+> `patterns/compiled/registry.json` on first use (cached via `LazyLock`) and
+> scans artifacts in parallel with `rayon::par_iter`, giving linear speedup
+> across cores on multi-artifact workloads (watch fan-out, multi-PR gate
+> checks, full-repo CI scans). The TypeScript scanner in
+> `packages/anvil/core/src/antipattern/` is still used from in-process
+> surfaces (VSCode extension, MCP server); both engines consume the same
+> registry and are held in parity by `tests/scanner-parity/` (see RSCAN-007).
+> The TS scanner will retire once a napi-rs / WASM binding makes the Rust
+> engine callable from Node surfaces (future module, out of scope here).
+>
+> [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
 
 ### Additional Items
 

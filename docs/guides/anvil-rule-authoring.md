@@ -4,6 +4,15 @@ This guide walks through adding a new anti-pattern to Anvil's detection
 catalogue. All rules live as `.anvil` files under `patterns/` and are
 compiled into `patterns/compiled/registry.json` by `scripts/compile-patterns`.
 
+`registry.json` is the **contract both scan engines consume**: the Rust scanner
+in `crates/anvil-checks` (authoritative, per [ADR-026]) and the TypeScript
+scanner in `packages/anvil/core/src/antipattern` (kept for the VSCode extension
+and MCP server until the napi-rs migration lands). Authoring a rule means
+editing the `.anvil` source and recompiling the registry — neither engine
+carries its own hand-written pattern table.
+
+[ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
+
 ## Layout
 
 ```
@@ -125,6 +134,16 @@ The compiler validates:
 - Regex patterns parse.
 
 A failing compile step points at the offending file and field; fix and rerun.
+
+### Engine compatibility
+
+The Rust scanner uses the `regex` crate (RE2-style: no backtracking, no
+lookaround). The TypeScript scanner uses V8's PCRE-ish engine, which supports
+lookaround. Patterns that rely on lookaround compile fine for the TS engine but
+are skipped by the Rust engine and will be flagged in the scanner-parity
+harness (`pnpm test:scanner-parity`). When possible, rewrite to avoid
+lookaround so both engines stay in parity; when not possible, document the
+divergence in `tests/scanner-parity/README.md`.
 
 ## Checklist before merge
 
