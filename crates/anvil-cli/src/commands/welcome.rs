@@ -443,50 +443,76 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     let cwd = std::env::current_dir()?;
     let secret_config = anvil_checks::secret::types::SecretCheckConfig::default();
 
-    // Correctness excludes (node_modules, target, .git, test fixtures) + the
-    // opt-in build-artefact set. Passing BUILD_ARTEFACT_DIRS here keeps them
-    // out of `ScanFilter::default_excludes()` (which is public API) while
-    // still pruning them from the welcome-flow scan.
-    let mut filter_patterns: Vec<String> = BUILD_ARTEFACT_DIRS
-        .iter()
-        .map(|d| format!("{d}/"))
-        .collect();
-    // Seed with the correctness defaults so custom pattern composition still
-    // covers node_modules, target, etc. `ScanFilter::default_excludes()` is
-    // the source of truth; we fold its rules in by matching its filenames.
-    for name in [
-        "__fixtures__",
-        "__mocks__",
-        "__tests__",
-        "test-data",
-        "fixtures",
-        "node_modules",
-        "target",
-        ".git",
-    ] {
-        filter_patterns.push(format!("{name}/"));
-    }
-    for suffix in [".test.ts", ".spec.ts", ".test.rs", "_test.rs"] {
-        filter_patterns.push(suffix.to_string());
-    }
-    let filter = ScanFilter::new(filter_patterns);
+    // Correctness excludes (from `ScanFilter::default_excludes()`) + the
+    // opt-in build-artefact set. `default_with` composes the canonical
+    // defaults with our extras so the welcome-flow filter cannot drift from
+    // `ScanFilter::default_excludes()` when that set changes.
+    let filter = ScanFilter::default_with(
+        BUILD_ARTEFACT_DIRS
+            .iter()
+            .map(|d| format!("{d}/"))
+            .collect(),
+    );
 
-    // Phase 1a: walk the tree honouring .gitignore and other standard
-    // filters. `hidden(false)` is deliberate — dotfile directories (`.config`,
-    // `.secrets`, etc.) must be descended into so secret-bearing dotfiles can
-    // be discovered; gitignore still prunes anything listed there. Set
-    // `ANVIL_SCAN_ALL=1` to bypass gitignore entirely for an exhaustive scan.
     let scan_all = std::env::var("ANVIL_SCAN_ALL")
         .is_ok_and(|v| !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false"));
+
+    let mut candidates: Vec<(std::path::PathBuf, String)> = Vec::new();
+    let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
+    let mut truncated = false;
+
+    // Phase 1a: always-scan allowlist pass. Runs first (regardless of
+    // truncation) and bypasses standard gitignore filters so leaked `.env`
+    // or `id_rsa` files in gitignored locations are still caught — that's
+    // precisely the class of secret the first-run scan exists to flag.
+    //
+    // `filter_entry` prunes directories that ScanFilter would otherwise
+    // reject (node_modules, target, dist, .git, ...) so Phase 1b can't
+    // dominate runtime on typical JS/Rust repos by descending into them.
+    // Skipped when `scan_all` is set because Phase 1b then covers
+    // everything (including `.env`) via the same walker.
+    if !scan_all {
+        let filter_for_prune = filter.clone();
+        let allowlist_walker = ignore::WalkBuilder::new(&cwd)
+            .follow_links(false)
+            .standard_filters(false)
+            .hidden(false)
+            .filter_entry(move |entry| {
+                // Only prune directories — always descend into files so the
+                // filename allowlist can match them.
+                if entry.file_type().is_none_or(|ft| !ft.is_dir()) {
+                    return true;
+                }
+                filter_for_prune.includes(entry.path())
+            })
+            .build();
+
+        for entry in allowlist_walker.filter_map(Result::ok) {
+            let path = entry.path();
+            if !is_always_scan_filename(path) {
+                continue;
+            }
+            // No cap on the allowlist pass: ALWAYS_SCAN_FILENAMES is a
+            // small, rare-filename set, so total contribution is bounded by
+            // how many `.env`-like files actually exist in the tree.
+            if let Some(candidate) = candidate_path(&entry, &cwd, &filter)
+                && seen.insert(candidate.0.clone())
+            {
+                candidates.push(candidate);
+            }
+        }
+    }
+
+    // Phase 1b: general walk. Honours gitignore (unless `scan_all`) and
+    // stops at SCAN_MAX_FILES. `hidden(false)` is deliberate — dotfile
+    // directories (`.config`, `.secrets`, ...) must be descended into so
+    // secret-bearing dotfiles can be discovered; gitignore still prunes
+    // anything listed there.
     let walker = ignore::WalkBuilder::new(&cwd)
         .follow_links(false)
         .standard_filters(!scan_all)
         .hidden(false)
         .build();
-
-    let mut candidates: Vec<(std::path::PathBuf, String)> = Vec::new();
-    let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
-    let mut truncated = false;
 
     let mut iter = walker.filter_map(Result::ok);
     for entry in iter.by_ref() {
@@ -501,39 +527,6 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
                     .by_ref()
                     .any(|e| candidate_path(&e, &cwd, &filter).is_some());
                 break;
-            }
-        }
-    }
-
-    // Phase 1b: second pass without standard_filters to pick up always-scan
-    // files that gitignore would have hidden. A leaked `.env` or `id_rsa` is
-    // precisely what this first-run scan exists to catch — skipping them
-    // because they're gitignored defeats the tool's purpose. Skipped when
-    // `scan_all` is set because Phase 1a already covered everything.
-    if !scan_all && !truncated && candidates.len() < SCAN_MAX_FILES {
-        let allowlist_walker = ignore::WalkBuilder::new(&cwd)
-            .follow_links(false)
-            .standard_filters(false)
-            .hidden(false)
-            .build();
-
-        let mut allowlist_iter = allowlist_walker.filter_map(Result::ok);
-        for entry in allowlist_iter.by_ref() {
-            let path = entry.path();
-            if !is_always_scan_filename(path) {
-                continue;
-            }
-            if let Some(candidate) = candidate_path(&entry, &cwd, &filter) {
-                if seen.insert(candidate.0.clone()) {
-                    candidates.push(candidate);
-                }
-                if candidates.len() >= SCAN_MAX_FILES {
-                    truncated = allowlist_iter.by_ref().any(|e| {
-                        is_always_scan_filename(e.path())
-                            && candidate_path(&e, &cwd, &filter).is_some()
-                    });
-                    break;
-                }
             }
         }
     }

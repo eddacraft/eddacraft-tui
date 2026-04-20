@@ -117,41 +117,41 @@ static BARE_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 /// Built-in secret patterns compiled once per process. Sharing the compiled
 /// regex set across parallel scan workers avoids recompiling 18 patterns per
 /// file, which was a measurable waste of CPU in the discovery scan.
+///
+/// Built-in patterns are repo-owned constants — if one fails to compile, that
+/// is a developer bug, not a runtime condition to recover from. We panic on
+/// access (caught by every test that exercises the secret scanner) so a bad
+/// regex is a loud CI failure instead of a silent reduction in detection
+/// coverage.
 pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock::new(|| {
     SECRET_PATTERNS
         .iter()
-        .filter_map(|pattern| {
-            Regex::new(pattern.pattern)
-                .ok()
-                .map(|regex| CompiledPattern {
-                    name: pattern.name.to_string(),
-                    regex,
-                })
+        .map(|pattern| {
+            let regex = Regex::new(pattern.pattern).unwrap_or_else(|err| {
+                panic!(
+                    "built-in secret pattern `{}` failed to compile: {err}",
+                    pattern.name
+                )
+            });
+            CompiledPattern {
+                name: pattern.name.to_string(),
+                regex,
+            }
         })
         .collect()
 });
 
 pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
-    let mut compiled = Vec::new();
-
-    for pattern in SECRET_PATTERNS {
-        if let Ok(regex) = Regex::new(pattern.pattern) {
-            compiled.push(CompiledPattern {
-                name: pattern.name.to_string(),
-                regex,
-            });
-        }
-    }
-
-    for pattern in custom_patterns {
-        if let Ok(regex) = Regex::new(&pattern.pattern) {
-            compiled.push(CompiledPattern {
-                name: pattern.name.clone(),
-                regex,
-            });
-        }
-    }
-
+    // Built-ins go through the fail-fast path; custom patterns tolerate
+    // compile failures because they come from user config.
+    let mut compiled: Vec<CompiledPattern> = DEFAULT_COMPILED_PATTERNS
+        .iter()
+        .map(|p| CompiledPattern {
+            name: p.name.clone(),
+            regex: p.regex.clone(),
+        })
+        .collect();
+    compiled.extend(compile_custom_patterns(custom_patterns));
     compiled
 }
 
@@ -272,7 +272,18 @@ impl PatternMatcher {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_ALLOWLIST, PatternMatcher, SECRET_PATTERNS, compile_secret_patterns};
+    use super::{
+        DEFAULT_ALLOWLIST, DEFAULT_COMPILED_PATTERNS, PatternMatcher, SECRET_PATTERNS,
+        compile_secret_patterns,
+    };
+
+    #[test]
+    fn every_builtin_pattern_compiles() {
+        // Force LazyLock initialisation. Any invalid built-in pattern panics
+        // with the offending pattern name; running this in CI guarantees a
+        // bad regex is caught loudly, not silently dropped from the scan set.
+        assert_eq!(DEFAULT_COMPILED_PATTERNS.len(), SECRET_PATTERNS.len());
+    }
 
     #[test]
     fn matches_all_default_patterns_with_examples() {

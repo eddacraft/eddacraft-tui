@@ -158,6 +158,22 @@ impl ScanFilter {
         Self { rules }
     }
 
+    /// Create a filter starting from `default_excludes()` and adding the
+    /// supplied extra patterns on top. Extra patterns follow the same
+    /// categorisation rules as [`ScanFilter::new`] (trailing `/` for
+    /// directory segments, otherwise file suffix).
+    ///
+    /// Prefer this over manually re-specifying the default exclude list in
+    /// caller code — it guarantees the defaults cannot drift.
+    #[must_use]
+    pub fn default_with(extra: Vec<String>) -> Self {
+        let mut filter = Self::default_excludes();
+        filter
+            .rules
+            .extend(extra.into_iter().map(|p| categorise_pattern(&p)));
+        filter
+    }
+
     /// Returns `true` if the path should be **included** (not excluded).
     /// Returns `false` if the path matches any exclusion pattern.
     #[must_use]
@@ -492,6 +508,22 @@ mod tests {
             .map(|d| format!("{d}/"))
             .collect();
         let f = ScanFilter::new(patterns);
+        assert!(!f.includes(Path::new("dist/bundle.js")));
+        assert!(!f.includes(Path::new(".next/static/chunks/app.js")));
+        assert!(f.includes(Path::new("src/main.rs")));
+    }
+
+    #[test]
+    fn default_with_preserves_defaults_and_adds_extras() {
+        use super::BUILD_ARTEFACT_DIRS;
+        let patterns: Vec<String> = BUILD_ARTEFACT_DIRS
+            .iter()
+            .map(|d| format!("{d}/"))
+            .collect();
+        let f = ScanFilter::default_with(patterns);
+        assert!(!f.includes(Path::new("node_modules/lodash/index.js")));
+        assert!(!f.includes(Path::new("target/debug/anvil")));
+        assert!(!f.includes(Path::new("src/widget.test.ts")));
         assert!(!f.includes(Path::new("dist/bundle.js")));
         assert!(!f.includes(Path::new(".next/static/chunks/app.js")));
         assert!(f.includes(Path::new("src/main.rs")));
