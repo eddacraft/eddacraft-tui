@@ -230,8 +230,10 @@ fn should_offer_interactive_login(
 /// - `GIT_DIR` / `GIT_INDEX_FILE` — reliably set by git when it invokes a
 ///   hook. Prompting from a commit hook would hold git's index lock.
 fn is_non_interactive_env() -> bool {
-    let present = |k: &str| std::env::var_os(k).is_some_and(|v| !v.is_empty());
-    if present("ANVIL_NO_PROMPT") || present("NONINTERACTIVE") {
+    // Presence-only: matches the common shell convention that
+    // `export FOO=` is still "set". Empty-string should count as opt-out.
+    let is_set = |k: &str| std::env::var_os(k).is_some();
+    if is_set("ANVIL_NO_PROMPT") || is_set("NONINTERACTIVE") {
         return true;
     }
     if matches!(
@@ -240,7 +242,7 @@ fn is_non_interactive_env() -> bool {
     ) {
         return true;
     }
-    if present("GIT_DIR") || present("GIT_INDEX_FILE") {
+    if is_set("GIT_DIR") || is_set("GIT_INDEX_FILE") {
         return true;
     }
     false
@@ -815,6 +817,22 @@ mod tests {
                 ("GIT_INDEX_FILE", None),
             ],
             || assert!(!is_non_interactive_env()),
+        );
+    }
+
+    #[test]
+    fn non_interactive_env_detects_empty_string_opt_out() {
+        // `export ANVIL_NO_PROMPT=` should still count as opt-out —
+        // presence of the variable is the signal, not its value.
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", Some("")),
+                ("NONINTERACTIVE", None),
+                ("CI", None),
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(is_non_interactive_env()),
         );
     }
 
