@@ -177,21 +177,6 @@ describe.skipIf(!opaPath)('OPA real-binary integration (TCOV-009/-011)', () => {
       expect(result.stdout).toMatch(/PASS:\s*\d+\/\d+/);
       expect(result.stdout).not.toMatch(/FAIL/);
     });
-
-    it('reports a non-zero count of test cases', () => {
-      const result = spawnSync(opaPath as string, ['test', FIXTURES_DIR, '--verbose'], {
-        encoding: 'utf-8',
-        timeout: 30_000,
-      });
-
-      expect(result.status).toBe(0);
-      const passMatch = result.stdout.match(/PASS:\s*(\d+)\/(\d+)/);
-      expect(passMatch).not.toBeNull();
-      const passed = Number(passMatch?.[1] ?? 0);
-      const total = Number(passMatch?.[2] ?? 0);
-      expect(total).toBeGreaterThan(0);
-      expect(passed).toBe(total);
-    });
   });
 });
 

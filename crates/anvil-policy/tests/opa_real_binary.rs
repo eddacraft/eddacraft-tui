@@ -10,25 +10,10 @@
 //!   - TCOV-011: real `opa test` against fixture `*_test.rego`
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anvil_policy::loader::PolicyLoader;
-use anvil_policy::opa::OpaExecutor;
+use anvil_policy::opa::{OpaExecutor, find_opa_binary};
 use serde_json::json;
-
-fn find_opa_binary() -> Option<String> {
-    if let Ok(env_path) = std::env::var("ANVIL_OPA_PATH") {
-        if !env_path.is_empty() {
-            return Some(env_path);
-        }
-    }
-    let output = Command::new("which").arg("opa").output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if path.is_empty() { None } else { Some(path) }
-}
 
 fn repo_root() -> PathBuf {
     // CARGO_MANIFEST_DIR points at crates/anvil-policy; repo root is two up.
@@ -46,9 +31,10 @@ fn fixtures_dir() -> PathBuf {
 
 fn require_opa() -> Option<(OpaExecutor, Vec<anvil_policy::loader::LoadedPolicy>)> {
     let binary = find_opa_binary()?;
-    let executor = OpaExecutor::new(Some(&binary), Some(10_000));
+    let binary_str = binary.to_string_lossy();
+    let executor = OpaExecutor::new(Some(&binary_str), Some(10_000));
     if !executor.is_available() {
-        eprintln!("[opa-real] opa binary at {binary} reports unavailable; skipping");
+        eprintln!("[opa-real] opa binary at {binary_str} reports unavailable; skipping");
         return None;
     }
     let loader = PolicyLoader::new();
@@ -98,7 +84,6 @@ fn change_scope_flags_oversized_plans() {
         })
         .collect();
     input["plan"]["proposed_changes"] = serde_json::Value::Array(changes);
-    input["plan"]["change_count"] = json!(25);
 
     let result = executor.evaluate(&policies, &input).expect("evaluate ok");
 

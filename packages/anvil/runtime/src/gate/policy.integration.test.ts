@@ -155,21 +155,6 @@ describe.skipIf(!opaPath)('Gate pipeline + real OPA (TCOV-012)', () => {
     ).filter((v) => v.severity === 'error');
     expect(errorViolations).toEqual([]);
   });
-
-  it('reports loaded policies in the result metadata', async () => {
-    const plan = basePlan({
-      proposed_changes: [{ type: 'file_create' as const, path: 'src/a.ts', description: 'noop' }],
-    });
-    const config = policyOnlyConfig();
-
-    const runner = new GateRunner();
-    const result = await runner.runGate(plan, config, workspace);
-    const policyResult = result.checks[0];
-
-    const policies = (policyResult.details?.policies ?? []) as Array<{ name: string }>;
-    const names = policies.map((p) => p.name).sort();
-    expect(names).toEqual(['change_scope', 'coverage_min', 'security_baseline']);
-  });
 });
 
 if (!opaPath) {

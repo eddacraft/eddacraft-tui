@@ -193,6 +193,17 @@ jobs:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
           version: v0.60.0
 
+      - name: Verify OPA version
+        env:
+          EXPECTED_OPA_VERSION: '0.60.0'
+        run: |
+          installed=$(opa version | awk '/^Version:/ {print $2}')
+          if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
+            echo "::error::OPA version mismatch: installed=$installed expected=$EXPECTED_OPA_VERSION"
+            exit 1
+          fi
+          echo "OPA $installed installed"
+
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
 
@@ -282,6 +293,24 @@ jobs:
             '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
             secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
             }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
+      - name: Install OPA
+        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        with:
+          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          version: v0.60.0
+
+      - name: Verify OPA version
+        shell: bash
+        env:
+          EXPECTED_OPA_VERSION: '0.60.0'
+        run: |
+          installed=$(opa version | awk '/^Version:/ {print $2}')
+          if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
+            echo "::error::OPA version mismatch: installed=$installed expected=$EXPECTED_OPA_VERSION"
+            exit 1
+          fi
+          echo "OPA $installed installed"
 
       - name: Run unit tests
         run: pnpm run test -- --run
