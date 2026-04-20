@@ -131,7 +131,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-001
 - **Validation:** `cargo test -p anvil-checks` + snapshot of `anvil check --json` output against a fixture
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-004: Replace PATTERN_DEFS with registry-backed catalogue
 
@@ -242,3 +242,15 @@ non-negotiable reason the Rust scanner is the authoritative one.
   AST support. 10 loader unit tests cover load/cache/schema rejection
   paths plus regex-mapping fidelity and the AST skip. Clippy clean at
   `-D warnings`.
+- **2026-04-21 — RSCAN-003 landed (M1 complete).** `AntiPattern` and
+  `Warning` now carry optional `family` / `definition_ref` /
+  `spectrum_position` fields, plus `targets` on `AntiPattern`. All four
+  are `#[serde(skip_serializing_if = "Option::is_none")]` so existing
+  `anvil check --json` consumers see an additive shape — no breaking
+  change. `compiled_to_antipattern` populates the fields from the
+  registry; `create_warning_from_match` propagates them onto emitted
+  warnings. Legacy hardcoded patterns (AP-001..AP-013 in `PATTERN_DEFS`)
+  leave them `None` until RSCAN-004 retires the hardcoded array. Four
+  new unit tests pin both the positive (registry-sourced) and negative
+  (legacy) provenance behaviour. 154 `anvil-checks` tests pass; clippy
+  clean; full workspace build green.

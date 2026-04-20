@@ -142,6 +142,9 @@ fn create_warning_from_match(
         },
         pattern: Some(pattern.id.clone()),
         suppressed,
+        family: pattern.family.clone(),
+        definition_ref: pattern.definition_ref.clone(),
+        spectrum_position: pattern.spectrum_position,
     };
     warning.fingerprint = Some(create_warning_fingerprint(&warning));
     warning
@@ -457,5 +460,48 @@ mod tests {
 
         assert_eq!(result.warnings.len(), 1);
         assert_eq!(result.warnings[0].location.line, 2);
+    }
+
+    #[test]
+    fn warning_carries_family_provenance_from_pattern() {
+        use crate::antipattern::registry_loader::{
+            LoadRegistryOptions, load_registry_patterns, reset_registry_cache,
+        };
+        use std::path::PathBuf;
+
+        reset_registry_cache();
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let registry = manifest
+            .parent()
+            .and_then(std::path::Path::parent)
+            .expect("workspace root")
+            .join("patterns/compiled/registry.json");
+
+        let registry_patterns = load_registry_patterns(&LoadRegistryOptions {
+            registry_path: Some(registry),
+        });
+        let ap003 = registry_patterns
+            .into_iter()
+            .find(|p| p.id == "AP-003")
+            .expect("AP-003 in registry");
+        assert_eq!(ap003.family.as_deref(), Some("type-system-evasion"));
+
+        let warning = super::create_warning_from_match(&ap003, "src/app.ts", 1, 0, None);
+        assert_eq!(warning.family.as_deref(), Some("type-system-evasion"));
+        assert!(
+            warning.definition_ref.is_some(),
+            "definition_ref should propagate"
+        );
+        assert_eq!(warning.spectrum_position, Some(1));
+    }
+
+    #[test]
+    fn warning_from_legacy_pattern_has_no_family_provenance() {
+        let legacy =
+            crate::antipattern::patterns::get_pattern("AP-001").expect("legacy AP-001 available");
+        let warning = super::create_warning_from_match(&legacy, "src/app.ts", 1, 0, None);
+        assert!(warning.family.is_none());
+        assert!(warning.definition_ref.is_none());
+        assert!(warning.spectrum_position.is_none());
     }
 }

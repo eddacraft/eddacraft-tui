@@ -55,6 +55,7 @@ pub struct Suppression {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Warning {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fingerprint: Option<String>,
     pub category: WarningCategory,
     pub severity: WarningSeverity,
@@ -63,10 +64,22 @@ pub struct Warning {
     pub message: String,
     pub explanation: String,
     pub suggestion: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nudge: Option<String>,
     pub location: Location,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suppressed: Option<Suppression>,
+    /// Family id this rule belongs to (e.g. "guardrail-suppression").
+    /// Populated for registry-sourced patterns; omitted for legacy hardcoded
+    /// patterns still in `PATTERN_DEFS` until RSCAN-004 retires them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectrum_position: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -104,6 +117,18 @@ pub struct AntiPattern {
     pub enabled: bool,
     #[serde(rename = "optIn")]
     pub opt_in: bool,
+    /// Family provenance (optional). Populated for patterns sourced from the
+    /// compiled `.anvil` registry; `None` for legacy hardcoded patterns.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectrum_position: Option<u32>,
+    /// Artifact types this pattern targets. `None` = legacy (source-only)
+    /// behaviour; populated from registry `targets` when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub targets: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -239,6 +264,9 @@ mod tests {
             explanation: "Sample explanation".to_string(),
             suggestion: "Sample suggestion".to_string(),
             nudge: None,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
             location: Location {
                 file: "src/a.ts".to_string(),
                 line: 2,

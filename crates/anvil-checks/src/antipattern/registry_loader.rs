@@ -299,10 +299,9 @@ fn map_category(anvil_category: &str) -> AntiPatternCategory {
 /// Convert a single compiled pattern into the scanner's `AntiPattern` shape.
 ///
 /// Returns `None` when the detection is not regex-based — the current scanner
-/// engine only understands regex detection. Family metadata (family /
-/// `definition_ref` / `spectrum_position` / targets) will be threaded through
-/// in RSCAN-003; this initial mapping preserves the regex/metadata the current
-/// `AntiPattern` struct already supports.
+/// engine only understands regex detection. Family provenance (family /
+/// `definition_ref` / `spectrum_position` / targets) is carried onto the
+/// resulting `AntiPattern` so the scanner can attach it to emitted warnings.
 #[must_use]
 pub fn compiled_to_antipattern(cp: &CompiledPattern) -> Option<AntiPattern> {
     let regex = match &cp.detection {
@@ -327,6 +326,10 @@ pub fn compiled_to_antipattern(cp: &CompiledPattern) -> Option<AntiPattern> {
         threshold: None,
         enabled: cp.enabled,
         opt_in: cp.opt_in,
+        family: Some(cp.family.clone()),
+        definition_ref: Some(cp.definition_ref.clone()),
+        spectrum_position: Some(cp.spectrum_position),
+        targets: Some(cp.targets.clone()),
     })
 }
 
@@ -489,6 +492,31 @@ mod tests {
         );
         assert_eq!(ap.allowlist, vec!["**/__tests__/**".to_string()]);
         assert_eq!(ap.category, AntiPatternCategory::EscapeHatch);
+    }
+
+    #[test]
+    fn carries_family_provenance_onto_antipattern() {
+        let cp = sample_compiled();
+        let ap = compiled_to_antipattern(&cp).expect("regex detection maps");
+        assert_eq!(ap.family.as_deref(), Some("guardrail-suppression"));
+        assert_eq!(
+            ap.definition_ref.as_deref(),
+            Some("patterns/guardrail-suppression/definition.anvil")
+        );
+        assert_eq!(ap.spectrum_position, Some(1));
+        assert_eq!(ap.targets, Some(vec!["source".to_string()]));
+    }
+
+    #[test]
+    fn legacy_hardcoded_antipattern_has_no_family_provenance() {
+        let legacy = crate::antipattern::patterns::get_pattern("AP-001").expect("AP-001 exists");
+        assert!(
+            legacy.family.is_none(),
+            "legacy hardcoded AP-001 must not carry family provenance until RSCAN-004 retires it"
+        );
+        assert!(legacy.definition_ref.is_none());
+        assert!(legacy.spectrum_position.is_none());
+        assert!(legacy.targets.is_none());
     }
 
     #[test]

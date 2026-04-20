@@ -303,6 +303,10 @@ fn to_antipattern(def: &PatternDef) -> AntiPattern {
         threshold: None,
         enabled: def.enabled,
         opt_in: def.opt_in,
+        family: None,
+        definition_ref: None,
+        spectrum_position: None,
+        targets: None,
     }
 }
 
