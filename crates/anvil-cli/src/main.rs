@@ -122,7 +122,6 @@ fn requires_auth(cmd: &Commands) -> bool {
         | Commands::Check(_)
         | Commands::Drift(_)
         | Commands::Status(_)
-        | Commands::Admin(_)
         | Commands::Gate(_)
         | Commands::GateConfig(_)
         | Commands::Watch(_)
@@ -134,8 +133,11 @@ fn requires_auth(cmd: &Commands) -> bool {
         // Auth subcommands: only whoami needs credentials
         Commands::Auth(args) => matches!(args.command, AuthCommand::Whoami),
 
-        // Bypass: onboarding, help, and auth flow commands
-        Commands::Doctor(_)
+        // Bypass: onboarding, help, and auth flow commands.
+        // `Admin` uses `ANVIL_ADMIN_KEY`, not personal credentials — it
+        // checks its own auth and returns EXIT_AUTH_REQUIRED directly.
+        Commands::Admin(_)
+        | Commands::Doctor(_)
         | Commands::Tutorial(_)
         | Commands::Welcome(_)
         | Commands::Init(_)
@@ -302,6 +304,9 @@ fn main() -> ExitCode {
             if err.is::<output::AlreadyReported>() {
                 return ExitCode::from(EXIT_ERROR);
             }
+            if err.is::<output::AuthRequired>() {
+                return ExitCode::from(EXIT_AUTH_REQUIRED);
+            }
             if cli.global.json {
                 eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
             } else {
@@ -353,13 +358,6 @@ mod tests {
     #[test]
     fn requires_auth_status() {
         assert!(requires_auth(&parse_command(&["status"])));
-    }
-
-    #[test]
-    fn requires_auth_admin() {
-        assert!(requires_auth(&parse_command(&[
-            "admin", "approve", "--batch", "1"
-        ])));
     }
 
     #[test]
@@ -462,6 +460,16 @@ mod tests {
     #[test]
     fn bypass_auth_auth_logout() {
         assert!(!requires_auth(&parse_command(&["auth", "logout"])));
+    }
+
+    #[test]
+    fn bypass_auth_admin() {
+        // Admin authenticates via ANVIL_ADMIN_KEY, not personal credentials,
+        // so the pre-action auth check is skipped; admin::run checks the
+        // env var itself and exits with EXIT_AUTH_REQUIRED if missing.
+        assert!(!requires_auth(&parse_command(&[
+            "admin", "approve", "--batch", "1"
+        ])));
     }
 
     // ── evaluate_auth ────────────────────────────────────────────

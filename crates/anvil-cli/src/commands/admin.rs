@@ -3,6 +3,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::output::AuthRequired;
 
 #[derive(Debug, Args)]
 pub struct AdminArgs {
@@ -55,10 +56,36 @@ struct InviteResult {
     token: Option<String>,
 }
 
+/// Resolve the admin API key from a raw `std::env::var` result.
+///
+/// Kept pure (no process env access) so unit tests can exercise every
+/// branch without the `unsafe { std::env::set_var }` forbidden by the
+/// crate-level `-F unsafe-code` lint.
+fn resolve_admin_key(raw: Result<String, std::env::VarError>, json: bool) -> Result<String> {
+    match raw {
+        Ok(value) if !value.is_empty() => Ok(value),
+        _ => {
+            if json {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({
+                        "error": "authentication_required",
+                        "detail": "ANVIL_ADMIN_KEY environment variable is required for admin commands"
+                    })
+                );
+            } else {
+                eprintln!(
+                    "Authentication required: set ANVIL_ADMIN_KEY to an admin token before running admin commands."
+                );
+            }
+            Err(AuthRequired.into())
+        }
+    }
+}
+
 pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
+    let admin_key = resolve_admin_key(std::env::var("ANVIL_ADMIN_KEY"), global.json)?;
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
-    let admin_key = std::env::var("ANVIL_ADMIN_KEY")
-        .context("ANVIL_ADMIN_KEY environment variable is required for admin commands")?;
     let client = crate::auth::client::AnvilClient::with_token(admin_key)?;
 
     match &args.command {
@@ -210,5 +237,23 @@ mod tests {
     fn args_rejects_invite_without_email() {
         let err = Wrapper::try_parse_from(["test", "invite"]).unwrap_err();
         assert_ne!(err.exit_code(), 0);
+    }
+
+    #[test]
+    fn resolve_admin_key_missing_returns_auth_required() {
+        let err = resolve_admin_key(Err(std::env::VarError::NotPresent), false).unwrap_err();
+        assert!(err.is::<AuthRequired>(), "expected AuthRequired, got {err:?}");
+    }
+
+    #[test]
+    fn resolve_admin_key_empty_returns_auth_required() {
+        let err = resolve_admin_key(Ok(String::new()), false).unwrap_err();
+        assert!(err.is::<AuthRequired>(), "expected AuthRequired, got {err:?}");
+    }
+
+    #[test]
+    fn resolve_admin_key_present_returns_value() {
+        let key = resolve_admin_key(Ok("secret-token".into()), false).unwrap();
+        assert_eq!(key, "secret-token");
     }
 }
