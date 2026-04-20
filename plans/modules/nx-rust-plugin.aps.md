@@ -127,7 +127,8 @@ hashing, output caching, and project-graph edges for Nx.
 - [x] `@eddacraft/anvil-generators` precedent at `tools/generators/`
       confirmed as the scaffold shape to mirror
 - [x] Cargo workspace members list known (9 crates)
-- [x] Nx 22.6.5 + `@nx/devkit` already in devDependencies
+- [x] Nx 22.6.5 present; `@nx/devkit` already used in
+      `tools/generators/`
 - [x] ADR-026 drafted to capture the tooling decision (see Decisions)
 - [ ] Plugin spike on `anvil-kernel-types` run and cached
 
