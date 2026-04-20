@@ -170,8 +170,9 @@ fn render_path_select(
     theme: &EddaCraftTheme,
 ) {
     // Height: one row per path + top/bottom internal padding + two borders.
+    // Clamp to area.height so the bottom border is never clipped on short terminals.
     #[allow(clippy::cast_possible_truncation)]
-    let box_height = (state.paths.len() as u16).saturating_add(4);
+    let box_height = (state.paths.len() as u16).saturating_add(4).min(area.height);
     let chunks = Layout::vertical([Constraint::Length(box_height), Constraint::Min(0)]).split(area);
     let box_area = chunks[0];
     let below = chunks[1];
@@ -265,7 +266,7 @@ fn render_step_progress(
                 ),
                 std::cmp::Ordering::Greater => ("\u{25cb}", Style::default().fg(theme.muted())),
             };
-            let separator = if i < total - 1 { "  " } else { "" };
+            let separator = if i + 1 < total { "  " } else { "" };
             vec![
                 Span::styled(marker, style),
                 Span::styled(separator, Style::default().fg(theme.muted())),
@@ -439,7 +440,7 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
             } else {
                 Style::default().fg(theme.muted())
             };
-            let sep = if i < all_paths - 1 { "  " } else { "" };
+            let sep = if i + 1 < all_paths { "  " } else { "" };
             vec![
                 Span::styled(marker, style),
                 Span::styled(sep, Style::default().fg(theme.muted())),
@@ -465,13 +466,10 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
             Style::default().fg(theme.fg()),
         )),
         Line::default(),
-        Line::from(vec![
-            Span::styled(
-                format!("Progress: {completed_count} of {all_paths} paths  "),
-                Style::default().fg(theme.muted()),
-            ),
-        ])
-        .patch_style(Style::default()),
+        Line::from(vec![Span::styled(
+            format!("Progress: {completed_count} of {all_paths} paths  "),
+            Style::default().fg(theme.muted()),
+        )]),
         Line::from(progress_spans),
         Line::default(),
     ];
@@ -503,6 +501,11 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
     }
 
     lines.push(Line::default());
+    let enter_label = if next_path.is_some() {
+        "choose another path   "
+    } else {
+        "back to paths   "
+    };
     lines.push(Line::from(vec![
         Span::styled(
             "[enter] ",
@@ -510,10 +513,7 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            "choose another path   ",
-            Style::default().fg(theme.fg()),
-        ),
+        Span::styled(enter_label, Style::default().fg(theme.fg())),
         Span::styled(
             "[q] ",
             Style::default()
@@ -548,6 +548,39 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    /// Guards against arithmetic underflow, clipped borders, and zero-width
+    /// wrap targets flagged by the council review at very small terminal
+    /// sizes. Must not panic on any of the three tutorial phases.
+    #[test]
+    fn renders_without_panic_tiny_terminal() {
+        let cases: &[(u16, u16)] = &[(20, 5), (5, 5), (40, 10)];
+        for &(w, h) in cases {
+            let backend = TestBackend::new(w, h);
+            let mut terminal = Terminal::new(backend).unwrap();
+            let theme = EddaCraftTheme;
+
+            let mut path_select = TutorialState::new();
+            terminal
+                .draw(|frame| render(frame, frame.area(), &path_select, &theme))
+                .unwrap_or_else(|e| panic!("path_select panicked at {w}x{h}: {e}"));
+
+            path_select.load_steps(TutorialPath::Policy);
+            terminal
+                .draw(|frame| render(frame, frame.area(), &path_select, &theme))
+                .unwrap_or_else(|e| panic!("running panicked at {w}x{h}: {e}"));
+
+            let mut complete = TutorialState::new();
+            complete.load_steps(TutorialPath::Drift);
+            for step in &mut complete.steps {
+                step.completed = true;
+            }
+            complete.phase = TutorialPhase::Complete;
+            terminal
+                .draw(|frame| render(frame, frame.area(), &complete, &theme))
+                .unwrap_or_else(|e| panic!("complete panicked at {w}x{h}: {e}"));
+        }
     }
 
     #[test]
