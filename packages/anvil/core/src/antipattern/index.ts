@@ -68,3 +68,6 @@ export { CSS_PATTERNS } from './patterns-css.js';
 
 // Scanner
 export { type ScanOptions, type ScanResult, scanFile, scanFiles } from './scanner.js';
+
+// .anvil file format (Phase 2: source tree → compiled pattern registry)
+export * from './format/index.js';
