@@ -633,7 +633,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Scope:** `packages/anvil/core/src/antipattern/patterns-html.ts`, `patterns-css.ts`, related tests and references
 - **Validation:** `pnpm --filter @eddacraft/anvil-core test`; grep for AP-008..AP-013 returns no hits
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### ANVFMT-015: Remove legacy TS catalogues
 
@@ -643,7 +643,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Dependencies:** ANVFMT-009, ANVFMT-014
 - **Validation:** `pnpm -r typecheck && pnpm -r test`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### ANVFMT-016: Documentation and pattern reference refresh
 
@@ -913,4 +913,48 @@ Remaining in this module:
 - ANVFMT-013 (pr-description artifact path through CLI)
 - ANVFMT-014 (retire AP-008..AP-013 HTML/CSS rules)
 - ANVFMT-015 (delete `patterns.ts`/`patterns-html.ts`/`patterns-css.ts`)
+- ANVFMT-016 (docs refresh)
+
+### 2026-04-21 — Phase 4 complete (legacy HTML/CSS retired)
+
+ANVFMT-014 and ANVFMT-015 shipped together. D-002 says HTML/CSS are out of
+scope for the `.anvil` format and dedicated linters (HTMLHint, Stylelint)
+cover them, so the TS catalogues were deleted rather than ported.
+
+What changed:
+
+- **Deleted files** via `git rm`:
+  `packages/anvil/core/src/antipattern/patterns-html.ts`,
+  `patterns-html.test.ts`, `patterns-css.ts`, `patterns-css.test.ts`.
+- **`patterns.ts` simplified** to a thin wrapper over `loadRegistryPatterns()`:
+  no more `HTML_PATTERNS`/`CSS_PATTERNS` concatenation. The registry is now
+  the sole source of the `PATTERNS` array (18 rules).
+- **Category enum narrowed** in `antipattern/types.ts`: `'html'` and `'css'`
+  removed. `registry-loader.ts::mapCategory` updated to match.
+- **`antipattern/index.ts`**: removed `HTML_PATTERNS`/`CSS_PATTERNS` re-exports.
+- **Test fixtures**: `patterns.test.ts` pattern count 24 → 18; removed
+  html/css describe blocks, AP-008..AP-013 exclusion assertions in
+  `getDefaultPatterns`, and the getPatternIds expected array entries;
+  family-provenance assertion now runs over ALL patterns (was filtered to
+  non-html/css before). `scanner.test.ts` dropped the HTML/CSS-only nudge,
+  fileExtensions-filtering, and "legacy HTML pattern has no family"
+  describe blocks. `types.test.ts` deleted the two category-validation
+  tests for 'html'/'css'. `suppression/parser.test.ts` fixtures updated
+  to use `AP-001`/`AP-003`/`AP-004` instead of AP-008/AP-011 (the parser
+  doesn't validate IDs; the change is cleanliness only).
+
+Verification:
+
+- `pnpm --filter @eddacraft/anvil-core test` — 936 pass (was 1003; -67
+  covers the deleted html/css pattern tests and the removed assertions).
+- `pnpm --filter @eddacraft/anvil-runtime test` — 784 pass.
+- `pnpm --filter anvil-vscode test` — 80 pass.
+- Grep confirms no remaining references to `HTML_PATTERNS`, `CSS_PATTERNS`,
+  `patterns-html`, `patterns-css`, or `category: 'html'`/`'css'` in
+  `packages/anvil`.
+
+Remaining in this module:
+
+- ANVFMT-013 (pr-description artifact path through CLI) — blocked on CLI
+  scope clarification; the TS CLI referenced in the plan has been archived.
 - ANVFMT-016 (docs refresh)

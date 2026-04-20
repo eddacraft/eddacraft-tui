@@ -87,8 +87,10 @@ function resolveRegistryPath(opts: LoadRegistryOptions): string | null {
  * Map an anvil category (from compiled registry) to a valid AntiPattern
  * category. The compiled categories come from family definitions
  * (escape-hatch, type-evasion, error-handling, accountability, deferred-debt);
- * the AntiPattern enum accepts these directly after the extension in types.ts.
- * Unknown values fall back to 'code-quality' as a catch-all.
+ * the AntiPattern enum accepts these directly. 'code-quality' and
+ * 'type-safety' remain as catch-all categories for anvil-compiled patterns
+ * that don't fit a sharper family classification. Unknown values fall back
+ * to 'code-quality'.
  */
 function mapCategory(anvilCategory: string): AntiPattern['category'] {
   const known: ReadonlyArray<AntiPattern['category']> = [
@@ -96,8 +98,6 @@ function mapCategory(anvilCategory: string): AntiPattern['category'] {
     'error-handling',
     'code-quality',
     'type-safety',
-    'html',
-    'css',
     'type-evasion',
     'accountability',
     'deferred-debt',

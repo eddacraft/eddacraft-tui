@@ -192,16 +192,16 @@ export const AntiPatternSchema = z.object({
   // Classification
   // Includes legacy categories (code-quality, type-safety, html, css) alongside
   // the `.anvil` family categories (type-evasion, accountability,
-  // deferred-debt). Both sets coexist while the compiled registry and the
-  // TS-based HTML/CSS catalogue are scanned in parallel (until ANVFMT-014/015).
+  // deferred-debt). The legacy 'html' and 'css' categories were retired in
+  // ANVFMT-014/015 when the hardcoded HTML/CSS TS catalogue was removed.
+  // 'code-quality' and 'type-safety' remain as catch-all categories for
+  // anvil-compiled patterns that don't fit a sharper family classification.
   category: z
     .enum([
       'escape-hatch',
       'error-handling',
       'code-quality',
       'type-safety',
-      'html',
-      'css',
       'type-evasion',
       'accountability',
       'deferred-debt',

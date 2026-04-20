@@ -1,11 +1,10 @@
 /**
  * Anti-pattern Catalogue
  *
- * Phase 2 of ANVFMT: the primary pattern catalogue is now the compiled
- * `.anvil` registry loaded at module initialisation (AP-001..AP-007, plus
- * new family rules — GS-001, RL-*, DD-*). Legacy HTML/CSS TS patterns
- * (AP-008..AP-013) remain here as static constants until ANVFMT-014/015
- * retires them.
+ * The catalogue is the compiled `.anvil` registry loaded at module
+ * initialisation. Legacy HTML/CSS TypeScript patterns (AP-008..AP-013) were
+ * retired under ANVFMT-014/015 — HTML/CSS are out of scope for the `.anvil`
+ * format (see D-002); dedicated linters (HTMLHint, Stylelint) cover them.
  *
  * The public lookup API (`getPattern`, `getPatternsByCategory`,
  * `getDefaultPatterns`, etc.) is preserved — callers don't need to know
@@ -15,8 +14,6 @@
  */
 
 import type { AntiPattern } from './types.js';
-import { HTML_PATTERNS } from './patterns-html.js';
-import { CSS_PATTERNS } from './patterns-css.js';
 import { loadRegistryPatterns } from './registry-loader.js';
 
 // =============================================================================
@@ -24,15 +21,12 @@ import { loadRegistryPatterns } from './registry-loader.js';
 // =============================================================================
 
 /**
- * Build the full catalogue: compiled `.anvil` patterns first (in their
- * registry-sorted order), then the legacy HTML/CSS patterns.
- *
- * Order within the registry is deterministic (sorted by rule id) so the
- * resulting array is stable across runs and test snapshots.
+ * Build the catalogue from the compiled registry. Order is deterministic
+ * (sorted by rule id at compile time) so the resulting array is stable
+ * across runs and test snapshots.
  */
 function buildPatterns(): readonly AntiPattern[] {
-  const registryPatterns = loadRegistryPatterns();
-  return [...registryPatterns, ...HTML_PATTERNS, ...CSS_PATTERNS];
+  return loadRegistryPatterns();
 }
 
 /**
@@ -42,7 +36,7 @@ function buildPatterns(): readonly AntiPattern[] {
  * registry (e.g., via `ANVIL_REGISTRY_PATH` or a fixture) should do so before
  * importing this module, or use `reloadPatterns()` to rebuild.
  */
- 
+
 export let PATTERNS: readonly AntiPattern[] = buildPatterns();
 
 /**
@@ -109,8 +103,7 @@ export function isValidPatternId(id: string): boolean {
 }
 
 /**
- * Get patterns in a family (e.g., 'guardrail-suppression'). Returns [] for
- * legacy HTML/CSS patterns which have no family.
+ * Get patterns in a family (e.g., 'guardrail-suppression').
  */
 export function getPatternsByFamily(family: string): AntiPattern[] {
   return PATTERNS.filter((p) => p.family === family);

@@ -309,92 +309,20 @@ describe('Scanner', () => {
 
         expect(result.warnings[0].nudge).toContain('swallow');
       });
-
-      it('should include nudge for HTML patterns', () => {
-        const content = `<div style="color: red">Hello</div>`;
-        const result = scanFile('page.html', content, { patterns: ['AP-008'] });
-
-        expect(result.warnings[0].nudge).toContain('inline style');
-      });
-
-      it('should include nudge for CSS patterns', () => {
-        const content = `color: red !important;`;
-        const result = scanFile('style.css', content, { patterns: ['AP-012'] });
-
-        expect(result.warnings[0].nudge).toContain('!important');
-      });
     });
   });
 
-  describe('legacy pattern scoping to JS/TS files', () => {
-    it('should NOT detect JS/TS-only patterns on HTML files', () => {
-      // AP-003 (explicit any) has no fileExtensions set, so it defaults to JS/TS only
-      const content = `<div>const x: any = 1;</div>`;
-      const result = scanFile('page.html', content, { patterns: ['AP-003'] });
-
-      expect(result.warnings).toHaveLength(0);
-    });
-
-    it('should NOT detect JS/TS-only patterns on CSS files', () => {
-      const content = `/* eslint-disable */`;
-      const result = scanFile('style.css', content, { patterns: ['AP-001'] });
-
-      expect(result.warnings).toHaveLength(0);
-    });
-
-    it('should still detect JS/TS-only patterns on .ts files', () => {
+  describe('JS/TS file scoping', () => {
+    it('should detect JS/TS patterns on .ts files', () => {
       const content = `const x: any = 1;`;
       const result = scanFile('test.ts', content, { patterns: ['AP-003'] });
 
       expect(result.warnings).toHaveLength(1);
     });
 
-    it('should still detect JS/TS-only patterns on .jsx files', () => {
+    it('should detect JS/TS patterns on .jsx files', () => {
       const content = `const x: any = 1;`;
       const result = scanFile('component.jsx', content, { patterns: ['AP-003'] });
-
-      expect(result.warnings).toHaveLength(1);
-    });
-  });
-
-  describe('fileExtensions filtering', () => {
-    it('should skip pattern when file extension does not match fileExtensions', () => {
-      // AP-008 (inline style) has fileExtensions: ['.html', '.htm']
-      // scanning a .ts file should skip it
-      const content = `const style = 'style="color:red"';`;
-      const result = scanFile('test.ts', content, { patterns: ['AP-008'] });
-
-      expect(result.warnings).toHaveLength(0);
-    });
-
-    it('should detect pattern when file extension matches fileExtensions', () => {
-      const content = `<div style="color: red">Hello</div>`;
-      const result = scanFile('page.html', content, { patterns: ['AP-008'] });
-
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].id).toBe('AP-008');
-    });
-
-    it('should detect pattern when file has .htm extension', () => {
-      const content = `<div style="color: red">Hello</div>`;
-      const result = scanFile('page.htm', content, { patterns: ['AP-008'] });
-
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].id).toBe('AP-008');
-    });
-
-    it('should apply CSS pattern only to CSS files', () => {
-      const content = `color: red !important;`;
-      const resultCss = scanFile('style.css', content, { patterns: ['AP-012'] });
-      const resultTs = scanFile('style.ts', content, { patterns: ['AP-012'] });
-
-      expect(resultCss.warnings).toHaveLength(1);
-      expect(resultTs.warnings).toHaveLength(0);
-    });
-
-    it('should apply CSS pattern to SCSS files', () => {
-      const content = `color: red !important;`;
-      const result = scanFile('style.scss', content, { patterns: ['AP-012'] });
 
       expect(result.warnings).toHaveLength(1);
     });
@@ -504,20 +432,6 @@ describe('Scanner', () => {
       expect(w.family).toBe('guardrail-suppression');
       expect(w.definition_ref).toBe('patterns/guardrail-suppression/definition.anvil');
       expect(w.spectrum_position).toBe(1);
-    });
-
-    it('should NOT attach family metadata for legacy HTML patterns', () => {
-      const content = `<div style="color: red">Hi</div>`;
-      const result = scanFile('page.html', content, {
-        patterns: ['AP-008'],
-        includeOptIn: true,
-      });
-
-      expect(result.warnings).toHaveLength(1);
-      const w = result.warnings[0];
-      expect(w.family).toBeUndefined();
-      expect(w.definition_ref).toBeUndefined();
-      expect(w.spectrum_position).toBeUndefined();
     });
   });
 
