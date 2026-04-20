@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-04-20T14:58:19.040Z",
+  "compiled_at": "2026-04-20T16:00:22.092Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -70,7 +70,7 @@
         "type": "regex",
         "pattern": ":\\s*any\\b|as\\s+any\\b|<any>"
       },
-      "file_extensions": [".ts", ".tsx"],
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
       "allowlist": ["*.d.ts", "**/__mocks__/**", "**/test/**/*.ts", "**/__tests__/**"],
       "nudge": "Don't use `any` here. Think about what type this value actually holds\nand declare it explicitly.\n\nIf it comes from an API, define an interface for the response shape. If\nit comes from `JSON.parse()`, parse into `unknown` and validate with a\nschema. If the type is genuinely unknown at compile time, use `unknown`\nand narrow it with type guards before use. `unknown` forces you to\ncheck; `any` lets you pretend.",
       "related": [],

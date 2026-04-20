@@ -7,13 +7,19 @@ import {
   getPattern,
   getPatternIds,
   getPatternsByCategory,
+  getPatternsByFamily,
   isValidPatternId,
 } from './patterns.js';
 
+// Phase 2 snapshot — the compiled registry contributes 18 patterns
+// (AP-001..AP-007, GS-001, RL-001..RL-006, DD-001..DD-004), and the
+// legacy TS catalogue still contributes 4 HTML + 2 CSS patterns.
+const EXPECTED_PATTERN_COUNT = 24;
+
 describe('Pattern Catalogue', () => {
   describe('PATTERNS', () => {
-    it('should contain 13 patterns', () => {
-      expect(PATTERNS).toHaveLength(13);
+    it('should contain the full registry + HTML/CSS catalogue', () => {
+      expect(PATTERNS).toHaveLength(EXPECTED_PATTERN_COUNT);
     });
 
     it('should have unique IDs', () => {
@@ -21,9 +27,9 @@ describe('Pattern Catalogue', () => {
       expect(new Set(ids).size).toBe(ids.length);
     });
 
-    it('should follow AP-XXX ID format', () => {
+    it('should follow <PREFIX>-<NNN> ID format', () => {
       for (const pattern of PATTERNS) {
-        expect(pattern.id).toMatch(/^AP-\d{3}$/);
+        expect(pattern.id).toMatch(/^[A-Z]{2,5}-\d{3}$/);
       }
     });
 
@@ -35,6 +41,9 @@ describe('Pattern Catalogue', () => {
         'type-safety',
         'html',
         'css',
+        'type-evasion',
+        'accountability',
+        'deferred-debt',
       ];
       const validSeverities = ['error', 'warning', 'info'];
       const validConfidences = ['high', 'medium', 'low'];
@@ -63,14 +72,14 @@ describe('Pattern Catalogue', () => {
       }
     });
 
-    it('should have nudge text in imperative voice', () => {
-      const imperativeStarters = ["Don't", 'Before', 'Move', 'Remove', 'Replace', 'This'];
-      for (const pattern of PATTERNS) {
-        const startsImperative = imperativeStarters.some((s) => pattern.nudge!.startsWith(s));
-        expect(
-          startsImperative,
-          `${pattern.id} nudge should start with imperative voice: "${pattern.nudge!.substring(0, 30)}..."`
-        ).toBe(true);
+    it('should have family provenance on registry-sourced patterns', () => {
+      const registrySourced = PATTERNS.filter(
+        (p) => !['html', 'css'].includes(p.category as string)
+      );
+      for (const pattern of registrySourced) {
+        expect(pattern.family, `${pattern.id} missing family`).toBeDefined();
+        expect(pattern.definitionRef, `${pattern.id} missing definitionRef`).toBeDefined();
+        expect(pattern.spectrumPosition, `${pattern.id} missing spectrumPosition`).toBeDefined();
       }
     });
   });
@@ -79,7 +88,7 @@ describe('Pattern Catalogue', () => {
     it('should return pattern by ID', () => {
       const pattern = getPattern('AP-001');
       expect(pattern).toBeDefined();
-      expect(pattern?.name).toBe('Broad eslint-disable');
+      expect(pattern?.title).toBe('Broad eslint-disable added');
     });
 
     it('should return undefined for unknown ID', () => {
@@ -89,43 +98,72 @@ describe('Pattern Catalogue', () => {
     it('should return undefined for invalid ID format', () => {
       expect(getPattern('invalid')).toBeUndefined();
     });
+
+    it('should resolve the new GS-001 non-null assertion rule', () => {
+      const pattern = getPattern('GS-001');
+      expect(pattern).toBeDefined();
+      expect(pattern?.family).toBe('guardrail-suppression');
+    });
   });
 
   describe('getPatternsByCategory', () => {
-    it('should return escape-hatch patterns', () => {
+    it('should return escape-hatch patterns (guardrail-suppression family)', () => {
       const patterns = getPatternsByCategory('escape-hatch');
-      expect(patterns).toHaveLength(2);
-      expect(patterns.map((p) => p.id)).toEqual(['AP-001', 'AP-002']);
+      // AP-001, AP-002, AP-004, AP-005, GS-001 — sorted by id
+      expect(patterns.map((p) => p.id)).toEqual(['AP-001', 'AP-002', 'AP-004', 'AP-005', 'GS-001']);
     });
 
-    it('should return type-safety patterns', () => {
-      const patterns = getPatternsByCategory('type-safety');
-      expect(patterns).toHaveLength(3);
-      expect(patterns.map((p) => p.id)).toEqual(['AP-003', 'AP-004', 'AP-005']);
+    it('should return type-evasion patterns', () => {
+      const patterns = getPatternsByCategory('type-evasion');
+      expect(patterns.map((p) => p.id)).toEqual(['AP-003']);
     });
 
-    it('should return error-handling patterns', () => {
+    it('should return error-handling patterns (error-visibility family)', () => {
       const patterns = getPatternsByCategory('error-handling');
-      expect(patterns).toHaveLength(1);
-      expect(patterns.map((p) => p.id)).toEqual(['AP-006']);
+      expect(patterns.map((p) => p.id)).toEqual(['AP-006', 'AP-007']);
     });
 
-    it('should return code-quality patterns', () => {
-      const patterns = getPatternsByCategory('code-quality');
-      expect(patterns).toHaveLength(1);
-      expect(patterns.map((p) => p.id)).toEqual(['AP-007']);
+    it('should return accountability patterns (responsibility-laundering family)', () => {
+      const patterns = getPatternsByCategory('accountability');
+      expect(patterns.map((p) => p.id)).toEqual([
+        'RL-001',
+        'RL-002',
+        'RL-003',
+        'RL-004',
+        'RL-005',
+        'RL-006',
+      ]);
+    });
+
+    it('should return deferred-debt patterns', () => {
+      const patterns = getPatternsByCategory('deferred-debt');
+      expect(patterns.map((p) => p.id)).toEqual(['DD-001', 'DD-002', 'DD-003', 'DD-004']);
     });
 
     it('should return html patterns', () => {
       const patterns = getPatternsByCategory('html');
-      expect(patterns).toHaveLength(4);
       expect(patterns.map((p) => p.id)).toEqual(['AP-008', 'AP-009', 'AP-010', 'AP-011']);
     });
 
     it('should return css patterns', () => {
       const patterns = getPatternsByCategory('css');
-      expect(patterns).toHaveLength(2);
       expect(patterns.map((p) => p.id)).toEqual(['AP-012', 'AP-013']);
+    });
+  });
+
+  describe('getPatternsByFamily', () => {
+    it('should return all guardrail-suppression rules', () => {
+      const patterns = getPatternsByFamily('guardrail-suppression');
+      expect(patterns.map((p) => p.id)).toEqual(['AP-001', 'AP-002', 'AP-004', 'AP-005', 'GS-001']);
+    });
+
+    it('should return [] for non-existent family', () => {
+      expect(getPatternsByFamily('nonexistent')).toEqual([]);
+    });
+
+    it('should return [] for HTML/CSS (no family)', () => {
+      const patterns = getPatternsByFamily('html');
+      expect(patterns).toEqual([]);
     });
   });
 
@@ -133,7 +171,7 @@ describe('Pattern Catalogue', () => {
     it('should return all enabled patterns', () => {
       const patterns = getEnabledPatterns();
       expect(patterns.every((p) => p.enabled)).toBe(true);
-      expect(patterns).toHaveLength(13);
+      expect(patterns).toHaveLength(EXPECTED_PATTERN_COUNT);
     });
   });
 
@@ -150,6 +188,7 @@ describe('Pattern Catalogue', () => {
       expect(ids).toContain('AP-003');
       expect(ids).toContain('AP-004');
       expect(ids).toContain('AP-006');
+      expect(ids).toContain('GS-001');
     });
 
     it('should exclude opt-in patterns', () => {
@@ -169,8 +208,9 @@ describe('Pattern Catalogue', () => {
   });
 
   describe('getPatternIds', () => {
-    it('should return all pattern IDs', () => {
+    it('should return all pattern IDs in catalogue order', () => {
       const ids = getPatternIds();
+      // Registry patterns first (byte-sorted), then HTML/CSS.
       expect(ids).toEqual([
         'AP-001',
         'AP-002',
@@ -179,6 +219,17 @@ describe('Pattern Catalogue', () => {
         'AP-005',
         'AP-006',
         'AP-007',
+        'DD-001',
+        'DD-002',
+        'DD-003',
+        'DD-004',
+        'GS-001',
+        'RL-001',
+        'RL-002',
+        'RL-003',
+        'RL-004',
+        'RL-005',
+        'RL-006',
         'AP-008',
         'AP-009',
         'AP-010',
@@ -195,6 +246,9 @@ describe('Pattern Catalogue', () => {
       expect(isValidPatternId('AP-007')).toBe(true);
       expect(isValidPatternId('AP-008')).toBe(true);
       expect(isValidPatternId('AP-013')).toBe(true);
+      expect(isValidPatternId('GS-001')).toBe(true);
+      expect(isValidPatternId('RL-003')).toBe(true);
+      expect(isValidPatternId('DD-002')).toBe(true);
     });
 
     it('should return false for invalid IDs', () => {

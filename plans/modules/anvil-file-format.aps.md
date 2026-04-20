@@ -558,7 +558,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Scope:** `packages/anvil/core/src/antipattern/`
 - **Validation:** `pnpm --filter @eddacraft/anvil-core test -- scanner`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### ANVFMT-007: Extend `Warning` with family provenance
 
@@ -567,7 +567,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Scope:** `packages/anvil/contracts/src/` (warning type), scanner + renderer call sites
 - **Validation:** `pnpm -r typecheck`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### ANVFMT-008: Scanner consumes the compiled registry
 
@@ -577,7 +577,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Dependencies:** ANVFMT-006, ANVFMT-007
 - **Validation:** `pnpm --filter @eddacraft/anvil-core test -- scanner`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### ANVFMT-009: Migrate downstream consumers
 
@@ -587,7 +587,7 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Dependencies:** ANVFMT-008
 - **Validation:** `pnpm -r test`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### ANVFMT-010: Responsibility Laundering rule set
 
@@ -842,3 +842,75 @@ Deferred (operational, need policy decisions):
 - Wiring `patterns:check` into CI.
 - `ast_query`/`astQuery` schema divergence (lower priority — no current
   AST rules in tree).
+
+### 2026-04-20 — Phase 2 complete (scanner wired to registry)
+
+Phase 2 items landed — ANVFMT-006, ANVFMT-007, ANVFMT-008, ANVFMT-009 all
+Complete. What shipped:
+
+- **Artifact API (ANVFMT-006)**: `ArtifactKind`, `Artifact`, `scanArtifact`,
+  `scanArtifacts`. `scanFile`/`scanFiles` kept as backward-compatible
+  wrappers with `type: 'source'`. Artifact-type filtering in the scanner
+  honours `pattern.targets` when present and falls back to source-only for
+  legacy patterns without a `targets` field.
+- **Family provenance on Warning (ANVFMT-007)**: `family`, `definition_ref`,
+  `spectrum_position` added as optional fields to the warning contract
+  (`packages/anvil/contracts/src/schemas/warning.schema.ts` and the core
+  mirror). Scanner emits them when the pattern originates from the
+  compiled registry; legacy HTML/CSS patterns leave them undefined.
+- **Registry loader (ANVFMT-008)**: new
+  `packages/anvil/core/src/antipattern/registry-loader.ts` reads
+  `patterns/compiled/registry.json` via a four-tier resolution
+  (`opts.registryPath` → `ANVIL_REGISTRY_PATH` → cwd upward walk → module
+  URL upward walk), validates it with `CompiledRegistrySchema`, caches by
+  resolved path, and maps each `CompiledPattern` to an `AntiPattern`.
+  `compiledToAntiPattern` also translates `ast_query` (YAML/JSON
+  snake_case) to the scanner's `astQuery` shape. `loadRegistryPatterns`
+  returns `[]` when no registry is found so the scanner degrades
+  gracefully to the legacy HTML/CSS catalogue.
+- **`patterns.ts` rewritten**: hardcoded `AP-001..AP-007` constants
+  replaced with `buildPatterns()` which concatenates registry-backed
+  patterns with `HTML_PATTERNS` + `CSS_PATTERNS`. `reloadPatterns()` is
+  exposed for tests. Added `getPatternsByFamily(family)` helper.
+- **Regex-flag propagation**: `RegexDetectionConfigSchema` now carries
+  optional `flags`; the scanner merges them with forced `g` via
+  `new Set([...declaredFlags, 'g'])` to avoid invalid duplicates like
+  `ggi`.
+- **AP-003 extensions widened**: `patterns/type-system-evasion/AP-003.anvil`
+  `file_extensions` expanded from `[.ts, .tsx]` to
+  `[.ts, .tsx, .js, .jsx, .mjs, .cjs]` to match the legacy scanner and
+  preserve existing behaviour. Registry recompiled.
+- **Consumer migration (ANVFMT-009)**: verified with grep that no consumer
+  imports `patterns.ts`, `patterns-html.ts`, or `patterns-css.ts`
+  directly. All production consumers (`constraint-collector`,
+  `antipattern.check`, `gate-runner`, `embeddedAnalysis`) go through the
+  public scanner + registry-backed `PATTERNS` array, so they pick up the
+  registry transparently.
+- **Test updates**: `constraint-collector.test.ts` id regex loosened to
+  `/^[A-Z]{2,5}-\d{3}$/`; AP-001 name assertion updated to "Broad
+  eslint-disable added"; explanation/suggestion matchers relaxed
+  (the text now comes from the family definition body).
+  `patterns.test.ts` rewritten to expect 24 patterns (18 registry + 6
+  HTML/CSS) and assert family provenance on registry-sourced entries.
+  13 new registry-loader tests cover load/cache/error paths, mapping
+  fidelity, and allowlist/extension omission.
+
+Verification:
+
+- `pnpm --filter @eddacraft/anvil-core test` — 1003 pass (was 973; +30
+  from registry-loader and new pattern tests).
+- `pnpm --filter @eddacraft/anvil-runtime test` — 784 pass (0 regressions).
+- `pnpm --filter anvil-vscode test` — 80 pass.
+- `pnpm --filter @eddacraft/anvil-e2e test` — 66 pass (14 skipped
+  unchanged).
+- `pnpm -r typecheck` — clean across anvil-core, anvil-runtime,
+  anvil-contracts, anvil-ports, and vscode-extension. Pre-existing
+  admin-cli typecheck failures are unrelated (missing
+  `@eddacraft/admin-contracts` module).
+
+Remaining in this module:
+
+- ANVFMT-013 (pr-description artifact path through CLI)
+- ANVFMT-014 (retire AP-008..AP-013 HTML/CSS rules)
+- ANVFMT-015 (delete `patterns.ts`/`patterns-html.ts`/`patterns-css.ts`)
+- ANVFMT-016 (docs refresh)

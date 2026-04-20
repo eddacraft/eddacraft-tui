@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scanFile, scanFiles } from './scanner.js';
+import { scanArtifact, scanArtifacts, scanFile, scanFiles } from './scanner.js';
 
 describe('Scanner', () => {
   describe('scanFile', () => {
@@ -397,6 +397,127 @@ describe('Scanner', () => {
       const result = scanFile('style.scss', content, { patterns: ['AP-012'] });
 
       expect(result.warnings).toHaveLength(1);
+    });
+  });
+
+  describe('scanArtifact', () => {
+    it('should mirror scanFile for source artifacts', () => {
+      const content = `const x: any = 1;`;
+      const fileResult = scanFile('src/a.ts', content);
+      const artifactResult = scanArtifact({ type: 'source', ref: 'src/a.ts', content });
+
+      expect(artifactResult.warnings.map((w) => w.id)).toEqual(
+        fileResult.warnings.map((w) => w.id)
+      );
+      expect(artifactResult.file).toBe('src/a.ts');
+      expect(artifactResult.artifactType).toBe('source');
+    });
+
+    it('should skip legacy source-only rules for non-source artifacts', () => {
+      // AP-003 targets source only — scanning its detection content against
+      // a pr-description should produce no AP-003 warnings.
+      const prBody = `const x: any = 1;\n// @ts-ignore`;
+      const result = scanArtifact(
+        { type: 'pr-description', ref: 'pr/42', content: prBody },
+        { patterns: ['AP-003', 'AP-004'] }
+      );
+
+      expect(result.warnings).toEqual([]);
+      expect(result.artifactType).toBe('pr-description');
+      expect(result.file).toBe('pr/42');
+    });
+
+    it('should run compiled rules that target pr-description on PR bodies', () => {
+      // RL-001 targets [agent-output, pr-description] and matches "pre-existing"
+      // without a run link / verification.
+      const prBody = 'This failure is pre-existing and unrelated to my change.';
+      const result = scanArtifact(
+        { type: 'pr-description', ref: 'pr/42', content: prBody },
+        { patterns: ['RL-001'] }
+      );
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0].id).toBe('RL-001');
+      expect(result.warnings[0].location.file).toBe('pr/42');
+    });
+
+    it('should skip pr-description-only rules when scanning source files', () => {
+      const source = 'const note = "pre-existing issue"';
+      const result = scanArtifact(
+        { type: 'source', ref: 'src/a.ts', content: source },
+        { patterns: ['RL-001'] }
+      );
+
+      expect(result.warnings).toEqual([]);
+    });
+
+    it('should propagate artifactType onto the result', () => {
+      const result = scanArtifact({
+        type: 'commit-message',
+        ref: 'abc123',
+        content: 'fix stuff',
+      });
+
+      expect(result.artifactType).toBe('commit-message');
+      expect(result.file).toBe('abc123');
+    });
+
+    it('should honour pattern filtering via options', () => {
+      const content = `const x: any = 1;\n// @ts-ignore`;
+      const result = scanArtifact(
+        { type: 'source', ref: 'src/a.ts', content },
+        { patterns: ['AP-003'] }
+      );
+
+      expect(result.warnings.map((w) => w.id)).toEqual(['AP-003']);
+      expect(result.patternsChecked).toEqual(['AP-003']);
+    });
+  });
+
+  describe('scanArtifacts', () => {
+    it('should scan multiple artifacts of mixed types', () => {
+      const results = scanArtifacts([
+        { type: 'source', ref: 'src/a.ts', content: 'const x: any = 1;' },
+        {
+          type: 'pr-description',
+          ref: 'pr/42',
+          content: 'This is pre-existing unrelated to my change.',
+        },
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].artifactType).toBe('source');
+      expect(results[0].warnings.some((w) => w.id === 'AP-003')).toBe(true);
+      expect(results[1].artifactType).toBe('pr-description');
+      // RL-001 fires against the unverified "pre-existing" claim.
+      expect(results[1].warnings.some((w) => w.id === 'RL-001')).toBe(true);
+    });
+  });
+
+  describe('family provenance on warnings', () => {
+    it('should attach family, definition_ref, spectrum_position for compiled patterns', () => {
+      const content = '/* eslint-disable */';
+      const result = scanFile('src/a.ts', content, { patterns: ['AP-001'] });
+
+      expect(result.warnings).toHaveLength(1);
+      const w = result.warnings[0];
+      expect(w.family).toBe('guardrail-suppression');
+      expect(w.definition_ref).toBe('patterns/guardrail-suppression/definition.anvil');
+      expect(w.spectrum_position).toBe(1);
+    });
+
+    it('should NOT attach family metadata for legacy HTML patterns', () => {
+      const content = `<div style="color: red">Hi</div>`;
+      const result = scanFile('page.html', content, {
+        patterns: ['AP-008'],
+        includeOptIn: true,
+      });
+
+      expect(result.warnings).toHaveLength(1);
+      const w = result.warnings[0];
+      expect(w.family).toBeUndefined();
+      expect(w.definition_ref).toBeUndefined();
+      expect(w.spectrum_position).toBeUndefined();
     });
   });
 
