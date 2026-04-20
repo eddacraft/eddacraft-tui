@@ -234,6 +234,7 @@ when specific work is identified.
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
 | [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
 | [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
+| [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
@@ -401,7 +402,7 @@ Active module themes:
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
-| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [feature-flag-migration](./modules/feature-flag-migration.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
+| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [feature-flag-migration](./modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
 | Agent Infrastructure | [weave](./modules/weave.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
