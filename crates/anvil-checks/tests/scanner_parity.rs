@@ -50,8 +50,8 @@ fn load_fixtures() -> FixtureFile {
         .join("tests")
         .join("scanner-parity")
         .join("fixtures.json");
-    let bytes = std::fs::read(&path)
-        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
     serde_json::from_slice(&bytes).expect("fixtures.json is valid JSON")
 }
 

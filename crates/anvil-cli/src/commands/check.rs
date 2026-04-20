@@ -1152,12 +1152,7 @@ mod tests {
         let global = GlobalArgs::default();
         let result =
             run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("File not found")
-        );
+        assert!(result.unwrap_err().to_string().contains("File not found"));
     }
 
     #[test]

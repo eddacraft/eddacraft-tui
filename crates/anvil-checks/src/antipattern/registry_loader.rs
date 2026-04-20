@@ -186,7 +186,10 @@ pub fn reset_registry_cache() {
 }
 
 fn cache_key(resolved: Option<&Path>) -> String {
-    resolved.map_or_else(|| "__none__".to_string(), |p| p.to_string_lossy().into_owned())
+    resolved.map_or_else(
+        || "__none__".to_string(),
+        |p| p.to_string_lossy().into_owned(),
+    )
 }
 
 // =============================================================================
@@ -264,8 +267,7 @@ pub fn load_compiled_registry(opts: &LoadRegistryOptions) -> LoadRegistryResult 
             registry: None,
             source_path: None,
             warnings: vec![
-                "Compiled pattern registry not found; scanner catalogue will be empty."
-                    .to_string(),
+                "Compiled pattern registry not found; scanner catalogue will be empty.".to_string(),
             ],
         },
     };
