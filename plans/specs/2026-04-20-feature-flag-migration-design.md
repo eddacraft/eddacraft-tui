@@ -172,15 +172,16 @@ task may delete one, even if parity tests have been green for a release.
   justified because the workspace runtime was assumed edge-incompatible.
 - **Loader decision (FLAGM-004):** direct import from
   `@eddacraft/anvil-runtime/feature-flags` into
-  `apps/docs-site/middleware.ts`. The `/feature-flags` subpath has no
-  Node-only imports (only type + value imports from
-  `@eddacraft/anvil-contracts`), and FLAGM-005 already wires the same
-  package into `@eddacraft/anvil-api` without incident. If Vercel edge's
-  bundler rejects the workspace import at deploy time, fall back to
-  publishing a `/feature-flags/edge` subpath export from the runtime
-  package (same source, cleaner edge surface). A build-time snapshot
-  loader is deferred until docs grows beyond a single flag — for one
-  flag the infra cost outweighs the benefit.
+  `apps/docs-site/lib/feature-flags.ts`, with
+  `apps/docs-site/middleware.ts` importing that helper. The
+  `/feature-flags` subpath has no Node-only imports (only type + value
+  imports from `@eddacraft/anvil-contracts`), and FLAGM-005 already
+  wires the same package into `@eddacraft/anvil-api` without incident.
+  If Vercel edge's bundler rejects the workspace import at deploy time,
+  fall back to publishing a `/feature-flags/edge` subpath export from
+  the runtime package (same source, cleaner edge surface). A build-time
+  snapshot loader is deferred until docs grows beyond a single flag —
+  for one flag the infra cost outweighs the benefit.
 - **Fail-closed flip:** missing `tier` claim now resolves to the flag's
   `defaultVariant: 'disabled'` (matching the exemplar manifest in
   `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`). The
@@ -207,7 +208,7 @@ task may delete one, even if parity tests have been green for a release.
 - **Test location:** `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`
   — an additional `describe('docs access parity (FLAGM-004)')` block
   that exercises the three canonical cases against a frozen
-  `LEGACY_INLINE_EVAL` function mirroring the pre-cutover behaviour. Kept
+  `legacyInlineEval` function mirroring the pre-cutover behaviour. Kept
   here rather than in docs-site to avoid spinning up a vitest config for
   one test.
 
