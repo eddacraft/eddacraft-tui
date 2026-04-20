@@ -458,7 +458,7 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-tui/src/widgets/`
 - **Dependencies:** —
-- **Validation:** `cargo test -p anvil-tui` passes; llvm-cov shows ≥80%.
+- **Validation:** `cargo test -p eddacraft-anvil-tui` passes; llvm-cov shows ≥80%.
 - **Confidence:** low — original widget list is stale
 - **Status:** Blocked — scope refresh
 

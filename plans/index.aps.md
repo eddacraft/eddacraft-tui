@@ -78,7 +78,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | 8/16 (format + compiler + all rule .anvil files done; scanner wiring, pr-description scanning, TS catalogue cleanup pending) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
-| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | Ready | 0/9 |
+| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 2/9 (Tier 1 rust-cache + nextest done; parallel jobs next) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -779,8 +779,8 @@ See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
 
 | Task        | Module  | Description                                           | Status | Priority | Tier |
 | ----------- | ------- | ----------------------------------------------------- | ------ | -------- | ---- |
-| RUSTNX-001  | rustnx  | Add Swatinem/rust-cache to Rust CI jobs               | Ready  | high     | 1    |
-| RUSTNX-002  | rustnx  | Adopt cargo-nextest for workspace test runs          | Ready  | high     | 1    |
+| RUSTNX-001  | rustnx  | Add Swatinem/rust-cache to Rust CI jobs               | Complete | high     | 1    |
+| RUSTNX-002  | rustnx  | Adopt cargo-nextest for workspace test runs          | Complete | high     | 1    |
 | RUSTNX-003  | rustnx  | Parallelise Rust CI jobs behind shared cache         | Ready  | medium   | 1    |
 | RUSTNX-004  | rustnx  | Scaffold per-crate project.json wrappers             | Ready  | high     | 2    |
 | RUSTNX-005  | rustnx  | Configure Nx inputs, outputs, and remote cache       | Ready  | high     | 2    |
