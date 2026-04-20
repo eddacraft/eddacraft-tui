@@ -75,7 +75,8 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | 14/16 (format + compiler + all rule .anvil files + scanner wiring + legacy HTML/CSS retired + docs refreshed; only pr-description CLI path pending) |
+| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
+| [anvil-rust-scanner](./modules/anvil-rust-scanner.aps.md) | RSCAN | Ready | 0/8 (Rust scanner becomes authoritative per ADR-026; replaces hardcoded Rust catalogue with registry-driven + parallel scanner + pr-description CLI) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Ready | 0/8 |

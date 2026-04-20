@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status |
 | ------ | ----- | ------ |
-| ANVFMT | —     | In Progress |
+| ANVFMT | —     | Complete |
 
 ## Purpose
 
@@ -616,15 +616,20 @@ parallel during Phase 1). Phase 4 tasks retire the legacy TS catalogues.
 - **Confidence:** high
 - **Status:** Complete
 
-### ANVFMT-013: PR description artifact scanning
+### ANVFMT-013: PR description artifact scanning (reparented → RSCAN-006)
 
-- **Intent:** Wire `scanArtifact` through the CLI / CI entry for `pr-description` targets
+- **Intent:** Wire `scan_artifact` through the CLI entry for `pr-description` targets
 - **Expected Outcome:** `anvil scan --artifact pr-description <file>` (or equivalent) emits warnings for RL rules that target PR descriptions
-- **Scope:** `apps/anvil-cli/src/commands/`, scanner glue
-- **Dependencies:** ANVFMT-006, ANVFMT-008
-- **Validation:** `pnpm --filter anvil-cli test -- pr-description`
-- **Confidence:** medium
-- **Status:** Draft
+- **Scope:** Originally targeted the archived TS CLI; correct owner is the Rust CLI
+- **Dependencies:** ANVFMT-006, ANVFMT-008, ADR-026
+- **Status:** Reparented — superseded by **RSCAN-006** in [anvil-rust-scanner](anvil-rust-scanner.aps.md). Closed here.
+
+Context: the original plan assumed the TS scanner would be the CLI entry
+point. ADR-026 (2026-04-21) made the Rust scanner authoritative because
+pr-description scanning needs to run in parallel across tens of artifacts
+and Node startup cost rules it out as the primary engine. This item is
+the correct scope but lives in the wrong module; the Rust-side work is
+tracked as RSCAN-006 under `anvil-rust-scanner`.
 
 ### ANVFMT-014: Retire AP-008 through AP-013 (HTML/CSS)
 
@@ -992,3 +997,30 @@ Verification:
 
 Module status: ANVFMT-016 Complete. Only ANVFMT-013 remains and is
 blocked on CLI scope clarification.
+
+### 2026-04-21 — Module closed; ANVFMT-013 reparented under ADR-026
+
+Investigating ANVFMT-013 revealed that the Rust CLI runs a completely
+separate, hardcoded anti-pattern catalogue in
+`crates/anvil-checks/src/antipattern/` — 13 rules, no family metadata,
+no artifact kinds, and still carrying the retired AP-008..AP-013
+HTML/CSS patterns. The TS work ANVFMT-006..015 refactored a scanner
+that only in-process TS surfaces (VSCode extension, MCP server,
+embedded analysis) actually run. The CLI was untouched.
+
+The performance target (tens of parallel artifact scans) rules out
+keeping the TS scanner as the primary engine. ADR-026 (2026-04-21)
+makes the Rust scanner authoritative; `patterns/compiled/registry.json`
+is the contract between the two halves; the TS scanner stays only for
+in-process surfaces until a napi-rs migration retires it.
+
+ANVFMT-013 is reparented as **RSCAN-006** in the new
+`anvil-rust-scanner` module. The work inside ANVFMT that was still
+valuable (the registry + family/rule catalogue + artifact schema
+contracts) has landed and is in production for the TS consumers. The
+Rust port is a distinct effort with different failure modes (regex
+engine differences, binary distribution of the registry) and deserves
+its own module boundary.
+
+Module outcome: 15/16 tasks Complete, 1 Reparented. ANVFMT module marked
+Complete.
