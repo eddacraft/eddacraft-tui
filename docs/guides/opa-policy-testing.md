@@ -12,11 +12,14 @@ toolchain, and the minimum set of tests every policy pack should ship.
 | `<workspace>/.anvil/policies/` | Default `policy_dir` resolved by `PolicyCheck` at runtime |
 | `<workspace>/<custom>/` | Override via `gate.yaml` `checks[].config.policy_dir` |
 
-`PolicyLoader` walks the policy dir, treating every `*.rego` file as a policy
-and every `*_test.rego` sibling as its unit-test file. The OPA package name
-must be `anvil.policies.<policy_name>` and the test package
-`anvil.policies.<policy_name>_test`. The loader uses these names for
-discovery, so deviating from the convention silently drops the policy.
+`PolicyLoader` walks the policy dir, treating `*.rego` files as policies
+while excluding `*_test.rego` files from policy discovery, and treating each
+`*_test.rego` sibling as its unit-test file. Policy packages should be
+`anvil.policies.<policy_name>` and test packages
+`anvil.policies.<policy_name>_test`. The loader does not validate package
+names during discovery (it uses filenames), but Anvil's OPA queries read
+results from `data.anvil.policies`, so policies whose package sits outside
+that hierarchy will load but their results won't surface in evaluation.
 
 ## Anatomy of a policy pack
 

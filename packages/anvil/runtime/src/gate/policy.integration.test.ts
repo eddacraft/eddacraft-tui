@@ -20,8 +20,14 @@ import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 function findOpaBinary(): string | null {
   const envPath = process.env.ANVIL_OPA_PATH;
   if (envPath) return envPath;
-  const which = spawnSync('which', ['opa'], { encoding: 'utf-8' });
-  if (which.status === 0) return which.stdout.trim();
+  // Cross-platform PATH lookup: `where` on Windows, `which` elsewhere.
+  // `OpaBinaryManager` validates that ANVIL_OPA_PATH points at a real
+  // file, so we resolve to an absolute path here rather than just `'opa'`.
+  const lookup = process.platform === 'win32' ? 'where' : 'which';
+  const result = spawnSync(lookup, ['opa'], { encoding: 'utf-8' });
+  if (result.status === 0) {
+    return result.stdout.trim().split(/\r?\n/)[0] ?? null;
+  }
   return null;
 }
 
