@@ -161,7 +161,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-002, RSCAN-004
 - **Validation:** `cargo test -p anvil-cli`; e2e fixture scanning a PR description triggers RL-* warnings
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-007: Shared scanner-parity fixture suite
 
@@ -286,6 +286,24 @@ non-negotiable reason the Rust scanner is the authoritative one.
   `get_pattern_ids` / `is_valid_pattern_id` keep their public shape;
   a new `patterns_count()` helper replaces the stale `PATTERNS: usize
   = 13` constant. 156 `anvil-checks` + 572 `anvil-cli` tests green;
+  clippy clean at `-D warnings`.
+- **2026-04-21 — RSCAN-006 landed (M3 complete).** New `--artifact
+  <kind>` flag on `anvil check` routes `pr-description` /
+  `commit-message` / `agent-output` inputs through `scan_artifact` with
+  the matching `ArtifactKind`. Non-source kinds require explicit file
+  paths (no `--all` / `--changed` / `--staged` / `--since` /
+  `--extensions`) because the "file" is the artifact content, not a
+  source file on disk. JSON and plain outputs reuse the same
+  `build_json_output` / `print_human` helpers as the source path, so
+  downstream consumers see an identical schema (the `warnings[].file`
+  field surfaces the artifact `reference` — PR URL, commit SHA, session
+  id — verbatim). Default exit-code semantics match the existing
+  `anvil check` flow: blocking when a warning's severity meets
+  `--severity`. Seven new unit tests cover wire-format parsing, clap
+  acceptance, the explicit-files requirement, the --all/--changed
+  rejection, missing-file errors, RL-family detection on PR bodies, and
+  the blocking threshold path. Closes the original ANVFMT-013 intent
+  that was reparented under ADR-026. 581 `anvil-cli` tests green;
   clippy clean at `-D warnings`.
 - **2026-04-21 — RSCAN-005 landed.** Pattern regex compilation moved
   to a process-wide `PREPARED_PATTERNS: LazyLock<Vec<PreparedPattern>>`

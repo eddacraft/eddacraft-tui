@@ -76,7 +76,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | ------ | ----- | ------ | -------- |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
-| [anvil-rust-scanner](./modules/anvil-rust-scanner.aps.md) | RSCAN | In Progress | 5/8 (RSCAN-005 landed — scan loop now runs on rayon with a LazyLock pattern cache; RSCAN-006..008 remain) |
+| [anvil-rust-scanner](./modules/anvil-rust-scanner.aps.md) | RSCAN | In Progress | 6/8 (M3 complete: --artifact flag lands non-source scanning; RSCAN-007..008 remain) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Ready | 0/8 |
