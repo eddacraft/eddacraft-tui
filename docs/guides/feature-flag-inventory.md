@@ -5,30 +5,30 @@ them onto the shared flagging model defined in `FLAGS`.
 
 Created for: `FLAGS-009`
 
-**Migration status:** The **migrate** controls below are being retired under the
-`FLAGM` module. Per-control flag keys, evaluation context, dual-evaluation
-window, parity test cases, and rollback paths are defined in
+**Migration status:** All **migrate** controls below are **retired** — the
+`FLAGM` module closed under FLAGM-006. Each migrate entry now routes through
+the shared resolver as its sole source of truth; the legacy hard-coded
+checks and dual-evaluation parity scaffolding have been deleted. Per-control
+flag keys, evaluation context, and rollback paths are documented in
 [`plans/specs/2026-04-20-feature-flag-migration-design.md`](../../plans/specs/2026-04-20-feature-flag-migration-design.md).
-Each migrate entry in this inventory lands a parity test alongside the control
-it replaces before the legacy check is removed.
 
 ## Classification Key
 
-| Action      | Meaning                                                             |
-| ----------- | ------------------------------------------------------------------- |
-| **migrate** | Move onto the shared manifest and OpenFeature-backed resolution     |
-| **adopt**   | New capability — will use the shared model from the start           |
-| **defer**   | Not ready to migrate yet; document what a future migration involves |
+| Action       | Meaning                                                             |
+| ------------ | ------------------------------------------------------------------- |
+| **migrated** | Retired onto the shared manifest and OpenFeature-backed resolution  |
+| **adopt**    | New capability — will use the shared model from the start           |
+| **defer**    | Not ready to migrate yet; document what a future migration involves |
 
 ## Summary Table
 
-| Control                          | Location                                      | Classification | Target class      |
+| Control                          | Location                                      | Classification | Flag class        |
 | -------------------------------- | --------------------------------------------- | -------------- | ----------------- |
-| CLI licence-gated actions        | `crates/anvil-cli/src/main.rs`                | migrate        | `entitlement`     |
-| Docs access gating               | `apps/docs-shell/proxy.ts`                    | migrate        | `entitlement`     |
-| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/main.rs:171`            | migrate        | `ops_kill_switch` |
+| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement`     |
+| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement`     |
+| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | local override    |
 | `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement`     |
-| Beta access scopes               | `apps/anvil-api/src/routes/admin.ts:15`       | migrate        | `entitlement`     |
+| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement`     |
 | Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —                 |
 | Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —                 |
 | OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`         |
@@ -37,74 +37,85 @@ it replaces before the legacy check is removed.
 | Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`         |
 | Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`         |
 
-## Existing Controls — Migrate
+## Retired Controls — Migrated
 
-### CLI licence-gated actions
+The four controls below were migrated onto the shared resolver across
+FLAGM-002 through FLAGM-005 and closed out in FLAGM-006. Each control's
+legacy hard-coded check and dual-evaluation parity scaffolding have been
+deleted; the shared flag is now the sole source of truth.
 
-- **Location:** `crates/anvil-cli/src/main.rs` — `requires_auth()` (line 104)
-  and `check_auth()` (line 164)
-- **Current state:** Rust CLI calls `/api/v1/whoami` to get a plan string;
-  access is gated by API 401 responses rather than in-process flag evaluation.
-  The `requires_auth()` function hard-codes which commands need authentication
-  (Audit, Check, Drift, Status, Admin, Gate, GateConfig, Watch, Export,
-  Architecture, Policy, Whoami) and which bypass it (Doctor, Tutorial, Welcome,
-  Init, New, Wizard, Hooks, Update, Validate, Login, Logout).
-- **Classification:** **migrate**
-- **Target flag:** `cli.licence-gate` (class: `entitlement`)
-- **Migration path:** Resolve the flag locally via the snapshot-backed provider
-  using `licencePlan` and `accountTier` from the evaluation context. The API
-  still validates the licence token, but the CLI can make in-process access
-  decisions without a round-trip for every gated command.
+### CLI licence-gated actions — Migrated (FLAGM-002, closed FLAGM-006)
+
+- **Resolver location:** `crates/anvil-cli/src/feature_flags.rs` —
+  `command_needs_licence_gate()`; wired from
+  `crates/anvil-cli/src/main.rs` — `requires_auth()`.
+- **Flag key:** `cli.licence-gate` (class: `entitlement`).
+- **Current state:** `requires_auth()` delegates to the shared resolver,
+  which reads the gated-command list from the flag's metadata. The legacy
+  hard-coded match (`requires_auth_legacy`) and its parity-test suite
+  (`PARITY_COMMAND_CASES`) were retired in FLAGM-006.
+- **Evaluation context:** `licencePlan` and `accountTier` from the loaded
+  credential / `/api/v1/whoami` response, resolved in-process via the
+  snapshot-backed provider (no per-command round-trip).
 - **Featureboard swap impact:** Provider replacement only — the evaluation
   context and flag key stay the same.
 
-### Docs access gating
+### Docs access gating — Migrated (FLAGM-004, closed FLAGM-006)
 
-- **Location:** `apps/docs-shell/proxy.ts` (lines 132–142),
-  `apps/docs-shell/lib/jwt.ts`
-- **Current state:** Proxy middleware checks for a valid JWT in the
-  `anvil-docs-session` cookie. It is a binary authenticated/not check with no
-  tier or plan awareness. Gated paths: `/anvil/*`. Public paths: `/kindling/*`,
-  `/aps/*`, `/edda-stack/*`, `/blog/*`, `/assets/*`, `/img/*`.
-- **Classification:** **migrate**
-- **Target flag:** `docs.access` (class: `entitlement`)
-- **Migration path:** After JWT validation, resolve the `docs.access` flag using
-  the authenticated user's `accountTier`. The middleware can then allow or deny
-  based on targeting rules (e.g. beta, pro, enterprise) rather than just
-  authentication presence.
-- **Featureboard swap impact:** Provider replacement only — middleware still
-  resolves via the same evaluation context.
+- **Resolver location:** `apps/docs-site/lib/feature-flags.ts` —
+  `resolveDocsAccess()` is called from the Docusaurus middleware.
+- **Flag key:** `docs.access` (class: `entitlement`).
+- **Current state:** After JWT validation, the middleware resolves
+  `docs.access` directly via `resolveFlag` from
+  `@eddacraft/anvil-runtime/feature-flags`. Gating decisions are driven by
+  `accountTier` targeting (beta, pro, enterprise) rather than just
+  authentication presence. The runtime exemplar parity block that
+  cross-checked an inline legacy evaluator was retired in FLAGM-006.
+- **Evaluation context:** `accountTier` from the authenticated docs session
+  claim.
+- **Featureboard swap impact:** Provider replacement only — middleware
+  still resolves via the same evaluation context.
 
-### `ANVIL_DEV=1` auth bypass
+### `ANVIL_DEV=1` auth bypass — Migrated (FLAGM-003, closed FLAGM-006)
 
-- **Location:** `crates/anvil-cli/src/main.rs:171`
-- **Current state:** When `ANVIL_DEV=1` is set, `check_auth()` returns `Ok(())`
-  unconditionally, bypassing all local auth pre-checks. Intended for CLI UX
-  testing without a live token. API calls still require real tokens server-side.
-- **Classification:** **migrate**
-- **Target flag:** `cli.dev-bypass` (class: `ops_kill_switch`)
-- **Migration path:** Replace the raw env-var check with a local operator
-  override on the `cli.licence-gate` flag. The shared resolver already supports
-  local overrides at higher precedence than targeting rules. This preserves the
-  existing developer workflow while making the bypass visible in flag telemetry
-  and auditable.
-- **Featureboard swap impact:** Local overrides are resolved before the provider
-  is consulted, so no impact.
+- **Resolver location:** `crates/anvil-cli/src/feature_flags.rs` —
+  `local_overrides_from_env()` + `cli_dev_bypass_active()`; called from
+  `crates/anvil-cli/src/main.rs` — `check_auth()`.
+- **Flag key:** `cli.licence-gate` with a local operator override (no
+  dedicated `cli.dev-bypass` flag was needed — the resolver's local
+  override precedence covers it).
+- **Current state:** `ANVIL_DEV=1` is read by
+  `local_overrides_from_env()` and surfaces as a local override on the
+  `cli.licence-gate` flag. `check_auth()` calls `cli_dev_bypass_active()`
+  to ask the resolver whether the override is active, then logs and skips
+  the local auth pre-check. The legacy `legacy_dev_bypass_active` helper
+  and its three parity tests were retired in FLAGM-006.
+- **Status:** Kept as a documented local-override shortcut; no deprecation
+  planned. The bypass is visible in flag telemetry and auditable.
+- **Featureboard swap impact:** Local overrides are resolved before the
+  provider is consulted, so no impact.
 
-### Beta access scopes
+### API access scopes — Migrated (FLAGM-005, closed FLAGM-006)
 
-- **Location:** `apps/anvil-api/src/routes/admin.ts:15`
-- **Current state:** `ALLOWED_SCOPES = ['beta', 'preview', 'internal']` controls
-  which scope strings can be assigned to access tokens. Default scope is
-  `['beta']`. Scopes are stored in the `access_tokens` table and validated on
-  every API call. This is an ad-hoc audience segmentation mechanism.
-- **Classification:** **migrate**
-- **Target flag:** Per-scope entitlement flags (e.g. `api.scope.preview`,
-  `api.scope.internal`) with `accountTier` targeting.
-- **Migration path:** Map current scope strings to `accountTier` or `userRole`
-  dimensions in the evaluation context. The token table retains scope data, but
-  feature gating decisions move to the shared resolver. The `ALLOWED_SCOPES`
-  constant becomes derivable from the flag manifest rather than hard-coded.
+- **Resolver location:** `apps/anvil-api/src/lib/feature-flags.ts` —
+  `API_SCOPE_FLAGS`, `resolveApiScope()`, `isScopeAllowed()`. Admin
+  request handling lives in `apps/anvil-api/src/routes/admin.ts`; the
+  allowed-scope tuple is re-exported from
+  `apps/anvil-api/src/routes/admin-schemas.ts`.
+- **Flag keys:** `api.scope.beta`, `api.scope.preview`,
+  `api.scope.internal` (class: `entitlement`).
+- **Current state:** `API_SCOPE_NAMES` is the single source of truth; the
+  legacy `ALLOWED_SCOPES = ['beta', 'preview', 'internal']` constant has
+  been deleted and `admin-schemas.ts` derives the allowed-scope list from
+  the flag manifest. `POST /admin/invite` calls `resolveApiScope` per
+  request body scope and returns 403 `scope_not_allowed` when the flag
+  resolves disabled — operator overrides have real runtime effect on the
+  hot path. `/admin/approve` reads `DEFAULT_APPROVAL_SCOPES` from the
+  manifest module. The `LEGACY_ALLOWED_SCOPES` tuple and its parity
+  describe-block were retired in FLAGM-006.
+- **Evaluation context:** `VERCEL_ENV`/`NODE_ENV` mapped to
+  `environment`; `accountTier`/`userRole` available for future targeting
+  rules.
 - **Featureboard swap impact:** Provider replacement only — scope-to-tier
   mapping lives in the evaluation context adapter.
 

@@ -4,17 +4,17 @@
 //! rather than a bespoke per-command check, so future tier/entitlement
 //! changes ship as manifest updates.
 //!
-//! FLAGM-002 introduces [`CliGateFlag`], a CLI-local wrapper around the
-//! shared [`FeatureFlagDefinition`] that carries the per-command gating list
-//! as typed metadata. The canonical gated-command names are the single
-//! source of truth for `requires_auth()` in `main.rs`; the legacy match
-//! remains in place for one release for dual-evaluation parity.
+//! [`CliGateFlag`] is a CLI-local wrapper around the shared
+//! [`FeatureFlagDefinition`] that carries the per-command gating list as
+//! typed metadata. The canonical gated-command names in
+//! [`CLI_GATED_COMMANDS`] are the sole source of truth for
+//! `requires_auth()` in `main.rs`; FLAGM-006 retired the legacy match.
 //!
-//! FLAGM-003 routes the `ANVIL_DEV=1` developer bypass through the shared
-//! resolver's local-override precedence via [`cli_dev_bypass_active`] and
-//! [`local_overrides_from_env`]. `main::check_auth` no longer branches on
-//! the raw env var; it asks the resolver whether a local override forces
-//! `cli.licence-gate` to `"enabled"` for this session.
+//! `ANVIL_DEV=1` is a documented local-override shortcut on
+//! `cli.licence-gate` (see [`cli_dev_bypass_active`] and
+//! [`local_overrides_from_env`]). `main::check_auth` asks the resolver
+//! whether a local override forces the gate to `"enabled"` for this
+//! session; no direct env-var branching remains.
 
 use anvil_kernel::feature_flags::{
     FlagOverrides, ResolutionDetails, ResolutionReason, resolve_flag,
@@ -329,8 +329,7 @@ mod tests {
     #[test]
     fn local_overrides_from_env_ignores_non_one_values() {
         // Only the literal "1" enables dev bypass; any other value (including
-        // "true", "0", or empty) is a no-op so the compat shim matches the
-        // legacy env-var check byte-for-byte during dual-evaluation.
+        // "true", "0", or empty) is a no-op.
         for value in ["true", "0", "", "yes"] {
             temp_env::with_var(DEV_BYPASS_ENV_VAR, Some(value), || {
                 let overrides = local_overrides_from_env();
@@ -356,51 +355,6 @@ mod tests {
     fn cli_dev_bypass_active_returns_none_when_anvil_dev_unset() {
         temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
             assert!(cli_dev_bypass_active().is_none());
-        });
-    }
-
-    // Design-spec parity cases for FLAGM-003: prove the resolver-backed
-    // path agrees with a legacy env-var inspection across the three
-    // canonical scenarios (enabled via override, disabled without
-    // override, default with no plan).
-
-    /// Legacy env-var bypass decision — deleted in FLAGM-006 once the
-    /// dual-evaluation window closes.
-    fn legacy_dev_bypass_active() -> bool {
-        std::env::var(DEV_BYPASS_ENV_VAR).as_deref() == Ok("1")
-    }
-
-    #[test]
-    fn parity_enabled_override_wins_over_targeting() {
-        // Design-spec "enabled" parity case: ANVIL_DEV=1 with plan "free"
-        // → both allow (override wins over targeting).
-        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
-            assert!(cli_dev_bypass_active().is_some());
-            assert!(legacy_dev_bypass_active());
-        });
-    }
-
-    #[test]
-    fn parity_disabled_no_override_no_bypass() {
-        // Design-spec "disabled" parity case: ANVIL_DEV unset with
-        // plan "free" → both deny (no bypass available to allow).
-        temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
-            assert!(cli_dev_bypass_active().is_none());
-            assert!(!legacy_dev_bypass_active());
-        });
-    }
-
-    #[test]
-    fn parity_default_no_env_no_plan_no_bypass() {
-        // Design-spec "default" parity case: ANVIL_DEV unset with no plan
-        // claim → both agree that no bypass is in effect; the flag's
-        // default variant still resolves to "enabled" (backwards compat),
-        // but that decision is about the gate itself, not about the
-        // dev-bypass shortcut.
-        temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
-            assert!(cli_dev_bypass_active().is_none());
-            assert!(!legacy_dev_bypass_active());
-            assert!(is_cli_licence_enabled(None));
         });
     }
 }

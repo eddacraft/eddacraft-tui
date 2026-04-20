@@ -158,56 +158,12 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
 
 /// Returns `true` for commands that require a valid auth session.
 ///
-/// FLAGM-002: delegates to the `cli.licence-gate` flag's gated-command
-/// metadata via [`feature_flags::command_needs_licence_gate`]. The
-/// legacy match is retained as [`requires_auth_legacy`] for one release
-/// so dual-evaluation parity tests can assert behaviour preservation
-/// before the shim is retired in FLAGM-006.
+/// Delegates to the `cli.licence-gate` flag's gated-command metadata via
+/// [`feature_flags::command_needs_licence_gate`]. FLAGM-006 retired the
+/// legacy hard-coded match and its parity-test scaffolding; the flag is
+/// now the sole source of truth.
 fn requires_auth(cmd: &Commands) -> bool {
     feature_flags::command_needs_licence_gate(command_canonical_name(cmd))
-}
-
-/// Legacy hard-coded auth-gate decision, kept for FLAGM-002 parity tests.
-///
-/// Do not call from production paths — `requires_auth` is authoritative.
-/// Scheduled for removal in FLAGM-006 once dual-evaluation closes.
-#[cfg(test)]
-fn requires_auth_legacy(cmd: &Commands) -> bool {
-    use commands::auth::AuthCommand;
-
-    match cmd {
-        // Auth-gated commands
-        Commands::Audit(_)
-        | Commands::Check(_)
-        | Commands::Drift(_)
-        | Commands::Status(_)
-        | Commands::Gate(_)
-        | Commands::GateConfig(_)
-        | Commands::Watch(_)
-        | Commands::Export(_)
-        | Commands::Architecture(_)
-        | Commands::Policy(_)
-        | Commands::Whoami(_) => true,
-
-        // Auth subcommands: only whoami needs credentials
-        Commands::Auth(args) => matches!(args.command, AuthCommand::Whoami),
-
-        // Bypass: onboarding, help, and auth flow commands.
-        // `Admin` uses `ANVIL_ADMIN_KEY`, not personal credentials — it
-        // checks its own auth and returns EXIT_AUTH_REQUIRED directly.
-        Commands::Admin(_)
-        | Commands::Doctor(_)
-        | Commands::Tutorial(_)
-        | Commands::Welcome(_)
-        | Commands::Init(_)
-        | Commands::New(_)
-        | Commands::Wizard(_)
-        | Commands::Hooks(_)
-        | Commands::Update(_)
-        | Commands::Validate(_)
-        | Commands::Login(_)
-        | Commands::Logout(_) => false,
-    }
 }
 
 /// Evaluate a credential-load result and return the appropriate exit code.
@@ -689,96 +645,6 @@ mod tests {
         assert!(!requires_auth(&parse_command(&[
             "admin", "approve", "--batch", "1"
         ])));
-    }
-
-    // ── FLAGM-002 parity: flag-driven vs legacy requires_auth ───────
-    //
-    // Dual-evaluation window: the flag-driven `requires_auth` must match
-    // the hard-coded `requires_auth_legacy` for every representative
-    // command. When all migrate-class controls retire in FLAGM-006,
-    // `requires_auth_legacy` and these parity tests are deleted.
-
-    /// Every representative command, covering both gated and bypass paths
-    /// plus hidden auth-subcommand aliases. Keep in sync with the command
-    /// enum and with `feature_flags::CLI_GATED_COMMANDS`.
-    const PARITY_COMMAND_CASES: &[&[&str]] = &[
-        // Gated commands
-        &["architecture", "validate"],
-        &["audit"],
-        &["auth", "whoami"],
-        &["check", "--all"],
-        &["drift", "list"],
-        &["export"],
-        &["gate"],
-        &["gate-config", "--list"],
-        &["policy", "list"],
-        &["status"],
-        &["watch"],
-        &["whoami"],
-        // Bypass commands
-        &["admin", "approve", "--batch", "1"],
-        &["auth", "login"],
-        &["auth", "logout"],
-        &["doctor"],
-        &["hooks", "install"],
-        &["init"],
-        &["login"],
-        &["logout"],
-        &["new"],
-        &["tutorial"],
-        &["update"],
-        &["validate", "plan.aps.md"],
-        &["welcome"],
-        &["wizard"],
-    ];
-
-    #[test]
-    fn parity_flag_matches_legacy_for_every_command() {
-        for tokens in PARITY_COMMAND_CASES {
-            let cmd = parse_command(tokens);
-            assert_eq!(
-                requires_auth(&cmd),
-                requires_auth_legacy(&cmd),
-                "flag-driven and legacy requires_auth diverged for `{}`",
-                tokens.join(" "),
-            );
-        }
-    }
-
-    #[test]
-    fn parity_enabled_case_allows_gated_command() {
-        // Design-spec "enabled" parity case: a gated command resolves to
-        // the flag's enabled variant under a plan-carrying context, and
-        // both legacy and flag-driven decisions agree the command is
-        // gated (= requires auth).
-        let cmd = parse_command(&["audit"]);
-        let details =
-            crate::feature_flags::evaluate_cli_licence_gate("parity-session", Some("pro"));
-        assert_eq!(details.variant, "enabled");
-        assert!(requires_auth(&cmd));
-        assert!(requires_auth_legacy(&cmd));
-    }
-
-    #[test]
-    fn parity_disabled_case_bypass_command_unaffected_by_plan() {
-        // Design-spec "disabled" parity case: a bypass command stays
-        // unauth-gated regardless of plan. The flag itself can resolve
-        // to either variant; the gate metadata (not the variant) is the
-        // authority on whether `requires_auth` fires.
-        let cmd = parse_command(&["admin", "approve", "--batch", "1"]);
-        assert!(!requires_auth(&cmd));
-        assert!(!requires_auth_legacy(&cmd));
-    }
-
-    #[test]
-    fn parity_default_case_no_plan_still_matches_legacy() {
-        // Design-spec "default" parity case: no audience context
-        // (no plan) resolves the flag to its default variant, and the
-        // gated-command list still drives the auth decision identically
-        // to the legacy match.
-        let cmd = parse_command(&["doctor"]);
-        assert!(!requires_auth(&cmd));
-        assert!(!requires_auth_legacy(&cmd));
     }
 
     // ── evaluate_auth ────────────────────────────────────────────

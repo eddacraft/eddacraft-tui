@@ -3,9 +3,9 @@
 
 # Feature Flag Migration
 
-| Scope  | Owner | Priority | Status      |
-| ------ | ----- | -------- | ----------- |
-| FLAGM  | —     | medium   | In Progress |
+| Scope  | Owner | Priority | Status   |
+| ------ | ----- | -------- | -------- |
+| FLAGM  | —     | medium   | Complete |
 
 ## Purpose
 
@@ -285,7 +285,7 @@ Change status to **Ready** when:
   default `'enabled'` for day-1 legacy parity; fail-closed satisfied
   via override precedence).
 
-### FLAGM-006: Retire dual-evaluation shims and close the migration
+### FLAGM-006: Retire dual-evaluation shims and close the migration — Complete
 
 - **Intent:** After each migrated control has run dual-evaluated for one
   release, delete the legacy check and the parity-test scaffolding.
@@ -297,3 +297,37 @@ Change status to **Ready** when:
 - **Dependencies:** FLAGM-002, FLAGM-003, FLAGM-004, FLAGM-005
 - **Validation:** `grep -Eq "retired|complete" docs/guides/feature-flag-inventory.md`
 - **Confidence:** high
+- **Outcome:** Deleted the dual-evaluation scaffolds across all four
+  migrated controls: `requires_auth_legacy` and its
+  `PARITY_COMMAND_CASES` test suite in `crates/anvil-cli/src/main.rs`
+  (FLAGM-002 scaffold); `legacy_dev_bypass_active` and its three parity
+  tests in `crates/anvil-cli/src/feature_flags.rs` (FLAGM-003 scaffold);
+  the `legacyInlineEval` + `docs access parity (FLAGM-004)` describe-block
+  in `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`
+  (FLAGM-004 scaffold); the `LEGACY_ALLOWED_SCOPES` tuple and FLAGM-005
+  parity describe-block in
+  `apps/anvil-api/src/lib/__tests__/feature-flags.test.ts` (FLAGM-005
+  scaffold). Replaced the API parity suite with a narrower
+  `describe('isScopeAllowed')` block that exercises manifest membership,
+  unknown-scope rejection, and override-driven denial directly against
+  the flag path. Rewrote `crates/anvil-cli/src/feature_flags.rs` module
+  doc and the `requires_auth` doc in `main.rs` to document `ANVIL_DEV=1`
+  as a kept local-override shortcut (routed through the resolver's local
+  override precedence via `local_overrides_from_env`, no deprecation).
+  Rewrote `docs/guides/feature-flag-inventory.md` — migration-status
+  blurb, Classification Key (`migrate` → `migrated`), Summary Table
+  (current resolver locations + correct flag classes), and "Retired
+  Controls — Migrated" subsections describing each of the four controls
+  in their post-retirement state with current call sites. The shared
+  flag is now the sole source of truth per control, and the migration
+  module is closed.
+- **Follow-on considerations (not required for closeout):** Council
+  session `council-f8ed0137` on FLAGM-005 deferred three hardening /
+  observability items to FLAGM-006 — per-request read-path scope
+  validation, `feature_flag.evaluated` telemetry emission from
+  `resolveApiScope`, and shared manifest-catalogue registration for the
+  `api.scope.*` flag definitions. These are observability / hardening
+  work rather than migration closeout, and are not blockers for FLAGM
+  completion. If pursued, they should be captured as separate work items
+  (new module or appended to the observability backlog) rather than
+  retrofitted into FLAGM-006.
