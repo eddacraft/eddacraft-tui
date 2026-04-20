@@ -165,7 +165,7 @@ Change status to **Ready** when:
   (`anvil-kernel-types`, `@eddacraft/anvil-contracts`) is unchanged —
   the gating list is CLI-host data, not shared-contract data.
 
-### FLAGM-003: Replace `ANVIL_DEV=1` with local-override on `cli.licence-gate`
+### FLAGM-003: Replace `ANVIL_DEV=1` with local-override on `cli.licence-gate` — Complete
 
 - **Intent:** Route developer bypass through the shared resolver's local-
   override path instead of a raw env-var short-circuit.
@@ -177,6 +177,20 @@ Change status to **Ready** when:
 - **Dependencies:** FLAGM-002
 - **Validation:** `cargo test -p eddacraft-anvil --bin anvil feature_flags`
 - **Confidence:** high
+- **Outcome:** `feature_flags::local_overrides_from_env` reads
+  `ANVIL_DEV=1` into a `FlagOverrides.local` entry keyed by
+  `CLI_LICENCE_GATE_KEY` → `"enabled"`; `feature_flags::cli_dev_bypass_active`
+  resolves the flag with that override and returns the resulting
+  `ResolutionDetails` when the resolver confirms `reason =
+  LocalOverride` and `variant = "enabled"`. `main::check_auth` now calls
+  that helper instead of reading the env var directly; the `[dev]`
+  pre-check log line now carries `flag_key`, `variant`, and `reason`.
+  Parity with the legacy env-var check is proven by three design-spec
+  cases (enabled/disabled/default) plus a presence/absence pair that
+  exercises both `local_overrides_from_env` and `cli_dev_bypass_active`.
+  `ANVIL_DEV_BYPASS_DISABLE` / broader env-override sources are
+  intentionally out of scope; FLAGM-006 will decide whether the env var
+  shim retires or becomes a documented override contract.
 
 ### FLAGM-004: Move docs `/anvil` gate onto shared resolver
 

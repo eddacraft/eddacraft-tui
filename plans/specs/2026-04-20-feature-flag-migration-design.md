@@ -128,27 +128,39 @@ task may delete one, even if parity tests have been green for a release.
 
 ### `cli.dev-bypass` (`ANVIL_DEV=1` env-var bypass)
 
-- **Current state:** `main.rs` short-circuits auth when
-  `std::env::var("ANVIL_DEV") == Ok("1")`. The resolver already supports
-  local overrides at higher precedence than targeting.
+- **Current state (post FLAGM-003):** the env-var read has moved into
+  `feature_flags::local_overrides_from_env`, which emits a
+  `FlagOverrides.local` entry mapping `cli.licence-gate → "enabled"`
+  when `ANVIL_DEV=1`. `feature_flags::cli_dev_bypass_active` runs the
+  resolver with those overrides and returns the resulting
+  `ResolutionDetails` when `reason = LocalOverride`. `main::check_auth`
+  consults that helper; the raw env-var branch is gone. A single
+  literal `ANVIL_DEV=1` enables bypass — other values (`"true"`,
+  `"0"`, empty) are intentional no-ops to match the legacy check
+  byte-for-byte during dual-evaluation.
 - **Target decision point:** resolver sees `ANVIL_DEV=1` as a local
   override that forces `cli.licence-gate` to `"enabled"`. The env-var
-  read becomes an override-loader step in session startup, not a
-  branch on the auth path.
+  read is an override-loader step, not a branch on the auth path.
 - **Evaluation context:** same as `cli.licence-gate` — the override
   supplies the variant directly; no targeting is evaluated when an
   override is present.
-- **Dual-evaluation window:** one release — keep the env-var branch as a
-  compatibility shim that also records an override reason.
+- **Dual-evaluation window:** one release — parity assertions live in
+  `crates/anvil-cli/src/feature_flags.rs` next to the new helpers; the
+  inline legacy helper `legacy_dev_bypass_active` exists only under
+  `#[cfg(test)]` and retires in FLAGM-006.
 - **Parity-test cases:**
   - **enabled:** `ANVIL_DEV=1`, plan `"free"` → both allow (override
     wins over targeting)
   - **disabled:** `ANVIL_DEV` unset, plan `"free"` → both deny
-  - **default:** `ANVIL_DEV` unset, missing plan → both allow
-    (backwards compat)
-- **Rollback:** revert the override-loader commit; the raw env-var branch
+  - **default:** `ANVIL_DEV` unset, missing plan → both agree there
+    is no bypass; the flag's default variant still resolves to
+    `"enabled"` (backwards compat), but that is the gate decision,
+    not the bypass decision
+- **Rollback:** revert the FLAGM-003 commit; the raw env-var branch
   resumes authority.
-- **Test location:** `crates/anvil-cli/src/feature_flags.rs`.
+- **Test location:** `crates/anvil-cli/src/feature_flags.rs` tests
+  module (`local_overrides_from_env_*`, `cli_dev_bypass_active_*`,
+  `parity_*`).
 
 ### `docs.access` (docs `/anvil` gate)
 

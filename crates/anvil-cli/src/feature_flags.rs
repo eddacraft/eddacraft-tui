@@ -1,4 +1,4 @@
-//! FLAGS-008 exemplar + FLAGM-002: CLI licence gating via the shared feature-flag resolver.
+//! FLAGS-008 exemplar + FLAGM-002/003: CLI licence gating via the shared feature-flag resolver.
 //!
 //! Routes licence-gated feature access through `anvil_kernel::feature_flags`
 //! rather than a bespoke per-command check, so future tier/entitlement
@@ -9,8 +9,16 @@
 //! as typed metadata. The canonical gated-command names are the single
 //! source of truth for `requires_auth()` in `main.rs`; the legacy match
 //! remains in place for one release for dual-evaluation parity.
+//!
+//! FLAGM-003 routes the `ANVIL_DEV=1` developer bypass through the shared
+//! resolver's local-override precedence via [`cli_dev_bypass_active`] and
+//! [`local_overrides_from_env`]. `main::check_auth` no longer branches on
+//! the raw env var; it asks the resolver whether a local override forces
+//! `cli.licence-gate` to `"enabled"` for this session.
 
-use anvil_kernel::feature_flags::{ResolutionDetails, resolve_flag};
+use anvil_kernel::feature_flags::{
+    FlagOverrides, ResolutionDetails, ResolutionReason, resolve_flag,
+};
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
     FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant,
@@ -172,10 +180,55 @@ pub fn command_needs_licence_gate(command_name: &str) -> bool {
         .contains(&command_name)
 }
 
+/// Developer-override env variable that forces `cli.licence-gate` to
+/// `"enabled"` for the current session. Retained as a compatibility shim
+/// during the FLAGM-003 dual-evaluation window; FLAGM-006 will decide
+/// whether to promote it to a documented local-override contract or
+/// retire it entirely.
+pub const DEV_BYPASS_ENV_VAR: &str = "ANVIL_DEV";
+
+/// Build the [`FlagOverrides`] map implied by environment variables.
+///
+/// Currently the only recognised source is `ANVIL_DEV=1`, which inserts a
+/// local override forcing `cli.licence-gate` to its `"enabled"` variant.
+/// Returning an owned value (rather than `Option`) keeps callers that
+/// always pass overrides simple; an empty map is a no-op inside the
+/// resolver.
+pub fn local_overrides_from_env() -> FlagOverrides {
+    let mut overrides = FlagOverrides::default();
+    if std::env::var(DEV_BYPASS_ENV_VAR).as_deref() == Ok("1") {
+        overrides
+            .local
+            .insert(CLI_LICENCE_GATE_KEY.into(), "enabled".into());
+    }
+    overrides
+}
+
+/// If a local override forces `cli.licence-gate` to `"enabled"` for the
+/// current session, returns the [`ResolutionDetails`] that proved it.
+/// Otherwise returns `None`.
+///
+/// Replaces the raw `ANVIL_DEV=1` branch previously in `main::check_auth`
+/// so that the resolver's local-override precedence (not a bespoke
+/// env-var read) is the single source of truth for developer bypass.
+pub fn cli_dev_bypass_active() -> Option<ResolutionDetails> {
+    let overrides = local_overrides_from_env();
+    if overrides.local.is_empty() {
+        return None;
+    }
+    let flag = cli_licence_gate_flag();
+    let context = cli_evaluation_context("cli-session", None);
+    let details = resolve_flag(&flag.definition, &context, Some(&overrides));
+    if details.reason == ResolutionReason::LocalOverride && details.variant == "enabled" {
+        Some(details)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_kernel::feature_flags::ResolutionReason;
 
     #[test]
     fn flag_definition_matches_exemplar_contract() {
@@ -245,5 +298,109 @@ mod tests {
     fn is_enabled_helper_allows_default() {
         assert!(is_cli_licence_enabled(Some("beta")));
         assert!(is_cli_licence_enabled(None));
+    }
+
+    // ── FLAGM-003: dev-bypass as local override ─────────────────────
+
+    #[test]
+    fn local_overrides_from_env_has_no_override_when_anvil_dev_unset() {
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
+            let overrides = local_overrides_from_env();
+            assert!(overrides.local.is_empty());
+            assert!(overrides.emergency.is_empty());
+        });
+    }
+
+    #[test]
+    fn local_overrides_from_env_sets_gate_enabled_when_anvil_dev_one() {
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
+            let overrides = local_overrides_from_env();
+            assert_eq!(
+                overrides
+                    .local
+                    .get(CLI_LICENCE_GATE_KEY)
+                    .map(String::as_str),
+                Some("enabled"),
+                "ANVIL_DEV=1 must insert a local override on {CLI_LICENCE_GATE_KEY}"
+            );
+        });
+    }
+
+    #[test]
+    fn local_overrides_from_env_ignores_non_one_values() {
+        // Only the literal "1" enables dev bypass; any other value (including
+        // "true", "0", or empty) is a no-op so the compat shim matches the
+        // legacy env-var check byte-for-byte during dual-evaluation.
+        for value in ["true", "0", "", "yes"] {
+            temp_env::with_var(DEV_BYPASS_ENV_VAR, Some(value), || {
+                let overrides = local_overrides_from_env();
+                assert!(
+                    overrides.local.is_empty(),
+                    "ANVIL_DEV={value:?} must not enable bypass"
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn cli_dev_bypass_active_returns_some_when_anvil_dev_one() {
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
+            let details = cli_dev_bypass_active().expect("override must be active");
+            assert_eq!(details.flag_key, CLI_LICENCE_GATE_KEY);
+            assert_eq!(details.variant, "enabled");
+            assert_eq!(details.reason, ResolutionReason::LocalOverride);
+        });
+    }
+
+    #[test]
+    fn cli_dev_bypass_active_returns_none_when_anvil_dev_unset() {
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
+            assert!(cli_dev_bypass_active().is_none());
+        });
+    }
+
+    // Design-spec parity cases for FLAGM-003: prove the resolver-backed
+    // path agrees with a legacy env-var inspection across the three
+    // canonical scenarios (enabled via override, disabled without
+    // override, default with no plan).
+
+    /// Legacy env-var bypass decision — deleted in FLAGM-006 once the
+    /// dual-evaluation window closes.
+    fn legacy_dev_bypass_active() -> bool {
+        std::env::var(DEV_BYPASS_ENV_VAR).as_deref() == Ok("1")
+    }
+
+    #[test]
+    fn parity_enabled_override_wins_over_targeting() {
+        // Design-spec "enabled" parity case: ANVIL_DEV=1 with plan "free"
+        // → both allow (override wins over targeting).
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
+            assert!(cli_dev_bypass_active().is_some());
+            assert!(legacy_dev_bypass_active());
+        });
+    }
+
+    #[test]
+    fn parity_disabled_no_override_no_bypass() {
+        // Design-spec "disabled" parity case: ANVIL_DEV unset with
+        // plan "free" → both deny (no bypass available to allow).
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
+            assert!(cli_dev_bypass_active().is_none());
+            assert!(!legacy_dev_bypass_active());
+        });
+    }
+
+    #[test]
+    fn parity_default_no_env_no_plan_no_bypass() {
+        // Design-spec "default" parity case: ANVIL_DEV unset with no plan
+        // claim → both agree that no bypass is in effect; the flag's
+        // default variant still resolves to "enabled" (backwards compat),
+        // but that decision is about the gate itself, not about the
+        // dev-bypass shortcut.
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
+            assert!(cli_dev_bypass_active().is_none());
+            assert!(!legacy_dev_bypass_active());
+            assert!(is_cli_licence_enabled(None));
+        });
     }
 }

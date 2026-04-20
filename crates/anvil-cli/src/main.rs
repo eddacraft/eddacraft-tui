@@ -365,14 +365,20 @@ fn run_interactive_login() -> anyhow::Result<()> {
 /// device-code login flow inline so first-time users don't bounce off a
 /// terse "Run `anvil auth login`" error.
 fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
-    // Local dev bypass: ANVIL_DEV=1 skips auth entirely.
-    // Safe because:
+    // Local dev bypass: ANVIL_DEV=1 resolves through the shared resolver's
+    // local-override precedence on `cli.licence-gate`. Routing via the
+    // resolver (rather than an inline env-var read) means override
+    // telemetry, reason codes, and future override sources all share one
+    // code path. Safety rationale is unchanged from the legacy bypass:
     //   - All API calls still require a real token server-side.
     //   - This only bypasses the local credential pre-check.
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
-    if std::env::var("ANVIL_DEV").as_deref() == Ok("1") {
-        eprintln!("[dev] ANVIL_DEV=1: skipping local auth check");
+    if let Some(details) = feature_flags::cli_dev_bypass_active() {
+        eprintln!(
+            "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
+            details.flag_key, details.variant, details.reason
+        );
         return Ok(());
     }
 
