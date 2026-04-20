@@ -10,13 +10,12 @@
   `auth/device_flow.rs` test files now carry their own `#[cfg(test)]` modules
   (hooks 26 tests, admin 12, export 37, architecture 15, policy 19, gate
   regression for removed `--no-cache`, watch 29, device_flow 34).
-- **Phase 2 — OPA Real-Binary:** In progress (4/5). TCOV-009 (TS),
-  TCOV-010 (Rust), TCOV-011 (`opa test` against fixtures), and TCOV-012
-  (gate-runner → policy.check → real OPA pipeline) are landed and use
-  `policies/fixtures/` as the canonical fixture root. TCOV-010 surfaced
-  and fixed a latent stdio-pipe bug in
-  `crates/anvil-policy/src/opa.rs::evaluate`. TCOV-013 (docs guide)
-  remains.
+- **Phase 2 — OPA Real-Binary:** Complete (5/5). TCOV-009 (TS),
+  TCOV-010 (Rust), TCOV-011 (`opa test` against fixtures), TCOV-012
+  (gate-runner → policy.check → real OPA pipeline), and TCOV-013
+  (`docs/guides/opa-policy-testing.md`) all landed; fixtures are anchored
+  at `policies/fixtures/`. TCOV-010 surfaced and fixed a latent stdio-pipe
+  bug in `crates/anvil-policy/src/opa.rs::evaluate`.
 - **Phase 3 — TypeScript Packages:** Partial (1/8). `edda-stack` contracts have
   8 dedicated test files (TCOV-014). `kindling-integration` still has only
   `malicious-ai.test.ts`; `mcp-server` resources remain in a single
@@ -313,6 +312,14 @@ Change status to **Ready** when:
 - **Validation:** Manual review — a developer can follow the guide to write
   and run a new policy test.
 - **Confidence:** high
+- **Status:** Complete — landed in this branch as
+  `docs/guides/opa-policy-testing.md`. Documents the fixture layout
+  (`policies/fixtures/`), the `<name>.rego` / `<name>_test.rego`
+  convention, the pinned OPA version (`DEFAULT_OPA_VERSION` in
+  `opa-binary-manager.ts`), how to run all three integration suites (TS
+  executor, Rust executor, gate pipeline), the `PolicyCheck.buildOPAInput`
+  schema reference, and a troubleshooting matrix for the common failures
+  surfaced while building Phase 2.
 
 ### Phase 3 — TypeScript Package Coverage
 
