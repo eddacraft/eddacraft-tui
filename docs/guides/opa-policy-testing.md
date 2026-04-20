@@ -144,10 +144,16 @@ in both `.github/workflows/ci.yml` and `.github/workflows/rust.yml`.
 To bump:
 
 1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
-2. Update the `version:` input in both workflows.
-3. Run all three integration suites locally (TS executor, Rust executor, gate
+2. Update the `version:` input and `EXPECTED_OPA_VERSION` env in both
+   workflows.
+3. Update any other files in the allowlist in
+   `scripts/check-opa-version-pin.sh` (e.g. doc comments, AGENTS.md).
+4. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if
+   the pinned version string appears in any file not in the allowlist, which
+   is the canary against silent doc rot when this runbook rots.
+5. Run all three integration suites locally (TS executor, Rust executor, gate
    pipeline) plus `opa test policies/fixtures`.
-4. Note the bump in the relevant ADR / decision log entry if the version change
+6. Note the bump in the relevant ADR / decision log entry if the version change
    is load-bearing for a policy.
 
 ## Adding a new policy pack

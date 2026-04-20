@@ -77,6 +77,9 @@ jobs:
           fi
           echo "OPA $installed installed"
 
+      - name: Check OPA version pin is not duplicated outside allowlist
+        run: ./scripts/check-opa-version-pin.sh
+
       - name: Install Regal
         uses: open-policy-agent/setup-regal@33a142b1189004e0f14bf42b15972c67eecce776 # v1
         with:

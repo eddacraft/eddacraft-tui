@@ -204,8 +204,12 @@ jobs:
           fi
           echo "OPA $installed installed"
 
+      - name: Check OPA version pin is not duplicated outside allowlist
+        run: ./scripts/check-opa-version-pin.sh
+
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
+
 
       - name: Run unit tests (affected on PRs, all on push)
         run: |
