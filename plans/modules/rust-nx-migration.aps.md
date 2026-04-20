@@ -163,7 +163,7 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   pre-migration behaviour, since `cargo llvm-cov --doc` requires nightly and
   nightly is explicitly out of scope for this module.
 
-### RUSTNX-003: Parallelise Rust CI jobs behind shared cache
+### RUSTNX-003: Parallelise Rust CI jobs behind shared cache [Complete]
 
 - **Intent:** Let `clippy`, `test`, and `format` run concurrently rather than
   serialising behind `needs: check`
@@ -177,6 +177,12 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Confidence:** high
 - **Non-scope:** Merging jobs into a single matrix — keep them separate for
   clear failure attribution
+- **Resolution:** Removed `needs: check` from `test` and `clippy` jobs so
+  all four jobs (`check`, `test`, `clippy`, `format`) start in parallel off
+  the shared rust-cache restore. `cross-compile` retains `needs: check`
+  since it only runs on PRs targeting `main` and is by far the heaviest
+  matrix — gating it behind check avoids wasting 6 matrix runners when a
+  basic compile error would fail them all.
 
 ### RUSTNX-004: Scaffold per-crate project.json wrappers
 
