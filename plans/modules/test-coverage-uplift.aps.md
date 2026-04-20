@@ -1,8 +1,29 @@
 # Test Coverage Uplift
 
-| ID   | Owner      | Status |
-| ---- | ---------- | ------ |
-| TCOV | @eddacraft | Draft  |
+| ID   | Owner      | Status      |
+| ---- | ---------- | ----------- |
+| TCOV | @eddacraft | In Progress |
+
+## Progress (as of 2026-04-21)
+
+- **Phase 1 — Rust CLI Commands:** Complete (8/8). All `anvil-cli` command and
+  `auth/device_flow.rs` test files now carry their own `#[cfg(test)]` modules
+  (hooks 26 tests, admin 12, export 37, architecture 15, policy 19, gate
+  regression for removed `--no-cache`, watch 29, device_flow 34).
+- **Phase 2 — OPA Real-Binary:** Not started (0/5). `packages/anvil/policy` and
+  `crates/anvil-policy` still mock the binary; no `__fixtures__/policies/` dir
+  and no `crates/anvil-policy/tests/` directory exist yet.
+- **Phase 3 — TypeScript Packages:** Partial (1/8). `edda-stack` contracts have
+  8 dedicated test files (TCOV-014). `kindling-integration` still has only
+  `malicious-ai.test.ts`; `mcp-server` resources remain in a single
+  `resources.test.ts`; `bin.ts`/`bin-http.ts` untested; ports/store have no
+  dedicated tests.
+- **Phase 4 — Rust TUI:** Scope drift. The crate was renamed
+  `eddacraft-tui` → `anvil-tui` and the directory layout no longer matches
+  the original work items (no `theme/` or `keyboard/` subdir; widgets are
+  `results_dashboard.rs` and `quick_wins_panel.rs`, not the
+  text_input/select/confirm/log_panel set the items name). Phase 4 needs a
+  scope refresh against the current crate before any work begins.
 
 ## Purpose
 
@@ -79,7 +100,8 @@ Change status to **Ready** when:
 - [x] TFIX Phase 1 complete (OPA in CI) — Rust side done (TFIX-004/005/011);
       TS side (TFIX-003) addressed by the `ci.yml` OPA install step pinned to
       `v0.60.0`
-- [ ] Phase 1 tasks validated against current untested surface
+- [x] Phase 1 tasks validated against current untested surface (all 8
+      commands now have in-file unit tests)
 
 ## Tasks
 
@@ -97,6 +119,8 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil -- hooks` passes; llvm-cov shows
   ≥80% for the hooks module.
 - **Confidence:** high
+- **Status:** Complete — `crates/anvil-cli/src/commands/hooks.rs` ships a
+  `#[cfg(test)]` module with 26 tests (install/uninstall/list, error paths).
 
 #### TCOV-002: test admin command (approve workflow)
 
@@ -109,6 +133,8 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil -- admin` passes.
 - **Confidence:** medium — may need mock HTTP layer for API calls
+- **Status:** Complete — `commands/admin.rs` carries 12 in-file tests covering
+  approve/reject/validation paths.
 
 #### TCOV-003: test export command (all format paths)
 
@@ -121,6 +147,8 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil -- export` passes.
 - **Confidence:** high
+- **Status:** Complete — landed in 481962f1 with council follow-up b632b1e2;
+  `commands/export.rs` ships 37 tests covering each format.
 
 #### TCOV-004: test architecture command (validation paths)
 
@@ -133,6 +161,8 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture` passes.
 - **Confidence:** high
+- **Status:** Complete — `commands/architecture.rs` carries 15 in-file tests
+  spanning definition load, evaluation, and violation reporting.
 
 #### TCOV-005: test policy command (eval path)
 
@@ -145,6 +175,8 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil -- policy` passes.
 - **Confidence:** medium — eval path depends on OPA output structure
+- **Status:** Complete — `commands/policy.rs` carries 19 in-file tests covering
+  fixture eval, empty results, and error formatting.
 
 #### TCOV-006: test gate command (--plan and --no-cache flags)
 
@@ -158,6 +190,8 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil -- gate` passes; no
   `#[allow(dead_code)]` remains on these flags.
 - **Confidence:** medium
+- **Status:** Complete — `--no-cache` removed in bd9a01c3 with a regression
+  guard test (`no_cache_flag_removed`). `--plan` resolved during the same pass.
 
 #### TCOV-007: test watch command (--file and --action args)
 
@@ -171,6 +205,8 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil -- watch` passes; dead code
   annotations removed.
 - **Confidence:** medium — requires watcher test infrastructure
+- **Status:** Complete — landed in 3ebc4033; `commands/watch.rs` ships 29
+  in-file tests for the pure logic of `--file`/`--action` filtering.
 
 #### TCOV-008: test auth device flow
 
@@ -183,6 +219,9 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil -- device_flow` passes.
 - **Confidence:** medium — mock HTTP adds test complexity
+- **Status:** Complete — landed in 7695175e with council follow-up 82fb0192;
+  `auth/device_flow.rs` ships 34 in-file tests covering success, timeout,
+  invalid code, and polling behaviour.
 
 ### Phase 2 — OPA Real-Binary Tests
 
@@ -268,6 +307,10 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/edda-stack` shows contracts layer
   ≥80% line coverage.
 - **Confidence:** high
+- **Status:** Complete — eight dedicated test files now cover the contracts
+  layer (`contracts.test.ts`, `events.test.ts`, `evolution.test.ts`,
+  `memory-types.test.ts`, `observation-mappings.test.ts`,
+  `proposal-types.test.ts`, `provenance.test.ts`, `type-mappings.test.ts`).
 
 #### TCOV-015: edda-stack port interface tests
 
@@ -368,52 +411,64 @@ Change status to **Ready** when:
 
 ### Phase 4 — Rust TUI Coverage
 
-#### TCOV-022: eddacraft-tui widget interaction tests
+> **Scope refresh required (2026-04-21).** The crate was renamed
+> `eddacraft-tui` → `anvil-tui` and its layout no longer matches the items
+> below: there is no `theme/` or `keyboard/` subdirectory, and the widget set
+> is `results_dashboard.rs` + `quick_wins_panel.rs` rather than the
+> text_input/select/confirm/log_panel widgets these items were drafted
+> against. Treat TCOV-022..025 as **Blocked — scope drift** until the items
+> are rewritten against the current `anvil-tui` structure.
+
+#### TCOV-022: anvil-tui widget interaction tests
 
 - **Intent:** Widgets have unit tests for rendering but not for user
   interaction flows (key handling, state transitions, focus cycling).
-- **Expected Outcome:** Each interactive widget (`text_input`, `select`,
-  `confirm`, `log_panel`) has interaction tests covering key sequences.
+- **Expected Outcome:** Each interactive widget has interaction tests
+  covering key sequences. (Widget list to be redrawn against current
+  `crates/anvil-tui/src/widgets/`.)
 - **Files:**
-  - `crates/eddacraft-tui/src/widgets/`
+  - `crates/anvil-tui/src/widgets/`
 - **Dependencies:** —
-- **Validation:** `cargo test -p eddacraft-tui` passes; llvm-cov shows ≥80%.
-- **Confidence:** high
+- **Validation:** `cargo test -p anvil-tui` passes; llvm-cov shows ≥80%.
+- **Confidence:** low — original widget list is stale
+- **Status:** Blocked — scope refresh
 
-#### TCOV-023: eddacraft-tui shell and theme coverage
+#### TCOV-023: anvil-tui shell and theme coverage
 
-- **Intent:** The `shell` module has snapshot tests but the theme module
-  (`eddacraft` theme) only tests colour distinctness — not style application.
-- **Expected Outcome:** Theme styles tested for correct foreground/background
-  on each semantic token. Shell tested for responsive layout at different
-  terminal sizes.
+- **Intent:** The `shell` module has snapshot tests; theme styling needs
+  coverage. (Note: no `theme/` subdir exists today — confirm whether theming
+  lives elsewhere or this item should be retired.)
+- **Expected Outcome:** Shell tested for responsive layout at different
+  terminal sizes; theme handling, if present, tested for correct application.
 - **Files:**
-  - `crates/eddacraft-tui/src/shell.rs`
-  - `crates/eddacraft-tui/src/theme/`
+  - `crates/anvil-tui/src/shell.rs`
 - **Dependencies:** —
 - **Validation:** Combined module coverage ≥80%.
-- **Confidence:** high
+- **Confidence:** low — theme module presumed to exist but was not found
+- **Status:** Blocked — scope refresh
 
-#### TCOV-024: eddacraft-tui keyboard handler edge cases
+#### TCOV-024: anvil-tui keyboard handler edge cases
 
-- **Intent:** Keyboard handler tests cover basic navigation and quit but not
-  modifier keys, rapid input, or unknown key handling.
+- **Intent:** Keyboard handling for modifier combinations, unmapped keys, and
+  rapid input.
 - **Expected Outcome:** Tests for modifier combinations, unmapped keys, and
   rapid sequential input.
-- **Files:**
-  - `crates/eddacraft-tui/src/keyboard/handler.rs`
+- **Files:** to be identified — no `keyboard/handler.rs` in current crate.
 - **Dependencies:** —
 - **Validation:** Handler module at ≥80% line coverage.
-- **Confidence:** high
+- **Confidence:** low — file path no longer exists
+- **Status:** Blocked — scope refresh
 
-#### TCOV-025: eddacraft-tui surface trait compliance tests
+#### TCOV-025: anvil-tui surface trait compliance tests
 
 - **Intent:** Verify all Surface trait implementations satisfy the full
   interface contract (render, handle_key, metadata, lifecycle).
 - **Expected Outcome:** A parameterised test that runs the trait contract
-  against every registered surface.
+  against every registered surface in `crates/anvil-tui/src/surfaces/`.
 - **Files:**
-  - `crates/eddacraft-tui/src/surface.rs`
+  - `crates/anvil-tui/src/surface.rs`
+  - `crates/anvil-tui/src/surfaces/`
 - **Dependencies:** —
 - **Validation:** All surfaces pass the compliance test.
-- **Confidence:** high
+- **Confidence:** medium — `surface.rs` and `surfaces/` both exist
+- **Status:** Draft
