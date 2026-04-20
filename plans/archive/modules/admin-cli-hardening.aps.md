@@ -3,9 +3,9 @@
 
 # Admin CLI Hardening
 
-| Scope     | Owner  | Priority | Status      |
-| --------- | ------ | -------- | ----------- |
-| ADMINCLIH | @aneki | medium   | In Progress |
+| Scope     | Owner  | Priority | Status   |
+| --------- | ------ | -------- | -------- |
+| ADMINCLIH | @aneki | medium   | Complete |
 
 ## Purpose
 
@@ -227,19 +227,19 @@ API contract tweak)
 
 ### Per-operator key IaC provisioning (ADMINCLIH-004)
 
-- [ ] Pulumi program provisions `admin_keys` rows (hashed via the same
+- [x] Pulumi program provisions `admin_keys` rows (hashed via the same
       HMAC pepper as the middleware) and writes the corresponding
       `admin_keys_audit` entry with the Pulumi commit SHA
-- [ ] Key plaintext is generated out-of-band (1Password item or
+- [x] Key plaintext is generated out-of-band (1Password item or
       `pulumi config set --secret`) and never checked into git
-- [ ] Revocation path flips `revoked_at` via the same reviewed IaC change
+- [x] Revocation path flips `revoked_at` via the same reviewed IaC change
       and writes an `admin_keys_audit` `revoked` row
-- [ ] Runbook's "Provisioning a per-operator key" and "Revoking" sections
+- [x] Runbook's "Provisioning a per-operator key" and "Revoking" sections
       replace the manual SQL procedure with the IaC-driven one
 
 ### Runbook
 
-- [ ] Runbook covers: per-operator key provisioning, key revocation,
+- [x] Runbook covers: per-operator key provisioning, key revocation,
       shared `ADMIN_KEY` rotation, 409 cohort-drift recovery, 410
       token-expiry recovery, and env-var-based local key storage (with
       guidance against inline `export` in shell history)
@@ -412,4 +412,4 @@ API contract tweak)
 - **Confidence:** medium (depends on the existing Pulumi stack's
   support for reading from the Anvil Postgres — may need a small
   Postgres provider hookup)
-- **Status:** In Progress
+- **Status:** Complete
