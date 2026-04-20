@@ -25,7 +25,10 @@ export interface MarkdownSections {
   byHeading: Map<string, string>;
 }
 
-const H2_PATTERN = /^##\s+(.+?)\s*$/;
+// Heading marker only — the heading text is captured via `.slice(2).trim()`
+// to avoid a polynomial-backtracking pattern (`.+?` followed by `\s*$`
+// competing for trailing whitespace). Flagged by CodeQL js/redos.
+const H2_PATTERN = /^##[ \t]/;
 // Matches the start of a fenced code block per CommonMark §4.5 — three or
 // more backticks OR three or more tildes, with no leading indent. Leading
 // whitespace is disallowed to avoid flipping the fence state on indented
@@ -74,15 +77,14 @@ export function extractSections(body: string): MarkdownSections {
       continue;
     }
 
-    const headingMatch = line.match(H2_PATTERN);
-    if (headingMatch) {
+    if (H2_PATTERN.test(line)) {
       if (current) {
         sections.push({
           heading: current.heading,
           body: current.body.join('\n').trim(),
         });
       }
-      current = { heading: headingMatch[1]!.trim(), body: [] };
+      current = { heading: line.slice(2).trim(), body: [] };
       continue;
     }
 

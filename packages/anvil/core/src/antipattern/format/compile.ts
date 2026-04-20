@@ -12,7 +12,7 @@
  * `registry` is guaranteed-complete.
  */
 
-import { promises as fs } from 'node:fs';
+import { constants as fsConstants, promises as fs } from 'node:fs';
 import * as path from 'node:path';
 
 import {
@@ -149,15 +149,32 @@ async function parseBatch(files: string[]): Promise<ParseBatch> {
   for (const file of files) {
     let parsed: ParsedAnvilFile;
     try {
-      const stat = await fs.stat(file);
-      if (stat.size > MAX_ANVIL_FILE_BYTES) {
-        errors.push({
-          path: file,
-          detail: `file is ${stat.size} bytes, exceeds ${MAX_ANVIL_FILE_BYTES}-byte limit`,
-        });
-        continue;
+      // Open once with O_NOFOLLOW, stat + read against the same file
+      // descriptor. This closes two holes together: (1) the TOCTOU race
+      // between size check and read, flagged by CodeQL js/file-system-race,
+      // and (2) the symlink-swap race where a regular file discovered during
+      // walk is replaced with a symlink pointing outside `patternsDir`
+      // before this open. On Linux, O_NOFOLLOW causes open() to fail with
+      // ELOOP when the final path component is a symlink.
+      const fh = await fs.open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+      let raw: string;
+      try {
+        const stat = await fh.stat();
+        if (!stat.isFile()) {
+          errors.push({ path: file, detail: 'not a regular file' });
+          continue;
+        }
+        if (stat.size > MAX_ANVIL_FILE_BYTES) {
+          errors.push({
+            path: file,
+            detail: `file is ${stat.size} bytes, exceeds ${MAX_ANVIL_FILE_BYTES}-byte limit`,
+          });
+          continue;
+        }
+        raw = await fh.readFile('utf8');
+      } finally {
+        await fh.close();
       }
-      const raw = await fs.readFile(file, 'utf8');
       parsed = parseAnvilSource(file, raw);
     } catch (err) {
       if (err instanceof AnvilParseError) {
@@ -206,9 +223,10 @@ function relativeRef(fromRoot: string, target: string): string {
 /**
  * Compile a `patterns/` directory into a `CompiledRegistry`.
  *
- * Non-fatal issues (e.g. empty section bodies) surface in `warnings`. Fatal
- * issues (missing family, duplicate rule id, schema violations) populate
- * `errors` and cause `registry` to be null.
+ * Non-fatal issues (e.g. ambiguous prefixes that span multiple families)
+ * surface in `warnings`. Fatal issues (missing or empty required sections,
+ * missing family, duplicate rule id, schema violations) populate `errors`
+ * and cause `registry` to be null.
  */
 export async function compilePatterns(options: AnvilCompileOptions): Promise<AnvilCompileResult> {
   const patternsDir = path.resolve(options.patternsDir);
@@ -247,10 +265,14 @@ export async function compilePatterns(options: AnvilCompileOptions): Promise<Anv
       continue;
     }
     if (sectionCheck.empty.length > 0) {
-      warnings.push({
+      errors.push({
         path: definition.path,
         detail: `definition has empty required sections: ${sectionCheck.empty.join(', ')}`,
       });
+      // The assembled CompiledPattern would have empty explanation or
+      // suggestion strings and fail CompiledPatternSchema's `min(1)` check
+      // further down with a less-obvious message, so bail out here.
+      continue;
     }
 
     const explanation = getExplanation(sections);

@@ -51,6 +51,67 @@ describe('extractSections', () => {
     expect(sections[0]?.body).toContain('after');
   });
 
+  it('ignores H2-looking lines inside tilde-fenced code blocks', () => {
+    const body = [
+      '## Real',
+      'before',
+      '~~~md',
+      '## Not a heading',
+      'still code',
+      '~~~',
+      'after',
+    ].join('\n');
+
+    const { sections } = extractSections(body);
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.heading).toBe('Real');
+    expect(sections[0]?.body).toContain('## Not a heading');
+    expect(sections[0]?.body).toContain('after');
+  });
+
+  it('does not close a fenced code block when the closing backtick fence is shorter than the opening fence', () => {
+    const body = [
+      '## Real',
+      'before',
+      '````md',
+      '## Still code',
+      '```',
+      '## Also still code',
+      'after',
+    ].join('\n');
+
+    const { sections } = extractSections(body);
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.heading).toBe('Real');
+    expect(sections[0]?.body).toContain('## Still code');
+    expect(sections[0]?.body).toContain('```');
+    expect(sections[0]?.body).toContain('## Also still code');
+    expect(sections[0]?.body).toContain('after');
+  });
+
+  it('does not close a tilde fence with a backtick fence (different marker char)', () => {
+    const body = [
+      '## Real',
+      'before',
+      '~~~md',
+      '```',
+      '## Still code',
+      '~~~',
+      '## After',
+      'content',
+    ].join('\n');
+
+    const { sections } = extractSections(body);
+
+    expect(sections).toHaveLength(2);
+    expect(sections[0]?.heading).toBe('Real');
+    expect(sections[0]?.body).toContain('## Still code');
+    expect(sections[1]?.heading).toBe('After');
+    expect(sections[1]?.body).toBe('content');
+  });
+
   it('returns an empty section body when a heading has no following content', () => {
     const body = ['## Empty', '', '## Next', 'content'].join('\n');
     const { byHeading } = extractSections(body);

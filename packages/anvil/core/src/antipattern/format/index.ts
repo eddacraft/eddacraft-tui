@@ -1,9 +1,10 @@
 /**
  * `.anvil` file format — schemas, parser, compiler.
  *
- * Phase 2 of ANVFMT: turns the family/rule `.anvil` source tree into a
+ * Phase 1 of ANVFMT: turns the family/rule `.anvil` source tree into a
  * compiled pattern registry the scanner can load at runtime without needing
- * YAML or markdown support in hot paths.
+ * YAML or markdown support in hot paths. Phase 2 wires the scanner to the
+ * compiled registry.
  */
 
 export {
