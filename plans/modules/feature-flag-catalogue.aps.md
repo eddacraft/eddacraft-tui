@@ -36,8 +36,10 @@ are the governance guarantees we've already invested in via FLAGS.
 
 ## In Scope
 
-- Authoritative manifest: a single `flags/manifest.json` (or
-  `config/flags/manifest.json`) at the repo root holding every shipped flag
+- Authoritative manifest: a single `flags/manifest.json` at the repo root
+  holding every shipped flag (location chosen to match OpenFeature upstream
+  convention; signals cross-cutting product data, not per-package data;
+  leaves room for `flags/fixtures/` and `flags/environments/` overlays)
 - TS loader package: `packages/anvil/flags-catalogue/` that imports the JSON,
   validates it against `FeatureFlagManifestSchema`, and re-exports typed
   accessors (`CLI_LICENCE_GATE`, `DOCS_ACCESS_FLAG`, `API_SCOPE_FLAGS`, …)
@@ -145,15 +147,16 @@ Change status to **Ready** when:
 - [ ] Design note documents the manifest layout, codegen approach, and
       consistency-check strategy (FLAGCAT-001)
 - [ ] Rust codegen approach confirmed against the `anvil-kernel-types` build
-      profile (does it tolerate a `build.rs` pulling JSON from two directories
-      up, or does the manifest need to live inside the crate?)
+      profile — prototype a `build.rs` walk from `CARGO_MANIFEST_DIR` to the
+      workspace root's `flags/manifest.json` and verify `cargo:rerun-if-changed`
+      fires correctly
 - [ ] Adoption guide outline agreed with inventory doc owners
 
 ## Risks & Mitigations
 
 | Risk                                                         | Mitigation                                                                         |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| Rust `build.rs` can't reliably reach `../../flags/manifest.json` | Consider re-homing the manifest inside a catalogue crate (or copy on build); prototype in FLAGCAT-001 before committing to a location |
+| Rust `build.rs` can't reliably walk from `CARGO_MANIFEST_DIR` to the workspace root to find `flags/manifest.json` | Standard workaround: walk up until a `Cargo.toml` with `[workspace]` is found, emit `cargo:rerun-if-changed` for the resolved path. FLAGCAT-001 prototypes this; fallback is a thin `crates/anvil-flags-catalogue/` crate that owns the JSON and re-exports it to TS via `"files"` — retreat to that only if the root-level path genuinely proves painful |
 | OpenFeature CLI lands Rust codegen mid-migration             | Harmless — the JSON layout is compatible; we'd just replace our `build.rs` with the upstream tool without schema changes |
 | Consistency check is flaky (timezone, formatter drift)       | Compare parsed JSON + generated constants by structural equality, not stringwise; run through the same formatter as the source |
 | Docs-site edge bundle regresses                              | Ship the catalogue as an ESM package with no Node-only imports on the consumer path (same constraint FLAGM-004 already met) |
