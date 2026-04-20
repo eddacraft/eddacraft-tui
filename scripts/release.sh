@@ -1,688 +1,114 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# Interactive release script for Anvil CLI.
-# Walks through preflight, branching, tagging, and workflow kickoff.
-# Creates a GitHub Issue for tracking and writes .release/manifest.json
-# as the handoff contract for the /release Claude skill.
+# Preflight-only release script.
+#
+# Runs the deterministic checks that must pass before a release can start:
+# formatting, linting, typechecking, and tests on both the Rust workspace
+# and the TypeScript workspace. Every check runs to completion — a failure
+# in one step does not short-circuit later steps. The exit code is the
+# number of failed steps (0 on a clean pass).
+#
+# No prompts. No git operations. No GitHub calls. No handoff artefacts.
 #
 # Usage: ./scripts/release.sh
+#
+# Next step after a clean pass: invoke `/release` in Claude Code for the
+# judgment half (version pick, branch strategy, tag, workflow monitor,
+# changelog review, comms, cleanup).
 
-readonly REPO="EddaCraft/anvil-001"
-readonly PUBLIC_REPO="EddaCraft/anvil"
-readonly MANIFEST_DIR=".release"
-readonly MANIFEST_FILE="${MANIFEST_DIR}/manifest.json"
-readonly CARGO_VERSION_FILE="Cargo.toml"
-readonly ROOT_PACKAGE_JSON="package.json"
-readonly BETA_GUIDE_FILE="docs/public/anvil/beta-testing-guide.md"
-readonly UPGRADE_NOTES_FILE="docs/public/anvil/releases/upgrade-notes.md"
-readonly CHANGELOG_FILE="CHANGELOG.md"
-readonly BUNDLED_PACKAGE_JSONS=(
-  "apps/anvil-api/package.json"
-  "packages/adapters/package.json"
-  "packages/anvil/contracts/package.json"
-  "packages/anvil/core/package.json"
-  "packages/anvil/policy/package.json"
-  "packages/anvil/ports/package.json"
-  "packages/anvil/runtime/package.json"
-  "packages/aps/package.json"
-  "packages/mcp-server/package.json"
-  "packages/edda-stack/package.json"
-  "packages/kindling-integration/package.json"
-  "packages/shared/storage/package.json"
-  "packages/libs/render/package.json"
-)
-readonly BUNDLED_TEST_PACKAGES=(
-  "@eddacraft/anvil-contracts"
-  "@eddacraft/anvil-core"
-  "@eddacraft/anvil-policy"
-  "@eddacraft/anvil-ports"
-  "@eddacraft/anvil-runtime"
-  "@eddacraft/anvil-aps"
-  "@eddacraft/anvil-mcp-server"
-  "@eddacraft/anvil-edda-stack"
-  "@eddacraft/anvil-kindling-integration"
-  "@eddacraft/shared-storage"
-  "@eddacraft/render"
-  "@eddacraft/anvil-adapters"
-  "@eddacraft/anvil-api"
-)
+set -u
 
-# --- Colours and output ---
-
+readonly CYAN='\033[0;36m'
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
-readonly BLUE='\033[0;34m'
 readonly BOLD='\033[1m'
 readonly NC='\033[0m'
 
-info()    { echo -e "${BLUE}ℹ${NC}  $*"; }
-success() { echo -e "${GREEN}✓${NC}  $*"; }
-warn()    { echo -e "${YELLOW}⚠${NC}  $*"; }
-error()   { echo -e "${RED}✗${NC}  $*"; }
-header()  { echo -e "\n${BOLD}━━━ $* ━━━${NC}\n"; }
+# Optional per-step timeout (seconds). 0 disables. Env override:
+# ANVIL_RELEASE_STEP_TIMEOUT=0 ./scripts/release.sh
+readonly STEP_TIMEOUT="${ANVIL_RELEASE_STEP_TIMEOUT:-600}"
 
-replace_first_match() {
-  local file="$1"
-  local pattern="$2"
-  local replacement="$3"
-  perl -0pi -e "s/${pattern}/${replacement}/m" "$file"
+declare -a RESULT_NAMES
+declare -a RESULT_STATUS
+declare -a RESULT_DURATIONS
+
+run_check() {
+  local name="$1"
+  shift
+
+  echo -e "\n${CYAN}▶${NC} ${BOLD}${name}${NC}"
+  local start=${SECONDS}
+  local rc=0
+
+  if [[ "${STEP_TIMEOUT}" != "0" ]] && command -v timeout >/dev/null 2>&1; then
+    timeout "${STEP_TIMEOUT}" "$@" || rc=$?
+  else
+    "$@" || rc=$?
+  fi
+
+  local duration=$((SECONDS - start))
+  local status
+  if (( rc == 0 )); then
+    status="PASS"
+    echo -e "  ${GREEN}✓${NC} ${name} (${duration}s)"
+  elif (( rc == 124 )); then
+    status="TIMEOUT"
+    echo -e "  ${RED}✗${NC} ${name} (timed out after ${STEP_TIMEOUT}s)"
+  else
+    status="FAIL"
+    echo -e "  ${RED}✗${NC} ${name} (exit ${rc}, ${duration}s)"
+  fi
+
+  RESULT_NAMES+=("${name}")
+  RESULT_STATUS+=("${status}")
+  RESULT_DURATIONS+=("${duration}s")
 }
 
-update_package_json_version() {
-  local file="$1"
+print_summary() {
+  echo
+  echo -e "${BOLD}Preflight summary${NC}"
+  printf "  %-20s %-8s %s\n" "step" "result" "duration"
+  printf "  %-20s %-8s %s\n" "--------------------" "--------" "--------"
 
-  if [[ ! -f "$file" ]]; then
-    warn "Expected package file missing: $file"
+  local fail_count=0
+  local i
+  for i in "${!RESULT_NAMES[@]}"; do
+    local name="${RESULT_NAMES[${i}]}"
+    local status="${RESULT_STATUS[${i}]}"
+    local duration="${RESULT_DURATIONS[${i}]}"
+    local colour="${GREEN}"
+    if [[ "${status}" != "PASS" ]]; then
+      colour="${RED}"
+      fail_count=$((fail_count + 1))
+    fi
+    printf "  %-20s ${colour}%-8s${NC} %s\n" "${name}" "${status}" "${duration}"
+  done
+  echo
+
+  if (( fail_count == 0 )); then
+    echo -e "${GREEN}All preflight checks passed.${NC}"
+    echo -e "Next: invoke ${BOLD}/release${NC} in Claude Code."
     return 0
   fi
 
-  local package_version
-  package_version=$(grep '"version"' "$file" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
-  if [[ "$package_version" != "$VERSION" ]]; then
-    info "$file version is ${package_version}, updating to ${VERSION} on dev..."
-    replace_first_match "$file" '"version": "[^"]*"' "\"version\": \"${VERSION}\""
-    git add "$file"
-  else
-    info "$file version already ${VERSION} on dev"
-  fi
+  echo -e "${RED}${fail_count} check(s) failed — address before tagging.${NC}"
+  return "${fail_count}"
 }
-
-run_bundled_pnpm_tests() {
-  local filters=()
-  local cmd=(timeout 300 pnpm -r)
-  local pkg
-  local matched
-
-  for pkg in "${BUNDLED_TEST_PACKAGES[@]}"; do
-    filters+=(--filter "$pkg")
-  done
-
-  # Capture pnpm's exit status explicitly — under `set -euo pipefail` a
-  # non-zero exit from pnpm (e.g. a filter that matches no workspaces) would
-  # otherwise short-circuit the whole script and skip the mismatch diagnostic.
-  if ! matched=$(pnpm -r "${filters[@]}" exec pwd 2>/dev/null | wc -l | tr -d ' '); then
-    error "pnpm filter lookup failed — check BUNDLED_TEST_PACKAGES names against pnpm-workspace.yaml"
-    return 1
-  fi
-  if [[ "$matched" -ne "${#BUNDLED_TEST_PACKAGES[@]}" ]]; then
-    error "pnpm filter mismatch: expected ${#BUNDLED_TEST_PACKAGES[@]}, matched ${matched}"
-    return 1
-  fi
-
-  cmd+=("${filters[@]}")
-  cmd+=(test -- --run)
-  "${cmd[@]}"
-}
-
-# --- Gate functions ---
-
-hard_gate() {
-  local name="$1"
-  shift
-  info "Running: ${name}"
-  if "$@"; then
-    success "${name} passed"
-    return 0
-  else
-    error "${name} FAILED — aborting"
-    update_issue_comment "❌ Hard gate failed: ${name}"
-    exit 1
-  fi
-}
-
-soft_gate() {
-  local name="$1"
-  shift
-  info "Running: ${name}"
-  while true; do
-    if "$@"; then
-      success "${name} passed"
-      return 0
-    else
-      warn "${name} failed"
-      echo -ne "  [${BOLD}r${NC}]etry / [${BOLD}s${NC}]kip / [${BOLD}a${NC}]bort? "
-      read -r choice
-      case "${choice}" in
-        r|R) continue ;;
-        s|S)
-          warn "Skipping ${name}"
-          update_issue_comment "⚠️ Soft gate skipped: ${name}"
-          return 0
-          ;;
-        a|A)
-          error "Aborted by operator"
-          exit 1
-          ;;
-        *) echo "  Please enter r, s, or a" ;;
-      esac
-    fi
-  done
-}
-
-prompt_continue() {
-  local msg="$1"
-  echo -ne "${BOLD}${msg}${NC} [${BOLD}y${NC}/${BOLD}n${NC}] "
-  read -r choice
-  case "${choice}" in
-    y|Y) return 0 ;;
-    *)
-      error "Aborted by operator"
-      exit 1
-      ;;
-  esac
-}
-
-# --- Preconditions ---
-
-ensure_clean_worktree() {
-  if ! git diff --quiet || ! git diff --cached --quiet; then
-    error "Working tree has uncommitted changes. Commit or stash first."
-    exit 1
-  fi
-}
-
-ensure_gh_auth() {
-  if ! gh auth status &>/dev/null; then
-    error "Not authenticated with GitHub CLI. Run: gh auth login"
-    exit 1
-  fi
-}
-
-ensure_on_dev() {
-  local branch
-  branch=$(git branch --show-current)
-  if [[ "${branch}" != "dev" ]]; then
-    error "Must be on dev branch (currently on: ${branch})"
-    exit 1
-  fi
-}
-
-# --- GitHub Issue helpers ---
-
-create_release_issue() {
-  local version="$1"
-  local tag="$2"
-  local release_type="$3"
-  local branch_strategy="$4"
-  local release_branch="$5"
-
-  info "Creating release tracking issue..."
-  # Ensure the 'release' label exists (no-op if it already does)
-  gh label create "release" --repo "${REPO}" --color "0e8a16" --description "Release tracking" 2>/dev/null || true
-
-  ISSUE_URL=$(gh issue create \
-    --repo "${REPO}" \
-    --label "release" \
-    --title "release/${tag}" \
-    --body "$(cat <<ISSUE_BODY
-## Release Identity
-
-- **Version:** ${version}
-- **Tag:** ${tag}
-- **Release type:** ${release_type}
-- **Branch strategy:** ${branch_strategy}
-- **Release branch:** ${release_branch:-N/A}
-
-_Tracking issue created by \`scripts/release.sh\`. Updated by the release script and \`/release\` skill._
-
----
-
-_Preflight and tagging results will be posted as comments below._
-ISSUE_BODY
-)")
-
-  ISSUE_NUMBER=$(echo "${ISSUE_URL}" | grep -oE '[0-9]+$')
-  success "Created issue #${ISSUE_NUMBER}: ${ISSUE_URL}"
-}
-
-update_issue_comment() {
-  local body="$1"
-  if [[ -n "${ISSUE_NUMBER:-}" ]]; then
-    gh issue comment "${ISSUE_NUMBER}" --repo "${REPO}" --body "${body}" &>/dev/null || true
-  fi
-}
-
-# --- Phase 0: Initialisation ---
-
-phase_init() {
-  header "Phase 0: Initialisation"
-
-  ensure_gh_auth
-  ensure_clean_worktree
-  ensure_on_dev
-
-  # Pull latest dev
-  info "Pulling latest dev..."
-  git pull --ff-only origin dev
-
-  # Prompt for version
-  echo -ne "${BOLD}Release version${NC} (e.g. 0.4.0-beta): "
-  read -r VERSION
-  if [[ -z "${VERSION}" ]]; then
-    error "Version cannot be empty"
-    exit 1
-  fi
-
-  # Derive tag and release type
-  TAG="v${VERSION}"
-  if [[ "${VERSION}" == *-beta* ]]; then
-    RELEASE_TYPE="beta"
-  else
-    RELEASE_TYPE="production"
-  fi
-
-  # Verify current Cargo.toml version
-  local cargo_version
-  cargo_version=$(grep '^version' "${CARGO_VERSION_FILE}" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-  info "Current Cargo.toml version: ${cargo_version}"
-  info "Target release version: ${VERSION}"
-
-  # Branch strategy
-  echo ""
-  echo -e "  ${BOLD}1${NC}) Direct promotion (dev → main) — small, low-risk release"
-  echo -e "  ${BOLD}2${NC}) Stabilisation branch (release/${VERSION}) — needs hardening"
-  echo -ne "${BOLD}Branch strategy${NC} [1/2]: "
-  read -r strategy_choice
-  case "${strategy_choice}" in
-    1) BRANCH_STRATEGY="direct"; RELEASE_BRANCH="" ;;
-    2) BRANCH_STRATEGY="stabilisation"; RELEASE_BRANCH="release/${VERSION}" ;;
-    *)
-      error "Invalid choice"
-      exit 1
-      ;;
-  esac
-
-  # Capture dev SHA
-  DEV_SHA=$(git rev-parse HEAD)
-
-  # Create the tracking issue
-  create_release_issue "${VERSION}" "${TAG}" "${RELEASE_TYPE}" "${BRANCH_STRATEGY}" "${RELEASE_BRANCH}"
-
-  success "Initialisation complete"
-  info "Version: ${VERSION} | Tag: ${TAG} | Type: ${RELEASE_TYPE} | Strategy: ${BRANCH_STRATEGY}"
-}
-
-# --- Phase 1: Preflight ---
-
-phase_preflight() {
-  header "Phase 1: Preflight"
-
-  # Rust checks
-  hard_gate "cargo test" cargo test --workspace
-  soft_gate "cargo clippy" cargo clippy --workspace --all-targets -- -D warnings
-  hard_gate "cargo build" cargo build --release -p eddacraft-anvil
-
-  # Verify binary version
-  local binary_version
-  binary_version=$(./target/release/anvil --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[^ ]*' || echo "unknown")
-  info "Binary reports version: ${binary_version}"
-  BINARY_VERSION="${binary_version}"
-
-  # TS workspace checks
-  soft_gate "pnpm install" pnpm install --frozen-lockfile
-  soft_gate "pnpm build" pnpm build
-  soft_gate "pnpm test" run_bundled_pnpm_tests
-
-  # Record preflight results
-  PREFLIGHT_CARGO_TEST="pass"
-  PREFLIGHT_CARGO_CLIPPY="pass"
-  PREFLIGHT_CARGO_BUILD="pass"
-  PREFLIGHT_PNPM_BUILD="pass"
-  PREFLIGHT_PNPM_TEST="pass"
-  PREFLIGHT_RELEASE_NOTES="pending"
-
-  # Update issue
-  update_issue_comment "$(cat <<PREFLIGHT_RESULTS
-## Preflight Results
-
-| Check | Result |
-|-------|--------|
-| cargo test | ✅ pass |
-| cargo clippy | ✅ pass |
-| cargo build | ✅ pass |
-| binary version | ${binary_version} |
-| pnpm build | ✅ pass |
-| pnpm test | ✅ pass |
-| release notes + docs | ⏳ pending pre-tag review |
-PREFLIGHT_RESULTS
-)"
-
-  success "Preflight complete"
-}
-
-# --- Phase 2: Branch & Tag ---
-
-phase_branch_and_tag() {
-  header "Phase 2: Branch & Tag"
-
-  echo ""
-  info "Release prep happens on dev before promotion."
-  info "Review and update release-facing files now, then continue:"
-  info "  - Cargo.toml"
-  info "  - package.json"
-  info "  - bundled workspace package.json files"
-  info "  - CHANGELOG.md"
-  info "  - docs/public/anvil/beta-testing-guide.md"
-  info "  - docs/public/anvil/releases/upgrade-notes.md"
-  prompt_continue "Is dev ready to promote for ${TAG}?"
-
-  # Prepare release commit on dev before promoting to main.
-  local cargo_version
-  cargo_version=$(grep '^version' "${CARGO_VERSION_FILE}" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-  if [[ "${cargo_version}" != "${VERSION}" ]]; then
-    info "Workspace version is ${cargo_version}, updating to ${VERSION} on dev..."
-    replace_first_match "${CARGO_VERSION_FILE}" '^version = "[^"]*"' "version = \"${VERSION}\""
-    git add "${CARGO_VERSION_FILE}"
-    if ! git diff --quiet Cargo.lock 2>/dev/null; then
-      git add Cargo.lock
-    fi
-  else
-    info "Workspace version already ${VERSION} on dev"
-  fi
-
-  update_package_json_version "${ROOT_PACKAGE_JSON}"
-
-  local bundled_package_json
-  for bundled_package_json in "${BUNDLED_PACKAGE_JSONS[@]}"; do
-    update_package_json_version "$bundled_package_json"
-  done
-
-  if [[ -f "${BETA_GUIDE_FILE}" ]]; then
-    replace_first_match "${BETA_GUIDE_FILE}" '\*\*Current version:\*\* [^\n]+' "**Current version:** ${VERSION}"
-    git add "${BETA_GUIDE_FILE}"
-  fi
-
-  if [[ -f "${UPGRADE_NOTES_FILE}" ]]; then
-    replace_first_match "${UPGRADE_NOTES_FILE}" '## Current Version: [^\n]+' "## Current Version: ${VERSION}"
-    git add "${UPGRADE_NOTES_FILE}"
-  fi
-
-  info "Committing release prep on dev..."
-  git add "${CARGO_VERSION_FILE}" "${ROOT_PACKAGE_JSON}" "${CHANGELOG_FILE}" \
-    "${BETA_GUIDE_FILE}" "${UPGRADE_NOTES_FILE}" \
-    "${BUNDLED_PACKAGE_JSONS[@]}" 2>/dev/null || true
-  if ! git diff --cached --quiet; then
-    git commit -m "chore(release): prepare ${TAG}"
-    DEV_SHA=$(git rev-parse HEAD)
-  else
-    info "No release prep changes to commit on dev"
-    DEV_SHA=$(git rev-parse HEAD)
-  fi
-
-  # Push dev so the PR (direct) or stabilisation branch (later) carries
-  # the release prep commit. Without this, the PR would be empty or
-  # based on a stale dev HEAD.
-  #
-  # Before pushing, verify `origin` actually points at ${REPO} for both fetch
-  # and push. `gh pr create` uses --repo ${REPO} regardless of remotes, so a
-  # forked or renamed `origin` — or a separate push URL — would land the push
-  # somewhere unexpected while still opening a PR against the canonical repo,
-  # producing either an empty PR or silent divergence.
-  local origin_fetch_url origin_fetch_slug origin_push_url origin_push_slug
-  origin_fetch_url=$(git remote get-url origin)
-  origin_fetch_slug=$(echo "${origin_fetch_url}" | sed -E '
-    s#^git@[^:]+:##
-    s#^ssh://([^@/]+@)?[^/:]+(:[0-9]+)?/##
-    s#^https?://[^/]+/##
-    s#\.git$##
-  ')
-  origin_push_url=$(git remote get-url --push origin)
-  origin_push_slug=$(echo "${origin_push_url}" | sed -E '
-    s#^git@[^:]+:##
-    s#^ssh://([^@/]+@)?[^/:]+(:[0-9]+)?/##
-    s#^https?://[^/]+/##
-    s#\.git$##
-  ')
-  # GitHub repo names are case-insensitive; lowercase both sides to compare.
-  if [[ "${origin_fetch_slug,,}" != "${REPO,,}" ]]; then
-    error "origin fetch remote points at '${origin_fetch_slug}' but REPO is '${REPO}'."
-    error "Refusing to push — fix your remote or run from the canonical checkout."
-    update_issue_comment "❌ origin fetch remote mismatch: ${origin_fetch_slug} vs ${REPO}"
-    exit 1
-  fi
-  if [[ "${origin_push_slug,,}" != "${REPO,,}" ]]; then
-    error "origin push remote points at '${origin_push_slug}' but REPO is '${REPO}'."
-    error "Refusing to push — fix your remote or run from the canonical checkout."
-    update_issue_comment "❌ origin push remote mismatch: ${origin_push_slug} vs ${REPO}"
-    exit 1
-  fi
-  info "Pushing dev with release prep..."
-  git push origin dev
-
-  local pr_url=""
-  local pr_number=""
-
-  if [[ "${BRANCH_STRATEGY}" == "direct" ]]; then
-    info "Direct promotion: opening PR from dev to main"
-    pr_url=$(gh pr create \
-      --repo "${REPO}" \
-      --base main \
-      --head dev \
-      --title "release: ${TAG}" \
-      --body "Promote dev to main for release ${TAG}. Tracking: #${ISSUE_NUMBER}")
-    info "PR created: ${pr_url}"
-    echo ""
-    prompt_continue "Merge the PR on GitHub, then continue?"
-
-  elif [[ "${BRANCH_STRATEGY}" == "stabilisation" ]]; then
-    info "Creating stabilisation branch: ${RELEASE_BRANCH}"
-    git switch dev
-    git pull --ff-only origin dev
-    git switch -c "${RELEASE_BRANCH}"
-    git push -u origin "${RELEASE_BRANCH}"
-
-    pr_url=$(gh pr create \
-      --repo "${REPO}" \
-      --base main \
-      --head "${RELEASE_BRANCH}" \
-      --title "release: ${TAG}" \
-      --body "Promote ${RELEASE_BRANCH} to main for release ${TAG}. Tracking: #${ISSUE_NUMBER}")
-    info "PR created: ${pr_url}"
-    echo ""
-    warn "Apply any stabilisation fixes to ${RELEASE_BRANCH} now."
-    prompt_continue "Merge the PR on GitHub, then continue?"
-  fi
-
-  pr_number="${pr_url##*/}"
-
-  # Verify PR is actually merged before tagging. Race condition guard:
-  # the operator can hit "continue" before GitHub finishes processing the
-  # merge, which would tag the previous main HEAD (not the release commit).
-  info "Verifying PR #${pr_number} is merged..."
-  local pr_state="" merge_sha="" poll_attempts=0
-  local max_attempts=24 # 24 × 5s = 120s total
-  while true; do
-    pr_state=$(gh pr view "${pr_number}" --repo "${REPO}" --json state -q '.state' 2>/dev/null || echo "")
-    if [[ "${pr_state}" == "MERGED" ]]; then
-      break
-    fi
-    if (( poll_attempts >= max_attempts )); then
-      error "PR #${pr_number} state is '${pr_state}', not MERGED after $((max_attempts * 5))s"
-      error "Merge the PR on GitHub and re-run the release: ${pr_url}"
-      update_issue_comment "❌ Release aborted: PR #${pr_number} not merged"
-      exit 1
-    fi
-    warn "PR state is '${pr_state}', waiting 5s (attempt $((poll_attempts + 1))/${max_attempts})..."
-    sleep 5
-    poll_attempts=$((poll_attempts + 1))
-  done
-  merge_sha=$(gh pr view "${pr_number}" --repo "${REPO}" --json mergeCommit -q '.mergeCommit.oid')
-  if [[ -z "${merge_sha}" ]]; then
-    error "Could not resolve merge commit SHA for PR #${pr_number}"
-    update_issue_comment "❌ Release aborted: no merge commit SHA"
-    exit 1
-  fi
-  success "PR #${pr_number} merged at ${merge_sha}"
-
-  # Switch to main and pull
-  info "Switching to main..."
-  git switch main
-  git pull --ff-only origin main
-  MAIN_SHA=$(git rev-parse HEAD)
-
-  # Verify local main matches the PR merge commit. If another commit landed
-  # on main between merge and pull, bail rather than tag the wrong SHA.
-  if [[ "${MAIN_SHA}" != "${merge_sha}" ]]; then
-    error "Local main HEAD (${MAIN_SHA}) does not match PR merge SHA (${merge_sha})"
-    error "Another commit may have landed on main after the release PR merged."
-    error "Investigate before continuing — do NOT force-push or tag manually."
-    update_issue_comment "❌ Release aborted: main HEAD mismatch after PR merge"
-    exit 1
-  fi
-
-  # Verify the workspace version on main actually matches the release version.
-  # Guards against the release prep commit failing to land on main.
-  local main_cargo_version
-  main_cargo_version=$(grep '^version' "${CARGO_VERSION_FILE}" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-  if [[ "${main_cargo_version}" != "${VERSION}" ]]; then
-    error "Cargo.toml on main has version ${main_cargo_version}, expected ${VERSION}"
-    error "The release prep commit did not make it to main."
-    update_issue_comment "❌ Release aborted: Cargo.toml version mismatch on main"
-    exit 1
-  fi
-  success "Verified Cargo.toml on main is ${VERSION}"
-
-  TAG_SHA=$(git rev-parse HEAD)
-
-  info "Creating tag ${TAG}..."
-  git tag -a "${TAG}" -m "${TAG}"
-
-  info "Pushing tag..."
-  git push origin "${TAG}"
-
-  update_issue_comment "$(cat <<TAG_RESULTS
-## Branch & Tag
-
-- **Strategy:** ${BRANCH_STRATEGY}
-- **Dev SHA:** \`${DEV_SHA}\`
-- **Main SHA:** \`${MAIN_SHA}\`
-- **Tag SHA:** \`${TAG_SHA}\`
-- **Tag:** ${TAG} pushed ✅
-TAG_RESULTS
-)"
-
-  success "Tag ${TAG} pushed — release workflow should be running"
-}
-
-# --- Phase 3: Workflow monitoring kickoff ---
-
-phase_workflow() {
-  header "Phase 3: Workflow Monitoring"
-
-  info "Waiting a moment for workflow to register..."
-  sleep 5
-
-  # Try to find the workflow run for the release tag specifically.
-  WORKFLOW_RUN_ID=$(gh run list \
-    --repo "${REPO}" \
-    --limit 5 \
-    --workflow release.yml \
-    --json databaseId,headBranch,event,displayTitle \
-    --jq '.[] | select(.event == "push" and (.displayTitle | contains("'"${TAG}"'"))) | .databaseId' \
-    | head -1 || echo "")
-
-  if [[ -n "${WORKFLOW_RUN_ID}" ]]; then
-    local run_url="https://github.com/${REPO}/actions/runs/${WORKFLOW_RUN_ID}"
-    success "Workflow run found: ${run_url}"
-    info "Monitor with: gh run watch ${WORKFLOW_RUN_ID} --repo ${REPO}"
-  else
-    warn "Could not detect workflow run automatically"
-    info "Check manually: gh run list --repo ${REPO} --limit 5"
-    WORKFLOW_RUN_ID="unknown"
-  fi
-
-  update_issue_comment "## Workflow\n\nRun ID: ${WORKFLOW_RUN_ID}\nhttps://github.com/${REPO}/actions/runs/${WORKFLOW_RUN_ID}"
-}
-
-# --- Phase 4: Generate diff summary ---
-
-phase_diff_summary() {
-  header "Phase 4: Diff Summary"
-
-  # Changed paths between dev and tag
-  local changed_paths
-  changed_paths=$(git diff --name-only "${DEV_SHA}..${TAG_SHA}" 2>/dev/null || echo "")
-
-  # Derive changed crates
-  CHANGED_CRATES=$(echo "${changed_paths}" | grep '^crates/' | cut -d'/' -f2 | sort -u | jq -R -s 'split("\n") | map(select(. != ""))') 2>/dev/null || CHANGED_CRATES="[]"
-
-  # Derive changed packages
-  CHANGED_PACKAGES=$(echo "${changed_paths}" | grep '^packages/' | cut -d'/' -f2-3 | sort -u | jq -R -s 'split("\n") | map(select(. != ""))') 2>/dev/null || CHANGED_PACKAGES="[]"
-
-  # Derive changed top-level paths
-  CHANGED_PATHS=$(echo "${changed_paths}" | cut -d'/' -f1-2 | sort -u | jq -R -s 'split("\n") | map(select(. != ""))') 2>/dev/null || CHANGED_PATHS="[]"
-
-  local path_count
-  path_count=$(echo "${changed_paths}" | wc -l | tr -d ' ')
-  success "Found ${path_count} changed files across crates and packages"
-}
-
-# --- Phase 5: Write manifest ---
-
-phase_manifest() {
-  header "Phase 5: Write Manifest"
-
-  mkdir -p "${MANIFEST_DIR}"
-
-  cat > "${MANIFEST_FILE}" <<MANIFEST
-{
-  "version": "${VERSION}",
-  "tag": "${TAG}",
-  "releaseType": "${RELEASE_TYPE}",
-  "branchStrategy": "${BRANCH_STRATEGY}",
-  "releaseBranch": $(if [[ -n "${RELEASE_BRANCH}" ]]; then echo "\"${RELEASE_BRANCH}\""; else echo "null"; fi),
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "shas": {
-    "dev": "${DEV_SHA}",
-    "main": "${MAIN_SHA}",
-    "tag": "${TAG_SHA}"
-  },
-  "workflowRunId": "${WORKFLOW_RUN_ID}",
-  "issueNumber": ${ISSUE_NUMBER},
-  "issueUrl": "${ISSUE_URL}",
-  "preflight": {
-    "cargoTest": "${PREFLIGHT_CARGO_TEST}",
-    "cargoClippy": "${PREFLIGHT_CARGO_CLIPPY}",
-    "cargoBuild": "${PREFLIGHT_CARGO_BUILD}",
-    "binaryVersion": "${BINARY_VERSION}",
-    "pnpmBuild": "${PREFLIGHT_PNPM_BUILD}",
-    "pnpmTest": "${PREFLIGHT_PNPM_TEST}"
-  },
-  "diffSummary": {
-    "changedPaths": ${CHANGED_PATHS},
-    "changedPackages": ${CHANGED_PACKAGES},
-    "changedCrates": ${CHANGED_CRATES}
-  }
-}
-MANIFEST
-
-  success "Manifest written to ${MANIFEST_FILE}"
-  echo ""
-  info "Release script complete."
-  echo ""
-  echo -e "  ${BOLD}Next step:${NC} run ${BLUE}/release${NC} in Claude Code to continue"
-  echo -e "  with post-release verification, docs review, comms, and cleanup."
-  echo ""
-}
-
-# --- Main ---
 
 main() {
-  header "Anvil Release Script"
-  info "This script walks through the release process interactively."
-  info "It will create a GitHub Issue, run preflight checks, handle"
-  info "branching and tagging, and write a manifest for the /release skill."
-  echo ""
-  prompt_continue "Ready to start?"
+  echo -e "${BOLD}━━━ Anvil release preflight ━━━${NC}"
+  echo -e "${YELLOW}Deterministic checks only. Judgment steps live in /release.${NC}"
 
-  phase_init
-  phase_preflight
-  phase_branch_and_tag
-  phase_workflow
-  phase_diff_summary
-  phase_manifest
+  run_check "cargo fmt"      cargo fmt --all --check
+  run_check "cargo clippy"   cargo clippy --workspace --all-targets -- -D warnings
+  run_check "cargo test"     cargo test --workspace
+  run_check "pnpm format"    pnpm format:check
+  run_check "pnpm lint"      pnpm lint:check
+  run_check "pnpm typecheck" pnpm typecheck
+  run_check "pnpm test"      pnpm test
+
+  print_summary
+  exit $?
 }
 
 main "$@"

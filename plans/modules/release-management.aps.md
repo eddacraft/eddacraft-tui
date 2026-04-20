@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      |
 | ------- | ----- | ----------- |
-| RELMGMT | —     | In Progress |
+| RELMGMT | —     | Complete    |
 
 ## Purpose
 
@@ -323,7 +323,7 @@ release.
 
 ---
 
-## Phase 3 — Agent-Driven Release (In Progress)
+## Phase 3 — Agent-Driven Release (Complete)
 
 Phase 2 shipped a shell orchestrator + manifest + skill handoff. The handoff
 keeps failing in small ways — missing preflight bits, stale manifest, lost
@@ -341,7 +341,7 @@ Design spec: `plans/specs/2026-04-20-relmgmt-agent-driven-release-design.md`.
 
 ### RELMGMT-012: Slim `scripts/release.sh` to preflight-only
 
-- **Status:** Ready
+- **Status:** Complete (2026-04-20)
 - **Intent:** Rewrite the release script so it only runs deterministic
   preflight — tests, clippy, fmt, lint, typecheck — with a summary table
   and an exit code equal to the count of failed steps. No prompts, no git,
@@ -367,7 +367,7 @@ Design spec: `plans/specs/2026-04-20-relmgmt-agent-driven-release-design.md`.
 
 ### RELMGMT-013: Rewrite `/release` skill to work from live state
 
-- **Status:** Ready
+- **Status:** Complete (2026-04-20)
 - **Intent:** Remove the manifest gate and rewrite the skill to read
   git/GitHub state each turn. Operator confirms preflight passed via
   y/n; skill proposes version + branch strategy, opens tracking issue,
@@ -396,7 +396,7 @@ Design spec: `plans/specs/2026-04-20-relmgmt-agent-driven-release-design.md`.
 
 ### RELMGMT-014: Remove `.release/` directory and gitignore entry
 
-- **Status:** Ready
+- **Status:** Complete (2026-04-20)
 - **Intent:** Retire the manifest artefact entirely. Delete the
   `.release/` directory from the working tree (if present) and remove
   its entry from `.gitignore` — the contract no longer exists.
@@ -415,7 +415,7 @@ Design spec: `plans/specs/2026-04-20-relmgmt-agent-driven-release-design.md`.
 
 ### RELMGMT-015: Update release runbook quick-start
 
-- **Status:** Ready
+- **Status:** Complete (2026-04-20)
 - **Intent:** Update `docs/guides/release-runbook.md` quick-start to
   describe the new flow: operator runs `./scripts/release.sh`, then
   invokes `/release`. Remove manifest language; keep incident playbook
@@ -463,5 +463,5 @@ cover both at once.
 | ----- | ----- | ------ |
 | 1 — Policy | 6 | 6/6 ratified |
 | 2 — Interactive Tooling | 5 | 5/5 complete |
-| 3 — Agent-Driven Release | 4 | 0/4 ready |
-| **Total** | **15** | **11/15 done** |
+| 3 — Agent-Driven Release | 4 | 4/4 complete |
+| **Total** | **15** | **15/15 done** |

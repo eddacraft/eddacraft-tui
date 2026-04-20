@@ -123,9 +123,6 @@ target/
 **/*.rs.bk
 bench-results/
 
-# Ephemeral release manifest
-.release/
-
 # Local machine state and secrets
 settings.local.json
 logs/
