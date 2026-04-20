@@ -58,9 +58,9 @@ struct InviteResult {
 
 /// Resolve the admin API key from a raw `std::env::var` result.
 ///
-/// Kept pure (no process env access) so unit tests can exercise every
-/// branch without the `unsafe { std::env::set_var }` forbidden by the
-/// crate-level `-F unsafe-code` lint.
+/// Kept env-independent (no direct process env access) so unit tests can
+/// exercise every branch without the `unsafe { std::env::set_var }`
+/// forbidden by the crate-level `unsafe_code` lint.
 fn resolve_admin_key(raw: Result<String, std::env::VarError>, json: bool) -> Result<String> {
     match raw {
         Ok(value) if !value.is_empty() => Ok(value),
@@ -242,13 +242,19 @@ mod tests {
     #[test]
     fn resolve_admin_key_missing_returns_auth_required() {
         let err = resolve_admin_key(Err(std::env::VarError::NotPresent), false).unwrap_err();
-        assert!(err.is::<AuthRequired>(), "expected AuthRequired, got {err:?}");
+        assert!(
+            err.is::<AuthRequired>(),
+            "expected AuthRequired, got {err:?}"
+        );
     }
 
     #[test]
     fn resolve_admin_key_empty_returns_auth_required() {
         let err = resolve_admin_key(Ok(String::new()), false).unwrap_err();
-        assert!(err.is::<AuthRequired>(), "expected AuthRequired, got {err:?}");
+        assert!(
+            err.is::<AuthRequired>(),
+            "expected AuthRequired, got {err:?}"
+        );
     }
 
     #[test]
