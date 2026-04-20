@@ -206,7 +206,7 @@ Change status to **Ready** when:
 - **Validation:** `pnpm test -- --runInBand feature-flag-exemplars`
 - **Confidence:** low
 
-### FLAGM-005: Migrate `ALLOWED_SCOPES` to per-scope entitlement flags
+### FLAGM-005: Migrate `ALLOWED_SCOPES` to per-scope entitlement flags — Complete
 
 - **Intent:** Stop hard-coding accepted API scope strings; derive them from
   the flag manifest via per-scope entitlement flags.
@@ -216,8 +216,26 @@ Change status to **Ready** when:
 - **Scope:** `apps/anvil-api/src/routes/admin.ts`, `packages/anvil/runtime/`, `packages/anvil/contracts/`
 - **Non-scope:** Changing the `access_tokens` table schema
 - **Dependencies:** FLAGM-001
-- **Validation:** `pnpm test -- --runInBand feature-flag-scopes`
+- **Validation:** `pnpm --filter @eddacraft/anvil-api test -- --run feature-flags`
 - **Confidence:** medium
+- **Outcome:** Added `apps/anvil-api/src/lib/feature-flags.ts` with three
+  `api.scope.*` entitlement flag definitions (`beta`, `preview`,
+  `internal`), `API_SCOPE_NAMES` as the single source of truth, a
+  `Object.freeze`d `API_SCOPE_FLAGS` manifest keyed by scope name, and a
+  module-load invariant that refuses to boot if the flag keys drift from
+  the tuple. Exposed `resolveApiScope` / `isScopeAllowed` helpers that
+  route through `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags`
+  with a `defaultApiEvaluationContext` for unauthenticated callers.
+  `apps/anvil-api/src/routes/admin-schemas.ts` now imports
+  `API_SCOPE_NAMES` and re-exports `ALLOWED_SCOPES` from that derived
+  list — the inline `['beta', 'preview', 'internal']` tuple is gone.
+  Parity proven by `apps/anvil-api/src/lib/__tests__/feature-flags.test.ts`:
+  three design-spec cases (enabled / disabled-unknown-scope / default), a
+  sweep over every legacy scope, and a rejection sweep over unknown
+  strings. The legacy constant lives only inside the test file and
+  retires in FLAGM-006. Wired `@eddacraft/anvil-contracts` and
+  `@eddacraft/anvil-runtime` as workspace deps + project references on
+  `apps/anvil-api`.
 
 ### FLAGM-006: Retire dual-evaluation shims and close the migration
 

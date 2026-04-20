@@ -191,27 +191,45 @@ task may delete one, even if parity tests have been green for a release.
 
 ### `api.scope.*` (beta access scopes)
 
-- **Current state:** `apps/anvil-api/src/routes/admin.ts` reads
-  `ALLOWED_SCOPES = ['beta', 'preview', 'internal']` and accepts only
-  those strings when issuing or validating tokens.
-- **Target decision point:** for each scope string, a per-scope
-  entitlement flag (`api.scope.beta`, `api.scope.preview`,
-  `api.scope.internal`) resolved per request. `ALLOWED_SCOPES` is
-  derived from the manifest, not hard-coded.
-- **Evaluation context:** `targeting_key` = token subject;
-  `audience.account_tier` from the subject's plan record; `audience.user_role`
-  if the scope represents a role (`internal`).
-- **Dual-evaluation window:** one release — admin routes compare flag
-  allow/deny against the constant-list membership in dev/test.
+- **Current state (post FLAGM-005):** `apps/anvil-api/src/lib/feature-flags.ts`
+  defines three entitlement flags (`api.scope.beta`, `api.scope.preview`,
+  `api.scope.internal`) and exports `ALLOWED_API_SCOPES` derived from the
+  manifest. `apps/anvil-api/src/routes/admin-schemas.ts` re-exports
+  `ALLOWED_SCOPES` from that derived list — the hard-coded tuple is gone
+  and `inviteSchema.scopes` now validates against the manifest-backed
+  `API_SCOPE_NAMES`. The day-1 flag defaults resolve to `"enabled"` with
+  no targeting, which is behaviour-preserving against the legacy
+  constant-list check.
+- **Target decision point:** for each scope string, the flag manifest is
+  the single source of truth. Per-request evaluation via `resolveApiScope`
+  / `isScopeAllowed` is in place for callers that need runtime entitlement
+  decisions (admin routes, token-validation surface); the existing Zod
+  schema still covers format validation up-front.
+- **Evaluation context:** `targeting_key` defaults to `"api-anonymous"` via
+  `defaultApiEvaluationContext`. Callers with a principal should build a
+  richer context (token subject as `targetingKey`, plan record as
+  `audience.accountTier`, role as `audience.userRole` where the scope is
+  role-shaped — e.g. `internal`). Day-1 flags have no targeting rules, so
+  the context does not change the decision until plan- or role-based
+  rules are added post-FLAGM.
+- **Dual-evaluation window:** one release — parity assertions live in
+  `apps/anvil-api/src/lib/__tests__/feature-flags.test.ts` next to the
+  helper. The legacy `['beta', 'preview', 'internal']` tuple exists only
+  inside the test file (`LEGACY_ALLOWED_SCOPES`) and retires in FLAGM-006.
 - **Parity-test cases:**
-  - **enabled:** plan `"beta"`, scope `"beta"` → both allow
-  - **disabled:** plan `"free"`, scope `"internal"` → both deny
-  - **default:** plan absent, scope `"beta"` → both allow (legacy
-    constant accepts `"beta"`; flag default variant matches)
-- **Rollback:** revert the scope-validation cutover; the constant list
-  resumes authority.
-- **Test location:** `apps/anvil-api/src/routes/admin.test.ts` (new
-  parity suite).
+  - **enabled:** scope `"beta"` → legacy accepts (in list), flag resolves
+    to `"enabled"` default → both allow
+  - **disabled:** scope `"admin"` (unknown) → legacy rejects (not in
+    list), flag lookup returns no backing flag → both deny
+  - **default:** scope `"preview"` → legacy accepts, flag resolves to
+    `"enabled"` default → both allow
+  - **sweep:** every legacy scope name and a set of unknown scopes
+    (`""`, `"admin"`, `"api.scope.beta"`, `"BETA"`) agree on both paths
+- **Rollback:** revert the FLAGM-005 commit; `admin-schemas.ts` falls
+  back to the inline constant tuple and the flag manifest goes away.
+- **Test location:** `apps/anvil-api/src/lib/__tests__/feature-flags.test.ts`
+  (parity + unit tests covering manifest shape, resolver behaviour, local
+  overrides, and the three canonical parity cases).
 
 ## Telemetry expectations
 

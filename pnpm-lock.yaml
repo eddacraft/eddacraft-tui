@@ -200,6 +200,12 @@ importers:
       '@eddacraft/admin-contracts':
         specifier: workspace:*
         version: link:../../packages/shared/admin-contracts
+      '@eddacraft/anvil-contracts':
+        specifier: workspace:*
+        version: link:../../packages/anvil/contracts
+      '@eddacraft/anvil-runtime':
+        specifier: workspace:*
+        version: link:../../packages/anvil/runtime
       '@eddacraft/transactional':
         specifier: workspace:*
         version: link:../../packages/transactional

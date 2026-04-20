@@ -1,13 +1,17 @@
 import { z } from 'zod';
 
-export const ALLOWED_SCOPES = ['beta', 'preview', 'internal'] as const;
+import { API_SCOPE_NAMES, type ApiScopeName } from '../lib/feature-flags.js';
+
+// Derived from the api.scope.* flag manifest in ../lib/feature-flags.ts —
+// the manifest is the single source of truth for valid scope names.
+export const ALLOWED_SCOPES: readonly ApiScopeName[] = API_SCOPE_NAMES;
 
 export const inviteSchema = z.object({
   email: z.string().email().max(254),
   name: z.string().max(200).optional(),
   notes: z.string().max(1000).optional(),
   days: z.number().int().positive().max(365).default(90),
-  scopes: z.array(z.enum(ALLOWED_SCOPES)).default(['beta']),
+  scopes: z.array(z.enum(API_SCOPE_NAMES)).default(['beta']),
   tokenOnly: z.boolean().default(false),
 });
 
