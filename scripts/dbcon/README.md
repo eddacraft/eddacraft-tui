@@ -1,8 +1,8 @@
 # DBCON operator scripts (Option B — Neon reset)
 
 Scripts for the Neon reset laid out in
-`plans/modules/database-consolidation.aps.md` and the runbook at
-`plans/execution/DBCON.steps.md`.
+`plans/archive/modules/database-consolidation.aps.md` and the runbook at
+`plans/archive/execution/DBCON.steps.md` (both archived post-cutover).
 
 ## Env vars
 
@@ -81,7 +81,7 @@ Legacy Neon projects `eddacraft-web` and `beta-user-tokens` were deleted on
 2026-04-21 after a ≥ 72h soak on `anvil-api-prod`. Retain local snapshots
 until ≥ 2026-05-21 before purging.
 
-- [x] `az keyvault secret show --name website-database-url` returns NotFound
+- [x] `az keyvault secret show --vault-name kv-iac-anvil --name website-database-url` returns NotFound
 - [x] Vercel `DATABASE_URL` sourced from `anvil-api-database-url`
 - [x] Waitlist count on `anvil-api-prod` matches deduped union of legacy
       sources
