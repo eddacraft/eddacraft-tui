@@ -241,7 +241,7 @@ fn run_guided_init(
 
         let mut config = crate::commands::init::AnvilConfig::default();
         config.format = crate::commands::init::format_label(init_state.config.format);
-        config.checks = checks.clone();
+        config.checks.clone_from(&checks);
 
         match crate::commands::init::generate_config(&config, &init_root) {
             Ok(()) => {
