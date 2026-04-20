@@ -188,18 +188,23 @@ fn run_onboarding(
 
     match onboarding.chosen {
         Some(OnboardingChoice::GuidedSetup) => {
-            run_guided_init(terminal, theme)?;
-            Ok(OnboardingOutcome::Configured)
+            if run_guided_init(terminal, theme)? {
+                Ok(OnboardingOutcome::Quit)
+            } else {
+                Ok(OnboardingOutcome::Configured)
+            }
         }
         Some(OnboardingChoice::SkipToTutorial) => Ok(OnboardingOutcome::Tutorial),
         Some(OnboardingChoice::SkipEntirely) | None => Ok(OnboardingOutcome::Skip),
     }
 }
 
+/// Returns `true` if the user quit out of the landing screen and the caller
+/// should stop the onboarding flow.
 fn run_guided_init(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     use anvil_tui::surfaces::onboarding;
 
     // Skip init if config already exists.
@@ -211,7 +216,7 @@ fn run_guided_init(
             theme,
             std::time::Duration::from_millis(200),
         )?;
-        return Ok(());
+        return Ok(false);
     }
 
     let checks = onboarding::default_available_checks();
@@ -220,7 +225,7 @@ fn run_guided_init(
 
     if exit == SurfaceExit::Quit && !init_state.confirmed {
         // User quit the init wizard — don't show error, just fall through.
-        return Ok(());
+        return Ok(false);
     }
 
     if init_state.confirmed {
@@ -241,22 +246,39 @@ fn run_guided_init(
 
         let mut config = crate::commands::init::AnvilConfig::default();
         config.format = crate::commands::init::format_label(init_state.config.format);
-        config.checks = checks;
+        config.checks.clone_from(&checks);
 
-        let msg = match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(()) => "Config saved to .anvilrc. Proceeding to scan\u{2026}".to_string(),
-            Err(e) => format!("Warning: could not save config: {e}"),
-        };
-        timed_loading(
-            terminal,
-            "Init",
-            &msg,
-            theme,
-            std::time::Duration::from_millis(400),
-        )?;
+        match crate::commands::init::generate_config(&config, &init_root) {
+            Ok(gitignore_updated) => {
+                let summary = onboarding::InitCompleteSummary {
+                    config_path: ".anvilrc".to_string(),
+                    plans_dir: format!("{}/", config.planning_dir),
+                    cache_dir: ".anvil/cache/".to_string(),
+                    gitignore_updated,
+                    checks_enabled: checks,
+                };
+                let mut landing = onboarding::InitCompleteState::new(summary);
+                crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+                // InitCompleteState::should_quit returns true for both Enter
+                // (wants_continue) and q/Esc; wants_continue is the authoritative
+                // signal for whether to proceed past the landing screen.
+                if !landing.wants_continue {
+                    return Ok(true);
+                }
+            }
+            Err(e) => {
+                timed_loading(
+                    terminal,
+                    "Init",
+                    &format!("Warning: could not save config: {e}"),
+                    theme,
+                    std::time::Duration::from_millis(400),
+                )?;
+            }
+        }
     }
 
-    Ok(())
+    Ok(false)
 }
 
 fn run_discovery(

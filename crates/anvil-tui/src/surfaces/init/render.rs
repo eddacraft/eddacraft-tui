@@ -6,8 +6,10 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::{ConfigFormat, InitMode, InitState, InitStep};
+use crate::shell::inset_content;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &InitState, theme: &EddaCraftTheme) {
+    let area = inset_content(area);
     let chunks = Layout::vertical([
         Constraint::Length(3), // Progress bar
         Constraint::Min(6),    // Step content

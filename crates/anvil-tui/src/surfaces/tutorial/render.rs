@@ -3,11 +3,67 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
+use unicode_width::UnicodeWidthStr;
 
 use super::{TutorialPhase, TutorialState};
+use crate::shell::inset_content;
 
 const MAX_OUTPUT_LINES: usize = 5;
+
+/// Some terminals (notably older Windows consoles and a few SSH multiplexers)
+/// render the geometric-shape glyphs we use for the step progress indicator
+/// as double-wide or as replacement boxes. Setting `ANVIL_ASCII=1` (or
+/// `true`, case-insensitive) swaps the progress glyphs for their ASCII
+/// counterparts so the layout stays aligned. Any other value — including
+/// `ANVIL_ASCII=false` — leaves the Unicode glyphs in place.
+///
+/// Returns `(complete, current, pending)`.
+fn progress_glyphs() -> (&'static str, &'static str, &'static str) {
+    if ascii_mode() {
+        ("#", ">", "-")
+    } else {
+        ("\u{25cf}", "\u{25c9}", "\u{25cb}")
+    }
+}
+
+fn ascii_mode() -> bool {
+    std::env::var("ANVIL_ASCII")
+        .map(|v| {
+            let v = v.trim();
+            v.eq_ignore_ascii_case("1") || v.eq_ignore_ascii_case("true")
+        })
+        .unwrap_or(false)
+}
+
+/// Fit `title` inside a block whose outer width is `area_width`. A Ratatui
+/// block title is rendered between two border cells and a space on each side,
+/// so the effective budget is `area_width - 4`. Overflowing titles are
+/// truncated with an ellipsis so they never punch through the border line.
+fn fit_block_title(title: &str, area_width: u16) -> String {
+    let budget = (area_width as usize).saturating_sub(4);
+    if budget == 0 {
+        return String::new();
+    }
+    if UnicodeWidthStr::width(title) <= budget {
+        return title.to_string();
+    }
+    let ellipsis = "…";
+    let ellipsis_w = UnicodeWidthStr::width(ellipsis);
+    let target = budget.saturating_sub(ellipsis_w);
+    let mut out = String::new();
+    let mut w = 0;
+    for ch in title.chars() {
+        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        if w + cw > target {
+            break;
+        }
+        out.push(ch);
+        w += cw;
+    }
+    out.push_str(ellipsis);
+    out
+}
 
 /// Strip ANSI escape sequences from a string so raw control codes don't garble
 /// the Ratatui output. Handles:
@@ -62,6 +118,7 @@ fn collect_lines(text: &str) -> (Vec<String>, bool) {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
+    let area = inset_content(area);
     match state.phase {
         TutorialPhase::PathSelect => {
             render_path_select(frame, area, state, theme);
@@ -140,12 +197,23 @@ fn render_path_select(
     state: &TutorialState,
     theme: &EddaCraftTheme,
 ) {
+    // Height: one row per path + top/bottom internal padding + two borders.
+    // Clamp to area.height so the bottom border is never clipped on short terminals.
+    #[allow(clippy::cast_possible_truncation)]
+    let box_height = (state.paths.len() as u16)
+        .saturating_add(4)
+        .min(area.height);
+    let chunks = Layout::vertical([Constraint::Length(box_height), Constraint::Min(0)]).split(area);
+    let box_area = chunks[0];
+    let below = chunks[1];
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent()))
+        .padding(Padding::new(1, 1, 1, 1))
         .title(" Choose a Tutorial Path ");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+    let inner = block.inner(box_area);
+    frame.render_widget(block, box_area);
 
     let items: Vec<Line> = state
         .paths
@@ -184,7 +252,27 @@ fn render_path_select(
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(items)), inner);
+    frame.render_widget(
+        Paragraph::new(Text::from(items)).wrap(Wrap { trim: false }),
+        inner,
+    );
+
+    // Helpful hint beneath the list to give the negative space purpose.
+    // Skip it when no paths are registered — promising a 5-minute tutorial
+    // while the picker is empty is worse than showing nothing.
+    if below.height >= 2 && !state.paths.is_empty() {
+        let hint_chunks = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(below);
+        let hint = Paragraph::new(Line::from(Span::styled(
+            "Each path takes about 5 minutes. Complete them in any order.",
+            Style::default().fg(theme.muted()),
+        )));
+        frame.render_widget(hint, hint_chunks[1]);
+    }
 }
 
 fn render_step_progress(
@@ -196,26 +284,25 @@ fn render_step_progress(
     let path_label = state.chosen_path.map_or("Tutorial", TutorialPath::label);
 
     let total = state.steps.len();
-    let completed = state.steps.iter().filter(|s| s.completed).count();
+    let current_human = state.current_step.saturating_add(1).min(total.max(1));
 
+    let (g_complete, g_current, g_pending) = progress_glyphs();
     let spans: Vec<Span> = state
         .steps
         .iter()
         .enumerate()
         .flat_map(|(i, _step)| {
-            let style = match i.cmp(&state.current_step) {
-                std::cmp::Ordering::Less => Style::default().fg(theme.success()),
-                std::cmp::Ordering::Equal => Style::default()
-                    .fg(theme.accent())
-                    .add_modifier(Modifier::BOLD),
-                std::cmp::Ordering::Greater => Style::default().fg(theme.muted()),
+            let (marker, style) = match i.cmp(&state.current_step) {
+                std::cmp::Ordering::Less => (g_complete, Style::default().fg(theme.success())),
+                std::cmp::Ordering::Equal => (
+                    g_current,
+                    Style::default()
+                        .fg(theme.accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
+                std::cmp::Ordering::Greater => (g_pending, Style::default().fg(theme.muted())),
             };
-            let marker = match i.cmp(&state.current_step) {
-                std::cmp::Ordering::Less => "*",
-                std::cmp::Ordering::Equal => ">",
-                std::cmp::Ordering::Greater => "o",
-            };
-            let separator = if i < total - 1 { " - " } else { "" };
+            let separator = if i + 1 < total { "  " } else { "" };
             vec![
                 Span::styled(marker, style),
                 Span::styled(separator, Style::default().fg(theme.muted())),
@@ -223,15 +310,21 @@ fn render_step_progress(
         })
         .collect();
 
-    let lines = vec![
-        Line::from(Span::styled(
-            format!("{path_label}  ({completed}/{total})"),
+    let header = Line::from(vec![
+        Span::styled(
+            path_label,
             Style::default()
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
-        )),
-        Line::from(spans),
-    ];
+        ),
+        Span::styled("  \u{00b7}  ", Style::default().fg(theme.muted())),
+        Span::styled(
+            format!("Step {current_human} of {total}"),
+            Style::default().fg(theme.fg()),
+        ),
+    ]);
+
+    let lines = vec![header, Line::from(spans)];
 
     frame.render_widget(Paragraph::new(Text::from(lines)), area);
 }
@@ -242,6 +335,14 @@ fn render_step_content(
     state: &TutorialState,
     theme: &EddaCraftTheme,
 ) {
+    // A bordered block with 1-cell horizontal padding consumes 4 columns and
+    // 2 rows before any content fits, so anything smaller than a 4x3 area
+    // leaves a zero-area `inner` that causes `Paragraph` with wrapping to
+    // divide by zero. Bail out rather than render garbage.
+    if area.width < 4 || area.height < 3 {
+        return;
+    }
+
     let Some(step) = state.steps.get(state.current_step) else {
         return;
     };
@@ -255,7 +356,8 @@ fn render_step_content(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
-        .title(format!(" {} ", step.title));
+        .padding(Padding::horizontal(1))
+        .title(format!(" {} ", fit_block_title(&step.title, area.width)));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -276,8 +378,9 @@ fn render_step_content(
 
     // Show a watching hint when the step has a watch_path and isn't in static mode.
     if step.watch_path.is_some() && !state.static_mode {
+        let (_, g_current, _) = progress_glyphs();
         lines.push(Line::from(Span::styled(
-            "\u{25c9} Watching for file changes\u{2026}",
+            format!("{g_current} Watching for file changes\u{2026}"),
             Style::default()
                 .fg(theme.muted())
                 .add_modifier(Modifier::ITALIC),
@@ -338,13 +441,45 @@ fn render_step_content(
         }
     }
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    frame.render_widget(
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+        inner,
+    );
+}
+
+fn path_is_done(state: &TutorialState, path: super::TutorialPath) -> bool {
+    state.completed_paths.contains(&path) || state.chosen_path == Some(path)
+}
+
+fn build_paths_progress<'a>(state: &'a TutorialState, theme: &'a EddaCraftTheme) -> Vec<Span<'a>> {
+    let (g_complete, _, g_pending) = progress_glyphs();
+    let total = state.paths.len();
+    state
+        .paths
+        .iter()
+        .enumerate()
+        .flat_map(|(i, p)| {
+            let done = path_is_done(state, *p);
+            let marker = if done { g_complete } else { g_pending };
+            let style = if done {
+                Style::default().fg(theme.success())
+            } else {
+                Style::default().fg(theme.muted())
+            };
+            let sep = if i + 1 < total { "  " } else { "" };
+            vec![
+                Span::styled(marker, style),
+                Span::styled(sep, Style::default().fg(theme.muted())),
+            ]
+        })
+        .collect()
 }
 
 fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.success()))
+        .padding(Padding::new(2, 2, 1, 1))
         .title(" Well Done ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -354,20 +489,92 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
         .map_or("the tutorial", TutorialPath::label);
     let total = state.steps.len();
 
-    let lines = vec![
+    let all_paths = state.paths.len();
+    let completed_count = state
+        .paths
+        .iter()
+        .filter(|p| path_is_done(state, **p))
+        .count();
+
+    let progress_spans = build_paths_progress(state, theme);
+
+    let next_path = state
+        .paths
+        .iter()
+        .find(|p| !path_is_done(state, **p))
+        .copied();
+
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "\u{2713}  Great work!",
+            Style::default()
+                .fg(theme.success())
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::default(),
         Line::from(Span::styled(
-            format!("You completed all {total} steps of the {path_label} tutorial."),
+            format!("You finished all {total} steps of the {path_label} tutorial."),
             Style::default().fg(theme.fg()),
         )),
         Line::default(),
-        Line::from(Span::styled(
-            "Press enter to choose another tutorial path, or q to quit.",
-            Style::default().fg(theme.accent()),
-        )),
+        Line::from(vec![Span::styled(
+            format!("Progress: {completed_count} of {all_paths} paths  "),
+            Style::default().fg(theme.muted()),
+        )]),
+        Line::from(progress_spans),
+        Line::default(),
     ];
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    if let Some(next) = next_path {
+        lines.push(Line::from(vec![
+            Span::styled("Up next: ", Style::default().fg(theme.muted())),
+            Span::styled(
+                next.label(),
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(Span::styled(
+            next.description(),
+            Style::default().fg(theme.fg()),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            "You've completed every tutorial path. Nice.",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+
+    lines.push(Line::default());
+    let enter_label = if next_path.is_some() {
+        "choose another path   "
+    } else {
+        "back to paths   "
+    };
+    lines.push(Line::from(vec![
+        Span::styled(
+            "[enter] ",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(enter_label, Style::default().fg(theme.fg())),
+        Span::styled(
+            "[q] ",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("quit", Style::default().fg(theme.fg())),
+    ]));
+
+    frame.render_widget(
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+        inner,
+    );
 }
 
 use super::TutorialPath;
@@ -380,6 +587,70 @@ mod tests {
     use ratatui::backend::TestBackend;
 
     #[test]
+    fn progress_glyphs_default_is_unicode() {
+        temp_env::with_var_unset("ANVIL_ASCII", || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("\u{25cf}", "\u{25c9}", "\u{25cb}"));
+        });
+    }
+
+    #[test]
+    fn progress_glyphs_env_var_forces_ascii() {
+        temp_env::with_var("ANVIL_ASCII", Some("1"), || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("#", ">", "-"));
+            for g in [a, b, c] {
+                assert_eq!(
+                    UnicodeWidthStr::width(g),
+                    1,
+                    "ASCII fallback glyphs must be single-cell: {g}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn progress_glyphs_empty_env_uses_unicode() {
+        temp_env::with_var("ANVIL_ASCII", Some(""), || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("\u{25cf}", "\u{25c9}", "\u{25cb}"));
+        });
+    }
+
+    #[test]
+    fn progress_glyphs_zero_env_uses_unicode() {
+        temp_env::with_var("ANVIL_ASCII", Some("0"), || {
+            let (a, b, c) = progress_glyphs();
+            assert_eq!((a, b, c), ("\u{25cf}", "\u{25c9}", "\u{25cb}"));
+        });
+    }
+
+    #[test]
+    fn fit_block_title_passes_through_short_title() {
+        let out = fit_block_title("Run gate", 80);
+        assert_eq!(out, "Run gate");
+    }
+
+    #[test]
+    fn fit_block_title_truncates_with_ellipsis() {
+        let out = fit_block_title(
+            "a-very-long-unbreakable-step-title-that-would-overflow-the-border",
+            20,
+        );
+        // 20 cells, minus 4 for border+padding = 16 budget. Last char is ellipsis.
+        assert!(out.ends_with('\u{2026}'));
+        assert!(UnicodeWidthStr::width(out.as_str()) <= 16);
+    }
+
+    #[test]
+    fn fit_block_title_handles_tiny_areas() {
+        // Width 4 or less leaves no budget for content.
+        assert_eq!(fit_block_title("anything", 4), "");
+        // Width 5 → 1 char budget, must be just the ellipsis.
+        assert_eq!(fit_block_title("anything", 5), "\u{2026}");
+    }
+
+    #[test]
     fn renders_without_panic_path_select() {
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -389,6 +660,39 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    /// Guards against arithmetic underflow, clipped borders, and zero-width
+    /// wrap targets flagged by the council review at very small terminal
+    /// sizes. Must not panic on any of the three tutorial phases.
+    #[test]
+    fn renders_without_panic_tiny_terminal() {
+        let cases: &[(u16, u16)] = &[(20, 5), (5, 5), (40, 10)];
+        for &(w, h) in cases {
+            let backend = TestBackend::new(w, h);
+            let mut terminal = Terminal::new(backend).unwrap();
+            let theme = EddaCraftTheme;
+
+            let mut path_select = TutorialState::new();
+            terminal
+                .draw(|frame| render(frame, frame.area(), &path_select, &theme))
+                .unwrap_or_else(|e| panic!("path_select panicked at {w}x{h}: {e}"));
+
+            path_select.load_steps(TutorialPath::Policy);
+            terminal
+                .draw(|frame| render(frame, frame.area(), &path_select, &theme))
+                .unwrap_or_else(|e| panic!("running panicked at {w}x{h}: {e}"));
+
+            let mut complete = TutorialState::new();
+            complete.load_steps(TutorialPath::Drift);
+            for step in &mut complete.steps {
+                step.completed = true;
+            }
+            complete.phase = TutorialPhase::Complete;
+            terminal
+                .draw(|frame| render(frame, frame.area(), &complete, &theme))
+                .unwrap_or_else(|e| panic!("complete panicked at {w}x{h}: {e}"));
+        }
     }
 
     #[test]
@@ -440,6 +744,117 @@ mod tests {
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
     }
 
+    /// Lock in the narrow-terminal layout for the path-select phase at 40x10:
+    /// panic-free isn't enough — the menu copy has to stay readable and the
+    /// bottom border must not be clipped. Regressions in `box_height` clamping
+    /// or the shell gutter logic will shift this snapshot visibly.
+    #[test]
+    fn snapshot_path_select_narrow_40x10() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// At 20x10 we're past the point where the full menu copy fits, but the
+    /// frame must still render without border clipping or overlap. Guards
+    /// against layout arithmetic underflow at the small-terminal floor.
+    #[test]
+    fn snapshot_path_select_tiny_20x10() {
+        let backend = TestBackend::new(20, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Running phase at 40x10 — locks in the narrow-width content layout
+    /// (step progress row, step block, wrapped body) end-to-end through the
+    /// shell + render path so regressions in the vertical chunk math or the
+    /// step content block surface visibly in the snapshot diff.
+    #[test]
+    fn snapshot_running_phase_narrow_40x10() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Running phase at 20x10 is the extreme lower bound — progress dots and
+    /// block chrome should still render, even if content wraps aggressively.
+    #[test]
+    fn snapshot_running_phase_tiny_20x10() {
+        let backend = TestBackend::new(20, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
     #[test]
     fn snapshot_complete_phase() {
         let backend = TestBackend::new(80, 20);
@@ -450,6 +865,81 @@ mod tests {
         for step in &mut state.steps {
             step.completed = true;
         }
+        state.phase = TutorialPhase::Complete;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Multiple paths completed — the progress indicator should show two
+    /// filled dots, the "Up next" section should suggest an unfinished path
+    /// (not the all-paths-complete copy), and the completed count should
+    /// reflect both finishes. Catches regressions in `build_paths_progress`
+    /// and `path_is_done` for the multi-completion case.
+    #[test]
+    fn snapshot_complete_phase_multiple_paths() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Drift);
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        // Policy was finished in a prior session; Drift is finishing now.
+        state.completed_paths = vec![TutorialPath::Policy];
+        state.phase = TutorialPhase::Complete;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Every path finished — the "Up next" section should switch to the
+    /// all-paths-complete celebration copy and the progress row should be
+    /// fully filled.
+    #[test]
+    fn snapshot_complete_phase_all_paths() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Drift);
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        // All other paths already done before this final one.
+        state.completed_paths = state
+            .paths
+            .iter()
+            .copied()
+            .filter(|p| *p != TutorialPath::Drift)
+            .collect();
         state.phase = TutorialPhase::Complete;
         let theme = EddaCraftTheme;
 

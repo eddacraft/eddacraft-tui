@@ -112,7 +112,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
-| [tui-polish](./modules/tui-polish.aps.md) | POLISH | In Progress | 1/7 | RCLI, RATS |
+| [tui-polish](./modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
 | [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
 | [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
 
