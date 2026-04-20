@@ -1,5 +1,5 @@
 <!-- APS Module: rust-nx-migration -->
-<!-- Status: Ready -->
+<!-- Status: In Progress -->
 
 # Rust Nx Migration
 
@@ -114,7 +114,7 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 
 ## Work Items
 
-### RUSTNX-001: Add Swatinem/rust-cache to Rust CI jobs
+### RUSTNX-001: Add Swatinem/rust-cache to Rust CI jobs [Complete]
 
 - **Intent:** Cache `~/.cargo/registry`, `~/.cargo/git`, and `target/`
   between Rust CI runs so recompilation cost amortises over PRs
@@ -127,6 +127,11 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Confidence:** high
 - **Non-scope:** Adding sccache, changing `CARGO_INCREMENTAL`, or touching
   the cross-compile matrix
+- **Resolution:** Added `Swatinem/rust-cache@v2.9.1` (SHA-pinned) to
+  `check`, `test`, `clippy`, and `format` jobs with `shared-key: rust-ci`
+  so all four jobs pull from a single cache keyed on `Cargo.lock` + rustc
+  version. `format` uses `save-if: 'false'` because rustfmt doesn't
+  populate `target/` and an empty save would overwrite useful state.
 
 ### RUSTNX-002: Adopt cargo-nextest for workspace test runs
 
