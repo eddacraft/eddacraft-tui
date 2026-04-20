@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::Instant;
 
 use wait_timeout::ChildExt;
@@ -136,6 +136,8 @@ impl OpaExecutor {
             .arg("--format")
             .arg("json")
             .arg(&self.query)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {

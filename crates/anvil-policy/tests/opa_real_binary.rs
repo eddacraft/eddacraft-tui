@@ -1,0 +1,276 @@
+//! Real-binary OPA integration tests for the Rust policy executor.
+//!
+//! Skipped when `opa` is not on PATH and `ANVIL_OPA_PATH` is unset, so
+//! contributors without OPA installed can still run `cargo test`.
+//! CI installs OPA pinned to DEFAULT_OPA_VERSION (v0.60.0), so the suite
+//! runs there.
+//!
+//! Covers:
+//!   - TCOV-010: real `opa eval` against the fixture rego policies
+//!   - TCOV-011: real `opa test` against fixture `*_test.rego`
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use anvil_policy::loader::PolicyLoader;
+use anvil_policy::opa::OpaExecutor;
+use serde_json::json;
+
+fn find_opa_binary() -> Option<String> {
+    if let Ok(env_path) = std::env::var("ANVIL_OPA_PATH") {
+        if !env_path.is_empty() {
+            return Some(env_path);
+        }
+    }
+    let output = Command::new("which").arg("opa").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() { None } else { Some(path) }
+}
+
+fn repo_root() -> PathBuf {
+    // CARGO_MANIFEST_DIR points at crates/anvil-policy; repo root is two up.
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent()
+        .and_then(Path::parent)
+        .expect("manifest dir has at least two parents")
+        .to_path_buf()
+}
+
+fn fixtures_dir() -> PathBuf {
+    repo_root().join("policies/fixtures")
+}
+
+fn require_opa() -> Option<(OpaExecutor, Vec<anvil_policy::loader::LoadedPolicy>)> {
+    let binary = find_opa_binary()?;
+    let executor = OpaExecutor::new(Some(&binary), Some(10_000));
+    if !executor.is_available() {
+        eprintln!("[opa-real] opa binary at {binary} reports unavailable; skipping");
+        return None;
+    }
+    let loader = PolicyLoader::new();
+    let policies = loader
+        .load_policies(&repo_root(), Some("policies/fixtures"))
+        .expect("policy loader should not error on fixtures dir");
+    assert!(
+        !policies.is_empty(),
+        "expected fixture policies to load from {}",
+        fixtures_dir().display()
+    );
+    Some((executor, policies))
+}
+
+fn base_input() -> serde_json::Value {
+    json!({
+        "plan": {
+            "id": "plan-real-opa-rust",
+            "hash": "h",
+            "intent": "rust integration",
+            "schema_version": "0.1.0",
+            "proposed_changes": [],
+            "tags": [],
+        },
+        "context": {
+            "workspace_root": "/tmp",
+            "timestamp": 0,
+        },
+    })
+}
+
+#[test]
+fn change_scope_flags_oversized_plans() {
+    let Some((executor, policies)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let mut input = base_input();
+    let changes: Vec<serde_json::Value> = (0..25)
+        .map(|i| {
+            json!({
+                "type": "file_create",
+                "path": format!("src/file_{i}.ts"),
+                "directory": "src",
+            })
+        })
+        .collect();
+    input["plan"]["proposed_changes"] = serde_json::Value::Array(changes);
+    input["plan"]["change_count"] = json!(25);
+
+    let result = executor.evaluate(&policies, &input).expect("evaluate ok");
+
+    let scope_violations: Vec<_> = result
+        .violations
+        .iter()
+        .filter(|v| v.policy.as_deref() == Some("change_scope"))
+        .collect();
+    assert!(
+        !scope_violations.is_empty(),
+        "expected change_scope violations, got {:?}",
+        result.violations
+    );
+    assert!(
+        scope_violations
+            .iter()
+            .any(|v| v.message.contains("25 files")),
+        "expected '25 files' message, got {scope_violations:?}"
+    );
+}
+
+#[test]
+fn change_scope_passes_small_plans() {
+    let Some((executor, policies)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let mut input = base_input();
+    input["plan"]["proposed_changes"] = json!([{
+        "type": "file_create",
+        "path": "src/a.ts",
+        "directory": "src",
+    }]);
+
+    let result = executor.evaluate(&policies, &input).expect("evaluate ok");
+    let scope_violations: Vec<_> = result
+        .violations
+        .iter()
+        .filter(|v| v.policy.as_deref() == Some("change_scope"))
+        .collect();
+    assert!(
+        scope_violations.is_empty(),
+        "small plan should produce no change_scope violations, got {scope_violations:?}"
+    );
+}
+
+#[test]
+fn security_baseline_flags_sensitive_paths_without_review_tag() {
+    let Some((executor, policies)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let mut input = base_input();
+    input["plan"]["proposed_changes"] = json!([{
+        "type": "file_modify",
+        "path": "src/auth/login.ts",
+        "directory": "src/auth",
+    }]);
+
+    let result = executor.evaluate(&policies, &input).expect("evaluate ok");
+
+    let security: Vec<_> = result
+        .violations
+        .iter()
+        .filter(|v| v.policy.as_deref() == Some("security_baseline"))
+        .collect();
+    assert!(
+        !security.is_empty(),
+        "expected security_baseline violation, got {:?}",
+        result.violations
+    );
+    assert!(
+        security[0].message.contains("security-review"),
+        "expected message about security-review tag, got {:?}",
+        security[0].message
+    );
+}
+
+#[test]
+fn security_baseline_passes_with_review_tag() {
+    let Some((executor, policies)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let mut input = base_input();
+    input["plan"]["proposed_changes"] = json!([{
+        "type": "file_modify",
+        "path": "src/auth/login.ts",
+        "directory": "src/auth",
+    }]);
+    input["plan"]["tags"] = json!(["security-review"]);
+
+    let result = executor.evaluate(&policies, &input).expect("evaluate ok");
+
+    let security_errors: Vec<_> = result
+        .violations
+        .iter()
+        .filter(|v| v.policy.as_deref() == Some("security_baseline") && v.severity == "error")
+        .collect();
+    assert!(
+        security_errors.is_empty(),
+        "tag should suppress security_baseline errors, got {security_errors:?}"
+    );
+}
+
+#[test]
+fn coverage_min_flags_below_threshold() {
+    let Some((executor, policies)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let mut input = base_input();
+    input["context"]["coverage"] = json!({"lines": 50});
+
+    let result = executor.evaluate(&policies, &input).expect("evaluate ok");
+
+    let cov: Vec<_> = result
+        .violations
+        .iter()
+        .filter(|v| v.policy.as_deref() == Some("coverage_min"))
+        .collect();
+    assert_eq!(cov.len(), 1, "expected one coverage violation, got {cov:?}");
+    assert!(cov[0].message.contains("50") && cov[0].message.contains("80"));
+}
+
+#[test]
+fn coverage_min_passes_at_threshold() {
+    let Some((executor, policies)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let mut input = base_input();
+    input["context"]["coverage"] = json!({"lines": 95});
+
+    let result = executor.evaluate(&policies, &input).expect("evaluate ok");
+
+    let cov: Vec<_> = result
+        .violations
+        .iter()
+        .filter(|v| v.policy.as_deref() == Some("coverage_min"))
+        .collect();
+    assert!(
+        cov.is_empty(),
+        "high coverage should produce no coverage_min violations, got {cov:?}"
+    );
+}
+
+#[test]
+fn opa_test_fixture_rego_files_all_pass() {
+    let Some((executor, _)) = require_opa() else {
+        eprintln!("[opa-real] OPA not available; skipping");
+        return;
+    };
+
+    let fixtures = fixtures_dir();
+    let result = executor
+        .run_tests(&fixtures, true)
+        .expect("run_tests should not error");
+
+    assert_eq!(
+        result.failed, 0,
+        "expected zero failed opa tests, got {} failed; errors={:?} details={:?}",
+        result.failed, result.errors, result.details
+    );
+    assert!(
+        result.passed > 0,
+        "expected some opa tests to pass; details={:?}",
+        result.details
+    );
+}
