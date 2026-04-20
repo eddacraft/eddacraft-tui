@@ -4,7 +4,7 @@
 //! rather than a bespoke per-command check, so future tier/entitlement
 //! changes ship as manifest updates.
 
-use anvil_kernel::feature_flags::{ResolutionDetails, ResolutionReason, resolve_flag};
+use anvil_kernel::feature_flags::{ResolutionDetails, resolve_flag};
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
     FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant,
@@ -106,6 +106,7 @@ pub fn is_cli_licence_enabled(plan: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel::feature_flags::ResolutionReason;
 
     #[test]
     fn flag_definition_matches_exemplar_contract() {
