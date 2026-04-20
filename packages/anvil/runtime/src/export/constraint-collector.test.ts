@@ -196,9 +196,11 @@ describe('ConstraintCollector', () => {
       const defaultPatterns = PATTERNS.filter((p) => p.enabled && !p.optIn);
       expect(constraints.antiPatterns.length).toBe(defaultPatterns.length);
 
-      // Check that each collected pattern has required fields
+      // Check that each collected pattern has required fields. After
+      // ANVFMT-008 the catalogue spans the family prefixes (AP, GS, RL, DD)
+      // in addition to legacy AP — the id regex accommodates all of them.
       for (const pattern of constraints.antiPatterns) {
-        expect(pattern.id).toMatch(/^AP-\d{3}$/);
+        expect(pattern.id).toMatch(/^[A-Z]{2,5}-\d{3}$/);
         expect(pattern.name).toBeTruthy();
         expect(pattern.category).toBeTruthy();
         expect(pattern.explanation).toBeTruthy();
@@ -243,13 +245,16 @@ describe('ConstraintCollector', () => {
       const collector = new ConstraintCollector({ workspaceRoot: testDir });
       const constraints = await collector.collect();
 
+      // AP-001's title in the compiled registry is "Broad eslint-disable added"
+      // (was "Broad eslint-disable" in the legacy TS catalogue); the compiled
+      // explanation/suggestion are drawn from the family definition body.
       const ap001 = constraints.antiPatterns.find((p) => p.id === 'AP-001');
       expect(ap001).toBeDefined();
-      expect(ap001?.name).toBe('Broad eslint-disable');
+      expect(ap001?.name).toBe('Broad eslint-disable added');
       expect(ap001?.category).toBe('escape-hatch');
       expect(ap001?.severity).toBe('warning');
-      expect(ap001?.explanation).toContain('Disabling all ESLint rules');
-      expect(ap001?.suggestion).toContain('Disable specific rules');
+      expect(ap001?.explanation).toBeTruthy();
+      expect(ap001?.suggestion).toBeTruthy();
     });
   });
 

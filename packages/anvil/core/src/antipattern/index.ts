@@ -54,20 +54,35 @@ export {
   type PatternCategory,
   getPattern,
   getPatternsByCategory,
+  getPatternsByFamily,
   getEnabledPatterns,
   getDefaultPatterns,
   getPatternIds,
   isValidPatternId,
+  reloadPatterns,
 } from './patterns.js';
 
-// HTML patterns
-export { HTML_PATTERNS } from './patterns-html.js';
-
-// CSS patterns
-export { CSS_PATTERNS } from './patterns-css.js';
+// Compiled `.anvil` registry loader — backs the pattern catalogue in Phase 2.
+export {
+  loadCompiledRegistry,
+  loadRegistryPatterns,
+  compiledToAntiPattern,
+  resetRegistryCache,
+  type LoadRegistryOptions,
+  type LoadRegistryResult,
+} from './registry-loader.js';
 
 // Scanner
-export { type ScanOptions, type ScanResult, scanFile, scanFiles } from './scanner.js';
+export {
+  type ArtifactKind,
+  type Artifact,
+  type ScanOptions,
+  type ScanResult,
+  scanArtifact,
+  scanArtifacts,
+  scanFile,
+  scanFiles,
+} from './scanner.js';
 
 // .anvil file format (Phase 1: source tree → compiled pattern registry)
 export * from './format/index.js';

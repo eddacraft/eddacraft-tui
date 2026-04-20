@@ -935,6 +935,7 @@ version = "0.3.3-beta"
 dependencies = [
  "criterion",
  "insta",
+ "rayon",
  "regex",
  "serde",
  "serde_json",

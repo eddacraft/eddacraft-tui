@@ -1,0 +1,69 @@
+{
+  "$schema_version": 1,
+  "description": "Scanner parity fixtures. Both the Rust scanner (crates/anvil-checks/tests/scanner_parity.rs) and the TS scanner (packages/anvil/core/src/antipattern/scanner-parity.test.ts) load this file and assert that each fixture's expected warning set fires exactly. If both engines pass with the same fixture data, they are in parity.",
+  "fixtures": [
+    {
+      "name": "AP-001 broad eslint-disable fires on source",
+      "artifact_kind": "source",
+      "reference": "sample.ts",
+      "content": "/* eslint-disable */\nconst x = 1;\n",
+      "expected_matches": [{ "id": "AP-001", "line": 1 }]
+    },
+    {
+      "name": "AP-003 explicit any fires on source",
+      "artifact_kind": "source",
+      "reference": "sample.ts",
+      "content": "const value: any = fetchData();\n",
+      "expected_matches": [{ "id": "AP-003", "line": 1 }]
+    },
+    {
+      "name": "AP-004 ts-ignore fires on source",
+      "artifact_kind": "source",
+      "reference": "sample.ts",
+      "content": "// @ts-ignore\nconst x = unsafe();\n",
+      "expected_matches": [{ "id": "AP-004", "line": 1 }]
+    },
+    {
+      "name": "AP-006 empty catch block fires on source",
+      "artifact_kind": "source",
+      "reference": "sample.ts",
+      "content": "try {\n  doWork();\n} catch (e) {}\n",
+      "expected_matches": [{ "id": "AP-006", "line": 3 }]
+    },
+    {
+      "name": "clean source produces no warnings",
+      "artifact_kind": "source",
+      "reference": "clean.ts",
+      "content": "export function greet(name: string): string {\n  return `hello ${name}`;\n}\n",
+      "expected_matches": []
+    },
+    {
+      "name": "RL-002 tracked follow-up fires on pr-description (RL-005 escaped via issue #)",
+      "artifact_kind": "pr-description",
+      "reference": "pr/42",
+      "content": "Will handle remainder; tracked as follow-up in issue #123.\n",
+      "expected_matches": [{ "id": "RL-002", "line": 1 }]
+    },
+    {
+      "name": "RL-004 none of which were touched fires on pr-description (no pre-existing phrase)",
+      "artifact_kind": "pr-description",
+      "reference": "pr/43",
+      "content": "CI failures stem from dependencies, none of which were touched by this change.\n",
+      "expected_matches": [{ "id": "RL-004", "line": 1 }]
+    },
+    {
+      "name": "RL-002 fires on commit-message (RL-005 escaped via issue #)",
+      "artifact_kind": "commit-message",
+      "reference": "abc1234",
+      "content": "fix(api): patch auth bug\n\nRemaining edge case tracked as follow-up in issue #99.\n",
+      "expected_matches": [{ "id": "RL-002", "line": 3 }]
+    },
+    {
+      "name": "clean pr-description produces no warnings",
+      "artifact_kind": "pr-description",
+      "reference": "pr/44",
+      "content": "Adds a new /health endpoint. Verified locally; tests cover green path + 503 fallback.\n",
+      "expected_matches": []
+    }
+  ]
+}
