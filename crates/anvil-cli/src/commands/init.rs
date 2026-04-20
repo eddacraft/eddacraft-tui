@@ -112,7 +112,7 @@ fn run_plain(root: &Path, force: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
+pub(crate) fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<bool> {
     generate_config_with_force(config, root, false)
 }
 
@@ -120,7 +120,7 @@ pub(crate) fn generate_config_with_force(
     config: &AnvilConfig,
     root: &Path,
     force: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let content = match config.format.as_str() {
         "toml" => toml_serialise(config),
         "yaml" => yaml_serialise(config),
@@ -135,7 +135,7 @@ pub(crate) fn generate_config_with_force(
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
-    append_gitignore_entry(root)?;
+    let gitignore_updated = append_gitignore_entry(root)?;
 
     let planning_dir = root.join(&config.planning_dir);
     if !planning_dir.exists() {
@@ -143,10 +143,10 @@ pub(crate) fn generate_config_with_force(
             .with_context(|| format!("failed to create {}/", config.planning_dir))?;
     }
 
-    Ok(())
+    Ok(gitignore_updated)
 }
 
-fn append_gitignore_entry(root: &Path) -> anyhow::Result<()> {
+fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
     let gitignore = root.join(".gitignore");
     let entry = ".anvil/cache/";
 
@@ -156,7 +156,7 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<()> {
         for line in reader.lines() {
             let line = line.context("failed to read .gitignore line")?;
             if line.trim() == entry {
-                return Ok(());
+                return Ok(false);
             }
         }
     }
@@ -179,7 +179,7 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<()> {
     }
 
     writeln!(file, "{entry}").context("failed to append to .gitignore")?;
-    Ok(())
+    Ok(true)
 }
 
 fn print_success(planning_dir: &str, checks: &[String]) {
@@ -327,11 +327,28 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join(".gitignore"), ".anvil/cache/\n").unwrap();
 
-        append_gitignore_entry(dir.path()).unwrap();
+        let updated = append_gitignore_entry(dir.path()).unwrap();
+        assert!(
+            !updated,
+            "should report no update when entry already present"
+        );
 
         let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         let count = content.matches(".anvil/cache/").count();
         assert_eq!(count, 1, "entry should not be duplicated");
+    }
+
+    #[test]
+    fn gitignore_reports_update_when_appending() {
+        let dir = tempfile::tempdir().unwrap();
+        let updated = append_gitignore_entry(dir.path()).unwrap();
+        assert!(updated, "should report update when gitignore is created");
+
+        let updated_again = append_gitignore_entry(dir.path()).unwrap();
+        assert!(
+            !updated_again,
+            "should report no update on second call with entry present",
+        );
     }
 
     #[test]

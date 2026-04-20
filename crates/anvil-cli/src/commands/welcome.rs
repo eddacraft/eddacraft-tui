@@ -188,18 +188,23 @@ fn run_onboarding(
 
     match onboarding.chosen {
         Some(OnboardingChoice::GuidedSetup) => {
-            run_guided_init(terminal, theme)?;
-            Ok(OnboardingOutcome::Configured)
+            if run_guided_init(terminal, theme)? {
+                Ok(OnboardingOutcome::Quit)
+            } else {
+                Ok(OnboardingOutcome::Configured)
+            }
         }
         Some(OnboardingChoice::SkipToTutorial) => Ok(OnboardingOutcome::Tutorial),
         Some(OnboardingChoice::SkipEntirely) | None => Ok(OnboardingOutcome::Skip),
     }
 }
 
+/// Returns `true` if the user quit out of the landing screen and the caller
+/// should stop the onboarding flow.
 fn run_guided_init(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     use anvil_tui::surfaces::onboarding;
 
     // Skip init if config already exists.
@@ -211,7 +216,7 @@ fn run_guided_init(
             theme,
             std::time::Duration::from_millis(200),
         )?;
-        return Ok(());
+        return Ok(false);
     }
 
     let checks = onboarding::default_available_checks();
@@ -220,7 +225,7 @@ fn run_guided_init(
 
     if exit == SurfaceExit::Quit && !init_state.confirmed {
         // User quit the init wizard — don't show error, just fall through.
-        return Ok(());
+        return Ok(false);
     }
 
     if init_state.confirmed {
@@ -244,16 +249,19 @@ fn run_guided_init(
         config.checks.clone_from(&checks);
 
         match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(()) => {
+            Ok(gitignore_updated) => {
                 let summary = onboarding::InitCompleteSummary {
                     config_path: ".anvilrc".to_string(),
                     plans_dir: format!("{}/", config.planning_dir),
                     cache_dir: ".anvil/cache/".to_string(),
-                    gitignore_updated: true,
+                    gitignore_updated,
                     checks_enabled: checks,
                 };
                 let mut landing = onboarding::InitCompleteState::new(summary);
-                crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+                let landing_exit = crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+                if landing_exit == SurfaceExit::Quit && !landing.wants_continue {
+                    return Ok(true);
+                }
             }
             Err(e) => {
                 timed_loading(
@@ -267,7 +275,7 @@ fn run_guided_init(
         }
     }
 
-    Ok(())
+    Ok(false)
 }
 
 fn run_discovery(
