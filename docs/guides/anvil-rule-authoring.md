@@ -59,7 +59,7 @@ version: 1
 
 severity: warning          # error | warning | info
 confidence: medium         # high | medium | low
-spectrum_position: 3       # relative severity within the family (1 = mildest)
+spectrum_position: 3       # relative severity within the family (1 = most severe)
 
 targets: [source]          # source | pr-description | commit-message | agent-output
 file_extensions: [.ts, .tsx]
@@ -88,9 +88,10 @@ Narrative markdown body. Two paragraphs max:
 - `id` — globally unique rule ID (see prefix table above).
 - `family` — must match an existing directory name under `patterns/`.
 - `severity` / `confidence` — consumed by the scanner and gate runner.
-- `spectrum_position` — integer ordering within the family. Lower numbers
-  are "milder" violations; higher numbers are "stronger". Used by reviewers
-  to reason about escalation.
+- `spectrum_position` — integer ordering within the family, where `1` is
+  the most severe violation and higher numbers are milder variants. Matches
+  the schema contract in `packages/anvil/core/src/antipattern/types.ts`
+  (`1 = most severe`). Used by reviewers to reason about escalation.
 - `targets` — which artifact kinds the rule scans. Most source-code rules
   are `[source]`; PR-description rules like the RL family use
   `[pr-description]` or combinations.

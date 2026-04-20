@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 import {
   loadCompiledRegistry,
@@ -11,10 +12,12 @@ import {
 } from './registry-loader.js';
 import type { CompiledPattern } from './format/schemas.js';
 
+const here = path.dirname(fileURLToPath(import.meta.url));
+
 function workspaceRegistryPath(): string {
   // The test runs from `packages/anvil/core/`; the compiled registry
   // lives at `<workspace-root>/patterns/compiled/registry.json`.
-  return path.resolve(__dirname, '../../../../../patterns/compiled/registry.json');
+  return path.resolve(here, '../../../../../patterns/compiled/registry.json');
 }
 
 describe('registry-loader', () => {

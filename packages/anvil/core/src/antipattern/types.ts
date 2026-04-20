@@ -255,7 +255,7 @@ export const AntiPatternSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe('Position within the family spectrum (1 = worst)'),
+    .describe('Position within the family spectrum (1 = most severe)'),
   targets: z
     .array(z.enum(['source', 'pr-description', 'commit-message', 'agent-output']))
     .optional()

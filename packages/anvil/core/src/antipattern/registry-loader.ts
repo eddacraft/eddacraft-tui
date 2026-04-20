@@ -16,9 +16,13 @@
  *   4. Upward walk from this module's file URL (handles running from
  *      `node_modules` when cwd is outside the monorepo).
  *
- * If no registry is found, the loader returns `{ patterns: [], warnings: [...] }`.
- * The scanner still works — only the legacy TS HTML/CSS catalogue fires —
- * so running outside a compiled tree degrades gracefully rather than crashing.
+ * If no registry is found, the loader returns `{ patterns: [], warnings: [...] }`
+ * — the legacy TS HTML/CSS catalogue was retired in ANVFMT-014/015, so the
+ * scanner has no patterns at all and silently emits no warnings. Consumers
+ * that can't rely on the workspace upward-walk (e.g. the VSCode extension
+ * when resolved from `node_modules`) should either pass an explicit
+ * `registryPath` or ensure the package's bundled `patterns/compiled/
+ * registry.json` is present (shipped via the `files` field + `prepack`).
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -175,7 +179,11 @@ export function loadCompiledRegistry(opts: LoadRegistryOptions = {}): LoadRegist
     cached = {
       registry: null,
       sourcePath: null,
-      warnings: ['Compiled pattern registry not found; legacy HTML/CSS patterns only.'],
+      warnings: [
+        'Compiled pattern registry not found; scanner has no patterns and will emit no warnings. ' +
+          'Pass an explicit `registryPath`, set `ANVIL_REGISTRY_PATH`, or ensure the bundled ' +
+          '`patterns/compiled/registry.json` ships with the consuming package.',
+      ],
     };
     cachedKey = key;
     return cached;
