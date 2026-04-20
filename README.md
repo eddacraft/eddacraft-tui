@@ -257,6 +257,8 @@ and tooling.
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
 - **cargo-llvm-cov** (optional, for Rust coverage) —
   `cargo install cargo-llvm-cov`
+- **cargo-nextest** (optional, required by `pnpm test:coverage:rust`) —
+  `cargo install cargo-nextest --locked`
 
 ### Setup
 
