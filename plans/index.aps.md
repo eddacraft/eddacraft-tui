@@ -252,7 +252,7 @@ TCOV/TINT/TEXT depend on it.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
-| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | Draft | 0/25 | TFIX |
+| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 9/25 | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
 
