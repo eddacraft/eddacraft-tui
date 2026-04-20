@@ -114,6 +114,23 @@ static BARE_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z0-9_./+=:@%-]{16,}").expect("bare redaction pattern is valid")
 });
 
+/// Built-in secret patterns compiled once per process. Sharing the compiled
+/// regex set across parallel scan workers avoids recompiling 18 patterns per
+/// file, which was a measurable waste of CPU in the discovery scan.
+pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock::new(|| {
+    SECRET_PATTERNS
+        .iter()
+        .filter_map(|pattern| {
+            Regex::new(pattern.pattern)
+                .ok()
+                .map(|regex| CompiledPattern {
+                    name: pattern.name.to_string(),
+                    regex,
+                })
+        })
+        .collect()
+});
+
 pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
     let mut compiled = Vec::new();
 
@@ -136,6 +153,25 @@ pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<Comp
     }
 
     compiled
+}
+
+/// Compile only the user-supplied custom patterns.
+///
+/// Pair the result with `DEFAULT_COMPILED_PATTERNS` when scanning — callers on
+/// the hot path should chain the two iterators rather than calling
+/// `compile_secret_patterns`, which recompiles the 18 built-ins every time.
+pub fn compile_custom_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
+    custom_patterns
+        .iter()
+        .filter_map(|pattern| {
+            Regex::new(&pattern.pattern)
+                .ok()
+                .map(|regex| CompiledPattern {
+                    name: pattern.name.clone(),
+                    regex,
+                })
+        })
+        .collect()
 }
 
 pub struct PatternMatcher {

@@ -1,5 +1,7 @@
 use crate::secret::entropy::detect_high_entropy_strings;
-use crate::secret::patterns::{PatternMatcher, compile_secret_patterns};
+use crate::secret::patterns::{
+    CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
+};
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
 pub fn scan_content(
@@ -8,13 +10,16 @@ pub fn scan_content(
     config: &SecretCheckConfig,
 ) -> Vec<SecretFinding> {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
-    let patterns = compile_secret_patterns(&config.custom_patterns);
+    let custom_patterns = compile_custom_patterns(&config.custom_patterns);
+    let default_patterns: &[CompiledPattern] = &DEFAULT_COMPILED_PATTERNS;
     let mut findings = Vec::new();
+
+    let patterns_iter = || default_patterns.iter().chain(custom_patterns.iter());
 
     for (index, line) in content.lines().enumerate() {
         let line_number = index + 1;
 
-        for pattern in &patterns {
+        for pattern in patterns_iter() {
             let maybe_match = pattern.regex.find(line);
             let Some(matched_range) = maybe_match else {
                 continue;
@@ -51,7 +56,7 @@ pub fn scan_content(
             .filter(|finding| {
                 let line_index = finding.line.saturating_sub(1);
                 lines.get(line_index).is_some_and(|line| {
-                    patterns.iter().all(|pattern| !pattern.regex.is_match(line))
+                    patterns_iter().all(|pattern| !pattern.regex.is_match(line))
                 })
             })
             .collect::<Vec<_>>();
