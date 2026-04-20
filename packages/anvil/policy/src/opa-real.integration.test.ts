@@ -66,11 +66,11 @@ describe.skipIf(!opaPath)('OPA real-binary integration (TCOV-009/-011)', () => {
     });
     policies = result.policies;
     expect(result.errors).toEqual([]);
-    expect(policies.map((p) => p.name).sort()).toEqual([
-      'change_scope',
-      'coverage_min',
-      'security_baseline',
-    ]);
+    // Assert required fixtures exist without forbidding additions — adding a new
+    // fixture rego shouldn't break unrelated gate tests.
+    expect(policies.map((p) => p.name)).toEqual(
+      expect.arrayContaining(['change_scope', 'coverage_min', 'security_baseline'])
+    );
   });
 
   describe('change_scope.rego', () => {
@@ -84,6 +84,8 @@ describe.skipIf(!opaPath)('OPA real-binary integration (TCOV-009/-011)', () => {
 
       const result = await executor.evaluate(policies, input);
 
+      // `result.success` means "OPA ran cleanly", not "plan passed policy".
+      // The actual policy outcome is encoded in `violations` below.
       expect(result.success).toBe(true);
       const changeViolations = result.violations.filter((v) => v.policy === 'change_scope');
       expect(changeViolations.length).toBeGreaterThan(0);

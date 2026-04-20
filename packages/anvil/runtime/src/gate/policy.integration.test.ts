@@ -6,7 +6,7 @@
  * binary is available so local dev without OPA still passes.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -38,13 +38,16 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '../../../../..');
 const FIXTURES_DIR = resolve(REPO_ROOT, 'policies/fixtures');
 
-function copyFixturesInto(targetDir: string): void {
+function copyFixturesInto(targetDir: string): string[] {
   mkdirSync(targetDir, { recursive: true });
+  const copied: string[] = [];
   for (const entry of readdirSync(FIXTURES_DIR)) {
-    if (entry.endsWith('.rego')) {
+    if (entry.endsWith('.rego') && !entry.endsWith('_test.rego')) {
       copyFileSync(join(FIXTURES_DIR, entry), join(targetDir, entry));
+      copied.push(entry);
     }
   }
+  return copied;
 }
 
 function basePlan(overrides: Partial<PlanData> = {}): PlanData {
@@ -89,22 +92,22 @@ function policyOnlyConfig(): GateConfig {
 
 describe.skipIf(!opaPath)('Gate pipeline + real OPA (TCOV-012)', () => {
   let workspace: string;
-  let prevEnv: string | undefined;
+  let copiedFixtures: string[];
 
   beforeAll(() => {
-    prevEnv = process.env.ANVIL_OPA_PATH;
-    process.env.ANVIL_OPA_PATH = opaPath as string;
+    vi.stubEnv('ANVIL_OPA_PATH', opaPath as string);
     workspace = mkdtempSync(join(tmpdir(), 'anvil-gate-opa-'));
-    copyFixturesInto(join(workspace, '.anvil', 'policies'));
+    copiedFixtures = copyFixturesInto(join(workspace, '.anvil', 'policies'));
   });
 
   afterAll(async () => {
-    if (prevEnv === undefined) {
-      delete process.env.ANVIL_OPA_PATH;
-    } else {
-      process.env.ANVIL_OPA_PATH = prevEnv;
-    }
+    vi.unstubAllEnvs();
     await safeCleanup(workspace);
+  });
+
+  it('does not copy *_test.rego fixtures as policies', () => {
+    expect(copiedFixtures.every((name) => !name.endsWith('_test.rego'))).toBe(true);
+    expect(copiedFixtures.length).toBeGreaterThan(0);
   });
 
   it('fails the gate when policies are violated by a large plan', async () => {
