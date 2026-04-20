@@ -91,28 +91,40 @@ task may delete one, even if parity tests have been green for a release.
 
 ### `cli.licence-gate` (CLI licence-gated actions)
 
-- **Current state:** FLAGS-008 wired the flag advisory-only in
-  `commands::auth::whoami`. The legacy `requires_auth()` table in
-  `crates/anvil-cli/src/main.rs` still controls which commands need auth.
-- **Target decision point:** command dispatcher consults the flag once per
-  session; per-command gating comes from flag metadata (a `commands`
-  targeting attribute on the flag or a companion manifest entry) rather
-  than the hard-coded `requires_auth()` match.
+- **Current state (post FLAGM-002):** the flag definition in
+  `crates/anvil-cli/src/feature_flags.rs` is wrapped by a CLI-local
+  `CliGateFlag` that carries a `gated_commands` metadata list
+  (`CLI_GATED_COMMANDS`). `main::requires_auth` delegates to
+  `feature_flags::command_needs_licence_gate(command_canonical_name(cmd))`.
+  The hard-coded match survives as a test-only `requires_auth_legacy`
+  retained solely for parity assertions; it is scheduled for deletion in
+  FLAGM-006.
+- **Metadata representation decision (FLAGM-002):** option 1 — flag
+  attribute, implemented as a CLI-local wrapper. The per-command list is
+  a property of the CLI host, not a property of the shared flag contract,
+  so it did not warrant extending the shared Rust/Zod schemas. Options 2
+  (companion manifest) and 3 (targeting predicate) were rejected because
+  they either duplicated the manifest for CLI-only data or overloaded the
+  resolver's variant semantics to express reachability.
 - **Evaluation context:** `targeting_key` = stable session identifier
   (JWT `sub` when available, email today, `"cli-session"` as the
   backwards-compatible fallback); `audience.licence_plan` and
   `audience.account_tier` plumbed from `/api/v1/whoami`.
-- **Dual-evaluation window:** one release — land FLAGM-002 as
-  "resolve-and-compare" in dev/test only, then flip authority in a
-  follow-up commit.
+- **Dual-evaluation window:** one release — FLAGM-002 lands the flip to
+  flag authority while the legacy match remains in-tree under
+  `#[cfg(test)]` as `requires_auth_legacy`. FLAGM-006 retires it.
 - **Parity-test cases:**
   - **enabled:** plan `"pro"`, command `audit` → both allow
   - **disabled:** plan `"free"`, command `admin` → both deny
   - **default:** missing plan claim, command `doctor` → both allow
-- **Rollback:** revert the dispatcher cutover commit; `requires_auth()`
-  resumes authority.
-- **Test location:** `crates/anvil-cli/src/feature_flags.rs` (new
-  `parity_tests` module).
+  - **sweep:** every representative command in `PARITY_COMMAND_CASES`
+    (gated + bypass + hidden aliases) agrees for both implementations
+- **Rollback:** revert the FLAGM-002 commit; `requires_auth` reverts to
+  the hard-coded match.
+- **Test location:** `crates/anvil-cli/src/main.rs` tests module
+  (`parity_*` tests) and `crates/anvil-cli/src/feature_flags.rs`
+  (`command_needs_licence_gate_*`, `gate_metadata_*`, and
+  `gated_commands_are_sorted_and_unique` tests).
 
 ### `cli.dev-bypass` (`ANVIL_DEV=1` env-var bypass)
 
@@ -200,8 +212,6 @@ the flag or its telemetry.
 ## What this spec does not decide
 
 - The edge-compatible snapshot loader for docs-site (FLAGM-004 dep)
-- The manifest representation of per-command metadata (FLAGM-002 will
-  pick: flag attribute, companion manifest, or targeting predicate)
 - Whether to flip `docs.access` from `enabled` to `disabled` for
   missing-tier tokens at cutover (FLAGM-004 will decide)
 - Any re-scoping of **defer** controls in the inventory — those remain
@@ -213,5 +223,6 @@ the flag or its telemetry.
       parity-test cases, and rollback path are documented
 - [x] Parity-test shape is defined once and referenced by each control
 - [x] Inventory will reference this spec (update in the FLAGM-001 commit)
-- [ ] FLAGM-002 picks the per-command metadata representation
+- [x] FLAGM-002 picks the per-command metadata representation
+      (flag attribute via CLI-local `CliGateFlag` wrapper)
 - [ ] FLAGM-004 picks the edge-compatible loader path

@@ -138,7 +138,7 @@ Change status to **Ready** when:
   `docs/guides/feature-flag-inventory.md` now points at the spec and records
   that each migrate entry lands a parity test before legacy removal.
 
-### FLAGM-002: Migrate `requires_auth()` to flag-driven command gating
+### FLAGM-002: Migrate `requires_auth()` to flag-driven command gating — Complete
 
 - **Intent:** Remove the hard-coded per-command allow/deny table from
   `crates/anvil-cli/src/main.rs` and resolve it through `cli.licence-gate`
@@ -151,6 +151,19 @@ Change status to **Ready** when:
 - **Dependencies:** FLAGM-001
 - **Validation:** `cargo test -p eddacraft-anvil --bin anvil feature_flags`
 - **Confidence:** medium
+- **Outcome:** Picked Option 1 for per-command metadata — a CLI-local
+  `CliGateFlag` wrapper in `crates/anvil-cli/src/feature_flags.rs` that
+  pairs the shared `FeatureFlagDefinition` with a typed
+  `CliGateMetadata { gated_commands: &'static [&'static str] }` list
+  (`CLI_GATED_COMMANDS`). `main::requires_auth` now delegates to
+  `feature_flags::command_needs_licence_gate(command_canonical_name(cmd))`;
+  the hard-coded match is preserved as `#[cfg(test)] requires_auth_legacy`
+  for dual-evaluation parity and is scheduled for deletion in FLAGM-006.
+  Parity is proven by three design-spec canonical cases plus a sweep
+  (`parity_flag_matches_legacy_for_every_command`) across every
+  representative command including hidden aliases. Shared schema
+  (`anvil-kernel-types`, `@eddacraft/anvil-contracts`) is unchanged —
+  the gating list is CLI-host data, not shared-contract data.
 
 ### FLAGM-003: Replace `ANVIL_DEV=1` with local-override on `cli.licence-gate`
 

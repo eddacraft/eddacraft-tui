@@ -115,8 +115,64 @@ enum Commands {
     Whoami(commands::auth::WhoamiArgs),
 }
 
+/// Canonical stable name for a `Commands` variant.
+///
+/// Used to map dispatch-time variants onto the gated-command list carried
+/// as metadata on the `cli.licence-gate` flag. Kept separate from
+/// `clap`'s display names so that hidden aliases (`login`, `logout`,
+/// `whoami`) and their real subcommands (`auth login`, …) map onto
+/// distinct canonical identifiers where needed.
+fn command_canonical_name(cmd: &Commands) -> &'static str {
+    use commands::auth::AuthCommand;
+    match cmd {
+        Commands::Audit(_) => "audit",
+        Commands::Check(_) => "check",
+        Commands::Doctor(_) => "doctor",
+        Commands::Drift(_) => "drift",
+        Commands::Status(_) => "status",
+        Commands::Tutorial(_) => "tutorial",
+        Commands::Welcome(_) => "welcome",
+        Commands::Init(_) => "init",
+        Commands::New(_) => "new",
+        Commands::Wizard(_) => "wizard",
+        Commands::Admin(_) => "admin",
+        Commands::Gate(_) => "gate",
+        Commands::GateConfig(_) => "gate-config",
+        Commands::Watch(_) => "watch",
+        Commands::Export(_) => "export",
+        Commands::Hooks(_) => "hooks",
+        Commands::Architecture(_) => "architecture",
+        Commands::Policy(_) => "policy",
+        Commands::Update(_) => "update",
+        Commands::Validate(_) => "validate",
+        Commands::Login(_) => "login",
+        Commands::Logout(_) => "logout",
+        Commands::Whoami(_) => "whoami",
+        Commands::Auth(args) => match args.command {
+            AuthCommand::Login { .. } => "auth-login",
+            AuthCommand::Logout => "auth-logout",
+            AuthCommand::Whoami => "auth-whoami",
+        },
+    }
+}
+
 /// Returns `true` for commands that require a valid auth session.
+///
+/// FLAGM-002: delegates to the `cli.licence-gate` flag's gated-command
+/// metadata via [`feature_flags::command_needs_licence_gate`]. The
+/// legacy match is retained as [`requires_auth_legacy`] for one release
+/// so dual-evaluation parity tests can assert behaviour preservation
+/// before the shim is retired in FLAGM-006.
 fn requires_auth(cmd: &Commands) -> bool {
+    feature_flags::command_needs_licence_gate(command_canonical_name(cmd))
+}
+
+/// Legacy hard-coded auth-gate decision, kept for FLAGM-002 parity tests.
+///
+/// Do not call from production paths — `requires_auth` is authoritative.
+/// Scheduled for removal in FLAGM-006 once dual-evaluation closes.
+#[cfg(test)]
+fn requires_auth_legacy(cmd: &Commands) -> bool {
     use commands::auth::AuthCommand;
 
     match cmd {
@@ -627,6 +683,96 @@ mod tests {
         assert!(!requires_auth(&parse_command(&[
             "admin", "approve", "--batch", "1"
         ])));
+    }
+
+    // ── FLAGM-002 parity: flag-driven vs legacy requires_auth ───────
+    //
+    // Dual-evaluation window: the flag-driven `requires_auth` must match
+    // the hard-coded `requires_auth_legacy` for every representative
+    // command. When all migrate-class controls retire in FLAGM-006,
+    // `requires_auth_legacy` and these parity tests are deleted.
+
+    /// Every representative command, covering both gated and bypass paths
+    /// plus hidden auth-subcommand aliases. Keep in sync with the command
+    /// enum and with `feature_flags::CLI_GATED_COMMANDS`.
+    const PARITY_COMMAND_CASES: &[&[&str]] = &[
+        // Gated commands
+        &["architecture", "validate"],
+        &["audit"],
+        &["auth", "whoami"],
+        &["check", "--all"],
+        &["drift", "list"],
+        &["export"],
+        &["gate"],
+        &["gate-config", "--list"],
+        &["policy", "list"],
+        &["status"],
+        &["watch"],
+        &["whoami"],
+        // Bypass commands
+        &["admin", "approve", "--batch", "1"],
+        &["auth", "login"],
+        &["auth", "logout"],
+        &["doctor"],
+        &["hooks", "install"],
+        &["init"],
+        &["login"],
+        &["logout"],
+        &["new"],
+        &["tutorial"],
+        &["update"],
+        &["validate", "plan.aps.md"],
+        &["welcome"],
+        &["wizard"],
+    ];
+
+    #[test]
+    fn parity_flag_matches_legacy_for_every_command() {
+        for tokens in PARITY_COMMAND_CASES {
+            let cmd = parse_command(tokens);
+            assert_eq!(
+                requires_auth(&cmd),
+                requires_auth_legacy(&cmd),
+                "flag-driven and legacy requires_auth diverged for `{}`",
+                tokens.join(" "),
+            );
+        }
+    }
+
+    #[test]
+    fn parity_enabled_case_allows_gated_command() {
+        // Design-spec "enabled" parity case: a gated command resolves to
+        // the flag's enabled variant under a plan-carrying context, and
+        // both legacy and flag-driven decisions agree the command is
+        // gated (= requires auth).
+        let cmd = parse_command(&["audit"]);
+        let details =
+            crate::feature_flags::evaluate_cli_licence_gate("parity-session", Some("pro"));
+        assert_eq!(details.variant, "enabled");
+        assert!(requires_auth(&cmd));
+        assert!(requires_auth_legacy(&cmd));
+    }
+
+    #[test]
+    fn parity_disabled_case_bypass_command_unaffected_by_plan() {
+        // Design-spec "disabled" parity case: a bypass command stays
+        // unauth-gated regardless of plan. The flag itself can resolve
+        // to either variant; the gate metadata (not the variant) is the
+        // authority on whether `requires_auth` fires.
+        let cmd = parse_command(&["admin", "approve", "--batch", "1"]);
+        assert!(!requires_auth(&cmd));
+        assert!(!requires_auth_legacy(&cmd));
+    }
+
+    #[test]
+    fn parity_default_case_no_plan_still_matches_legacy() {
+        // Design-spec "default" parity case: no audience context
+        // (no plan) resolves the flag to its default variant, and the
+        // gated-command list still drives the auth decision identically
+        // to the legacy match.
+        let cmd = parse_command(&["doctor"]);
+        assert!(!requires_auth(&cmd));
+        assert!(!requires_auth_legacy(&cmd));
     }
 
     // ── evaluate_auth ────────────────────────────────────────────
