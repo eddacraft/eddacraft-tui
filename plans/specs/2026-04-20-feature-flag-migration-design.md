@@ -21,11 +21,14 @@ FLAGS shipped the shared model and two exemplar wirings: CLI
 `cli.licence-gate` and docs `docs.access`. Both exemplars still sit
 alongside the original ad-hoc checks — the inventory entry for each
 control is now a two-source-of-truth arrangement. The inventory also lists
-three migrate targets with no flag-backed path yet: `ANVIL_DEV=1`, the
-CLI `requires_auth()` command table, and `ALLOWED_SCOPES` in the API.
+two migrate targets with no flag-backed path yet: `ANVIL_DEV=1` and
+`ALLOWED_SCOPES` in the API. The CLI `requires_auth()` command table is
+treated here as part of the broader `cli.licence-gate` migration rather
+than as a separate inventory control.
 
-This spec fixes the approach for all five, so the remaining tasks in FLAGM
-can be executed without re-litigating the strategy.
+This spec fixes the approach for all four migrate controls, so the
+remaining tasks in FLAGM can be executed without re-litigating the
+strategy.
 
 ## Migration pattern
 
@@ -65,7 +68,7 @@ Test shape (sketched in pseudo-code):
 ```
 for each case in [enabled, disabled, default]:
     legacy = legacy_check(case.input)
-    flag   = resolve_flag(FLAG_KEY, case.context).variant == "enabled"
+    flag   = resolveFlag(FLAG_KEY, case.context).variant == "enabled"
     assert legacy == flag, "parity failure for {case.name}"
 ```
 
@@ -75,7 +78,7 @@ equivalence, not distribution.
 
 ## Rollback path
 
-Every cutover commit must be independently revertable. Rules:
+Every cutover commit must be independently revertible. Rules:
 
 - A single commit contains the cutover for exactly one control
 - The legacy check remains in-tree for one release after cutover
@@ -106,10 +109,10 @@ task may delete one, even if parity tests have been green for a release.
   (companion manifest) and 3 (targeting predicate) were rejected because
   they either duplicated the manifest for CLI-only data or overloaded the
   resolver's variant semantics to express reachability.
-- **Evaluation context:** `targeting_key` = stable session identifier
+- **Evaluation context:** `targetingKey` = stable session identifier
   (JWT `sub` when available, email today, `"cli-session"` as the
-  backwards-compatible fallback); `audience.licence_plan` and
-  `audience.account_tier` plumbed from `/api/v1/whoami`.
+  backwards-compatible fallback); `audience.licencePlan` and
+  `audience.accountTier` plumbed from `POST /api/v1/auth/verify`.
 - **Dual-evaluation window:** one release — FLAGM-002 lands the flip to
   flag authority while the legacy match remains in-tree under
   `#[cfg(test)]` as `requires_auth_legacy`. FLAGM-006 retires it.
@@ -172,8 +175,8 @@ task may delete one, even if parity tests have been green for a release.
   a docs-side snapshot loader. This is the only migrate control that is
   blocked on infrastructure — the loader must either ship as an
   edge-compatible module or the inline evaluator remains canonical.
-- **Evaluation context:** `targeting_key` = authenticated session subject;
-  `audience.account_tier` from the JWT `tier` claim; backwards-compat for
+- **Evaluation context:** `targetingKey` = authenticated session subject;
+  `audience.accountTier` from the JWT `tier` claim; backwards-compat for
   tokens minted before the claim existed must be preserved during
   dual-evaluation and re-examined at cutover (see FLAGM-004).
 - **Dual-evaluation window:** two releases — edge parity is hardest to
@@ -205,7 +208,7 @@ task may delete one, even if parity tests have been green for a release.
   / `isScopeAllowed` is in place for callers that need runtime entitlement
   decisions (admin routes, token-validation surface); the existing Zod
   schema still covers format validation up-front.
-- **Evaluation context:** `targeting_key` defaults to `"api-anonymous"` via
+- **Evaluation context:** `targetingKey` defaults to `"api-anonymous"` via
   `defaultApiEvaluationContext`. Callers with a principal should build a
   richer context (token subject as `targetingKey`, plan record as
   `audience.accountTier`, role as `audience.userRole` where the scope is
