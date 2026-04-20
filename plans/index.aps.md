@@ -234,7 +234,7 @@ when specific work is identified.
 | [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 11 | CI pipeline, all packages and crates, DIST |
+| [release-management](./modules/release-management.aps.md) | RELMGMT | 11/15 | CI pipeline, all packages and crates, DIST — **In Progress** (Phase 3 agent-driven rework) |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (9 done) | docs-site, feature modules — **In Progress** |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |

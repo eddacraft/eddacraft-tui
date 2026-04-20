@@ -7,9 +7,9 @@ See: plans/aps-rules.md
 
 # Release Management
 
-| ID      | Owner | Status    |
-| ------- | ----- | --------- |
-| RELMGMT | —     | Complete |
+| ID      | Owner | Status      |
+| ------- | ----- | ----------- |
+| RELMGMT | —     | In Progress |
 
 ## Purpose
 
@@ -323,6 +323,117 @@ release.
 
 ---
 
+## Phase 3 — Agent-Driven Release (In Progress)
+
+Phase 2 shipped a shell orchestrator + manifest + skill handoff. The handoff
+keeps failing in small ways — missing preflight bits, stale manifest, lost
+session context on retry. Making the shell path fully reliable would take
+roughly 10× more iteration than is justified for a solo-operator cadence.
+
+Phase 3 splits the surfaces along the failure line: a thin deterministic
+preflight script the operator runs directly, and a `/release` skill that
+owns every judgment step by reading live repo state each turn. The manifest
+contract is retired — state is git, GitHub, and the tracking issue.
+
+Design spec: `plans/specs/2026-04-20-relmgmt-agent-driven-release-design.md`.
+
+---
+
+### RELMGMT-012: Slim `scripts/release.sh` to preflight-only
+
+- **Status:** Ready
+- **Intent:** Rewrite the release script so it only runs deterministic
+  preflight — tests, clippy, fmt, lint, typecheck — with a summary table
+  and an exit code equal to the count of failed steps. No prompts, no git,
+  no GitHub, no manifest.
+- **Expected Outcome:** `./scripts/release.sh` is re-runnable, side-effect-
+  free, and exits 0 only when every preflight step passes. The bundled-
+  package filter from the current script is preserved; everything else
+  (issue creation, branching, tagging, workflow kickoff, manifest writing)
+  is removed.
+- **Validation:**
+  - `./scripts/release.sh` on clean `dev` exits 0 and prints the summary
+    table with all steps `PASS`.
+  - Induced failure (invalid Rust syntax in a crate) exits non-zero and
+    the summary table shows the failing step.
+  - `grep -c 'gh issue\|git tag\|git push\|manifest' scripts/release.sh`
+    returns 0.
+- **Files:** `scripts/release.sh`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** None
+
+---
+
+### RELMGMT-013: Rewrite `/release` skill to work from live state
+
+- **Status:** Ready
+- **Intent:** Remove the manifest gate and rewrite the skill to read
+  git/GitHub state each turn. Operator confirms preflight passed via
+  y/n; skill proposes version + branch strategy, opens tracking issue,
+  walks tag → workflow → verify → changelog → docs → comms → cleanup.
+  Resumable from any step by re-invoking `/release`.
+- **Expected Outcome:** `/release` proceeds with no `.release/` directory
+  present. All runtime state is read live at each step; nothing is
+  persisted locally between invocations. Tracking issue is the durable
+  record of the release.
+- **Validation:**
+  - `/release` invoked on a repo with no `.release/` directory runs
+    through the assess step without error.
+  - Skill file contains no reference to `manifest`, `.release/`, or a
+    24 h freshness gate.
+  - Dry-run of `/release` on a fake version produces a draft tracking
+    issue populated from `git log dev..main` and `CHANGELOG.md`.
+  - Mid-release re-invocation picks up from the current state by
+    inspecting tags, open issues labelled `release`, and the live
+    workflow run.
+- **Files:** `.claude/skills/release/SKILL.md`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** None (should land in same PR as RELMGMT-012)
+
+---
+
+### RELMGMT-014: Remove `.release/` directory and gitignore entry
+
+- **Status:** Ready
+- **Intent:** Retire the manifest artefact entirely. Delete the
+  `.release/` directory from the working tree (if present) and remove
+  its entry from `.gitignore` — the contract no longer exists.
+- **Expected Outcome:** `.release/` is neither tracked nor ignored. The
+  repo has no manifest contract surface left.
+- **Validation:**
+  - `test ! -e .release` (directory absent).
+  - `grep -c '^\.release' .gitignore` returns 0.
+- **Files:** `.gitignore`, `.release/` (delete)
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** RELMGMT-013 (remove the contract only after the skill
+  stops depending on it)
+
+---
+
+### RELMGMT-015: Update release runbook quick-start
+
+- **Status:** Ready
+- **Intent:** Update `docs/guides/release-runbook.md` quick-start to
+  describe the new flow: operator runs `./scripts/release.sh`, then
+  invokes `/release`. Remove manifest language; keep incident playbook
+  and known-gotchas sections as-is.
+- **Expected Outcome:** The quick-start at the top of the runbook
+  reflects the Phase 3 two-step flow. Manual reference steps below
+  remain available for when things go wrong.
+- **Validation:**
+  - `grep -q 'scripts/release.sh' docs/guides/release-runbook.md`
+  - `grep -c 'manifest\.json\|\.release/' docs/guides/release-runbook.md`
+    returns 0.
+- **Files:** `docs/guides/release-runbook.md`
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** RELMGMT-012, RELMGMT-013
+
+---
+
 ## Execution Order
 
 Phase 1 tasks (001–006) are policy/documentation and independent of Phase 2.
@@ -335,10 +446,22 @@ Phase 2 dependency graph:
 [RELMGMT-008: Gitignore]  ──────┘
 ```
 
+Phase 3 dependency graph:
+
+```
+[RELMGMT-012: Slim script] ──┐
+                              ├──→ [RELMGMT-014: Remove .release/] ──→ [RELMGMT-015: Runbook]
+[RELMGMT-013: Rewrite skill] ─┘
+```
+
+012 and 013 are independent and should land in the same PR so 015 can
+cover both at once.
+
 ## Stats
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 1 — Policy | 6 | 6/6 ratified |
 | 2 — Interactive Tooling | 5 | 5/5 complete |
-| **Total** | **11** | **11/11 done** |
+| 3 — Agent-Driven Release | 4 | 0/4 ready |
+| **Total** | **15** | **11/15 done** |
