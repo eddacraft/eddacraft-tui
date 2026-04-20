@@ -294,22 +294,17 @@ mod tests {
         ];
         let result = run_antipattern_check(&files, &config, None);
 
+        // .ts and .html are scannable extensions; .txt is not. HTML/CSS rules
+        // were retired in RSCAN-004 so only the .ts file produces warnings.
         assert_eq!(result.files_scanned, 2);
         assert!(result.patterns_checked.contains(&"AP-001".to_string()));
-        assert!(result.patterns_checked.contains(&"AP-013".to_string()));
+        assert!(result.patterns_checked.contains(&"AP-003".to_string()));
         assert!(
             result
                 .warnings
                 .warnings
                 .iter()
                 .any(|warning| warning.id == "AP-003")
-        );
-        assert!(
-            result
-                .warnings
-                .warnings
-                .iter()
-                .any(|warning| warning.id == "AP-008")
         );
 
         let _ = fs::remove_dir_all(temp_dir);

@@ -4,7 +4,7 @@
 //! realistic code snippets that represent genuine development scenarios.
 
 use anvil_checks::antipattern::{
-    AntipatternCheckConfig, ScanOptions, WarningSeverity, count_by_severity, create_warning_result,
+    AntipatternCheckConfig, WarningSeverity, count_by_severity, create_warning_result,
     get_default_patterns, get_enabled_patterns, get_pattern_ids, is_valid_pattern_id,
     run_antipattern_check, scan_file, scan_files, validate_warning_result_consistency,
 };
@@ -31,11 +31,12 @@ fn temp_dir(label: &str) -> std::path::PathBuf {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn pattern_catalogue_is_complete() {
+fn pattern_catalogue_is_non_empty() {
     let ids = get_pattern_ids();
-    assert_eq!(ids.len(), 13, "should expose all 13 patterns");
-
-    // Every ID should be valid
+    assert!(
+        !ids.is_empty(),
+        "registry-backed catalogue should expose at least one pattern"
+    );
     for id in &ids {
         assert!(is_valid_pattern_id(id), "{id} should be valid");
     }
@@ -130,143 +131,6 @@ fn detects_broad_eslint_disable() {
 }
 
 // ---------------------------------------------------------------------------
-// scan_file — HTML antipatterns (opt-in)
-// ---------------------------------------------------------------------------
-
-#[test]
-fn detects_inline_style_in_html() {
-    let options = ScanOptions {
-        patterns: None,
-        include_opt_in: true,
-    };
-    let content = r#"
-<!DOCTYPE html>
-<html>
-<body>
-  <div style="color: red; font-size: 16px;">Warning message</div>
-  <p class="notice">This is fine</p>
-</body>
-</html>
-"#;
-
-    let result = scan_file("templates/alert.html", content, Some(&options));
-    let style_warnings: Vec<_> = result
-        .warnings
-        .iter()
-        .filter(|w| w.id == "AP-008")
-        .collect();
-
-    assert_eq!(
-        style_warnings.len(),
-        1,
-        "should find exactly 1 inline style"
-    );
-}
-
-#[test]
-fn detects_inline_script_with_content() {
-    let options = ScanOptions {
-        patterns: None,
-        include_opt_in: true,
-    };
-    let content = r#"
-<html>
-<body>
-  <script>
-    document.getElementById('btn').addEventListener('click', () => {
-      alert('hello');
-    });
-  </script>
-  <script src="/js/app.js"></script>
-</body>
-</html>
-"#;
-
-    let result = scan_file("templates/page.html", content, Some(&options));
-    let script_warnings: Vec<_> = result
-        .warnings
-        .iter()
-        .filter(|w| w.id == "AP-009")
-        .collect();
-
-    assert_eq!(
-        script_warnings.len(),
-        1,
-        "should find inline script block but not the external reference"
-    );
-}
-
-#[test]
-fn detects_deprecated_html_tags() {
-    let options = ScanOptions {
-        patterns: Some(vec!["AP-011".to_string()]),
-        include_opt_in: true,
-    };
-    let content = r#"
-<html>
-<body>
-  <center>Centred content</center>
-  <font color="red">Legacy text</font>
-  <marquee>Scrolling text</marquee>
-</body>
-</html>
-"#;
-
-    let result = scan_file("templates/legacy.html", content, Some(&options));
-    assert_eq!(
-        result.warnings.len(),
-        3,
-        "should find center, font, and marquee tags"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// scan_file — CSS antipatterns (opt-in)
-// ---------------------------------------------------------------------------
-
-#[test]
-fn detects_important_in_css() {
-    let options = ScanOptions {
-        patterns: Some(vec!["AP-012".to_string()]),
-        include_opt_in: true,
-    };
-    let content = r"
-.header {
-  background-color: #1a1a2e !important;
-  color: white;
-}
-.override {
-  margin: 0 !important;
-}
-";
-
-    let result = scan_file("styles/layout.css", content, Some(&options));
-    assert_eq!(
-        result.warnings.len(),
-        2,
-        "should find two !important usages"
-    );
-}
-
-#[test]
-fn detects_css_import() {
-    let options = ScanOptions {
-        patterns: Some(vec!["AP-013".to_string()]),
-        include_opt_in: true,
-    };
-    let content = "@import url('https://fonts.googleapis.com/css2?family=Inter');\n\
-                   @import 'variables.css';\n\
-                   body { font-family: 'Inter', sans-serif; }\n";
-
-    let result = scan_file("styles/main.css", content, Some(&options));
-    assert_eq!(
-        result.warnings.len(),
-        2,
-        "should find two @import statements"
-    );
-}
-
-// ---------------------------------------------------------------------------
 // Extension filtering
 // ---------------------------------------------------------------------------
 
@@ -284,21 +148,6 @@ fn typescript_patterns_do_not_fire_on_html_files() {
     assert!(
         ts_warnings.is_empty(),
         "TypeScript patterns should not fire on .html files"
-    );
-}
-
-#[test]
-fn html_patterns_do_not_fire_on_typescript_files() {
-    let options = ScanOptions {
-        patterns: Some(vec!["AP-008".to_string()]),
-        include_opt_in: true,
-    };
-    let content = r#"const template = '<div style="color: red">hello</div>';"#;
-
-    let result = scan_file("src/render.ts", content, Some(&options));
-    assert!(
-        result.warnings.is_empty(),
-        "HTML patterns should not fire on .ts files"
     );
 }
 
@@ -520,8 +369,6 @@ try { x(); } catch (e) {}\n";
 fn realistic_project_scan_finds_expected_issues() {
     let dir = temp_dir("project");
     let _ = std::fs::create_dir_all(dir.join("src"));
-    let _ = std::fs::create_dir_all(dir.join("templates"));
-    let _ = std::fs::create_dir_all(dir.join("styles"));
 
     // TypeScript with issues
     std::fs::write(
@@ -539,20 +386,6 @@ fn realistic_project_scan_finds_expected_issues() {
     )
     .unwrap();
 
-    // HTML with issues
-    std::fs::write(
-        dir.join("templates/page.html"),
-        "<div style=\"color:red\"><font>Legacy</font></div>",
-    )
-    .unwrap();
-
-    // CSS with issues
-    std::fs::write(
-        dir.join("styles/app.css"),
-        ".btn { color: blue !important; }",
-    )
-    .unwrap();
-
     let config = AntipatternCheckConfig {
         include_opt_in: true,
         ..AntipatternCheckConfig::default()
@@ -560,28 +393,25 @@ fn realistic_project_scan_finds_expected_issues() {
 
     let handler = dir.join("src/handler.ts").to_string_lossy().to_string();
     let utils = dir.join("src/utils.ts").to_string_lossy().to_string();
-    let page = dir
-        .join("templates/page.html")
-        .to_string_lossy()
-        .to_string();
-    let css = dir.join("styles/app.css").to_string_lossy().to_string();
-    let files = [
-        handler.as_str(),
-        utils.as_str(),
-        page.as_str(),
-        css.as_str(),
-    ];
+    let files = [handler.as_str(), utils.as_str()];
 
     let result = run_antipattern_check(&files, &config, None);
 
-    assert_eq!(result.files_scanned, 4);
+    assert_eq!(result.files_scanned, 2);
     // handler.ts: any (AP-003) + empty catch (AP-006)
-    // page.html: inline style (AP-008) + deprecated font (AP-011)
-    // app.css: !important (AP-012)
+    let ids: Vec<&str> = result
+        .warnings
+        .warnings
+        .iter()
+        .map(|w| w.id.as_str())
+        .collect();
     assert!(
-        result.warnings.warnings.len() >= 5,
-        "should find at least 5 warnings across all files, got {}",
-        result.warnings.warnings.len()
+        ids.contains(&"AP-003"),
+        "expected AP-003 warning, got {ids:?}"
+    );
+    assert!(
+        ids.contains(&"AP-006"),
+        "expected AP-006 warning, got {ids:?}"
     );
 
     let _ = std::fs::remove_dir_all(dir);

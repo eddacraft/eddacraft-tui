@@ -508,15 +508,14 @@ mod tests {
     }
 
     #[test]
-    fn legacy_hardcoded_antipattern_has_no_family_provenance() {
-        let legacy = crate::antipattern::patterns::get_pattern("AP-001").expect("AP-001 exists");
-        assert!(
-            legacy.family.is_none(),
-            "legacy hardcoded AP-001 must not carry family provenance until RSCAN-004 retires it"
-        );
-        assert!(legacy.definition_ref.is_none());
-        assert!(legacy.spectrum_position.is_none());
-        assert!(legacy.targets.is_none());
+    fn registry_backed_antipattern_carries_family_provenance() {
+        // Post-RSCAN-004 sanity check: every pattern in the scanner catalogue
+        // now comes from the registry, so provenance must be populated.
+        let pattern = crate::antipattern::patterns::get_pattern("AP-001").expect("AP-001 exists");
+        assert!(pattern.family.is_some(), "AP-001 must carry family");
+        assert!(pattern.definition_ref.is_some());
+        assert!(pattern.spectrum_position.is_some());
+        assert!(pattern.targets.is_some());
     }
 
     #[test]

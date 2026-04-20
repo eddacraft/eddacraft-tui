@@ -209,67 +209,47 @@ fn suppression_for_line(
 }
 
 fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
-    match pattern.id.as_str() {
-        "AP-001" => PreparedPattern {
+    // AP-001's registry regex uses a PCRE negative-lookahead
+    // (`(?!-next-line|-line)`) that Rust's RE2-based `regex` crate cannot
+    // compile. Split it into two lookahead-free regexes and OR the matches at
+    // call time.
+    if pattern.id == "AP-001" {
+        return PreparedPattern {
             pattern,
             primary_regex: Regex::new(r"/\*\s*eslint-disable\s*\*/").ok(),
             secondary_regex: Regex::new(r"//\s*eslint-disable\s*$").ok(),
-        },
-        "AP-009" => PreparedPattern {
-            pattern,
-            primary_regex: Regex::new(r"<script(?:\s[^>]*)?>").ok(),
-            secondary_regex: Regex::new(r"^\s*</script>").ok(),
-        },
-        _ => PreparedPattern {
-            primary_regex: Regex::new(&pattern.regex).ok(),
-            secondary_regex: None,
-            pattern,
-        },
+        };
+    }
+
+    PreparedPattern {
+        primary_regex: Regex::new(&pattern.regex).ok(),
+        secondary_regex: None,
+        pattern,
     }
 }
 
 fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
-    match prepared.pattern.id.as_str() {
-        "AP-001" => {
-            let mut columns = Vec::new();
-            if let Some(regex) = &prepared.primary_regex {
-                columns.extend(regex.find_iter(line).map(|matched| matched.start()));
-            }
-            if let Some(regex) = &prepared.secondary_regex {
-                columns.extend(regex.find_iter(line).map(|matched| matched.start()));
-            }
-            columns.sort_unstable();
-            columns
+    if prepared.pattern.id == "AP-001" {
+        let mut columns = Vec::new();
+        if let Some(regex) = &prepared.primary_regex {
+            columns.extend(regex.find_iter(line).map(|matched| matched.start()));
         }
-        "AP-009" => {
-            let mut columns = Vec::new();
-            let Some(script_regex) = &prepared.primary_regex else {
-                return columns;
-            };
-
-            for script_match in script_regex.find_iter(line) {
-                let trailing = &line[script_match.end()..];
-                let is_empty_script = prepared
-                    .secondary_regex
-                    .as_ref()
-                    .is_some_and(|close_regex| close_regex.is_match(trailing));
-                if !is_empty_script {
-                    columns.push(script_match.start());
-                }
-            }
-
-            columns
+        if let Some(regex) = &prepared.secondary_regex {
+            columns.extend(regex.find_iter(line).map(|matched| matched.start()));
         }
-        _ => prepared
-            .primary_regex
-            .as_ref()
-            .map_or_else(Vec::new, |regex| {
-                regex
-                    .find_iter(line)
-                    .map(|matched| matched.start())
-                    .collect()
-            }),
+        columns.sort_unstable();
+        return columns;
     }
+
+    prepared
+        .primary_regex
+        .as_ref()
+        .map_or_else(Vec::new, |regex| {
+            regex
+                .find_iter(line)
+                .map(|matched| matched.start())
+                .collect()
+        })
 }
 
 fn pattern_runs_on_artifact(pattern: &AntiPattern, kind: ArtifactKind) -> bool {
@@ -439,19 +419,6 @@ mod tests {
     }
 
     #[test]
-    fn html_patterns_only_scan_html_files() {
-        let options = ScanOptions {
-            patterns: Some(vec!["AP-008".to_string()]),
-            include_opt_in: true,
-        };
-        let html_result = scan_file("templates/page.html", "<div style=\"x\">", Some(&options));
-        let ts_result = scan_file("src/page.ts", "<div style=\"x\">", Some(&options));
-
-        assert_eq!(html_result.warnings.len(), 1);
-        assert!(ts_result.warnings.is_empty());
-    }
-
-    #[test]
     fn allowlist_skips_paths_matching_glob_rules() {
         let result = scan_file("src/foo/__tests__/sample.ts", "const x: any = 1;", None);
         assert!(result.warnings.is_empty());
@@ -524,19 +491,6 @@ mod tests {
     }
 
     #[test]
-    fn handles_ap009_negative_lookahead_semantics() {
-        let options = ScanOptions {
-            patterns: Some(vec!["AP-009".to_string()]),
-            include_opt_in: true,
-        };
-        let content = "<script></script>\n<script>let x = 1;</script>";
-        let result = scan_file("templates/page.html", content, Some(&options));
-
-        assert_eq!(result.warnings.len(), 1);
-        assert_eq!(result.warnings[0].location.line, 2);
-    }
-
-    #[test]
     fn warning_carries_family_provenance_from_pattern() {
         use crate::antipattern::registry_loader::{
             LoadRegistryOptions, load_registry_patterns, reset_registry_cache,
@@ -570,10 +524,32 @@ mod tests {
     }
 
     #[test]
-    fn warning_from_legacy_pattern_has_no_family_provenance() {
-        let legacy =
-            crate::antipattern::patterns::get_pattern("AP-001").expect("legacy AP-001 available");
-        let warning = super::create_warning_from_match(&legacy, "src/app.ts", 1, 0, None);
+    fn warning_from_pattern_without_provenance_carries_none() {
+        use crate::antipattern::types::{AntiPattern, AntiPatternCategory, Confidence};
+
+        let bare = AntiPattern {
+            id: "TST-001".to_string(),
+            name: "Synthetic".to_string(),
+            category: AntiPatternCategory::CodeQuality,
+            severity: crate::antipattern::types::WarningSeverity::Info,
+            confidence: Confidence::Low,
+            regex: "foo".to_string(),
+            title: "Synthetic".to_string(),
+            explanation: String::new(),
+            suggestion: String::new(),
+            nudge: None,
+            file_extensions: None,
+            all_file_types: true,
+            allowlist: Vec::new(),
+            threshold: None,
+            enabled: true,
+            opt_in: false,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+            targets: None,
+        };
+        let warning = super::create_warning_from_match(&bare, "src/app.ts", 1, 0, None);
         assert!(warning.family.is_none());
         assert!(warning.definition_ref.is_none());
         assert!(warning.spectrum_position.is_none());
@@ -602,29 +578,50 @@ mod tests {
     }
 
     #[test]
-    fn scan_artifact_skips_legacy_pattern_on_non_source() {
-        use super::{Artifact, scan_artifact};
-        use crate::antipattern::types::ArtifactKind;
-
-        // AP-001 is a legacy (hardcoded) pattern — no targets — so it must
-        // not fire against a PR description regardless of content.
-        let options = ScanOptions {
-            patterns: Some(vec!["AP-001".to_string()]),
-            include_opt_in: true,
-        };
-        let artifact = Artifact {
-            kind: ArtifactKind::PrDescription,
-            reference: "PR#42".to_string(),
-            content: "/* eslint-disable */".to_string(),
+    fn pattern_with_no_targets_defaults_to_source_only() {
+        use crate::antipattern::types::{
+            AntiPattern, AntiPatternCategory, ArtifactKind, Confidence, WarningSeverity,
         };
 
-        let result = scan_artifact(&artifact, Some(&options));
-        assert!(
-            result.warnings.is_empty(),
-            "legacy pattern fired on PR description: {:?}",
-            result.warnings
-        );
-        assert_eq!(result.artifact_type, ArtifactKind::PrDescription);
+        let untargeted = AntiPattern {
+            id: "TST-002".to_string(),
+            name: "No targets".to_string(),
+            category: AntiPatternCategory::CodeQuality,
+            severity: WarningSeverity::Info,
+            confidence: Confidence::Low,
+            regex: "x".to_string(),
+            title: "No targets".to_string(),
+            explanation: String::new(),
+            suggestion: String::new(),
+            nudge: None,
+            file_extensions: None,
+            all_file_types: true,
+            allowlist: Vec::new(),
+            threshold: None,
+            enabled: true,
+            opt_in: false,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+            targets: None,
+        };
+
+        assert!(super::pattern_runs_on_artifact(
+            &untargeted,
+            ArtifactKind::Source
+        ));
+        assert!(!super::pattern_runs_on_artifact(
+            &untargeted,
+            ArtifactKind::PrDescription
+        ));
+        assert!(!super::pattern_runs_on_artifact(
+            &untargeted,
+            ArtifactKind::CommitMessage
+        ));
+        assert!(!super::pattern_runs_on_artifact(
+            &untargeted,
+            ArtifactKind::AgentOutput
+        ));
     }
 
     #[test]

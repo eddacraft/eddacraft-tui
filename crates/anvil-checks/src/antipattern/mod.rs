@@ -12,8 +12,8 @@ pub use registry_loader::{
 
 pub use check::run_antipattern_check;
 pub use patterns::{
-    PATTERNS, get_default_patterns, get_enabled_patterns, get_pattern, get_pattern_ids,
-    is_valid_pattern_id,
+    all_patterns, get_default_patterns, get_enabled_patterns, get_pattern, get_pattern_ids,
+    is_valid_pattern_id, patterns_count,
 };
 pub use scanner::{
     Artifact, ScanOptions, ScanResult, scan_artifact, scan_artifacts, scan_file, scan_files,

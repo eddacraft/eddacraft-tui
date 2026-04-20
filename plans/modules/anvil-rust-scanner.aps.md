@@ -141,7 +141,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-001, RSCAN-003
 - **Validation:** `cargo test -p anvil-checks`; `anvil check` on a sample project fires only registry-sourced rules (no AP-008..AP-013)
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-005: Parallel scan loop
 
@@ -268,3 +268,22 @@ non-negotiable reason the Rust scanner is the authoritative one.
   new unit tests pin both the positive (registry-sourced) and negative
   (legacy) provenance behaviour. 154 `anvil-checks` tests pass; clippy
   clean; full workspace build green.
+- **2026-04-21 — RSCAN-004 landed (M2 complete).** Hardcoded
+  `PATTERN_DEFS` array deleted from
+  `crates/anvil-checks/src/antipattern/patterns.rs`. The module is now
+  a thin `LazyLock<Vec<AntiPattern>>` wrapper over
+  `load_registry_patterns(&LoadRegistryOptions::default())`, so the
+  scanner catalogue mirrors the compiled `.anvil` registry exactly —
+  18 patterns (AP-001..007, DD-001..004, GS-001, RL-001..006)
+  replacing the old 13. Retired HTML/CSS rules AP-008..AP-013 drop
+  out of the CLI; their tests in the scanner unit suite, `check.rs`,
+  and `tests/antipattern_scanning.rs` are pruned or reshaped to cover
+  synthetic patterns where the coverage was about behaviour (e.g. the
+  `targets: None → source-only` fallback). AP-009's scanner special
+  case is removed; AP-001's split-regex workaround stays in place
+  because the registry keeps its negative-lookahead. `get_pattern` /
+  `get_enabled_patterns` / `get_default_patterns` /
+  `get_pattern_ids` / `is_valid_pattern_id` keep their public shape;
+  a new `patterns_count()` helper replaces the stale `PATTERNS: usize
+  = 13` constant. 156 `anvil-checks` + 572 `anvil-cli` tests green;
+  clippy clean at `-D warnings`.
