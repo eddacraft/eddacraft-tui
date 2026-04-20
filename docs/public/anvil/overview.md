@@ -52,9 +52,9 @@ anvil watch
 When files change, anvil runs quality gates:
 
 - **Architecture boundaries** — catches new dependency edges crossing contexts
-- **Anti-pattern detection** — 18 registry-driven rules across 5 families
-  (15 default, 3 opt-in), scanned in parallel by the Rust engine (tens of
-  artifacts at once)
+- **Anti-pattern detection** — 18 registry-driven rules across 5 families (15
+  default, 3 opt-in), scanned in parallel by the Rust engine (tens of artifacts
+  at once)
 - **Policy evaluation** — custom rules via OPA/Rego
 - **Secret detection** — pattern + entropy analysis
 
@@ -88,11 +88,11 @@ failed, and when.
 
 ## Anti-Patterns Detected
 
-Anvil ships 18 rules organised into five **families**, each representing
-a shared meta-issue:
+Anvil ships 18 rules organised into five **families**, each representing a
+shared meta-issue:
 
-- **guardrail-suppression** — disabling tools that were there to help
-  (AP-001, AP-002, AP-004, AP-005, GS-001)
+- **guardrail-suppression** — disabling tools that were there to help (AP-001,
+  AP-002, AP-004, AP-005, GS-001)
 - **type-system-evasion** — escape hatches around the type system (AP-003)
 - **error-visibility** — hiding failures that should surface (AP-006, AP-007)
 - **responsibility-laundering** — shifting blame or deferring review
@@ -130,8 +130,8 @@ Enable these in your `.anvilrc` when relevant to your project.
 | AP-007 | error-visibility      | Console statement in production | info     |
 
 > HTML and CSS anti-patterns (formerly AP-008..AP-013) were retired because
-> dedicated linters — HTMLHint, Stylelint — cover that territory better.
-> See `docs/vision/anvil-scope-guard.md` for the scope guardrail.
+> dedicated linters — HTMLHint, Stylelint — cover that territory better. See
+> `docs/vision/anvil-scope-guard.md` for the scope guardrail.
 
 ## What anvil Doesn't Do
 

@@ -376,27 +376,26 @@ semantic graph. They operate on file content directly.
 
 ### Completed Ports
 
-| ID       | Check          | TS Latency | Rust Latency | Speedup | Patterns                  |
-| -------- | -------------- | ---------- | ------------ | ------- | ------------------------- |
-| RENG-001 | Secret scan    | 200-800ms  | 5-20ms       | **40x** | Entropy + regex patterns  |
+| ID       | Check          | TS Latency | Rust Latency | Speedup | Patterns                    |
+| -------- | -------------- | ---------- | ------------ | ------- | --------------------------- |
+| RENG-001 | Secret scan    | 200-800ms  | 5-20ms       | **40x** | Entropy + regex patterns    |
 | RENG-002 | Anti-pattern   | 500-2000ms | 20-100ms     | **25x** | 18 registry rules (ADR-026) |
-| RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs) |
-| RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness         |
+| RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs)   |
+| RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness           |
 
 > The Rust anti-pattern scanner is authoritative per [ADR-026]. It loads
 > `patterns/compiled/registry.json` on first use (cached via `LazyLock`) and
 > scans artifacts in parallel with `rayon::par_iter`, achieving parallel
-> throughput scaling on multi-artifact workloads (watch fan-out, multi-PR
-> gate checks, full-repo CI scans). The TypeScript scanner in
-> `packages/anvil/core/src/antipattern/` is still used from in-process
-> surfaces (VSCode extension, MCP server); both engines consume the same
-> registry and are held in partial parity by `tests/scanner-parity/` (see
-> RSCAN-007). Known engine divergences — lookaround patterns the Rust
-> `regex` crate cannot compile, and the `flags: "i"` case-insensitive flag
-> dropped by the Rust loader — are enumerated in
-> `tests/scanner-parity/README.md` and tracked as follow-ups to ADR-026.
-> The TS scanner will retire once a napi-rs / WASM binding makes the Rust
-> engine callable from Node surfaces (future module, out of scope here).
+> throughput scaling on multi-artifact workloads (watch fan-out, multi-PR gate
+> checks, full-repo CI scans). The TypeScript scanner in
+> `packages/anvil/core/src/antipattern/` is still used from in-process surfaces
+> (VSCode extension, MCP server); both engines consume the same registry and are
+> held in partial parity by `tests/scanner-parity/` (see RSCAN-007). Known
+> engine divergences — lookaround patterns the Rust `regex` crate cannot
+> compile, and the `flags: "i"` case-insensitive flag dropped by the Rust loader
+> — are enumerated in `tests/scanner-parity/README.md` and tracked as follow-ups
+> to ADR-026. The TS scanner will retire once a napi-rs / WASM binding makes the
+> Rust engine callable from Node surfaces (future module, out of scope here).
 >
 > [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
 

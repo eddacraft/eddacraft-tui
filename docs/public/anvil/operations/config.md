@@ -215,43 +215,42 @@ Validate with `anvil architecture validate` and inspect with
 
 ## Anti-Patterns
 
-Anti-pattern detection is configured per-pattern. There are 18 built-in
-patterns grouped into five families: **guardrail-suppression** (AP-001,
-AP-002, AP-004, AP-005, GS-001), **type-system-evasion** (AP-003),
-**error-visibility** (AP-006, AP-007), **responsibility-laundering**
-(RL-001..RL-006), and **deferred-debt** (DD-001..DD-004). 15 are enabled
-by default; 3 are opt-in. Rules are sourced from the compiled `.anvil`
-registry at `patterns/compiled/registry.json`.
+Anti-pattern detection is configured per-pattern. There are 18 built-in patterns
+grouped into five families: **guardrail-suppression** (AP-001, AP-002, AP-004,
+AP-005, GS-001), **type-system-evasion** (AP-003), **error-visibility** (AP-006,
+AP-007), **responsibility-laundering** (RL-001..RL-006), and **deferred-debt**
+(DD-001..DD-004). 15 are enabled by default; 3 are opt-in. Rules are sourced
+from the compiled `.anvil` registry at `patterns/compiled/registry.json`.
 
 ### Default Patterns (always active)
 
-| Pattern  | Family                     | Description                                | Severity |
-| -------- | -------------------------- | ------------------------------------------ | -------- |
-| `AP-001` | guardrail-suppression      | Broad `eslint-disable` added               | warning  |
-| `AP-003` | type-system-evasion        | Explicit `any` type usage                  | warning  |
-| `AP-004` | guardrail-suppression      | `@ts-ignore` suppresses all errors         | warning  |
-| `AP-006` | error-visibility           | Empty catch block swallows errors          | warning  |
-| `GS-001` | guardrail-suppression      | Non-null assertion overrides nullability   | warning  |
-| `RL-001` | responsibility-laundering  | Unverified "pre-existing" claim            | warning  |
-| `RL-002` | responsibility-laundering  | Phantom follow-up tracking                 | warning  |
-| `RL-003` | responsibility-laundering  | Blanket unrelated dismissal                | error    |
-| `RL-004` | responsibility-laundering  | Unverified "not touched" claim             | warning  |
-| `RL-005` | responsibility-laundering  | Deferred without artifact                  | warning  |
-| `RL-006` | responsibility-laundering  | Reply disguised as fix                     | info     |
-| `DD-001` | deferred-debt              | TODO/FIXME without tracking reference      | warning  |
-| `DD-002` | deferred-debt              | HACK comment without tracking reference    | warning  |
-| `DD-003` | deferred-debt              | Temporary code without expiry              | info     |
-| `DD-004` | deferred-debt              | Completion claim with outstanding TODOs    | warning  |
+| Pattern  | Family                    | Description                              | Severity |
+| -------- | ------------------------- | ---------------------------------------- | -------- |
+| `AP-001` | guardrail-suppression     | Broad `eslint-disable` added             | warning  |
+| `AP-003` | type-system-evasion       | Explicit `any` type usage                | warning  |
+| `AP-004` | guardrail-suppression     | `@ts-ignore` suppresses all errors       | warning  |
+| `AP-006` | error-visibility          | Empty catch block swallows errors        | warning  |
+| `GS-001` | guardrail-suppression     | Non-null assertion overrides nullability | warning  |
+| `RL-001` | responsibility-laundering | Unverified "pre-existing" claim          | warning  |
+| `RL-002` | responsibility-laundering | Phantom follow-up tracking               | warning  |
+| `RL-003` | responsibility-laundering | Blanket unrelated dismissal              | error    |
+| `RL-004` | responsibility-laundering | Unverified "not touched" claim           | warning  |
+| `RL-005` | responsibility-laundering | Deferred without artifact                | warning  |
+| `RL-006` | responsibility-laundering | Reply disguised as fix                   | info     |
+| `DD-001` | deferred-debt             | TODO/FIXME without tracking reference    | warning  |
+| `DD-002` | deferred-debt             | HACK comment without tracking reference  | warning  |
+| `DD-003` | deferred-debt             | Temporary code without expiry            | info     |
+| `DD-004` | deferred-debt             | Completion claim with outstanding TODOs  | warning  |
 
 ### Opt-in Patterns
 
 Enable with `anvil check --include-opt-in`:
 
-| Pattern  | Family                | Description                    | Severity |
-| -------- | --------------------- | ------------------------------ | -------- |
-| `AP-002` | guardrail-suppression | Rule-specific `eslint-disable` | info     |
-| `AP-005` | guardrail-suppression | `@ts-expect-error` used        | info     |
-| `AP-007` | error-visibility      | Console statement in production | info    |
+| Pattern  | Family                | Description                     | Severity |
+| -------- | --------------------- | ------------------------------- | -------- |
+| `AP-002` | guardrail-suppression | Rule-specific `eslint-disable`  | info     |
+| `AP-005` | guardrail-suppression | `@ts-expect-error` used         | info     |
+| `AP-007` | error-visibility      | Console statement in production | info     |
 
 ## Secret Detection
 
