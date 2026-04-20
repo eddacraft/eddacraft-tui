@@ -207,7 +207,7 @@ Change status to **Ready** when:
   resolve today, against the same definitions, byte-for-byte.
 - **Scope:** `apps/docs-site/lib/feature-flags.ts`, `apps/docs-site/middleware.ts`,
   `apps/anvil-api/src/lib/feature-flags.ts`, `apps/anvil-api/src/routes/admin.ts`,
-  `apps/anvil-api/src/lib/admin-schemas.ts`
+  `apps/anvil-api/src/routes/admin-schemas.ts`
 - **Non-scope:** Rust side
 - **Dependencies:** FLAGCAT-002
 - **Validation:** `pnpm nx run-many -t test --projects=docs-site,anvil-api,runtime`
@@ -229,7 +229,7 @@ Change status to **Ready** when:
 - **Non-scope:** Flipping the CLI to consume the generated constants (next
   task); replacing the custom resolver with the `open-feature` crate
 - **Dependencies:** FLAGCAT-001
-- **Validation:** `cargo test -p anvil-kernel-types feature_flags_catalogue`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types feature_flags_catalogue`
 - **Confidence:** low (build.rs path resolution + workspace layout is the
   riskiest piece of the whole module)
 
