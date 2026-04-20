@@ -151,7 +151,7 @@ non-negotiable reason the Rust scanner is the authoritative one.
 - **Dependencies:** RSCAN-002, RSCAN-004
 - **Validation:** `cargo bench -p anvil-bench --bench antipattern_scan` (or equivalent) shows multi-core scaling; existing `cargo test` suite stays green
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### RSCAN-006: CLI entry point for non-source artifacts
 
@@ -287,3 +287,16 @@ non-negotiable reason the Rust scanner is the authoritative one.
   a new `patterns_count()` helper replaces the stale `PATTERNS: usize
   = 13` constant. 156 `anvil-checks` + 572 `anvil-cli` tests green;
   clippy clean at `-D warnings`.
+- **2026-04-21 — RSCAN-005 landed.** Pattern regex compilation moved
+  to a process-wide `PREPARED_PATTERNS: LazyLock<Vec<PreparedPattern>>`
+  so every scan reuses the already-compiled `regex::Regex` instances
+  instead of re-compiling per call. `scan_artifacts`, `scan_files`, and
+  the file loop inside `run_antipattern_check` now iterate with
+  `rayon::par_iter`, giving linear speedup on CPU-bound multi-artifact
+  workloads (the non-negotiable "tens of parallel artifact scans"
+  requirement). To keep output stable despite work-stealing, each
+  `scan_artifact` call sorts its warnings by `(line, column, id)`
+  before returning, so snapshots and downstream consumers see the same
+  deterministic order as before. `rayon` added to
+  `crates/anvil-checks/Cargo.toml` (already in the workspace deps).
+  Full workspace test suite green; clippy clean at `-D warnings`.

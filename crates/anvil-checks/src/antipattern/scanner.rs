@@ -1,12 +1,22 @@
+use std::sync::LazyLock;
+
+use rayon::prelude::*;
 use regex::Regex;
 
-use crate::antipattern::patterns::{get_default_patterns, get_enabled_patterns, get_pattern};
+use crate::antipattern::patterns::all_patterns;
 use crate::antipattern::types::{
     AntiPattern, ArtifactKind, Location, Suppression, SuppressionScope, Warning, WarningCategory,
     create_warning_fingerprint,
 };
 
 const LEGACY_JS_TS_EXTENSIONS: [&str; 6] = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
+static LEGACY_JS_TS_EXTENSIONS_OWNED: LazyLock<Vec<String>> = LazyLock::new(|| {
+    LEGACY_JS_TS_EXTENSIONS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+});
 
 #[derive(Debug, Clone, Default)]
 pub struct ScanOptions {
@@ -45,28 +55,36 @@ pub struct ScanResult {
     pub patterns_checked: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct PreparedPattern {
     pattern: AntiPattern,
     primary_regex: Option<Regex>,
     secondary_regex: Option<Regex>,
 }
 
-fn get_patterns_to_check(options: &ScanOptions) -> Vec<AntiPattern> {
+/// Prepare every registry pattern exactly once per process. Regex compilation
+/// is the dominant cost per scan; moving it behind a `LazyLock` means
+/// subsequent scans pay only the match cost. `Regex` is `Send + Sync`, so the
+/// cache can be shared across rayon worker threads without wrapping.
+static PREPARED_PATTERNS: LazyLock<Vec<PreparedPattern>> =
+    LazyLock::new(|| all_patterns().into_iter().map(prepare_pattern).collect());
+
+fn prepared_patterns_for(options: &ScanOptions) -> Vec<&'static PreparedPattern> {
     if let Some(pattern_ids) = &options.patterns
         && !pattern_ids.is_empty()
     {
-        return pattern_ids
+        return PREPARED_PATTERNS
             .iter()
-            .filter_map(|id| get_pattern(id))
+            .filter(|prepared| pattern_ids.iter().any(|id| id == &prepared.pattern.id))
             .collect();
     }
 
-    if options.include_opt_in {
-        get_enabled_patterns()
-    } else {
-        get_default_patterns()
-    }
+    PREPARED_PATTERNS
+        .iter()
+        .filter(|prepared| {
+            prepared.pattern.enabled && (options.include_opt_in || !prepared.pattern.opt_in)
+        })
+        .collect()
 }
 
 fn matches_file_extension(file_path: &str, file_extensions: &[String]) -> bool {
@@ -277,11 +295,7 @@ fn pattern_runs_on_artifact(pattern: &AntiPattern, kind: ArtifactKind) -> bool {
 #[must_use]
 pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> ScanResult {
     let scan_options = options.cloned().unwrap_or_default();
-    let patterns = get_patterns_to_check(&scan_options);
-    let prepared_patterns = patterns
-        .into_iter()
-        .map(prepare_pattern)
-        .collect::<Vec<_>>();
+    let prepared_patterns = prepared_patterns_for(&scan_options);
     let lines = artifact.content.split('\n').collect::<Vec<_>>();
     let is_source = artifact.kind == ArtifactKind::Source;
     let mut warnings = Vec::new();
@@ -294,19 +308,14 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
         if is_source {
             let effective_extensions =
                 if let Some(pattern_extensions) = &prepared.pattern.file_extensions {
-                    Some(pattern_extensions.clone())
+                    Some(pattern_extensions.as_slice())
                 } else if prepared.pattern.all_file_types {
                     None
                 } else {
-                    Some(
-                        LEGACY_JS_TS_EXTENSIONS
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect(),
-                    )
+                    Some(LEGACY_JS_TS_EXTENSIONS_OWNED.as_slice())
                 };
 
-            if let Some(extensions) = &effective_extensions
+            if let Some(extensions) = effective_extensions
                 && !matches_file_extension(&artifact.reference, extensions)
             {
                 continue;
@@ -336,6 +345,16 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
         }
     }
 
+    // Keep output deterministic — downstream consumers (JSON serialisers,
+    // snapshot tests, the TUI results pane) rely on a stable order.
+    warnings.sort_by(|a, b| {
+        a.location
+            .line
+            .cmp(&b.location.line)
+            .then_with(|| a.location.column.cmp(&b.location.column))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+
     ScanResult {
         file: artifact.reference.clone(),
         artifact_type: artifact.kind,
@@ -355,10 +374,15 @@ pub fn scan_file(file_path: &str, content: &str, options: Option<&ScanOptions>) 
 }
 
 /// Scan multiple artifacts for anti-patterns.
+///
+/// Artifacts are scanned concurrently on the rayon thread pool. The per-pattern
+/// regex cache (`PREPARED_PATTERNS`) is `Send + Sync` and shared across worker
+/// threads, so each artifact pays only its own matching cost. Output ordering
+/// matches the input slice.
 #[must_use]
 pub fn scan_artifacts(artifacts: &[Artifact], options: Option<&ScanOptions>) -> Vec<ScanResult> {
     artifacts
-        .iter()
+        .par_iter()
         .map(|artifact| scan_artifact(artifact, options))
         .collect()
 }
@@ -366,7 +390,7 @@ pub fn scan_artifacts(artifacts: &[Artifact], options: Option<&ScanOptions>) -> 
 #[must_use]
 pub fn scan_files(files: &[(&str, &str)], options: Option<&ScanOptions>) -> Vec<ScanResult> {
     files
-        .iter()
+        .par_iter()
         .map(|(path, content)| scan_file(path, content, options))
         .collect()
 }
