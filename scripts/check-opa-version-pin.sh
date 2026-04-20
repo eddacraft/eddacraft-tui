@@ -41,7 +41,10 @@ AGENTS.md
 scripts/check-opa-version-pin.sh
 "
 
-hits="$(git grep -l -F "$VERSION" -- \
+# --no-recurse-submodules: if a submodule is added later, don't descend into
+#   its working tree (paths inside submodules wouldn't match the allowlist
+#   and would cause spurious failures).
+hits="$(git grep --no-recurse-submodules -l -F "$VERSION" -- \
   ':(exclude)plans' \
   ':(exclude)CHANGELOG.md' \
   ':(exclude)**/*.lock' \

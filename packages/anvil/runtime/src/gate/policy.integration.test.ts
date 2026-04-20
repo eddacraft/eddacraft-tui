@@ -6,7 +6,7 @@
  * binary is available so local dev without OPA still passes.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -95,14 +95,23 @@ describe.skipIf(!opaPath)('Gate pipeline + real OPA (TCOV-012)', () => {
   let copiedFixtures: string[];
 
   beforeAll(() => {
-    vi.stubEnv('ANVIL_OPA_PATH', opaPath as string);
     workspace = mkdtempSync(join(tmpdir(), 'anvil-gate-opa-'));
     copiedFixtures = copyFixturesInto(join(workspace, '.anvil', 'policies'));
   });
 
   afterAll(async () => {
-    vi.unstubAllEnvs();
     await safeCleanup(workspace);
+  });
+
+  // Per-test stub scope: if this file ever grows a test that wants ANVIL_OPA_PATH
+  // unset, it won't inherit a describe-scoped stub, and parallel workers sharing
+  // the process can't observe our override between tests either.
+  beforeEach(() => {
+    vi.stubEnv('ANVIL_OPA_PATH', opaPath as string);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('does not copy *_test.rego fixtures as policies', () => {

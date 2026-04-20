@@ -866,12 +866,30 @@ fn run_check_policy(
             score: 100.0,
             message: "OPA not installed. Skipping policy evaluation.".to_string(),
         },
-        Err(e) => CheckResult {
-            name: "policy".to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Policy evaluation failed: {e}"),
-        },
+        Err(e) => {
+            let raw = e.to_string();
+            // UnexpectedShape errors from the OPA executor indicate the JSON
+            // output didn't match the schema we parse. In practice the most
+            // common cause is an OPA version whose output layout has drifted.
+            // Surface a concrete hint rather than dumping the raw pointer +
+            // snippet at the user.
+            let message = if raw.contains("unexpected OPA output shape") {
+                format!(
+                    "Policy evaluation failed: {raw}\n\
+                     hint: the OPA output schema does not match what Anvil expects. \
+                     Verify your OPA version with `anvil doctor` and confirm it matches \
+                     the version pinned in docs/guides/opa-policy-testing.md."
+                )
+            } else {
+                format!("Policy evaluation failed: {raw}")
+            };
+            CheckResult {
+                name: "policy".to_string(),
+                passed: false,
+                score: 0.0,
+                message,
+            }
+        }
     }
 }
 

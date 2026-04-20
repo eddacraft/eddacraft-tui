@@ -148,12 +148,16 @@ To bump:
    workflows.
 3. Update any other files in the allowlist in
    `scripts/check-opa-version-pin.sh` (e.g. doc comments, AGENTS.md).
-4. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if
+4. **If you rename, add, or remove any of the files listed above, edit the
+   `ALLOWLIST` block in `scripts/check-opa-version-pin.sh` to match.** The
+   guard only catches _unknown_ references; a stale allowlist entry will not
+   fail CI and a missing entry will fail spuriously.
+5. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if
    the pinned version string appears in any file not in the allowlist, which
    is the canary against silent doc rot when this runbook rots.
-5. Run all three integration suites locally (TS executor, Rust executor, gate
+6. Run all three integration suites locally (TS executor, Rust executor, gate
    pipeline) plus `opa test policies/fixtures`.
-6. Note the bump in the relevant ADR / decision log entry if the version change
+7. Note the bump in the relevant ADR / decision log entry if the version change
    is load-bearing for a policy.
 
 ## Adding a new policy pack

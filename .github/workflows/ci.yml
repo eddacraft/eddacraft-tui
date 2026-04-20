@@ -177,6 +177,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Run the pin guard before any expensive setup so a stray version
+      # reference fails fast without burning ~2-3 minutes on pnpm + OPA install.
+      - name: Check OPA version pin is not duplicated outside allowlist
+        run: ./scripts/check-opa-version-pin.sh
+
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
@@ -204,12 +209,8 @@ jobs:
           fi
           echo "OPA $installed installed"
 
-      - name: Check OPA version pin is not duplicated outside allowlist
-        run: ./scripts/check-opa-version-pin.sh
-
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
-
 
       - name: Run unit tests (affected on PRs, all on push)
         run: |

@@ -76,17 +76,14 @@ pub enum OpaError {
     },
 }
 
-const UNEXPECTED_SHAPE_SNIPPET_LIMIT: usize = 512;
+const UNEXPECTED_SHAPE_SNIPPET_CHAR_LIMIT: usize = 512;
 
 fn snippet_for_error(raw: &str) -> String {
-    if raw.len() <= UNEXPECTED_SHAPE_SNIPPET_LIMIT {
-        raw.to_string()
-    } else {
-        format!(
-            "{}…<truncated {} bytes>",
-            &raw[..UNEXPECTED_SHAPE_SNIPPET_LIMIT],
-            raw.len()
-        )
+    let mut iter = raw.char_indices();
+    match iter.nth(UNEXPECTED_SHAPE_SNIPPET_CHAR_LIMIT) {
+        // At least LIMIT+1 chars — truncate at the char boundary.
+        Some((cut, _)) => format!("{}…<truncated {} bytes>", &raw[..cut], raw.len()),
+        None => raw.to_string(),
     }
 }
 
@@ -196,13 +193,24 @@ impl OpaExecutor {
         let Some(status) = child.wait_timeout(timeout)? else {
             let _ = child.kill();
             let _ = child.wait();
+            // kill() closes the child's pipe handles on unix, which makes the
+            // reader threads' read_to_end return; on windows the same call
+            // terminates the process and the pipe write ends are closed by
+            // the kernel. If a reader thread panics we discard the payload —
+            // we're already in the timeout error path and about to return.
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return Err(OpaError::Timeout(self.timeout_ms));
         };
 
-        let stdout_bytes = stdout_reader.join().unwrap_or_default();
-        let stderr_bytes = stderr_reader.join().unwrap_or_default();
+        // Propagate reader-thread panics instead of silently substituting an
+        // empty buffer: a panic here indicates a real bug and should surface.
+        let stdout_bytes = stdout_reader
+            .join()
+            .map_err(|e| OpaError::Execution(format!("stdout reader thread panicked: {e:?}")))?;
+        let stderr_bytes = stderr_reader
+            .join()
+            .map_err(|e| OpaError::Execution(format!("stderr reader thread panicked: {e:?}")))?;
 
         #[allow(clippy::cast_possible_truncation)]
         let elapsed = start.elapsed().as_millis() as u64;
@@ -344,16 +352,20 @@ impl OpaExecutor {
         let mut violations = Vec::new();
 
         // `opa eval --format json` emits `{"result": [{"expressions": [{"value": ...}]}]}`.
-        // Distinguish three cases that used to collapse into "zero violations":
+        // Distinguish four cases that used to collapse into "zero violations":
         //   - `result` missing or not an array → OPA output doesn't match the contract
         //     we understand; raise UnexpectedShape so callers don't silently mark the
         //     gate as passed.
         //   - `result` present but empty → the query matched no rules ("no decisions"),
         //     which we map to zero violations (the only sensible gate mapping, but
-        //     semantically distinct from "no violations from rules that ran").
-        //   - `result[0].expressions[0].value` missing → schema has drifted; raise
-        //     UnexpectedShape. This is the bit that previously masked OPA minor-version
-        //     output changes as silent passes.
+        //     semantically distinct from "no violations from rules that ran"). Logged
+        //     at warn so operators can spot an undeclared/empty policy pack.
+        //   - `result[i].expressions[0].value` missing or literal null → schema has
+        //     drifted or policy evaluated to null (e.g. missing input field); raise
+        //     UnexpectedShape. Both previously masked OPA output changes as silent
+        //     passes.
+        //   - `result` with more than one entry → iterate all entries so a partial /
+        //     multi-expression query doesn't silently drop entries[1..].
         let Some(result_array) = parsed.get("result").and_then(|v| v.as_array()) else {
             return Err(OpaError::UnexpectedShape {
                 pointer: "/result".to_string(),
@@ -362,19 +374,39 @@ impl OpaExecutor {
         };
 
         if result_array.is_empty() {
-            // No decisions — no rule produced a value. Not the same as "no violations",
-            // but the closest gate mapping is an empty violations list.
+            // No tracing crate wired into this workspace yet; eprintln! is the
+            // interim channel so an operator noticing an empty pack in CI logs
+            // can spot a misconfigured policy_dir. Swap to tracing::warn! if
+            // structured logging arrives.
+            eprintln!(
+                "anvil-policy: OPA returned empty `result` array for query `{}` — \
+                 the gate will pass, but this may indicate a misconfigured policy pack.",
+                self.query
+            );
             return Ok(violations);
         }
 
-        let value = result_array[0]
-            .pointer("/expressions/0/value")
-            .ok_or_else(|| OpaError::UnexpectedShape {
-                pointer: "/result/0/expressions/0/value".to_string(),
-                snippet: snippet_for_error(stdout),
-            })?;
+        for (i, entry) in result_array.iter().enumerate() {
+            let value =
+                entry
+                    .pointer("/expressions/0/value")
+                    .ok_or_else(|| OpaError::UnexpectedShape {
+                        pointer: format!("/result/{i}/expressions/0/value"),
+                        snippet: snippet_for_error(stdout),
+                    })?;
 
-        if let serde_json::Value::Object(map) = value {
+            // Only a Value::Object is a valid policy map. Null (from a policy
+            // evaluating to null, e.g. missing input field) and any other
+            // non-object (scalar, array) both indicate schema drift or a query
+            // resolving to something we can't interpret — surface as shape
+            // error rather than silently returning zero violations.
+            let serde_json::Value::Object(map) = value else {
+                return Err(OpaError::UnexpectedShape {
+                    pointer: format!("/result/{i}/expressions/0/value"),
+                    snippet: snippet_for_error(stdout),
+                });
+            };
+
             for (policy_name, policy_output) in map {
                 self.extract_from_policy_output(
                     policy_name,
@@ -686,10 +718,80 @@ mod tests {
 
     #[test]
     fn snippet_truncates_large_raw() {
-        let big = "x".repeat(2 * UNEXPECTED_SHAPE_SNIPPET_LIMIT);
+        let big = "x".repeat(2 * UNEXPECTED_SHAPE_SNIPPET_CHAR_LIMIT);
         let out = snippet_for_error(&big);
         assert!(out.contains("truncated"));
         assert!(out.len() < big.len());
+    }
+
+    #[test]
+    fn snippet_handles_multibyte_utf8_at_boundary() {
+        // Regression: the previous implementation byte-sliced `raw[..512]`
+        // which panics if byte 512 falls inside a multi-byte codepoint.
+        // Build a string whose char count exceeds the limit but whose byte
+        // layout puts a multi-byte codepoint straddling the previous cutoff.
+        let prefix = "a".repeat(UNEXPECTED_SHAPE_SNIPPET_CHAR_LIMIT - 1);
+        let raw = format!("{prefix}€tail"); // `€` is 3 bytes (0xE2 0x82 0xAC)
+        // Must not panic.
+        let out = snippet_for_error(&raw);
+        assert!(
+            out.contains("truncated"),
+            "expected truncation marker, got {out:?}"
+        );
+        // Output must itself be valid UTF-8 (String guarantees this, but the
+        // assertion documents intent).
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn extract_violations_null_value_is_unexpected_shape() {
+        // Policy evaluated to null (e.g. missing input field) — previously
+        // returned zero violations silently, now must raise so the gate does
+        // not pass spuriously.
+        let executor = OpaExecutor::new(Some("opa"), None);
+        let stdout = r#"{"result":[{"expressions":[{"value":null}]}]}"#;
+        let err = executor
+            .extract_violations(stdout, &[])
+            .expect_err("null value should error");
+        match err {
+            OpaError::UnexpectedShape { pointer, .. } => {
+                assert_eq!(pointer, "/result/0/expressions/0/value");
+            }
+            other => panic!("expected UnexpectedShape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn extract_violations_iterates_all_result_entries() {
+        // Multi-entry result: both entries contribute violations. Previously
+        // only result[0] was processed, so a violation in result[1] would
+        // silently pass the gate.
+        let executor = OpaExecutor::new(Some("opa"), None);
+        let stdout = r#"{
+            "result": [
+                {"expressions":[{"value":{
+                    "security_baseline":{"deny":[
+                        {"rule":"no-secrets","message":"first","severity":"error"}
+                    ]}
+                }}]},
+                {"expressions":[{"value":{
+                    "change_scope":{"violation":[
+                        {"rule":"too-big","message":"second","severity":"error"}
+                    ]}
+                }}]}
+            ]
+        }"#;
+        let vs = executor
+            .extract_violations(stdout, &[])
+            .expect("multi-entry result ok");
+        assert_eq!(
+            vs.len(),
+            2,
+            "expected violations from both entries, got {vs:?}"
+        );
+        let msgs: Vec<&str> = vs.iter().map(|v| v.message.as_str()).collect();
+        assert!(msgs.contains(&"first"));
+        assert!(msgs.contains(&"second"));
     }
 
     #[cfg(unix)]
