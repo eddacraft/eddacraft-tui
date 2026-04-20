@@ -78,6 +78,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | 8/16 (format + compiler + all rule .anvil files done; scanner wiring, pr-description scanning, TS catalogue cleanup pending) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
+| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | Ready | 0/9 |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -392,7 +393,7 @@ Active module themes:
 | Theme | Module File |
 | ----- | ----------- |
 | Branch Recovery | [branch-reconciliation](./modules/branch-reconciliation.aps.md) |
-| Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
+| Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
 | Continuous Improvement | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
 | Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
@@ -768,6 +769,24 @@ Nx-orchestrated per-project targets.
 | NXTASK-004  | nxtask | Migrate root typecheck script to nx run-many          | Ready  | high     |
 | NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Ready  | medium   |
 | NXTASK-006  | nxtask | Update CI to use nx affected                          | Ready  | high     |
+
+### Task Status — Hardening & Maintenance (Rust Nx Migration)
+
+Bring the Rust workspace up to parity with the TypeScript Nx setup: CI caching,
+affected-only builds, and workspace hygiene. Mirrors NXTASK for Rust crates.
+See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
+
+| Task        | Module  | Description                                           | Status | Priority | Tier |
+| ----------- | ------- | ----------------------------------------------------- | ------ | -------- | ---- |
+| RUSTNX-001  | rustnx  | Add Swatinem/rust-cache to Rust CI jobs               | Ready  | high     | 1    |
+| RUSTNX-002  | rustnx  | Adopt cargo-nextest for workspace test runs          | Ready  | high     | 1    |
+| RUSTNX-003  | rustnx  | Parallelise Rust CI jobs behind shared cache         | Ready  | medium   | 1    |
+| RUSTNX-004  | rustnx  | Scaffold per-crate project.json wrappers             | Ready  | high     | 2    |
+| RUSTNX-005  | rustnx  | Configure Nx inputs, outputs, and remote cache       | Ready  | high     | 2    |
+| RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Ready  | medium   | 2    |
+| RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Ready  | high     | 2    |
+| RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Ready  | medium   | 3    |
+| RUSTNX-009  | rustnx  | Add cargo-deny CI gate                               | Ready  | medium   | 3    |
 
 ### Task Status — Hardening & Maintenance (Forge & Temper) — ARCHIVED
 
