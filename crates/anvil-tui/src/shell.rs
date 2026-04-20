@@ -11,6 +11,41 @@ use unicode_width::UnicodeWidthStr;
 /// The binary's own version, from the workspace `Cargo.toml`.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Horizontal gutter between shell chrome and surface content, in cells.
+/// Surfaces use this via `inset_content` so they don't hug the left/right
+/// edges of the terminal.
+pub const OUTER_H_MARGIN: u16 = 2;
+/// Rows of breathing room above surface content under the shell header.
+pub const OUTER_TOP_MARGIN: u16 = 1;
+
+/// Carve a padded sub-rect out of the shell content area so a surface
+/// doesn't hug the top-left corner. Degrades gracefully on narrow/short
+/// terminals by dropping margins when there isn't room.
+///
+/// Every onboarding / tutorial surface should route its incoming `area`
+/// through this helper so the outer breathing room is consistent across
+/// the first-run flow.
+#[must_use]
+pub fn inset_content(area: Rect) -> Rect {
+    let h = if area.width > OUTER_H_MARGIN * 2 {
+        OUTER_H_MARGIN
+    } else {
+        0
+    };
+    let t = if area.height > OUTER_TOP_MARGIN {
+        OUTER_TOP_MARGIN
+    } else {
+        0
+    };
+    let inner = Layout::horizontal([
+        Constraint::Length(h),
+        Constraint::Min(0),
+        Constraint::Length(h),
+    ])
+    .split(area)[1];
+    Layout::vertical([Constraint::Length(t), Constraint::Min(0)]).split(inner)[1]
+}
+
 /// Render the Anvil-branded shell chrome around a surface content area.
 ///
 /// Returns the inner `Rect` that the surface should render into.

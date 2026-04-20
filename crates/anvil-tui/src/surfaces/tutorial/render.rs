@@ -6,36 +6,9 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
 
 use super::{TutorialPhase, TutorialState};
+use crate::shell::inset_content;
 
 const MAX_OUTPUT_LINES: usize = 5;
-
-/// Horizontal gutter between terminal edge and tutorial content, in cells.
-const OUTER_H_MARGIN: u16 = 2;
-/// Rows of breathing room above the tutorial content under the shell header.
-const OUTER_TOP_MARGIN: u16 = 1;
-
-/// Carve a padded sub-rect out of the shell content area so the tutorial
-/// doesn't hug the top-left corner. Degrades gracefully on narrow/short
-/// terminals by dropping margins when there isn't room.
-fn inset_content(area: Rect) -> Rect {
-    let h = if area.width > OUTER_H_MARGIN * 2 {
-        OUTER_H_MARGIN
-    } else {
-        0
-    };
-    let t = if area.height > OUTER_TOP_MARGIN {
-        OUTER_TOP_MARGIN
-    } else {
-        0
-    };
-    let inner = Layout::horizontal([
-        Constraint::Length(h),
-        Constraint::Min(0),
-        Constraint::Length(h),
-    ])
-    .split(area)[1];
-    Layout::vertical([Constraint::Length(t), Constraint::Min(0)]).split(inner)[1]
-}
 
 /// Strip ANSI escape sequences from a string so raw control codes don't garble
 /// the Ratatui output. Handles:

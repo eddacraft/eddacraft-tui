@@ -9,11 +9,12 @@
 use eddacraft_tui::keyboard::Action;
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
 
+use crate::shell::inset_content;
 use crate::surface::Surface;
 
 /// Summary of what guided init wrote to disk. Fed directly to the landing
@@ -97,34 +98,8 @@ impl Surface for InitCompleteState {
 // Rendering
 // ---------------------------------------------------------------------------
 
-/// Match the tutorial surface's outer breathing room so surfaces don't jump
-/// in visual density as the user moves through the onboarding flow.
-const OUTER_H_MARGIN: u16 = 2;
-const OUTER_TOP_MARGIN: u16 = 1;
-
-fn inset(area: Rect) -> Rect {
-    let h = if area.width > OUTER_H_MARGIN * 2 {
-        OUTER_H_MARGIN
-    } else {
-        0
-    };
-    let t = if area.height > OUTER_TOP_MARGIN {
-        OUTER_TOP_MARGIN
-    } else {
-        0
-    };
-    let cols = Layout::horizontal([
-        Constraint::Length(h),
-        Constraint::Min(0),
-        Constraint::Length(h),
-    ])
-    .split(area);
-    Layout::vertical([Constraint::Length(t), Constraint::Min(0)])
-        .split(cols[1])[1]
-}
-
 fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &EddaCraftTheme) {
-    let area = inset(area);
+    let area = inset_content(area);
 
     let block = Block::default()
         .borders(Borders::ALL)

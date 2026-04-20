@@ -215,10 +215,15 @@ high-signal for users seeing Anvil for the first time.
      `run_guided_init` after `generate_config` succeeds. Copy follows the
      user-approved minimal receipt-style pattern (what was written, what
      happens next, takes ~5 min).
-  3. **Onboarding surfaces don't share the tutorial's new outer padding.**
-     The `inset_content` helper added in POLISH-001 applies to tutorial
-     surfaces only. Discovery, init, and the onboarding welcome surface
-     still render flush against the shell chrome.
+  3. **Onboarding surfaces don't share the tutorial's new outer padding
+     (fixed).** The `inset_content` helper added in POLISH-001 applied to
+     tutorial surfaces only; discovery, init, and the onboarding welcome
+     surface rendered flush against the shell chrome. Fix: hoisted
+     `inset_content` and its margin constants into `crates/anvil-tui/src/shell.rs`
+     as public helpers, and threaded them through `init/render.rs`,
+     `tutorial/discovery_render.rs`, `onboarding/welcome_render.rs`, and the
+     new `init_complete.rs`. Tutorial `render.rs` now re-uses the shared
+     helper. Init snapshots were re-captured to reflect the shift.
 
 - **Expected Outcome:**
   - Running `anvil start` in a repo that already has `.anvilrc` skips the
@@ -270,11 +275,10 @@ high-signal for users seeing Anvil for the first time.
     on the copy decision before starting.
 - **Confidence:** high for items 1 and 3; medium for item 2 (needs design for
   summary copy — what exactly should the landing page say?).
-- **Priority:** Medium — items 1 and 2 shipped; item 3 and deferred council
-  items are the remaining scope.
-- **Status:** In Progress — config detection and landing screen landed;
-  shared outer padding for discovery/init/welcome still pending, plus the
-  council-deferred follow-ups below.
+- **Priority:** Medium — items 1, 2, and 3 shipped; only the council-deferred
+  follow-ups below remain.
+- **Status:** In Progress — config detection, landing screen, and shared
+  outer padding all landed; council-deferred follow-ups remain.
 
 ---
 
