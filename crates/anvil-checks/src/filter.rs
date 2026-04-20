@@ -1,6 +1,12 @@
 use std::path::{Component, Path};
 
 /// Default directory segments excluded from scan results (DD-1).
+///
+/// Correctness-only set: test fixtures, VCS metadata, dependency caches, and
+/// Rust/Node build trees that scanners should never descend into regardless of
+/// whether the project has a `.gitignore`. This list is part of `ScanFilter`'s
+/// public default behaviour — additions here are breaking changes for
+/// downstream users of `ScanFilter::default_excludes()`.
 const DEFAULT_DIR_EXCLUDES: &[&str] = &[
     "__fixtures__",
     "__mocks__",
@@ -12,8 +18,86 @@ const DEFAULT_DIR_EXCLUDES: &[&str] = &[
     ".git",
 ];
 
+/// Framework build-output directories.
+///
+/// These are *not* part of `DEFAULT_DIR_EXCLUDES` because excluding them is a
+/// policy choice (a user may legitimately want to scan their `dist/` for
+/// secrets before shipping). Discovery flows that want the belt-and-suspenders
+/// behaviour should compose this with `ScanFilter::new` explicitly.
+pub const BUILD_ARTEFACT_DIRS: &[&str] = &[
+    "dist",
+    "build",
+    "out",
+    "coverage",
+    ".next",
+    ".nuxt",
+    ".nx",
+    ".turbo",
+    ".cache",
+    ".angular",
+    ".svelte-kit",
+];
+
 /// Default file suffix patterns excluded from scan results (DD-1).
 const DEFAULT_SUFFIX_EXCLUDES: &[&str] = &[".test.ts", ".spec.ts", ".test.rs", "_test.rs"];
+
+/// File extensions treated as binary — scanners skip them without reading.
+const BINARY_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "ico", "woff", "woff2", "ttf", "otf", "eot", "pdf", "zip", "gz",
+    "tar", "exe", "dll", "so", "dylib", "wasm", "o", "a",
+];
+
+/// Filenames that secret scanners should read regardless of `.gitignore`
+/// status. These are the canonical locations where developers keep
+/// environment-specific credentials, and they are almost always gitignored —
+/// which is exactly why a gitignore-aware walker misses them.
+pub const ALWAYS_SCAN_FILENAMES: &[&str] = &[
+    ".env",
+    ".env.local",
+    ".env.development",
+    ".env.development.local",
+    ".env.production",
+    ".env.production.local",
+    ".env.staging",
+    ".env.test",
+    ".env.test.local",
+    ".envrc",
+    "credentials.json",
+    "secrets.yml",
+    "secrets.yaml",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    "id_rsa",
+    "id_ed25519",
+    "id_ecdsa",
+    "id_dsa",
+];
+
+/// Return `true` if the file extension indicates a binary asset that secret
+/// and antipattern scanners should skip.
+#[must_use]
+pub fn is_binary_extension(ext: &str) -> bool {
+    BINARY_EXTENSIONS.contains(&ext)
+}
+
+/// Return `true` if the path's extension is a known binary asset.
+#[must_use]
+pub fn is_binary_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(is_binary_extension)
+}
+
+/// Return `true` if the path's filename matches `ALWAYS_SCAN_FILENAMES` —
+/// i.e. the file should be scanned even when a gitignore-aware walker would
+/// otherwise skip it.
+#[must_use]
+pub fn is_always_scan_filename(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|name| ALWAYS_SCAN_FILENAMES.contains(&name))
+}
 
 /// Categorised exclusion pattern — either a directory segment match or a file
 /// suffix match.
@@ -380,5 +464,83 @@ mod tests {
         assert!(f.includes(Path::new("deps/vendor/lib.rs")));
         // DOES exclude a file named "vendor"
         assert!(!f.includes(Path::new("deps/vendor")));
+    }
+
+    // ── Build artefacts are NOT in the default excludes ──────────
+    //
+    // Build output directories are the caller's decision — adding them to
+    // `DEFAULT_DIR_EXCLUDES` would silently change behaviour for every
+    // downstream `ScanFilter::default_excludes()` caller.
+
+    #[test]
+    fn default_filter_does_not_exclude_dist() {
+        let f = default_filter();
+        assert!(f.includes(Path::new("dist/bundle.js")));
+    }
+
+    #[test]
+    fn default_filter_does_not_exclude_next() {
+        let f = default_filter();
+        assert!(f.includes(Path::new(".next/static/chunks/app.js")));
+    }
+
+    #[test]
+    fn build_artefact_list_can_be_composed_into_filter() {
+        use super::BUILD_ARTEFACT_DIRS;
+        let patterns: Vec<String> = BUILD_ARTEFACT_DIRS
+            .iter()
+            .map(|d| format!("{d}/"))
+            .collect();
+        let f = ScanFilter::new(patterns);
+        assert!(!f.includes(Path::new("dist/bundle.js")));
+        assert!(!f.includes(Path::new(".next/static/chunks/app.js")));
+        assert!(f.includes(Path::new("src/main.rs")));
+    }
+
+    // ── is_binary_path ───────────────────────────────────────────
+
+    #[test]
+    fn is_binary_path_detects_common_binaries() {
+        use super::is_binary_path;
+        assert!(is_binary_path(Path::new("assets/logo.png")));
+        assert!(is_binary_path(Path::new("bin/anvil.exe")));
+        assert!(is_binary_path(Path::new("target/release/libfoo.so")));
+    }
+
+    #[test]
+    fn is_binary_path_returns_false_for_source() {
+        use super::is_binary_path;
+        assert!(!is_binary_path(Path::new("src/main.rs")));
+        assert!(!is_binary_path(Path::new(".env")));
+        assert!(!is_binary_path(Path::new("README")));
+    }
+
+    // ── is_always_scan_filename ──────────────────────────────────
+
+    #[test]
+    fn always_scan_matches_dotenv_variants() {
+        use super::is_always_scan_filename;
+        assert!(is_always_scan_filename(Path::new(".env")));
+        assert!(is_always_scan_filename(Path::new("src/.env.local")));
+        assert!(is_always_scan_filename(Path::new(
+            "packages/app/.env.production"
+        )));
+    }
+
+    #[test]
+    fn always_scan_matches_credential_files() {
+        use super::is_always_scan_filename;
+        assert!(is_always_scan_filename(Path::new("credentials.json")));
+        assert!(is_always_scan_filename(Path::new(".ssh/id_rsa")));
+        assert!(is_always_scan_filename(Path::new("~/.netrc")));
+    }
+
+    #[test]
+    fn always_scan_ignores_similar_names() {
+        use super::is_always_scan_filename;
+        // Only exact filename matches — these near-misses must NOT match.
+        assert!(!is_always_scan_filename(Path::new("config.env.example")));
+        assert!(!is_always_scan_filename(Path::new("id_rsa.pub")));
+        assert!(!is_always_scan_filename(Path::new("env.ts")));
     }
 }
