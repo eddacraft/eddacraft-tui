@@ -589,3 +589,97 @@ rather than hardcoded on each pattern constant.
       major = breaking change to what fires). Integer is simpler.
 - [ ] Should the session recorder support tool-specific adapters (Claude
       Code adapter, Cursor adapter) or a single generic capture mechanism?
+
+## Progress Log
+
+### 2026-04-20 — Phase 1 complete (compiler done)
+
+Phase 1 items 5–6 (build/compile step) landed. Summary of what shipped:
+
+- Zod schemas for `.anvil` frontmatter (definition + rule, discriminated on
+  `type`) in `packages/anvil/core/src/antipattern/format/schemas.ts`.
+- `parseAnvilSource(path, raw)` + `AnvilParseError` — frontmatter/body
+  splitter with schema validation (`format/parse.ts`).
+- Definition body section extractor — code-fence-aware H2 splitter,
+  required-section validator, explanation/suggestion getters
+  (`format/sections.ts`).
+- `compilePatterns({ patternsDir, referenceRoot })` — walks the tree,
+  hydrates rules with their family's narrative, builds the prefix registry
+  (legacy `AP-` tolerated by design), returns `{ registry, errors,
+  warnings }` (`format/compile.ts`).
+- CLI `scripts/compile-patterns.ts` with workspace-root discovery and a
+  `--check` mode that strips `compiled_at` before diffing, wired as
+  `patterns:compile` / `patterns:check` scripts in `anvil-core`'s
+  `package.json`.
+- Unit + golden tests: `sections.test.ts`, `parse.test.ts`, `compile.test.ts`
+  (golden test compiles the real `patterns/` tree, synthetic cases cover
+  orphan rules, duplicate rule/family ids, prefix collision, missing
+  required sections).
+- First compiled artefact at `patterns/compiled/registry.json` — 18
+  patterns across 5 families (deferred-debt, error-visibility,
+  guardrail-suppression, responsibility-laundering, type-system-evasion).
+
+Verification:
+
+- `pnpm --filter @eddacraft/anvil-core test` — 973 pass (includes 6 new
+  sections tests, 13 parse tests, 7 compile tests).
+- `pnpm --filter @eddacraft/anvil-core typecheck` — clean.
+- `pnpm --filter @eddacraft/anvil-core patterns:check` — "18 patterns in 5
+  families — in sync".
+
+Phases 2–4 remain pending: scanner wiring, new patterns (RL, DD family
+additions, non-null assertion rule), and removal of the legacy
+`patterns.ts` / `patterns-html.ts` / `patterns-css.ts` TS catalogues.
+
+### 2026-04-20 — Council review fixes
+
+Ran `/council` against Phase 1. Five-persona review produced 6 CRITICAL and
+9+ MAJOR findings; all TIER-1 correctness issues addressed in this round:
+
+- **Fence parser** (`format/sections.ts`): rewrote to honour CommonMark —
+  supports backtick *and* tilde fences, and only closes when the closing
+  marker matches the opening kind and has ≥ the opening length. Previously
+  a `~~~`-fenced code block would be ignored and an H2 inside it would
+  split the body.
+- **Regex validation** (`format/schemas.ts`): `RegexDetectionSchema` now
+  compiles the pattern inside a `.superRefine` so malformed regexes fail
+  at compile time rather than at scanner startup. Flags are checked
+  against `/^[gimsuyvd]*$/`. Caught a real bug — `RL-001.anvil` had an
+  unquoted YAML pattern silently truncated at `#`. Fixed by single-quoting.
+- **File-size cap + symlink skip** (`format/compile.ts`): stat-before-read
+  guard rejects files > 1 MiB (`MAX_ANVIL_FILE_BYTES`), `discoverAnvilFiles`
+  skips symlinks to avoid following escapes out of `patterns/`, and
+  `readdir` failures surface as per-directory errors instead of aborting.
+- **Schema-validate assembled patterns**: each hydrated `CompiledPattern`
+  is now `CompiledPatternSchema.safeParse`'d before entering the registry;
+  previously `as CompiledPattern` could mask shape drift between the
+  assembler and the consumer contract.
+- **Deterministic sort**: replaced `localeCompare` with byte-level
+  comparator for pattern/family/file ordering — stable across locales and
+  CI runners.
+- **Ambiguous-prefix handling**: `AP` spans `guardrail-suppression`,
+  `error-visibility`, and `type-system-evasion`. Compiler now drops any
+  prefix it sees under more than one family and emits a warning naming the
+  collision, instead of silently binding it to whichever family was
+  visited first.
+- **`compiled_at` comparison** (`scripts/compile-patterns.ts`): `--check`
+  now JSON-parses both sides and deletes `compiled_at` before comparing,
+  instead of a regex-based string strip. `--check` also now exits 1 on
+  any warnings (previously only errors).
+- **Workspace-root discovery** (`scripts/compile-patterns.ts`): walker
+  verifies a sibling `patterns/` exists before accepting a workspace
+  manifest — prevents escape into a vendoring ancestor monorepo when this
+  repo is nested inside another workspace.
+- **Body trim** (`format/parse.ts`): `.trimEnd()` replaces `/\s+$/` so
+  mid-body `\r` on CRLF-normalised files round-trips cleanly.
+
+Re-ran `pnpm --filter @eddacraft/anvil-core test` → 973 pass.
+`patterns/compiled/registry.json` regenerated under the new deterministic
+sort and schema validation.
+
+Deferred (operational, need policy decisions):
+
+- Whether to commit `patterns/compiled/registry.json` or gitignore it.
+- Wiring `patterns:check` into CI.
+- `ast_query`/`astQuery` schema divergence (lower priority — no current
+  AST rules in tree).
