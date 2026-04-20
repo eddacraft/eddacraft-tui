@@ -1,46 +1,27 @@
+import type { ZodType } from 'zod';
+import {
+  ShowResponseSchema,
+  type ShowAuditEntry,
+  type ShowResponse,
+  type ShowToken,
+  type ShowUser,
+} from '@eddacraft/admin-contracts';
 import { AdminClient } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, renderTable, type Row } from '../format.js';
+
+export type { ShowAuditEntry, ShowResponse, ShowToken, ShowUser };
 
 export interface ShowOptions extends ConfigFlags {
   json?: boolean;
 }
 
-export interface ShowUser {
-  id: string;
-  email: string;
-  name: string | null;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ShowToken {
-  id: string;
-  scopes: string[];
-  expires_at: string;
-  revoked_at: string | null;
-  created_at: string;
-}
-
-export interface ShowAuditEntry {
-  id: string;
-  action: string;
-  actor: string;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface ShowResponse {
-  user: ShowUser;
-  tokens: ShowToken[];
-  recentAudit: ShowAuditEntry[];
-  auditError?: boolean;
-}
-
 export interface AdminReader {
-  get<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T>;
+  get<T>(
+    path: string,
+    query?: Record<string, string | number | boolean | undefined>,
+    schema?: ZodType<T>
+  ): Promise<T>;
 }
 
 export interface ShowDeps {
@@ -64,7 +45,7 @@ export async function runShowCommand(
   const stderr = deps.stderr ?? ((chunk) => process.stderr.write(chunk));
 
   const path = `/admin/user/${encodeURIComponent(email)}`;
-  const result = await client.get<ShowResponse>(path);
+  const result = await client.get(path, undefined, ShowResponseSchema);
 
   if (result.auditError) {
     stderr('warning: audit lookup failed; user and tokens still shown.\n');

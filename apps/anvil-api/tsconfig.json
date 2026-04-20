@@ -27,6 +27,15 @@
   "references": [
     {
       "path": "../../packages/transactional"
+    },
+    {
+      "path": "../../packages/shared/admin-contracts"
+    },
+    {
+      "path": "../../packages/anvil/contracts"
+    },
+    {
+      "path": "../../packages/anvil/runtime"
     }
   ]
 }

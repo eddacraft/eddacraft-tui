@@ -1,16 +1,17 @@
 pub mod complete;
 pub mod hooks;
 mod hooks_render;
+pub mod init_complete;
 pub mod welcome;
 mod welcome_render;
 
 pub use complete::{CompletionState, OnboardingSummary};
 pub use hooks::HooksState;
+pub use init_complete::{InitCompleteState, InitCompleteSummary};
 pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 
 /// Check whether an Anvil configuration file already exists in the
-/// current working directory. Checks for `.anvil.yaml`, `.anvil.json`,
-/// and `.anvil.toml`.
+/// current working directory.
 pub fn config_exists() -> bool {
     let Ok(cwd) = std::env::current_dir() else {
         return false;
@@ -18,11 +19,23 @@ pub fn config_exists() -> bool {
     config_exists_in(&cwd)
 }
 
-/// Check whether an Anvil configuration file exists under `dir`.
+/// Check whether a non-empty Anvil configuration file exists under `dir`.
+///
+/// The CLI writes `.anvilrc` regardless of serialisation format; the
+/// `.anvil.{yaml,json,toml}` names are retained for tolerance against
+/// hand-authored configs or future layout changes.
+///
+/// Zero-byte files are treated as absent so a stray `touch .anvilrc`
+/// does not cause init to silently skip and leave the user without a
+/// working configuration.
 pub fn config_exists_in(dir: &std::path::Path) -> bool {
-    [".anvil.yaml", ".anvil.json", ".anvil.toml"]
+    [".anvilrc", ".anvil.yaml", ".anvil.json", ".anvil.toml"]
         .iter()
-        .any(|name| dir.join(name).try_exists().unwrap_or(false))
+        .any(|name| {
+            std::fs::metadata(dir.join(name))
+                .map(|m| m.is_file() && m.len() > 0)
+                .unwrap_or(false)
+        })
 }
 
 /// Default set of checks offered during guided init.
@@ -58,12 +71,27 @@ mod tests {
 
     #[test]
     fn config_exists_returns_false_in_empty_dir() {
-        let tmp =
-            std::env::temp_dir().join(format!("anvil_test_config_exists_{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(!config_exists_in(tmp.path()));
+    }
 
-        assert!(!config_exists_in(&tmp));
-        let _ = std::fs::remove_dir_all(&tmp);
+    #[test]
+    fn config_exists_detects_anvilrc() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
+
+        assert!(config_exists_in(tmp.path()));
+    }
+
+    #[test]
+    fn config_exists_ignores_empty_anvilrc() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), b"").unwrap();
+
+        assert!(
+            !config_exists_in(tmp.path()),
+            "zero-byte .anvilrc must be treated as missing config"
+        );
     }
 
     #[test]

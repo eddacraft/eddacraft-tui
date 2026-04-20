@@ -1,17 +1,17 @@
 <!--
-APS Module: literate-core + anvil-agent
+APS Module: weave + anvil-weave
 ========================================
-Thin, provider-agnostic agent runtime (literate-core) plus Anvil-specific
-harness (anvil-agent) with zero-copy semantic graph access.
+Thin, provider-agnostic agent runtime (weave) plus Anvil-specific
+harness (anvil-weave) with zero-copy semantic graph access.
 
-Scopes: LCORE (literate-core crate), AHARNESS (anvil-agent crate)
+Scopes: WEAVE (weave crate, eddacraft/weave-rs), AHARNESS (anvil-weave crate)
 -->
 
-# literate-core — Internal Agent Harness
+# weave — Agent Runtime
 
 | ID    | Owner | Status |
 | ----- | ----- | ------ |
-| LCORE | —     | Draft  |
+| WEAVE | —     | Draft  |
 
 Priority: medium.
 
@@ -27,16 +27,17 @@ reasoning over the semantic graph. External agent runtimes (Claude Code, pi)
 cannot access the kernel's live graph without serialisation overhead. No
 existing Rust agent runtime is minimal enough to embed as a library dependency.
 
-**Solution:** Two crates. `literate-core` captures the irreducible kernel of an
-agent runtime (~2500 LOC, ~15 dependencies, Apache-2.0). `anvil-agent` layers
-on domain-specific tools (`graph_query`, `policy_eval`) with direct petgraph
-access.
+**Solution:** Two crates. `weave` captures the irreducible kernel of an
+agent runtime (~2500 LOC, ~15 dependencies, Apache-2.0), living in the
+standalone `eddacraft/weave-rs` repo. `anvil-weave` layers on domain-specific
+tools (`graph_query`, `policy_eval`) with direct petgraph access, in
+`crates/anvil-weave/`.
 
 **Architecture Decision:** [ADR-024](../decisions/024-internal-agent-harness.md)
 
 ## In Scope
 
-### literate-core (Apache-2.0)
+### weave (Apache-2.0, eddacraft/weave-rs)
 
 - Core types: Message, Content, Context, Model, StreamEvent
 - `Provider` trait with async streaming and feature-gated implementations
@@ -48,9 +49,8 @@ access.
   (append-only, branching, context building)
 - `EventHandler` trait for typed agent lifecycle notifications
 - `Compactor` trait hook for consumer-provided context compaction
-- CI enforcement: zero `anvil-*` dependencies (extractability invariant)
 
-### anvil-agent (source-proprietary)
+### anvil-weave (source-proprietary, crates/anvil-weave/)
 
 - `graph_query` tool: query semantic graph (petgraph, zero-copy)
 - `policy_eval` tool: evaluate policy against current graph state
@@ -67,22 +67,23 @@ access.
 - Extension/plugin system (Rust trait composition is sufficient)
 - Model fine-tuning or training
 - Credential management or OAuth flows (consumer's responsibility)
-- Compaction algorithm in literate-core (trait hook only; strategy is
+- Compaction algorithm in weave (trait hook only; strategy is
   consumer-provided)
 
 ## Interfaces
 
 **Depends on:**
 
-- `anvil-kernel` — semantic graph access, policy evaluation (anvil-agent only)
-- `anvil-kernel-types` — EngineEvent, graph types (anvil-agent only)
+- `anvil-kernel` — semantic graph access, policy evaluation (anvil-weave only)
+- `anvil-kernel-types` — EngineEvent, graph types (anvil-weave only)
 - `tokio` — async runtime
 - `serde` / `serde_json` — serialisation
 - `reqwest` — HTTP client for provider implementations (feature-gated)
 
 **Exposes:**
 
-- `literate-core` — reusable agent runtime crate (Apache-2.0, zero anvil deps)
+- `weave` — reusable agent runtime crate (Apache-2.0, zero anvil deps,
+  published from eddacraft/weave-rs)
   - `Provider` trait — LLM provider abstraction
   - `Tool` trait — tool registration and execution
   - `SessionStore` trait — session persistence abstraction
@@ -91,15 +92,17 @@ access.
   - `Agent` struct — state machine with steering/follow-up queues
   - `run_agent_loop()` — the core message loop
   - `JsonlSessionStore` — default JSONL-tree session implementation
-- `anvil-agent` — Anvil-specific harness
+- `anvil-weave` — Anvil-specific harness (depends on weave via path dep during
+  dev, crates.io dep at release)
   - `GraphQueryTool` — zero-copy semantic graph queries
   - `PolicyEvalTool` — policy evaluation against live graph
   - `AnvilHarness` — pre-wired agent with Anvil tools and kernel access
 
 ## Constraints
 
-- literate-core must have **zero** `anvil-*` dependencies (CI-enforced)
-- literate-core must be Apache-2.0 licensed from first commit
+- weave must have **zero** `anvil-*` dependencies (structurally enforced —
+  separate repo)
+- weave must be Apache-2.0 licensed from first commit
 - Direct dependencies capped at ~15 crates (no image codecs, no JS runtimes,
   no compiler toolchains)
 - Provider implementations are feature-gated (default features = no reqwest)
@@ -110,19 +113,17 @@ access.
 
 ## Acceptance Criteria
 
-- [ ] `literate-core` compiles with zero `anvil-*` in its dependency tree
-      (`cargo metadata` check)
-- [ ] `literate-core` Cargo.toml specifies `license = "Apache-2.0"`
+- [ ] `weave` compiles with zero `anvil-*` in its dependency tree
+- [ ] `weave` Cargo.toml specifies `license = "Apache-2.0"`
 - [ ] Agent loop completes a multi-turn conversation with tool calls using a
       mock provider
 - [ ] JSONL session can be written, read back, branched, and context rebuilt
 - [ ] Anthropic provider streams a real response (feature-gated integration test)
-- [ ] `anvil-agent` GraphQueryTool returns correct results from a test graph
-- [ ] `anvil-agent` PolicyEvalTool evaluates a policy and returns violations
+- [ ] `anvil-weave` GraphQueryTool returns correct results from a test graph
+- [ ] `anvil-weave` PolicyEvalTool evaluates a policy and returns violations
 - [ ] Kernel violation event triggers agent reasoning and produces a
       remediation suggestion
-- [ ] `git subtree split -P crates/literate-core` produces a clean,
-      independently buildable repo
+- [ ] weave-rs repo builds and tests independently
 
 ## Ready Checklist
 
@@ -130,7 +131,7 @@ Change status to **Ready** when:
 
 - [ ] ADR-024 accepted
 - [ ] Core trait signatures reviewed and agreed
-- [ ] Cargo workspace integration verified (builds alongside existing crates)
+- [ ] weave-rs standalone repo builds verified
 - [ ] Provider API key availability confirmed for integration tests
 - [ ] Dependency budget reviewed (~15 direct deps)
 
@@ -138,129 +139,133 @@ Change status to **Ready** when:
 
 | Risk | Likelihood | Impact | Mitigation |
 | ---- | ---------- | ------ | ---------- |
-| API churn delays stabilisation | Medium | Medium | Anvil-specific concerns in anvil-agent, not literate-core |
-| Zero-dep invariant violated accidentally | Medium | High | CI check on every PR: `cargo metadata` for literate-core |
+| API churn delays stabilisation | Medium | Medium | Anvil-specific concerns in anvil-weave, not weave |
+| Zero-dep invariant violated accidentally | Medium | High | Structurally enforced via separate repo; no cross-repo deps possible |
 | Provider abstraction too thin for advanced features | Low | Medium | Feature-gated provider-specific extensions |
 | Token costs for agent reasoning in CI | Medium | Low | Configurable: off by default, opt-in per pipeline |
 | Agent suggestions conflict with deterministic kernel | Low | High | Agent is advisory only; kernel enforces. Clear UX separation |
-| Extraction to standalone repo is never prioritised | Medium | Low | Trigger: API stable 4+ weeks AND second consumer exists |
+| Two-repo coordination overhead | Medium | Low | Path dep during dev; only matters at release boundaries |
+| crates.io name collision | Low | Low | Check availability; fallback: weave-agent, weave-core |
 
 ---
 
 ## Phase 0 — Spike (Validation)
 
-### LCORE-001: Validate minimal agent loop with mock provider
+Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
+`crates/`.
+
+### WEAVE-001: Validate minimal agent loop with mock provider
 
 - **Intent:** Confirm the two-level loop architecture (inner: tool calls, outer:
   follow-ups) works correctly with a mock provider and mock tools
 - **Expected Outcome:** Agent completes a multi-turn conversation including tool
   calls, steering messages, and follow-up messages
-- **Validation:** `cargo test -p literate-core agent_loop`
+- **Validation:** `cargo test agent_loop`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** None
 
 ---
 
-### LCORE-002: Validate JSONL session tree with branching
+### WEAVE-002: Validate JSONL session tree with branching
 
 - **Intent:** Confirm append-only JSONL tree supports write, read, branch, and
   context building without data loss
 - **Expected Outcome:** Session entries form a tree via parentId links; branching
   creates a new leaf without modifying history; context building walks the tree
   correctly
-- **Validation:** `cargo test -p literate-core session`
+- **Validation:** `cargo test session`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** None
 
 ---
 
-### LCORE-003: Validate Cargo workspace integration
+### WEAVE-003: Validate standalone repo builds independently
 
-- **Intent:** Confirm `crates/literate-core/` builds alongside existing
-  `anvil-*` crates without conflicts or circular dependencies
-- **Expected Outcome:** `cargo build --workspace` and `cargo test --workspace`
-  pass with literate-core included
-- **Validation:** `cargo build --workspace && cargo test --workspace`
+- **Intent:** Confirm `weave` builds, tests, and lints cleanly as a standalone
+  crate outside any Cargo workspace
+- **Expected Outcome:** `cargo build`, `cargo test`, `cargo clippy` all pass in
+  the `eddacraft/weave-rs` repo with no workspace context
+- **Validation:** `cargo test && cargo clippy -- -D warnings`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** None
 
 ---
 
-## Phase 1 — Core Runtime (literate-core)
+## Phase 1 — Core Runtime (weave)
 
-### LCORE-010: Core types (Message, Content, Context, Model, StreamEvent)
+### WEAVE-010: Core types (Message, Content, Context, Model, StreamEvent)
 
 - **Intent:** Define the foundational type system for messages, tool calls, LLM
   context, model metadata, and streaming events
 - **Expected Outcome:** Types are defined with serde Serialize/Deserialize,
   covering user messages, assistant messages (text + thinking + tool calls),
   tool result messages, and streaming deltas
-- **Validation:** `cargo test -p literate-core types`
+- **Validation:** `cargo test types`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** None
 
 ---
 
-### LCORE-011: Tool trait and execution pipeline
+### WEAVE-011: Tool trait and execution pipeline
 
 - **Intent:** Define the Tool trait with async execution, read-only distinction,
   JSON Schema parameters, and a tool dispatch pipeline that parallelises
   read-only tools and sequences mutating tools
 - **Expected Outcome:** Tools can be registered, dispatched by name, and
   executed with cancellation support
-- **Validation:** `cargo test -p literate-core tool`
+- **Validation:** `cargo test tool`
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** LCORE-010
+- **Dependencies:** WEAVE-010
 
 ---
 
-### LCORE-012: Provider trait and streaming abstraction
+### WEAVE-012: Provider trait and streaming abstraction
 
 - **Intent:** Define the Provider trait that converts Context into an async
   stream of StreamEvents, with a provider registry for runtime selection
 - **Expected Outcome:** Providers are registered by API type, resolved at
   runtime, and produce a normalised event stream regardless of backing LLM
-- **Validation:** `cargo test -p literate-core provider` (mock provider)
+- **Validation:** `cargo test provider` (mock provider)
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** LCORE-010
+- **Dependencies:** WEAVE-010
 
 ---
 
-### LCORE-013: Agent state and event system
+### WEAVE-013: Agent state and event system
 
 - **Intent:** Define AgentState (system prompt, model, messages, tools),
   steering/follow-up queues, and the EventHandler trait for lifecycle
   notifications
 - **Expected Outcome:** Agent emits typed events (agent_start, turn_start,
   tool_call, tool_result, turn_end, agent_end) that listeners can subscribe to
-- **Validation:** `cargo test -p literate-core agent`
+- **Validation:** `cargo test agent`
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** LCORE-010, LCORE-011, LCORE-012
+- **Dependencies:** WEAVE-010, WEAVE-011, WEAVE-012
 
 ---
 
-### LCORE-014: Agent loop (two-level iteration)
+### WEAVE-014: Agent loop (two-level iteration)
 
 - **Intent:** Implement the core message loop: inner loop processes tool calls
   and steering messages, outer loop handles follow-up messages
 - **Expected Outcome:** Loop correctly orchestrates prompt → stream → extract
   tool calls → execute → inject results → repeat, with steering interrupts and
   follow-up continuation
-- **Validation:** `cargo test -p literate-core agent_loop`
+- **Validation:** `cargo test agent_loop`
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** LCORE-011, LCORE-012, LCORE-013
+- **Dependencies:** WEAVE-011, WEAVE-012, WEAVE-013
 
 ---
 
-### LCORE-015: SessionStore trait and JSONL-tree implementation
+### WEAVE-015: SessionStore trait and JSONL-tree implementation
 
 - **Intent:** Define the SessionStore trait and implement a default JSONL-tree
   backend with append-only persistence, parentId-based branching, and context
@@ -268,71 +273,71 @@ Change status to **Ready** when:
 - **Expected Outcome:** Sessions persist as line-delimited JSON, support
   branching without modifying history, and rebuild message context by walking
   the tree from leaf to root
-- **Validation:** `cargo test -p literate-core session`
+- **Validation:** `cargo test session`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** LCORE-010
+- **Dependencies:** WEAVE-010
 
 ---
 
-### LCORE-016: Compactor trait hook
+### WEAVE-016: Compactor trait hook
 
 - **Intent:** Define a Compactor trait that the agent loop calls when context
   approaches the model's window limit, allowing consumers to provide their own
   compaction strategy
 - **Expected Outcome:** Trait defined with a default no-op implementation;
   consumers can inject LLM-driven summarisation or truncation strategies
-- **Validation:** `cargo test -p literate-core compaction`
+- **Validation:** `cargo test compaction`
 - **Confidence:** high
 - **Priority:** Medium
-- **Dependencies:** LCORE-014, LCORE-015
+- **Dependencies:** WEAVE-014, WEAVE-015
 
 ---
 
 ## Phase 2 — Providers
 
-### LCORE-020: Anthropic provider (feature-gated)
+### WEAVE-020: Anthropic provider (feature-gated)
 
 - **Intent:** Implement the Anthropic Messages API provider behind a
   `provider-anthropic` feature flag, converting Context to Anthropic wire
   format and normalising streaming events
 - **Expected Outcome:** Agent can complete conversations using Claude models
   with streaming, tool use, and thinking support
-- **Scope:** `crates/literate-core/src/providers/anthropic.rs`
-- **Validation:** `cargo test -p literate-core --features provider-anthropic anthropic`
+- **Scope:** `src/providers/anthropic.rs`
+- **Validation:** `cargo test --features provider-anthropic anthropic`
   (integration test, requires API key)
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** LCORE-012
+- **Dependencies:** WEAVE-012
 
 ---
 
-### LCORE-021: OpenAI provider (feature-gated)
+### WEAVE-021: OpenAI provider (feature-gated)
 
 - **Intent:** Implement the OpenAI Chat Completions API provider behind a
   `provider-openai` feature flag, with the same normalised streaming interface
 - **Expected Outcome:** Agent can complete conversations using OpenAI models;
   OpenAI-compatible endpoints (Groq, Together, etc.) work via base URL override
-- **Scope:** `crates/literate-core/src/providers/openai.rs`
-- **Validation:** `cargo test -p literate-core --features provider-openai openai`
+- **Scope:** `src/providers/openai.rs`
+- **Validation:** `cargo test --features provider-openai openai`
 - **Confidence:** high
 - **Priority:** Medium
-- **Dependencies:** LCORE-012
+- **Dependencies:** WEAVE-012
 
 ---
 
-## Phase 3 — Anvil Integration (anvil-agent)
+## Phase 3 — Anvil Integration (anvil-weave)
 
-### AHARNESS-030: anvil-agent crate scaffold
+### AHARNESS-030: anvil-weave crate scaffold
 
-- **Intent:** Create the `crates/anvil-agent/` crate with dependencies on
-  literate-core and anvil-kernel-types
+- **Intent:** Create the `crates/anvil-weave/` crate with dependencies on
+  weave and anvil-kernel-types
 - **Expected Outcome:** Crate compiles, is included in workspace, and has
-  correct licence headers (source-proprietary, distinct from literate-core)
-- **Validation:** `cargo build -p anvil-agent`
+  correct licence headers (source-proprietary, distinct from weave)
+- **Validation:** `cargo build -p anvil-weave`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** LCORE-014
+- **Dependencies:** WEAVE-014
 
 ---
 
@@ -343,7 +348,7 @@ Change status to **Ready** when:
   "what are the transitive callers", "what layer does this belong to"
 - **Expected Outcome:** Agent can reason about codebase structure by querying
   the live graph rather than parsing text
-- **Validation:** `cargo test -p anvil-agent graph_query`
+- **Validation:** `cargo test -p anvil-weave graph_query`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** AHARNESS-030, KERN Phase 2 (semantic graph)
@@ -356,7 +361,7 @@ Change status to **Ready** when:
   current graph state and returns violations with context
 - **Expected Outcome:** Agent can check "would this change violate any policy"
   or "what policies guard this boundary" programmatically
-- **Validation:** `cargo test -p anvil-agent policy_eval`
+- **Validation:** `cargo test -p anvil-weave policy_eval`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** AHARNESS-030, KERN Phase 3 (policy engine)
@@ -366,10 +371,10 @@ Change status to **Ready** when:
 ### AHARNESS-033: Standard tools (read, edit, bash)
 
 - **Intent:** Implement standard file-operation and shell-execution tools for
-  anvil-agent, with sandboxing appropriate for a governance context
+  anvil-weave, with sandboxing appropriate for a governance context
 - **Expected Outcome:** Agent can read files, propose edits, and execute
   commands within constrained scope
-- **Validation:** `cargo test -p anvil-agent standard_tools`
+- **Validation:** `cargo test -p anvil-weave standard_tools`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** AHARNESS-030
@@ -381,9 +386,9 @@ Change status to **Ready** when:
 - **Intent:** Wire kernel EngineEvents (violations, snapshot completions) to
   trigger agent reasoning, so the agent reacts to structural changes
   automatically
-- **Expected Outcome:** When the kernel emits a violation event, anvil-agent
+- **Expected Outcome:** When the kernel emits a violation event, anvil-weave
   receives it and can initiate an agent turn with the violation as context
-- **Validation:** `cargo test -p anvil-agent triggers`
+- **Validation:** `cargo test -p anvil-weave triggers`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** AHARNESS-031, AHARNESS-032
@@ -392,76 +397,63 @@ Change status to **Ready** when:
 
 ### AHARNESS-035: AnvilHarness — pre-wired agent configuration
 
-- **Intent:** Provide a convenience struct that wires literate-core Agent with
+- **Intent:** Provide a convenience struct that wires weave Agent with
   Anvil tools, a configured provider, and session persistence into a
   ready-to-use harness
 - **Expected Outcome:** `AnvilHarness::new(kernel, config)` returns a
   fully-configured agent that can reason about the codebase
-- **Validation:** `cargo test -p anvil-agent harness`
+- **Validation:** `cargo test -p anvil-weave harness`
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** AHARNESS-031, AHARNESS-032, AHARNESS-033, AHARNESS-034
 
 ---
 
-## Phase 4 — Validation & Extraction Readiness
+## Phase 4 — Validation
 
-### LCORE-040: CI enforcement of zero-dep invariant
+### WEAVE-040: CI workflow for weave-rs repo
 
-- **Intent:** Add a CI step that verifies literate-core has no `anvil-*`
-  dependencies using `cargo metadata`
-- **Expected Outcome:** PRs that accidentally add an Anvil dependency to
-  literate-core are blocked
-- **Validation:** CI passes with current code; intentional violation is caught
+- **Intent:** Set up GitHub Actions CI for `eddacraft/weave-rs` with check,
+  test, clippy, and dependency audit
+- **Expected Outcome:** PRs to weave-rs are validated automatically; the
+  zero-dep invariant is structurally guaranteed
+- **Validation:** CI passes on a PR
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** LCORE-003
+- **Dependencies:** WEAVE-003
 
 ---
 
-### LCORE-041: Integration test — full agent conversation
+### WEAVE-041: Integration test — full agent conversation
 
 - **Intent:** End-to-end test: mock provider, real tools, real session
   persistence, multi-turn conversation with tool calls and branching
 - **Expected Outcome:** Full conversation round-trip works, session is
   persisted and recoverable
-- **Validation:** `cargo test -p literate-core integration`
+- **Validation:** `cargo test integration`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** LCORE-014, LCORE-015
+- **Dependencies:** WEAVE-014, WEAVE-015
 
 ---
 
-### LCORE-042: Integration test — anvil-agent violation remediation
+### WEAVE-042: Integration test — anvil-weave violation remediation
 
-- **Intent:** End-to-end test: kernel detects violation → anvil-agent receives
+- **Intent:** End-to-end test: kernel detects violation → anvil-weave receives
   trigger → agent queries graph → agent proposes remediation
 - **Expected Outcome:** The full pipeline from detection to suggestion works
   with a mock provider
-- **Validation:** `cargo test -p anvil-agent remediation_e2e`
+- **Validation:** `cargo test -p anvil-weave remediation_e2e`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** AHARNESS-034, AHARNESS-035
 
 ---
 
-### LCORE-043: Extraction dry run
-
-- **Intent:** Verify that `git subtree split -P crates/literate-core` produces
-  a clean, independently buildable repository
-- **Expected Outcome:** Extracted repo compiles, tests pass, licence is correct,
-  no Anvil references in source
-- **Validation:** Extract, build, and test in isolation
-- **Confidence:** high
-- **Priority:** Medium
-- **Dependencies:** LCORE-040, LCORE-041
-
----
-
 ## Cross-Product Leverage (Future)
 
 These are not tasks — they document how other products would consume
-literate-core once the API stabilises.
+weave once the API stabilises.
 
 | Product | Custom Tools | Use Case |
 |---------|-------------|----------|
@@ -470,6 +462,7 @@ literate-core once the API stabilises.
 | Edda Stack | `ember_recall`, `knowledge_graph` | Memory-augmented agents |
 | APS Tooling | `plan_read`, `plan_validate` | Plan-aware automation, spec validation |
 | CI Pipeline | `diff_analyze`, `pr_comment` | Headless PR review, violation reporting |
+| Personal | project-specific tools | General-purpose Rust agents |
 
 ## Performance Targets
 
@@ -479,8 +472,8 @@ literate-core once the API stabilises.
 | Tool dispatch overhead | < 1ms |
 | Session append (JSONL) | < 5ms |
 | Session context build (100 messages) | < 50ms |
-| literate-core compile time (clean) | < 30s |
-| literate-core binary size contribution | < 2MB |
+| weave compile time (clean) | < 30s |
+| weave binary size contribution | < 2MB |
 
 ## Stats
 
@@ -490,5 +483,5 @@ literate-core once the API stabilises.
 | 1 — Core Runtime | 7 | Draft |
 | 2 — Providers | 2 | Draft |
 | 3 — Anvil Integration | 6 | Draft |
-| 4 — Validation | 4 | Draft |
-| **Total** | **22** | **0/22** |
+| 4 — Validation | 3 | Draft |
+| **Total** | **21** | **0/21** |

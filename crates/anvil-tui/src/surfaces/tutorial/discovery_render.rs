@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::discovery::{DiscoveryPhase, DiscoveryState, FindingSeverity};
+use crate::shell::inset_content;
 
 const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -21,6 +22,7 @@ fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize 
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme: &EddaCraftTheme) {
+    let area = inset_content(area);
     match state.phase {
         DiscoveryPhase::Scanning {
             files_scanned,

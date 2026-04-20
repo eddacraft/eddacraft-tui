@@ -109,6 +109,40 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Create `path` exclusively and write `data`. Fails with `AlreadyExists` if
+/// the file is already present — use this instead of `atomic_write` when the
+/// caller has already decided "only create, do not overwrite", so the
+/// check-then-write window cannot be exploited by a concurrent writer.
+///
+/// On Unix the file is created with mode 0o600.
+pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut file = opts
+        .open(path)
+        .with_context(|| format!("creating {}", path.display()))?;
+    file.write_all(data)
+        .with_context(|| format!("writing {}", path.display()))?;
+    file.flush()
+        .with_context(|| format!("flushing {}", path.display()))?;
+
+    // On Windows, restrict the file to the current user only (matching the
+    // Unix 0o600 set at creation time). Best-effort; emits a warning rather
+    // than failing the write if icacls is unavailable.
+    #[cfg(windows)]
+    {
+        restrict_windows_permissions(path);
+    }
+
+    Ok(())
+}
+
 #[cfg(windows)]
 fn current_user_sid() -> Result<String> {
     let output = std::process::Command::new("whoami")
@@ -212,6 +246,49 @@ mod tests {
         atomic_write(&path, b"new").unwrap();
 
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+    }
+
+    #[test]
+    fn write_new_creates_file_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fresh.rc");
+
+        write_new(&path, b"hello").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello");
+    }
+
+    #[test]
+    fn write_new_errors_when_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("existing.rc");
+        std::fs::write(&path, "keep-me").unwrap();
+
+        let err = write_new(&path, b"overwrite").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("creating") || msg.contains("exists"),
+            "error message should mention creation failure: {msg}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "keep-me",
+            "write_new must not overwrite an existing file"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_new_sets_0600_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secret.rc");
+
+        write_new(&path, b"secret").unwrap();
+
+        let perms = std::fs::metadata(&path).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600);
     }
 
     #[cfg(unix)]

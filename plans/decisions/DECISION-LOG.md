@@ -34,6 +34,7 @@ These define how Anvil behaves by default. All features must align.
 | [011a](011a-rust-core-engine.md) | Rust core engine for performance-critical paths (watch mode, analysis, policy) | Superseded |
 | [012](012-rust-cli-replacement.md) | Single `anvil` Rust binary replaces Node.js CLI; big bang, no hybrid period | Accepted |
 | [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
+| [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted |
 
 ## Product and Distribution
 
@@ -48,6 +49,7 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [016](016-unified-config-format.md) | Consolidate three config files into single TOML with source delegation | Proposed |
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
+| [026](026-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) | Proposed |
 
 ## Intercept and Enforcement
 
@@ -66,7 +68,7 @@ These define how Anvil behaves by default. All features must align.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [024](024-internal-agent-harness.md) | Thin agent runtime (literate-core, Apache-2.0) in monorepo; anvil-agent harness with zero-copy graph access | Proposed |
+| [024](024-internal-agent-harness.md) | Thin agent runtime (weave, Apache-2.0) standalone at eddacraft/weave-rs; anvil-weave harness with zero-copy graph access | Proposed |
 
 ## Evaluation and Testing
 

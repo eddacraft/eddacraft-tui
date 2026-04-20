@@ -1,3 +1,4 @@
+import type { ZodType } from 'zod';
 import type { AdminConfig } from './config.js';
 
 export class AdminError extends Error {
@@ -20,10 +21,11 @@ export interface ClientOptions extends AdminConfig {
   fetchImpl?: Fetch;
 }
 
-export interface RequestOptions {
+export interface RequestOptions<T = unknown> {
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
   method?: 'GET' | 'POST';
+  schema?: ZodType<T>;
 }
 
 export class AdminClient {
@@ -39,15 +41,15 @@ export class AdminClient {
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
-  async get<T>(path: string, query?: RequestOptions['query']): Promise<T> {
-    return this.request<T>(path, { method: 'GET', query });
+  async get<T>(path: string, query?: RequestOptions<T>['query'], schema?: ZodType<T>): Promise<T> {
+    return this.request<T>(path, { method: 'GET', query, schema });
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>(path, { method: 'POST', body });
+  async post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T> {
+    return this.request<T>(path, { method: 'POST', body, schema });
   }
 
-  private async request<T>(path: string, opts: RequestOptions): Promise<T> {
+  private async request<T>(path: string, opts: RequestOptions<T>): Promise<T> {
     const method = opts.method ?? 'GET';
     const target = new URL(path.startsWith('/') ? path : `/${path}`, this.url + '/');
     if (opts.query) {
@@ -102,9 +104,21 @@ export class AdminClient {
       throw new AdminError(message, 1, response.status, text);
     }
 
-    if (!text) return undefined as T;
+    if (!text) {
+      if (opts.schema) {
+        throw new AdminError(
+          `empty response body (expected ${response.status} with JSON content)`,
+          6,
+          response.status,
+          text
+        );
+      }
+      return undefined as T;
+    }
+
+    let parsed: unknown;
     try {
-      return JSON.parse(text) as T;
+      parsed = JSON.parse(text);
     } catch {
       throw new AdminError(
         `invalid JSON response: ${text.slice(0, 200)}`,
@@ -113,5 +127,25 @@ export class AdminClient {
         text
       );
     }
+
+    if (!opts.schema) return parsed as T;
+
+    const result = opts.schema.safeParse(parsed);
+    if (!result.success) {
+      // Pick the first issue as the headline — most real malformed
+      // responses trip one field and chaining every issue makes the
+      // error line unusably long. `err.body` carries the raw response
+      // text for anyone debugging manually (not the Zod issue tree).
+      const issue = result.error.issues[0];
+      const fieldPath = issue?.path.length ? issue.path.join('.') : '<root>';
+      const reason = issue?.message ?? 'validation failed';
+      throw new AdminError(
+        `response validation failed at ${fieldPath}: ${reason}`,
+        6,
+        response.status,
+        text
+      );
+    }
+    return result.data;
   }
 }

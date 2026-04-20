@@ -29,6 +29,14 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
     delete process.env.ANVIL_OPA_PATH;
     delete process.env.ANVIL_OPA_VERSION;
 
+    // Make tests hermetic against the host PATH. CI now preinstalls OPA via
+    // setup-opa so `which opa` resolves, which would let the negative-path
+    // tests below accidentally discover a real binary and fail.
+    vi.spyOn(
+      OPABinaryManager.prototype as unknown as Record<string, () => string | null>,
+      'findInPath'
+    ).mockReturnValue(null);
+
     manager = new OPABinaryManager({
       cacheDir: tempCacheDir,
       autoDownload: false, // Disable auto-download for tests

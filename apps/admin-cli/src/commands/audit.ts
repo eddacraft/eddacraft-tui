@@ -1,6 +1,14 @@
+import type { ZodType } from 'zod';
+import {
+  AuditResponseSchema,
+  type AuditItem,
+  type AuditResponse,
+} from '@eddacraft/admin-contracts';
 import { AdminClient } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, renderTable, type Row } from '../format.js';
+
+export type { AuditItem, AuditResponse };
 
 export interface AuditOptions extends ConfigFlags {
   action?: string;
@@ -10,21 +18,12 @@ export interface AuditOptions extends ConfigFlags {
   json?: boolean;
 }
 
-export interface AuditItem {
-  id: string;
-  action: string;
-  actor: string;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface AuditResponse {
-  total: number;
-  items: AuditItem[];
-}
-
 export interface AdminReader {
-  get<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T>;
+  get<T>(
+    path: string,
+    query?: Record<string, string | number | boolean | undefined>,
+    schema?: ZodType<T>
+  ): Promise<T>;
 }
 
 export interface AuditDeps {
@@ -50,7 +49,7 @@ export async function runAuditCommand(
   if (options.limit !== undefined) query.limit = options.limit;
   if (options.offset !== undefined) query.offset = options.offset;
 
-  const result = await client.get<AuditResponse>('/admin/audit', query);
+  const result = await client.get('/admin/audit', query, AuditResponseSchema);
 
   if (options.json) {
     stdout(formatJson(result) + '\n');

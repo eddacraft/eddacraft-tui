@@ -71,6 +71,33 @@ deadline live in
 | [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Visual identity, design system, deck templates, brand assets                  |
 | [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec)   | The APS planning format used throughout this repo                             |
 
+## Install
+
+Get the latest release from
+[**install.eddacraft.ai**](https://install.eddacraft.ai) — auto-detects your OS
+and highlights the recommended command.
+
+```bash
+# Linux / macOS
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+
+# macOS (Homebrew)
+brew install eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+
+# Windows (WinGet)
+winget install eddacraft.anvil
+
+# Windows (Scoop)
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
+```
+
 ---
 
 ## For contributors
@@ -230,6 +257,8 @@ and tooling.
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
 - **cargo-llvm-cov** (optional, for Rust coverage) —
   `cargo install cargo-llvm-cov`
+- **cargo-nextest** (optional, required by `pnpm test:coverage:rust`) —
+  `cargo install cargo-nextest --locked`
 
 ### Setup
 

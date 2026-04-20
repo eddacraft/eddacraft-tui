@@ -3,6 +3,8 @@
 
 package anvil.policies.security_baseline
 
+import rego.v1
+
 # Sensitive path patterns (configurable via input.config)
 default sensitive_patterns := [
   "**/auth/**",

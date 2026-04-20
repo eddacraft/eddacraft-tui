@@ -1,7 +1,11 @@
+import type { ZodType } from 'zod';
+import { RevokeResponseSchema, type RevokeResponse } from '@eddacraft/admin-contracts';
 import { AdminClient, AdminError } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess } from '../format.js';
 import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
+
+export type { RevokeResponse };
 
 export interface RevokeOptions extends ConfigFlags {
   token?: string;
@@ -9,12 +13,8 @@ export interface RevokeOptions extends ConfigFlags {
   json?: boolean;
 }
 
-export interface RevokeResponse {
-  revoked: number;
-}
-
 export interface AdminWriter {
-  post<T>(path: string, body?: unknown): Promise<T>;
+  post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T>;
 }
 
 export interface RevokeDeps {
@@ -70,7 +70,7 @@ export async function runRevokeCommand(
   }
 
   const body = hasEmail ? { email } : { token: options.token };
-  const result = await client.post<RevokeResponse>('/admin/revoke', body);
+  const result = await client.post('/admin/revoke', body, RevokeResponseSchema);
 
   if (options.json) {
     stdout(formatJson(result) + '\n');

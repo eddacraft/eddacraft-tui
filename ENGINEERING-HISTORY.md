@@ -37,6 +37,14 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **Installer UX polish** — post-install output now prints a branded next-steps
   block with colour support and direct pointers to `anvil auth login` and
   `anvil welcome`
+- **Admin CLI surface expansion** — the admin command set moved from endpoint
+  groundwork to an operational CLI with `list`, `show`, `approve`, `invite`,
+  `audit`, `revoke`, and `send-migration` flows layered over the beta-user
+  service APIs
+- **CLI hardening wave** — admin command paths now validate flags earlier,
+  detect TTY state from stdin and stderr together, sanitise control characters
+  in rendered tables, align audit types to the server contract, and make error
+  handling more testable and explicit
 
 ### API & Operations
 
@@ -53,6 +61,15 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **DBCON groundwork** — database consolidation module introduced for the Neon
   project merge, including operator-only waitlist pause controls and bridge
   migration work
+- **Email correction path** — auth UX now handles email mismatch more clearly,
+  and the admin API exposes an email-update endpoint so operators can repair
+  beta-user addresses without direct database edits
+- **Migration operations** — admin migration sending now has an operator
+  runbook, correct dry-run semantics, and non-zero failure exits for automation
+  safety
+- **DBCON follow-on work** — option-B reset flow started,
+  `ANVIL_API_DATABASE_URL` rename introduced, and verification/snapshot steps
+  hardened for the next Neon cutover stage
 
 ### CI, Benchmarking & Security
 
@@ -62,6 +79,9 @@ delivery changes behind each release. For end-user feature summaries, see the
   range to close a known supply-chain issue
 - **ADR coverage** — ADR-024 published for the literate-core agent harness; KERN
   and BENCH modules archived after completion
+- **Toolchain refresh** — pnpm, Cargo crates, and selected GitHub Actions moved
+  forward during the release window to keep the admin CLI and release pipeline
+  on current dependency baselines
 
 ## [0.3.2-beta]
 

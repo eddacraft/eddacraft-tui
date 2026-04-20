@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { z } from 'zod';
 import { AdminClient, AdminError } from '../client.js';
 
 function makeFetch(response: { status: number; body: string; ok?: boolean }): typeof fetch {
@@ -117,5 +118,79 @@ describe('AdminClient', () => {
     expect(err.exitCode).toBe(2);
     expect(err.status).toBe(502);
     expect(err.body).toBe('body');
+  });
+
+  describe('response validation', () => {
+    const schema = z.object({ id: z.number(), name: z.string() });
+
+    it('returns the validated payload unchanged when it matches', async () => {
+      const client = makeClient(makeFetch({ status: 200, body: '{"id":1,"name":"ok"}' }));
+      const result = await client.get('/x', undefined, schema);
+      expect(result).toEqual({ id: 1, name: 'ok' });
+    });
+
+    it('throws AdminError with exitCode 6 on shape mismatch and names the field path', async () => {
+      const client = makeClient(
+        makeFetch({ status: 200, body: '{"id":"not-a-number","name":"ok"}' })
+      );
+      await expect(client.get('/x', undefined, schema)).rejects.toMatchObject({
+        exitCode: 6,
+        status: 200,
+      });
+      await expect(client.get('/x', undefined, schema)).rejects.toThrow(
+        /response validation failed at id:/
+      );
+    });
+
+    it('reports the nested field path for array-indexed fields', async () => {
+      const nested = z.object({ items: z.array(z.object({ email: z.string() })) });
+      const client = makeClient(
+        makeFetch({ status: 200, body: '{"items":[{"email":"a@b.c"},{"email":42}]}' })
+      );
+      await expect(client.get('/x', undefined, nested)).rejects.toThrow(
+        /response validation failed at items\.1\.email:/
+      );
+    });
+
+    it('reports <root> when the outer type is wrong', async () => {
+      const client = makeClient(makeFetch({ status: 200, body: '[]' }));
+      await expect(client.get('/x', undefined, schema)).rejects.toThrow(
+        /response validation failed at <root>:/
+      );
+    });
+
+    it('skips validation when no schema is supplied (backwards-compatible)', async () => {
+      const client = makeClient(makeFetch({ status: 200, body: '{"anything":true}' }));
+      const result = await client.get<{ anything: boolean }>('/x');
+      expect(result.anything).toBe(true);
+    });
+
+    it('still prefers the 4xx/5xx path over validation', async () => {
+      // 4xx comes first — validation never runs against an error body.
+      const client = makeClient(makeFetch({ status: 400, body: '{"error":"bad"}' }));
+      await expect(client.get('/x', undefined, schema)).rejects.toMatchObject({
+        exitCode: 1,
+        status: 400,
+      });
+    });
+
+    it('preserves the raw body on the error for debugging', async () => {
+      const body = '{"id":"bad","name":"ok"}';
+      const client = makeClient(makeFetch({ status: 200, body }));
+      try {
+        await client.get('/x', undefined, schema);
+        throw new Error('expected AdminError');
+      } catch (err) {
+        expect(err).toBeInstanceOf(AdminError);
+        expect((err as AdminError).body).toBe(body);
+      }
+    });
+
+    it('validates POST responses via the schema argument', async () => {
+      const client = makeClient(makeFetch({ status: 200, body: '{"revoked":"nope"}' }));
+      await expect(
+        client.post('/admin/revoke', { email: 'a@b.c' }, z.object({ revoked: z.number() }))
+      ).rejects.toMatchObject({ exitCode: 6 });
+    });
   });
 });

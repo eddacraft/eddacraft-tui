@@ -9,9 +9,9 @@ Scopes: RCLI (main)
 
 # Rust CLI
 
-| ID   | Owner | Status      | Progress |
-| ---- | ----- | ----------- | -------- |
-| RCLI | —     | In Progress | 63/64    |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| RCLI | —     | Complete | 64/64    |
 
 ## Purpose
 
@@ -358,15 +358,28 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-016: admin commands
 
-- **Status:** Proposed
-- **Intent:** Port `anvil admin approve`. Authenticated API call to approve
-  waitlisted users
-- **Expected Outcome:** `anvil admin approve <user-id>` approves user via API
-- **Validation:** API call succeeds; unauthenticated call returns exit code 3
-- **Files:** `crates/anvil-cli/src/commands/admin.rs`
+- **Status:** Complete
+- **Completed:** 2026-04-20
+- **Intent:** Port `anvil admin approve` (single or `--batch N`) and
+  `anvil admin invite` (with `--name`, `--notes`, and a `--token` mode for
+  CI/service accounts). Authenticated via the `ANVIL_ADMIN_KEY` environment
+  variable rather than personal credentials
+- **Expected Outcome:** `anvil admin approve user@example.com` and
+  `anvil admin approve --batch N` approve waitlisted users via the API;
+  `anvil admin invite user@example.com` records a waitlist entry and sends a
+  device-code activation email, or returns a raw access token when
+  `--token` is passed
+- **Validation:** API call succeeds with `ANVIL_ADMIN_KEY` set; missing or
+  empty `ANVIL_ADMIN_KEY` returns exit code 3 (EXIT_AUTH_REQUIRED) with a
+  helpful stderr message (or structured JSON when `--json` is set)
+- **Files:** `crates/anvil-cli/src/commands/admin.rs`,
+  `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/src/output/mod.rs`
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** RCLI-015
+- **Notes:** Admin authenticates via `ANVIL_ADMIN_KEY`, not personal
+  credentials, so it is in the `requires_auth` bypass list — the command
+  owns its own exit-code-3 path via the `output::AuthRequired` sentinel
 
 ---
 
@@ -685,7 +698,7 @@ resolved before RCLI-023 (cutover) can proceed.
   markdown structure (frontmatter, phases, work items) into the same
   intermediate representation used by YAML/JSON export, then serialise to the
   target format
-- **Expected Outcome:** `anvil export plans/modules/rust-cli.aps.md --to json`
+- **Expected Outcome:** `anvil export plans/archive/modules/rust-cli.aps.md --to json`
   produces valid JSON plan output
 - **Validation:** Exported JSON matches Node.js CLI output for same APS file;
   round-trip fidelity for all APS fields
@@ -1300,7 +1313,7 @@ findings deferred for later.
 | 1 — Foundation | 4 | Complete |
 | 2 — Static Surface Commands | 8 | Complete |
 | 3 — Kernel-Integrated Commands | 2 | Complete (gate, watch) |
-| 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Proposed (RCLI-016) |
+| 4 — Auth & API | 2 | Complete (RCLI-015, RCLI-016) |
 | 5 — Policy & Architecture | 4 | Complete |
 | 6 — Utilities & Cutover | 4 | Complete (RCLI-021 merged in PR #697) |
 | 7 — Parity Rework | 11 | Complete (RCLI-014a merged in PR #698) |
@@ -1308,4 +1321,4 @@ findings deferred for later.
 | 9 — Council Review | 8 | Complete |
 | 10 — Council Review | 6 | Complete (048, 049, 050, 052 + 047, 053) |
 | 11 — Council Deferred | 2 | Complete (RCLI-054, Superseded) |
-| **Total** | **64** | **62 Complete, 1 Superseded, 1 Proposed** |
+| **Total** | **64** | **63 Complete, 1 Superseded** |

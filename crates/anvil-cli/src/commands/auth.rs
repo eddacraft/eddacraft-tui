@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::auth::{credentials, device_flow};
+use crate::feature_flags::evaluate_cli_licence_gate;
 
 #[derive(Debug, Args)]
 pub struct AuthArgs {
@@ -30,6 +31,9 @@ struct WhoamiData {
     email: String,
     plan: Option<String>,
     expires_at: Option<String>,
+    /// FLAGS-008: shared licence-gate resolution for this session (enabled|disabled).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    licence_gate: Option<String>,
 }
 
 pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
@@ -59,10 +63,13 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
 
             match rt.block_on(client.whoami()) {
                 Ok(whoami) => {
+                    let gate =
+                        evaluate_cli_licence_gate(whoami.email.as_str(), whoami.plan.as_deref());
                     let data = WhoamiData {
                         email: whoami.email,
                         plan: whoami.plan,
                         expires_at: creds.expires_at,
+                        licence_gate: Some(gate.variant),
                     };
                     if global.json {
                         crate::output::json::print(&data)?;
@@ -76,6 +83,9 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
                         if let Some(expires) = &data.expires_at {
                             println!("  Expires: {expires}");
                         }
+                        if let Some(gate) = &data.licence_gate {
+                            println!("  Gate:    cli.licence-gate = {gate}");
+                        }
                     }
                     Ok(())
                 }
@@ -84,6 +94,7 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
                         email: creds.email.unwrap_or_else(|| "unknown".to_string()),
                         plan: None,
                         expires_at: creds.expires_at,
+                        licence_gate: None,
                     };
                     if global.json {
                         crate::output::json::print(&data)?;
