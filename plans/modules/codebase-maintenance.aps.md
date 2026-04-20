@@ -278,8 +278,12 @@ When working on any task across the codebase, note repeated patterns:
   - `nx run-many -t typecheck` passes with zero errors
   - `nx run-many -t build` succeeds across all packages
   - `nx run-many -t test` passes with no regressions
-  - `grep -r '"baseUrl"' --include='tsconfig*.json'` returns 0 matches
-  - `grep -r '"esModuleInterop"' --include='tsconfig*.json'` returns 0 matches
+  - `grep -r '"baseUrl"' --include='tsconfig*.json'` returns only
+    `apps/docs-site/tsconfig.json` (inherited from `@docusaurus/tsconfig`,
+    guarded by `ignoreDeprecations: "6.0"`)
+  - `grep -r '"esModuleInterop"' --include='tsconfig*.json'` returns only
+    `apps/docs-shell/tsconfig.json` and `apps/website/tsconfig.json`
+    (retained for Next.js editor tooling)
 - **Files:**
   - `package.json` (version bump)
   - `tsconfig.base.json` (remove baseUrl, bump target/lib)
