@@ -453,10 +453,10 @@ fn compute_fingerprint(rule: &str, policy: &str, path: Option<&str>, message: &s
 /// Resolve the OPA binary path: honour `ANVIL_OPA_PATH` first, otherwise
 /// fall back to a `which` lookup. Returns `None` when no binary is available.
 pub fn find_opa_binary() -> Option<PathBuf> {
-    if let Ok(env_path) = std::env::var("ANVIL_OPA_PATH") {
-        if !env_path.is_empty() {
-            return Some(PathBuf::from(env_path));
-        }
+    if let Ok(env_path) = std::env::var("ANVIL_OPA_PATH")
+        && !env_path.is_empty()
+    {
+        return Some(PathBuf::from(env_path));
     }
     which::which("opa").ok()
 }
