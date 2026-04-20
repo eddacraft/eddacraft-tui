@@ -1,5 +1,6 @@
 mod auth;
 mod commands;
+mod feature_flags;
 mod output;
 mod services;
 mod tui;

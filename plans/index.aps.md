@@ -230,7 +230,7 @@ when specific work is identified.
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
-| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 8/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **In Progress** |
+| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./modules/release-management.aps.md) | RELMGMT | 11 | CI pipeline, all packages and crates, DIST |

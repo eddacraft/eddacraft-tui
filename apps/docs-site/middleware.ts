@@ -11,6 +11,8 @@
 
 import { jwtVerify, importSPKI } from 'jose';
 
+import { DOCS_ACCESS_FLAG_KEY, evaluateDocsAccess } from './lib/feature-flags.js';
+
 const COOKIE_NAME = 'anvil-docs-session';
 
 let cachedKey: CryptoKey | null = null;
@@ -53,8 +55,22 @@ export default async function middleware(request: Request): Promise<Response | u
 
   try {
     const publicKey = await getPublicKey();
-    await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
-    // Valid JWT — return undefined to let Vercel serve the static content
+    const { payload } = await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
+
+    // FLAGS-008: route `/anvil` access through the shared flag model so future
+    // tier policy is a manifest change, not a middleware change. See
+    // `apps/docs-site/lib/feature-flags.ts` and the exemplar in
+    // `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`.
+    const tierClaim = typeof payload.tier === 'string' ? payload.tier : null;
+    const resolution = evaluateDocsAccess({ accountTier: tierClaim });
+    if (resolution.variant === 'disabled') {
+      const deniedUrl = new URL('/auth/login', url.origin);
+      deniedUrl.searchParams.set('next', url.pathname);
+      deniedUrl.searchParams.set('reason', `${DOCS_ACCESS_FLAG_KEY}:disabled`);
+      return Response.redirect(deniedUrl.toString(), 302);
+    }
+
+    // Valid JWT and flag resolves enabled — let Vercel serve the static content
     return undefined;
   } catch {
     // Invalid or expired JWT — clear cookie and redirect to login

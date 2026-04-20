@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLAGS | —     | high     | In Progress (8/9) |
+| FLAGS | —     | high     | Complete (9/9) |
 
 ## Purpose
 
@@ -217,7 +217,7 @@ Change status to **Ready** when:
 - **Validation:** `grep -q "sunset" docs/guides/feature-flag-governance.md && grep -q "feature flag" plans/aps-rules.md`
 - **Confidence:** high
 
-### FLAGS-008: Implement CLI licence gating and docs access as the first exemplars
+### FLAGS-008: Implement CLI licence gating and docs access as the first exemplars — Complete
 
 - **Intent:** Prove the shared flagging model on the clearest existing
   entitlement-gated surfaces: CLI licence-gated actions and `/anvil` docs
@@ -230,6 +230,13 @@ Change status to **Ready** when:
 - **Dependencies:** FLAGS-003, FLAGS-004, FLAGS-005
 - **Validation:** `pnpm test -- --runInBand feature-flag-exemplars`
 - **Confidence:** medium
+- **Files:** `crates/anvil-cli/src/feature_flags.rs`, `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/src/commands/auth.rs`, `apps/docs-site/lib/feature-flags.ts`, `apps/docs-site/middleware.ts`
+- **Outcome:** CLI `whoami` now evaluates the shared `cli.licence-gate` flag
+  via `anvil_kernel::feature_flags::resolve_flag` and surfaces the variant;
+  docs-site middleware routes `/anvil` access through the inline `docs.access`
+  evaluator (Vercel edge runtime cannot import the workspace runtime package
+  yet). Both surfaces mirror
+  `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`.
 
 ### FLAGS-009: Map current ad-hoc flags and rollout toggles onto the shared model
 
