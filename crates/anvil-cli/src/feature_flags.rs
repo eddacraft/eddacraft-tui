@@ -169,8 +169,7 @@ pub fn command_needs_licence_gate(command_name: &str) -> bool {
     cli_licence_gate_flag()
         .metadata
         .gated_commands
-        .iter()
-        .any(|name| *name == command_name)
+        .contains(&command_name)
 }
 
 #[cfg(test)]
@@ -199,10 +198,7 @@ mod tests {
     fn gated_commands_are_sorted_and_unique() {
         let mut seen = std::collections::BTreeSet::new();
         for name in CLI_GATED_COMMANDS {
-            assert!(
-                seen.insert(*name),
-                "duplicate gated command: {name}"
-            );
+            assert!(seen.insert(*name), "duplicate gated command: {name}");
         }
         let sorted: Vec<&&str> = {
             let mut copy: Vec<&&str> = CLI_GATED_COMMANDS.iter().collect();
