@@ -219,7 +219,7 @@ fn run_guided_init(
         return Ok(false);
     }
 
-    let checks = onboarding::default_available_checks();
+    let checks = crate::commands::defaults::default_available_checks();
     let mut init_state = anvil_tui::surfaces::init::InitState::new(checks);
     let exit = crate::tui::run_surface_in(terminal, &mut init_state, theme)?;
 
@@ -230,7 +230,7 @@ fn run_guided_init(
 
     if init_state.confirmed {
         let checks: Vec<String> = if init_state.config.checks.is_empty() {
-            vec!["secret-scan".to_string(), "anti-pattern".to_string()]
+            crate::commands::defaults::default_check_names()
         } else {
             init_state.config.checks
         };

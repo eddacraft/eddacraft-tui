@@ -2,12 +2,13 @@ use std::fs;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
-use anvil_tui::surfaces::init::{AvailableCheck, InitState};
+use anvil_tui::surfaces::init::InitState;
 use anyhow::Context;
 use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::commands::defaults::{default_available_checks, default_check_names};
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -15,9 +16,6 @@ pub struct InitArgs {
     #[arg(long)]
     force: bool,
 }
-
-/// Default checks enabled in a fresh `.anvilrc`.
-const DEFAULT_CHECKS: &[&str] = &["secret-detection", "import-boundaries"];
 
 /// Schema version for generated `.anvilrc` files.
 const SCHEMA_VERSION: &str = "1.0.0";
@@ -37,7 +35,7 @@ impl Default for AnvilConfig {
             schema_version: SCHEMA_VERSION.to_string(),
             planning_dir: "plans".to_string(),
             format: "yaml".to_string(),
-            checks: DEFAULT_CHECKS.iter().map(|s| (*s).to_string()).collect(),
+            checks: default_check_names(),
         }
     }
 }
@@ -96,7 +94,7 @@ fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
     }
 
     let checks: Vec<String> = if state.config.checks.is_empty() {
-        DEFAULT_CHECKS.iter().map(|s| (*s).to_string()).collect()
+        default_check_names()
     } else {
         state.config.checks
     };
@@ -282,36 +280,6 @@ pub(crate) fn format_label(fmt: anvil_tui::surfaces::init::ConfigFormat) -> Stri
         anvil_tui::surfaces::init::ConfigFormat::Json => "json".to_string(),
         anvil_tui::surfaces::init::ConfigFormat::Toml => "toml".to_string(),
     }
-}
-
-fn default_available_checks() -> Vec<AvailableCheck> {
-    vec![
-        AvailableCheck {
-            name: "secret-detection".to_string(),
-            description: "Detect leaked secrets and credentials".to_string(),
-            enabled: true,
-        },
-        AvailableCheck {
-            name: "import-boundaries".to_string(),
-            description: "Enforce module import boundaries".to_string(),
-            enabled: true,
-        },
-        AvailableCheck {
-            name: "antipattern-scan".to_string(),
-            description: "Detect common code antipatterns".to_string(),
-            enabled: false,
-        },
-        AvailableCheck {
-            name: "architecture".to_string(),
-            description: "Validate architecture definitions".to_string(),
-            enabled: false,
-        },
-        AvailableCheck {
-            name: "policy".to_string(),
-            description: "Evaluate OPA policy rules".to_string(),
-            enabled: false,
-        },
-    ]
 }
 
 #[cfg(test)]
