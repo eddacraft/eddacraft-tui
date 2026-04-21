@@ -70,6 +70,7 @@
     "lint-staged": "^16.4.0",
     "markdownlint-cli": "^0.48.0",
     "nx": "22.6.5",
+    "nxrust": "file:../../nxrust",
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "ts-node": "10.9.2",

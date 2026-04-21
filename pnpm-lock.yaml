@@ -142,6 +142,9 @@ importers:
       nx:
         specifier: 22.6.5
         version: 22.6.5(@swc-node/register@1.11.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@swc/core@1.15.26(@swc/helpers@0.5.21))(@swc/types@0.1.26)(typescript@6.0.3))(@swc/core@1.15.26(@swc/helpers@0.5.21))
+      nxrust:
+        specifier: file:../../nxrust
+        version: file:../../nxrust(@nx/devkit@22.6.5(nx@22.6.5(@swc-node/register@1.11.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@swc/core@1.15.26(@swc/helpers@0.5.21))(@swc/types@0.1.26)(typescript@6.0.3))(@swc/core@1.15.26(@swc/helpers@0.5.21))))
       oxfmt:
         specifier: ^0.45.0
         version: 0.45.0
@@ -3320,6 +3323,9 @@ packages:
   '@logdna/tail-file@2.2.0':
     resolution: {integrity: sha512-XGSsWDweP80Fks16lwkAUIr54ICyBs6PsI4mpfTLQaWgEJRtY9xEV+PeyDpJ+sJEGZxqINlpmAwe/6tS1pP8Ng==}
     engines: {node: '>=10.3.0'}
+
+  '@ltd/j-toml@1.38.0':
+    resolution: {integrity: sha512-lYtBcmvHustHQtg4X7TXUu1Xa/tbLC3p2wLvgQI+fWVySguVZJF60Snxijw5EiohumxZbR10kWYFFebh1zotiw==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -9657,6 +9663,12 @@ packages:
       '@swc/core':
         optional: true
 
+  nxrust@file:../../nxrust:
+    resolution: {directory: ../../nxrust, type: directory}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@nx/devkit': '>=22.0.0'
+
   nypm@0.6.5:
     resolution: {integrity: sha512-K6AJy1GMVyfyMXRVB88700BJqNUkByijGJM8kEHpLdcAt+vSQAVfkWWHYzuRXHSY6xA2sNc5RjTj0p9rE2izVQ==}
     engines: {node: '>=18'}
@@ -15413,6 +15425,8 @@ snapshots:
   '@leichtgewicht/ip-codec@2.0.5': {}
 
   '@logdna/tail-file@2.2.0': {}
+
+  '@ltd/j-toml@1.38.0': {}
 
   '@manypkg/find-root@1.1.0':
     dependencies:
@@ -22625,6 +22639,12 @@ snapshots:
       '@swc/core': 1.15.26(@swc/helpers@0.5.21)
     transitivePeerDependencies:
       - debug
+
+  nxrust@file:../../nxrust(@nx/devkit@22.6.5(nx@22.6.5(@swc-node/register@1.11.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@swc/core@1.15.26(@swc/helpers@0.5.21))(@swc/types@0.1.26)(typescript@6.0.3))(@swc/core@1.15.26(@swc/helpers@0.5.21)))):
+    dependencies:
+      '@ltd/j-toml': 1.38.0
+      '@nx/devkit': 22.6.5(nx@22.6.5(@swc-node/register@1.11.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@swc/core@1.15.26(@swc/helpers@0.5.21))(@swc/types@0.1.26)(typescript@6.0.3))(@swc/core@1.15.26(@swc/helpers@0.5.21)))
+      chalk: 4.1.2
 
   nypm@0.6.5:
     dependencies:
