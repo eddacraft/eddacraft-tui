@@ -332,8 +332,8 @@ plans/
 ├── aps-rules.md              # AI agent guidance
 ├── index.aps.md               # Main plan (non-executable)
 ├── modules/                   # Bounded work areas
-│   ├── core.aps.md
-│   └── auth.aps.md
+│   ├── anvil-file-format.aps.md
+│   └── anvil-rust-scanner.aps.md
 ├── execution/                 # Action plans
 │   └── AUTH-001.actions.md
 └── decisions/                 # Architecture Decision Records

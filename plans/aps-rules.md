@@ -128,10 +128,9 @@ kebab-case slug that matches the module ID in `index.aps.md`:
 
 ```text
 modules/
-├── core.aps.md
-├── auth.aps.md
-├── payments.aps.md
-└── admin-cli-hardening.aps.md
+├── anvil-file-format.aps.md
+├── anvil-rust-scanner.aps.md
+└── compliance-policy-packs.aps.md
 ```
 
 - Use kebab-case, `.aps.md` suffix
@@ -171,8 +170,8 @@ plans/
 ├── index.aps.md              # Root plan (active/planned work)
 ├── completed-index.aps.md    # Completed work archive
 ├── modules/                  # Active module specs
-│   ├── core.aps.md
-│   └── auth.aps.md
+│   ├── anvil-file-format.aps.md
+│   └── anvil-rust-scanner.aps.md
 ├── archive/modules/          # Completed modules (git mv from modules/)
 ├── execution/                # Action plan files
 │   ├── [TASK-ID].steps.md    # Per-task (complex projects)
