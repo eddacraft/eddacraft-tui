@@ -119,6 +119,7 @@ fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
 
     generate_config_with_force(&config, &init_root, force)?;
     print_success(&config.planning_dir, &checks);
+    print_capacity_recommendation(&init_root);
     Ok(())
 }
 
@@ -126,7 +127,21 @@ fn run_plain(root: &Path, force: bool) -> anyhow::Result<()> {
     let config = AnvilConfig::default();
     generate_config_with_force(&config, root, force)?;
     print_success(&config.planning_dir, &config.checks);
+    print_capacity_recommendation(root);
     Ok(())
+}
+
+/// Surface a one-shot recommendation when the host's inotify headroom is
+/// tight enough that `anvil watch` would risk missing file changes. Silent
+/// on non-Linux hosts and on healthy Linux hosts.
+fn print_capacity_recommendation(root: &Path) {
+    let Some(status) = crate::capacity::collect(root) else {
+        return;
+    };
+    let lines = crate::capacity::recommendation_lines(&status);
+    for line in lines {
+        println!("{line}");
+    }
 }
 
 pub(crate) fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<bool> {
