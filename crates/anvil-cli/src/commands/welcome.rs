@@ -603,7 +603,7 @@ fn try_start_tutorial_watcher() -> Option<(
         ..Default::default()
     };
     match anvil_kernel::watcher::start_watcher(&config) {
-        Ok((handle, rx)) => Some((rx, handle)),
+        Ok((handle, rx, _diag)) => Some((rx, handle)),
         Err(_) => None,
     }
 }
