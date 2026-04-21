@@ -332,8 +332,8 @@ plans/
 ├── aps-rules.md              # AI agent guidance
 ├── index.aps.md               # Main plan (non-executable)
 ├── modules/                   # Bounded work areas
-│   ├── 01-core.aps.md
-│   └── 02-auth.aps.md
+│   ├── core.aps.md
+│   └── auth.aps.md
 ├── execution/                 # Action plans
 │   └── AUTH-001.actions.md
 └── decisions/                 # Architecture Decision Records
