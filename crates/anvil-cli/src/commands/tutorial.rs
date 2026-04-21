@@ -1,7 +1,9 @@
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
-use anvil_tui::surfaces::tutorial::{TutorialPath, TutorialPhase, TutorialState};
+use anvil_tui::surfaces::tutorial::{
+    STATIC_MODE_WATCHER_UNAVAILABLE, TutorialPath, TutorialPhase, TutorialState,
+};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
@@ -63,12 +65,15 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // Start a file watcher for live verification on watched steps
     // (WELCOME-013). Falls back to keyboard-only mode if the watcher
-    // cannot start (e.g. inotify limit reached).
-    let (file_rx, _watcher_handle) = if let Ok((rx, handle)) = try_start_watcher() {
-        (Some(rx), Some(handle))
-    } else {
-        state.enable_static_mode();
-        (None, None)
+    // cannot start (e.g. inotify limit reached). The in-TUI notice
+    // surfaces the specific cause so users aren't left wondering why
+    // file saves stop retriggering checks.
+    let (file_rx, _watcher_handle) = match try_start_watcher() {
+        Ok((rx, handle)) => (Some(rx), Some(handle)),
+        Err(_) => {
+            state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
+            (None, None)
+        }
     };
 
     let mut state = crate::tui::run_tutorial(state, file_rx.as_ref())?;

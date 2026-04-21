@@ -624,7 +624,9 @@ fn run_tutorial_with_fix(
     let mut watcher = try_start_tutorial_watcher();
 
     if watcher.is_none() {
-        tutorial_state.enable_static_mode();
+        tutorial_state.enable_static_mode_with_reason(
+            anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
+        );
     }
 
     loop {

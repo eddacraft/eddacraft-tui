@@ -14,6 +14,12 @@ use discovery::ScanResults;
 use eddacraft_tui::keyboard::Action;
 use verify::{Verify, VerifyResult};
 
+/// Notice rendered when the file watcher can't be started and the tutorial
+/// falls back to static mode. Shared between `anvil tutorial` and
+/// `anvil welcome` so both entry points surface the same cause.
+pub const STATIC_MODE_WATCHER_UNAVAILABLE: &str =
+    "Live file watcher unavailable \u{2014} file saves won't retrigger checks.";
+
 /// Available tutorial paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TutorialPath {
@@ -166,6 +172,13 @@ impl TutorialState {
         self.static_mode = true;
         self.static_notice =
             Some("Interactive mode unavailable \u{2014} showing guided walkthrough.".to_string());
+    }
+
+    /// Enable static mode with a caller-supplied notice so the user sees the
+    /// specific cause (e.g. watcher failed) instead of the generic fallback.
+    pub fn enable_static_mode_with_reason(&mut self, reason: impl Into<String>) {
+        self.static_mode = true;
+        self.static_notice = Some(reason.into());
     }
 
     /// Set which paths the user has previously completed (loaded from
@@ -1032,6 +1045,17 @@ mod tests {
         assert_eq!(
             state.static_notice.as_deref(),
             Some("Interactive mode unavailable \u{2014} showing guided walkthrough.")
+        );
+    }
+
+    #[test]
+    fn enable_static_mode_with_reason_overrides_notice() {
+        let mut state = TutorialState::new();
+        state.enable_static_mode_with_reason("watcher failed: inotify limit reached");
+        assert!(state.static_mode);
+        assert_eq!(
+            state.static_notice.as_deref(),
+            Some("watcher failed: inotify limit reached")
         );
     }
 

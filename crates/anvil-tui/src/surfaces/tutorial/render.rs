@@ -126,8 +126,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &Edda
         TutorialPhase::Running => {
             let has_notice = state.static_mode || state.resuming_notice.is_some();
             if has_notice {
+                // Reserve enough rows for the notice to wrap on narrow
+                // terminals — a fixed Length(1) silently clipped the
+                // watcher-unavailable notice on SSH / split-pane widths.
+                let notice_text = if state.static_mode {
+                    state.static_notice.as_deref().unwrap_or("")
+                } else {
+                    state.resuming_notice.as_deref().unwrap_or("")
+                };
+                let notice_rows = notice_row_count(notice_text, area.width).max(1);
                 let chunks = Layout::vertical([
-                    Constraint::Length(1), // Notice line
+                    Constraint::Length(notice_rows),
                     Constraint::Length(3), // Progress indicator
                     Constraint::Min(6),    // Content
                 ])
@@ -157,6 +166,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &Edda
     }
 }
 
+/// Conservative row estimate for the notice strip. Uses display width so
+/// that multi-byte characters (e.g. the em-dash in the watcher-unavailable
+/// notice) are counted correctly; wraps whole-string rather than
+/// word-by-word to avoid under-allocating when a single long token would
+/// push the layout past the reserved rows.
+fn notice_row_count(notice: &str, width: u16) -> u16 {
+    if width == 0 {
+        return 1;
+    }
+    let display_width = UnicodeWidthStr::width(notice) as u16;
+    display_width.div_ceil(width).max(1)
+}
+
 fn render_static_notice(
     frame: &mut Frame,
     area: Rect,
@@ -170,7 +192,10 @@ fn render_static_notice(
                 .fg(theme.warning())
                 .add_modifier(Modifier::ITALIC),
         ));
-        frame.render_widget(Paragraph::new(line), area);
+        frame.render_widget(
+            Paragraph::new(line).wrap(Wrap { trim: false }),
+            area,
+        );
     }
 }
 
@@ -187,7 +212,10 @@ fn render_resuming_notice(
                 .fg(theme.accent())
                 .add_modifier(Modifier::ITALIC),
         ));
-        frame.render_widget(Paragraph::new(line), area);
+        frame.render_widget(
+            Paragraph::new(line).wrap(Wrap { trim: false }),
+            area,
+        );
     }
 }
 
