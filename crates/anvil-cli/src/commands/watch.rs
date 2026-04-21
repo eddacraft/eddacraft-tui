@@ -369,7 +369,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     files_watched: 0,
                 },
             });
-        crate::tui::run_watch(state, &event_rx)?;
+        crate::tui::run_watch(state, &event_rx, Some(&shutdown))?;
     }
 
     handle.stop().context("stopping watcher")?;
