@@ -117,15 +117,11 @@ pub fn recommendation_lines(status: &InotifyStatus) -> Vec<String> {
             .collect();
         out.push(format!("  top consumers:         {}", consumers.join(", ")));
     }
-    out.push(String::new());
-    out.push("To raise the limits (survives reboot, takes effect immediately):".to_string());
+    // Single `sudo sh -c` so the user is only prompted for a password
+    // once — the write and the reload share the same elevation.
     out.push(format!(
-        "  echo 'fs.inotify.max_user_watches={RECOMMENDED_MAX_WATCHES}' | sudo tee /etc/sysctl.d/99-inotify.conf"
+        "to fix run: sudo sh -c 'printf \"fs.inotify.max_user_watches={RECOMMENDED_MAX_WATCHES}\\nfs.inotify.max_user_instances={RECOMMENDED_MAX_INSTANCES}\\n\" > /etc/sysctl.d/99-inotify.conf && sysctl --system'"
     ));
-    out.push(format!(
-        "  echo 'fs.inotify.max_user_instances={RECOMMENDED_MAX_INSTANCES}' | sudo tee -a /etc/sysctl.d/99-inotify.conf"
-    ));
-    out.push("  sudo sysctl --system".to_string());
     out
 }
 
@@ -277,8 +273,28 @@ mod tests {
         let joined = lines.join("\n");
         assert!(joined.contains("max_user_watches=524288"));
         assert!(joined.contains("max_user_instances=512"));
-        assert!(joined.contains("sudo sysctl --system"));
+        assert!(joined.contains("sysctl --system"));
+        assert!(joined.contains("sudo sh -c"));
         assert!(joined.contains("tsserver x20000"));
+        assert!(
+            joined.contains("to fix run:"),
+            "recommendation should include a `to fix run:` line, got:\n{joined}"
+        );
+    }
+
+    #[test]
+    fn recommendation_fix_is_a_single_line() {
+        let s = status(65_536, 128, 40_000, 8_000);
+        let lines = recommendation_lines(&s);
+        let fix_lines: Vec<&String> = lines
+            .iter()
+            .filter(|l| l.contains("to fix run:"))
+            .collect();
+        assert_eq!(
+            fix_lines.len(),
+            1,
+            "should be exactly one `to fix run:` line"
+        );
     }
 
     #[test]
