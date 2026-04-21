@@ -124,14 +124,6 @@ pub struct WatchState {
 }
 
 impl WatchState {
-    pub fn surface_name(&self) -> &'static str {
-        "w a t c h"
-    }
-
-    pub fn help_text(&self) -> &'static str {
-        "h/l j/k panels  esc back  q quit"
-    }
-
     pub fn new(data: WatchData) -> Self {
         Self {
             data,

@@ -139,7 +139,15 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         })
         .collect();
 
-    let scroll = scroll_offset_for(state.selected_item, lines.len(), inner.height);
+    // `selected_item` is shared across panels, so only apply scroll when
+    // this panel is focused — otherwise navigating in a sibling panel
+    // would scroll the Queue view even though its own selection cursor
+    // is parked at 0.
+    let scroll = if focused {
+        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+    } else {
+        0
+    };
     frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
 }
 
@@ -196,7 +204,14 @@ fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme
         })
         .collect();
 
-    let scroll = scroll_offset_for(state.selected_item, lines.len(), inner.height);
+    // See `render_queue_panel` — only apply scroll when focused so an
+    // unselected History panel doesn't scroll in sympathy with Queue
+    // navigation.
+    let scroll = if focused {
+        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+    } else {
+        0
+    };
     frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
 }
 
