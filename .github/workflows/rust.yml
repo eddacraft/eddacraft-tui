@@ -56,8 +56,10 @@ jobs:
 
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning toolchain install time.
+      # Invoke via `sh` so this doesn't depend on the executable bit surviving
+      # checkout (e.g. on Windows runners / some git configurations).
       - name: Check OPA version pin is not duplicated outside allowlist
-        run: ./scripts/check-opa-version-pin.sh
+        run: sh scripts/check-opa-version-pin.sh
 
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:

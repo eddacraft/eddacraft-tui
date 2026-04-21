@@ -20,7 +20,11 @@ set -eu
 ROOT="$(git rev-parse --show-toplevel)"
 BM="$ROOT/packages/anvil/policy/src/opa-binary-manager.ts"
 
-VERSION="$(awk -F"'" '/const DEFAULT_OPA_VERSION/ { print $2 }' "$BM")"
+# Match the first `const DEFAULT_OPA_VERSION = '...'` line and exit so we
+# don't concatenate if the file ever grows a second match (e.g. a commented
+# example or a migration helper). The line must look like `const
+# DEFAULT_OPA_VERSION = '0.60.0'` — single-quoted literal on the same line.
+VERSION="$(awk -F"'" '/const DEFAULT_OPA_VERSION/ { print $2; exit }' "$BM")"
 if [ -z "${VERSION:-}" ]; then
   echo "check-opa-version-pin: could not read DEFAULT_OPA_VERSION from $BM" >&2
   exit 2

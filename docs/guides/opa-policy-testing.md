@@ -144,17 +144,16 @@ in both `.github/workflows/ci.yml` and `.github/workflows/rust.yml`.
 To bump:
 
 1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
-2. Update the `version:` input and `EXPECTED_OPA_VERSION` env in both
-   workflows.
-3. Update any other files in the allowlist in
-   `scripts/check-opa-version-pin.sh` (e.g. doc comments, AGENTS.md).
+2. Update the `version:` input and `EXPECTED_OPA_VERSION` env in both workflows.
+3. Update any other files in the allowlist in `scripts/check-opa-version-pin.sh`
+   (e.g. doc comments, AGENTS.md).
 4. **If you rename, add, or remove any of the files listed above, edit the
-   `ALLOWLIST` block in `scripts/check-opa-version-pin.sh` to match.** The
-   guard only catches _unknown_ references; a stale allowlist entry will not
-   fail CI and a missing entry will fail spuriously.
-5. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if
-   the pinned version string appears in any file not in the allowlist, which
-   is the canary against silent doc rot when this runbook rots.
+   `ALLOWLIST` block in `scripts/check-opa-version-pin.sh` to match.** The guard
+   only catches _unknown_ references; a stale allowlist entry will not fail CI
+   and a missing entry will fail spuriously.
+5. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if the
+   pinned version string appears in any file not in the allowlist, which is the
+   canary against silent doc rot when this runbook rots.
 6. Run all three integration suites locally (TS executor, Rust executor, gate
    pipeline) plus `opa test policies/fixtures`.
 7. Note the bump in the relevant ADR / decision log entry if the version change

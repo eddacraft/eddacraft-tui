@@ -81,8 +81,10 @@ const UNEXPECTED_SHAPE_SNIPPET_CHAR_LIMIT: usize = 512;
 fn snippet_for_error(raw: &str) -> String {
     let mut iter = raw.char_indices();
     match iter.nth(UNEXPECTED_SHAPE_SNIPPET_CHAR_LIMIT) {
-        // At least LIMIT+1 chars — truncate at the char boundary.
-        Some((cut, _)) => format!("{}…<truncated {} bytes>", &raw[..cut], raw.len()),
+        // At least LIMIT+1 chars — truncate at the char boundary. The byte
+        // count reported is the full original length so operators comparing
+        // CI logs against an `opa eval` replay can match sizes.
+        Some((cut, _)) => format!("{}…<truncated; original {} bytes>", &raw[..cut], raw.len()),
         None => raw.to_string(),
     }
 }
@@ -178,15 +180,19 @@ impl OpaExecutor {
             .stderr
             .take()
             .expect("stderr is piped above; take() is called once");
-        let stdout_reader = std::thread::spawn(move || {
+        // Reader closures return a Result so that a pipe I/O error surfaces
+        // as OpaError::Io rather than silently producing a truncated buffer
+        // that downstream parsing would misinterpret (JSON parse error, empty
+        // stderr, etc.).
+        let stdout_reader = std::thread::spawn(move || -> std::io::Result<Vec<u8>> {
             let mut buf = Vec::new();
-            let _ = std::io::Read::read_to_end(&mut stdout_handle, &mut buf);
-            buf
+            std::io::Read::read_to_end(&mut stdout_handle, &mut buf)?;
+            Ok(buf)
         });
-        let stderr_reader = std::thread::spawn(move || {
+        let stderr_reader = std::thread::spawn(move || -> std::io::Result<Vec<u8>> {
             let mut buf = Vec::new();
-            let _ = std::io::Read::read_to_end(&mut stderr_handle, &mut buf);
-            buf
+            std::io::Read::read_to_end(&mut stderr_handle, &mut buf)?;
+            Ok(buf)
         });
 
         let timeout = std::time::Duration::from_millis(self.timeout_ms);
@@ -196,21 +202,24 @@ impl OpaExecutor {
             // kill() closes the child's pipe handles on unix, which makes the
             // reader threads' read_to_end return; on windows the same call
             // terminates the process and the pipe write ends are closed by
-            // the kernel. If a reader thread panics we discard the payload —
-            // we're already in the timeout error path and about to return.
+            // the kernel. We still join to avoid dangling threads, but we're
+            // about to return Timeout so the payloads/errors are discarded.
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return Err(OpaError::Timeout(self.timeout_ms));
         };
 
-        // Propagate reader-thread panics instead of silently substituting an
-        // empty buffer: a panic here indicates a real bug and should surface.
+        // Two failure modes for each reader: (outer) the thread panicked —
+        // surface as Execution; (inner) read_to_end returned an io::Error —
+        // surface as Io. Previously both were silently substituted with an
+        // empty Vec, which masked pipe failures as JSON parse errors further
+        // downstream.
         let stdout_bytes = stdout_reader
             .join()
-            .map_err(|e| OpaError::Execution(format!("stdout reader thread panicked: {e:?}")))?;
+            .map_err(|e| OpaError::Execution(format!("stdout reader thread panicked: {e:?}")))??;
         let stderr_bytes = stderr_reader
             .join()
-            .map_err(|e| OpaError::Execution(format!("stderr reader thread panicked: {e:?}")))?;
+            .map_err(|e| OpaError::Execution(format!("stderr reader thread panicked: {e:?}")))??;
 
         #[allow(clippy::cast_possible_truncation)]
         let elapsed = start.elapsed().as_millis() as u64;
