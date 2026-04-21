@@ -170,15 +170,30 @@ impl WatchState {
     pub fn handle_key(&mut self, action: Action) {
         match action {
             Action::Up => {
-                if self.selected_item > 0 {
+                // Scroll within the panel while there are items above; once
+                // at the top (or on item-less panels like Status/Stats),
+                // spill over to the panel in the row above so arrow keys
+                // navigate the 2×2 grid without needing PgUp/PgDn.
+                if self.max_items_in_panel() > 0 && self.selected_item > 0 {
                     self.selected_item -= 1;
+                    self.mark_dirty();
+                } else {
+                    self.focused_panel = self.focused_panel.up();
+                    self.selected_item = 0;
                     self.mark_dirty();
                 }
             }
             Action::Down => {
+                // Scroll within the panel while there are items below; once
+                // at the bottom (or on item-less panels), spill over to the
+                // panel in the row below.
                 let max = self.max_items_in_panel().saturating_sub(1);
-                if self.selected_item < max {
+                if self.max_items_in_panel() > 0 && self.selected_item < max {
                     self.selected_item += 1;
+                    self.mark_dirty();
+                } else {
+                    self.focused_panel = self.focused_panel.down();
+                    self.selected_item = 0;
                     self.mark_dirty();
                 }
             }
@@ -221,7 +236,7 @@ impl crate::surface::Surface for WatchState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  PgUp/PgDn row  esc back  q quit"
+        "\u{2191}\u{2193}/jk scroll  \u{2190}\u{2192}/hl panel  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: eddacraft_tui::keyboard::Action) {
@@ -363,13 +378,10 @@ mod tests {
         state.handle_key(Action::Down);
         assert_eq!(state.selected_item, 1);
 
-        state.handle_key(Action::Down); // at max
-        assert_eq!(state.selected_item, 1);
-
-        state.handle_key(Action::Up);
-        assert_eq!(state.selected_item, 0);
-
-        state.handle_key(Action::Up); // at min
+        // At the bottom of the Queue list — another Down spills over to the
+        // panel in the row below (Stats).
+        state.handle_key(Action::Down);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
         assert_eq!(state.selected_item, 0);
     }
 
@@ -382,8 +394,35 @@ mod tests {
         assert_eq!(state.selected_item, 1);
         state.handle_key(Action::Down);
         assert_eq!(state.selected_item, 2);
-        state.handle_key(Action::Down); // at max
-        assert_eq!(state.selected_item, 2);
+
+        // At the bottom of the History list — another Down spills to the
+        // panel in the row below (which wraps back to Status).
+        state.handle_key(Action::Down);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
+        assert_eq!(state.selected_item, 0);
+    }
+
+    #[test]
+    fn arrow_up_at_top_of_list_spills_to_row_above() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::History;
+        state.selected_item = 0;
+
+        // Up at top of History list should spill up to Status.
+        state.handle_key(Action::Up);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
+        assert_eq!(state.selected_item, 0);
+    }
+
+    #[test]
+    fn arrow_down_at_bottom_of_list_spills_to_row_below() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.selected_item = state.data.queue.len() - 1;
+
+        // Down at bottom of Queue list should spill to Stats (row below).
+        state.handle_key(Action::Down);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
     }
 
     #[test]
@@ -483,39 +522,45 @@ mod tests {
     }
 
     #[test]
-    fn noop_scroll_stays_clean_queue() {
+    fn edge_scroll_spills_to_adjacent_row_queue() {
         let mut state = WatchState::new(sample_data());
         state.focused_panel = WatchPanel::Queue;
         state.selected_item = 0;
         state.dirty = false;
 
-        // Up at top — no change
+        // Up at top of Queue spills to the panel above (Stats — up wraps).
         state.handle_key(Action::Up);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
 
-        // Down to max
+        // Down at bottom of Queue spills to the panel below (Stats again).
+        state.focused_panel = WatchPanel::Queue;
         state.selected_item = state.data.queue.len() - 1;
         state.dirty = false;
         state.handle_key(Action::Down);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
     }
 
     #[test]
-    fn noop_scroll_stays_clean_history() {
+    fn edge_scroll_spills_to_adjacent_row_history() {
         let mut state = WatchState::new(sample_data());
         state.focused_panel = WatchPanel::History;
         state.selected_item = 0;
         state.dirty = false;
 
-        // Up at top — no change
+        // Up at top of History spills up to Status.
         state.handle_key(Action::Up);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
 
-        // Down to max
+        // Down at bottom of History spills down (wraps to Status).
+        state.focused_panel = WatchPanel::History;
         state.selected_item = state.data.history.len() - 1;
         state.dirty = false;
         state.handle_key(Action::Down);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
     }
 
     #[test]

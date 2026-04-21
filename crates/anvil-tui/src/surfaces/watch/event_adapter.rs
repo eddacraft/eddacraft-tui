@@ -61,7 +61,7 @@ impl WatchEventAdapter {
                 edge_count: _,
                 files_watched,
             } => {
-                self.handle_snapshot(*files_watched, data);
+                self.handle_snapshot(*files_watched, &event.timestamp, data);
             }
             EventPayload::Violation {
                 policy_id: _,
@@ -97,7 +97,7 @@ impl WatchEventAdapter {
         }
     }
 
-    fn handle_snapshot(&mut self, files_watched: u64, data: &mut WatchData) {
+    fn handle_snapshot(&mut self, files_watched: u64, timestamp: &str, data: &mut WatchData) {
         #[allow(clippy::cast_possible_truncation)]
         {
             data.stats.files_watched = files_watched as usize;
@@ -127,7 +127,7 @@ impl WatchEventAdapter {
                 checks_run: self.check_count,
                 checks_passed,
                 duration_ms,
-                timestamp: "snapshot complete".to_string(),
+                timestamp: timestamp.to_string(),
             },
         );
         data.history.truncate(MAX_HISTORY_LEN);
