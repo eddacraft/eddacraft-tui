@@ -572,10 +572,9 @@ mod tests {
         // recover the message through panic_message(). This mirrors the
         // exact shape used in watch_loop() without needing a real file
         // change that happens to panic.
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                || panic!("simulated process_change failure"),
-            ));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            panic!("simulated process_change failure")
+        }));
         let panic = result.expect_err("closure should have panicked");
         let msg = panic_message(&panic);
         assert!(

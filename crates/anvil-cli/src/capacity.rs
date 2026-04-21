@@ -101,10 +101,7 @@ pub fn recommendation_lines(status: &InotifyStatus) -> Vec<String> {
         "  instances limit:       {} (recommended: {})",
         status.max_instances, RECOMMENDED_MAX_INSTANCES
     ));
-    out.push(format!(
-        "  this project's dirs:   ~{}",
-        status.project_dirs
-    ));
+    out.push(format!("  this project's dirs:   ~{}", status.project_dirs));
     out.push(format!(
         "  processes holding fds: {}",
         status.consuming_processes
@@ -229,7 +226,12 @@ mod tests {
 
     #[test]
     fn healthy_status_is_not_tight() {
-        let s = status(RECOMMENDED_MAX_WATCHES, RECOMMENDED_MAX_INSTANCES, 10_000, 500);
+        let s = status(
+            RECOMMENDED_MAX_WATCHES,
+            RECOMMENDED_MAX_INSTANCES,
+            10_000,
+            500,
+        );
         assert!(!s.is_tight());
     }
 
@@ -261,7 +263,12 @@ mod tests {
 
     #[test]
     fn recommendation_lines_empty_for_healthy_host() {
-        let s = status(RECOMMENDED_MAX_WATCHES, RECOMMENDED_MAX_INSTANCES, 1_000, 500);
+        let s = status(
+            RECOMMENDED_MAX_WATCHES,
+            RECOMMENDED_MAX_INSTANCES,
+            1_000,
+            500,
+        );
         assert!(recommendation_lines(&s).is_empty());
     }
 
@@ -286,10 +293,7 @@ mod tests {
     fn recommendation_fix_is_a_single_line() {
         let s = status(65_536, 128, 40_000, 8_000);
         let lines = recommendation_lines(&s);
-        let fix_lines: Vec<&String> = lines
-            .iter()
-            .filter(|l| l.contains("to fix run:"))
-            .collect();
+        let fix_lines: Vec<&String> = lines.iter().filter(|l| l.contains("to fix run:")).collect();
         assert_eq!(
             fix_lines.len(),
             1,
