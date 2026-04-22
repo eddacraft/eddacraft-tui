@@ -60,25 +60,88 @@ Missing key exits `5` (see **Exit codes** below):
 
 ```bash
 export ANVIL_ADMIN_URL="https://api.eddacraft.ai"
-export ANVIL_ADMIN_KEY="sk_admin_…"       # from 1Password / Pulumi
+export ANVIL_ADMIN_KEY="sk_admin_…"       # placeholder — see "Handling the admin key"
 export ANVIL_ADMIN_ACTOR="you@eddacraft.ai"
 ```
 
-### Local key storage — guidance
+> The `export ANVIL_ADMIN_KEY=…` line above is illustrative only; pasting a real
+> key into a terminal this way puts it in shell history and `ps`-visible env.
+> See **Handling the admin key** for the supported patterns (1Password, direnv,
+> etc.) before wiring this up.
+
+### Handling the admin key
+
+`ANVIL_ADMIN_KEY` is a production secret. How you hold it on your workstation
+matters as much as how the server stores its hash. These guidelines are in
+preference order — start at the top and only drop down when a workflow forces
+your hand.
+
+- **Do not pass `--key <value>` on the command line.** `ps(1)`, `htop`, and
+  `/proc/<pid>/cmdline` expose argv to every other user on the host for the life
+  of the process. Shell history captures it too. Use the `ANVIL_ADMIN_KEY` env
+  var (resolved via one of the patterns below) so the raw bearer never appears
+  in argv.
 
 - **Do not `export ANVIL_ADMIN_KEY=…` inline** in a terminal session: the key
-  lands in `.zsh_history` / `.bash_history` and in `ps`-visible env for every
-  child process. If you've done this, rotate the key and scrub history.
-- Prefer a secrets-manager-backed loader: e.g. `op` (1Password CLI) shells that
-  inject the key only for the admin-cli subshell:
+  lands in `.zsh_history` / `.bash_history` and is inherited by every child
+  process. If you've done this, rotate the key and scrub shell history.
+
+- **Preferred — 1Password CLI, scoped subshell.** Shell the key in only for the
+  life of the admin-cli invocation so it never reaches `~/.zshrc` or a parent
+  shell's env:
+
   ```bash
   op run --env-file=admin-cli.env -- anvil-admin list
   ```
-  where `admin-cli.env` references 1Password items (`ANVIL_ADMIN_KEY="op://…"`).
-- Alternatively, source a private `~/.anvil-admin.env` file (mode `0600`,
-  outside the repo) and `unset ANVIL_ADMIN_KEY` when done. Never commit this
-  file.
-- For CI, inject via the platform's secret store; never echo the key in logs.
+
+  where `admin-cli.env` maps env vars to 1Password items, e.g.
+  `ANVIL_ADMIN_KEY="op://Anvil/admin-key/credential"`. `op run` injects the
+  resolved secret only for the child process.
+
+  For one-off reads without `op run`:
+
+  ```bash
+  ANVIL_ADMIN_KEY="$(op read 'op://Anvil/admin-key/credential')" \
+    anvil-admin list
+  ```
+
+- **Alternative — `direnv` scoped per project directory.** Put a `.envrc` beside
+  the repo (or in a parent directory) that resolves the key at `cd`-time:
+
+  ```bash
+  # keep this OUTSIDE the repo, or add .envrc to your global gitignore
+  # (`git config --global core.excludesfile ~/.gitignore_global` and append `.envrc`).
+  # this repo does NOT ignore .envrc by default.
+  export ANVIL_ADMIN_KEY="$(op read 'op://Anvil/admin-key/credential')"
+  ```
+
+  Then `direnv allow` the directory. The key is live only when `$PWD` matches
+  the scope — leaving the directory unsets it.
+
+- **Interactive fallback — `read -rs`.** When the manager isn't available (a new
+  laptop, a container) and you need to paste from the password manager once, use
+  a silent read instead of `export`:
+
+  ```bash
+  read -rs ANVIL_ADMIN_KEY && export ANVIL_ADMIN_KEY
+  ```
+
+  The key is never echoed, nor written to history. `unset ANVIL_ADMIN_KEY` when
+  you're done.
+
+- **Private dotenv as last resort.** A `~/.anvil-admin.env` with mode `0600`,
+  outside the repo, `source`'d into a scoped subshell. Never commit this file;
+  add its path to your global git ignore.
+
+- **CI/automation.** Inject via the platform's secret store (GitHub Actions
+  secrets, Azure Key Vault, Vercel env). Never echo the key to logs, and never
+  pass it via `--key`. For pre-merge pipelines, prefer per-operator keys (see
+  **Per-operator admin keys**) over the shared key.
+
+**Rotation:** on suspected exposure or operator offboarding, rotate immediately.
+Per-operator keys: edit the row out of `infra/src/admin-keys.ts` and run
+`pulumi up` (see **Revoking a per-operator key** below). Shared key: see
+**Rotating the shared `ADMIN_KEY`**.
 
 ## Per-operator admin keys
 
@@ -374,12 +437,17 @@ Flow when sending for real (`--no-dry-run`):
 1. CLI calls the server with `dryRun=true`. The server records a **recipient
    snapshot** keyed by a single-use **preview token** (10-minute TTL, bound to
    the calling operator) and returns the recipient list plus the token.
-2. If count is `0`, prints `No recipients match the filter. Nothing to send.` on
-   stdout and exits `0`.
+2. If count is `0`, prints `No recipients match the filter. Nothing to send.`
+   and exits `0`. Goes to stdout by default; routed to stderr when `--json` is
+   set so stdout stays reserved for JSON output (empty in this case). Pipe
+   stdout to `jq` and keep stderr separate — do not use `2>&1` when you need
+   clean JSON.
 3. Writes the recipient table plus the warning
    `About to send migration email to N recipient(s) …` to **stderr**, then
-   prompts on stderr: `Continue? [y/N]`. With `--yes`, the prompt is skipped but
-   the dry-run still runs — the token is always fetched.
+   prompts on stderr: `Continue? [y/N]`. With `--json`, the recipient table is
+   replaced by a one-line `preview: N recipient(s) …` status on stderr so the
+   stdout contract holds. With `--yes`, the prompt is skipped but the dry-run
+   still runs — the token is always fetched.
 4. On `y`/`yes`, calls the server with `dryRun=false` and the preview token. The
    server atomically consumes the token, compares the snapshotted recipients
    against a fresh cohort query, and either sends (to the **snapshotted** set,
