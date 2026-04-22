@@ -60,7 +60,11 @@ export async function releaseVersionGenerator(
     const currentVersion = (rawVersion ?? null) as string | null;
     const newVersion = resolveNewVersion(currentVersion, options.specifier);
 
-    if (newVersion && toml.package) {
+    // Only rewrite Cargo.toml when the version actually changes. Otherwise
+    // re-serialising the TOML produces a noisy diff with no semantic effect
+    // (e.g. when `specifier` is undefined or an unknown bump keyword falls
+    // back to `currentVersion`).
+    if (newVersion && newVersion !== currentVersion && toml.package) {
       toml.package.version = newVersion;
       tree.write(cargoPath, stringifyCargoToml(toml));
     }

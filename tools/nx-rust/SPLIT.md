@@ -51,8 +51,8 @@ These differ from upstream and **must be reverted** at split time:
   workspace root, breaking chalk's CJS default-import interop under the Nx
   plugin loader (`Cannot read properties of undefined (reading 'dim')`).
   Removing the dep entirely is simpler than dedupe-and-pin, and the single log
-  line doesn't justify the dependency. Upstream keeps chalk and its single
-  call site.
+  line doesn't justify the dependency. Upstream keeps chalk and its single call
+  site.
 - **`tsconfig.json`** — `moduleResolution: "node"` (the deprecated alias)
   rewritten to `moduleResolution: "node10"` and `ignoreDeprecations: "6.0"`
   added so the bumped TS 6 compiler doesn't error on the deprecation warning.
@@ -87,9 +87,9 @@ are still in place:
   `prepare`.
 - `generators.json` `name` field (must stay `@eddacraft/nx-rust`, not `nxrust`)
 - `src/utils/cargo.ts` (must NOT import `chalk`; uses inline ANSI escapes)
-- Every `'nxrust:<name>'` literal in `src/` (must read `'@eddacraft/nx-rust:<name>'`
-  in target-configs.ts, graph.ts, schema.json `title` fields, and doc
-  comments)
+- Every `'nxrust:<name>'` literal in `src/` (must read
+  `'@eddacraft/nx-rust:<name>'` in target-configs.ts, graph.ts, schema.json
+  `title` fields, and doc comments)
 - `tsconfig.json` `moduleResolution` (must stay `"node10"`, not `"node"`) and
   `ignoreDeprecations: "6.0"` line (must be present)
 - `LICENSE` (must NOT be present in the vendor copy)

@@ -34,7 +34,7 @@
     "test": {
       "implementation": "./dist/executors/test/executor",
       "schema": "./dist/executors/test/schema.json",
-      "description": "Test a Rust crate with `cargo test` (or `cargo nextest` when available)."
+      "description": "Test a Rust crate with `cargo test`."
     },
     "release-publish": {
       "implementation": "./dist/executors/release-publish/executor",
