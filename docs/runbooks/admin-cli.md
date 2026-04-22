@@ -72,18 +72,18 @@ preference order — start at the top and only drop down when a workflow forces
 your hand.
 
 - **Do not pass `--key <value>` on the command line.** `ps(1)`, `htop`, and
-  `/proc/<pid>/cmdline` expose argv to every other user on the host for the
-  life of the process. Shell history captures it too. Use the
-  `ANVIL_ADMIN_KEY` env var (resolved via one of the patterns below) so the
-  raw bearer never appears in argv.
+  `/proc/<pid>/cmdline` expose argv to every other user on the host for the life
+  of the process. Shell history captures it too. Use the `ANVIL_ADMIN_KEY` env
+  var (resolved via one of the patterns below) so the raw bearer never appears
+  in argv.
 
 - **Do not `export ANVIL_ADMIN_KEY=…` inline** in a terminal session: the key
   lands in `.zsh_history` / `.bash_history` and is inherited by every child
   process. If you've done this, rotate the key and scrub shell history.
 
-- **Preferred — 1Password CLI, scoped subshell.** Shell the key in only for
-  the life of the admin-cli invocation so it never reaches `~/.zshrc` or a
-  parent shell's env:
+- **Preferred — 1Password CLI, scoped subshell.** Shell the key in only for the
+  life of the admin-cli invocation so it never reaches `~/.zshrc` or a parent
+  shell's env:
 
   ```bash
   op run --env-file=admin-cli.env -- anvil-admin list
@@ -100,9 +100,8 @@ your hand.
     anvil-admin list
   ```
 
-- **Alternative — `direnv` scoped per project directory.** Put a `.envrc`
-  beside the repo (or in a parent directory) that resolves the key at
-  `cd`-time:
+- **Alternative — `direnv` scoped per project directory.** Put a `.envrc` beside
+  the repo (or in a parent directory) that resolves the key at `cd`-time:
 
   ```bash
   # .envrc (NOT committed — in .gitignore)
@@ -112,30 +111,29 @@ your hand.
   Then `direnv allow` the directory. The key is live only when `$PWD` matches
   the scope — leaving the directory unsets it.
 
-- **Interactive fallback — `read -rs`.** When the manager isn't available (a
-  new laptop, a container) and you need to paste from the password manager
-  once, use a silent read instead of `export`:
+- **Interactive fallback — `read -rs`.** When the manager isn't available (a new
+  laptop, a container) and you need to paste from the password manager once, use
+  a silent read instead of `export`:
 
   ```bash
   read -rs ANVIL_ADMIN_KEY && export ANVIL_ADMIN_KEY
   ```
 
-  The key is never echoed, nor written to history. `unset ANVIL_ADMIN_KEY`
-  when you're done.
+  The key is never echoed, nor written to history. `unset ANVIL_ADMIN_KEY` when
+  you're done.
 
 - **Private dotenv as last resort.** A `~/.anvil-admin.env` with mode `0600`,
-  outside the repo, `source`'d into a scoped subshell. Never commit this
-  file; add its path to your global git ignore.
+  outside the repo, `source`'d into a scoped subshell. Never commit this file;
+  add its path to your global git ignore.
 
 - **CI/automation.** Inject via the platform's secret store (GitHub Actions
-  secrets, Azure Key Vault, Vercel env). Never echo the key to logs, and
-  never pass it via `--key`. For pre-merge pipelines, prefer per-operator
-  keys (see **Per-operator admin keys**) over the shared key.
+  secrets, Azure Key Vault, Vercel env). Never echo the key to logs, and never
+  pass it via `--key`. For pre-merge pipelines, prefer per-operator keys (see
+  **Per-operator admin keys**) over the shared key.
 
-**Rotation:** on suspected exposure or operator offboarding, rotate
-immediately. Per-operator keys: edit the row out of
-`infra/src/admin-keys.ts` and run `pulumi up` (see
-**Revoking a per-operator key** below). Shared key: see
+**Rotation:** on suspected exposure or operator offboarding, rotate immediately.
+Per-operator keys: edit the row out of `infra/src/admin-keys.ts` and run
+`pulumi up` (see **Revoking a per-operator key** below). Shared key: see
 **Rotating the shared `ADMIN_KEY`**.
 
 ## Per-operator admin keys
