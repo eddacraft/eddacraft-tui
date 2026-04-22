@@ -1,3 +1,10 @@
+<!--
+APS Module: Quality Language Runtime Alignment
+=============================================
+Implements the runtime/config naming slice reparented from CLAR-006.
+See: plans/aps-rules.md
+-->
+
 # Quality Language Runtime Alignment
 
 | ID    | Owner | Status   |

@@ -1,3 +1,10 @@
+<!--
+APS Module: Quality Language Onboarding and Docs
+===============================================
+Implements the onboarding/docs naming slices reparented from CLAR-007/008.
+See: plans/aps-rules.md
+-->
+
 # Quality Language Onboarding and Docs
 
 | ID    | Owner | Status |
