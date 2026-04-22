@@ -14,7 +14,7 @@ anvil uses two configuration files and CLI flags for runtime options.
 | File                       | Purpose                                        |
 | -------------------------- | ---------------------------------------------- |
 | `.anvilrc`                 | Project-level settings (checks, format, paths) |
-| `.anvil/gate-config.json`  | Gate check definitions and thresholds          |
+| `.anvil/gate-config.json`  | Checks used by `anvil gate` and gate thresholds |
 | `.anvil/architecture.yaml` | Architecture layer and boundary definitions    |
 
 ## `.anvilrc`
@@ -84,10 +84,17 @@ Managed by `anvil gate-config`. Stored at `.anvil/gate-config.json`.
 Use `anvil gate-config --list` to view the current configuration, and
 `--enable <check>` / `--disable <check>` to toggle individual checks.
 
+`.anvilrc` sets your project's default analysis checks. `gate-config` controls
+the broader gate run, including build-and-CI checks such as `lint`, `test`,
+`coverage`, and `dependency` alongside Anvil analysis checks such as
+`secret-detection`, `import-boundaries`, `antipattern-scan`, and `policy`.
+
 :::note
 
 `gate-config` uses the same canonical check names shown in init and `.anvilrc`.
 Use `secret-detection` and `import-boundaries`, not older internal names.
+Legacy aliases like `secret` and `architecture` are accepted for compatibility,
+but Anvil normalises them to the canonical names above.
 
 :::
 
@@ -338,8 +345,8 @@ anvil gate --list-profiles        # Show available profiles
 Additional runtime flags:
 
 ```bash
-anvil gate --skip-checks "coverage,dependency"   # Skip specific checks
-anvil gate --only-checks "secret,architecture"   # Run only specific checks
+anvil gate --skip-checks "coverage,dependency"                 # Skip specific checks
+anvil gate --only-checks "secret-detection,import-boundaries" # Run only specific checks
 anvil gate --fail-fast                           # Stop on first failure
 anvil gate --progress                            # Show real-time progress
 anvil --json gate                                # JSON output (global flag)
