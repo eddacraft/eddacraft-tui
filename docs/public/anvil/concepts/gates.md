@@ -31,11 +31,10 @@ project -> checks -> findings -> gate decision
 
 Checks are the smallest user-facing unit of evaluation.
 
-Examples:
+Examples (the names `anvil gate` uses at runtime):
 
-- `secret-detection`
-- `import-boundaries`
-- `antipattern-scan`
+- `secret`
+- `architecture`
 - `policy`
 - `lint`
 - `test`
@@ -137,12 +136,12 @@ In practice, the important point is this:
 ## Example
 
 ```text
-Checking import-boundaries... done
-Checking antipattern-scan...
+Checking architecture... done
+Checking policy...
   AP-003 explicit any type detected
     src/utils/parser.ts:42
 
-Checking secret-detection... done
+Checking secret... done
 
 Quality gates failed (2/3 passed)
 ```

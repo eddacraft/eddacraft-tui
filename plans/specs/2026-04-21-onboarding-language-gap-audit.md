@@ -88,7 +88,7 @@ Source:
 
 Observed behaviour:
 
-- discovery says “Scanning project for findings...`
+- discovery says “Scanning project for findings...”
 - scan results merge secret and antipattern outputs into `Finding`
 - showcase mode also uses findings consistently
 

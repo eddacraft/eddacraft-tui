@@ -225,7 +225,7 @@ to findings and workflow judgement.
    information.
 5. **Suppressions applied** from `.anvil/suppressions.json` and inline
    `@anvil-ignore` annotations
-   ([D-004](../plans/decisions/004-suppression-syntax.md)).
+   ([D-004](../../plans/decisions/004-suppression-syntax.md)).
 6. **Gate evaluated** when the caller is a gate-style surface (`anvil gate`,
    watch mode, CI workflow judgement).
 7. **Output formatted** as text, JSON, or interactive TUI.

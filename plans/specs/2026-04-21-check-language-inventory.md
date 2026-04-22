@@ -158,8 +158,9 @@ These are hypotheses, not decisions yet.
 
 - `check` may need to become the smallest user-facing executable unit across
   gate, doctor, and possibly audit
-- `gate` may work best as the aggregate judgement over a selected set of checks 
-//aneki note - gates have a blocking and workflow connotation... you have to go through the gate to advance
+- `gate` may work best as the aggregate judgement over a selected set of
+  checks because it has a blocking and workflow connotation: you have to go
+  through the gate to advance
 - `scan` may need to be reserved for discovery/analysis actions, not top-level
   user taxonomy
 - `graph` and `boundary` likely belong in the explanatory model because they are
