@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runInviteCommand, type AdminWriter, type InviteResponse } from '../commands/invite.js';
+import { runInviteCommand, type InviteResponse } from '../commands/invite.js';
+import type { AdminWriter } from '../client.js';
 
 function makeClient(result: unknown): AdminWriter & { post: ReturnType<typeof vi.fn> } {
   const post = vi.fn(async () => result) as unknown as AdminWriter['post'] &

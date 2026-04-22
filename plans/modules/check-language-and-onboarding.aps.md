@@ -2,7 +2,7 @@
 
 | ID    | Owner  | Status      | Progress |
 |-------|--------|-------------|----------|
-| CLAR  | @aneki | In Progress | 5/9      |
+| CLAR  | @aneki | In Progress | 6/9      |
 
 ## Purpose
 

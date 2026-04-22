@@ -28,6 +28,16 @@ export interface RequestOptions<T = unknown> {
   schema?: ZodType<T>;
 }
 
+// Structural type shared by every command that mutates state (approve,
+// revoke, invite, send-migration). Hoisted here to prevent the drift that
+// happens when each command re-declares its own near-identical shape.
+// The read-only commands (list, show, audit) have the same duplication for
+// an `AdminReader` shape; that hoist is deliberately left out of #949 and
+// tracked separately.
+export interface AdminWriter {
+  post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T>;
+}
+
 export class AdminClient {
   private readonly url: string;
   private readonly key: string;

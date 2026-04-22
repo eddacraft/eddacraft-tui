@@ -2,13 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command, Option } from 'commander';
 import {
   runSendMigrationCommand,
-  type AdminWriter,
   type DryRunResponse,
   type SendResponse,
   MIGRATION_SOURCES,
 } from '../commands/send-migration.js';
 import { parseBoundedInt } from '../parsers.js';
-import { AdminError } from '../client.js';
+import { AdminError, type AdminWriter } from '../client.js';
 
 const ENV_KEY = 'ANVIL_ADMIN_KEY';
 
@@ -314,6 +313,66 @@ describe('runSendMigrationCommand', () => {
     );
     expect(client.post).toHaveBeenCalledTimes(2);
     expect(writes.join('')).toBe(JSON.stringify(sendResponse, null, 2) + '\n');
+  });
+
+  // #948: --json --no-dry-run without --yes previously wrote the ASCII
+  // recipient table to stderr and the send JSON to stdout. `2>&1 | jq`
+  // then choked on the table preamble. The contract is now: stdout is
+  // pure JSON; stderr carries a one-line preview hint and any abort/empty
+  // notice.
+  it('interactive --json send: stderr one-liner, stdout is pure send JSON', async () => {
+    const client = makeClient(previewResponse, sendResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+        prompt: async () => 'y',
+        isTTY: true,
+      }
+    );
+    expect(outs.join('')).toBe(JSON.stringify(sendResponse, null, 2) + '\n');
+    const err = errs.join('');
+    expect(err).toContain('preview: 2 recipient(s)');
+    expect(err).toContain('pass --yes to skip this prompt');
+    expect(err).not.toContain('alice@example.com'); // no ASCII table in --json
+  });
+
+  it('interactive --json send: abort routes to stderr, stdout stays empty', async () => {
+    const client = makeClient(previewResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+        prompt: async () => 'n',
+        isTTY: true,
+      }
+    );
+    expect(outs.join('')).toBe(''); // no stdout pollution
+    expect(errs.join('')).toContain('Aborted.');
+  });
+
+  it('--json --no-dry-run with zero recipients: "Nothing to send" goes to stderr', async () => {
+    const client = makeClient(emptyPreviewResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, yes: true, json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+      }
+    );
+    expect(outs.join('')).toBe(''); // no stdout pollution
+    expect(errs.join('')).toContain('Nothing to send');
   });
 
   it('dry-run output surfaces the preview token and expiry hint', async () => {
