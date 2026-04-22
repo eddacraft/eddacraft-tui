@@ -1,11 +1,10 @@
-import type { ZodType } from 'zod';
 import {
   ApproveResponseSchema,
   type ApproveResponse,
   type ApprovedEntry,
   type SkippedEntry,
 } from '@eddacraft/admin-contracts';
-import { AdminClient, AdminError } from '../client.js';
+import { AdminClient, AdminError, type AdminWriter } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess, renderTable, type Row } from '../format.js';
 import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
@@ -16,10 +15,6 @@ export interface ApproveOptions extends ConfigFlags {
   batch?: number;
   yes?: boolean;
   json?: boolean;
-}
-
-export interface AdminWriter {
-  post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T>;
 }
 
 export interface ApproveDeps {
@@ -69,7 +64,8 @@ export async function runApproveCommand(
     const prompt = deps.prompt ?? defaultPrompt;
     const answer = (await prompt(`${summary} [y/N] `)).trim().toLowerCase();
     if (answer !== 'y' && answer !== 'yes') {
-      stdout('Aborted.\n');
+      // #948: route abort notice to stderr when --json so stdout stays pure JSON.
+      (options.json ? stderr : stdout)('Aborted.\n');
       return;
     }
   }

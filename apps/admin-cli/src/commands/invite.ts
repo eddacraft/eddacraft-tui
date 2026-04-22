@@ -1,6 +1,5 @@
-import type { ZodType } from 'zod';
 import { InviteResponseSchema, type InviteResponse } from '@eddacraft/admin-contracts';
-import { AdminClient, AdminError } from '../client.js';
+import { AdminClient, AdminError, type AdminWriter } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess } from '../format.js';
 
@@ -28,10 +27,6 @@ export interface InviteRequestBody {
   days?: number;
   scopes?: InviteScope[];
   tokenOnly?: boolean;
-}
-
-export interface AdminWriter {
-  post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T>;
 }
 
 export interface InviteDeps {

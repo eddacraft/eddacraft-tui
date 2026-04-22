@@ -1,4 +1,3 @@
-import type { ZodType } from 'zod';
 import {
   DryRunResponseSchema,
   MIGRATION_SOURCES,
@@ -10,7 +9,7 @@ import {
   type SendResponse,
   type SendResultEntry,
 } from '@eddacraft/admin-contracts';
-import { AdminClient, AdminError } from '../client.js';
+import { AdminClient, AdminError, type AdminWriter } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess, renderTable, type Row } from '../format.js';
 import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
@@ -31,10 +30,6 @@ export interface SendMigrationOptions extends ConfigFlags {
   dryRun?: boolean;
   yes?: boolean;
   json?: boolean;
-}
-
-export interface AdminWriter {
-  post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T>;
 }
 
 export interface SendMigrationDeps {
@@ -101,7 +96,9 @@ export async function runSendMigrationCommand(
   );
 
   if (preview.count === 0) {
-    stdout('No recipients match the filter. Nothing to send.\n');
+    // #948: keep stdout pure JSON when --json is set so `2>&1 | jq` works.
+    const writeStatus = options.json ? stderr : stdout;
+    writeStatus('No recipients match the filter. Nothing to send.\n');
     return;
   }
 
@@ -128,7 +125,9 @@ export async function runSendMigrationCommand(
     // #947: PromptEOFError propagates naturally — top-level handler exits with code 4.
     const answer = (await prompt(`Continue? [y/N] `)).trim().toLowerCase();
     if (answer !== 'y' && answer !== 'yes') {
-      stdout('Aborted.\n');
+      // #948: route abort notice to stderr when --json so stdout stays pure JSON
+      // (otherwise `--no-dry-run --json 2>&1 | jq` breaks on a 'n' response).
+      (options.json ? stderr : stdout)('Aborted.\n');
       return;
     }
   }
