@@ -30,6 +30,21 @@ all three tiers reach parity.
 **ADR:** [012-rust-cli-replacement](../decisions/012-rust-cli-replacement.md)
 **Spec:** [2026-03-18-rust-cli-design](../specs/2026-03-18-rust-cli-design.md) §6 Tier 3
 
+## Language Guardrails
+
+This module broadens the `anvil` CLI beyond quality commands into governance,
+memory, and workflow surfaces. That makes language consistency more important,
+not less. Follow the canonical model in
+`plans/specs/2026-04-21-anvil-quality-language-design.md`.
+
+- Quality-facing commands should keep the checks -> findings -> gate model
+- Governance and plan commands should avoid reusing `gate`, `warning`,
+  `violation`, or `finding` unless they truly participate in that model
+- `validate` and `status` must be scoped clearly in help and docs so users know
+  what is being validated or whose status is being shown
+- `graph` and `boundary` should be used deliberately as explanatory terms, not
+  casual synonyms for any internal structure
+
 ## In Scope
 
 - 10 commands (or command groups) classified as Tier 3 in the design spec
@@ -77,6 +92,9 @@ all three tiers reach parity.
   `better-sqlite3` schema exactly
 - Agent state files use JSON; no special handling needed
 - Same error handling conventions as RCLI: `anyhow` + `thiserror`
+- New Tier 3 command copy should distinguish quality workflow concepts from APS,
+  memory, agent, and release workflows so the expanded binary still feels
+  coherent to users
 
 ## Ready Checklist
 
@@ -234,6 +252,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Intent:** Port `anvil plan validate <path>`. Validate APS markdown
   structure and rules; output issues by severity with line numbers and
   context. Delegates to APS validation logic
+- **Language Note:** `validate` here is APS document validation, not a quality
+  check or gate. Help and docs should make that scope explicit
 - **Expected Outcome:** `anvil plan validate plans/modules/foo.aps.md`
   reports structural issues (missing fields, invalid status transitions,
   broken references)
@@ -252,6 +272,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   owner, tag, priority, confidence; three output modes: JSON, text,
   files-only) and `anvil plan status` (show task states: open, locked, completed,
   cancelled with grouping and filtering)
+- **Language Note:** `status` here is workflow/task status, not gate status.
+  Keep the distinction explicit in command help and docs
 - **Expected Outcome:** `anvil plan load --scope RCLI --priority high` filters
   and displays matching work items. `anvil plan status --task RCLI-001` shows
   single task detail
@@ -286,6 +308,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Intent:** Port `anvil stack status` and `anvil stack validate`. Stack
   status shows health of the three-layer architecture (Kindling → Ember →
   Edda). Stack validate checks configuration consistency across layers
+- **Language Note:** `status` and `validate` here describe stack health and
+  configuration consistency. Avoid borrowing gate/result wording from the
+  quality workflow unless the stack surface actually runs checks and emits
+  findings
 - **Expected Outcome:** `anvil stack status` shows layer health, store sizes,
   and last-activity timestamps. `anvil stack validate` reports configuration
   issues
@@ -307,6 +333,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   filtering: active, idle, stale, terminated). Includes agent type icons
   (claude, cursor, copilot, aider, continue, codeium, human, ci) and
   session ID masking
+- **Language Note:** agent `status` is runtime state, not workflow judgement;
+  keep it clearly separate from gate or check terminology
 - **Expected Outcome:** `anvil agent list --state active` shows running agents
   with time-since-heartbeat. `anvil agent status` shows current agent
 - **Validation:** Agent list matches Node.js CLI; time-ago colour coding
@@ -361,10 +389,12 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 - **Status:** Proposed
 - **Intent:** Port `anvil explain <warning-id>`. Bidirectional lookup: parse
-  warning ID (e.g., AP-001-file.ts:42) to find explanation, or `--rules` to
-  list all explainable rules, or `--list` to show recent warnings from last
+  finding ID (for example a warning or violation identifier) to find
+  explanation, or `--rules` to list all explainable rules, or `--list` to show recent findings from last
   check run. Renders explanation sections: title, whyItMatters, howToAddress,
   whenToSuppress, related links
+- **Language Note:** prefer `finding` as the generic noun in help and docs,
+  while still supporting warning/violation-specific identifiers
 - **Expected Outcome:** `anvil explain AP-001` shows formatted explanation.
   `anvil explain --rules` lists all rules grouped by prefix
 - **Validation:** Explanation content matches Node.js CLI; rule grouping

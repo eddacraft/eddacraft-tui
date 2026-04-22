@@ -2,261 +2,165 @@
 id: gates
 title: Gates
 description:
-  Quality gates that validate code changes against deterministic rules.
+  How checks, findings, and gates fit together in anvil's quality model.
 sidebar_position: 1
 ---
 
 # Gates
 
-Gates are quality checks that code must pass before proceeding. They're
-deterministic, composable, and run automatically.
+In anvil, a **gate** is not the same thing as a **check**.
 
-## What is a Gate?
+- A **check** evaluates one concern
+- A **finding** is a result emitted by a check
+- A **gate** is the workflow judgement over one or more checks
 
-A gate is a validation checkpoint. Code enters, gets checked, and either passes
-or fails:
+That distinction is the core of the product model.
 
+## The Short Version
+
+anvil analyses your project, runs checks, collects findings, and then decides
+whether the overall work passes the required quality bar.
+
+```text
+project -> checks -> findings -> gate decision
 ```
-┌─────────┐     ┌─────────┐     ┌─────────┐
-│  Code   │ ──▶ │  Gate   │ ──▶ │  Pass   │
-│ Changes │     │ Checks  │     │  Fail   │
-└─────────┘     └─────────┘     └─────────┘
-```
 
-Gates are:
+## Checks vs Gates
 
-- **Deterministic** — same input, same result
-- **Composable** — multiple checks per gate
-- **Configurable** — enable/disable per project
-- **Fast** — run in milliseconds
+### Checks
+
+Checks are the smallest user-facing unit of evaluation.
+
+Examples:
+
+- `secret-detection`
+- `import-boundaries`
+- `antipattern-scan`
+- `policy`
+- `lint`
+- `test`
+- `coverage`
+- `dependency`
+
+Each check answers one question about the codebase.
+
+### Findings
+
+Findings are the results produced by checks.
+
+Examples:
+
+- a boundary violation
+- an explicit `any` anti-pattern
+- a leaked secret
+- a policy warning
+
+Findings can have different severities such as warning, error, or info.
+
+### Gates
+
+Gates answer the workflow question:
+
+- can this advance?
+- can this merge?
+- does this pass the required quality bar?
+
+That is why `anvil gate` exists separately from `anvil check`.
+
+## When to Use Each Surface
+
+### `anvil check`
+
+Use `anvil check` when you want targeted or exploratory analysis.
+
+- inspect files
+- surface findings
+- understand what anvil sees
+- run planless local analysis
+
+### `anvil gate`
+
+Use `anvil gate` when you want workflow judgement.
+
+- aggregate multiple checks
+- see pass/fail across the selected check set
+- use in CI or pre-merge workflows
+- use in watch mode when you care about whether the current state is acceptable
+
+### `anvil watch`
+
+Use `anvil watch` when you want continuous checks and gate updates as files
+change.
+
+### `anvil doctor`
+
+Use `anvil doctor` for setup and environment health. It is not a gate.
+
+### `anvil audit`
+
+Use `anvil audit` for broad repository review. It is a wider reporting surface,
+not the primary gate flow.
 
 ## Built-in Gate Checks
 
-### Architecture Check
+These checks can participate in gate evaluation:
 
-Validates that imports respect defined boundaries.
-
-```json
-{
-  "architecture": {
-    "enabled": true,
-    "boundaries": [
-      {
-        "name": "api-layer",
-        "pattern": "src/api/**",
-        "deny": ["src/repositories/**"]
-      }
-    ]
-  }
-}
-```
-
-**Catches:**
-
-- Layer violations (UI importing data layer directly)
-- Domain violations (one domain importing another's internals)
-- Circular dependencies
-
-### Anti-Pattern Check
-
-Detects known problematic patterns:
-
-Rules are grouped into five **families**: guardrail-suppression,
-type-system-evasion, error-visibility, responsibility-laundering, and
-deferred-debt. When a warning fires, the family provenance points the reviewer
-at the shared meta-issue instead of a single rule in isolation.
-
-**Default patterns** (enabled out of the box):
-
-| ID     | Pattern                                 | Why it matters                      |
-| ------ | --------------------------------------- | ----------------------------------- |
-| AP-001 | Broad `eslint-disable`                  | Hides multiple issues               |
-| AP-003 | Explicit `any`                          | Defeats type safety                 |
-| AP-004 | `@ts-ignore`                            | Masks type errors                   |
-| AP-006 | Empty catch block                       | Swallows errors                     |
-| GS-001 | Non-null assertion (`!`)                | Overrides nullability guardrail     |
-| RL-001 | Unverified "pre-existing" claim         | Shifts blame to the baseline        |
-| RL-002 | Phantom follow-up                       | Work that never lands               |
-| RL-003 | Blanket unrelated dismissal             | Silent scope expansion              |
-| RL-004 | Unverified "not touched" claim          | Untestable denial                   |
-| RL-005 | Deferred without artifact               | Forgotten commitment                |
-| RL-006 | Reply disguised as fix                  | Closes review without changing code |
-| DD-001 | TODO/FIXME without tracking reference   | Debt with no ticket                 |
-| DD-002 | HACK without tracking reference         | Workaround with no follow-up        |
-| DD-003 | Temporary code without expiry           | Permanently temporary               |
-| DD-004 | Completion claim with outstanding TODOs | Misrepresenting status              |
-
-**Opt-in patterns** (enable via `.anvilrc` or `--include-opt-in`):
-
-| ID     | Pattern                        | Why it matters           |
-| ------ | ------------------------------ | ------------------------ |
-| AP-002 | Rule-specific `eslint-disable` | Granular but still hides |
-| AP-005 | `@ts-expect-error`             | Masks type errors        |
-| AP-007 | Console in production          | Debug code leaked        |
-
-### Secret Detection
-
-Finds potential secrets in code:
-
-- API keys (pattern matching)
-- Passwords (entropy analysis)
-- Credentials in git history
-
-### ESLint Check
-
-Runs ESLint as a gate check, failing on errors:
-
-```json
-{
-  "eslint": {
-    "enabled": true,
-    "failOn": "error"
-  }
-}
-```
-
-### Coverage Check
-
-Validates code coverage thresholds:
-
-```json
-{
-  "coverage": {
-    "enabled": true,
-    "threshold": {
-      "lines": 80,
-      "branches": 75
-    }
-  }
-}
-```
-
-### Policy Check
-
-Custom rules via OPA/Rego:
-
-```rego
-package anvil.policy
-
-deny[msg] {
-  input.file.path == "src/index.ts"
-  count(input.file.lines) > 500
-  msg := "src/index.ts exceeds 500 lines"
-}
-```
+- **Import boundaries** — catches dependency edges that violate declared
+  boundaries
+- **Anti-pattern scan** — catches known harmful coding patterns such as broad
+  `eslint-disable`, explicit `any`, empty catch blocks, and deferred-debt
+  markers
+- **Secret detection** — finds likely secrets and credentials in code
+- **Policy** — evaluates custom OPA/Rego rules
+- **Lint** — runs project linting checks
+- **Test** — runs the project test suite
+- **Coverage** — enforces coverage thresholds when configured
+- **Dependency** — checks dependency risk and blocked packages
 
 ## Gate Results
 
-Each gate check produces a result:
+Each check contributes a result, and the gate summarises them.
 
-```typescript
-interface GateResult {
-  status: 'pass' | 'fail' | 'warn' | 'skip';
-  check: string;
-  message: string;
-  details?: {
-    file: string;
-    line: number;
-    column: number;
-    suggestion?: string;
-  }[];
-}
+Typical result states are:
+
+| Status | Meaning |
+| --- | --- |
+| `pass` | The check passed |
+| `fail` | The check found blocking problems |
+| `skip` | The check did not apply or had nothing to analyse |
+
+In practice, the important point is this:
+
+- findings explain **what** is wrong
+- the gate tells you **whether you can proceed**
+
+## Example
+
+```text
+Checking import-boundaries... done
+Checking antipattern-scan...
+  AP-003 explicit any type detected
+    src/utils/parser.ts:42
+
+Checking secret-detection... done
+
+Quality gates failed (2/3 passed)
 ```
 
-### Status Levels
+The anti-pattern finding tells you what to fix. The gate failure tells you the
+current state is not good enough to advance.
 
-| Status | Meaning                   | Default behaviour      |
-| ------ | ------------------------- | ---------------------- |
-| `pass` | Check passed              | Continue               |
-| `warn` | Issue found, not blocking | Continue (log warning) |
-| `fail` | Blocking issue            | Stop execution         |
-| `skip` | Check not applicable      | Continue               |
+## Why This Distinction Matters
 
-### Configuring Severity
+Without the distinction, every surface turns into a vague “validation tool”.
+With it, the model stays clear:
 
-Override default severity:
+- checks inspect
+- findings explain
+- gates decide
 
-```json
-{
-  "antiPatterns": {
-    "patterns": {
-      "AP-003": { "severity": "error" },
-      "AP-007": { "severity": "off" }
-    }
-  }
-}
-```
-
-## Gate Execution
-
-### Run Order
-
-Gates run in dependency order:
-
-1. **Lint** — fast syntax checks
-2. **Architecture** — import analysis
-3. **Anti-patterns** — pattern matching
-4. **Secrets** — security scan
-5. **Tests** — if configured
-6. **Coverage** — if configured
-
-### Parallel Execution
-
-Independent checks run in parallel. Dependent checks wait:
-
-```
-lint ────────┐
-             ├──▶ architecture ──▶ anti-patterns
-secrets ─────┘
-```
-
-### Caching
-
-Gate results are cached by file hash. Unchanged files skip re-validation:
-
-```
-File: src/utils.ts
-Hash: abc123
-Cached result: PASS (from 2 minutes ago)
-Skipping re-check.
-```
-
-## Suppressions
-
-When a gate check should be bypassed, use suppressions:
-
-```typescript
-// @anvil-ignore AP-003 Using any for legacy API compatibility
-const legacyData: any = fetchLegacyApi();
-```
-
-**Rules:**
-
-- Suppressions require explanations
-- Suppressions are tracked in evidence
-- Unexplained suppressions trigger warnings
-
-### File-Level Suppression
-
-```typescript
-// @anvil-ignore-file AP-007
-// This file legitimately uses console for CLI output
-```
-
-### Configuration Suppression
-
-```json
-{
-  "suppressions": [
-    {
-      "pattern": "scripts/**",
-      "checks": ["AP-007"],
-      "reason": "Scripts may use console"
-    }
-  ]
-}
-```
+That makes watch mode, CI, tutorials, and docs all easier to understand.
 
 ---
 
-**Next:** [Sessions and runs →](/anvil/concepts/sessions)
+**Next:** [Quickstart](/anvil/quickstart) or [Your First Gate Moment](/anvil/first-gate)

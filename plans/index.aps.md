@@ -5,6 +5,26 @@
 
 ## Overview
 
+## Contents
+
+- [Release Plan](#release-plan)
+- [Branch Recovery](#branch-recovery-in-progress)
+- [Hardening & Maintenance](#hardening--maintenance-in-progress)
+- [Continuous Improvement](#continuous-improvement-in-progress)
+- [Rust Engine](#rust-engine-in-progress)
+- [Auth & Access](#auth--access-in-progress)
+- [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
+- [Observability Foundation](#observability-foundation-draft)
+- [Infrastructure as Code](#infrastructure-as-code-in-progress)
+- [Web Dashboard](#web-dashboard-ready)
+- [Policy Governance](#policy-governance-draftready)
+- [Engineering Platform](#engineering-platform-draft)
+- [Test Quality](#test-quality-readydraft)
+- [Multi-Language Support](#multi-language-support-draft)
+- [Config Intelligence](#config-intelligence-draft)
+- [Intercept Loop](#intercept-loop-draft--no-code-yet)
+- [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
+
 Anvil makes AI-generated code safe to merge by catching architecture boundary
 violations and AI escape-hatch anti-patterns at file-save time. Developers get
 actionable warnings before code leaves the file, with human-owned exceptions for
@@ -239,6 +259,9 @@ when specific work is identified.
 | [feature-flagging](./archive/modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
+| [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 5/9 | rust-cli, docs, tui surfaces — **In Progress** |
+| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 0/4 | CLAR, INTD, current CLI/TUI surfaces — **Draft** |
+| [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
