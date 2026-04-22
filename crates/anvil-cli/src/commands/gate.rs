@@ -962,12 +962,7 @@ fn read_anvilrc_checks(workspace_root: &Path) -> Result<Option<std::collections:
     let contents = match std::fs::read_to_string(&path) {
         Ok(contents) => contents,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => {
-            return Err(anyhow::anyhow!(
-                "failed to read {}: {err}",
-                path.display()
-            ))
-        }
+        Err(err) => return Err(anyhow::anyhow!("failed to read {}: {err}", path.display())),
     };
 
     let checks = if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
