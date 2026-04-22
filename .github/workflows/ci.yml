@@ -227,13 +227,31 @@ jobs:
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
 
+      # Rust crates are excluded here because the dedicated Rust workflow
+      # (.github/workflows/rust.yml) already runs `cargo check` / `cargo test`
+      # / `cargo clippy` / `cargo fmt` against the workspace. Once the
+      # @eddacraft/nx-rust plugin landed, all 9 crates became Nx projects
+      # with `test` targets, so this job started double-running them — and
+      # the runner ran out of disk during Nx's workspace-data SQLite write.
       - name: Run unit tests (affected on PRs, all on push)
         run: |
+          RUST_EXCLUDES=(
+            --exclude=eddacraft-anvil-architecture
+            --exclude=eddacraft-anvil-kernel-types
+            --exclude=eddacraft-anvil-checks
+            --exclude=eddacraft-anvil-kernel
+            --exclude=eddacraft-anvil-policy
+            --exclude=eddacraft-anvil
+            --exclude=eddacraft-anvil-tui
+            --exclude=anvil-bench
+            --exclude=anvil-spike
+          )
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e \
+            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e "${RUST_EXCLUDES[@]}" \
               -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           else
-            pnpm run test -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
+            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/nx-rust "${RUST_EXCLUDES[@]}" \
+              -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           fi
 
       - name: TypeScript coverage summary
