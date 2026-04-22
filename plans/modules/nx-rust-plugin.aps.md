@@ -1,11 +1,20 @@
 <!-- APS Module: nx-rust-plugin -->
-<!-- Status: Ready -->
+<!-- Status: Complete -->
 
 # Nx Rust Plugin
 
 Build an in-house Nx plugin, `@eddacraft/nx-rust`, that wraps `cargo` as
 Nx executors and generators. Becomes the execution layer for Rust-side
 orchestration in RUSTNX.
+
+> **Delivered as upstream + vendored copy.** The plugin lives canonically
+> at [`eddacraft/nxrust`](https://github.com/EddaCraft/nxrust) (Apache-2.0)
+> and is vendored into `tools/nx-rust/` as `@eddacraft/nx-rust` (PROPRIETARY)
+> per [ADR-026](../decisions/026-in-house-nx-rust-plugin.md). The vendor
+> copy's anvil-specific divergences and sync contract are enumerated in
+> [`tools/nx-rust/SPLIT.md`](../../tools/nx-rust/SPLIT.md). Upstream is the
+> spiritual successor to [`@monodon/rust`](https://github.com/Cammisuli/monodon)
+> and is publish-ready if a second consumer appears.
 
 ## Purpose
 
@@ -130,13 +139,13 @@ hashing, output caching, and project-graph edges for Nx.
 - [x] Nx 22.6.5 present; `@nx/devkit` already used in
       `tools/generators/`
 - [x] ADR-026 drafted to capture the tooling decision (see Decisions)
-- [ ] Plugin spike on `anvil-kernel-types` run and cached
+- [x] Plugin spike on `anvil-kernel-types` run and cached
 
 ---
 
 ## Work Items
 
-### NXRUST-001: Scaffold the `@eddacraft/nx-rust` package
+### NXRUST-001: Scaffold the `@eddacraft/nx-rust` package [Complete]
 
 - **Intent:** Stand up the plugin package shell with the same shape as
   `@eddacraft/anvil-generators`
@@ -151,8 +160,14 @@ hashing, output caching, and project-graph edges for Nx.
 - **Confidence:** high
 - **Non-scope:** Executor or generator implementation — this task is
   package skeleton only
+- **Resolution:** Vendored from upstream `eddacraft/nxrust` at commit
+  `646231204d7972de22f55b670b7e2cfabb4d5d0e`. The vendor copy at
+  `tools/nx-rust/` renames the package to `@eddacraft/nx-rust` and
+  relicenses `PROPRIETARY` per `tools/nx-rust/SPLIT.md`;
+  `pnpm --filter @eddacraft/nx-rust build` runs in CI and is guarded
+  by `.github/workflows/ci.yml` "Verify nx-rust dist matches src".
 
-### NXRUST-002: Implement MVP executors
+### NXRUST-002: Implement MVP executors [Complete]
 
 - **Intent:** Ship executors covering the five cargo commands RUSTNX
   needs: build, test, check, clippy, fmt
@@ -172,8 +187,17 @@ hashing, output caching, and project-graph edges for Nx.
 - **Risks:** Executor argument composition drift (features/profiles
   not passed through correctly) — mitigated by a shared
   `buildCargoArgs(options)` helper with unit coverage
+- **Resolution:** Seven executors ship — `build`, `check`, `clippy`
+  (+ `lint` alias), `fmt` (+ `fmt-check` via `check: true`), `run`,
+  `test`, `release-publish`. Each wraps its cargo subcommand with a
+  shared option set (`toolchain`, `target`, `profile`, `release`,
+  `features`, `all-features`, `target-dir`, `args`). The anvil vendor
+  copy constrains argument forwarding to an allowlist per subcommand
+  (`BASE_CARGO_KEYS ∪ <SUB>_KEYS`) so fan-out targets (e.g. vitest
+  `--coverage` on a Rust project) don't reach cargo — see
+  `src/utils/build-command.ts` and SPLIT.md.
 
-### NXRUST-003: Implement the `crate` generator
+### NXRUST-003: Implement the `crate` generator [Complete]
 
 - **Intent:** Let contributors scaffold a new workspace-member crate
   with `project.json` pre-wired to this plugin's executors
@@ -191,8 +215,14 @@ hashing, output caching, and project-graph edges for Nx.
 - **Confidence:** medium
 - **Non-scope:** Library variants beyond the single `crate` generator;
   `napi` scaffolding
+- **Resolution:** Five generators ship — `crate`, `binary`, `library`,
+  `init` (scaffolds workspace `Cargo.toml` + `rust-toolchain.toml` on
+  fresh repos), and `release-version` (for `nx release`). Workspace
+  member insertion uses `@ltd/j-toml` to preserve comments in the root
+  `Cargo.toml`. The library/binary generators are thin wrappers around
+  `crate` with sensible defaults.
 
-### NXRUST-004: Implement the project-graph plugin
+### NXRUST-004: Implement the project-graph plugin [Complete]
 
 - **Intent:** Give `nx affected` correct visibility into Rust-to-Rust
   dependencies by parsing Cargo manifests into Nx graph edges
@@ -212,8 +242,14 @@ hashing, output caching, and project-graph edges for Nx.
 - **Risks:** Nx 22 project-graph plugin API drift vs older docs —
   mitigated by copying the `@nx/js` plugin's shape from
   `node_modules/@nx/js`
+- **Resolution:** `src/graph.ts` drives project inference via
+  `cargo metadata --format-version=1`. It emits Nx project nodes
+  (rooted at each crate directory, Nx name = Cargo package name),
+  external `cargo:<name>` nodes for registry / git deps, and edges
+  for every direct workspace dependency. Graph cache invalidates on
+  `Cargo.lock` mtime.
 
-### NXRUST-005: Pilot the plugin on `anvil-kernel-types`
+### NXRUST-005: Pilot the plugin on `anvil-kernel-types` [Superseded]
 
 - **Intent:** Validate the full plugin end-to-end against the smallest
   real crate before rolling out
@@ -231,8 +267,16 @@ hashing, output caching, and project-graph edges for Nx.
   risk notes). Pilot may reveal we can cache test/clippy exit codes
   but not raw build outputs — if so, narrow the `outputs` declaration
   rather than abandon the cache
+- **Resolution:** Superseded by inference. The `cargo metadata` graph
+  plugin auto-registers every workspace member as an Nx project with
+  pre-wired executors, cache flags, and narrow outputs
+  (`{options.target-dir}` + `{workspaceRoot}/target` for build/test;
+  empty for check/clippy/fmt-check — exit-code-only caching per the
+  risk note). No per-crate `project.json` is needed.
+  `pnpm exec nx show project eddacraft-anvil-kernel-types --json`
+  confirms the inferred target shape.
 
-### NXRUST-006: Roll plugin out to the remaining 8 crates
+### NXRUST-006: Roll plugin out to the remaining 8 crates [Superseded]
 
 - **Intent:** Bring every Rust crate under the plugin so `nx affected`
   covers the full workspace
@@ -249,8 +293,16 @@ hashing, output caching, and project-graph edges for Nx.
 - **Confidence:** high
 - **Non-scope:** Changing crate features, profiles, or the cross-
   compile matrix
+- **Resolution:** Superseded by inference alongside NXRUST-005. Zero
+  `crates/*/project.json` files exist; all 9 workspace members
+  (`eddacraft-anvil`, `eddacraft-anvil-architecture`,
+  `eddacraft-anvil-checks`, `eddacraft-anvil-kernel`,
+  `eddacraft-anvil-kernel-types`, `eddacraft-anvil-policy`,
+  `eddacraft-anvil-tui`, `anvil-bench`, `anvil-spike`) are emitted
+  automatically by the graph plugin. Names match Cargo package names
+  as required for workspace dependency resolution.
 
-### NXRUST-007: Smoke test for the plugin in CI
+### NXRUST-007: Smoke test for the plugin in CI [Complete]
 
 - **Intent:** Catch regressions in the plugin on every PR without
   depending on full RUSTNX wiring
@@ -262,8 +314,16 @@ hashing, output caching, and project-graph edges for Nx.
 - **Validation:** A PR that deliberately breaks the plugin (e.g. a
   malformed schema) fails CI with a clear error
 - **Confidence:** high
+- **Resolution:** `.github/workflows/ci.yml` runs
+  `pnpm --filter @eddacraft/nx-rust build` on every PR and fails if
+  `git diff -- tools/nx-rust/dist/` is non-empty ("Verify nx-rust
+  dist matches src"). This catches the dominant regression class —
+  src/ edits without a matching dist rebuild — which would otherwise
+  silently load stale plugin code at Nx startup. Downstream
+  `nx affected -t lint/test` exercises the executors end-to-end
+  against real crates.
 
-### NXRUST-008: Update RUSTNX-004 and RUSTNX-005 to consume the plugin
+### NXRUST-008: Update RUSTNX-004 and RUSTNX-005 to consume the plugin [Complete]
 
 - **Intent:** Fold this module back into the RUSTNX plan so the two
   documents stay aligned
@@ -277,6 +337,12 @@ hashing, output caching, and project-graph edges for Nx.
 - **Validation:** Diff review — RUSTNX-004 no longer specifies
   hand-rolled wiring; RUSTNX-005 scope reduced but not removed
 - **Confidence:** high
+- **Resolution:** Delivered on branch `feat/nxrust` alongside this
+  reconciliation. RUSTNX-004 rewritten to cite the plugin; RUSTNX-005
+  trimmed to the `sharedGlobals` entries (`Cargo.lock`,
+  `rust-toolchain.toml`) that the plugin cannot own because they are
+  workspace-scoped, not project-scoped. Those entries landed in
+  `nx.json` in this branch.
 
 ---
 

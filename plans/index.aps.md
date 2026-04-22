@@ -102,8 +102,8 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
-| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Ready | 0/8 |
-| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 3/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2 depends on NXRUST) |
+| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
+| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 5/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2: -004/-005 delivered via NXRUST plugin + `sharedGlobals`; -006/-007 still draft) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -947,8 +947,8 @@ See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
 | RUSTNX-001  | rustnx  | Add Swatinem/rust-cache to Rust CI jobs               | Complete | high     | 1    |
 | RUSTNX-002  | rustnx  | Adopt cargo-nextest for workspace test runs          | Complete | high     | 1    |
 | RUSTNX-003  | rustnx  | Parallelise Rust CI jobs behind shared cache         | Complete | medium   | 1    |
-| RUSTNX-004  | rustnx  | Scaffold per-crate project.json wrappers             | Ready  | high     | 2    |
-| RUSTNX-005  | rustnx  | Configure Nx inputs, outputs, and remote cache       | Ready  | high     | 2    |
+| RUSTNX-004  | rustnx  | Bring Rust crates under Nx via `@eddacraft/nx-rust`  | Complete | high     | 2    |
+| RUSTNX-005  | rustnx  | Workspace-level cache inputs for Rust                | Complete | high     | 2    |
 | RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Ready  | medium   | 2    |
 | RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Ready  | high     | 2    |
 | RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Ready  | medium   | 3    |
