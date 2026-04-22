@@ -57,16 +57,15 @@ These differ from upstream and **must be reverted** at split time:
   rewritten to `moduleResolution: "node10"` and `ignoreDeprecations: "6.0"`
   added so the bumped TS 6 compiler doesn't error on the deprecation warning.
   Upstream's tsconfig predates TS 6.
-- **`buildCargoArgs` is allowlist-based** — `src/utils/build-command.ts`
-  takes an extra `extraKeys` parameter and only forwards options in
+- **`buildCargoArgs` is allowlist-based** — `src/utils/build-command.ts` takes
+  an extra `extraKeys` parameter and only forwards options in
   `BASE_CARGO_KEYS ∪ extraKeys` to cargo. Each executor declares its
   subcommand-specific allowlist (`BUILD_KEYS`, `CHECK_KEYS`, `CLIPPY_KEYS`,
   `RUN_KEYS`, `TEST_KEYS`). Required because anvil's CI runs
-  `nx run-many -t test -- --coverage --run --coverage.reporter=...` and
-  Nx fans those vitest-only flags out as options on every project's `test`
-  target — under the original permissive `Object.entries(opts)` loop,
-  cargo would receive `--coverage`/`--run` and crash. Upstream forwards
-  every own-property key.
+  `nx run-many -t test -- --coverage --run --coverage.reporter=...` and Nx fans
+  those vitest-only flags out as options on every project's `test` target —
+  under the original permissive `Object.entries(opts)` loop, cargo would receive
+  `--coverage`/`--run` and crash. Upstream forwards every own-property key.
 
 ## Other anvil-specific differences (no revert needed)
 
@@ -103,8 +102,8 @@ are still in place:
 - `tsconfig.json` `moduleResolution` (must stay `"node10"`, not `"node"`) and
   `ignoreDeprecations: "6.0"` line (must be present)
 - `src/utils/build-command.ts` (must keep the `extraKeys` parameter and the
-  `BASE_CARGO_KEYS` allowlist; each executor must call `buildCargoArgs` with
-  its own `<NAME>_KEYS` allowlist as the 4th argument)
+  `BASE_CARGO_KEYS` allowlist; each executor must call `buildCargoArgs` with its
+  own `<NAME>_KEYS` allowlist as the 4th argument)
 - `LICENSE` (must NOT be present in the vendor copy)
 - `.gitignore` `!/dist/` line (must stay; not present upstream)
 - The "Vendored from … at commit `<sha>`" header at the top of this file (must
