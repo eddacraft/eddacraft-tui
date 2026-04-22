@@ -182,7 +182,8 @@ Present only when the notification mirrors a control-lane decision:
 
 - Dedupe on `grouping.key`, unless `grouping.transition` is present.
 - Retain history by `correlation.session_id` or `correlation.worktree`.
-- Filter by `notification.source` for surface-specific views.
+- Filter by `correlation.source` (equivalently `notification.context.source`
+  — producers must set them to the same value) for surface-specific views.
 - Drop `info`/`progress` events if overloaded.
 
 ### Subscribers MUST NOT
@@ -217,8 +218,13 @@ Present only when the notification mirrors a control-lane decision:
 
 - Collapse control-lane decisions into `message` strings without the `mirror`
   object.
-- Emit events with unknown `class` values in the current schema. New classes
-  require a schema bump.
+- Emit `class` or `priority` values that have not been declared in a
+  published notification-framework spec — subscribers are required to degrade
+  unknown values to `info`/`normal`, but producers must not rely on that
+  fallback to ship undocumented variants. Adding a new value is therefore
+  always a two-step process: declare it in the notification-framework spec
+  first, then emit it. See `Versioning` below for which step needs a schema
+  bump.
 
 ## Backpressure and Loss
 
@@ -232,11 +238,25 @@ Present only when the notification mirrors a control-lane decision:
 
 ## Versioning
 
-- Additive changes (new optional fields, new enum variants with known defaults)
-  stay on `anvil.notification.v1`.
-- Removing a field, changing a field type, or repurposing a field bumps the
-  schema to `anvil.notification.v2`. Producers may emit both schemas during a
-  transition window.
+The envelope version (`schema` field) and the enum vocabulary for
+`notification.class` / `notification.priority` evolve on the same rules:
+
+- **Stays on `anvil.notification.v1`:**
+  - Adding a new optional top-level or sub-field.
+  - Adding a new value to `notification.class` or `notification.priority`
+    (e.g. a new `nudge`-adjacent class) **provided** (a) it is declared in a
+    published notification-framework spec, and (b) subscribers fall back via
+    the "degrade unknown classes to `info`, unknown priorities to `normal`"
+    rule in `Envelope → notification sub-fields`. Producers MUST NOT emit a
+    value that has not been declared in a spec, even though subscribers are
+    required to handle unknown ones gracefully.
+- **Bumps to `anvil.notification.v2`:**
+  - Removing a field, changing a field type, or repurposing a field.
+  - Removing or renaming an existing `class` / `priority` value.
+  - Changing the semantics of an existing value (e.g. redefining when
+    `critical` priority is emitted) in a way subscribers already in the field
+    would handle incorrectly under v1.
+- Producers MAY emit both `v1` and `v2` records during a transition window.
 
 ## Current and Future Producers
 
