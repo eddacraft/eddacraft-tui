@@ -61,7 +61,7 @@
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",
     "@vitest/coverage-v8": "^4.1.4",
-    "eslint": "^10.2.0",
+    "eslint": "^10.2.1",
     "eslint-plugin-anvil": "workspace:*",
     "eslint-plugin-unicorn": "^64.0.0",
     "globals": "^17.5.0",
