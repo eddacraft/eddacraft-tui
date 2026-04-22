@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use anyhow::{Result, bail};
 use clap::Args;
 use regex::Regex;
@@ -61,6 +62,7 @@ struct GateResult {
     overall: bool,
     score: f64,
     checks: Vec<CheckResult>,
+    notifications: Vec<Notification>,
     duration_ms: u64,
 }
 
@@ -70,6 +72,57 @@ struct CheckResult {
     passed: bool,
     score: f64,
     message: String,
+}
+
+fn notifications_for_gate_result(checks: &[CheckResult], overall: bool) -> Vec<Notification> {
+    let mut notifications: Vec<Notification> = checks
+        .iter()
+        .map(|check| {
+            Notification::new(
+                if check.passed {
+                    NotificationClass::Info
+                } else {
+                    NotificationClass::Failure
+                },
+                if check.passed {
+                    NotificationPriority::Low
+                } else {
+                    NotificationPriority::High
+                },
+                format!("Gate check: {}", check.name),
+                if check.message.is_empty() {
+                    if check.passed {
+                        "Passed".to_string()
+                    } else {
+                        "Failed".to_string()
+                    }
+                } else {
+                    check.message.clone()
+                },
+            )
+        })
+        .collect();
+
+    notifications.push(Notification::new(
+        if overall {
+            NotificationClass::Info
+        } else {
+            NotificationClass::Failure
+        },
+        if overall {
+            NotificationPriority::Normal
+        } else {
+            NotificationPriority::High
+        },
+        "Gate result",
+        if overall {
+            "All quality gates passed"
+        } else {
+            "Quality gates failed"
+        },
+    ));
+
+    notifications
 }
 
 /// Extract file paths referenced in a `.aps.md` plan file.
@@ -1377,10 +1430,12 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     };
 
     let elapsed = start.elapsed().as_millis();
+    let notifications = notifications_for_gate_result(&checks, overall);
     let result = GateResult {
         overall,
         score,
         checks,
+        notifications,
         duration_ms: u64::try_from(elapsed).unwrap_or(u64::MAX),
     };
 
@@ -2041,6 +2096,12 @@ rules: []
                 score: 100.0,
                 message: "clean".to_string(),
             }],
+            notifications: vec![Notification::new(
+                NotificationClass::Info,
+                NotificationPriority::Normal,
+                "Gate result",
+                "All quality gates passed",
+            )],
             duration_ms: 42,
         };
         let json = serde_json::to_string(&result).unwrap();

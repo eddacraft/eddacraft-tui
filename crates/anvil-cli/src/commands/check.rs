@@ -3,6 +3,9 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+use anvil_kernel_types::{
+    Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
 use anyhow::{Result, bail};
 use clap::Args;
 use serde::Serialize;
@@ -110,6 +113,7 @@ struct CheckOutput {
     provenance_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+    notifications: Vec<Notification>,
     warnings: Vec<JsonWarning>,
     summary: WarningSummary,
 }
@@ -612,6 +616,12 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
         checks_run: Vec::new(),
         provenance_id: None,
         message: Some(message.to_string()),
+        notifications: vec![Notification::new(
+            NotificationClass::Info,
+            NotificationPriority::Low,
+            "Check status",
+            message,
+        )],
         warnings: Vec::new(),
         summary: WarningSummary {
             total: 0,
@@ -639,6 +649,14 @@ fn category_str(c: anvil_checks::antipattern::WarningCategory) -> &'static str {
     }
 }
 
+fn notification_priority_for_warning(severity: WarningSeverity) -> NotificationPriority {
+    match severity {
+        WarningSeverity::Error => NotificationPriority::High,
+        WarningSeverity::Warning => NotificationPriority::Normal,
+        WarningSeverity::Info => NotificationPriority::Low,
+    }
+}
+
 fn build_json_output(
     files: &[String],
     warnings: &[Warning],
@@ -661,6 +679,21 @@ fn build_json_output(
             nudge: w.nudge.clone(),
         })
         .collect();
+    let notifications: Vec<Notification> = warnings
+        .iter()
+        .map(|w| {
+            Notification::new(
+                NotificationClass::Finding,
+                notification_priority_for_warning(w.severity),
+                format!("[{}] {}", w.id, w.title),
+                w.message.clone(),
+            )
+            .with_context(NotificationContext {
+                file: Some(w.location.file.clone()),
+                source: Some("check".to_string()),
+            })
+        })
+        .collect();
 
     CheckOutput {
         version: CHECK_OUTPUT_VERSION,
@@ -673,6 +706,7 @@ fn build_json_output(
         checks_run: vec!["architecture".to_string()],
         provenance_id: None, // TODO(RCLI2): wire up Kindling provenance when available
         message: None,
+        notifications,
         warnings: json_warnings,
         summary: summary.clone(),
     }
@@ -869,6 +903,8 @@ mod tests {
         assert!(!out.has_blocking_warnings);
         assert_eq!(out.execution_time_ms, 42);
         assert!(out.provenance_id.is_none());
+        assert_eq!(out.notifications.len(), 1);
+        assert_eq!(out.notifications[0].class, NotificationClass::Info);
     }
 
     #[test]
@@ -926,6 +962,16 @@ mod tests {
         assert_eq!(out.execution_time_ms, 42);
         assert!(!out.has_blocking_warnings);
         assert!(out.provenance_id.is_none());
+        assert_eq!(out.notifications.len(), 1);
+        assert_eq!(out.notifications[0].class, NotificationClass::Finding);
+        assert_eq!(out.notifications[0].priority, NotificationPriority::Normal);
+        assert_eq!(
+            out.notifications[0]
+                .context
+                .as_ref()
+                .and_then(|c| c.file.as_deref()),
+            Some("src/foo.ts")
+        );
     }
 
     #[test]
