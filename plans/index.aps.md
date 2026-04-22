@@ -8,14 +8,14 @@
 ## Contents
 
 - [Release Plan](#release-plan)
-- [Branch Recovery](#branch-recovery-in-progress)
+- [Branch Recovery](#branch-recovery-complete)
 - [Hardening & Maintenance](#hardening--maintenance-in-progress)
-- [Continuous Improvement](#continuous-improvement-in-progress)
+- [Continuous Improvement](#continuous-improvement-complete)
 - [Rust Engine](#rust-engine-in-progress)
-- [Auth & Access](#auth--access-in-progress)
+- [Auth & Access](#auth--access-complete)
 - [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
 - [Observability Foundation](#observability-foundation-draft)
-- [Infrastructure as Code](#infrastructure-as-code-in-progress)
+- [Infrastructure as Code](#infrastructure-as-code-complete)
 - [Web Dashboard](#web-dashboard-ready)
 - [Policy Governance](#policy-governance-draftready)
 - [Engineering Platform](#engineering-platform-draft)
@@ -77,7 +77,7 @@ integration layer, and review backlog.
 
 See [completed-index.aps.md](./completed-index.aps.md) for task tables.
 
-### Branch Recovery (In Progress)
+### Branch Recovery (Complete)
 
 Reconcile divergent `main`/`dev` histories by porting release-critical fixes
 from `main` onto `dev`, validating as one integrated branch, then cutting
@@ -97,6 +97,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [anvil-file-format](./archive/modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
 | [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
+| [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
 | [anvil-scanner-parity-gaps](./modules/anvil-scanner-parity-gaps.aps.md) | SPG | Proposed | 0/6 (RSCAN-008 council follow-ups — `flags:"i"` handling, lookaround rule rewrites, fixture gaps, integrity docs) |
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
@@ -106,7 +107,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
-### Continuous Improvement (In Progress)
+### Continuous Improvement (Complete)
 
 Codebase-maintenance drives ongoing refactoring, shared libraries, generators,
 and DX improvements. Code-review-backlog (complete) is retained for history.
@@ -149,7 +150,7 @@ systematically (PORT). See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan.
 
-### Auth & Access (In Progress)
+### Auth & Access (Complete)
 
 Streamline beta access: device code + email OTP activation flows, JWT session
 model with rotating refresh tokens, admin CLI approval, Resend audience
@@ -186,7 +187,7 @@ dashboard ops data contract, alert thresholds, runbook pack. 5 tasks.
 | ------ | ----- | ------ | -------- | ------------ |
 | [observability-foundation](./modules/observability-foundation.aps.md) | OBS | Draft | 0/5 | kindling-integration, dashboard-ops-views |
 
-### Infrastructure as Code (In Progress)
+### Infrastructure as Code (Complete)
 
 Pulumi-managed infrastructure: Vercel projects, Azure DNS, backend migration
 to Azure Blob Storage + KeyVault. 12 tasks complete, 8 draft (Azure migration).
@@ -259,7 +260,7 @@ when specific work is identified.
 | [feature-flagging](./archive/modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
-| [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 5/9 | rust-cli, docs, tui surfaces — **In Progress** |
+| [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 6/9 | rust-cli, docs, tui surfaces — **In Progress** |
 | [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 5/9 | CLAR, INTD, current CLI/TUI surfaces — **In Progress** (`NOTIFY-006` in PR #1035) |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
@@ -279,7 +280,7 @@ TCOV/TINT/TEXT depend on it.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [test-infrastructure-fix](./archive/modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
-| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/18 | TFIX |
+| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25 (Phase 1+2 complete: 13/13; Phase 3: 1/8; Phase 4: 4 blocked — scope refresh needed) | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
 
@@ -558,12 +559,12 @@ Active module themes:
 | Theme | Module File |
 | ----- | ----------- |
 | Branch Recovery | [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md) |
-| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
+| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [nx-task-migration](./archive/modules/nx-task-migration.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
 | Continuous Improvement | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
 | Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
-| Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
+| Infrastructure as Code | [pulumi-iac](./archive/modules/pulumi-iac.aps.md), [database-consolidation](./archive/modules/database-consolidation.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
 | Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./archive/modules/feature-flagging.aps.md), [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./archive/modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) |
@@ -856,14 +857,14 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | IAC-010 | iac    | Import existing Vercel resources         | Complete | high     |
 | IAC-011 | iac    | Document IaC setup and contributor guide | Complete | medium   |
 | IAC-012 | iac    | Document rollback procedures             | Complete | medium   |
-| IAC-013 | iac    | Bootstrap Azure storage + KeyVault (CLI script) | Draft | high |
-| IAC-014 | iac    | Migrate Pulumi backend to Azure Blob Storage | Draft | high |
-| IAC-015 | iac    | Add Azure KeyVault SDK helper module     | Draft    | high     |
-| IAC-016 | iac    | Migrate secrets from Pulumi config to KeyVault | Draft | high |
-| IAC-017 | iac    | Update tests for KeyVault mocking        | Draft    | medium   |
-| IAC-018 | iac    | Update CI workflow for self-managed backend | Draft | high   |
-| IAC-019 | iac    | Migrate state from Pulumi Cloud to Azure Blob | Draft | high |
-| IAC-020 | iac    | Update infra README for new backend      | Draft    | medium   |
+| IAC-013 | iac    | Bootstrap Azure storage + KeyVault (CLI script) | Complete | high |
+| IAC-014 | iac    | Migrate Pulumi backend to Azure Blob Storage | Complete | high |
+| IAC-015 | iac    | Add Azure KeyVault SDK helper module     | Complete | high     |
+| IAC-016 | iac    | Migrate secrets from Pulumi config to KeyVault | Complete | high |
+| IAC-017 | iac    | Update tests for KeyVault mocking        | Complete | medium   |
+| IAC-018 | iac    | Update CI workflow for self-managed backend | Complete | high   |
+| IAC-019 | iac    | Migrate state from Pulumi Cloud to Azure Blob | Complete | high |
+| IAC-020 | iac    | Update infra README for new backend      | Complete | medium   |
 
 ### Task Status — Code Review Backlog
 
@@ -893,7 +894,7 @@ improvements tracked for future work.
 | CRB-019 | crb    | Consistent logging/output conventions               | Complete | Medium   |
 | CRB-020 | crb    | Option parsing/validation inconsistency             | Complete | Low      |
 | CRB-021 | crb    | Duplicated implementations and naming drift         | Complete | Low      |
-| CRB-022 | crb    | Large command modules need decomposition            | Draft    | Low      |
+| CRB-022 | crb    | Large command modules need decomposition            | Complete | Low      |
 | CRB-023 | crb    | Silent fallbacks without visibility                 | Complete | Medium   |
 | CRB-024 | crb    | Subprocess calls without timeouts in CI             | Complete | Medium   |
 | CRB-025 | crb    | Docs and scripts drifting from reality              | Complete | Low      |
@@ -928,12 +929,12 @@ Nx-orchestrated per-project targets.
 
 | Task        | Module | Description                                           | Status | Priority |
 | ----------- | ------ | ----------------------------------------------------- | ------ | -------- |
-| NXTASK-001  | nxtask | Ensure nx sync is clean and TS references are current | Ready  | high     |
-| NXTASK-002  | nxtask | Wire eslint-plugin-anvil as Nx build dependency       | Ready  | high     |
-| NXTASK-003  | nxtask | Migrate root lint scripts to nx run-many              | Ready  | high     |
-| NXTASK-004  | nxtask | Migrate root typecheck script to nx run-many          | Ready  | high     |
-| NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Ready  | medium   |
-| NXTASK-006  | nxtask | Update CI to use nx affected                          | Ready  | high     |
+| NXTASK-001  | nxtask | Ensure nx sync is clean and TS references are current | Complete | high     |
+| NXTASK-002  | nxtask | Wire eslint-plugin-anvil as Nx build dependency       | Complete | high     |
+| NXTASK-003  | nxtask | Migrate root lint scripts to nx run-many              | Complete | high     |
+| NXTASK-004  | nxtask | Migrate root typecheck script to nx run-many          | Complete | high     |
+| NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Complete | medium   |
+| NXTASK-006  | nxtask | Update CI to use nx affected                          | Complete | high     |
 
 ### Task Status — Hardening & Maintenance (Rust Nx Migration)
 
