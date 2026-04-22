@@ -5,7 +5,7 @@
 
 | ID     | Owner | Status      | Progress |
 |--------|-------|-------------|----------|
-| NOTIFY | —     | In Progress | 2/4      |
+| NOTIFY | —     | In Progress | 3/4      |
 
 ## Purpose
 
@@ -65,9 +65,9 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 - [x] A current-state inventory exists for notification-like outputs in the
       CLI/TUI and active plans
 - [x] Notification classes and priorities are defined with unambiguous meanings
-- [ ] Current warning/nudge/failure outputs are mapped onto the notification
+- [x] Current warning/nudge/failure outputs are mapped onto the notification
       taxonomy
-- [ ] Future block/interrupt/fence events are mapped into the same model rather
+- [x] Future block/interrupt/fence events are mapped into the same model rather
       than a parallel one
 - [ ] Follow-on implementation work is identified for runtime surfaces and
       daemon-era transport
@@ -123,7 +123,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 - **Validation:** Delivery architecture section exists with sink mapping and
   future intercept bridge
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### NOTIFY-004: Define follow-on execution slices
 
