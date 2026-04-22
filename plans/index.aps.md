@@ -98,7 +98,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-file-format](./archive/modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
 | [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
 | [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
-| [anvil-scanner-parity-gaps](./modules/anvil-scanner-parity-gaps.aps.md) | SPG | Complete | 6/6 (`flags:"i"` honoured, lookaround rules handled via post-filters, doctor surfaces compile failures, fixtures cover every rule, `antipattern_scan` bench + trust-boundary docs landed) |
+| [anvil-scanner-parity-gaps](./archive/modules/anvil-scanner-parity-gaps.aps.md) | SPG | Complete | 6/6 (`flags:"i"` honoured, lookaround rules handled via post-filters, doctor surfaces compile failures, fixtures cover every rule, `antipattern_scan` bench + trust-boundary docs landed) |
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
