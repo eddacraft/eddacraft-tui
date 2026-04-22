@@ -298,16 +298,59 @@ fn map_category(anvil_category: &str) -> AntiPatternCategory {
     }
 }
 
+/// Flag letters that translate 1:1 between Rust's `regex` crate and V8's
+/// PCRE-ish engine. `i` is load-bearing (every RL-\* and DD-004 rule uses
+/// it). `m` and `s` are supported for forward compatibility. Flags that
+/// silently change match semantics in one engine but not the other — `U`
+/// (swap greedy/lazy), `x` (verbose / ignore whitespace), `g`, `y`, `u` —
+/// are deliberately NOT honoured here. If such a flag is present the
+/// returned prefix is a deliberately-invalid inline group so
+/// `Regex::new(&pattern.regex)` fails in `prepare_pattern` and
+/// `registry_compile_diagnostics()` surfaces the rule. No silent-drop
+/// path — adversarial-reviewer M-2.
+fn inline_flag_prefix(flags: Option<&str>) -> String {
+    let Some(flags) = flags else {
+        return String::new();
+    };
+    let unsupported: String = flags
+        .chars()
+        .filter(|c| !matches!(c, 'i' | 'm' | 's'))
+        .collect();
+    if !unsupported.is_empty() {
+        // Deliberately-invalid inline group: the `regex` crate will fail
+        // to parse `(?Q)` and friends, producing a compile error that
+        // `registry_compile_diagnostics()` picks up.
+        return format!("(?ANVIL_UNSUPPORTED_FLAG_{unsupported})");
+    }
+    let supported: String = flags
+        .chars()
+        .filter(|c| matches!(c, 'i' | 'm' | 's'))
+        .collect();
+    if supported.is_empty() {
+        String::new()
+    } else {
+        format!("(?{supported})")
+    }
+}
+
 /// Convert a single compiled pattern into the scanner's `AntiPattern` shape.
 ///
 /// Returns `None` when the detection is not regex-based — the current scanner
 /// engine only understands regex detection. Family provenance (family /
 /// `definition_ref` / `spectrum_position` / targets) is carried onto the
 /// resulting `AntiPattern` so the scanner can attach it to emitted warnings.
+///
+/// `detection.flags` is honoured by prefixing the regex with an inline
+/// group (e.g. `(?i)` for case-insensitive matching). The `AntiPattern.regex`
+/// field stays a single string so the scanner's existing `Regex::new` path
+/// keeps working unchanged.
 #[must_use]
 pub fn compiled_to_antipattern(cp: &CompiledPattern) -> Option<AntiPattern> {
     let regex = match &cp.detection {
-        Detection::Regex { pattern, .. } => pattern.clone(),
+        Detection::Regex { pattern, flags } => {
+            let prefix = inline_flag_prefix(flags.as_deref());
+            format!("{prefix}{pattern}")
+        }
         Detection::Ast { .. } => return None,
     };
 
@@ -562,6 +605,70 @@ mod tests {
             ast_query: "MemberExpression".to_string(),
         };
         assert!(compiled_to_antipattern(&cp).is_none());
+    }
+
+    #[test]
+    fn honours_case_insensitive_flag_via_inline_group() {
+        // SPG-001: the registry's `flags: "i"` field on RL-* / DD-004 rules
+        // must be honoured by the Rust loader. Achieved by prefixing the
+        // regex string with the inline group `(?i)` so the scanner's
+        // `Regex::new(&ap.regex)` path matches case-insensitively.
+        let mut cp = sample_compiled();
+        cp.detection = Detection::Regex {
+            pattern: r"\bpre-existing\b".to_string(),
+            flags: Some("i".to_string()),
+        };
+        let ap = compiled_to_antipattern(&cp).expect("regex detection maps");
+        assert!(
+            ap.regex.starts_with("(?i)"),
+            "case-insensitive flag should be inlined; got regex={}",
+            ap.regex
+        );
+
+        // End-to-end: compile and match against case-varied content.
+        let compiled = regex::Regex::new(&ap.regex).expect("inlined regex must compile");
+        assert!(compiled.is_match("Pre-Existing failure is noted."));
+        assert!(compiled.is_match("PRE-EXISTING failure is noted."));
+        assert!(compiled.is_match("pre-existing failure is noted."));
+    }
+
+    #[test]
+    fn preserves_case_sensitivity_when_flags_absent() {
+        // No flags means the regex must remain case-sensitive — no silent
+        // broadening of match semantics.
+        let mut cp = sample_compiled();
+        cp.detection = Detection::Regex {
+            pattern: r"\bfoo\b".to_string(),
+            flags: None,
+        };
+        let ap = compiled_to_antipattern(&cp).expect("regex detection maps");
+        assert!(!ap.regex.starts_with("(?i)"));
+        let compiled = regex::Regex::new(&ap.regex).expect("regex compiles");
+        assert!(compiled.is_match("foo"));
+        assert!(!compiled.is_match("FOO"));
+    }
+
+    #[test]
+    fn unrecognised_flags_force_a_compile_error() {
+        // Adversarial-reviewer M-2: unrecognised flag letters must surface
+        // via `registry_compile_diagnostics()` rather than drop silently.
+        // The loader emits an intentionally-invalid inline group so
+        // `Regex::new` fails and the scanner records a compile_error.
+        let mut cp = sample_compiled();
+        cp.detection = Detection::Regex {
+            pattern: r"\bfoo\b".to_string(),
+            flags: Some("x".to_string()),
+        };
+        let ap = compiled_to_antipattern(&cp).expect("regex detection maps");
+        assert!(
+            ap.regex.contains("ANVIL_UNSUPPORTED_FLAG_"),
+            "expected sentinel prefix; got {}",
+            ap.regex
+        );
+        assert!(
+            regex::Regex::new(&ap.regex).is_err(),
+            "the sentinel must fail to compile",
+        );
     }
 
     #[test]
