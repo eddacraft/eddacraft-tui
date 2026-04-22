@@ -55,10 +55,6 @@
       "options": {
         "testTarget": "test"
       }
-    },
-    {
-      "plugin": "nxrust",
-      "options": {}
     }
   ],
   "targetDefaults": {
