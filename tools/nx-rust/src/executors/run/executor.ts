@@ -8,10 +8,12 @@ export interface RunExecutorSchema extends BaseCargoOptions {
   example?: string;
 }
 
+const RUN_KEYS = ['bin', 'example'] as const;
+
 export default async function runExecutor(
   options: RunExecutorSchema,
   context: ExecutorContext
 ): Promise<{ success: boolean }> {
-  const args = buildCargoArgs('run', options, context);
+  const args = buildCargoArgs('run', options, context, RUN_KEYS);
   return cargoCommand(...args);
 }

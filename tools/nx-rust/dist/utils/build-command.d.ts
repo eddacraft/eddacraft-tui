@@ -6,6 +6,12 @@ import type { BaseCargoOptions } from '../models/base-options';
  * Shape:
  *   [+toolchain?] <subcommand> [--key value | --flag]* -p <package> [-- <args>]
  *
+ * Only options in `BASE_CARGO_KEYS` ∪ `extraKeys` are forwarded; everything
+ * else is silently ignored. This is what stops vitest flags (`--coverage`,
+ * `--run`, etc.) leaking into cargo when CI runs
+ * `nx run-many -t test -- --coverage` and Nx fans out to every project's
+ * `test` target.
+ *
  * Handles kebab-case option keys, scalar flags (`--release`), string values
  * (`--target x86_64-...`), array values — `--features` and `--bin` are joined
  * (features comma-separated, bins repeated as one string) and everything else
@@ -14,5 +20,5 @@ import type { BaseCargoOptions } from '../models/base-options';
  *
  * Kept as a pure function so it's unit-testable without touching cargo.
  */
-export declare function buildCargoArgs<T extends BaseCargoOptions>(subcommand: string, options: T, context: Pick<ExecutorContext, 'projectName'>): string[];
+export declare function buildCargoArgs<T extends BaseCargoOptions>(subcommand: string, options: T, context: Pick<ExecutorContext, 'projectName'>, extraKeys?: ReadonlyArray<string>): string[];
 //# sourceMappingURL=build-command.d.ts.map

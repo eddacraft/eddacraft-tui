@@ -15,10 +15,22 @@ export interface TestExecutorSchema extends BaseCargoOptions {
   'no-fail-fast'?: boolean;
 }
 
+const TEST_KEYS = [
+  'doc',
+  'lib',
+  'bin',
+  'bins',
+  'test',
+  'tests',
+  'all-targets',
+  'no-run',
+  'no-fail-fast',
+] as const;
+
 export default async function testExecutor(
   options: TestExecutorSchema,
   context: ExecutorContext
 ): Promise<{ success: boolean }> {
-  const args = buildCargoArgs('test', options, context);
+  const args = buildCargoArgs('test', options, context, TEST_KEYS);
   return cargoCommand(...args);
 }

@@ -1,7 +1,30 @@
 import type { ExecutorContext } from '@nx/devkit';
 import type { BaseCargoOptions } from '../models/base-options';
 
-const SKIP_KEYS = new Set<string>(['toolchain', 'args', 'package']);
+// Keys handled out-of-band (toolchain becomes `+toolchain`, args goes after
+// `--`, package becomes `-p <pkg>`). Never converted to a `--key value` flag.
+const HANDLED_OUT_OF_BAND = new Set<string>(['toolchain', 'args', 'package']);
+
+// Base cargo options every executor accepts. Extra subcommand keys are passed
+// in by the executor (e.g. `'all-targets'`, `'no-run'` for the test executor).
+// The allowlist is the union — anything else (e.g. vitest's `--coverage`,
+// `--run`, `--reporter` leaking through `nx run-many -t test -- <flags>`) is
+// silently dropped so cargo never sees flags it doesn't understand.
+const BASE_CARGO_KEYS: ReadonlySet<string> = new Set([
+  'toolchain',
+  'target',
+  'profile',
+  'release',
+  'target-dir',
+  'features',
+  'all-features',
+  'no-default-features',
+  'locked',
+  'frozen',
+  'offline',
+  'package',
+  'args',
+]);
 
 /**
  * Convert `allTargets` → `all-targets`. Executor schemas use camelCase keys
@@ -19,6 +42,12 @@ function toKebabFlag(key: string): string {
  * Shape:
  *   [+toolchain?] <subcommand> [--key value | --flag]* -p <package> [-- <args>]
  *
+ * Only options in `BASE_CARGO_KEYS` ∪ `extraKeys` are forwarded; everything
+ * else is silently ignored. This is what stops vitest flags (`--coverage`,
+ * `--run`, etc.) leaking into cargo when CI runs
+ * `nx run-many -t test -- --coverage` and Nx fans out to every project's
+ * `test` target.
+ *
  * Handles kebab-case option keys, scalar flags (`--release`), string values
  * (`--target x86_64-...`), array values — `--features` and `--bin` are joined
  * (features comma-separated, bins repeated as one string) and everything else
@@ -30,8 +59,13 @@ function toKebabFlag(key: string): string {
 export function buildCargoArgs<T extends BaseCargoOptions>(
   subcommand: string,
   options: T,
-  context: Pick<ExecutorContext, 'projectName'>
+  context: Pick<ExecutorContext, 'projectName'>,
+  extraKeys: ReadonlyArray<string> = []
 ): string[] {
+  const allowed: ReadonlySet<string> = extraKeys.length
+    ? new Set([...BASE_CARGO_KEYS, ...extraKeys])
+    : BASE_CARGO_KEYS;
+
   // The iterator below uses Object.entries, which at runtime sees every own
   // enumerable property regardless of declared type.
   const opts = options as unknown as Record<string, unknown>;
@@ -48,7 +82,8 @@ export function buildCargoArgs<T extends BaseCargoOptions>(
   const hasProfile = typeof options.profile === 'string' && options.profile.length > 0;
 
   for (const [rawKey, rawValue] of Object.entries(opts)) {
-    if (SKIP_KEYS.has(rawKey)) continue;
+    if (!allowed.has(rawKey)) continue;
+    if (HANDLED_OUT_OF_BAND.has(rawKey)) continue;
     if (rawValue === undefined || rawValue === null) continue;
     if (rawKey === 'release' && hasProfile) continue;
 

@@ -34,15 +34,35 @@ describe('buildCargoArgs', () => {
     expect(args.filter((a) => a === '--features')).toHaveLength(1);
   });
 
-  it('repeats non-features array flags', () => {
-    // `bin` isn't in BaseCargoOptions but the runtime iterator walks every
-    // own property, so we cast through unknown to exercise the general path.
+  it('repeats non-features array flags when the key is allowlisted', () => {
+    // `bin` isn't in BaseCargoOptions, so each subcommand declares it via
+    // `extraKeys`. Without that allowlist entry the key would (correctly)
+    // be dropped — see the unknown-key test below.
     const args = buildCargoArgs(
       'build',
       { bin: ['a', 'b'] } as unknown as Parameters<typeof buildCargoArgs>[1],
-      ctx
+      ctx,
+      ['bin']
     );
     expect(args.filter((a) => a === '--bin')).toHaveLength(2);
+  });
+
+  it('silently drops unknown keys (vitest leak guard)', () => {
+    // CI runs `nx run-many -t test -- --coverage --run` and Nx fans the
+    // flags into every project's executor options. Cargo doesn't accept
+    // those, so anything outside BASE_CARGO_KEYS ∪ extraKeys is dropped.
+    const args = buildCargoArgs(
+      'test',
+      {
+        coverage: true,
+        run: true,
+        'coverage.reporter': 'json-summary',
+      } as unknown as Parameters<typeof buildCargoArgs>[1],
+      ctx
+    );
+    expect(args).not.toContain('--coverage');
+    expect(args).not.toContain('--run');
+    expect(args).not.toContain('--coverage.reporter');
   });
 
   it('emits boolean flags only when true', () => {

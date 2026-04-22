@@ -8,10 +8,12 @@ export interface ClippyExecutorSchema extends BaseCargoOptions {
   fix?: boolean;
 }
 
+const CLIPPY_KEYS = ['all-targets', 'fix'] as const;
+
 export default async function clippyExecutor(
   options: ClippyExecutorSchema,
   context: ExecutorContext
 ): Promise<{ success: boolean }> {
-  const args = buildCargoArgs('clippy', options, context);
+  const args = buildCargoArgs('clippy', options, context, CLIPPY_KEYS);
   return cargoCommand(...args);
 }
