@@ -95,15 +95,21 @@ fn print_plain_templates(templates: &[Template]) {
 
 /// Returns the list of gate-runner checks to enable for a given template.
 ///
-/// Names must match `gate::AVAILABLE_CHECKS` — they're written to
-/// `.anvilrc#checks` and used by `anvil gate` to filter which checks to run.
+/// Names must be resolvable to a dispatchable gate check via the catalog —
+/// they're written to `.anvilrc#checks` and used by `anvil gate` to filter
+/// which checks to run.
 /// Display labels (used in the wizard TUI) are kept separately in `anvil_tui`.
 fn checks_for_template(template_id: &str) -> Vec<&'static str> {
     match template_id {
-        "typescript-monorepo" | "rust-workspace" => vec!["secret", "architecture", "policy"],
-        "python-package" => vec!["secret", "architecture"],
+        "typescript-monorepo" | "rust-workspace" => vec![
+            "secret-detection",
+            "import-boundaries",
+            "antipattern-scan",
+            "policy",
+        ],
+        "python-package" => vec!["secret-detection", "import-boundaries", "antipattern-scan"],
         // minimal or unknown — just secret scanning
-        _ => vec!["secret"],
+        _ => vec!["secret-detection"],
     }
 }
 
@@ -234,7 +240,7 @@ mod tests {
             checks.len() > 1,
             "typescript-monorepo should have multiple checks"
         );
-        assert!(checks.contains(&serde_json::json!("architecture")));
+        assert!(checks.contains(&serde_json::json!("import-boundaries")));
     }
 
     #[test]
@@ -274,33 +280,31 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         assert_eq!(parsed["template"], "minimal");
         let checks = parsed["checks"].as_array().unwrap();
-        assert_eq!(checks, &[serde_json::json!("secret")]);
+        assert_eq!(checks, &[serde_json::json!("secret-detection")]);
     }
 
     #[test]
     fn checks_for_template_varies_by_template() {
         let ts = checks_for_template("typescript-monorepo");
-        assert!(ts.contains(&"architecture"));
-        assert!(ts.contains(&"secret"));
-        assert!(ts.contains(&"policy"));
+        assert!(ts.contains(&"import-boundaries"));
 
         let rust = checks_for_template("rust-workspace");
-        assert!(rust.contains(&"architecture"));
+        assert!(rust.contains(&"import-boundaries"));
 
         let python = checks_for_template("python-package");
-        assert!(python.contains(&"architecture"));
-        assert!(!python.contains(&"policy"));
+        assert!(python.contains(&"antipattern-scan"));
+        assert!(python.contains(&"import-boundaries"));
 
         let minimal = checks_for_template("minimal");
-        assert_eq!(minimal, vec!["secret"]);
+        assert_eq!(minimal, vec!["secret-detection"]);
     }
 
     // Regression guard for #1016: every check name the wizard writes to
-    // `.anvilrc#checks` must match a dispatchable `gate::AVAILABLE_CHECKS`
-    // entry, otherwise `anvil gate` will silently ignore it.
+    // `.anvilrc#checks` must map to a dispatchable gate check via the
+    // catalog, otherwise `anvil gate` will silently ignore it.
     #[test]
     fn wizard_checks_are_registered_gate_names() {
-        use crate::commands::gate::AVAILABLE_CHECKS;
+        use crate::commands::check_catalog::gate_internal_name;
         let template_ids = [
             "typescript-monorepo",
             "rust-workspace",
@@ -311,8 +315,8 @@ mod tests {
         for id in template_ids {
             for name in checks_for_template(id) {
                 assert!(
-                    AVAILABLE_CHECKS.contains(&name),
-                    "wizard template '{id}' writes unregistered check '{name}'; valid: {AVAILABLE_CHECKS:?}"
+                    gate_internal_name(name).is_some(),
+                    "wizard template '{id}' writes unregistered check '{name}'"
                 );
             }
         }
@@ -356,8 +360,6 @@ mod tests {
         let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         let checks = parsed["checks"].as_array().unwrap();
-        assert!(checks.contains(&serde_json::json!("architecture")));
-        assert!(!checks.contains(&serde_json::json!("import-boundaries")));
-        assert!(!checks.contains(&serde_json::json!("secret-detection")));
+        assert!(checks.contains(&serde_json::json!("import-boundaries")));
     }
 }

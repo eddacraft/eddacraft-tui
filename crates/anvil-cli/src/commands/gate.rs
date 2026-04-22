@@ -6,6 +6,10 @@ use regex::Regex;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::commands::check_catalog::{
+    GATE_INTERNAL_CHECKS, gate_canonical_name_from_internal, gate_canonical_names,
+    gate_internal_name,
+};
 
 #[derive(Debug, Default, Args)]
 #[allow(clippy::struct_excessive_bools)]
@@ -50,20 +54,6 @@ const PROFILES: &[(&str, &str, &[&str])] = &[
         "Production mode \u{2014} runs all checks with strict thresholds",
         &[],
     ),
-];
-
-/// Canonical list of gate-runner check names. This is the single source of
-/// truth for the `.anvilrc#checks` vocabulary — `init`, `wizard`, and
-/// `gate-config` must only write names that appear here, otherwise
-/// `anvil gate` will silently skip them (see #1016).
-pub(crate) const AVAILABLE_CHECKS: &[&str] = &[
-    "lint",
-    "test",
-    "coverage",
-    "dependency",
-    "secret",
-    "architecture",
-    "policy",
 ];
 
 #[derive(Debug, Serialize)]
@@ -350,6 +340,77 @@ fn run_check_secret(
                 result.findings.len(),
                 locations.join("\n")
             ),
+        }
+    }
+}
+
+fn run_check_antipattern(
+    name: &str,
+    root: &Path,
+    plan_files: &std::collections::HashSet<String>,
+) -> CheckResult {
+    let mut files_to_scan = walk_source_files(root, &[]);
+    if !plan_files.is_empty() {
+        files_to_scan.retain(|f| {
+            plan_files.iter().any(|pf| {
+                if pf.ends_with('/') || root.join(pf).is_dir() {
+                    f.starts_with(pf.as_str())
+                } else {
+                    f == pf.as_str()
+                }
+            })
+        });
+    }
+
+    let absolute_files: Vec<String> = files_to_scan
+        .iter()
+        .map(|rel| root.join(rel).to_string_lossy().into_owned())
+        .collect();
+    let file_refs: Vec<&str> = absolute_files.iter().map(String::as_str).collect();
+    let root_str = root.to_string_lossy();
+    let result = anvil_checks::antipattern::run_antipattern_check(
+        &file_refs,
+        &anvil_checks::antipattern::AntipatternCheckConfig {
+            severity_threshold: anvil_checks::antipattern::WarningSeverity::Warning,
+            ..anvil_checks::antipattern::AntipatternCheckConfig::default()
+        },
+        Some(&root_str),
+    );
+
+    if result.files_scanned == 0 {
+        return CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No analysable files found for anti-pattern scan. Skipping.".to_string(),
+        };
+    }
+
+    if result.passed {
+        CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: f64::from(result.score),
+            message: result.message,
+        }
+    } else {
+        let locations: Vec<String> = result
+            .warnings
+            .warnings
+            .iter()
+            .filter(|w| w.suppressed.is_none())
+            .map(|w| format!("{}:{} [{}]", w.location.file, w.location.line, w.id))
+            .collect();
+        let details = if locations.is_empty() {
+            result.message
+        } else {
+            format!("{}\n{}", result.message, locations.join("\n"))
+        };
+        CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: f64::from(result.score),
+            message: details,
         }
     }
 }
@@ -897,9 +958,10 @@ fn run_check_policy(
 
 fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     let root = &ctx.workspace_root;
-    match name {
+    let mut result = match name {
         "lint" => run_check_lint(name, root),
         "test" => run_check_test(name, root),
+        "antipattern-scan" => run_check_antipattern(name, root, &ctx.plan_files),
         "secret" => run_check_secret(name, root, &ctx.plan_files),
         "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(root),
@@ -917,7 +979,9 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             score: 0.0,
             message: format!("Unknown check: {name}"),
         },
-    }
+    };
+    result.name = gate_canonical_name_from_internal(name);
+    result
 }
 
 fn list_profiles() {
@@ -1048,22 +1112,38 @@ fn extract_checks_from_toml(value: &toml::Value) -> Vec<String> {
 fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
     let unknown: Vec<&&str> = names
         .iter()
-        .filter(|n| !AVAILABLE_CHECKS.contains(n))
+        .filter(|n| gate_internal_name(n).is_none())
         .collect();
     if !unknown.is_empty() {
         let unknown_str: Vec<&str> = unknown.into_iter().copied().collect();
+        let available = gate_canonical_names();
         bail!(
             "unknown check(s): {}; available: {}",
             unknown_str.join(", "),
-            AVAILABLE_CHECKS.join(", ")
+            available.join(", ")
         );
     }
     Ok(())
 }
 
+fn normalize_gate_check_set(
+    names: &std::collections::HashSet<&str>,
+) -> Result<std::collections::HashSet<&'static str>> {
+    validate_check_names(names)?;
+    Ok(names
+        .iter()
+        .filter_map(|name| gate_internal_name(name))
+        .collect())
+}
+
+/// Resolve the `.anvilrc#checks` filter into a set of gate-runner internal
+/// names. Canonical names like `secret-detection` are mapped to their
+/// internal form (`secret`) so they match `GATE_INTERNAL_CHECKS` in the
+/// downstream dispatch loop. Returns `None` when `--only-checks` is set
+/// (explicit flag wins) or when `.anvilrc#checks` is absent/empty.
 fn resolve_anvilrc_check_filter(
     root: &Path,
-    only_set: Option<&std::collections::HashSet<&str>>,
+    only_set: Option<&std::collections::HashSet<&'static str>>,
 ) -> Result<Option<std::collections::HashSet<String>>> {
     if only_set.is_some() {
         return Ok(None);
@@ -1073,26 +1153,29 @@ fn resolve_anvilrc_check_filter(
     if let Some(ref rc) = anvilrc_checks {
         let unknown: Vec<&str> = rc
             .iter()
-            .filter(|n| !AVAILABLE_CHECKS.contains(&n.as_str()))
+            .filter(|n| gate_internal_name(n).is_none())
             .map(String::as_str)
             .collect();
         if !unknown.is_empty() {
+            let valid = gate_canonical_names();
             eprintln!(
                 "Warning: .anvilrc#checks contains unknown check(s): {}. Valid: {}",
                 unknown.join(", "),
-                AVAILABLE_CHECKS.join(", ")
+                valid.join(", ")
             );
         }
 
+        // Map each known name to its internal form so it matches the
+        // gate runner vocabulary (GATE_INTERNAL_CHECKS).
         let known: std::collections::HashSet<String> = rc
             .iter()
-            .filter(|n| AVAILABLE_CHECKS.contains(&n.as_str()))
-            .cloned()
+            .filter_map(|n| gate_internal_name(n).map(str::to_string))
             .collect();
         if known.is_empty() {
+            let valid = gate_canonical_names();
             bail!(
                 ".anvilrc#checks contains no valid gate checks. Valid: {}",
-                AVAILABLE_CHECKS.join(", ")
+                valid.join(", ")
             );
         }
         return Ok(Some(known));
@@ -1166,22 +1249,22 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
 
     let profile_skips = resolve_profile_skips(args.profile.as_deref())?;
 
-    let mut skip_set: std::collections::HashSet<&str> = args
+    let skip_names: std::collections::HashSet<&str> = args
         .skip_checks
         .as_deref()
         .map(|s| s.split(',').map(str::trim).collect())
         .unwrap_or_default();
+    let mut skip_set = normalize_gate_check_set(&skip_names)?;
     skip_set.extend(&profile_skips);
 
-    let only_set: Option<std::collections::HashSet<&str>> = args
+    let only_names: Option<std::collections::HashSet<&str>> = args
         .only_checks
         .as_deref()
         .map(|s| s.split(',').map(str::trim).collect());
-
-    validate_check_names(&skip_set)?;
-    if let Some(ref only_s) = only_set {
-        validate_check_names(only_s)?;
-    }
+    let only_set = only_names
+        .as_ref()
+        .map(normalize_gate_check_set)
+        .transpose()?;
 
     // `.anvilrc#checks` acts as a persistent default filter. When the user
     // passes `--only-checks`, that wins — but otherwise we restrict the run
@@ -1222,7 +1305,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     };
 
     let mut checks = Vec::new();
-    for check_name in AVAILABLE_CHECKS {
+    for check_name in GATE_INTERNAL_CHECKS {
         if skip_set.contains(check_name) {
             continue;
         }
@@ -1237,8 +1320,10 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
             continue;
         }
 
+        let display_name = gate_canonical_name_from_internal(check_name);
+
         if args.progress {
-            eprintln!("  \u{25b6} {check_name} running...");
+            eprintln!("  \u{25b6} {display_name} running...");
         }
 
         let result = run_single_check(check_name, &ctx);
@@ -1249,7 +1334,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
             } else {
                 "\u{2717}"
             };
-            eprintln!("  {icon} {check_name}");
+            eprintln!("  {icon} {display_name}");
         }
 
         let failed = !result.passed;
@@ -1884,11 +1969,49 @@ rules: []
         );
     }
 
+    #[test]
+    fn antipattern_check_detects_explicit_any() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("warn.ts");
+        std::fs::write(&file, "const value: any = source;\n").unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(!result.passed);
+        assert!(result.message.contains("AP-003"));
+    }
+
+    #[test]
+    fn antipattern_check_skips_when_no_supported_files_exist() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("notes.md"), "hello\n").unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(result.passed);
+        assert!(result.message.contains("Skipping"));
+    }
+
     // ── Validate check names ──────────────────────────────────────────
 
     #[test]
     fn validate_check_names_accepts_known() {
-        let names: std::collections::HashSet<&str> = ["lint", "secret"].into_iter().collect();
+        let names: std::collections::HashSet<&str> = [
+            "lint",
+            "secret-detection",
+            "import-boundaries",
+            "antipattern-scan",
+        ]
+        .into_iter()
+        .collect();
         assert!(validate_check_names(&names).is_ok());
     }
 
@@ -1913,7 +2036,7 @@ rules: []
             overall: true,
             score: 100.0,
             checks: vec![CheckResult {
-                name: "secret".to_string(),
+                name: "secret-detection".to_string(),
                 passed: true,
                 score: 100.0,
                 message: "clean".to_string(),
@@ -1923,7 +2046,7 @@ rules: []
         let json = serde_json::to_string(&result).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["overall"], true);
-        assert_eq!(parsed["checks"][0]["name"], "secret");
+        assert_eq!(parsed["checks"][0]["name"], "secret-detection");
         assert_eq!(parsed["duration_ms"], 42);
     }
 

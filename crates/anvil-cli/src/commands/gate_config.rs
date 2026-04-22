@@ -6,6 +6,9 @@ use clap::Args;
 use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
+use crate::commands::check_catalog::{
+    canonical_check_name, default_gate_config_checks, definition_by_canonical,
+};
 use crate::output::{self, OutputMode};
 
 const ANVIL_DIR: &str = ".anvil";
@@ -48,54 +51,18 @@ pub struct GateCheck {
     pub config: Option<BTreeMap<String, serde_json::Value>>,
 }
 
-/// Default gate checks matching the Node.js defaults.
 fn default_config() -> GateConfig {
     GateConfig {
         version: 1,
-        checks: vec![
-            GateCheck {
-                name: "lint".to_string(),
-                description: "Code quality and style checks".to_string(),
-                enabled: true,
+        checks: default_gate_config_checks()
+            .into_iter()
+            .map(|(name, description, enabled)| GateCheck {
+                name: name.to_string(),
+                description: description.to_string(),
+                enabled,
                 config: None,
-            },
-            GateCheck {
-                name: "test".to_string(),
-                description: "Test suite execution".to_string(),
-                enabled: true,
-                config: None,
-            },
-            GateCheck {
-                name: "coverage".to_string(),
-                description: "Code coverage thresholds".to_string(),
-                enabled: false,
-                config: None,
-            },
-            GateCheck {
-                name: "dependency".to_string(),
-                description: "Dependency vulnerability scanning".to_string(),
-                enabled: true,
-                config: None,
-            },
-            GateCheck {
-                name: "secret".to_string(),
-                description: "Secret and credential detection".to_string(),
-                enabled: true,
-                config: None,
-            },
-            GateCheck {
-                name: "architecture".to_string(),
-                description: "Architecture boundary validation".to_string(),
-                enabled: true,
-                config: None,
-            },
-            GateCheck {
-                name: "policy".to_string(),
-                description: "Policy compliance evaluation".to_string(),
-                enabled: true,
-                config: None,
-            },
-        ],
+            })
+            .collect(),
         thresholds: {
             let mut m = BTreeMap::new();
             m.insert("overall_score".to_string(), 80);
@@ -167,8 +134,9 @@ fn run_list(workspace: &Path, mode: OutputMode, verbose: bool) -> Result<()> {
 
 fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode) -> Result<()> {
     let mut config = load_config(workspace)?;
+    let canonical_name = canonical_check_name(check_name).unwrap_or(check_name);
 
-    let check = config.checks.iter_mut().find(|c| c.name == check_name);
+    let check = config.checks.iter_mut().find(|c| c.name == canonical_name);
 
     let Some(check) = check else {
         let available: Vec<&str> = config.checks.iter().map(|c| c.name.as_str()).collect();
@@ -187,11 +155,11 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
         OutputMode::Json => {
             output::json::print(&serde_json::json!({
                 "action": action.to_lowercase(),
-                "check": check_name,
+                "check": canonical_name,
             }))?;
         }
         OutputMode::Plain | OutputMode::Tui => {
-            output::plain::success(&format!("{action} check: {check_name}"));
+            output::plain::success(&format!("{action} check: {canonical_name}"));
         }
     }
     Ok(())
@@ -211,9 +179,21 @@ fn load_config(workspace: &Path) -> Result<GateConfig> {
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let config: GateConfig = serde_json::from_str(&content)
+    let mut config: GateConfig = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Invalid gate config at {}: {e}", path.display()))?;
+    normalize_check_names(&mut config);
     Ok(config)
+}
+
+fn normalize_check_names(config: &mut GateConfig) {
+    for check in &mut config.checks {
+        if let Some(canonical) = canonical_check_name(&check.name) {
+            check.name = canonical.to_string();
+            if let Some(def) = definition_by_canonical(canonical) {
+                check.description = def.description.to_string();
+            }
+        }
+    }
 }
 
 fn save_config(workspace: &Path, config: &GateConfig) -> Result<()> {
@@ -240,7 +220,7 @@ mod tests {
     #[test]
     fn default_config_has_seven_checks() {
         let config = default_config();
-        assert_eq!(config.checks.len(), 7);
+        assert_eq!(config.checks.len(), 8);
         assert_eq!(config.version, 1);
     }
 
@@ -257,6 +237,86 @@ mod tests {
         assert!(!coverage.enabled);
     }
 
+    #[test]
+    fn default_config_uses_canonical_secret_and_boundary_names() {
+        let config = default_config();
+        assert!(config.checks.iter().any(|c| c.name == "secret-detection"));
+        assert!(config.checks.iter().any(|c| c.name == "import-boundaries"));
+        assert!(config.checks.iter().any(|c| c.name == "antipattern-scan"));
+    }
+
+    #[test]
+    fn normalize_check_names_upgrades_legacy_internal_names() {
+        let mut config = GateConfig {
+            version: 1,
+            checks: vec![
+                GateCheck {
+                    name: "secret".to_string(),
+                    description: "old description".to_string(),
+                    enabled: true,
+                    config: None,
+                },
+                GateCheck {
+                    name: "architecture".to_string(),
+                    description: "old description".to_string(),
+                    enabled: true,
+                    config: None,
+                },
+            ],
+            thresholds: BTreeMap::new(),
+            global_config: None,
+        };
+        normalize_check_names(&mut config);
+        assert_eq!(config.checks[0].name, "secret-detection");
+        assert_eq!(
+            config.checks[0].description,
+            "Detect leaked secrets and credentials"
+        );
+        assert_eq!(config.checks[1].name, "import-boundaries");
+        assert_eq!(
+            config.checks[1].description,
+            "Enforce module import boundaries"
+        );
+    }
+
+    #[test]
+    fn toggle_accepts_legacy_internal_name() {
+        let dir = tempfile::tempdir().unwrap();
+        save_config(dir.path(), &default_config()).unwrap();
+
+        // Disable via legacy internal name.
+        run_toggle(dir.path(), "secret", false, OutputMode::Plain).unwrap();
+
+        let reloaded = load_config(dir.path()).unwrap();
+        let check = reloaded
+            .checks
+            .iter()
+            .find(|c| c.name == "secret-detection")
+            .unwrap();
+        assert!(!check.enabled);
+    }
+
+    #[test]
+    fn normalize_check_names_refreshes_canonical_descriptions() {
+        let mut config = GateConfig {
+            version: 1,
+            checks: vec![GateCheck {
+                name: "secret-detection".to_string(),
+                description: String::new(),
+                enabled: true,
+                config: None,
+            }],
+            thresholds: BTreeMap::new(),
+            global_config: None,
+        };
+        normalize_check_names(&mut config);
+        assert_eq!(config.checks[0].name, "secret-detection");
+        assert_eq!(
+            config.checks[0].description,
+            "Detect leaked secrets and credentials"
+        );
+    }
+
     // ── Config round-trip ───────────────────────────────────────
 
     #[test]
@@ -264,7 +324,7 @@ mod tests {
         let config = default_config();
         let json = serde_json::to_string(&config).unwrap();
         let parsed: GateConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.checks.len(), 7);
+        assert_eq!(parsed.checks.len(), 8);
         assert_eq!(parsed.version, 1);
     }
 
@@ -277,7 +337,7 @@ mod tests {
         save_config(dir.path(), &config).unwrap();
 
         let loaded = load_config(dir.path()).unwrap();
-        assert_eq!(loaded.checks.len(), 7);
+        assert_eq!(loaded.checks.len(), 8);
         assert_eq!(loaded.thresholds.get("overall_score"), Some(&80));
     }
 
@@ -285,7 +345,7 @@ mod tests {
     fn load_returns_default_when_no_config() {
         let dir = tempfile::tempdir().unwrap();
         let config = load_config(dir.path()).unwrap();
-        assert_eq!(config.checks.len(), 7);
+        assert_eq!(config.checks.len(), 8);
     }
 
     #[test]
@@ -354,17 +414,17 @@ mod tests {
     }
 
     // Regression guard for #1016: every check in the default gate-config must
-    // match a dispatchable `gate::AVAILABLE_CHECKS` entry, otherwise toggling
-    // a check via `anvil gate-config --enable` would have no effect on the
+    // map to a dispatchable gate check via the catalog, otherwise toggling a
+    // check via `anvil gate-config --enable` would have no effect on the
     // actual `anvil gate` run.
     #[test]
     fn default_config_checks_match_gate_available() {
-        use crate::commands::gate::AVAILABLE_CHECKS;
+        use crate::commands::check_catalog::gate_internal_name;
         let config = default_config();
         for check in &config.checks {
             assert!(
-                AVAILABLE_CHECKS.contains(&check.name.as_str()),
-                "gate_config default contains unregistered '{}'; valid: {AVAILABLE_CHECKS:?}",
+                gate_internal_name(&check.name).is_some(),
+                "gate_config default contains unregistered '{}'",
                 check.name
             );
         }
