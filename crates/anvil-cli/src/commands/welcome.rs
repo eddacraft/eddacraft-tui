@@ -649,9 +649,14 @@ fn run_tutorial_with_fix(
             drop(watcher.take());
 
             // Treat failures as best-effort so the welcome/tutorial flow
-            // resumes instead of aborting.
+            // resumes instead of aborting. Uses non-verbose formatting so
+            // wrapped notify::Error paths don't leak the user's cwd into
+            // captured terminals or recordings (see #1017).
             if let Err(err) = run_watch_demo_from_tutorial(terminal, theme) {
-                eprintln!("Watch demo unavailable: {err:#}");
+                eprintln!(
+                    "Watch demo unavailable: {}",
+                    crate::util::format_user_error(&err, false)
+                );
             }
 
             // Advance past the watch demo step and resume.

@@ -50,6 +50,26 @@ pub fn workspace_root() -> Result<PathBuf> {
     })
 }
 
+/// Format an `anyhow::Error` for user-facing display with path-leakage guardrails.
+///
+/// - Default (`verbose = false`): prints only the outermost context (`{err}`).
+///   This is the programmer-written message (e.g. `"starting engine watcher"`)
+///   and does not contain wrapped OS paths.
+/// - Verbose (`verbose = true`): prints the full anyhow chain (`{err:#}`),
+///   which may include absolute paths from `notify::Error`, `std::io::Error`,
+///   or similar filesystem-origin errors.
+///
+/// Use this at every user-facing `eprintln!`/`tracing` site that may receive
+/// an `anyhow::Error` wrapping a filesystem or OS error. See
+/// `docs/guides/cli-output-streams.md` for the full convention and rationale.
+pub fn format_user_error(err: &anyhow::Error, verbose: bool) -> String {
+    if verbose {
+        format!("{err:#}")
+    } else {
+        format!("{err}")
+    }
+}
+
 /// Write `data` to `path` atomically by writing to a uniquely-named temporary
 /// file in the same directory and then renaming. This prevents partial/corrupt
 /// state files if the process crashes or is interrupted mid-write.
@@ -303,6 +323,37 @@ mod tests {
 
         let perms = std::fs::metadata(&path).unwrap().permissions();
         assert_eq!(perms.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn format_user_error_default_omits_chain() {
+        let inner = anyhow::anyhow!("inotify: /home/victim/secret-project");
+        let outer = inner.context("starting engine watcher");
+
+        let msg = format_user_error(&outer, false);
+
+        assert!(
+            msg.contains("starting engine watcher"),
+            "default mode should include the outer context: {msg}"
+        );
+        assert!(
+            !msg.contains("/home/victim/secret-project"),
+            "default mode must not leak wrapped root-cause paths: {msg}"
+        );
+    }
+
+    #[test]
+    fn format_user_error_verbose_includes_chain() {
+        let inner = anyhow::anyhow!("inotify: /home/victim/secret-project");
+        let outer = inner.context("starting engine watcher");
+
+        let msg = format_user_error(&outer, true);
+
+        assert!(msg.contains("starting engine watcher"), "verbose: {msg}");
+        assert!(
+            msg.contains("/home/victim/secret-project"),
+            "verbose must include the full chain for debugging: {msg}"
+        );
     }
 
     #[test]
