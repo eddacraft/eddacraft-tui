@@ -88,6 +88,9 @@ mod tests {
         assert_eq!(back.class, NotificationClass::Finding);
         assert_eq!(back.priority, NotificationPriority::High);
         assert_eq!(back.title, "Boundary violation");
-        assert_eq!(back.context.unwrap().file.as_deref(), Some("src/api/user.ts"));
+        assert_eq!(
+            back.context.unwrap().file.as_deref(),
+            Some("src/api/user.ts")
+        );
     }
 }

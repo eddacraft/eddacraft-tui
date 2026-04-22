@@ -290,8 +290,8 @@ mod tests {
     use ratatui::backend::TestBackend;
 
     fn sample_state() -> WatchState {
-        use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
         use super::super::{QueuedChange, RunHistory, WatchData, WatchStats};
+        use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 
         WatchState::new(WatchData {
             status: WatchStatus::Passing,

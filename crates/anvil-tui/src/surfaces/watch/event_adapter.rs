@@ -421,11 +421,13 @@ mod tests {
         assert_eq!(data.queue.len(), 1);
         assert_eq!(data.queue[0].notification.title, "Watch error");
         assert_eq!(data.queue[0].notification.class, NotificationClass::Failure);
-        assert!(data.queue[0]
-            .notification
-            .context
-            .as_ref()
-            .is_some_and(|ctx| ctx.file.is_none()));
+        assert!(
+            data.queue[0]
+                .notification
+                .context
+                .as_ref()
+                .is_some_and(|ctx| ctx.file.is_none())
+        );
     }
 
     #[test]

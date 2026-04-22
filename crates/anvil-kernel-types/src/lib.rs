@@ -12,7 +12,9 @@ pub use feature_flags::{
     TargetingOperator, TargetingRule,
 };
 pub use graph::{EdgeType, SymbolEdge, SymbolKind, SymbolNode, Visibility};
-pub use notifications::{Notification, NotificationClass, NotificationContext, NotificationPriority};
+pub use notifications::{
+    Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
 pub use trust::TrustLevel;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
