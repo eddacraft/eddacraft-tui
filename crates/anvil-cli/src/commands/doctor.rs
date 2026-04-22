@@ -70,6 +70,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_anvil_dir_writable(),
         check_plans_dir(),
         check_hooks_installed(),
+        check_registry_patterns_compile(),
     ]
 }
 
@@ -390,6 +391,57 @@ fn check_hooks_installed() -> DiagnosticCheck {
     }
 }
 
+/// SPG-002: surface any registry rule whose regex fails to compile under the
+/// Rust `regex` crate. Without this, lookaround-bearing rules silently drop
+/// out of the scanner catalogue and users cannot tell the difference between
+/// "rule ran, no matches" and "rule never ran".
+fn check_registry_patterns_compile() -> DiagnosticCheck {
+    compile_check_from_diagnostics(&anvil_checks::antipattern::registry_compile_diagnostics())
+}
+
+fn compile_check_from_diagnostics(
+    diagnostics: &[anvil_checks::antipattern::CompileDiagnostic],
+) -> DiagnosticCheck {
+    if diagnostics.is_empty() {
+        return DiagnosticCheck {
+            name: "registry-patterns-compile".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Pass,
+            message: "all registry patterns compile under the Rust engine".to_string(),
+            details: None,
+            auto_fixable: false,
+        };
+    }
+
+    let summary = diagnostics
+        .iter()
+        .map(|d| d.pattern_id.clone())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let details = diagnostics
+        .iter()
+        .map(|d| format!("{} ({}): {}", d.pattern_id, d.pattern_title, d.error))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    DiagnosticCheck {
+        name: "registry-patterns-compile".to_string(),
+        category: "Configuration".to_string(),
+        status: CheckStatus::Warn,
+        message: format!(
+            "{count} registry rule{s} failed to compile: {summary}",
+            count = diagnostics.len(),
+            s = if diagnostics.len() == 1 { "" } else { "s" },
+        ),
+        details: Some(format!(
+            "{details}\n\nSee tests/scanner-parity/README.md — 'Rust-side handling \
+             of PCRE lookaround rules' — for the pattern-rewrite contract and \
+             fix guidance."
+        )),
+        auto_fixable: false,
+    }
+}
+
 // --- Fix application ---
 
 /// Apply a fix to a single check by index. Used by the welcome hub
@@ -538,6 +590,40 @@ mod tests {
     use anvil_tui::surfaces::doctor::DiagnosticSummary;
 
     #[test]
+    fn compile_check_passes_when_no_diagnostics() {
+        let check = compile_check_from_diagnostics(&[]);
+        assert_eq!(check.name, "registry-patterns-compile");
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(check.details.is_none());
+    }
+
+    #[test]
+    fn compile_check_warns_when_diagnostics_present() {
+        use anvil_checks::antipattern::CompileDiagnostic;
+
+        let diagnostics = vec![
+            CompileDiagnostic {
+                pattern_id: "DD-001".to_string(),
+                pattern_title: "Untracked TODO".to_string(),
+                error: "unsupported look-around".to_string(),
+            },
+            CompileDiagnostic {
+                pattern_id: "RL-005".to_string(),
+                pattern_title: "Deferred without artifact".to_string(),
+                error: "unsupported look-around".to_string(),
+            },
+        ];
+        let check = compile_check_from_diagnostics(&diagnostics);
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.message.contains("2 registry rules"));
+        assert!(check.message.contains("DD-001"));
+        assert!(check.message.contains("RL-005"));
+        let details = check.details.expect("details populated");
+        assert!(details.contains("DD-001 (Untracked TODO): unsupported look-around"));
+        assert!(details.contains("tests/scanner-parity/README.md"));
+    }
+
+    #[test]
     fn git_available_passes_on_dev_machine() {
         let check = check_git_available();
         assert_eq!(check.name, "git-available");
@@ -619,9 +705,12 @@ mod tests {
     }
 
     #[test]
-    fn run_all_checks_returns_eight() {
+    fn run_all_checks_includes_registry_compile_check() {
         let checks = run_all_checks();
-        assert_eq!(checks.len(), 8);
+        assert!(
+            checks.iter().any(|c| c.name == "registry-patterns-compile"),
+            "registry-patterns-compile must be registered in run_all_checks",
+        );
     }
 
     #[test]
@@ -649,7 +738,7 @@ mod tests {
         let json = serde_json::to_string(&json_checks).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert!(parsed.is_array());
-        assert_eq!(parsed.as_array().unwrap().len(), 8);
+        assert_eq!(parsed.as_array().unwrap().len(), checks.len());
     }
 
     #[test]

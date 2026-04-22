@@ -53,6 +53,9 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           set -o pipefail && cargo bench -p anvil-bench --bench stress -- --output-format bencher | tee stress-bench.txt
+      - name: Run antipattern_scan benchmarks
+        run: |
+          set -o pipefail && cargo bench -p anvil-bench --bench antipattern_scan -- --output-format bencher | tee antipattern-bench.txt
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -61,6 +64,7 @@ jobs:
             kernel-bench.txt
             checks-bench.txt
             stress-bench.txt
+            antipattern-bench.txt
             target/criterion/
           if-no-files-found: ignore
           retention-days: 90
