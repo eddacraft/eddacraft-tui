@@ -68,12 +68,11 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // cannot start (e.g. inotify limit reached). The in-TUI notice
     // surfaces the specific cause so users aren't left wondering why
     // file saves stop retriggering checks.
-    let (file_rx, _watcher_handle) = match try_start_watcher() {
-        Ok((rx, handle)) => (Some(rx), Some(handle)),
-        Err(_) => {
-            state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
-            (None, None)
-        }
+    let (file_rx, _watcher_handle) = if let Ok((rx, handle)) = try_start_watcher() {
+        (Some(rx), Some(handle))
+    } else {
+        state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
+        (None, None)
     };
 
     let mut state = crate::tui::run_tutorial(state, file_rx.as_ref())?;

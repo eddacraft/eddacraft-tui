@@ -175,8 +175,9 @@ fn notice_row_count(notice: &str, width: u16) -> u16 {
     if width == 0 {
         return 1;
     }
-    let display_width = UnicodeWidthStr::width(notice) as u16;
-    display_width.div_ceil(width).max(1)
+    let display_width = UnicodeWidthStr::width(notice);
+    let rows = display_width.div_ceil(width as usize).max(1);
+    u16::try_from(rows).unwrap_or(u16::MAX)
 }
 
 fn render_static_notice(
@@ -192,10 +193,7 @@ fn render_static_notice(
                 .fg(theme.warning())
                 .add_modifier(Modifier::ITALIC),
         ));
-        frame.render_widget(
-            Paragraph::new(line).wrap(Wrap { trim: false }),
-            area,
-        );
+        frame.render_widget(Paragraph::new(line).wrap(Wrap { trim: false }), area);
     }
 }
 
@@ -212,10 +210,7 @@ fn render_resuming_notice(
                 .fg(theme.accent())
                 .add_modifier(Modifier::ITALIC),
         ));
-        frame.render_widget(
-            Paragraph::new(line).wrap(Wrap { trim: false }),
-            area,
-        );
+        frame.render_widget(Paragraph::new(line).wrap(Wrap { trim: false }), area);
     }
 }
 

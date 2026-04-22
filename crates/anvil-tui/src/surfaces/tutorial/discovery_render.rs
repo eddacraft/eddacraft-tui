@@ -280,7 +280,11 @@ fn render_finding_detail(
     } else {
         ""
     };
-    let truncated_note = if results.truncated { " (scan limited)" } else { "" };
+    let truncated_note = if results.truncated {
+        " (scan limited)"
+    } else {
+        ""
+    };
     let summary = format!(
         "{total} issue{} in {scope}{} file{}{truncated_note} ({duration_s}s)  —  enter to continue",
         if total == 1 { "" } else { "s" },

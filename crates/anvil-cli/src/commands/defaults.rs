@@ -21,7 +21,10 @@ pub(crate) const DEFAULT_CHECK_NAMES: &[&str] = &["secret-detection", "import-bo
 /// Returns [`DEFAULT_CHECK_NAMES`] as an owned `Vec<String>`, the shape
 /// most callers need when building a config.
 pub(crate) fn default_check_names() -> Vec<String> {
-    DEFAULT_CHECK_NAMES.iter().map(|s| (*s).to_string()).collect()
+    DEFAULT_CHECK_NAMES
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
 }
 
 /// Default menu of checks offered during guided init.
@@ -68,7 +71,10 @@ mod tests {
     fn default_check_names_are_canonical() {
         // If this fails, the menu names drifted from the .anvilrc names
         // and the empty-checks fallback path will register unknown IDs.
-        assert_eq!(DEFAULT_CHECK_NAMES, &["secret-detection", "import-boundaries"]);
+        assert_eq!(
+            DEFAULT_CHECK_NAMES,
+            &["secret-detection", "import-boundaries"]
+        );
     }
 
     #[test]
