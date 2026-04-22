@@ -1,6 +1,7 @@
 use anvil_tui::surfaces::init::AvailableCheck;
 
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct CheckDefinition {
     pub(crate) canonical_name: &'static str,
     pub(crate) internal_name: &'static str,

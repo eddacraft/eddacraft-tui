@@ -101,13 +101,7 @@ fn print_plain_templates(templates: &[Template]) {
 /// Display labels (used in the wizard TUI) are kept separately in `anvil_tui`.
 fn checks_for_template(template_id: &str) -> Vec<&'static str> {
     match template_id {
-        "typescript-monorepo" => vec![
-            "secret-detection",
-            "import-boundaries",
-            "antipattern-scan",
-            "policy",
-        ],
-        "rust-workspace" => vec![
+        "typescript-monorepo" | "rust-workspace" => vec![
             "secret-detection",
             "import-boundaries",
             "antipattern-scan",

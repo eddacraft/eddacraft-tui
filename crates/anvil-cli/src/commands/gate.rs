@@ -980,7 +980,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             message: format!("Unknown check: {name}"),
         },
     };
-    result.name = gate_canonical_name_from_internal(name).to_string();
+    result.name = gate_canonical_name_from_internal(name);
     result
 }
 

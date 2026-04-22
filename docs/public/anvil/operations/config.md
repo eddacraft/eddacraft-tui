@@ -61,11 +61,11 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 
 :::
 
-| Field           | Type     | Default                                     | Description                         |
-| --------------- | -------- | ------------------------------------------- | ----------------------------------- |
-| `schemaVersion` | string   | `"1.0.0"`                                   | Config schema version               |
-| `planningDir`   | string   | `"plans"`                                   | Directory for APS plan files        |
-| `format`        | string   | `"yaml"`                                    | Plan format: `json`, `yaml`, `toml` |
+| Field           | Type     | Default                                                         | Description                         |
+| --------------- | -------- | --------------------------------------------------------------- | ----------------------------------- |
+| `schemaVersion` | string   | `"1.0.0"`                                                       | Config schema version               |
+| `planningDir`   | string   | `"plans"`                                                       | Directory for APS plan files        |
+| `format`        | string   | `"yaml"`                                                        | Plan format: `json`, `yaml`, `toml` |
 | `checks`        | string[] | `["secret-detection", "import-boundaries", "antipattern-scan"]` | Enabled project checks              |
 
 ### Available Checks

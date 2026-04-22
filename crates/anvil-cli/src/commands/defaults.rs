@@ -2,9 +2,7 @@
 
 use anvil_tui::surfaces::init::AvailableCheck;
 
-use crate::commands::check_catalog::{
-    DEFAULT_INIT_CHECKS, default_init_available_checks, default_init_check_names,
-};
+use crate::commands::check_catalog::{default_init_available_checks, default_init_check_names};
 
 /// Returns the default init checks as an owned `Vec<String>`, the shape
 /// most callers need when building a config.
@@ -22,6 +20,7 @@ pub(crate) fn default_available_checks() -> Vec<AvailableCheck> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::check_catalog::DEFAULT_INIT_CHECKS;
 
     #[test]
     fn default_check_names_are_canonical() {
