@@ -870,6 +870,22 @@ fn run_check_policy(
             score: 100.0,
             message: "OPA not installed. Skipping policy evaluation.".to_string(),
         },
+        Err(anvil_policy::evaluator::EvalError::UnexpectedShape { pointer, .. }) => CheckResult {
+            // UnexpectedShape comes through as a structured variant rather
+            // than a substring match so wording changes in the Display impl
+            // don't silently break this branch. Most common cause is an OPA
+            // version whose output layout has drifted; point the operator
+            // at the runbook rather than dumping the raw snippet at them.
+            name: "policy".to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!(
+                "Policy evaluation failed: unexpected OPA output shape at {pointer}.\n\
+                 hint: the OPA output schema does not match what Anvil expects. \
+                 Verify your OPA version with `anvil doctor` and confirm it matches \
+                 the version pinned in docs/guides/opa-policy-testing.md."
+            ),
+        },
         Err(e) => CheckResult {
             name: "policy".to_string(),
             passed: false,

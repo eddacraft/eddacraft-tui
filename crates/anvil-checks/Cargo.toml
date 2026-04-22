@@ -9,6 +9,7 @@ description = "Anvil quality gate checks ported to Rust - secret scan, anti-patt
 name = "anvil_checks"
 
 [dependencies]
+rayon = { workspace = true }
 regex = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }

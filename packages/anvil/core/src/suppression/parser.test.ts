@@ -161,35 +161,35 @@ const x = 1;
 
   describe('HTML comment suppression', () => {
     it('parses HTML comment with @anvil-ignore', () => {
-      const content = `<!-- @anvil-ignore AP-008: Inline style needed for email -->`;
+      const content = `<!-- @anvil-ignore AP-001: Disabled for generated code -->`;
       const result = parseSuppressions(content);
 
       expect(result.errors).toHaveLength(0);
       expect(result.suppressions).toHaveLength(1);
       expect(result.suppressions[0]).toMatchObject({
-        warningId: 'AP-008',
-        reason: 'Inline style needed for email',
+        warningId: 'AP-001',
+        reason: 'Disabled for generated code',
         line: 1,
         scope: 'file',
       });
     });
 
     it('parses HTML comment with @anvil-ignore-until', () => {
-      const content = `<!-- @anvil-ignore-until 2026-06-01 AP-011: Migrating deprecated tags -->`;
+      const content = `<!-- @anvil-ignore-until 2026-06-01 AP-004: Migrating legacy code -->`;
       const result = parseSuppressions(content);
 
       expect(result.errors).toHaveLength(0);
       expect(result.suppressions).toHaveLength(1);
       expect(result.suppressions[0]).toMatchObject({
-        warningId: 'AP-011',
-        reason: 'Migrating deprecated tags',
+        warningId: 'AP-004',
+        reason: 'Migrating legacy code',
       });
       expect(result.suppressions[0].expiresAt).toEqual(new Date('2026-06-01'));
     });
 
     it('detects file scope for HTML comment in top lines', () => {
-      const content = `<!-- @anvil-ignore AP-008: File-level suppression -->
-<div style="color: red">Hello</div>`;
+      const content = `<!-- @anvil-ignore AP-001: File-level suppression -->
+<div>Hello</div>`;
       const result = parseSuppressions(content);
 
       expect(result.suppressions[0].scope).toBe('file');
@@ -197,22 +197,22 @@ const x = 1;
 
     it('detects statement scope for HTML comment below code', () => {
       const content = `<div>Some content</div>
-<!-- @anvil-ignore AP-008: Statement suppression -->
-<p style="font-size: 14px">Text</p>`;
+<!-- @anvil-ignore AP-001: Statement suppression -->
+<p>Text</p>`;
       const result = parseSuppressions(content);
 
       expect(result.suppressions[0].scope).toBe('statement');
     });
 
     it('detects line scope for end-of-line HTML comment', () => {
-      const content = `<div style="color: red"> <!-- @anvil-ignore AP-008: Inline needed here -->`;
+      const content = `<div> <!-- @anvil-ignore AP-001: Needed here -->`;
       const result = parseSuppressions(content);
 
       expect(result.suppressions[0].scope).toBe('line');
     });
 
     it('rejects HTML comment with empty reason', () => {
-      const content = `<!-- @anvil-ignore AP-008: -->`;
+      const content = `<!-- @anvil-ignore AP-001: -->`;
       const result = parseSuppressions(content);
 
       expect(result.suppressions).toHaveLength(0);
@@ -225,8 +225,8 @@ const x = 1;
       const content = `<!--
   This is a multi-line comment
 -->
-<!-- @anvil-ignore AP-008: Multi-line comment above -->
-<div style="color: red">Hello</div>`;
+<!-- @anvil-ignore AP-001: Multi-line comment above -->
+<div>Hello</div>`;
       const result = parseSuppressions(content);
 
       expect(result.suppressions).toHaveLength(1);
@@ -235,13 +235,13 @@ const x = 1;
 
     it('works alongside JS comments', () => {
       const content = `// @anvil-ignore AP-001: JS suppression
-<!-- @anvil-ignore AP-008: HTML suppression -->`;
+<!-- @anvil-ignore AP-003: HTML suppression -->`;
       const result = parseSuppressions(content);
 
       expect(result.errors).toHaveLength(0);
       expect(result.suppressions).toHaveLength(2);
       expect(result.suppressions[0].warningId).toBe('AP-001');
-      expect(result.suppressions[1].warningId).toBe('AP-008');
+      expect(result.suppressions[1].warningId).toBe('AP-003');
     });
   });
 

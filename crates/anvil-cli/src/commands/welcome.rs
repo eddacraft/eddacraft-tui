@@ -188,18 +188,23 @@ fn run_onboarding(
 
     match onboarding.chosen {
         Some(OnboardingChoice::GuidedSetup) => {
-            run_guided_init(terminal, theme)?;
-            Ok(OnboardingOutcome::Configured)
+            if run_guided_init(terminal, theme)? {
+                Ok(OnboardingOutcome::Quit)
+            } else {
+                Ok(OnboardingOutcome::Configured)
+            }
         }
         Some(OnboardingChoice::SkipToTutorial) => Ok(OnboardingOutcome::Tutorial),
         Some(OnboardingChoice::SkipEntirely) | None => Ok(OnboardingOutcome::Skip),
     }
 }
 
+/// Returns `true` if the user quit out of the landing screen and the caller
+/// should stop the onboarding flow.
 fn run_guided_init(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     use anvil_tui::surfaces::onboarding;
 
     // Skip init if config already exists.
@@ -211,21 +216,21 @@ fn run_guided_init(
             theme,
             std::time::Duration::from_millis(200),
         )?;
-        return Ok(());
+        return Ok(false);
     }
 
-    let checks = onboarding::default_available_checks();
+    let checks = crate::commands::defaults::default_available_checks();
     let mut init_state = anvil_tui::surfaces::init::InitState::new(checks);
     let exit = crate::tui::run_surface_in(terminal, &mut init_state, theme)?;
 
     if exit == SurfaceExit::Quit && !init_state.confirmed {
         // User quit the init wizard — don't show error, just fall through.
-        return Ok(());
+        return Ok(false);
     }
 
     if init_state.confirmed {
         let checks: Vec<String> = if init_state.config.checks.is_empty() {
-            vec!["secret-scan".to_string(), "anti-pattern".to_string()]
+            crate::commands::defaults::default_check_names()
         } else {
             init_state.config.checks
         };
@@ -241,22 +246,39 @@ fn run_guided_init(
 
         let mut config = crate::commands::init::AnvilConfig::default();
         config.format = crate::commands::init::format_label(init_state.config.format);
-        config.checks = checks;
+        config.checks.clone_from(&checks);
 
-        let msg = match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(()) => "Config saved to .anvilrc. Proceeding to scan\u{2026}".to_string(),
-            Err(e) => format!("Warning: could not save config: {e}"),
-        };
-        timed_loading(
-            terminal,
-            "Init",
-            &msg,
-            theme,
-            std::time::Duration::from_millis(400),
-        )?;
+        match crate::commands::init::generate_config(&config, &init_root) {
+            Ok(gitignore_updated) => {
+                let summary = onboarding::InitCompleteSummary {
+                    config_path: ".anvilrc".to_string(),
+                    plans_dir: format!("{}/", config.planning_dir),
+                    cache_dir: ".anvil/cache/".to_string(),
+                    gitignore_updated,
+                    checks_enabled: checks,
+                };
+                let mut landing = onboarding::InitCompleteState::new(summary);
+                crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+                // InitCompleteState::should_quit returns true for both Enter
+                // (wants_continue) and q/Esc; wants_continue is the authoritative
+                // signal for whether to proceed past the landing screen.
+                if !landing.wants_continue {
+                    return Ok(true);
+                }
+            }
+            Err(e) => {
+                timed_loading(
+                    terminal,
+                    "Init",
+                    &format!("Warning: could not save config: {e}"),
+                    theme,
+                    std::time::Duration::from_millis(400),
+                )?;
+            }
+        }
     }
 
-    Ok(())
+    Ok(false)
 }
 
 fn run_discovery(
@@ -316,135 +338,247 @@ fn run_discovery(
 const SCAN_MAX_FILES: usize = 500;
 const SCAN_MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
 
+/// Decide whether a single `ignore::DirEntry` should be scanned. Used by both
+/// the gitignore-aware primary walker and the always-scan allowlist walker so
+/// filtering stays consistent between the two passes.
+fn candidate_path(
+    entry: &ignore::DirEntry,
+    cwd: &std::path::Path,
+    filter: &anvil_checks::filter::ScanFilter,
+) -> Option<(std::path::PathBuf, String)> {
+    let ft = entry.file_type()?;
+    if !ft.is_file() {
+        return None;
+    }
+    let path = entry.path();
+    if !filter.includes(path) {
+        return None;
+    }
+    if anvil_checks::filter::is_binary_path(path) {
+        return None;
+    }
+    // Size check is repeated at read-time (scan_one) because the file can
+    // grow between Phase 1 and Phase 2. This pre-check is an early-exit so
+    // the rayon pool doesn't even see huge files.
+    if let Ok(meta) = entry.metadata()
+        && meta.len() > SCAN_MAX_FILE_SIZE
+    {
+        return None;
+    }
+    let rel_path = path
+        .strip_prefix(cwd)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string();
+    Some((path.to_path_buf(), rel_path))
+}
+
+/// Read and scan one file. Returns `None` when the file cannot be read or has
+/// grown past the size cap since the Phase 1 metadata check (TOCTOU guard).
+fn scan_one(
+    path: &std::path::Path,
+    rel_path: &str,
+    secret_config: &anvil_checks::secret::types::SecretCheckConfig,
+) -> Option<Vec<anvil_tui::surfaces::tutorial::discovery::Finding>> {
+    use anvil_tui::surfaces::tutorial::discovery::{Finding, FindingSeverity, FindingSource};
+
+    // TOCTOU re-check: the size verified in Phase 1 could have grown.
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.len() > SCAN_MAX_FILE_SIZE {
+        return None;
+    }
+    let content = std::fs::read_to_string(path).ok()?;
+
+    let mut local: Vec<Finding> = Vec::new();
+
+    let secret_hits =
+        anvil_checks::secret::scanner::scan_content(&content, rel_path, secret_config);
+    for hit in &secret_hits {
+        local.push(Finding {
+            file: hit.file.clone(),
+            line: Some(hit.line),
+            severity: FindingSeverity::Error,
+            source: FindingSource::Secret,
+            title: format!("Secret detected: {}", hit.pattern_name),
+            message: hit.redacted_line.clone(),
+            suggestion: "Move the value to an environment variable or secrets manager.".to_string(),
+        });
+    }
+
+    let ap_result = anvil_checks::antipattern::scanner::scan_file(rel_path, &content, None);
+    for warning in &ap_result.warnings {
+        if warning.suppressed.is_some() {
+            continue;
+        }
+        local.push(Finding {
+            file: warning.location.file.clone(),
+            line: Some(warning.location.line),
+            severity: match warning.severity {
+                anvil_checks::antipattern::types::WarningSeverity::Error => FindingSeverity::Error,
+                anvil_checks::antipattern::types::WarningSeverity::Warning => {
+                    FindingSeverity::Warning
+                }
+                anvil_checks::antipattern::types::WarningSeverity::Info => FindingSeverity::Info,
+            },
+            source: FindingSource::AntiPattern,
+            title: warning.title.clone(),
+            message: warning.message.clone(),
+            suggestion: warning.suggestion.clone(),
+        });
+    }
+
+    Some(local)
+}
+
 #[allow(clippy::too_many_lines)]
 fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::ScanResults> {
-    use anvil_checks::filter::ScanFilter;
-    use anvil_tui::surfaces::tutorial::discovery::{
-        Finding, FindingSeverity, FindingSource, ScanResults,
-    };
+    use anvil_checks::filter::{BUILD_ARTEFACT_DIRS, ScanFilter, is_always_scan_filename};
+    use anvil_tui::surfaces::tutorial::discovery::{Finding, ScanResults};
+    use rayon::prelude::*;
+    use std::collections::HashSet;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     let start = std::time::Instant::now();
-    let filter = ScanFilter::default_excludes();
     let cwd = std::env::current_dir()?;
     let secret_config = anvil_checks::secret::types::SecretCheckConfig::default();
 
-    let mut findings = Vec::new();
-    let mut files_scanned: usize = 0;
+    // Correctness excludes (from `ScanFilter::default_excludes()`) + the
+    // opt-in build-artefact set. `default_with` composes the canonical
+    // defaults with our extras so the welcome-flow filter cannot drift from
+    // `ScanFilter::default_excludes()` when that set changes.
+    let filter = ScanFilter::default_with(
+        BUILD_ARTEFACT_DIRS
+            .iter()
+            .map(|d| format!("{d}/"))
+            .collect(),
+    );
+
+    let scan_all = std::env::var("ANVIL_SCAN_ALL")
+        .is_ok_and(|v| !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false"));
+
+    let mut candidates: Vec<(std::path::PathBuf, String)> = Vec::new();
+    let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
     let mut truncated = false;
 
-    for entry in walkdir::WalkDir::new(&cwd)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path = entry.path();
-        if !filter.includes(path) {
-            continue;
-        }
-        // Skip binary / non-text files by extension.
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        if matches!(
-            ext,
-            "png"
-                | "jpg"
-                | "jpeg"
-                | "gif"
-                | "ico"
-                | "woff"
-                | "woff2"
-                | "ttf"
-                | "otf"
-                | "eot"
-                | "pdf"
-                | "zip"
-                | "gz"
-                | "tar"
-                | "exe"
-                | "dll"
-                | "so"
-                | "dylib"
-                | "wasm"
-                | "o"
-                | "a"
-        ) {
-            continue;
-        }
+    // Phase 1a: always-scan allowlist pass. Runs first (regardless of
+    // truncation) and bypasses standard gitignore filters so leaked `.env`
+    // or `id_rsa` files in gitignored locations are still caught — that's
+    // precisely the class of secret the first-run scan exists to flag.
+    //
+    // `filter_entry` prunes directories that ScanFilter would otherwise
+    // reject (node_modules, target, dist, .git, ...) so Phase 1b can't
+    // dominate runtime on typical JS/Rust repos by descending into them.
+    // Skipped when `scan_all` is set because Phase 1b then covers
+    // everything (including `.env`) via the same walker.
+    if !scan_all {
+        let filter_for_prune = filter.clone();
+        let allowlist_walker = ignore::WalkBuilder::new(&cwd)
+            .follow_links(false)
+            .standard_filters(false)
+            .hidden(false)
+            .filter_entry(move |entry| {
+                // Only prune directories — always descend into files so the
+                // filename allowlist can match them.
+                if entry.file_type().is_none_or(|ft| !ft.is_dir()) {
+                    return true;
+                }
+                filter_for_prune.includes(entry.path())
+            })
+            .build();
 
-        // Skip files larger than 512 KB to avoid memory exhaustion.
-        if let Ok(meta) = entry.metadata()
-            && meta.len() > SCAN_MAX_FILE_SIZE
-        {
-            continue;
-        }
-
-        let Ok(content) = std::fs::read_to_string(path) else {
-            continue;
-        };
-
-        let rel_path = path
-            .strip_prefix(&cwd)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
-
-        // Secret scan
-        let secret_hits =
-            anvil_checks::secret::scanner::scan_content(&content, &rel_path, &secret_config);
-        for hit in &secret_hits {
-            findings.push(Finding {
-                file: hit.file.clone(),
-                line: Some(hit.line),
-                severity: FindingSeverity::Error,
-                source: FindingSource::Secret,
-                title: format!("Secret detected: {}", hit.pattern_name),
-                message: hit.redacted_line.clone(),
-                suggestion: "Move the value to an environment variable or secrets manager."
-                    .to_string(),
-            });
-        }
-
-        // Antipattern scan
-        let ap_result = anvil_checks::antipattern::scanner::scan_file(&rel_path, &content, None);
-        for warning in &ap_result.warnings {
-            if warning.suppressed.is_some() {
+        for entry in allowlist_walker.filter_map(Result::ok) {
+            let path = entry.path();
+            if !is_always_scan_filename(path) {
                 continue;
             }
-            findings.push(Finding {
-                file: warning.location.file.clone(),
-                line: Some(warning.location.line),
-                severity: match warning.severity {
-                    anvil_checks::antipattern::types::WarningSeverity::Error => {
-                        FindingSeverity::Error
-                    }
-                    anvil_checks::antipattern::types::WarningSeverity::Warning => {
-                        FindingSeverity::Warning
-                    }
-                    anvil_checks::antipattern::types::WarningSeverity::Info => {
-                        FindingSeverity::Info
-                    }
-                },
-                source: FindingSource::AntiPattern,
-                title: warning.title.clone(),
-                message: warning.message.clone(),
-                suggestion: warning.suggestion.clone(),
-            });
-        }
-
-        files_scanned += 1;
-        if files_scanned >= SCAN_MAX_FILES {
-            truncated = true;
-            break;
+            // No cap on the allowlist pass: ALWAYS_SCAN_FILENAMES is a
+            // small, rare-filename set, so total contribution is bounded by
+            // how many `.env`-like files actually exist in the tree.
+            if let Some(candidate) = candidate_path(&entry, &cwd, &filter)
+                && seen.insert(candidate.0.clone())
+            {
+                candidates.push(candidate);
+            }
         }
     }
 
-    // Sort by severity descending (Error first).
-    findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+    // Phase 1b: general walk. Honours gitignore (unless `scan_all`) and
+    // stops at SCAN_MAX_FILES. `hidden(false)` is deliberate — dotfile
+    // directories (`.config`, `.secrets`, ...) must be descended into so
+    // secret-bearing dotfiles can be discovered; gitignore still prunes
+    // anything listed there.
+    let walker = ignore::WalkBuilder::new(&cwd)
+        .follow_links(false)
+        .standard_filters(!scan_all)
+        .hidden(false)
+        .build();
+
+    let mut iter = walker.filter_map(Result::ok);
+    for entry in iter.by_ref() {
+        if let Some(candidate) = candidate_path(&entry, &cwd, &filter) {
+            if seen.insert(candidate.0.clone()) {
+                candidates.push(candidate);
+            }
+            if candidates.len() >= SCAN_MAX_FILES {
+                // Decide truncation honestly: did the walker actually have
+                // more matching entries beyond the cap?
+                truncated = iter
+                    .by_ref()
+                    .any(|e| candidate_path(&e, &cwd, &filter).is_some());
+                break;
+            }
+        }
+    }
+
+    // Phase 2: read + scan files in parallel. Each worker runs inside
+    // catch_unwind so a panic in one scanner doesn't propagate through the
+    // rayon collect and tear down the TUI terminal state.
+    let panics = AtomicUsize::new(0);
+    let read_failures = AtomicUsize::new(0);
+
+    let all_findings: Vec<Vec<Finding>> = candidates
+        .par_iter()
+        .map(|(path, rel_path)| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                scan_one(path, rel_path, &secret_config)
+            }));
+            match result {
+                Ok(Some(v)) => v,
+                Ok(None) => {
+                    read_failures.fetch_add(1, Ordering::Relaxed);
+                    Vec::new()
+                }
+                Err(_) => {
+                    panics.fetch_add(1, Ordering::Relaxed);
+                    Vec::new()
+                }
+            }
+        })
+        .collect();
+
+    // files_scanned counts files that were successfully read + scanned, not
+    // raw candidates: panics and read/TOCTOU failures drop out.
+    let files_scanned = candidates
+        .len()
+        .saturating_sub(panics.load(Ordering::Relaxed))
+        .saturating_sub(read_failures.load(Ordering::Relaxed));
+
+    let mut findings: Vec<Finding> = all_findings.into_iter().flatten().collect();
+
+    // Deterministic ordering: severity desc, then file asc, line asc, title
+    // asc. Without this the rayon collect order leaks thread scheduling into
+    // user-visible output and snapshot tests.
+    findings.sort_by(|a, b| {
+        b.severity
+            .cmp(&a.severity)
+            .then_with(|| a.file.cmp(&b.file))
+            .then_with(|| a.line.cmp(&b.line))
+            .then_with(|| a.title.cmp(&b.title))
+    });
 
     #[allow(clippy::cast_possible_truncation)]
-    let duration_ms = start.elapsed().as_millis() as u64; // truncation is fine for display
+    let duration_ms = start.elapsed().as_millis() as u64;
 
     Ok(ScanResults {
         findings,
@@ -469,7 +603,7 @@ fn try_start_tutorial_watcher() -> Option<(
         ..Default::default()
     };
     match anvil_kernel::watcher::start_watcher(&config) {
-        Ok((handle, rx)) => Some((rx, handle)),
+        Ok((handle, rx, _diag)) => Some((rx, handle)),
         Err(_) => None,
     }
 }
@@ -490,7 +624,9 @@ fn run_tutorial_with_fix(
     let mut watcher = try_start_tutorial_watcher();
 
     if watcher.is_none() {
-        tutorial_state.enable_static_mode();
+        tutorial_state.enable_static_mode_with_reason(
+            anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
+        );
     }
 
     loop {

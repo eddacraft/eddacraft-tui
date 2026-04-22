@@ -56,7 +56,10 @@
     "build": "tsc -p tsconfig.lib.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "patterns:compile": "tsx scripts/compile-patterns.ts",
+    "patterns:check": "tsx scripts/compile-patterns.ts --check",
+    "prepack": "node -e \"const f=require('node:fs');const p=require('node:path');const src=p.resolve(__dirname,'../../../patterns/compiled/registry.json');const dest=p.resolve(__dirname,'patterns/compiled/registry.json');if(!f.existsSync(src))throw new Error('registry missing: '+src);f.mkdirSync(p.dirname(dest),{recursive:true});f.copyFileSync(src,dest);\""
   },
   "dependencies": {
     "json-schema": "^0.4.0",
@@ -69,6 +72,7 @@
   },
   "files": [
     "dist",
+    "patterns/compiled/registry.json",
     "README.md"
   ],
   "keywords": [

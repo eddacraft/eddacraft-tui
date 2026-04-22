@@ -33,6 +33,12 @@ pub enum EvalError {
     OpaNotAvailable,
     #[error("no policies found in {0}")]
     NoPolicies(String),
+    #[error("unexpected OPA output shape at {pointer}: {snippet}")]
+    UnexpectedShape {
+        pointer: String,
+        /// Truncated raw output for diagnosis; full output may be very large.
+        snippet: String,
+    },
     #[error("evaluation failed: {0}")]
     Internal(String),
 }
@@ -81,10 +87,17 @@ impl Evaluator {
 
         let enabled: Vec<_> = policies.into_iter().filter(|p| !p.generated).collect();
 
+        // Preserve the structured shape-error so the CLI can branch on the
+        // error kind rather than substring-matching the rendered message.
         let result = self
             .executor
             .evaluate(&enabled, input)
-            .map_err(|e| EvalError::Internal(e.to_string()))?;
+            .map_err(|e| match e {
+                crate::opa::OpaError::UnexpectedShape { pointer, snippet } => {
+                    EvalError::UnexpectedShape { pointer, snippet }
+                }
+                other => EvalError::Internal(other.to_string()),
+            })?;
 
         if !result.success
             && let Some(err) = &result.error

@@ -1,4 +1,6 @@
 use std::io;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
@@ -292,8 +294,16 @@ pub fn run_watch_demo_in(
 }
 
 /// Run the watch dashboard, draining kernel events from the given channel.
-#[allow(dead_code)]
-pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> anyhow::Result<()> {
+///
+/// When `shutdown` is provided the loop also exits if the flag becomes `true`
+/// — used by the CLI `watch` command to bridge a SIGINT handler into the TUI
+/// (raw mode normally swallows Ctrl-C as a key event, but some terminal
+/// multiplexers forward the signal anyway).
+pub fn run_watch(
+    mut state: WatchState,
+    event_rx: &Receiver<EngineEvent>,
+    shutdown: Option<&Arc<AtomicBool>>,
+) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -301,7 +311,7 @@ pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> any
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
-    let result = watch_loop(&mut terminal, &mut state, event_rx, &theme);
+    let result = watch_loop(&mut terminal, &mut state, event_rx, shutdown, &theme);
 
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -317,7 +327,7 @@ pub fn run_watch_in(
     event_rx: &Receiver<EngineEvent>,
 ) -> anyhow::Result<SurfaceExit> {
     let theme = EddaCraftTheme;
-    watch_loop(terminal, state, event_rx, &theme)?;
+    watch_loop(terminal, state, event_rx, None, &theme)?;
     if state.should_quit() {
         Ok(SurfaceExit::Quit)
     } else {
@@ -329,6 +339,7 @@ fn watch_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut WatchState,
     event_rx: &Receiver<EngineEvent>,
+    shutdown: Option<&Arc<AtomicBool>>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
     let mut adapter = WatchEventAdapter::new();
@@ -371,11 +382,18 @@ fn watch_loop(
         if state.take_dirty() {
             terminal.draw(|frame| {
                 let area = frame.area();
-                anvil_tui::surfaces::watch::render::render(frame, area, state, theme);
+                let content =
+                    render_shell(frame, area, state.surface_name(), state.help_text(), theme);
+                anvil_tui::surfaces::watch::render::render(frame, content, state, theme);
             })?;
         }
 
         if state.should_quit() || state.should_back() {
+            break;
+        }
+        if let Some(flag) = shutdown
+            && flag.load(Ordering::SeqCst)
+        {
             break;
         }
     }

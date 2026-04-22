@@ -2,6 +2,8 @@
 
 package anvil.policies.coverage_min_test
 
+import rego.v1
+
 import data.anvil.policies.coverage_min
 
 # Test that low coverage triggers violation

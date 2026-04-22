@@ -10,9 +10,9 @@ Scopes: POLISH (main)
 
 # TUI Polish
 
-| ID     | Owner | Status |
-| ------ | ----- | ------ |
-| POLISH | —     | In Progress |
+| ID     | Owner | Status   | Progress |
+| ------ | ----- | -------- | -------- |
+| POLISH | —     | Complete | 8/8      |
 
 ## Purpose
 
@@ -36,8 +36,7 @@ high-signal for users seeing Anvil for the first time.
 
 ## Out of Scope
 
-- Interactive tutorial rewrite (that's TUTOR)
-- New tutorial content or paths (that's TUTOR)
+- Interactive tutorial rewrite or new content (that shipped under WELCOME)
 - TUI dashboard features (that's TUIDASH)
 - Architecture or engine changes
 
@@ -64,7 +63,7 @@ high-signal for users seeing Anvil for the first time.
 - **Files:** `crates/anvil-tui/src/surfaces/welcome/`
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
 
 ---
 
@@ -79,7 +78,7 @@ high-signal for users seeing Anvil for the first time.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/`
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
 
 ---
 
@@ -96,7 +95,7 @@ high-signal for users seeing Anvil for the first time.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/render.rs`
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
 
 ---
 
@@ -111,7 +110,7 @@ high-signal for users seeing Anvil for the first time.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/render.rs`
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
 
 ---
 
@@ -129,7 +128,7 @@ high-signal for users seeing Anvil for the first time.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/`
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Ready
+- **Status:** Complete
 
 ---
 
@@ -145,7 +144,7 @@ high-signal for users seeing Anvil for the first time.
 - **Files:** `crates/anvil-tui/src/surfaces/welcome/`
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
 
 ### POLISH-007: Tutorial commands out of sync with actual CLI — CRITICAL
 
@@ -190,7 +189,100 @@ high-signal for users seeing Anvil for the first time.
 
 ---
 
+### POLISH-008: `anvil start` onboarding on existing codebases — config detection and missing landing screen
 
+- **Intent:** Fix two related issues surfaced while walking `anvil start` on a
+  codebase that has already been initialised, and surface some breathing room
+  between guided init and the tutorial so the user knows what just happened.
+- **Findings from April 2026 walkthrough:**
+
+  1. **Config detection mismatch (fixed).** `onboarding::config_exists_in`
+     checked for `.anvil.yaml | .anvil.json | .anvil.toml`, but
+     `commands::init::generate_config` always writes `.anvilrc` regardless of
+     selected format. Effect: guided init could not detect an existing Anvil
+     config in an already-onboarded repo. Fix: include `.anvilrc` in the
+     filename set (`crates/anvil-tui/src/surfaces/onboarding/mod.rs`) with a
+     regression test covering `.anvilrc`.
+  2. **No landing screen between init and tutorial (fixed).** `CompletionState`
+     / `OnboardingSummary` existed in
+     `crates/anvil-tui/src/surfaces/onboarding/complete.rs` but were only
+     exercised by their own unit tests — `run_onboarding` / `run_guided_init`
+     in `crates/anvil-cli/src/commands/welcome.rs` dropped straight from init →
+     `run_discovery` → `run_tutorial_with_fix` with no explanation of what was
+     written to disk or what the tutorial is about. Fix: added focused
+     `InitCompleteState` / `InitCompleteSummary` in
+     `crates/anvil-tui/src/surfaces/onboarding/init_complete.rs`, wired into
+     `run_guided_init` after `generate_config` succeeds. Copy follows the
+     user-approved minimal receipt-style pattern (what was written, what
+     happens next, takes ~5 min).
+  3. **Onboarding surfaces don't share the tutorial's new outer padding
+     (fixed).** The `inset_content` helper added in POLISH-001 applied to
+     tutorial surfaces only; discovery, init, and the onboarding welcome
+     surface rendered flush against the shell chrome. Fix: hoisted
+     `inset_content` and its margin constants into `crates/anvil-tui/src/shell.rs`
+     as public helpers, and threaded them through `init/render.rs`,
+     `tutorial/discovery_render.rs`, `onboarding/welcome_render.rs`, and the
+     new `init_complete.rs`. Tutorial `render.rs` now re-uses the shared
+     helper. Init snapshots were re-captured to reflect the shift.
+
+- **Expected Outcome:**
+  - Running `anvil start` in a repo that already has `.anvilrc` skips the
+    init wizard (config detection works for the real filename).
+  - After guided init succeeds, the user sees a landing / "what just happened"
+    screen summarising what was written (`.anvilrc`, `plans/`, `.gitignore`
+    entry) and what's next, before the tutorial launches. Wire up
+    `CompletionState` or equivalent.
+  - Discovery, init, and onboarding welcome inherit the same horizontal /
+    top padding as the tutorial surfaces, either by hoisting `inset_content`
+    into a shared helper or by applying it per-surface.
+
+- **Validation:**
+  - New unit test `config_exists_detects_anvilrc` (added alongside the fix).
+  - Manual run of `anvil start` on a repo with `.anvilrc` already present —
+    init wizard should be skipped.
+  - Manual run of `anvil start` on a fresh repo — completion screen appears
+    between init and tutorial.
+  - Screenshot comparison of discovery and init surfaces before/after
+    padding change.
+
+- **Files:**
+  - `crates/anvil-tui/src/surfaces/onboarding/mod.rs` — config detection (done)
+  - `crates/anvil-cli/src/commands/welcome.rs` — wire `CompletionState` into
+    `run_guided_init` → discovery transition
+  - `crates/anvil-tui/src/surfaces/onboarding/complete.rs` — review copy, ensure
+    `OnboardingSummary` carries the real fields (files written, next step)
+  - `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`,
+    `crates/anvil-tui/src/surfaces/init/`, `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs` —
+    apply shared outer padding
+
+- **Deferred from April 2026 council review (session council-d4d5df8b) —
+  roll into this work item:**
+  - [x] C-010 — `render_complete` multi-completed-paths snapshot fixture.
+    Added `snapshot_complete_phase_multiple_paths` (2/4 paths done, "Up next"
+    suggests remaining) and `snapshot_complete_phase_all_paths` (all paths
+    done, celebration copy) in `tutorial/render.rs`.
+  - [x] C-011 — `step.title` overflow into block border. `fit_block_title`
+    truncates titles with an ellipsis so they can never punch through the
+    border at narrow widths. Tested across short/long/tiny inputs.
+  - [x] C-012 — ASCII fallback for progress glyphs. `ANVIL_ASCII=1` swaps
+    `● ◉ ○` for `# > -` via `progress_glyphs()`; threaded through the three
+    glyph call sites. Tests cover default, forced, empty, and `0` values.
+  - [x] C-013 — width-parameterised tutorial snapshots at 40x10 and 20x10
+    for both path-select and running phases (4 new fixtures).
+  - [x] C-014 — TOCTOU race. Guided init now writes `.anvilrc` via
+    `OpenOptions::create_new(true)` (new `util::write_new`) on the
+    non-force path; force path keeps `atomic_write` for overwrite. Unix
+    mode 0o600 preserved in both paths.
+  - [x] C-016 — moot: landing-screen copy (Option A) already shipped in
+    `5ea3daee feat(tui): add post-init landing screen before tutorial`.
+- **Confidence:** high across the board now that all six council follow-ups
+  are resolved.
+- **Priority:** Medium — item complete; ready to archive on the next
+  index.aps.md pass.
+- **Status:** Complete — config detection, landing screen, shared outer
+  padding, and all six council-deferred follow-ups landed.
+
+---
 
 - All POLISH tasks complete or explicitly deferred with rationale
 - Full welcome → tutorial → completion flow navigable without issues

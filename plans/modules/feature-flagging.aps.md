@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLAGS | —     | high     | In Progress (8/9) |
+| FLAGS | —     | high     | Complete (9/9) |
 
 ## Purpose
 
@@ -217,7 +217,7 @@ Change status to **Ready** when:
 - **Validation:** `grep -q "sunset" docs/guides/feature-flag-governance.md && grep -q "feature flag" plans/aps-rules.md`
 - **Confidence:** high
 
-### FLAGS-008: Implement CLI licence gating and docs access as the first exemplars
+### FLAGS-008: Implement CLI licence gating and docs access as the first exemplars — Complete
 
 - **Intent:** Prove the shared flagging model on the clearest existing
   entitlement-gated surfaces: CLI licence-gated actions and `/anvil` docs
@@ -225,21 +225,39 @@ Change status to **Ready** when:
 - **Expected Outcome:** CLI feature access and `/anvil` docs access are driven
   through the shared manifest, targeting contract, and snapshot-backed
   OpenFeature flow rather than bespoke per-surface checks alone.
-- **Scope:** `plans/modules/rust-cli.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `apps/anvil-cli/`, `apps/docs-site/`, `apps/anvil-api/`, `packages/anvil/runtime/`
+- **Scope:** `plans/archive/modules/rust-cli.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `apps/anvil-cli/`, `apps/docs-site/`, `apps/anvil-api/`, `packages/anvil/runtime/`
 - **Non-scope:** Migrating unrelated product surfaces in the same work item
 - **Dependencies:** FLAGS-003, FLAGS-004, FLAGS-005
 - **Validation:** `pnpm test -- --runInBand feature-flag-exemplars`
 - **Confidence:** medium
+- **Files:** `crates/anvil-cli/src/feature_flags.rs`, `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/src/commands/auth.rs`, `apps/docs-site/lib/feature-flags.ts`, `apps/docs-site/middleware.ts`
+- **Outcome:** CLI `whoami` now evaluates the shared `cli.licence-gate` flag
+  via `anvil_kernel::feature_flags::resolve_flag` and surfaces the variant;
+  docs-site middleware routes `/anvil` access through the inline `docs.access`
+  evaluator (Vercel edge runtime cannot import the workspace runtime package
+  yet). Both surfaces follow the shared model exercised in
+  `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`, with
+  intentional compatibility differences documented alongside the code: the
+  Rust `cli.licence-gate` path keeps its existing default variant of
+  `enabled` rather than the exemplar's `disabled`, and the docs inline
+  evaluator still allows a missing `tier` rather than defaulting that case
+  to `disabled`. Full fail-closed cutover is scoped to FLAGM-002/FLAGM-004.
 
-### FLAGS-009: Map current ad-hoc flags and rollout toggles onto the shared model
+### FLAGS-009: Map current ad-hoc flags and rollout toggles onto the shared model — Complete
 
 - **Intent:** Inventory existing feature-flag-like controls so the new system
   starts from real usage rather than a clean-room design.
 - **Expected Outcome:** CLI licence gating, policy rollout controls, docs/auth
   gating, and future entitlement hooks are classified as migrate/adopt/defer,
   including what a later Featureboard provider swap would change.
-- **Scope:** `plans/modules/rust-cli.aps.md`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `docs/specs/`, `plans/decisions/`
+- **Scope:** `plans/archive/modules/rust-cli.aps.md`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/modules/docs-auth-gating.aps.md`, `docs/specs/`, `plans/decisions/`
 - **Non-scope:** Migrating every consumer in the same work item
 - **Dependencies:** FLAGS-001, FLAGS-002, FLAGS-003
 - **Validation:** `grep -q "migrate" docs/guides/feature-flag-inventory.md`
 - **Confidence:** medium
+- **Files:** `docs/guides/feature-flag-inventory.md`
+- **Outcome:** Inventory landed in commit `c3a217dc` (2026-04-14) with a
+  migrate/adopt/defer summary table, four new migrate/defer entries
+  (ANVIL_DEV bypass, admin key, beta scopes, policy profiles, per-policy
+  toggles), four adopt entries for future capabilities, and an exclusions
+  table for env vars that are operational config rather than feature gates.

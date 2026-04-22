@@ -10,6 +10,7 @@ out-tsc
 .docusaurus
 apps/docs-public/build/
 apps/anvil-docs-private/build/
+packages/anvil/core/patterns/
 
 # dependencies
 node_modules
@@ -35,6 +36,7 @@ package-lock.json
 /.sass-cache
 /connect.lock
 /coverage
+apps/coverage/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
@@ -122,9 +124,6 @@ infra/import.json
 target/
 **/*.rs.bk
 bench-results/
-
-# Ephemeral release manifest
-.release/
 
 # Local machine state and secrets
 settings.local.json

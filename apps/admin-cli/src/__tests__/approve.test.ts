@@ -41,7 +41,11 @@ describe('runApproveCommand', () => {
       { yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/approve', { email: 'alice@example.com' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/approve',
+      { email: 'alice@example.com' },
+      expect.anything()
+    );
     const out = writes.join('');
     expect(out).toContain('Approved 1');
     expect(out).toContain('alice@example.com');
@@ -59,7 +63,7 @@ describe('runApproveCommand', () => {
       { batch: 5, yes: true },
       { createClient: () => client, stdout: (s) => outs.push(s), stderr: (s) => errs.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/approve', { batch: 5 });
+    expect(client.post).toHaveBeenCalledWith('/admin/approve', { batch: 5 }, expect.anything());
     expect(outs.join('')).toContain('Approved 2');
     const err = errs.join('');
     expect(err).toContain('Skipped 1');

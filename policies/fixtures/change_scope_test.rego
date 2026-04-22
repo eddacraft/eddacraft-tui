@@ -2,6 +2,8 @@
 
 package anvil.policies.change_scope_test
 
+import rego.v1
+
 import data.anvil.policies.change_scope
 
 # Test that too many files triggers violation

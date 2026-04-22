@@ -4,33 +4,37 @@ Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
 ## Quick start
 
-The release process is split between an interactive script and a Claude skill:
+The release process is split between a deterministic preflight script and a
+`/release` Claude skill that owns every judgment step:
 
-1. **Run the release script** — handles preflight, release-note/doc preparation
-   on `dev`, promotion to `main`, and tagging:
+1. **Run the preflight script** — deterministic checks only (cargo fmt / clippy
+   / test, pnpm format / lint / typecheck / test):
 
    ```bash
    ./scripts/release.sh
    ```
 
-   The script creates a GitHub Issue for tracking, runs all checks with
-   interactive gates, prompts the operator to review and update release-facing
-   docs on `dev` before promotion, and writes `.release/manifest.json` as a
-   handoff.
+   The script runs every check to completion, prints a `PASS`/`FAIL` summary
+   table, and exits with the number of failed steps (0 on a clean pass). No
+   prompts, no git or GitHub operations.
 
-2. **Run the `/release` skill** — handles post-release verification:
+2. **Invoke `/release` in Claude Code** — the judgment half:
 
    ```
    /release
    ```
 
-   The skill reads the manifest, verifies the workflow and published artefacts,
-   verifies the changelog/docs against the shipped release, drafts comms,
-   handles cleanup, and closes the tracking issue.
+   The skill confirms preflight passed, reads live repository and GitHub state
+   to assess the release, proposes a version and branch strategy, opens a
+   tracking issue, drives the version bump, PR, tag, and workflow monitoring,
+   then handles artefact verification, changelog / docs review, comms, and
+   cleanup. The tracking issue is the durable record — there is no local handoff
+   artefact and the flow is resumable: if the Claude session dies mid-release,
+   re-invoking `/release` picks up from live state.
 
-The sections below are the **reference manual** — the script and skill automate
-and enforce these steps. Refer to them directly when something goes wrong or
-when you need to understand what a step does.
+The sections below are the **reference manual** — the script handles preflight,
+the skill handles everything else. Refer to them directly when something goes
+wrong or when you need to understand what a step does.
 
 ---
 
@@ -48,29 +52,40 @@ when you need to understand what a step does.
 
 ## 1) Preflight checklist (required)
 
-From repo root:
+### Automated — run `./scripts/release.sh`
+
+This is the required preflight gate before invoking `/release`. It runs, in
+order:
+
+- `cargo fmt --all --check`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo test --workspace`
+- `pnpm format:check`
+- `pnpm lint:check`
+- `pnpm typecheck`
+- `pnpm test`
+
+The `pnpm test` step uses the root
+`nx run-many -t test --exclude=@eddacraft/anvil-e2e` command, so bundled package
+scope is managed in `nx.json` / workspace config rather than in the script.
+
+The script does not prompt, touch git, or call GitHub. It is re-runnable and
+exits with the count of failed steps (0 = clean). You can run it any time to
+sanity-check the workspace before release work.
+
+### Additional manual checks (not covered by the script)
+
+Run these from repo root after the script passes — they exercise the release
+binary and a full TS build, which the script intentionally skips:
 
 ```bash
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release -p eddacraft-anvil
 ./target/release/anvil --help
 ./target/release/anvil --version
-```
 
-Verify TS workspace still builds (non-CLI packages):
-
-```bash
 pnpm install --frozen-lockfile
 pnpm build
 ```
-
-Bundled-package tests run as part of the release script's preflight — you do not
-need to invoke them separately here. See `BUNDLED_TEST_PACKAGES` in
-`scripts/release.sh` for the current scope; update that array when the shipped
-JS/TS package set changes. `./scripts/release.sh` is the full interactive
-release entrypoint (creates a tracking issue, prompts for version and branch
-strategy, pushes `dev`, opens the PR, tags) — do not run it here as a dry run.
 
 Sanity assertions before release:
 

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../.. && npx pnpm --filter @eddacraft/transactional build && cd apps/anvil-api && npx tsc",
+  "buildCommand": "cd ../.. && npx pnpm --filter '@eddacraft/anvil-api^...' build && cd apps/anvil-api && npx tsc",
   "crons": [
     {
       "path": "/api/v1/cron/cleanup",

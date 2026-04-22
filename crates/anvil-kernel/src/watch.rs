@@ -274,102 +274,138 @@ fn watch_loop(
         };
 
         for change in &batch.changes {
+            // Isolate per-change work so a panic in parse/extract/evaluate
+            // surfaces as an error event and the loop keeps draining events
+            // instead of silently terminating the watch thread.
             let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
             let rel_str = rel_path.to_string_lossy().to_string();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                process_change(root, change, arch_config, state, emitter);
+            }));
+            if let Err(panic) = result {
+                let message = panic_message(&panic);
+                emitter.error(
+                    ErrorCode::Internal,
+                    Some(&rel_str),
+                    &format!("watcher panic processing change: {message}"),
+                    true,
+                );
+            }
+        }
+    }
+}
 
-            match change.kind {
-                ChangeKind::Removed => {
-                    let delta = crate::graph::remove_file(&mut state.graph, &rel_str);
-                    if !delta.removed_symbols.is_empty() {
-                        // Only decrement file_count if we actually removed tracked symbols
+fn process_change(
+    root: &Path,
+    change: &crate::watcher::events::FileChange,
+    arch_config: &ArchitectureConfig,
+    state: &mut WatchState,
+    emitter: &EventEmitter,
+) {
+    let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
+    let rel_str = rel_path.to_string_lossy().to_string();
+
+    match change.kind {
+        ChangeKind::Removed => {
+            let delta = crate::graph::remove_file(&mut state.graph, &rel_str);
+            if !delta.removed_symbols.is_empty() {
+                // Only decrement file_count if we actually removed tracked symbols
+                state.file_count = state.file_count.saturating_sub(1);
+                // Remove stale imports for the deleted file
+                state.all_imports.retain(|i| i.from_file != rel_str);
+                annotate_trust(&mut state.graph, &state.all_imports);
+                emitter.snapshot(&state.graph, state.file_count);
+            }
+        }
+        ChangeKind::Created | ChangeKind::Modified => {
+            // For modify events that may be renames on some backends,
+            // remove stale symbols for the old path if the file no
+            // longer exists at the reported path (read will fail and
+            // we fall through to continue after cleanup).
+            let content = match std::fs::read(&change.path) {
+                Ok(c) => c,
+                Err(e) => {
+                    // File unreadable — if we had symbols for this
+                    // path, clean them up (rename-style modify where
+                    // the old path is gone).
+                    let removed = crate::graph::remove_file(&mut state.graph, &rel_str);
+                    if !removed.removed_symbols.is_empty() {
                         state.file_count = state.file_count.saturating_sub(1);
-                        // Remove stale imports for the deleted file
                         state.all_imports.retain(|i| i.from_file != rel_str);
                         annotate_trust(&mut state.graph, &state.all_imports);
                         emitter.snapshot(&state.graph, state.file_count);
                     }
+                    emitter.error(
+                        ErrorCode::ParseError,
+                        Some(&rel_str),
+                        &format!("failed to read: {e}"),
+                        true,
+                    );
+                    return;
                 }
-                ChangeKind::Created | ChangeKind::Modified => {
-                    // For modify events that may be renames on some backends,
-                    // remove stale symbols for the old path if the file no
-                    // longer exists at the reported path (read will fail and
-                    // we fall through to continue after cleanup).
-                    let content = match std::fs::read(&change.path) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            // File unreadable — if we had symbols for this
-                            // path, clean them up (rename-style modify where
-                            // the old path is gone).
-                            let removed = crate::graph::remove_file(&mut state.graph, &rel_str);
-                            if !removed.removed_symbols.is_empty() {
-                                state.file_count = state.file_count.saturating_sub(1);
-                                state.all_imports.retain(|i| i.from_file != rel_str);
-                                annotate_trust(&mut state.graph, &state.all_imports);
-                                emitter.snapshot(&state.graph, state.file_count);
-                            }
-                            emitter.error(
-                                ErrorCode::ParseError,
-                                Some(&rel_str),
-                                &format!("failed to read: {e}"),
-                                true,
-                            );
-                            continue;
-                        }
-                    };
+            };
 
-                    let parse_result = match state.parser.parse_bytes(rel_path, &content) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            emitter.error(
-                                ErrorCode::ParseError,
-                                Some(&rel_str),
-                                &format!("parse failed: {e}"),
-                                true,
-                            );
-                            continue;
-                        }
-                    };
-
-                    let file_symbols =
-                        extract_symbols(&parse_result.tree, &content, rel_path, state.next_id);
-                    let new_imports = file_symbols.imports.clone();
-                    let was_tracked = state
-                        .graph
-                        .inner()
-                        .node_weights()
-                        .any(|s| s.file == rel_str);
-                    let delta = update_file(&mut state.graph, file_symbols);
-                    state.next_id = state
-                        .graph
-                        .inner()
-                        .node_weights()
-                        .map(|s| s.id)
-                        .max()
-                        .map_or(0, |m| m + 1);
-
-                    // Replace imports for this file (remove old, add new)
-                    state.all_imports.retain(|i| i.from_file != rel_str);
-                    state.all_imports.extend(new_imports);
-                    re_resolve_imports(&mut state.graph, &state.all_imports);
-                    annotate_trust(&mut state.graph, &state.all_imports);
-
-                    // Clear policy dedupe state so reintroduced violations
-                    // are detected in each watch cycle.
-                    state.engine.clear_seen();
-                    let violations = state.engine.evaluate(&delta, &state.graph, arch_config);
-                    for v in &violations {
-                        emitter.violation(v);
-                    }
-
-                    // Only increment file_count for genuinely new files that
-                    // produced tracked symbols.
-                    if !was_tracked && !delta.added_symbols.is_empty() {
-                        state.file_count += 1;
-                    }
-                    emitter.snapshot(&state.graph, state.file_count);
+            let parse_result = match state.parser.parse_bytes(rel_path, &content) {
+                Ok(r) => r,
+                Err(e) => {
+                    emitter.error(
+                        ErrorCode::ParseError,
+                        Some(&rel_str),
+                        &format!("parse failed: {e}"),
+                        true,
+                    );
+                    return;
                 }
+            };
+
+            let file_symbols =
+                extract_symbols(&parse_result.tree, &content, rel_path, state.next_id);
+            let new_imports = file_symbols.imports.clone();
+            let was_tracked = state
+                .graph
+                .inner()
+                .node_weights()
+                .any(|s| s.file == rel_str);
+            let delta = update_file(&mut state.graph, file_symbols);
+            state.next_id = state
+                .graph
+                .inner()
+                .node_weights()
+                .map(|s| s.id)
+                .max()
+                .map_or(0, |m| m + 1);
+
+            // Replace imports for this file (remove old, add new)
+            state.all_imports.retain(|i| i.from_file != rel_str);
+            state.all_imports.extend(new_imports);
+            re_resolve_imports(&mut state.graph, &state.all_imports);
+            annotate_trust(&mut state.graph, &state.all_imports);
+
+            // Clear policy dedupe state so reintroduced violations
+            // are detected in each watch cycle.
+            state.engine.clear_seen();
+            let violations = state.engine.evaluate(&delta, &state.graph, arch_config);
+            for v in &violations {
+                emitter.violation(v);
             }
+
+            // Only increment file_count for genuinely new files that
+            // produced tracked symbols.
+            if !was_tracked && !delta.added_symbols.is_empty() {
+                state.file_count += 1;
+            }
+            emitter.snapshot(&state.graph, state.file_count);
         }
+    }
+}
+
+fn panic_message(panic: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = panic.downcast_ref::<&'static str>() {
+        (*s).to_string()
+    } else if let Some(s) = panic.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_string()
     }
 }
 
@@ -395,7 +431,7 @@ pub fn run_watch(
     let filter = config.watcher.filter.clone().unwrap_or_default();
     let mut watcher_config = config.watcher.clone();
     watcher_config.root.clone_from(&config.root);
-    let (watcher, batch_rx) = start_watcher(&watcher_config)?;
+    let (watcher, batch_rx, setup_diagnostics) = start_watcher(&watcher_config)?;
 
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = Arc::clone(&stop);
@@ -404,6 +440,31 @@ pub fn run_watch(
     let thread = thread::spawn(move || {
         let emitter = EventEmitter::new(event_tx, EngineId::Rust);
         let mut state = WatchState::new();
+
+        // If some directories couldn't register a watch (commonly: inotify
+        // `max_user_watches` reached), emit a warning up-front so the user
+        // sees why changes in some subtrees will be missed.
+        if setup_diagnostics.failed > 0 {
+            let hint = if setup_diagnostics.limit_exhausted {
+                " — OS watch limit reached; raise `fs.inotify.max_user_watches` or close other watch-heavy processes (tsserver, nx daemon, editors)"
+            } else {
+                ""
+            };
+            let sample = if setup_diagnostics.sample_errors.is_empty() {
+                String::new()
+            } else {
+                format!(" (e.g. {})", setup_diagnostics.sample_errors.join("; "))
+            };
+            emitter.error(
+                ErrorCode::Internal,
+                None,
+                &format!(
+                    "watch partially registered: {} dirs watched, {} failed — changes in unwatched subtrees won't be detected{hint}{sample}",
+                    setup_diagnostics.registered, setup_diagnostics.failed
+                ),
+                true,
+            );
+        }
 
         initial_scan(
             &root,
@@ -484,6 +545,42 @@ mod tests {
             .iter()
             .any(|e| e.event_type == anvil_kernel_types::EventType::Snapshot);
         assert!(has_snapshot, "should emit a snapshot after initial scan");
+    }
+
+    #[test]
+    fn panic_message_extracts_static_str() {
+        let payload: Box<dyn std::any::Any + Send> = Box::new("static panic");
+        assert_eq!(panic_message(&payload), "static panic");
+    }
+
+    #[test]
+    fn panic_message_extracts_owned_string() {
+        let payload: Box<dyn std::any::Any + Send> = Box::new(String::from("owned panic"));
+        assert_eq!(panic_message(&payload), "owned panic");
+    }
+
+    #[test]
+    fn panic_message_falls_back_for_unknown_payload() {
+        let payload: Box<dyn std::any::Any + Send> = Box::new(42_i32);
+        assert_eq!(panic_message(&payload), "unknown panic");
+    }
+
+    #[test]
+    fn watch_loop_survives_panic_in_process_change() {
+        // Exercise the catch_unwind guard: we manually invoke the catch
+        // path by running a closure that panics and confirming we can
+        // recover the message through panic_message(). This mirrors the
+        // exact shape used in watch_loop() without needing a real file
+        // change that happens to panic.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            panic!("simulated process_change failure")
+        }));
+        let panic = result.expect_err("closure should have panicked");
+        let msg = panic_message(&panic);
+        assert!(
+            msg.contains("simulated process_change failure"),
+            "panic_message should surface the payload, got {msg:?}"
+        );
     }
 
     #[test]

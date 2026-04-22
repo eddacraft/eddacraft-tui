@@ -10,7 +10,7 @@ confidence: high
 spectrum_position: 1
 
 targets: [source]
-file_extensions: [.ts, .tsx]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
 allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts', '**/__tests__/**']
 
 detection:

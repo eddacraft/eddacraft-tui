@@ -123,19 +123,21 @@ Tasks are **execution authority** — permission to make changes.
 
 ### Module Files
 
-Name module files with a numeric prefix based on dependency order:
+Name module files after the bounded work area they describe — a short
+kebab-case slug that matches the module ID in `index.aps.md`:
 
 ```text
 modules/
-├── 01-core.aps.md      # Foundation, no dependencies
-├── 02-auth.aps.md      # Depends on core
-├── 03-payments.aps.md  # Depends on auth
-└── 04-ui.aps.md        # Depends on all above
+├── anvil-file-format.aps.md
+├── anvil-rust-scanner.aps.md
+└── compliance-policy-packs.aps.md
 ```
 
-- Use zero-padded numbers (`01-`, `02-`, not `1-`, `2-`)
-- Order matches dependency flow (foundational → dependent)
-- Order should reflect the Modules table in `index.aps.md`
+- Use kebab-case, `.aps.md` suffix
+- The filename slug should match the module ID row in `index.aps.md`
+- Dependency order lives in `index.aps.md` (the Modules table), not in the
+  filename — this keeps filenames stable when ordering changes and avoids
+  rename churn across docs, decisions, and cross-references
 
 ### Task IDs
 
@@ -168,8 +170,8 @@ plans/
 ├── index.aps.md              # Root plan (active/planned work)
 ├── completed-index.aps.md    # Completed work archive
 ├── modules/                  # Active module specs
-│   ├── 01-core.aps.md
-│   └── 02-auth.aps.md
+│   ├── anvil-file-format.aps.md
+│   └── anvil-rust-scanner.aps.md
 ├── archive/modules/          # Completed modules (git mv from modules/)
 ├── execution/                # Action plan files
 │   ├── [TASK-ID].steps.md    # Per-task (complex projects)

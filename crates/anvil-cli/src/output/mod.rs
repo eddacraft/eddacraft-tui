@@ -14,6 +14,19 @@ impl std::fmt::Display for AlreadyReported {
 
 impl std::error::Error for AlreadyReported {}
 
+/// Sentinel error: the command already printed an auth-required message
+/// and needs `main` to exit with `EXIT_AUTH_REQUIRED`.
+#[derive(Debug)]
+pub struct AuthRequired;
+
+impl std::fmt::Display for AuthRequired {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("authentication required")
+    }
+}
+
+impl std::error::Error for AuthRequired {}
+
 /// Determines how command output is rendered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputMode {

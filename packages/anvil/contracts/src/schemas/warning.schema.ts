@@ -60,7 +60,7 @@ export const ConfidenceSchema = z.enum(['high', 'medium', 'low']);
 export type Confidence = z.infer<typeof ConfidenceSchema>;
 
 export const WarningSchema = z.object({
-  id: z.string().regex(/^(AP|ARCH|BOUND)-\d{3}$/),
+  id: z.string().regex(/^[A-Z]{2,5}-\d{3}$/),
   fingerprint: z.string().optional(),
   category: WarningCategorySchema,
   severity: WarningSeveritySchema,
@@ -74,6 +74,13 @@ export const WarningSchema = z.object({
   pattern: z.string().optional(),
   drift: DriftSchema.optional(),
   suppressed: SuppressionSchema.optional(),
+  // Family provenance — populated when the warning originates from a
+  // compiled `.anvil` rule. Allows consumers to render family context,
+  // deep-link to the family definition, and position rules within a
+  // spectrum without re-resolving the registry.
+  family: z.string().optional(),
+  definition_ref: z.string().optional(),
+  spectrum_position: z.number().int().positive().optional(),
 });
 
 export type Warning = z.infer<typeof WarningSchema>;

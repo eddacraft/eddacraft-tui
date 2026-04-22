@@ -26,18 +26,22 @@ describe('runListCommand', () => {
       { status: 'approved', source: 'manual', limit: 25, offset: 10, json: true },
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.get).toHaveBeenCalledWith('/admin/waitlist', {
-      status: 'approved',
-      source: 'manual',
-      limit: 25,
-      offset: 10,
-    });
+    expect(client.get).toHaveBeenCalledWith(
+      '/admin/waitlist',
+      {
+        status: 'approved',
+        source: 'manual',
+        limit: 25,
+        offset: 10,
+      },
+      expect.anything()
+    );
   });
 
   it('omits unset filters from the query object', async () => {
     const client = makeClient({ total: 0, items: [] } satisfies WaitlistResponse);
     await runListCommand({}, { createClient: () => client, stdout: () => {} });
-    expect(client.get).toHaveBeenCalledWith('/admin/waitlist', {});
+    expect(client.get).toHaveBeenCalledWith('/admin/waitlist', {}, expect.anything());
   });
 
   it('emits pretty-printed JSON when --json is set', async () => {

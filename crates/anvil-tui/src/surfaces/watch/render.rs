@@ -55,7 +55,7 @@ fn render_status_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme:
         WatchStatus::Failing => theme.error(),
     };
 
-    let lines = vec![
+    let mut lines = vec![
         Line::default(),
         Line::from(vec![
             Span::styled(
@@ -77,6 +77,22 @@ fn render_status_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme:
             Style::default().fg(theme.muted()),
         )),
     ];
+
+    // When failing, surface the most recent violation/error so the user
+    // doesn't have to switch panels to see what went wrong.
+    if matches!(status, WatchStatus::Failing)
+        && let Some(last) = state.data.queue.back()
+    {
+        lines.push(Line::default());
+        lines.push(Line::from(Span::styled(
+            format!("  {}", last.file),
+            Style::default().fg(theme.error()),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("  {}", last.kind),
+            Style::default().fg(theme.muted()),
+        )));
+    }
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
@@ -123,7 +139,16 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    // `selected_item` is shared across panels, so only apply scroll when
+    // this panel is focused — otherwise navigating in a sibling panel
+    // would scroll the Queue view even though its own selection cursor
+    // is parked at 0.
+    let scroll = if focused {
+        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+    } else {
+        0
+    };
+    frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
 }
 
 fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
@@ -179,7 +204,28 @@ fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    // See `render_queue_panel` — only apply scroll when focused so an
+    // unselected History panel doesn't scroll in sympathy with Queue
+    // navigation.
+    let scroll = if focused {
+        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+    } else {
+        0
+    };
+    frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
+}
+
+/// Compute a vertical scroll offset that keeps `selected` visible inside a
+/// panel of `height` rows containing `total` lines. Returns 0 when the panel
+/// can fit everything.
+fn scroll_offset_for(selected: usize, total: usize, height: u16) -> u16 {
+    let height = height as usize;
+    if total <= height || height == 0 {
+        return 0;
+    }
+    let max_offset = total - height;
+    let offset = selected.saturating_sub(height.saturating_sub(1));
+    u16::try_from(offset.min(max_offset)).unwrap_or(u16::MAX)
 }
 
 #[allow(clippy::cast_precision_loss)]

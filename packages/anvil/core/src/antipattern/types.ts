@@ -92,8 +92,10 @@ export const WarningSchema = z.object({
   // Identification
   id: z
     .string()
-    .regex(/^(AP|ARCH|BOUND)-\d{3}$/)
-    .describe('Warning ID (e.g., AP-001, ARCH-001, BOUND-001)'),
+    .regex(/^[A-Z]{2,5}-\d{3}$/)
+    .describe(
+      'Warning ID — two- to five-letter prefix plus three digits (e.g., AP-001, GS-001, ARCH-001, BOUND-001)'
+    ),
   fingerprint: z
     .string()
     .optional()
@@ -120,6 +122,24 @@ export const WarningSchema = z.object({
 
   // Suppression
   suppressed: SuppressionSchema.optional().describe('Suppression metadata if suppressed'),
+
+  // Family provenance (ANVFMT Phase 2 — populated by the compiled-registry
+  // scanner; omitted by the legacy TS catalogue until the last consumer
+  // migrates away from it).
+  family: z
+    .string()
+    .optional()
+    .describe('Family id this rule belongs to (e.g. "guardrail-suppression")'),
+  definition_ref: z
+    .string()
+    .optional()
+    .describe('Path to the family definition.anvil, for AI/IDE navigation'),
+  spectrum_position: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Position within the family spectrum (1 = most severe)'),
 });
 
 export type Warning = z.infer<typeof WarningSchema>;
@@ -134,6 +154,7 @@ export type Warning = z.infer<typeof WarningSchema>;
 export const RegexDetectionConfigSchema = z.object({
   type: z.literal('regex').describe('Regex-based detection'),
   pattern: z.string().min(1).describe('Regex pattern string'),
+  flags: z.string().optional().describe('Optional JS regex flags (e.g. "i" for case-insensitive)'),
 });
 
 /**
@@ -169,8 +190,22 @@ export const AntiPatternSchema = z.object({
   name: z.string().describe('Human-readable name'),
 
   // Classification
+  // Includes legacy categories (code-quality, type-safety, html, css) alongside
+  // the `.anvil` family categories (type-evasion, accountability,
+  // deferred-debt). The legacy 'html' and 'css' categories were retired in
+  // ANVFMT-014/015 when the hardcoded HTML/CSS TS catalogue was removed.
+  // 'code-quality' and 'type-safety' remain as catch-all categories for
+  // anvil-compiled patterns that don't fit a sharper family classification.
   category: z
-    .enum(['escape-hatch', 'error-handling', 'code-quality', 'type-safety', 'html', 'css'])
+    .enum([
+      'escape-hatch',
+      'error-handling',
+      'code-quality',
+      'type-safety',
+      'type-evasion',
+      'accountability',
+      'deferred-debt',
+    ])
     .describe('Pattern category'),
   severity: WarningSeveritySchema.describe('Default severity'),
   confidence: ConfidenceSchema.describe('Detection confidence'),
@@ -209,6 +244,22 @@ export const AntiPatternSchema = z.object({
 
   // Documentation
   documentation: z.string().url().optional().describe('Link to detailed documentation'),
+
+  // Family provenance (ANVFMT Phase 2 — populated for patterns sourced from
+  // the compiled `.anvil` registry). Legacy HTML/CSS TS patterns leave these
+  // undefined until ANVFMT-014/015 retires them.
+  family: z.string().optional().describe('Family id this pattern belongs to'),
+  definitionRef: z.string().optional().describe('Path to the family definition.anvil'),
+  spectrumPosition: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Position within the family spectrum (1 = most severe)'),
+  targets: z
+    .array(z.enum(['source', 'pr-description', 'commit-message', 'agent-output']))
+    .optional()
+    .describe('Artifact types this pattern targets (undefined = source only, legacy behavior)'),
 });
 
 export type AntiPattern = z.infer<typeof AntiPatternSchema>;

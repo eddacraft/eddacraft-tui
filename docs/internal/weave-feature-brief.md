@@ -1,4 +1,4 @@
-# literate-core: Internal Agent Harness
+# weave: Internal Agent Harness
 
 ## Technical Feature Description (Internal Engineering)
 
@@ -6,14 +6,14 @@
 
 Two new Rust crates that embed LLM reasoning directly inside the Anvil binary:
 
-- **literate-core** — A minimal, provider-agnostic agent runtime library.
-  Apache-2.0 licensed, zero Anvil dependencies, extractable to a standalone
-  open-source repo. Captures the irreducible kernel of an agent: message loop,
-  tool dispatch, provider abstraction, session persistence. ~2500 LOC, ~15
+- **weave** — A minimal, provider-agnostic agent runtime library. Apache-2.0
+  licensed, zero Anvil dependencies, lives in a standalone open-source repo
+  (`eddacraft/weave-rs`). Captures the irreducible kernel of an agent: message
+  loop, tool dispatch, provider abstraction, session persistence. ~2500 LOC, ~15
   dependencies.
 
-- **anvil-agent** — An Anvil-specific harness that depends on literate-core and
-  adds tools with zero-copy access to the kernel's live semantic graph.
+- **anvil-weave** — An Anvil-specific harness that depends on weave and adds
+  tools with zero-copy access to the kernel's live semantic graph.
   Source-proprietary, same licence as the rest of Anvil.
 
 ### Why Does This Exist?
@@ -53,36 +53,35 @@ The agent runtime is 7 primitives:
 7. **Event** — typed lifecycle notifications (agent_start, tool_call, etc.)
 
 Everything is a trait. Consumers bring their own tools, providers, and session
-backends. literate-core provides the loop and the types. anvil-agent provides
-Anvil's specific tools.
+backends. weave provides the loop and the types. anvil-weave provides Anvil's
+specific tools.
 
 ### Crate Layout
 
 ```
-crates/
-├── literate-core/          # Apache-2.0. ZERO anvil-* deps.
-│   ├── src/
-│   │   ├── types.rs        # Message, Context, Model, StreamEvent
-│   │   ├── tool.rs         # Tool trait, execution pipeline
-│   │   ├── provider.rs     # Provider trait, registry
-│   │   ├── stream.rs       # Streaming event normalisation
-│   │   ├── agent.rs        # AgentState, event emission
-│   │   ├── agent_loop.rs   # Two-level loop (tools + follow-ups)
-│   │   └── session.rs      # SessionStore trait, JSONL-tree impl
-│   └── Cargo.toml          # deps: serde, tokio, futures, uuid, thiserror
-│
-├── anvil-agent/            # Source-proprietary. Depends on literate-core.
-│   ├── src/
-│   │   ├── tools/
-│   │   │   ├── graph_query.rs    # Query petgraph semantic graph
-│   │   │   ├── policy_eval.rs    # Evaluate policy against live state
-│   │   │   ├── read.rs           # File read
-│   │   │   ├── edit.rs           # Propose edits
-│   │   │   └── bash.rs           # Sandboxed shell
-│   │   ├── triggers.rs     # Kernel event -> agent reasoning
-│   │   ├── harness.rs      # Pre-wired Agent with Anvil tools
-│   │   └── compaction.rs   # Graph-aware context compaction
-│   └── Cargo.toml
+eddacraft/weave-rs/         # Apache-2.0. ZERO eddacraft-anvil-* deps.
+├── src/
+│   ├── types.rs            # Message, Context, Model, StreamEvent
+│   ├── tool.rs             # Tool trait, execution pipeline
+│   ├── provider.rs         # Provider trait, registry
+│   ├── stream.rs           # Streaming event normalisation
+│   ├── agent.rs            # AgentState, event emission
+│   ├── agent_loop.rs       # Two-level loop (tools + follow-ups)
+│   └── session.rs          # SessionStore trait, JSONL-tree impl
+└── Cargo.toml              # deps: serde, tokio, futures, uuid, thiserror
+
+crates/anvil-weave/         # Source-proprietary. Depends on weave.
+├── src/
+│   ├── tools/
+│   │   ├── graph_query.rs  # Query petgraph semantic graph
+│   │   ├── policy_eval.rs  # Evaluate policy against live state
+│   │   ├── read.rs         # File read
+│   │   ├── edit.rs         # Propose edits
+│   │   └── bash.rs         # Sandboxed shell
+│   ├── triggers.rs         # Kernel event -> agent reasoning
+│   ├── harness.rs          # Pre-wired Agent with Anvil tools
+│   └── compaction.rs       # Graph-aware context compaction
+└── Cargo.toml
 ```
 
 ### Key Design Decisions
@@ -107,23 +106,24 @@ summary node. Context building walks leaf-to-root. Append-only for auditability.
 `provider-anthropic` or `provider-openai` features to pull in reqwest. This
 keeps the base crate light for consumers who bring their own provider.
 
-**The extractability invariant.** literate-core must have zero `anvil-*` in its
-dependency tree. CI enforces this with a `cargo metadata` check. The crate can
-be extracted to a standalone repo at any time via `git subtree split`.
+**Structural separation.** weave lives in its own repo (`eddacraft/weave-rs`),
+which reduces accidental coupling but does not by itself prevent
+`eddacraft-anvil-*` crates from being added as normal cargo dependencies.
+Enforcement of the zero-dep invariant remains via automated CI / `cargo-deny`
+checks.
 
 ### How to Contribute
 
-- literate-core code goes in `crates/literate-core/`. Never import from
-  `anvil-*` crates. If you need an Anvil type, that code belongs in
-  `anvil-agent` instead.
-- All source files in literate-core carry Apache-2.0 headers.
+- weave code goes in `eddacraft/weave-rs`. Never import from `eddacraft-anvil-*`
+  crates. If you need an Anvil type, that code belongs in `anvil-weave` instead.
+- All source files in weave carry Apache-2.0 headers.
 - Provider implementations live behind feature gates.
-- Follow the APS plan: `plans/modules/literate-core.aps.md` (LCORE scope).
+- Follow the APS plan: `plans/modules/weave.aps.md` (WEAVE scope).
 - Architecture decision: `plans/decisions/024-internal-agent-harness.md`.
 
 ### Cross-Product Leverage
 
-literate-core is designed to be consumed by any EddaCraft product:
+weave is designed to be consumed by any EddaCraft product:
 
 | Product     | Custom Tools                  | Use Case                       |
 | ----------- | ----------------------------- | ------------------------------ |
@@ -259,14 +259,15 @@ accepted. Provenance from detection through remediation.
 
 ### Open Source Strategy
 
-literate-core (the generic agent runtime) ships as Apache-2.0 open source — a
-standalone, opinion-free Rust crate that anyone can use to build agents. This
-positions EddaCraft as a platform company, not just a product company, and
-creates ecosystem gravity. The Anvil-specific harness (anvil-agent) remains
-proprietary.
+weave (the generic agent runtime) ships as Apache-2.0 open source in its own
+standalone repo (`eddacraft/weave-rs`) from day one — not extracted later. It is
+an opinion-free Rust crate that anyone can use to build agents. This positions
+EddaCraft as a platform company, not just a product company, and creates
+ecosystem gravity. The Anvil-specific harness (anvil-weave) remains proprietary.
 
 ### Timeline
 
-Draft status. ADR-024 proposed. 22 work items across 5 phases. Estimate: 4-6
-weeks to MVP (working agent loop with Anvil graph tools). Marketing-ready when
-the first demo shows a violation -> explanation -> fix flow end-to-end.
+Draft status. ADR-024 proposed (amended 2026-04-17 for standalone strategy). 21
+work items across 5 phases. Estimate: 4-6 weeks to MVP (working agent loop with
+Anvil graph tools). Marketing-ready when the first demo shows a violation ->
+explanation -> fix flow end-to-end.

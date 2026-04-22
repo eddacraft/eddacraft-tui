@@ -74,30 +74,38 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
+| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
+| [anvil-rust-scanner](./modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
+| [anvil-scanner-parity-gaps](./modules/anvil-scanner-parity-gaps.aps.md) | SPG | Proposed | 0/6 (RSCAN-008 council follow-ups — `flags:"i"` handling, lookaround rule rewrites, fixture gaps, integrity docs) |
+| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
+| [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
+| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Ready | 0/8 |
+| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 3/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2 depends on NXRUST) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
-### Continuous Improvement (Draft)
+### Continuous Improvement (In Progress)
 
-Ongoing refactoring, code quality, shared libraries, generators, and DX
-improvements. Includes codebase-maintenance (in progress) and code-review-
-backlog (complete) as tracked sub-modules.
+Codebase-maintenance drives ongoing refactoring, shared libraries, generators,
+and DX improvements. Code-review-backlog (complete) is retained for history.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [continuous-improvement](./modules/continuous-improvement.aps.md) | CI | Draft | 0/10 |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 10/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
+
+> ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
+> without executable tasks. All concrete intents map onto MAINT. See
+> [archived notice](./modules/continuous-improvement.aps.md).
 
 ### Rust Engine (In Progress)
 
 Rust kernel for structural graph analysis (KERN), performance-critical check
 ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
 TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard rendering.
-KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI is in progress.
+KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI is complete.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
@@ -105,15 +113,14 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-core-engine](./archive/modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
-| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 63/64 | KERN, RATS, PORT |
+| [rust-cli](./archive/modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
-| [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
-| [tui-polish](./modules/tui-polish.aps.md) | POLISH | In Progress | 1/7 | RCLI, RATS |
+| [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
 | [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
-| [distribution-pipeline](./modules/distribution-pipeline.aps.md) | DIST | In Progress | 1/9 | RCLI |
+| [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
@@ -133,8 +140,8 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | ------ | ----- | ------ | -------- | ------------ |
 | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
 | [docs-auth-gating](./archive/modules/docs-auth-gating.aps.md) | DOCSAUTH | Complete | 7/7 | BAUTH, IAC |
-| [admin-cli](./modules/admin-cli.aps.md) | ADMINCLI | Complete | 13/13 | BAUTH |
-| [admin-cli-hardening](./modules/admin-cli-hardening.aps.md) | ADMINCLIH | Proposed | 0/3 | ADMINCLI |
+| [admin-cli](./archive/modules/admin-cli.aps.md) | ADMINCLI | Complete | 13/13 | BAUTH |
+| [admin-cli-hardening](./archive/modules/admin-cli-hardening.aps.md) | ADMINCLIH | Complete | 4/4 | ADMINCLI |
 
 **Design specs:**
 - `docs/specs/2026-03-15-beta-auth-streamline-design.md`
@@ -167,7 +174,7 @@ to Azure Blob Storage + KeyVault. 12 tasks complete, 8 draft (Azure migration).
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [pulumi-iac](./archive/modules/pulumi-iac.aps.md) | IAC | Complete | 20/20 | — |
-| [database-consolidation](./modules/database-consolidation.aps.md) | DBCON | In Progress | 3/4 | IAC |
+| [database-consolidation](./archive/modules/database-consolidation.aps.md) | DBCON | Complete | 4/4 | IAC |
 
 ### Web Dashboard (Ready)
 
@@ -229,10 +236,12 @@ when specific work is identified.
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
-| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 8/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **In Progress** |
+| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
+| [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
+| [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 11 | CI pipeline, all packages and crates, DIST |
+| [release-management](./modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (9 done) | docs-site, feature modules — **In Progress** |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
@@ -246,8 +255,8 @@ TCOV/TINT/TEXT depend on it.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Ready | 0/10 | — |
-| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | Draft | 0/25 | TFIX |
+| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
+| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25 | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
 
@@ -280,13 +289,18 @@ graph data.
 | ------ | ----- | ---------- | ------------ |
 | [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | 7 | architecture-safety |
 
-### Intercept Loop (Draft)
+### Intercept Loop (Draft — no code yet)
 
 Host-local enforcement daemon that detects policy violations from AI agent file
 changes and interrupts the correct session via process-group control. Shell-first,
 single-host initially, proving the core enforcement thesis. See
 [design spec](./specs/anvil-driver-framework/) for the broader driver framework
 vision.
+
+**Implementation state:** No intercept crates exist in `crates/`. All three
+modules are pure plans — design + ADR only. Pick these up only after the
+Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
+"wow" in the roadmap but also the largest greenfield build.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
@@ -296,16 +310,20 @@ vision.
 
 **Architecture Decision:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md)
 
-### Agent Infrastructure (Draft)
+### Agent Infrastructure (Draft — no code yet)
 
-Thin, provider-agnostic agent runtime (literate-core, Apache-2.0) plus
-Anvil-specific harness (anvil-agent) with zero-copy semantic graph access.
-Enables LLM reasoning over the kernel's live graph for violation remediation,
-behavioural diff narration, policy authoring, and headless CI review.
+Thin, provider-agnostic agent runtime (weave, Apache-2.0) in standalone repo
+(`eddacraft/weave-rs`) plus Anvil-specific harness (anvil-weave) with
+zero-copy semantic graph access.
+
+**Implementation state:** No `literate-core` or `anvil-agent` crates exist
+in this repo. The upstream runtime lives at `~/Projects/src/weave-rs`
+(see memory: reference_weave_rs). This module is a greenfield import plus
+harness build — schedule after the intercept-loop thesis is proven.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [literate-core](./modules/literate-core.aps.md) | LCORE, AHARNESS | Draft | 0/22 | KERN (anvil-agent only) |
+| [weave](./modules/weave.aps.md) | WEAVE, AHARNESS | Draft | 0/21 | KERN (anvil-weave only) |
 
 **Architecture Decision:** [D-024: Internal Agent Harness](./decisions/024-internal-agent-harness.md)
 
@@ -380,23 +398,31 @@ Active module themes:
 | Theme | Module File |
 | ----- | ----------- |
 | Branch Recovery | [branch-reconciliation](./modules/branch-reconciliation.aps.md) |
-| Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
-| Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) |
-| Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
+| Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
+| Continuous Improvement | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
+| Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
-| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
+| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [feature-flag-migration](./modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
-| Agent Infrastructure | [literate-core](./modules/literate-core.aps.md) |
+| Agent Infrastructure | [weave](./modules/weave.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
 
 ### Superseded
 
 > ~~tui-enhancement~~ (TUIENH) — see D-005: Ink over OpenTUI, then
 > ADR-011: Ratatui replaces Ink.
+
+> ~~interactive-tutorial~~ (TUTOR) — absorbed into
+> [WELCOME](./modules/restore-welcome-screen.aps.md) (18/18 complete). All 13
+> TUTOR items mapped to WELCOME phases. See
+> [archived plan](./archive/modules/interactive-tutorial.aps.md).
+
+> ~~continuous-improvement~~ (CI) — retired 2026-04-18; meta-module without
+> executable tasks. All concrete intents roll into MAINT.
 
 ### Task Status — Web Dashboard
 
@@ -733,7 +759,7 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
 | MAINT-009 | maint  | Edda list filters parity with release claims        | Complete | Medium   |
 | MAINT-010 | maint  | Authenticated release smoke harness                 | Deferred | Medium   |
-| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | In Progress | Medium |
+| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | Complete | Medium |
 
 ### Task Status — Hardening & Maintenance (Nx Task Migration)
 
@@ -748,6 +774,24 @@ Nx-orchestrated per-project targets.
 | NXTASK-004  | nxtask | Migrate root typecheck script to nx run-many          | Ready  | high     |
 | NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Ready  | medium   |
 | NXTASK-006  | nxtask | Update CI to use nx affected                          | Ready  | high     |
+
+### Task Status — Hardening & Maintenance (Rust Nx Migration)
+
+Bring the Rust workspace up to parity with the TypeScript Nx setup: CI caching,
+affected-only builds, and workspace hygiene. Mirrors NXTASK for Rust crates.
+See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
+
+| Task        | Module  | Description                                           | Status | Priority | Tier |
+| ----------- | ------- | ----------------------------------------------------- | ------ | -------- | ---- |
+| RUSTNX-001  | rustnx  | Add Swatinem/rust-cache to Rust CI jobs               | Complete | high     | 1    |
+| RUSTNX-002  | rustnx  | Adopt cargo-nextest for workspace test runs          | Complete | high     | 1    |
+| RUSTNX-003  | rustnx  | Parallelise Rust CI jobs behind shared cache         | Complete | medium   | 1    |
+| RUSTNX-004  | rustnx  | Scaffold per-crate project.json wrappers             | Ready  | high     | 2    |
+| RUSTNX-005  | rustnx  | Configure Nx inputs, outputs, and remote cache       | Ready  | high     | 2    |
+| RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Ready  | medium   | 2    |
+| RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Ready  | high     | 2    |
+| RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Ready  | medium   | 3    |
+| RUSTNX-009  | rustnx  | Add cargo-deny CI gate                               | Ready  | medium   | 3    |
 
 ### Task Status — Hardening & Maintenance (Forge & Temper) — ARCHIVED
 

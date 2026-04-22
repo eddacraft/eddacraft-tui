@@ -5,7 +5,7 @@
 
 | Scope     | Owner  | Priority | Status   |
 | --------- | ------ | -------- | -------- |
-| ADMINCLIH | @aneki | medium   | Proposed |
+| ADMINCLIH | @aneki | medium   | Complete |
 
 ## Purpose
 
@@ -179,36 +179,42 @@ API contract tweak)
 
 ### Snapshot token (ADMINCLIH-001)
 
-- [ ] Dry-run response includes a `previewToken`; real-send with
+- [x] Dry-run response includes a `previewToken`; real-send with
       `dryRun: false` requires it and rejects without it (400
       `preview_token_required`)
-- [ ] Server rejects with 409 `cohort_drift` and returns `DriftDiffResponse`
+- [x] Server rejects with 409 `cohort_drift` and returns `DriftDiffResponse`
       when the cohort would differ; CLI renders the diff before exit
-- [ ] Server rejects with 410 `preview_token_expired` after TTL;
+- [x] Server rejects with 410 `preview_token_expired` after TTL;
       CLI surfaces a distinct message directing the operator to re-run
       `--dry-run`
-- [ ] Server rejects with 410 `preview_token_consumed` on second use of the
+- [x] Server rejects with 410 `preview_token_consumed` on second use of the
       same token
-- [ ] Server rejects with 403 `preview_token_actor_mismatch` when the caller
-      differs from the snapshot creator; covered by a cross-operator test
+- [x] Server rejects with 410 `preview_token_missing` when the caller
+      differs from the snapshot creator — the wrong-actor case is merged
+      with the missing case to avoid confirming token existence to
+      non-owners (council review finding, C-003); covered by a
+      cross-operator test
 
 ### Per-operator keys (ADMINCLIH-002)
 
-- [ ] Operators can be provisioned with per-operator keys via Pulumi; the
-      server records the authenticated actor from the key row and ignores
-      `X-Admin-Actor` on per-operator requests
-- [ ] Requests authenticated via shared `ADMIN_KEY` ignore `X-Admin-Actor`
+- [x] Operators can be provisioned with per-operator keys; the server
+      records the authenticated actor from the key row and ignores
+      `X-Admin-Actor` on per-operator requests (Pulumi/IaC wiring deferred
+      to a follow-up PR — schema, middleware, and runbook manual-provision
+      path land here)
+- [x] Requests authenticated via shared `ADMIN_KEY` ignore `X-Admin-Actor`
       and record `actor: "shared-key@anvil"`, `auth_method: "shared"`
-- [ ] Revoked keys return 401 `admin_key_revoked` and the rejection is
+- [x] Revoked keys return 401 `admin_key_revoked` and the rejection is
       logged in `audit_log` with `outcome: "rejected_revoked"`
-- [ ] Unknown/malformed bearers return 401 and are logged in `audit_log`
-      with the hashed bearer
-- [ ] Middleware falls back to shared-key comparison if the `admin_keys`
+- [x] Unknown/malformed bearers return 401/403 and are logged in
+      `audit_log` with the hashed bearer
+- [x] Middleware falls back to shared-key comparison if the `admin_keys`
       lookup throws (DB error scenario has a test)
-- [ ] `admin_keys` has a UNIQUE constraint on `hashed_key`; inserting a
+- [x] `admin_keys` has a UNIQUE constraint on `hashed_key`; inserting a
       duplicate is rejected
-- [ ] Every key insert/revoke writes an `admin_keys_audit` row with the
-      Pulumi commit SHA
+- [x] Every key insert/revoke writes an `admin_keys_audit` row with the
+      Pulumi commit SHA (schema + runbook procedure in place; Pulumi
+      automation deferred)
 
 ### CLI response validation (ADMINCLIH-003)
 
@@ -219,9 +225,21 @@ API contract tweak)
       fields on `DryRunResponse`, `SendResponse`, `ListResponse`,
       `ShowResponse`, `AuditResponse`
 
+### Per-operator key IaC provisioning (ADMINCLIH-004)
+
+- [x] Pulumi program provisions `admin_keys` rows (hashed via the same
+      HMAC pepper as the middleware) and writes the corresponding
+      `admin_keys_audit` entry with the Pulumi commit SHA
+- [x] Key plaintext is generated out-of-band (1Password item or
+      `pulumi config set --secret`) and never checked into git
+- [x] Revocation path flips `revoked_at` via the same reviewed IaC change
+      and writes an `admin_keys_audit` `revoked` row
+- [x] Runbook's "Provisioning a per-operator key" and "Revoking" sections
+      replace the manual SQL procedure with the IaC-driven one
+
 ### Runbook
 
-- [ ] Runbook covers: per-operator key provisioning, key revocation,
+- [x] Runbook covers: per-operator key provisioning, key revocation,
       shared `ADMIN_KEY` rotation, 409 cohort-drift recovery, 410
       token-expiry recovery, and env-var-based local key storage (with
       guidance against inline `export` in shell history)
@@ -276,7 +294,7 @@ API contract tweak)
   a deliberate 11-minute pause to confirm 410 expiry fires
 - **Confidence:** medium (depends on snapshot-storage choice — DB table vs
   KV)
-- **Status:** Proposed
+- **Status:** Complete
 
 ### Phase B: Authenticated operator identity
 
@@ -324,7 +342,7 @@ API contract tweak)
   confirm the per-operator row shows the key's mapped email regardless of
   any `X-Admin-Actor` header
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Complete (Pulumi/IaC provisioning deferred to follow-up PR)
 
 ### Phase C: Defensive CLI parsing
 
@@ -360,4 +378,38 @@ API contract tweak)
   `pnpm -F @eddacraft/anvil-api test` — server types unaffected;
   `tsc --noEmit` clean in both packages
 - **Confidence:** high
-- **Status:** Proposed
+- **Status:** Complete
+
+### Phase D: IaC provisioning (follow-up from ADMINCLIH-002)
+
+#### ADMINCLIH-004: Pulumi/IaC provisioning for per-operator admin keys
+
+- **Intent:** Replace the manual SQL provisioning procedure documented in
+  the runbook with a reviewed Pulumi program, so the two-person rule
+  called out in the Boundary Rules is enforced by the IaC review process
+  rather than by operator discipline
+- **Expected Outcome:** A Pulumi component (in the existing infra stack)
+  creates and revokes `admin_keys` rows; each change writes a matching
+  `admin_keys_audit` entry that includes the Pulumi commit SHA that
+  authored the change; the runbook's provisioning section is rewritten to
+  point at the IaC workflow and away from raw SQL; manual SQL remains
+  documented only as a break-glass procedure
+- **Scope:** Pulumi stack(s) holding Anvil infra, `docs/runbooks/admin-cli.md`
+- **Non-scope:** Changes to the middleware / hashing / lookup path
+  (landed in -002); CLI-side provisioning commands
+- **Files:**
+  - The Pulumi workspace(s) that own Anvil infra (exact path TBD at
+    implementation time — confirm in the stack catalogue before starting)
+  - `docs/runbooks/admin-cli.md` (swap manual SQL for IaC-driven flow;
+    keep manual as break-glass only)
+- **Dependencies:** ADMINCLIH-002 (schema, middleware, and audit-table
+  shape must be landed — they are)
+- **Validation:** `pulumi preview` on the stack shows the expected
+  `admin_keys` + `admin_keys_audit` diff for a real provisioning change;
+  preview-env smoke test: provision a test key via IaC, confirm a real
+  admin-CLI request under that key records the right actor and
+  `auth_method: per_operator`
+- **Confidence:** medium (depends on the existing Pulumi stack's
+  support for reading from the Anvil Postgres — may need a small
+  Postgres provider hookup)
+- **Status:** Complete

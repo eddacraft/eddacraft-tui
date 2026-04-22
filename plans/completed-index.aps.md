@@ -224,6 +224,18 @@ Task-level detail for all completed work is archived in
 | [edda-stack-integration](./archive/modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
 | [edda-ember-review](./archive/modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
 
+### Completed (Distribution)
+
+| Module | Scope | Status | Progress | Notes |
+| ------ | ----- | ------ | -------- | ----- |
+| [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 | DIST-008 (crates.io) deferred per ADR-018; DIST-011 (scoop) optional-deferred. Install path via install.sh / install.ps1 / Homebrew tap / WinGet all shipping on every tagged release. |
+
+### Retired / Superseded
+
+| Module | Scope | Status | Superseded By | Notes |
+| ------ | ----- | ------ | ------------- | ----- |
+| [interactive-tutorial](./archive/modules/interactive-tutorial.aps.md) | TUTOR | Retired | [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) (WELCOME) | All 13 TUTOR items absorbed into WELCOME's 18 items across 6 phases. |
+
 ### Task Status — 0.1.0 (Core Engine)
 
 | Task     | Module          | Description                      | Status   |
