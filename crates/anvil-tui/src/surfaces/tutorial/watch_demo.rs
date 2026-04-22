@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use anvil_kernel_types::EngineEvent;
 use animate::{Animate, Lerp, Once};
+use anvil_kernel_types::EngineEvent;
 use eddacraft_tui::keyboard::Action;
 
 use crate::surfaces::watch::WatchData;
@@ -77,8 +77,11 @@ impl WatchDemoState {
             snapshot_count: 0,
             auto_hints: true,
             dirty: true,
-            overlay_reveal: animated_f64(1.0),
-            overlay_reveal_target: 1.0,
+            // Start hidden so the first sync_overlay_animation animates the
+            // intro overlay in from 0 → 1 instead of jumping straight to full
+            // height on the first frame.
+            overlay_reveal: animated_f64(0.0),
+            overlay_reveal_target: 0.0,
         }
     }
 

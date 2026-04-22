@@ -144,6 +144,7 @@ pub struct WatchState {
 impl WatchState {
     pub fn new(data: WatchData) -> Self {
         let pass_rate = data.stats.pass_rate;
+        #[allow(clippy::cast_precision_loss)]
         let avg_duration_ms = data.stats.avg_duration_ms as f64;
 
         Self {
@@ -184,6 +185,7 @@ impl WatchState {
         }
         self.anim_pass_rate.update();
 
+        #[allow(clippy::cast_precision_loss)]
         let avg_duration = self.data.stats.avg_duration_ms as f64;
         if (avg_duration - self.anim_avg_duration_target).abs() > f64::EPSILON {
             self.anim_avg_duration_ms.set(avg_duration);

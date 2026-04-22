@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
-use anvil_kernel_types::EngineEvent;
 use animate::is_animating;
+use anvil_kernel_types::EngineEvent;
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::watch::WatchState;
@@ -240,8 +240,13 @@ fn watch_demo_loop(
             state.mark_dirty();
         });
 
+        // While animating, cap to ~60 fps to avoid a busy-spin between frames.
         let poll_timeout = if state.is_dirty() {
-            Duration::ZERO
+            if is_animating() {
+                Duration::from_millis(16)
+            } else {
+                Duration::ZERO
+            }
         } else {
             Duration::from_millis(50)
         };
@@ -362,10 +367,16 @@ fn watch_loop(
         tick_animations(&mut last_tick, state.is_dirty(), || {
             state.mark_dirty();
         });
+        state.sync_animations();
 
-        // Skip the poll wait when already dirty — render immediately.
+        // When dirty, render quickly. While animating, cap to ~60 fps so the
+        // poll loop doesn't busy-spin between frames.
         let poll_timeout = if state.is_dirty() {
-            Duration::ZERO
+            if is_animating() {
+                Duration::from_millis(16)
+            } else {
+                Duration::ZERO
+            }
         } else {
             Duration::from_millis(50)
         };
@@ -419,11 +430,14 @@ where
 {
     let now = Instant::now();
     let elapsed = now.saturating_duration_since(*last_tick);
-    *last_tick = now;
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let ms = elapsed.as_millis().min(usize::MAX as u128) as usize;
     if ms > 0 {
+        // Advance last_tick by the whole-ms portion we consumed; the sub-ms
+        // remainder accumulates into the next iteration so animations still
+        // progress when individual loop iterations run faster than 1 ms.
+        *last_tick += Duration::from_millis(ms as u64);
         animate::tick(ms);
     }
 

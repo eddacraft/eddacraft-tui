@@ -15,8 +15,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchDemoState, theme: &Edd
     let watch_state = WatchState::new(state.data.clone());
     crate::surfaces::watch::render::render(frame, area, &watch_state, theme);
 
-    // Render the overlay on top if active.
-    if state.overlay != OverlayPhase::Dismissed {
+    // Render the overlay while it has any visible reveal — this lets the
+    // intro animate in from 0 and the dismiss animate out to 0 instead of
+    // popping in/out the moment the phase changes.
+    if state.overlay_reveal() > f64::EPSILON {
         render_overlay(frame, area, state, theme);
     }
 }
