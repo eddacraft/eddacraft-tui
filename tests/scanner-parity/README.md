@@ -63,34 +63,32 @@ disagreement. Line number + rule id is the durable shape.
 
 After SPG-004 every enabled registry rule has at least one positive and one
 negative fixture. Opt-in rules (AP-002, AP-005, AP-007) exercise the same
-requirement with `scan_options.include_opt_in: true`. Non-source artifact
-kinds — `pr-description`, `commit-message`, `agent-output` — each have at
-least one fixture so the scanner's artifact-kind dispatch path is exercised
-end-to-end. A multi-rule co-firing fixture (RL-001 + RL-005 on the same
-line) pins the cross-rule independence of post-filters.
+requirement with `scan_options.include_opt_in: true`. Non-source artifact kinds
+— `pr-description`, `commit-message`, `agent-output` — each have at least one
+fixture so the scanner's artifact-kind dispatch path is exercised end-to-end. A
+multi-rule co-firing fixture (RL-001 + RL-005 on the same line) pins the
+cross-rule independence of post-filters.
 
 ## Rust-side handling of PCRE lookaround rules
 
 Six rules — **DD-001, DD-002, DD-003, GS-001, RL-001, RL-005** — carry a PCRE
-lookaround (`(?!...)` or `(?=...)`) that the RE2-based Rust `regex` crate
-cannot compile directly. The Rust scanner honours them via a hand-coded
-post-filter in
-`crates/anvil-checks/src/antipattern/scanner.rs::prepare_pcre_rewrite`: the
-base regex (no lookaround) matches, then a Rust predicate applies the
-escape/require clause so the observable behaviour matches the TS scanner.
+lookaround (`(?!...)` or `(?=...)`) that the RE2-based Rust `regex` crate cannot
+compile directly. The Rust scanner honours them via a hand-coded post-filter in
+`crates/anvil-checks/src/antipattern/scanner.rs::prepare_pcre_rewrite`: the base
+regex (no lookaround) matches, then a Rust predicate applies the escape/require
+clause so the observable behaviour matches the TS scanner.
 
-The post-filter code is paired with unit tests that pin each rule's positive
-and escape cases (`dd001_*`, `dd002_*`, `dd003_*`, `gs001_*`, `rl001_*`,
-`rl005_*`). The parity fixtures here are the end-to-end check that both engines
-agree.
+The post-filter code is paired with unit tests that pin each rule's positive and
+escape cases (`dd001_*`, `dd002_*`, `dd003_*`, `gs001_*`, `rl001_*`, `rl005_*`).
+The parity fixtures here are the end-to-end check that both engines agree.
 
 The AP-001 broad `eslint-disable` rule uses the same technique via its own
 primary/secondary regex split.
 
 ## Case-insensitive (`flags: "i"`) handling
 
-Seven rules — DD-004 and RL-001..006 — declare `flags: "i"` in the registry.
-The Rust loader inlines this as `(?i)` on the compiled regex
+Seven rules — DD-004 and RL-001..006 — declare `flags: "i"` in the registry. The
+Rust loader inlines this as `(?i)` on the compiled regex
 (`registry_loader.rs::inline_flag_prefix`) so case-varied input matches
 identically on both engines.
 
@@ -98,9 +96,8 @@ identically on both engines.
 
 None at this time. If a fixture begins to diverge between engines:
 
-1. Run `anvil doctor` — SPG-002 surfaces any rule whose registry regex no
-   longer compiles under the Rust engine as a `registry-patterns-compile`
-   warning.
+1. Run `anvil doctor` — SPG-002 surfaces any rule whose registry regex no longer
+   compiles under the Rust engine as a `registry-patterns-compile` warning.
 2. Check whether the offending rule's `.anvil` source or compiled
    `registry.json` has changed shape.
 3. Update `prepare_pcre_rewrite` if a newly added lookaround rule needs

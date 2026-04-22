@@ -103,11 +103,10 @@ cargo bench -p anvil-bench --bench antipattern_scan
 ```
 
 Compare against the baseline in `crates/anvil-bench/README.md` (~21.9 K
-artifacts/sec on a dev Linux box; GitHub runners will be materially slower
-due to lower core count — compare against a same-machine-class baseline).
-A > 2× regression on the same machine class should be investigated before
-releasing — `registry_compile_diagnostics` and `scan_artifacts` are the
-likely suspects.
+artifacts/sec on a dev Linux box; GitHub runners will be materially slower due
+to lower core count — compare against a same-machine-class baseline). A > 2×
+regression on the same machine class should be investigated before releasing —
+`registry_compile_diagnostics` and `scan_artifacts` are the likely suspects.
 
 ---
 
@@ -312,8 +311,8 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 This check (SPG-002) flags rules whose regex failed to compile under the Rust
 scanner. It is a silent-drop warning — affected rules never match. Steps:
 
-1. Run `anvil doctor --json` and read the `registry-patterns-compile` entry
-   for the failing rule IDs and compile errors.
+1. Run `anvil doctor --json` and read the `registry-patterns-compile` entry for
+   the failing rule IDs and compile errors.
 2. Check whether `ANVIL_REGISTRY_PATH` is set to a non-repo path:
 
    ```bash
@@ -326,10 +325,9 @@ scanner. It is a silent-drop warning — affected rules never match. Steps:
    unset ANVIL_REGISTRY_PATH
    ```
 
-3. If the in-tree registry is the one that fails, roll back `patterns/` to
-   the last green commit. The `anvil check --json` output also carries a
-   `diagnostics` key with the same information if automation needs to parse
-   it.
+3. If the in-tree registry is the one that fails, roll back `patterns/` to the
+   last green commit. The `anvil check --json` output also carries a
+   `diagnostics` key with the same information if automation needs to parse it.
 
 ### If public release publish fails (partial release)
 

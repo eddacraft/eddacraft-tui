@@ -141,19 +141,19 @@ A failing compile step points at the offending file and field; fix and rerun.
 
 The Rust scanner uses the `regex` crate (RE2-style: no backtracking, no
 lookaround). The TypeScript scanner uses V8's PCRE-ish engine, which supports
-lookaround. Patterns that rely on lookaround compile fine for the TS engine
-but not under `regex`. The Rust scanner handles this in two steps:
+lookaround. Patterns that rely on lookaround compile fine for the TS engine but
+not under `regex`. The Rust scanner handles this in two steps:
 
 1. `flags: "i"` on the registry entry is honoured by the Rust loader via an
-   inline `(?i)` prefix, so `RL-*` and `DD-004` match case-insensitively in
-   both engines (SPG-001).
-2. Lookaround-bearing rules (DD-001, DD-002, DD-003, GS-001, RL-001, RL-005)
-   are translated into a Rust-side post-filter paired with a base regex in
+   inline `(?i)` prefix, so `RL-*` and `DD-004` match case-insensitively in both
+   engines (SPG-001).
+2. Lookaround-bearing rules (DD-001, DD-002, DD-003, GS-001, RL-001, RL-005) are
+   translated into a Rust-side post-filter paired with a base regex in
    `crates/anvil-checks/src/antipattern/scanner.rs::prepare_pcre_rewrite`
    (SPG-003).
 
-Any other rule whose pattern fails to compile in the Rust scanner is surfaced
-by `anvil doctor` as a `registry-patterns-compile` warning (SPG-002) — the
+Any other rule whose pattern fails to compile in the Rust scanner is surfaced by
+`anvil doctor` as a `registry-patterns-compile` warning (SPG-002) — the
 silent-drop path is observable. The parity harness (`pnpm test:scanner-parity`)
 covers every enabled rule with at least one positive and one negative fixture;
 see `tests/scanner-parity/README.md` for the fixture format and the current
@@ -173,8 +173,8 @@ The Rust loader resolves it in this order (see
 4. Upward walk from the executable's directory (installed binaries).
 
 **`ANVIL_REGISTRY_PATH` is a trust boundary.** If it is set, the scanner will
-load whatever JSON lives at that path with no integrity check on the payload.
-A poisoned registry — for example one with every rule's `enabled` flipped to
+load whatever JSON lives at that path with no integrity check on the payload. A
+poisoned registry — for example one with every rule's `enabled` flipped to
 `false`, or with detection patterns rewritten to match nothing — silently
 disables scanning without any other signal that something is wrong.
 
@@ -182,23 +182,23 @@ Treat the env var accordingly:
 
 - **CI jobs should rely on the in-tree registry compiled at the checked-out
   SHA.** Do not set `ANVIL_REGISTRY_PATH` to a path outside the repo.
-- **Never let external input (a PR body, a webhook payload, an untrusted
-  build argument) flow into `ANVIL_REGISTRY_PATH`.** It is intended for local
+- **Never let external input (a PR body, a webhook payload, an untrusted build
+  argument) flow into `ANVIL_REGISTRY_PATH`.** It is intended for local
   development overrides and test fixtures only.
 - **Scanner self-check.** Running `anvil doctor` prints the
-  `registry-patterns-compile` check; if a poisoned registry has also broken
-  the regex shape, that check will flag the affected rules. It does not yet
-  verify the registry's byte hash — a `--expect-registry-hash` CLI flag is a
-  possible follow-up (ADR material, not part of this module). Compile checks
-  detect *shape* failures only. A registry that is syntactically valid but
-  semantically poisoned — every rule's `enabled` flipped to `false`, every
-  pattern rewritten to `.*` so nothing meaningful surfaces — will not be
-  caught by this check. Pin the registry's hash in CI if that matters.
-- **Symlinks.** `resolve_registry_path` does not canonicalise the env-var
-  value. If `ANVIL_REGISTRY_PATH` points into a writable directory whose
-  contents can be swapped by another process (e.g. a shared `/tmp`), that
-  same write surface owns the scanner catalogue for the process's lifetime.
-  Use absolute paths inside the repo or a trusted config root.
+  `registry-patterns-compile` check; if a poisoned registry has also broken the
+  regex shape, that check will flag the affected rules. It does not yet verify
+  the registry's byte hash — a `--expect-registry-hash` CLI flag is a possible
+  follow-up (ADR material, not part of this module). Compile checks detect
+  _shape_ failures only. A registry that is syntactically valid but semantically
+  poisoned — every rule's `enabled` flipped to `false`, every pattern rewritten
+  to `.*` so nothing meaningful surfaces — will not be caught by this check. Pin
+  the registry's hash in CI if that matters.
+- **Symlinks.** `resolve_registry_path` does not canonicalise the env-var value.
+  If `ANVIL_REGISTRY_PATH` points into a writable directory whose contents can
+  be swapped by another process (e.g. a shared `/tmp`), that same write surface
+  owns the scanner catalogue for the process's lifetime. Use absolute paths
+  inside the repo or a trusted config root.
 
 ## Checklist before merge
 
