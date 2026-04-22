@@ -9,7 +9,7 @@ RSCAN-008 (commit f17a074e). Follows ADR-026. See: plans/aps-rules.md
 
 | ID  | Owner | Status   |
 | --- | ----- | -------- |
-| SPG | —     | Proposed |
+| SPG | —     | Complete |
 
 ## Purpose
 
@@ -114,7 +114,7 @@ TS-only in the registry itself (and the scanner warns when it's run).
   content for RL-002 passes on both engines
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** Complete
 - **Origin:** adversarial-reviewer F3; security-analyst verified
   `Detection::Regex { pattern, .. }` discards flags at
   `registry_loader.rs:308`
@@ -141,7 +141,7 @@ TS-only in the registry itself (and the scanner warns when it's run).
   `anvil doctor`
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** Complete
 - **Origin:** adversarial-reviewer F3; general-reviewer (correction of
   "skipped" language in docs)
 
@@ -176,7 +176,7 @@ TS-only in the registry itself (and the scanner warns when it's run).
   least one positive and one negative fixture; no silent Rust drops
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** Complete
 - **Origin:** adversarial-reviewer F3
 
 ---
@@ -197,7 +197,7 @@ TS-only in the registry itself (and the scanner warns when it's run).
   ≥ 2 × count of Rust-runnable rules
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Proposed
+- **Status:** Complete
 - **Origin:** adversarial-reviewer F3; pragmatic-lead (parity README
   forward reference)
 
@@ -222,7 +222,7 @@ TS-only in the registry itself (and the scanner warns when it's run).
   note added to `docs/guides/release-runbook.md` preflight
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Proposed
+- **Status:** Complete
 - **Origin:** adversarial-reviewer F5
 
 ---
@@ -246,7 +246,7 @@ TS-only in the registry itself (and the scanner warns when it's run).
   lands (or a closed-no-change note is recorded)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Proposed
+- **Status:** Complete
 - **Origin:** security-analyst NIT #1
 
 ## Risks
@@ -275,3 +275,52 @@ TS-only in the registry itself (and the scanner warns when it's run).
   RSCAN-008 commit `f17a074e`. Surfaced by adversarial-reviewer (F3,
   F5), general-reviewer (scanner.rs silent-drop finding), and
   security-analyst (registry integrity NIT).
+- **2026-04-22 — council review round.** Addressed findings from
+  council-reviewer, security-analyst, adversarial-reviewer,
+  operations-reviewer, and pragmatic-lead:
+  - Council-reviewer MAJOR: `prepare_pcre_rewrite` now routes base-regex
+    AND escape-regex compile failures through `compile_error` so
+    `registry_compile_diagnostics()` surfaces any regression (no silent
+    drops).
+  - Adversarial M-1: `RewriteSpec` snapshots the registry's
+    `detection.regex` and `flags` at rewrite-time; the
+    `spg003_rewrite_matches_registry_snapshot` test fires on drift.
+  - Adversarial M-2: unknown registry flag letters now emit an
+    intentionally-invalid inline group so `Regex::new` fails and doctor
+    surfaces the rule.
+  - Adversarial C-1 + Security Finding 1: GS-001 post-filter falls back
+    to `char::is_whitespace()` for Unicode whitespace (NBSP/ideographic
+    space) — parity fixture added.
+  - Adversarial M-3 + M-4: agent-output, commit-message, and multi-rule
+    parity fixtures added; `antipattern_scan` bench now cycles
+    multi-kind content across 320 artifacts.
+  - Adversarial N-3: `parse_suppression` regex moved behind a
+    `LazyLock`.
+  - Operations MAJOR: `anvil check --json` gained a `diagnostics` field
+    backed by `registry_compile_diagnostics()`;
+    `.github/workflows/bench.yml` now runs `antipattern_scan` and
+    uploads `antipattern-bench.txt`.
+  - Operations + security NIT: release runbook gained an incident
+    playbook entry for `registry-patterns-compile`; trust-boundary doc
+    calls out symlink and semantic-poisoning edges.
+  - Council-reviewer NIT: `pattern_title` now included in the doctor
+    compile-check details; brittle `len == 9` test replaced with a
+    name-based assertion.
+- **2026-04-22 — module complete.** All six work items landed:
+  - SPG-001: `compiled_to_antipattern` honours `flags: "i"` via inline
+    `(?i)` prefix; parity fixture exercises case-varied RL-002 input.
+  - SPG-002: scanner tracks per-rule compile errors; `anvil doctor`
+    surfaces a `registry-patterns-compile` check.
+  - SPG-003: all six PCRE-lookaround rules handled by a hand-coded
+    post-filter (`prepare_pcre_rewrite`) paired with the base regex.
+    `anvil doctor` now reports zero compile failures on the shipped
+    registry.
+  - SPG-004: fixtures cover every enabled registry rule with a positive
+    and negative case; parity harness grew a `scan_options.include_opt_in`
+    field for opt-in rules. 40 fixtures pass on both engines.
+  - SPG-005: `benches/antipattern_scan.rs` in `anvil-bench` measures
+    256-artifact parallel-scan throughput; baseline recorded in the crate
+    README and referenced from the release runbook preflight.
+  - SPG-006: `docs/guides/anvil-rule-authoring.md` gained an
+    "Engine compatibility" rewrite and a "Registry integrity" subsection
+    naming `ANVIL_REGISTRY_PATH` as a trust boundary.
