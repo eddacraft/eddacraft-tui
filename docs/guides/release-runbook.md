@@ -94,6 +94,20 @@ Sanity assertions before release:
 - `docs/public/anvil/beta-testing-guide.md` version is current.
 - `docs/public/anvil/releases/upgrade-notes.md` has a section for this version.
 
+### Performance regression guard (SPG-005)
+
+Before a release, spot-check the scanner throughput baseline:
+
+```bash
+cargo bench -p anvil-bench --bench antipattern_scan
+```
+
+Compare against the baseline in `crates/anvil-bench/README.md` (~21.9 K
+artifacts/sec on a dev Linux box; GitHub runners will be materially slower due
+to lower core count — compare against a same-machine-class baseline). A > 2×
+regression on the same machine class should be investigated before releasing —
+`registry_compile_diagnostics` and `scan_artifacts` are the likely suspects.
+
 ---
 
 ## 2) Cut the release branch or promote directly
@@ -291,6 +305,29 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 1. Check the build log for that target in the release workflow.
 2. Fix on a short-lived `hotfix/*` or `release/*` branch.
 3. Cut a patch release (vX.Y.Z+1).
+
+### If `registry-patterns-compile` fires on a live install
+
+This check (SPG-002) flags rules whose regex failed to compile under the Rust
+scanner. It is a silent-drop warning — affected rules never match. Steps:
+
+1. Run `anvil doctor --json` and read the `registry-patterns-compile` entry for
+   the failing rule IDs and compile errors.
+2. Check whether `ANVIL_REGISTRY_PATH` is set to a non-repo path:
+
+   ```bash
+   env | grep ANVIL_REGISTRY_PATH
+   ```
+
+   If set, unset it so the scanner falls back to the in-tree registry:
+
+   ```bash
+   unset ANVIL_REGISTRY_PATH
+   ```
+
+3. If the in-tree registry is the one that fails, roll back `patterns/` to the
+   last green commit. The `anvil check --json` output also carries a
+   `diagnostics` key with the same information if automation needs to parse it.
 
 ### If public release publish fails (partial release)
 

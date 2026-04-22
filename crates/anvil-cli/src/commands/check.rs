@@ -116,6 +116,18 @@ struct CheckOutput {
     notifications: Vec<Notification>,
     warnings: Vec<JsonWarning>,
     summary: WarningSummary,
+    /// SPG-002: rules whose regex failed to compile in the Rust scanner.
+    /// Operators can rely on this to distinguish "rule ran, no matches"
+    /// from "rule never ran". Empty on a clean registry.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    diagnostics: Vec<JsonDiagnostic>,
+}
+
+#[derive(Debug, Serialize)]
+struct JsonDiagnostic {
+    id: String,
+    title: String,
+    error: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -636,6 +648,14 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
             info: 0,
             suppressed: 0,
         },
+        diagnostics: anvil_checks::antipattern::registry_compile_diagnostics()
+            .into_iter()
+            .map(|d| JsonDiagnostic {
+                id: d.pattern_id,
+                title: d.pattern_title,
+                error: d.error,
+            })
+            .collect(),
     }
 }
 
@@ -701,6 +721,15 @@ fn build_json_output(
         })
         .collect();
 
+    let diagnostics = anvil_checks::antipattern::registry_compile_diagnostics()
+        .into_iter()
+        .map(|d| JsonDiagnostic {
+            id: d.pattern_id,
+            title: d.pattern_title,
+            error: d.error,
+        })
+        .collect();
+
     CheckOutput {
         version: CHECK_OUTPUT_VERSION,
         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -715,6 +744,7 @@ fn build_json_output(
         notifications,
         warnings: json_warnings,
         summary: summary.clone(),
+        diagnostics,
     }
 }
 
