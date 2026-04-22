@@ -32,6 +32,7 @@ format: yaml
 checks:
   - secret-detection
   - import-boundaries
+  - antipattern-scan
 ```
 
 ### JSON
@@ -41,7 +42,7 @@ checks:
   "schemaVersion": "1.0.0",
   "planningDir": "plans",
   "format": "yaml",
-  "checks": ["secret-detection", "import-boundaries"]
+  "checks": ["secret-detection", "import-boundaries", "antipattern-scan"]
 }
 ```
 
@@ -51,7 +52,7 @@ checks:
 schema_version = "1.0.0"
 planning_dir = "plans"
 format = "yaml"
-checks = ["secret-detection", "import-boundaries"]
+checks = ["secret-detection", "import-boundaries", "antipattern-scan"]
 ```
 
 :::note
@@ -65,7 +66,7 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 | `schemaVersion` | string   | `"1.0.0"`                                   | Config schema version               |
 | `planningDir`   | string   | `"plans"`                                   | Directory for APS plan files        |
 | `format`        | string   | `"yaml"`                                    | Plan format: `json`, `yaml`, `toml` |
-| `checks`        | string[] | `["secret-detection", "import-boundaries"]` | Enabled project checks              |
+| `checks`        | string[] | `["secret-detection", "import-boundaries", "antipattern-scan"]` | Enabled project checks              |
 
 ### Available Checks
 
@@ -74,7 +75,6 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 | `secret-detection`  | Detect leaked secrets and credentials |
 | `import-boundaries` | Enforce module import boundaries      |
 | `antipattern-scan`  | Detect common code anti-patterns      |
-| `architecture`      | Validate architecture definitions     |
 | `policy`            | Evaluate OPA policy rules             |
 
 ## Gate Configuration
@@ -83,6 +83,13 @@ Managed by `anvil gate-config`. Stored at `.anvil/gate-config.json`.
 
 Use `anvil gate-config --list` to view the current configuration, and
 `--enable <check>` / `--disable <check>` to toggle individual checks.
+
+:::note
+
+`gate-config` uses the same canonical check names shown in init and `.anvilrc`.
+Use `secret-detection` and `import-boundaries`, not older internal names.
+
+:::
 
 ```json
 {
@@ -109,13 +116,18 @@ Use `anvil gate-config --list` to view the current configuration, and
       "enabled": true
     },
     {
-      "name": "secret",
+      "name": "secret-detection",
       "description": "Secret and credential detection",
       "enabled": true
     },
     {
-      "name": "architecture",
-      "description": "Architecture boundary validation",
+      "name": "import-boundaries",
+      "description": "Enforce module import boundaries",
+      "enabled": true
+    },
+    {
+      "name": "antipattern-scan",
+      "description": "Detect common code antipatterns",
       "enabled": true
     },
     {

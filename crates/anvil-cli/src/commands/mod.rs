@@ -3,6 +3,8 @@ pub mod architecture;
 pub mod audit;
 pub mod auth;
 pub mod check;
+pub mod check_catalog;
+pub mod defaults;
 pub mod doctor;
 pub mod drift;
 pub mod export;

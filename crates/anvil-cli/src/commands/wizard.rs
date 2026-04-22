@@ -98,13 +98,12 @@ fn checks_for_template(template_id: &str) -> Vec<&'static str> {
         "typescript-monorepo" => vec![
             "secret-detection",
             "import-boundaries",
-            "architecture",
             "antipattern-scan",
             "policy",
         ],
         "rust-workspace" => vec![
             "secret-detection",
-            "architecture",
+            "import-boundaries",
             "antipattern-scan",
             "policy",
         ],
@@ -241,7 +240,7 @@ mod tests {
             checks.len() > 1,
             "typescript-monorepo should have multiple checks"
         );
-        assert!(checks.contains(&serde_json::json!("architecture")));
+        assert!(checks.contains(&serde_json::json!("import-boundaries")));
     }
 
     #[test]
@@ -287,16 +286,14 @@ mod tests {
     #[test]
     fn checks_for_template_varies_by_template() {
         let ts = checks_for_template("typescript-monorepo");
-        assert!(ts.contains(&"architecture"));
         assert!(ts.contains(&"import-boundaries"));
 
         let rust = checks_for_template("rust-workspace");
-        assert!(rust.contains(&"architecture"));
-        assert!(!rust.contains(&"import-boundaries"));
+        assert!(rust.contains(&"import-boundaries"));
 
         let python = checks_for_template("python-package");
         assert!(python.contains(&"antipattern-scan"));
-        assert!(!python.contains(&"architecture"));
+        assert!(python.contains(&"import-boundaries"));
 
         let minimal = checks_for_template("minimal");
         assert_eq!(minimal, vec!["secret-detection"]);
@@ -340,7 +337,6 @@ mod tests {
         let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         let checks = parsed["checks"].as_array().unwrap();
-        assert!(checks.contains(&serde_json::json!("architecture")));
-        assert!(!checks.contains(&serde_json::json!("import-boundaries")));
+        assert!(checks.contains(&serde_json::json!("import-boundaries")));
     }
 }
