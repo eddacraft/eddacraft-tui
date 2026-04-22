@@ -74,9 +74,9 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
-| [anvil-rust-scanner](./modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
+| [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
+| [anvil-file-format](./archive/modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
+| [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
 | [anvil-scanner-parity-gaps](./modules/anvil-scanner-parity-gaps.aps.md) | SPG | Proposed | 0/6 (RSCAN-008 council follow-ups — `flags:"i"` handling, lookaround rule rewrites, fixture gaps, integrity docs) |
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
@@ -93,12 +93,12 @@ and DX improvements. Code-review-backlog (complete) is retained for history.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
+| [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 > ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
 > without executable tasks. All concrete intents map onto MAINT. See
-> [archived notice](./modules/continuous-improvement.aps.md).
+> [archived notice](./archive/modules/continuous-improvement.aps.md).
 
 ### Rust Engine (In Progress)
 
@@ -119,7 +119,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
-| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
+| [restore-welcome-screen](./archive/modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
 | [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
@@ -236,13 +236,13 @@ when specific work is identified.
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
-| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
-| [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
+| [feature-flagging](./archive/modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
+| [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (9 done) | docs-site, feature modules — **In Progress** |
+| [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 9/20 | docs-site, feature modules — **In Progress** (Rust migration phase complete; 11 scanner/future items deferred) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 
@@ -255,8 +255,8 @@ TCOV/TINT/TEXT depend on it.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
-| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25 | TFIX |
+| [test-infrastructure-fix](./archive/modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
+| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/18 | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
 
@@ -397,16 +397,16 @@ Active module themes:
 
 | Theme | Module File |
 | ----- | ----------- |
-| Branch Recovery | [branch-reconciliation](./modules/branch-reconciliation.aps.md) |
-| Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
-| Continuous Improvement | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
+| Branch Recovery | [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md) |
+| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
+| Continuous Improvement | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
 | Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
-| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [feature-flag-migration](./modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
+| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./archive/modules/feature-flagging.aps.md), [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./archive/modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
 | Agent Infrastructure | [weave](./modules/weave.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
@@ -417,7 +417,7 @@ Active module themes:
 > ADR-011: Ratatui replaces Ink.
 
 > ~~interactive-tutorial~~ (TUTOR) — absorbed into
-> [WELCOME](./modules/restore-welcome-screen.aps.md) (18/18 complete). All 13
+> [WELCOME](./archive/modules/restore-welcome-screen.aps.md) (18/18 complete). All 13
 > TUTOR items mapped to WELCOME phases. See
 > [archived plan](./archive/modules/interactive-tutorial.aps.md).
 
