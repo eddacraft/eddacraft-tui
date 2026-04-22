@@ -239,6 +239,7 @@ when specific work is identified.
 | [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
 | [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
+| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 1/4 | current CLI/TUI surfaces, INTD — **In Progress** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
