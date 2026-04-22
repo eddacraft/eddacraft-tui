@@ -85,11 +85,11 @@ fn render_status_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme:
     {
         lines.push(Line::default());
         lines.push(Line::from(Span::styled(
-            format!("  {}", last.file),
+            format!("  {}", last.notification.title),
             Style::default().fg(theme.error()),
         )));
         lines.push(Line::from(Span::styled(
-            format!("  {}", last.kind),
+            format!("  {}", last.notification.message),
             Style::default().fg(theme.muted()),
         )));
     }
@@ -124,7 +124,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
             Line::from(vec![
                 Span::styled(indicator, Style::default().fg(theme.fg())),
                 Span::styled(
-                    &change.file,
+                    &change.notification.title,
                     if selected {
                         Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
                     } else {
@@ -132,7 +132,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
                     },
                 ),
                 Span::styled(
-                    format!("  {} {}", change.kind, change.timestamp),
+                    format!("  {} {}", change.notification.message, change.timestamp),
                     Style::default().fg(theme.muted()),
                 ),
             ])
@@ -290,19 +290,28 @@ mod tests {
     use ratatui::backend::TestBackend;
 
     fn sample_state() -> WatchState {
+        use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
         use super::super::{QueuedChange, RunHistory, WatchData, WatchStats};
 
         WatchState::new(WatchData {
             status: WatchStatus::Passing,
             queue: std::collections::VecDeque::from([
                 QueuedChange {
-                    file: "src/main.rs".to_string(),
-                    kind: "modified".to_string(),
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/main.rs",
+                        "modified",
+                    ),
                     timestamp: "10:30:01".to_string(),
                 },
                 QueuedChange {
-                    file: "src/lib.rs".to_string(),
-                    kind: "created".to_string(),
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/lib.rs",
+                        "created",
+                    ),
                     timestamp: "10:30:02".to_string(),
                 },
             ]),

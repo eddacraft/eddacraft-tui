@@ -1,6 +1,9 @@
 use std::time::Instant;
 
-use anvil_kernel_types::{EngineEvent, EventPayload};
+use anvil_kernel_types::{
+    EngineEvent, EventPayload, Notification, NotificationClass, NotificationContext,
+    NotificationPriority,
+};
 
 use super::{QueuedChange, RunHistory, WatchData, WatchStatus};
 
@@ -164,9 +167,18 @@ impl WatchEventAdapter {
         if data.queue.len() >= MAX_QUEUE_LEN {
             data.queue.pop_front();
         }
+        let notification = Notification::new(
+            NotificationClass::Finding,
+            NotificationPriority::High,
+            file,
+            kind,
+        )
+        .with_context(NotificationContext {
+            file: Some(file.to_string()),
+            source: Some("watch".to_string()),
+        });
         data.queue.push_back(QueuedChange {
-            file: file.to_string(),
-            kind: kind.to_string(),
+            notification,
             timestamp: timestamp.to_string(),
         });
     }
@@ -378,7 +390,7 @@ mod tests {
 
         assert_eq!(data.status, WatchStatus::Failing);
         assert_eq!(data.queue.len(), 1);
-        assert_eq!(data.queue[0].file, "src/bad.ts");
+        assert_eq!(data.queue[0].notification.title, "src/bad.ts");
     }
 
     #[test]
@@ -390,7 +402,7 @@ mod tests {
 
         assert_eq!(data.status, WatchStatus::Failing);
         assert_eq!(data.queue.len(), 1);
-        assert_eq!(data.queue[0].file, "(error)");
+        assert_eq!(data.queue[0].notification.title, "(error)");
     }
 
     #[test]
@@ -472,7 +484,7 @@ mod tests {
 
         assert_eq!(data.queue.len(), MAX_QUEUE_LEN);
         // Oldest entries were dropped — first entry should be file_50
-        assert_eq!(data.queue[0].file, "file_50.ts");
+        assert_eq!(data.queue[0].notification.title, "file_50.ts");
     }
 
     #[test]

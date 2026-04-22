@@ -4,6 +4,7 @@ pub mod render;
 use std::collections::VecDeque;
 
 use animate::{Animate, Lerp, Once};
+use anvil_kernel_types::Notification;
 use eddacraft_tui::keyboard::Action;
 
 type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
@@ -51,8 +52,7 @@ impl WatchStatus {
 /// A file change queued for processing.
 #[derive(Debug, Clone)]
 pub struct QueuedChange {
-    pub file: String,
-    pub kind: String,
+    pub notification: Notification,
     pub timestamp: String,
 }
 
@@ -305,19 +305,28 @@ impl crate::surface::Surface for WatchState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 
     fn sample_data() -> WatchData {
         WatchData {
             status: WatchStatus::Passing,
             queue: VecDeque::from([
                 QueuedChange {
-                    file: "src/main.rs".to_string(),
-                    kind: "modified".to_string(),
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/main.rs",
+                        "modified",
+                    ),
                     timestamp: "10:30:01".to_string(),
                 },
                 QueuedChange {
-                    file: "src/lib.rs".to_string(),
-                    kind: "created".to_string(),
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/lib.rs",
+                        "created",
+                    ),
                     timestamp: "10:30:02".to_string(),
                 },
             ]),
