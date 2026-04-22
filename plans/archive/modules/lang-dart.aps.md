@@ -5,11 +5,18 @@ Extends Anvil's analysis to Dart/Flutter codebases.
 See: plans/aps-rules.md
 -->
 
-# Dart Language Support
+# Dart Language Support — ARCHIVED
 
-| ID     | Owner | Status    |
-| ------ | ----- | --------- |
-| DARTLAN | —     | Draft |
+> **Archived 2026-04-22.** Folded into
+> [lang-tail-wave](../../modules/lang-tail-wave.aps.md) per
+> [2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
+> §8.2, §17.3 step 2. Demand point: 1 (User B mobile). Tail-wave acceptance
+> is T1 only (parsed + symbol graph inclusion). The placeholder content below
+> is preserved for historical reference.
+
+| ID     | Owner | Status   |
+| ------ | ----- | -------- |
+| DARTLAN | —     | Archived |
 
 ## Purpose
 

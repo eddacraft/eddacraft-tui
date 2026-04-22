@@ -5,11 +5,18 @@ Extends Anvil's analysis to Kotlin codebases.
 See: plans/aps-rules.md
 -->
 
-# Kotlin Language Support
+# Kotlin Language Support — ARCHIVED
 
-| ID     | Owner | Status    |
-| ------ | ----- | --------- |
-| KOTLAN | —     | Draft |
+> **Archived 2026-04-22.** Folded into
+> [lang-tail-wave](../../modules/lang-tail-wave.aps.md) per
+> [2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
+> §8.2, §17.3 step 2. Demand point: 0. Tail-wave acceptance is T1 only
+> (parsed + symbol graph inclusion). The placeholder content below is
+> preserved for historical reference.
+
+| ID     | Owner | Status   |
+| ------ | ----- | -------- |
+| KOTLAN | —     | Archived |
 
 ## Purpose
 

@@ -5,11 +5,20 @@ Extends Anvil's analysis to C and C++ codebases.
 See: plans/aps-rules.md
 -->
 
-# C/C++ Language Support
+# C/C++ Language Support — ARCHIVED
 
-| ID     | Owner | Status    |
-| ------ | ----- | --------- |
-| CCLAN  | —     | Draft |
+> **Archived 2026-04-22.** Folded into
+> [lang-tail-wave](../../modules/lang-tail-wave.aps.md) per
+> [2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
+> §8.2, §17.3 step 2. Demand point: 0. Tail-wave policy per spec §12.3:
+> drop C/C++ from the wave if `tree-sitter-c`/`tree-sitter-cpp` quality
+> blocks the batch (e.g. C++20/23 partial-parse issues — council finding
+> C-005). The placeholder content below is preserved for historical
+> reference.
+
+| ID     | Owner | Status   |
+| ------ | ----- | -------- |
+| CCLAN  | —     | Archived |
 
 ## Purpose
 

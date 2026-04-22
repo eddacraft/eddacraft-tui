@@ -5,11 +5,17 @@ Extends Anvil's analysis to Swift codebases.
 See: plans/aps-rules.md
 -->
 
-# Swift Language Support
+# Swift Language Support — ARCHIVED (CUT)
 
-| ID     | Owner | Status    |
-| ------ | ----- | --------- |
-| SWIFTLAN | —     | Draft |
+> **Archived 2026-04-22 — cut by the
+> [2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)**
+> §13, §17.3 step 1. Zero confirmed demand, no plausible near-term user.
+> No implementation planned. Re-entry requires a new demand signal, at
+> which point Swift re-scores under §6 like any other candidate.
+
+| ID     | Owner | Status            |
+| ------ | ----- | ----------------- |
+| SWIFTLAN | —     | Archived (cut — no demand) |
 
 ## Purpose
 
