@@ -1061,6 +1061,46 @@ fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
     Ok(())
 }
 
+fn resolve_anvilrc_check_filter(
+    root: &Path,
+    only_set: Option<&std::collections::HashSet<&str>>,
+) -> Result<Option<std::collections::HashSet<String>>> {
+    if only_set.is_some() {
+        return Ok(None);
+    }
+
+    let anvilrc_checks = read_anvilrc_checks(root)?;
+    if let Some(ref rc) = anvilrc_checks {
+        let unknown: Vec<&str> = rc
+            .iter()
+            .filter(|n| !AVAILABLE_CHECKS.contains(&n.as_str()))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            eprintln!(
+                "Warning: .anvilrc#checks contains unknown check(s): {}. Valid: {}",
+                unknown.join(", "),
+                AVAILABLE_CHECKS.join(", ")
+            );
+        }
+
+        let known: std::collections::HashSet<String> = rc
+            .iter()
+            .filter(|n| AVAILABLE_CHECKS.contains(&n.as_str()))
+            .cloned()
+            .collect();
+        if known.is_empty() {
+            bail!(
+                ".anvilrc#checks contains no valid gate checks. Valid: {}",
+                AVAILABLE_CHECKS.join(", ")
+            );
+        }
+        return Ok(Some(known));
+    }
+
+    Ok(None)
+}
+
 /// Run all gate checks with default settings and return TUI-ready data.
 pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
     let start = std::time::Instant::now();
@@ -1146,38 +1186,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     // `.anvilrc#checks` acts as a persistent default filter. When the user
     // passes `--only-checks`, that wins — but otherwise we restrict the run
     // to whatever the project configured. Missing/empty file = run everything.
-    let anvilrc_checks = if only_set.is_some() {
-        None
-    } else {
-        read_anvilrc_checks(&root)?
-    };
-    let mut anvilrc_known_checks: Option<std::collections::HashSet<&str>> = None;
-    if let Some(ref rc) = anvilrc_checks {
-        let unknown: Vec<&str> = rc
-            .iter()
-            .filter(|n| !AVAILABLE_CHECKS.contains(&n.as_str()))
-            .map(String::as_str)
-            .collect();
-        if !unknown.is_empty() {
-            eprintln!(
-                "Warning: .anvilrc#checks contains unknown check(s): {}. Valid: {}",
-                unknown.join(", "),
-                AVAILABLE_CHECKS.join(", ")
-            );
-        }
-        let known: std::collections::HashSet<&str> = rc
-            .iter()
-            .filter(|n| AVAILABLE_CHECKS.contains(&n.as_str()))
-            .map(String::as_str)
-            .collect();
-        if known.is_empty() {
-            bail!(
-                ".anvilrc#checks contains no valid gate checks. Valid: {}",
-                AVAILABLE_CHECKS.join(", ")
-            );
-        }
-        anvilrc_known_checks = Some(known);
-    }
+    let anvilrc_known_checks = resolve_anvilrc_check_filter(&root, only_set.as_ref())?;
 
     // Resolve plan-scoped file set.
     let (plan_files, plan_path) = if let Some(ref plan_arg) = args.plan {
@@ -1223,7 +1232,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
             continue;
         }
         if let Some(ref rc) = anvilrc_known_checks
-            && !rc.contains(check_name)
+            && !rc.contains(*check_name)
         {
             continue;
         }
