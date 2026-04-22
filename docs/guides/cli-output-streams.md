@@ -86,6 +86,27 @@ Prefer the helper `crate::util::format_user_error(err, verbose)` rather
 than raw `format!` — it keeps the convention in one place and has unit
 coverage against path leakage.
 
+**Blind spot — path-embedding context strings.** The helper only redacts
+paths that appear inside the _wrapped_ error chain (e.g. `notify::Error`,
+`std::io::Error`). Context strings added by the programmer that _themselves_
+embed a path become part of the outermost message and will leak even at
+`verbose = false`:
+
+```rust
+// BAD — path is in the outer context, {err} prints it
+std::fs::read_to_string(&path)
+    .with_context(|| format!("reading {}", path.display()))
+```
+
+If an error chain is going to be routed through `format_user_error`, keep
+the outer context path-free and let the inner `io::Error` carry the path
+only for verbose mode:
+
+```rust
+// GOOD — outer context is path-free; the wrapped io::Error carries the path
+std::fs::read_to_string(&path).context("reading workspace file")
+```
+
 ```rust
 // GOOD — TUI/interactive context, non-verbose default
 eprintln!(

@@ -9,25 +9,23 @@ vi.mock('../db/client.js', () => ({
 
 vi.mock('../db/queries.js', () => ({
   findUserByEmail: vi.fn(),
-  countActiveOtpCodes: vi.fn().mockResolvedValue(0),
-  insertOtpCode: vi.fn().mockResolvedValue(undefined),
-  findActiveOtpCodes: vi.fn().mockResolvedValue([]),
-  incrementOtpAttemptsBatch: vi.fn().mockResolvedValue(undefined),
-  consumeOtpCode: vi.fn().mockResolvedValue(true),
-  insertRefreshToken: vi.fn().mockResolvedValue(undefined),
+  countActiveOtpCodes: vi.fn(),
+  insertOtpCode: vi.fn(),
+  findActiveOtpCodes: vi.fn(),
+  incrementOtpAttemptsBatch: vi.fn(),
+  consumeOtpCode: vi.fn(),
+  insertRefreshToken: vi.fn(),
 }));
 
 vi.mock('../lib/email.js', () => ({
-  sendOtpCode: vi.fn().mockResolvedValue({ sent: true }),
+  sendOtpCode: vi.fn(),
 }));
 
 vi.mock('../lib/token.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/token.js')>();
   return {
     ...actual,
-    // Deterministic hash so tests can set up matching hashes without
-    // knowing the code bytes ahead of time.
-    hashToken: vi.fn((input: string) => `hash:${input}`),
+    hashToken: vi.fn(),
   };
 });
 
@@ -42,6 +40,7 @@ import {
   type OtpCode,
 } from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
+import { hashToken } from '../lib/token.js';
 
 const app = new Hono();
 app.route('/auth/otp', authOtp);
@@ -59,11 +58,45 @@ afterAll(() => {
   else process.env['LICENSE_SIGNING_KEY'] = originalSigningKey;
 });
 
+function makeOtpCodeRow(overrides: Partial<OtpCode> = {}): OtpCode {
+  return {
+    id: 'otp-inserted',
+    user_id: 'user-1',
+    code_hash: 'hash:000000',
+    attempts: 0,
+    expires_at: new Date(Date.now() + 600_000).toISOString(),
+    consumed_at: null,
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeRefreshTokenRow() {
+  return {
+    id: 'rt-inserted',
+    user_id: 'user-1',
+    token_hash: 'hash:refresh',
+    family_id: 'family-1',
+    expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    revoked_at: null,
+    consumed_at: null,
+    created_at: new Date().toISOString(),
+  };
+}
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  // Re-state every default because resetAllMocks wipes implementations as
+  // well as call history. Deterministic hashToken so tests can set up
+  // matching hashes without knowing the raw code bytes ahead of time.
+  vi.mocked(hashToken).mockImplementation((input: string) => `hash:${input}`);
+  vi.mocked(findUserByEmail).mockResolvedValue(null);
   vi.mocked(countActiveOtpCodes).mockResolvedValue(0);
   vi.mocked(findActiveOtpCodes).mockResolvedValue([]);
+  vi.mocked(insertOtpCode).mockResolvedValue(makeOtpCodeRow());
+  vi.mocked(incrementOtpAttemptsBatch).mockResolvedValue(undefined);
   vi.mocked(consumeOtpCode).mockResolvedValue(true);
+  vi.mocked(insertRefreshToken).mockResolvedValue(makeRefreshTokenRow());
   vi.mocked(sendOtpCode).mockResolvedValue({ sent: true });
 });
 

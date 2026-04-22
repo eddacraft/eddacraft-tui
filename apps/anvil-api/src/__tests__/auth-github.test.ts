@@ -24,7 +24,7 @@ vi.mock('../lib/token.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/token.js')>();
   return {
     ...actual,
-    hashToken: vi.fn().mockReturnValue('mocked-refresh-hash'),
+    hashToken: vi.fn(),
   };
 });
 
@@ -34,6 +34,7 @@ import {
   insertPendingUser,
   insertRefreshToken,
 } from '../db/queries.js';
+import { hashToken } from '../lib/token.js';
 
 const app = new Hono();
 app.route('/auth/github', authGithub);
@@ -54,7 +55,31 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  // Restore factory defaults after reset (resetAllMocks wipes implementations,
+  // not just call history — so every mock needs its default re-stated here to
+  // keep each test hermetic).
+  vi.mocked(hashToken).mockReturnValue('mocked-refresh-hash');
+  vi.mocked(findUserByEmail).mockResolvedValue(null);
+  vi.mocked(insertPendingUser).mockResolvedValue(null);
+  vi.mocked(insertAuditLog).mockResolvedValue({
+    id: 'audit-1',
+    action: '',
+    actor: '',
+    metadata: {},
+    auth_method: 'shared',
+    created_at: new Date().toISOString(),
+  });
+  vi.mocked(insertRefreshToken).mockResolvedValue({
+    id: 'refresh-1',
+    user_id: 'user-1',
+    token_hash: 'mocked-refresh-hash',
+    family_id: 'family-1',
+    expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    revoked_at: null,
+    consumed_at: null,
+    created_at: new Date().toISOString(),
+  });
   process.env['GITHUB_CLIENT_ID'] = 'test-client-id';
   process.env['GITHUB_CLIENT_SECRET'] = 'test-client-secret';
   vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
@@ -222,6 +247,11 @@ describe('POST /auth/github/callback', () => {
           ok: true,
           json: [{ email, primary: true, verified: true }],
         },
+        // revokeGitHubToken fires-and-forgets to DELETE /applications/:id/token
+        // after a successful profile fetch. We absorb it here so the background
+        // fetch doesn't throw against the strict default-throw mock. Asserting
+        // on it is deliberately skipped: the call is not awaited, so it races
+        // the test's afterEach and would be flaky.
         'https://api.github.com/applications/': { ok: true, json: {} },
       });
       return { id, login, email };

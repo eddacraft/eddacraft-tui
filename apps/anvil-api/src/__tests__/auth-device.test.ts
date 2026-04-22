@@ -147,19 +147,33 @@ describe('POST /auth/device/start', () => {
     expect(pollTokenHash).toBe(`hash:${body.pollToken}`);
   });
 
-  it('falls through to a dummy row for unknown emails (anti-enumeration)', async () => {
-    vi.mocked(findUserByEmail).mockResolvedValue(null);
+  it('returns a response shape indistinguishable from the active-user path for unknown emails', async () => {
+    // First call: known active user — record the canonical shape.
+    vi.mocked(findUserByEmail).mockResolvedValueOnce(activeUser());
+    const knownRes = await post('/auth/device/start', { email: 'active@example.com' });
+    const knownBody = await knownRes.json();
+    const knownKeys = Object.keys(knownBody).sort();
 
-    const res = await post('/auth/device/start', { email: 'nobody@example.com' });
+    // Second call: unknown email — falls through to dummy row.
+    vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+    const unknownRes = await post('/auth/device/start', { email: 'nobody@example.com' });
+    const unknownBody = await unknownRes.json();
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.userCode).toMatch(/^ANVIL-[0-9A-F]{8}$/);
-    expect(typeof body.pollToken).toBe('string');
-    expect(body.expiresIn).toBe(900);
+    expect(unknownRes.status).toBe(knownRes.status);
+    // Identical key sets — a regression that adds or drops a field on one
+    // path would reintroduce the user-enumeration side channel.
+    expect(Object.keys(unknownBody).sort()).toEqual(knownKeys);
+    // Fixed-shape fields must match byte-for-byte.
+    expect(unknownBody.expiresIn).toBe(knownBody.expiresIn);
+    expect(unknownBody.interval).toBe(knownBody.interval);
+    expect(unknownBody.verificationUrl).toBe(knownBody.verificationUrl);
+    // Variable-shape fields must still have matching shapes.
+    expect(unknownBody.userCode).toMatch(/^ANVIL-[0-9A-F]{8}$/);
+    expect(typeof unknownBody.pollToken).toBe('string');
+    expect(unknownBody.pollToken.length).toBe(knownBody.pollToken.length);
 
     expect(vi.mocked(insertDummyDeviceCode)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(insertDeviceCode)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertDeviceCode)).toHaveBeenCalledTimes(1); // only the known-user call
   });
 
   it('falls through to a dummy row for a suspended user', async () => {

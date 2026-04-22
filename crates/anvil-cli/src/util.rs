@@ -53,15 +53,18 @@ pub fn workspace_root() -> Result<PathBuf> {
 /// Format an `anyhow::Error` for user-facing display with path-leakage guardrails.
 ///
 /// - Default (`verbose = false`): prints only the outermost context (`{err}`).
-///   This is the programmer-written message (e.g. `"starting engine watcher"`)
-///   and does not contain wrapped OS paths.
+///   Relies on the outer context being a programmer-written, path-free string
+///   (e.g. `"starting engine watcher"`).
 /// - Verbose (`verbose = true`): prints the full anyhow chain (`{err:#}`),
 ///   which may include absolute paths from `notify::Error`, `std::io::Error`,
 ///   or similar filesystem-origin errors.
 ///
-/// Use this at every user-facing `eprintln!`/`tracing` site that may receive
-/// an `anyhow::Error` wrapping a filesystem or OS error. See
-/// `docs/guides/cli-output-streams.md` for the full convention and rationale.
+/// **Blind spot**: if a caller constructs context strings that embed paths
+/// (e.g. `.with_context(|| format!("reading {}", path.display()))`), those
+/// paths are part of the outermost message and WILL appear even at
+/// `verbose = false`. The convention in `docs/guides/cli-output-streams.md`
+/// forbids path-embedding context strings on error chains routed through
+/// this helper — this function does not redact them automatically.
 pub fn format_user_error(err: &anyhow::Error, verbose: bool) -> String {
     if verbose {
         format!("{err:#}")
@@ -353,6 +356,29 @@ mod tests {
         assert!(
             msg.contains("/home/victim/secret-project"),
             "verbose must include the full chain for debugging: {msg}"
+        );
+    }
+
+    /// Documents the blind spot: paths embedded in the OUTER context string
+    /// itself (via `.with_context(|| format!("reading {}", p.display()))`)
+    /// are part of the outermost message and will leak even at
+    /// `verbose = false`. The convention in `cli-output-streams.md`
+    /// forbids this pattern on sites routed through `format_user_error`.
+    /// This test locks the behaviour in so a future change to the helper
+    /// that silently widened the contract would trip the assertion and
+    /// force an explicit convention update.
+    #[test]
+    fn format_user_error_does_not_redact_paths_in_outer_context() {
+        let err = anyhow::anyhow!("io error").context(format!(
+            "reading {}",
+            "/home/victim/secret-project".to_string()
+        ));
+
+        let msg = format_user_error(&err, false);
+
+        assert!(
+            msg.contains("/home/victim/secret-project"),
+            "path in outer context is NOT redacted — callers must avoid this pattern: {msg}"
         );
     }
 
