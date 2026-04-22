@@ -1,15 +1,18 @@
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
+<!-- Executable only if tasks exist and status is Ready. -->
+
 # Notification Framework
 
-| ID    | Owner | Status |
-|-------|-------|--------|
-| NOTIFY | —    | Draft  |
+| ID     | Owner | Status      | Progress |
+|--------|-------|-------------|----------|
+| NOTIFY | —     | In Progress | 1/4      |
 
 ## Purpose
 
 Define how Anvil handles multiple concurrent streams of user-facing and
 operator-facing information before the full intercept daemon and interruption
 framework land. Today, different surfaces already emit warnings, findings,
-nudges, watch updates, audit issues, setup diagnostics, and future block/
+nudges, watch updates, audit issues, setup diagnostics, and future block /
 interrupt states. Without a shared notification model, each new surface will
 invent its own event vocabulary, priority rules, and delivery path.
 
@@ -28,7 +31,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
   machine-readable events, future daemon/IPC channels
 - Define deduplication, grouping, and escalation rules for concurrent event
   streams
-- Define how current warning-first behaviour evolves toward future block/
+- Define how current warning-first behaviour evolves toward future block /
   interrupt behaviour without splitting the mental model
 
 ## Out of Scope
@@ -44,9 +47,11 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 **Depends on:**
 
 - `check-language-and-onboarding` (CLAR) — canonical quality language
+- `plans/specs/anvil-driver-framework/` — control/telemetry split and
+  enforcement decision model
 - `intercept-daemon` (INTD) — future interrupt and fence architecture
 - `intercept-rules` (INTR) — future rule-driven enforcement decisions
-- `ratatui-tui` / current TUI surfaces — existing delivery surfaces
+- current CLI/TUI surfaces — existing delivery surfaces
 - `kindling-integration` / observability foundation — event and telemetry needs
 
 **Exposes:**
@@ -57,7 +62,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 
 ## Acceptance Criteria
 
-- [ ] A current-state inventory exists for all notification-like outputs in the
+- [x] A current-state inventory exists for notification-like outputs in the
       CLI/TUI and active plans
 - [ ] Notification classes and priorities are defined with unambiguous meanings
 - [ ] Current warning/nudge/failure outputs are mapped onto the notification
@@ -71,6 +76,8 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 
 - Must preserve the warning-first product philosophy until the intercept loop is
   explicitly active for a given surface
+- Must align with the driver-framework split between control/enforcement and
+  telemetry/event delivery
 - Must support both human-facing and machine-facing delivery
 - Must avoid conflating findings with notifications: findings are domain
   results, notifications are delivery artefacts carrying those results
@@ -90,7 +97,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 - **Validation:** `plans/specs/YYYY-MM-DD-notification-framework-discovery.md`
   exists with source inventory
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Complete
 
 ### NOTIFY-002: Define notification taxonomy and priority model
 
