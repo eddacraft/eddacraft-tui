@@ -1,8 +1,8 @@
 # Quality Model
 
-This document defines the conceptual architecture of Anvil's quality system.
-It is the internal reference for how to talk about checks, findings, gates,
-watch mode, audit, doctor, and related surfaces.
+This document defines the conceptual architecture of Anvil's quality system. It
+is the internal reference for how to talk about checks, findings, gates, watch
+mode, audit, doctor, and related surfaces.
 
 ## Purpose
 
@@ -23,19 +23,16 @@ docs, and UI copy teach one coherent model.
 
 The quality model has five layers.
 
-1. **Graph / structure**
-   Anvil builds a structural understanding of the project: files, imports,
-   boundaries, layers, dependencies, and related context.
-2. **Checks**
-   A check evaluates one concern against the project or its structure.
-3. **Findings**
-   Checks emit findings. A finding is the generic noun for a detected problem,
-   risk, or observation.
-4. **Gate**
-   A gate is the workflow judgement over one or more checks.
-5. **Surfaces / modes**
-   Commands and UIs expose the model for different purposes: setup, targeted
-   analysis, continuous feedback, and workflow advancement.
+1. **Graph / structure** Anvil builds a structural understanding of the project:
+   files, imports, boundaries, layers, dependencies, and related context.
+2. **Checks** A check evaluates one concern against the project or its
+   structure.
+3. **Findings** Checks emit findings. A finding is the generic noun for a
+   detected problem, risk, or observation.
+4. **Gate** A gate is the workflow judgement over one or more checks.
+5. **Surfaces / modes** Commands and UIs expose the model for different
+   purposes: setup, targeted analysis, continuous feedback, and workflow
+   advancement.
 
 ## Canonical Terms
 

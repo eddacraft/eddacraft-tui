@@ -122,10 +122,10 @@ Each check contributes a result, and the gate summarises them.
 
 Typical result states are:
 
-| Status | Meaning |
-| --- | --- |
-| `pass` | The check passed |
-| `fail` | The check found blocking problems |
+| Status | Meaning                                           |
+| ------ | ------------------------------------------------- |
+| `pass` | The check passed                                  |
+| `fail` | The check found blocking problems                 |
 | `skip` | The check did not apply or had nothing to analyse |
 
 In practice, the important point is this:
@@ -162,4 +162,5 @@ That makes watch mode, CI, tutorials, and docs all easier to understand.
 
 ---
 
-**Next:** [Quickstart](/anvil/quickstart) or [Your First Gate Moment](/anvil/first-gate)
+**Next:** [Quickstart](/anvil/quickstart) or
+[Your First Gate Moment](/anvil/first-gate)
