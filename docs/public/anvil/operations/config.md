@@ -91,8 +91,9 @@ the broader gate run, including build-and-CI checks such as `lint`, `test`,
 
 :::note
 
-`gate-config` uses the same canonical check names shown in init and `.anvilrc`.
-Use `secret-detection` and `import-boundaries`, not older internal names.
+For the shared Anvil analysis checks, `gate-config` uses the same canonical
+names shown in init and `.anvilrc`. Use `secret-detection` and
+`import-boundaries`, not older internal names.
 Legacy aliases like `secret` and `architecture` are accepted for compatibility,
 but Anvil normalises them to the canonical names above.
 
