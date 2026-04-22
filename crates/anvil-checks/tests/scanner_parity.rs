@@ -12,12 +12,18 @@
 
 use std::path::PathBuf;
 
-use anvil_checks::antipattern::{Artifact, ArtifactKind, scan_artifact};
+use anvil_checks::antipattern::{Artifact, ArtifactKind, ScanOptions, scan_artifact};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 struct FixtureFile {
     fixtures: Vec<Fixture>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct FixtureScanOptions {
+    #[serde(default)]
+    include_opt_in: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,6 +33,8 @@ struct Fixture {
     reference: String,
     content: String,
     expected_matches: Vec<ExpectedMatch>,
+    #[serde(default)]
+    scan_options: FixtureScanOptions,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -70,7 +78,15 @@ fn rust_scanner_matches_every_parity_fixture() {
             reference: fixture.reference.clone(),
             content: fixture.content.clone(),
         };
-        let result = scan_artifact(&artifact, None);
+        let options = if fixture.scan_options.include_opt_in {
+            Some(ScanOptions {
+                patterns: None,
+                include_opt_in: true,
+            })
+        } else {
+            None
+        };
+        let result = scan_artifact(&artifact, options.as_ref());
 
         let actual: Vec<ExpectedMatch> = result
             .warnings
