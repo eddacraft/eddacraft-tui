@@ -260,7 +260,7 @@ when specific work is identified.
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 5/9 | rust-cli, docs, tui surfaces — **In Progress** |
-| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 4/4 | CLAR, INTD, current CLI/TUI surfaces — **Complete** |
+| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 5/9 | CLAR, INTD, current CLI/TUI surfaces — **In Progress** (`NOTIFY-006` in PR #1035) |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
