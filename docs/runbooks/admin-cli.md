@@ -60,9 +60,14 @@ Missing key exits `5` (see **Exit codes** below):
 
 ```bash
 export ANVIL_ADMIN_URL="https://api.eddacraft.ai"
-export ANVIL_ADMIN_KEY="sk_admin_…"       # from 1Password / Pulumi
+export ANVIL_ADMIN_KEY="sk_admin_…"       # placeholder — see "Handling the admin key"
 export ANVIL_ADMIN_ACTOR="you@eddacraft.ai"
 ```
+
+> The `export ANVIL_ADMIN_KEY=…` line above is illustrative only; pasting a real
+> key into a terminal this way puts it in shell history and `ps`-visible env.
+> See **Handling the admin key** for the supported patterns (1Password, direnv,
+> etc.) before wiring this up.
 
 ### Handling the admin key
 
@@ -104,7 +109,9 @@ your hand.
   the repo (or in a parent directory) that resolves the key at `cd`-time:
 
   ```bash
-  # .envrc (NOT committed — in .gitignore)
+  # keep this OUTSIDE the repo, or add .envrc to your global gitignore
+  # (`git config --global core.excludesfile ~/.gitignore_global` and append `.envrc`).
+  # this repo does NOT ignore .envrc by default.
   export ANVIL_ADMIN_KEY="$(op read 'op://Anvil/admin-key/credential')"
   ```
 
@@ -432,7 +439,9 @@ Flow when sending for real (`--no-dry-run`):
    the calling operator) and returns the recipient list plus the token.
 2. If count is `0`, prints `No recipients match the filter. Nothing to send.`
    and exits `0`. Goes to stdout by default; routed to stderr when `--json` is
-   set so stdout stays pure JSON (empty) for `2>&1 | jq` consumers.
+   set so stdout stays reserved for JSON output (empty in this case). Pipe
+   stdout to `jq` and keep stderr separate — do not use `2>&1` when you need
+   clean JSON.
 3. Writes the recipient table plus the warning
    `About to send migration email to N recipient(s) …` to **stderr**, then
    prompts on stderr: `Continue? [y/N]`. With `--json`, the recipient table is

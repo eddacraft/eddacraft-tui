@@ -96,7 +96,8 @@ export async function runSendMigrationCommand(
   );
 
   if (preview.count === 0) {
-    // #948: keep stdout pure JSON when --json is set so `2>&1 | jq` works.
+    // #948: when --json is set, stdout is reserved for JSON only — route the
+    // zero-recipient notice to stderr so stdout stays empty and parseable.
     const writeStatus = options.json ? stderr : stdout;
     writeStatus('No recipients match the filter. Nothing to send.\n');
     return;
@@ -125,8 +126,9 @@ export async function runSendMigrationCommand(
     // #947: PromptEOFError propagates naturally — top-level handler exits with code 4.
     const answer = (await prompt(`Continue? [y/N] `)).trim().toLowerCase();
     if (answer !== 'y' && answer !== 'yes') {
-      // #948: route abort notice to stderr when --json so stdout stays pure JSON
-      // (otherwise `--no-dry-run --json 2>&1 | jq` breaks on a 'n' response).
+      // #948: route abort notice to stderr when --json so stdout stays empty
+      // (stdout is reserved for JSON output under --json; an abort produces
+      // no JSON body).
       (options.json ? stderr : stdout)('Aborted.\n');
       return;
     }
