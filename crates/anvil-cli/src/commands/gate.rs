@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
+use anvil_kernel_types::{
+    Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
 use anyhow::{Result, bail};
 use clap::Args;
 use regex::Regex;
@@ -75,6 +77,11 @@ struct CheckResult {
 }
 
 fn notifications_for_gate_result(checks: &[CheckResult], overall: bool) -> Vec<Notification> {
+    let gate_context = || NotificationContext {
+        file: None,
+        source: Some("gate".to_string()),
+    };
+
     let mut notifications: Vec<Notification> = checks
         .iter()
         .map(|check| {
@@ -100,27 +107,31 @@ fn notifications_for_gate_result(checks: &[CheckResult], overall: bool) -> Vec<N
                     check.message.clone()
                 },
             )
+            .with_context(gate_context())
         })
         .collect();
 
-    notifications.push(Notification::new(
-        if overall {
-            NotificationClass::Info
-        } else {
-            NotificationClass::Failure
-        },
-        if overall {
-            NotificationPriority::Normal
-        } else {
-            NotificationPriority::High
-        },
-        "Gate result",
-        if overall {
-            "All quality gates passed"
-        } else {
-            "Quality gates failed"
-        },
-    ));
+    notifications.push(
+        Notification::new(
+            if overall {
+                NotificationClass::Info
+            } else {
+                NotificationClass::Failure
+            },
+            if overall {
+                NotificationPriority::Normal
+            } else {
+                NotificationPriority::High
+            },
+            "Gate result",
+            if overall {
+                "All quality gates passed"
+            } else {
+                "Quality gates failed"
+            },
+        )
+        .with_context(gate_context()),
+    );
 
     notifications
 }
@@ -2087,21 +2098,19 @@ rules: []
 
     #[test]
     fn gate_result_serialises_to_json() {
-        let result = GateResult {
-            overall: true,
+        let overall = true;
+        let checks = vec![CheckResult {
+            name: "secret-detection".to_string(),
+            passed: true,
             score: 100.0,
-            checks: vec![CheckResult {
-                name: "secret-detection".to_string(),
-                passed: true,
-                score: 100.0,
-                message: "clean".to_string(),
-            }],
-            notifications: vec![Notification::new(
-                NotificationClass::Info,
-                NotificationPriority::Normal,
-                "Gate result",
-                "All quality gates passed",
-            )],
+            message: "clean".to_string(),
+        }];
+        let notifications = notifications_for_gate_result(&checks, overall);
+        let result = GateResult {
+            overall,
+            score: 100.0,
+            checks,
+            notifications,
             duration_ms: 42,
         };
         let json = serde_json::to_string(&result).unwrap();
@@ -2109,6 +2118,23 @@ rules: []
         assert_eq!(parsed["overall"], true);
         assert_eq!(parsed["checks"][0]["name"], "secret-detection");
         assert_eq!(parsed["duration_ms"], 42);
+
+        let notifications = parsed["notifications"].as_array().expect("notifications");
+        assert_eq!(notifications.len(), 2, "per-check + overall notifications");
+
+        let per_check = &notifications[0];
+        assert_eq!(per_check["class"], "info");
+        assert_eq!(per_check["priority"], "low");
+        assert_eq!(per_check["title"], "Gate check: secret-detection");
+        assert_eq!(per_check["message"], "clean");
+        assert_eq!(per_check["context"]["source"], "gate");
+
+        let overall_notif = &notifications[1];
+        assert_eq!(overall_notif["class"], "info");
+        assert_eq!(overall_notif["priority"], "normal");
+        assert_eq!(overall_notif["title"], "Gate result");
+        assert_eq!(overall_notif["message"], "All quality gates passed");
+        assert_eq!(overall_notif["context"]["source"], "gate");
     }
 
     // ── run_single_check unknown ─────────────────────────────────────

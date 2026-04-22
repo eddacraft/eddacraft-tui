@@ -616,12 +616,18 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
         checks_run: Vec::new(),
         provenance_id: None,
         message: Some(message.to_string()),
-        notifications: vec![Notification::new(
-            NotificationClass::Info,
-            NotificationPriority::Low,
-            "Check status",
-            message,
-        )],
+        notifications: vec![
+            Notification::new(
+                NotificationClass::Info,
+                NotificationPriority::Low,
+                "Check status",
+                message,
+            )
+            .with_context(NotificationContext {
+                file: None,
+                source: Some("check".to_string()),
+            }),
+        ],
         warnings: Vec::new(),
         summary: WarningSummary {
             total: 0,
