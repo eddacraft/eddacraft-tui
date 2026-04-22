@@ -828,6 +828,80 @@ describe('admin endpoints', () => {
     });
   });
 
+  describe('POST /admin/send-migration — request validation & auth', () => {
+    it('returns 401 without admin auth', async () => {
+      const res = await app.request('/admin/send-migration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'import', dryRun: true }),
+      });
+
+      expect(res.status).toBe(401);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(vi.mocked(insertSendMigrationSnapshot)).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid source via Zod with 400', async () => {
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'bogus', dryRun: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(vi.mocked(insertSendMigrationSnapshot)).not.toHaveBeenCalled();
+    });
+
+    it('rejects limit above 100 via Zod with 400', async () => {
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'import', dryRun: true, limit: 500 },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+    });
+
+    it('rejects limit below 1 via Zod with 400', async () => {
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'import', dryRun: true, limit: 0 },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+    });
+
+    it('passes the caller-supplied limit through to findWaitlistBySource on dry-run', async () => {
+      vi.mocked(findWaitlistBySource).mockResolvedValue([]);
+      vi.mocked(insertSendMigrationSnapshot).mockResolvedValue({
+        token: 'tk',
+        source: 'import',
+        recipients: [],
+        created_by_actor: 'shared-key@anvil',
+        created_at: '2026-04-17T09:00:00Z',
+        expires_at: '2026-04-17T09:10:00Z',
+        consumed_at: null,
+      });
+
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'import', dryRun: true, limit: 7 },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findWaitlistBySource)).toHaveBeenCalledWith(expect.anything(), 'import', 7);
+    });
+  });
+
   describe('POST /admin/send-migration — snapshot token flow', () => {
     const importedRecipients = [
       { email: 'alice@example.com', name: 'Alice' },
