@@ -28,7 +28,7 @@ module starts execution.
 
 ## In Scope
 
-- Enumerate current TS capabilities against the seven T3 dimensions
+- Enumerate current TS capabilities against the nine T3 dimensions
   (grammar, symbol/import extraction, anti-pattern catalogue, suppression,
   entry-point detection, layer/boundary enforcement, policy hook integration,
   drift baseline, `architecture-validate` inclusion) per spec §7.3.

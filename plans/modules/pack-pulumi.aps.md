@@ -17,8 +17,10 @@ Pulumi TS programs. Demand: 2 (User B + Anvil's own `infra/`). Blast:
 
 This module also **sets the pack architecture pattern** — it is the first
 pack to land, so the council §16.5 #4 decision (symbol-graph access vs
-content-only, named crate location) must be made and recorded inside this
-module before tasks are written.
+content-only, named crate location) must be made and recorded in
+[ADR-027](../decisions/027-pack-architecture.md) before tasks are written
+for this module. ADR-027 is currently `Proposed`; advancing it to
+`Accepted` is part of this module's Ready Checklist.
 
 Phase 1 deliverable (spec §9 step 3). Unblocks immediately after
 `lang-ts-audit` completes.
@@ -107,8 +109,10 @@ Anticipated:
 
 ## Open Questions
 
-- [ ] Pack architecture: symbol-graph access or content-only?
-- [ ] Crate location for the pack — `crates/anvil-packs/pulumi`,
-      `crates/anvil-pack-pulumi`, or other?
+- [ ] [ADR-027](../decisions/027-pack-architecture.md) is `Proposed`;
+      confirm it advances to `Accepted` before PACKPUL tasks start.
+      The ADR records: per-pack crate `crates/anvil-pack-{name}/`,
+      kernel symbol-graph access, compiled-in activation. Re-open this
+      question only if council review of ADR-027 challenges any of those.
 - [ ] How is pack activation enabled per project — auto-detect by
       `@pulumi/*` only, or also opt-in via config?

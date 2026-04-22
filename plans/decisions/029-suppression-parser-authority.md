@@ -16,8 +16,9 @@ council review surfaced a parser-authority conflict (council finding C-025):
 - The council-reviewer claimed
   `packages/anvil/core/src/suppression/parser.ts` is the suppression
   parser and is TS-comment-only.
-- The kernel-maintainer claimed
-  `crates/anvil-checks/src/antipattern/scanner.rs:152` already handles
+- The kernel-maintainer claimed the Rust scanner's
+  `parse_suppression` function in
+  `crates/anvil-checks/src/antipattern/scanner.rs` already handles
   multiple comment styles (`//`, `#`, `/*`, `<!--`, `--`).
 
 Both reviewers were right — there are two suppression parsers in two
@@ -38,8 +39,9 @@ retires it. This ADR extends that direction to suppression parsing.
 ## Decision
 
 For all new Track 3 governance surfaces and all new Track 4 semantic
-packs, the **Rust suppression parser** at
-`crates/anvil-checks/src/antipattern/scanner.rs:152` is **authoritative**.
+packs, the **Rust suppression parser** —
+`parse_suppression` in `crates/anvil-checks/src/antipattern/scanner.rs`
+— is **authoritative**.
 
 - New comment styles (e.g. `--` for SQL, `<!--` for HTML/markdown blocks)
   are added to the Rust parser, not the TS one.
@@ -128,5 +130,6 @@ prevents the migration window from drifting outward.
   [surface-env-files](../modules/surface-env-files.aps.md)) and
   [markdown-governance](../modules/markdown-governance.aps.md) reference
   this ADR as a Ready prerequisite
-- Code: `crates/anvil-checks/src/antipattern/scanner.rs:152`,
+- Code: `parse_suppression` in
+  `crates/anvil-checks/src/antipattern/scanner.rs`,
   `packages/anvil/core/src/suppression/parser.ts`

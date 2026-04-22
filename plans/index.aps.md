@@ -339,7 +339,7 @@ substrate language and minimum substrate tier per spec §8.4.
 | Module | Scope | Substrate | Min substrate tier | Status | Phase |
 | ------ | ----- | --------- | ------------------ | ------ | ----- |
 | [pack-pulumi](./modules/pack-pulumi.aps.md) | PACKPUL | TS | T3 | Draft | 1 |
-| [pack-llm-provider](./modules/pack-llm-provider.aps.md) | PACKLLM | TS, then Python | T3 (TS) → T2 (Python) | Draft (warn-only by default per C-010) | 1 (TS) + 2 (Python) |
+| [pack-llm-provider](./modules/pack-llm-provider.aps.md) | PACKLLM | TS, then Python | T3 (TS) → T2+ (Python) | Draft (warn-only by default per C-010) | 1 (TS) + 2 (Python) |
 | [pack-drizzle](./modules/pack-drizzle.aps.md) | PACKDRZ | TS | T3 | Draft | 2 |
 | [pack-nextjs](./modules/pack-nextjs.aps.md) | PACKNXT | TS | T3 | Draft | 2 |
 | [pack-hono](./modules/pack-hono.aps.md) | PACKHON | TS | T3 | Draft | 2 |
@@ -1036,7 +1036,7 @@ Authoritative source: [2026-04-08 Language and Coverage Design](./specs/2026-04-
 | Scope ID | Module | Substrate | Min substrate | Status | Phase |
 | -------- | ------ | --------- | ------------- | ------ | ----- |
 | PACKPUL  | [pack-pulumi](./modules/pack-pulumi.aps.md) | TS | T3 | Draft | 1 |
-| PACKLLM  | [pack-llm-provider](./modules/pack-llm-provider.aps.md) | TS → Python | T3 → T2 | Draft (warn-only default) | 1 + 2 |
+| PACKLLM  | [pack-llm-provider](./modules/pack-llm-provider.aps.md) | TS → Python | T3 → T2+ | Draft (warn-only default) | 1 + 2 |
 | PACKDRZ  | [pack-drizzle](./modules/pack-drizzle.aps.md) | TS | T3 | Draft | 2 |
 | PACKNXT  | [pack-nextjs](./modules/pack-nextjs.aps.md) | TS | T3 | Draft | 2 |
 | PACKHON  | [pack-hono](./modules/pack-hono.aps.md) | TS | T3 | Draft | 2 |
