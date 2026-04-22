@@ -1,6 +1,7 @@
 use std::io;
 use std::time::Duration;
 
+use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::audit::{
@@ -336,18 +337,30 @@ fn mock_watch_data() -> WatchData {
         status: WatchStatus::Passing,
         queue: std::collections::VecDeque::from([
             QueuedChange {
-                file: "src/lib.rs".into(),
-                kind: "modified".into(),
+                notification: Notification::new(
+                    NotificationClass::Finding,
+                    NotificationPriority::High,
+                    "src/lib.rs",
+                    "modified",
+                ),
                 timestamp: "09:14:32".into(),
             },
             QueuedChange {
-                file: "src/config.rs".into(),
-                kind: "modified".into(),
+                notification: Notification::new(
+                    NotificationClass::Finding,
+                    NotificationPriority::High,
+                    "src/config.rs",
+                    "modified",
+                ),
                 timestamp: "09:14:35".into(),
             },
             QueuedChange {
-                file: "tests/integration.rs".into(),
-                kind: "created".into(),
+                notification: Notification::new(
+                    NotificationClass::Finding,
+                    NotificationPriority::High,
+                    "tests/integration.rs",
+                    "created",
+                ),
                 timestamp: "09:14:38".into(),
             },
         ]),

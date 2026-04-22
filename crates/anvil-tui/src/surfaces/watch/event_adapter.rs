@@ -153,30 +153,46 @@ impl WatchEventAdapter {
         self.violation_count += 1;
         data.status = WatchStatus::Failing;
 
-        Self::push_queue(data, file, message, timestamp);
+        Self::push_queue(
+            data,
+            Notification::new(
+                NotificationClass::Finding,
+                NotificationPriority::High,
+                file,
+                message,
+            )
+            .with_context(NotificationContext {
+                file: Some(file.to_string()),
+                source: Some("watch".to_string()),
+            }),
+            timestamp,
+        );
     }
 
     fn handle_error(&mut self, message: &str, timestamp: &str, data: &mut WatchData) {
         self.error_count += 1;
         data.status = WatchStatus::Failing;
-        Self::push_queue(data, "(error)", message, timestamp);
+        Self::push_queue(
+            data,
+            Notification::new(
+                NotificationClass::Failure,
+                NotificationPriority::High,
+                "Watch error",
+                message,
+            )
+            .with_context(NotificationContext {
+                file: None,
+                source: Some("watch".to_string()),
+            }),
+            timestamp,
+        );
     }
 
     /// Push an entry to the change queue, dropping the oldest if at capacity.
-    fn push_queue(data: &mut WatchData, file: &str, kind: &str, timestamp: &str) {
+    fn push_queue(data: &mut WatchData, notification: Notification, timestamp: &str) {
         if data.queue.len() >= MAX_QUEUE_LEN {
             data.queue.pop_front();
         }
-        let notification = Notification::new(
-            NotificationClass::Finding,
-            NotificationPriority::High,
-            file,
-            kind,
-        )
-        .with_context(NotificationContext {
-            file: Some(file.to_string()),
-            source: Some("watch".to_string()),
-        });
         data.queue.push_back(QueuedChange {
             notification,
             timestamp: timestamp.to_string(),
@@ -391,6 +407,7 @@ mod tests {
         assert_eq!(data.status, WatchStatus::Failing);
         assert_eq!(data.queue.len(), 1);
         assert_eq!(data.queue[0].notification.title, "src/bad.ts");
+        assert_eq!(data.queue[0].notification.class, NotificationClass::Finding);
     }
 
     #[test]
@@ -402,7 +419,13 @@ mod tests {
 
         assert_eq!(data.status, WatchStatus::Failing);
         assert_eq!(data.queue.len(), 1);
-        assert_eq!(data.queue[0].notification.title, "(error)");
+        assert_eq!(data.queue[0].notification.title, "Watch error");
+        assert_eq!(data.queue[0].notification.class, NotificationClass::Failure);
+        assert!(data.queue[0]
+            .notification
+            .context
+            .as_ref()
+            .is_some_and(|ctx| ctx.file.is_none()));
     }
 
     #[test]
