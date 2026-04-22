@@ -107,12 +107,19 @@ export async function runSendMigrationCommand(
       return;
     }
 
-    stderr(
-      `About to send migration email to ${preview.count} recipient(s) (source: ${source}).\n` +
-        renderRecipientsTable(preview.recipients) +
-        '\n'
-    );
+    // #948: when --json is set, suppress the ASCII preview table so stdout
+    // remains valid JSON. Print a compact one-liner to stderr instead.
+    if (options.json) {
+      stderr(`preview: ${preview.count} recipient(s) — pass --yes to skip this prompt\n`);
+    } else {
+      stderr(
+        `About to send migration email to ${preview.count} recipient(s) (source: ${source}).\n` +
+          renderRecipientsTable(preview.recipients) +
+          '\n'
+      );
+    }
     const prompt = deps.prompt ?? defaultPrompt;
+    // #947: PromptEOFError propagates naturally — top-level handler exits with code 4.
     const answer = (await prompt(`Continue? [y/N] `)).trim().toLowerCase();
     if (answer !== 'y' && answer !== 'yes') {
       stdout('Aborted.\n');
