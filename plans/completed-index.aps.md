@@ -234,7 +234,7 @@ Task-level detail for all completed work is archived in
 
 | Module | Scope | Status | Superseded By | Notes |
 | ------ | ----- | ------ | ------------- | ----- |
-| [interactive-tutorial](./archive/modules/interactive-tutorial.aps.md) | TUTOR | Retired | [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) (WELCOME) | All 13 TUTOR items absorbed into WELCOME's 18 items across 6 phases. |
+| [interactive-tutorial](./archive/modules/interactive-tutorial.aps.md) | TUTOR | Retired | [restore-welcome-screen](./archive/modules/restore-welcome-screen.aps.md) (WELCOME) | All 13 TUTOR items absorbed into WELCOME's 18 items across 6 phases. |
 
 ### Task Status — 0.1.0 (Core Engine)
 

@@ -1015,6 +1015,100 @@ fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::Hash
     );
 }
 
+/// Read `.anvilrc#checks` from the workspace root, when present.
+///
+/// Supports JSON, YAML, and TOML variants of `.anvilrc`. Returns `Ok(None)`
+/// when the file is absent, has no `checks` field, or the list is empty.
+/// Parsing/shape errors are surfaced so gate can fail clearly instead of
+/// silently acting on a malformed filter.
+fn read_anvilrc_checks(workspace_root: &Path) -> Result<Option<std::collections::HashSet<String>>> {
+    let path = workspace_root.join(".anvilrc");
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(anyhow::anyhow!("failed to read {}: {err}", path.display())),
+    };
+
+    let checks = if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
+        if value.is_object() {
+            extract_checks_from_json(&value)
+        } else {
+            return Err(anyhow::anyhow!(
+                "failed to parse {}: JSON config must be an object",
+                path.display()
+            ));
+        }
+    } else if let Ok(value) = toml::from_str::<toml::Value>(&contents) {
+        if value.is_table() {
+            extract_checks_from_toml(&value)
+        } else {
+            return Err(anyhow::anyhow!(
+                "failed to parse {}: TOML config must be a table",
+                path.display()
+            ));
+        }
+    } else if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&contents) {
+        if value.is_mapping() {
+            extract_checks_from_yaml(&value)
+        } else {
+            return Err(anyhow::anyhow!(
+                "failed to parse {}: YAML config must be a mapping",
+                path.display()
+            ));
+        }
+    } else {
+        return Err(anyhow::anyhow!(
+            "failed to parse {} as JSON, YAML, or TOML",
+            path.display()
+        ));
+    };
+
+    if checks.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(checks.into_iter().collect()))
+    }
+}
+
+fn extract_checks_from_json(value: &serde_json::Value) -> Vec<String> {
+    value
+        .get("checks")
+        .and_then(serde_json::Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_checks_from_yaml(value: &serde_yaml::Value) -> Vec<String> {
+    value
+        .get("checks")
+        .and_then(serde_yaml::Value::as_sequence)
+        .map(|seq| {
+            seq.iter()
+                .filter_map(serde_yaml::Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_checks_from_toml(value: &toml::Value) -> Vec<String> {
+    value
+        .get("checks")
+        .and_then(toml::Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(toml::Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
     let unknown: Vec<&&str> = names
         .iter()
@@ -1040,6 +1134,54 @@ fn normalize_gate_check_set(
         .iter()
         .filter_map(|name| gate_internal_name(name))
         .collect())
+}
+
+/// Resolve the `.anvilrc#checks` filter into a set of gate-runner internal
+/// names. Canonical names like `secret-detection` are mapped to their
+/// internal form (`secret`) so they match `GATE_INTERNAL_CHECKS` in the
+/// downstream dispatch loop. Returns `None` when `--only-checks` is set
+/// (explicit flag wins) or when `.anvilrc#checks` is absent/empty.
+fn resolve_anvilrc_check_filter(
+    root: &Path,
+    only_set: Option<&std::collections::HashSet<&'static str>>,
+) -> Result<Option<std::collections::HashSet<String>>> {
+    if only_set.is_some() {
+        return Ok(None);
+    }
+
+    let anvilrc_checks = read_anvilrc_checks(root)?;
+    if let Some(ref rc) = anvilrc_checks {
+        let unknown: Vec<&str> = rc
+            .iter()
+            .filter(|n| gate_internal_name(n).is_none())
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            let valid = gate_canonical_names();
+            eprintln!(
+                "Warning: .anvilrc#checks contains unknown check(s): {}. Valid: {}",
+                unknown.join(", "),
+                valid.join(", ")
+            );
+        }
+
+        // Map each known name to its internal form so it matches the
+        // gate runner vocabulary (GATE_INTERNAL_CHECKS).
+        let known: std::collections::HashSet<String> = rc
+            .iter()
+            .filter_map(|n| gate_internal_name(n).map(str::to_string))
+            .collect();
+        if known.is_empty() {
+            let valid = gate_canonical_names();
+            bail!(
+                ".anvilrc#checks contains no valid gate checks. Valid: {}",
+                valid.join(", ")
+            );
+        }
+        return Ok(Some(known));
+    }
+
+    Ok(None)
 }
 
 /// Run all gate checks with default settings and return TUI-ready data.
@@ -1124,6 +1266,11 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         .map(normalize_gate_check_set)
         .transpose()?;
 
+    // `.anvilrc#checks` acts as a persistent default filter. When the user
+    // passes `--only-checks`, that wins — but otherwise we restrict the run
+    // to whatever the project configured. Missing/empty file = run everything.
+    let anvilrc_known_checks = resolve_anvilrc_check_filter(&root, only_set.as_ref())?;
+
     // Resolve plan-scoped file set.
     let (plan_files, plan_path) = if let Some(ref plan_arg) = args.plan {
         match resolve_plan_path(plan_arg, &root) {
@@ -1164,6 +1311,11 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         }
         if let Some(ref only_s) = only_set
             && !only_s.contains(check_name)
+        {
+            continue;
+        }
+        if let Some(ref rc) = anvilrc_known_checks
+            && !rc.contains(*check_name)
         {
             continue;
         }
@@ -1988,5 +2140,68 @@ rules: []
         let result = run_check_coverage(tmp.path(), 80.0);
         assert!(!result.passed);
         assert!(result.message.contains("Failed to parse"));
+    }
+
+    // ── .anvilrc#checks filter (#1016) ────────────────────────────────
+
+    #[test]
+    fn read_anvilrc_checks_none_when_missing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(read_anvilrc_checks(tmp.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn read_anvilrc_checks_none_for_empty_list() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks": []}"#).unwrap();
+        assert!(read_anvilrc_checks(tmp.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn read_anvilrc_checks_parses_json() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"checks": ["secret", "architecture"]}"#,
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert_eq!(checks.len(), 2);
+        assert!(checks.contains("secret"));
+        assert!(checks.contains("architecture"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_parses_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "schemaVersion: \"1.0.0\"\nchecks:\n  - \"secret\"\n  - \"architecture\"\n",
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret"));
+        assert!(checks.contains("architecture"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_parses_toml_inline() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "schema_version = \"1.0.0\"\nchecks = [\"secret\", \"policy\"]\n",
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret"));
+        assert!(checks.contains("policy"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_errors_on_unparseable_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "checks: [\n").unwrap();
+        let err = read_anvilrc_checks(tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("failed to parse"));
     }
 }

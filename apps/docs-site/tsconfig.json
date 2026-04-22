@@ -8,5 +8,13 @@
     // suppress the TS 6.0 deprecation warnings until Docusaurus updates its tsconfig.
     "ignoreDeprecations": "6.0"
   },
-  "exclude": [".docusaurus", "build"]
+  "exclude": [".docusaurus", "build"],
+  "references": [
+    {
+      "path": "../../packages/anvil/runtime"
+    },
+    {
+      "path": "../../packages/anvil/contracts"
+    }
+  ]
 }

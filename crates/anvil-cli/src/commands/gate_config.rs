@@ -412,4 +412,21 @@ mod tests {
         let result = crate::Cli::try_parse_from(["anvil", "gate-config", "--disable", "coverage"]);
         assert!(result.is_ok());
     }
+
+    // Regression guard for #1016: every check in the default gate-config must
+    // map to a dispatchable gate check via the catalog, otherwise toggling a
+    // check via `anvil gate-config --enable` would have no effect on the
+    // actual `anvil gate` run.
+    #[test]
+    fn default_config_checks_match_gate_available() {
+        use crate::commands::check_catalog::gate_internal_name;
+        let config = default_config();
+        for check in &config.checks {
+            assert!(
+                gate_internal_name(&check.name).is_some(),
+                "gate_config default contains unregistered '{}'",
+                check.name
+            );
+        }
+    }
 }

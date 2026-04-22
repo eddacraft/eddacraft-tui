@@ -93,6 +93,12 @@ fn print_plain_templates(templates: &[Template]) {
     println!();
 }
 
+/// Returns the list of gate-runner checks to enable for a given template.
+///
+/// Names must be resolvable to a dispatchable gate check via the catalog —
+/// they're written to `.anvilrc#checks` and used by `anvil gate` to filter
+/// which checks to run.
+/// Display labels (used in the wizard TUI) are kept separately in `anvil_tui`.
 fn checks_for_template(template_id: &str) -> Vec<&'static str> {
     match template_id {
         "typescript-monorepo" => vec![
@@ -297,6 +303,29 @@ mod tests {
 
         let minimal = checks_for_template("minimal");
         assert_eq!(minimal, vec!["secret-detection"]);
+    }
+
+    // Regression guard for #1016: every check name the wizard writes to
+    // `.anvilrc#checks` must map to a dispatchable gate check via the
+    // catalog, otherwise `anvil gate` will silently ignore it.
+    #[test]
+    fn wizard_checks_are_registered_gate_names() {
+        use crate::commands::check_catalog::gate_internal_name;
+        let template_ids = [
+            "typescript-monorepo",
+            "rust-workspace",
+            "python-package",
+            "minimal",
+            "unknown-template",
+        ];
+        for id in template_ids {
+            for name in checks_for_template(id) {
+                assert!(
+                    gate_internal_name(name).is_some(),
+                    "wizard template '{id}' writes unregistered check '{name}'"
+                );
+            }
+        }
     }
 
     #[test]

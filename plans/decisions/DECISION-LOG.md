@@ -76,6 +76,16 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [013](013-eval-harness-adoption.md) | External eval harness behind `EvalHarnessPort` adapter boundary | Proposed |
 
+## Language and Coverage
+
+Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md).
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Proposed |
+| [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Proposed |
+| [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Proposed |
+
 ## Superseded
 
 | ADR | Replaced By | Reason |

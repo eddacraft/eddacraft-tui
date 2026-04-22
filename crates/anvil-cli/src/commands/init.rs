@@ -311,8 +311,9 @@ mod tests {
         assert!(content.contains("schemaVersion: \"1.0.0\""));
         assert!(content.contains("planningDir: \"plans\""));
         assert!(content.contains("format: \"yaml\""));
-        assert!(content.contains("secret-detection"));
-        assert!(content.contains("import-boundaries"));
+        assert!(content.contains("- \"secret-detection\""));
+        assert!(content.contains("- \"import-boundaries\""));
+        assert!(content.contains("- \"antipattern-scan\""));
 
         let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gitignore.contains(".anvil/cache/"));
@@ -396,5 +397,26 @@ mod tests {
         assert!(checks[0].enabled);
         assert!(checks[1].enabled);
         assert!(checks[2].enabled);
+    }
+
+    // Regression guard for #1016: every check name init writes to
+    // `.anvilrc#checks` (either as a default or via the TUI selector) must
+    // map to a dispatchable gate check via the catalog.
+    #[test]
+    fn init_checks_are_registered_gate_names() {
+        use crate::commands::check_catalog::gate_internal_name;
+        for name in default_check_names() {
+            assert!(
+                gate_internal_name(&name).is_some(),
+                "init default check '{name}' does not map to a gate-supported catalog entry"
+            );
+        }
+        for check in default_available_checks() {
+            assert!(
+                gate_internal_name(&check.name).is_some(),
+                "init default_available_checks contains unregistered '{}'",
+                check.name
+            );
+        }
     }
 }

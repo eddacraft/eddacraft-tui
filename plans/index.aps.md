@@ -74,9 +74,9 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
-| [anvil-rust-scanner](./modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
+| [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
+| [anvil-file-format](./archive/modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
+| [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
 | [anvil-scanner-parity-gaps](./modules/anvil-scanner-parity-gaps.aps.md) | SPG | Proposed | 0/6 (RSCAN-008 council follow-ups — `flags:"i"` handling, lookaround rule rewrites, fixture gaps, integrity docs) |
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
@@ -93,12 +93,12 @@ and DX improvements. Code-review-backlog (complete) is retained for history.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
+| [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 > ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
 > without executable tasks. All concrete intents map onto MAINT. See
-> [archived notice](./modules/continuous-improvement.aps.md).
+> [archived notice](./archive/modules/continuous-improvement.aps.md).
 
 ### Rust Engine (In Progress)
 
@@ -119,7 +119,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
-| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
+| [restore-welcome-screen](./archive/modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
 | [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
 
 The TypeScript CLI is archived — the Rust kernel adds structural graph analysis as a
@@ -236,13 +236,13 @@ when specific work is identified.
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | 7 | anvil-api (Hono), crates/anvil-cli |
-| [feature-flagging](./modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
-| [feature-flag-migration](./modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
+| [feature-flagging](./archive/modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
+| [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
-| [release-management](./modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (9 done) | docs-site, feature modules — **In Progress** |
+| [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 9/20 | docs-site, feature modules — **In Progress** (Rust migration phase complete; 11 scanner/future items deferred) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 
@@ -255,28 +255,165 @@ TCOV/TINT/TEXT depend on it.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
-| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25 | TFIX |
+| [test-infrastructure-fix](./archive/modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
+| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/18 | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
 
-### Multi-Language Support (Draft)
+### Language & Coverage (Draft)
 
-Each language needs: tree-sitter grammar, import extraction, anti-pattern
-catalogue, suppression syntax. Promoted to Ready as demand and resources allow.
+Coverage strategy is defined by the
+[2026-04-08 Language and Coverage Design](./specs/2026-04-08-language-and-coverage-design.md)
+(refreshed 2026-04-19). The flat "ten languages" placeholder list has been
+replaced with **five parallel tracks**, ranked against demand × blast radius ×
+strategic fit per spec §6. The original `lang-*.aps.md` placeholders for Dart,
+Go, Java, Kotlin, .NET, C/C++, Swift, Zig have been **archived** now that
+their content is folded into the new modules; `lang-rust.aps.md` and
+`lang-python.aps.md` have been **rewritten in place** as Track 1 anchors.
 
-| Module | Language | Est. Tasks | Prerequisite | tree-sitter |
-| ------ | -------- | ---------- | ------------ | ----------- |
-| [lang-python](./modules/lang-python.aps.md) | Python | 6 | HTMLCSS-001 | tree-sitter-python |
-| [lang-go](./modules/lang-go.aps.md) | Go | 6 | HTMLCSS-001 | tree-sitter-go |
-| [lang-rust](./modules/lang-rust.aps.md) | Rust | 5 | HTMLCSS-001 | tree-sitter-rust |
-| [lang-java](./modules/lang-java.aps.md) | Java | 5 | HTMLCSS-001 | tree-sitter-java |
-| [lang-kotlin](./modules/lang-kotlin.aps.md) | Kotlin | 4 | HTMLCSS-001 | tree-sitter-kotlin |
-| [lang-dotnet](./modules/lang-dotnet.aps.md) | .NET/C# | 5 | HTMLCSS-001 | tree-sitter-c-sharp |
-| [lang-dart](./modules/lang-dart.aps.md) | Dart/Flutter | 3 | HTMLCSS-001 | tree-sitter-dart |
-| [lang-swift](./modules/lang-swift.aps.md) | Swift | 3 | HTMLCSS-001 | tree-sitter-swift |
-| [lang-c-cpp](./modules/lang-c-cpp.aps.md) | C/C++ | 5 | HTMLCSS-001 | tree-sitter-c, cpp |
-| [lang-zig](./modules/lang-zig.aps.md) | Zig | 3 | HTMLCSS-001 | tree-sitter-zig |
+- **Phase 1 (MVP)**: TS audit + SQL migrations T2 + Pulumi pack + LLM Provider
+  pack (warn-only). Spec §9 steps 1–4.
+- **Phase 2** (named deliverables complete): Rust → T3, GH Actions T2, Drizzle
+  pack, tail T1 wave, Python → T3, Python-substrate LLM Provider, Next.js,
+  Hono, Tokio packs, Markdown M1. Spec §9 steps 5–14.
+- **Phase 3 / open-ended**: remaining surfaces (Dockerfile, shell, `.env`),
+  remaining packs (Django, FastAPI, Axum). Demand-pulled.
+- **Cut entirely** (spec §13): Swift, Zig, Express, NestJS, Flask, Spring,
+  Rails, tRPC, CloudFormation, Bicep, Ansible, Jenkins Groovy, Buildkite,
+  CircleCI.
+
+#### Track 1 — Anchors (TS, Rust, Python → T3)
+
+Heavy, sequenced. TS audit produces the T3 acceptance checklist that Rust and
+Python must hit. Spec §7, §8.1.
+
+| Module | Scope | Status | Phase | Spec ref |
+| ------ | ----- | ------ | ----- | -------- |
+| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Draft | 1 | §7.3, §8.1 |
+| [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Draft | 2 | §8.1 |
+| [lang-python](./modules/lang-python.aps.md) | PYLAN | Draft | 2 | §8.1 |
+
+#### Track 2 — Tail T1 wave (single batched sprint)
+
+Bring tail languages to T1 (parsed + symbol graph inclusion) in one sprint.
+Replaces the six per-language placeholder modules (now archived).
+
+| Module | Scope | Status | Phase | Languages |
+| ------ | ----- | ------ | ----- | --------- |
+| [lang-tail-wave](./modules/lang-tail-wave.aps.md) | LANGTAIL | Draft | 2 | Dart, Go, Java, Kotlin, .NET/C#, C/C++ (C/C++ at-risk per spec §12.3) |
+
+**Archived placeholder modules** (content folded into `lang-tail-wave`):
+[lang-dart](./archive/modules/lang-dart.aps.md),
+[lang-go](./archive/modules/lang-go.aps.md),
+[lang-java](./archive/modules/lang-java.aps.md),
+[lang-kotlin](./archive/modules/lang-kotlin.aps.md),
+[lang-dotnet](./archive/modules/lang-dotnet.aps.md),
+[lang-c-cpp](./archive/modules/lang-c-cpp.aps.md).
+
+**Cut entirely** (spec §13, no demand):
+[lang-swift](./archive/modules/lang-swift.aps.md),
+[lang-zig](./archive/modules/lang-zig.aps.md). Re-enter only with a demand
+signal.
+
+#### Track 3 — Governance surfaces (pattern catalogues)
+
+Pattern-catalogue work, not parser work. Surfaces ranked by demand × blast
+radius × strategic per spec §8.3.
+
+| Module | Scope | Surface | Target tier | Status | Phase |
+| ------ | ----- | ------- | ----------- | ------ | ----- |
+| [surface-sql-migrations](./modules/surface-sql-migrations.aps.md) | SURFSQL | SQL migrations | T2 | Draft | 1 |
+| [surface-github-actions](./modules/surface-github-actions.aps.md) | SURFGHA | GitHub Actions YAML | T2 | Draft | 2 |
+| [surface-dockerfile](./modules/surface-dockerfile.aps.md) | SURFDOCK | Dockerfile | T2 | Draft | 3 |
+| [surface-shell](./modules/surface-shell.aps.md) | SURFSH | Shell scripts | T1 | Draft | 3 |
+| [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | `.env` files | T1 | Draft | 3 |
+
+Mostly deferred: Terraform / HCL (T1, demand=1 indirect via Pulumi),
+k8s YAML / Helm (T1, no demand) — promotion gated on direct user demand.
+
+#### Track 4 — Semantic packs (substrate-gated)
+
+Domain-specific packs layered on anchor languages. Each pack declares its
+substrate language and minimum substrate tier per spec §8.4.
+
+| Module | Scope | Substrate | Min substrate tier | Status | Phase |
+| ------ | ----- | --------- | ------------------ | ------ | ----- |
+| [pack-pulumi](./modules/pack-pulumi.aps.md) | PACKPUL | TS | T3 | Draft | 1 |
+| [pack-llm-provider](./modules/pack-llm-provider.aps.md) | PACKLLM | TS, then Python | T3 (TS) → T2+ (Python) | Draft (warn-only by default per C-010) | 1 (TS) + 2 (Python) |
+| [pack-drizzle](./modules/pack-drizzle.aps.md) | PACKDRZ | TS | T3 | Draft | 2 |
+| [pack-nextjs](./modules/pack-nextjs.aps.md) | PACKNXT | TS | T3 | Draft | 2 |
+| [pack-hono](./modules/pack-hono.aps.md) | PACKHON | TS | T3 | Draft | 2 |
+| [pack-tokio](./modules/pack-tokio.aps.md) | PACKTOK | Rust | T2+ | Draft | 2 |
+
+**Phase 3 / open-ended packs** (spec §17.3 final paragraph): Django, FastAPI,
+Axum — module files created only when promoted from Phase 3 to active work.
+Django/FastAPI gated on User C's framework choice resolving.
+
+#### Track 5 — Markdown governance
+
+Markdown is its own track because it fits none of the other axes. Initial
+target M1 = APS wellformedness + cross-reference integrity (spec §8.5). M2
+(stale claim detection) and M3 (capability-aware) queue for later.
+
+| Module | Scope | Tier target | Status | Phase |
+| ------ | ----- | ----------- | ------ | ----- |
+| [markdown-governance](./modules/markdown-governance.aps.md) | MDGOV | M1 | Draft | 2 |
+
+Crate assignment per [ADR-028](./decisions/028-markdown-governance-crate.md):
+standalone Rust crate `crates/anvil-markdown-governance/` using
+`pulldown-cmark` — **not** the Rust kernel.
+
+#### Cross-track infrastructure
+
+One module owns the operational concerns every Track 3/4 module needs.
+Without it, each new module would re-design the same plumbing.
+
+| Module | Scope | Status | Notes |
+| ------ | ----- | ------ | ----- |
+| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | Draft | Check-ID registry, drift schema versioning + `anvil drift migrate`, per-track feature flags, CI wall-time budget + file-presence guards, FP reporting channel. Council §16.5 #7. Delivered in slices — surfaces can move to Ready against partial OPSUP. |
+
+#### Supporting decisions
+
+| ADR | Decision | Status | Gates |
+| --- | -------- | ------ | ----- |
+| [ADR-027](./decisions/027-pack-architecture.md) | Per-pack crate, symbol-graph access, compiled-in activation | Proposed | All Track 4 packs |
+| [ADR-028](./decisions/028-markdown-governance-crate.md) | Standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` | Proposed | MDGOV |
+| [ADR-029](./decisions/029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles in TS parser | Proposed | All Track 3 surfaces, MDGOV |
+
+#### Supporting process
+
+- [Anchor re-scoring process](../docs/guides/anchor-rescoring-process.md) —
+  gate run before each Track 1 anchor module starts. Required by council
+  §16.5 #8. Permanent owner not yet named (each invocation names a session
+  owner).
+
+#### Reconciliation status (spec §17.3)
+
+| # | Action | Status |
+| - | ------ | ------ |
+| 1 | Archive `lang-swift.aps.md`, `lang-zig.aps.md` (cut) | ✅ Done |
+| 2 | Merge six tail languages into `lang-tail-wave.aps.md` | ✅ Done (placeholders archived) |
+| 3 | Rewrite `lang-rust.aps.md` for T3 (incorporates §16.5 #3, #5, #8) | ✅ Done (RSTLAN module rewritten) |
+| 4 | Rewrite `lang-python.aps.md` for T3 | ✅ Done (PYLAN module rewritten) |
+| 5 | Create five surface modules (Phase 1 priority: SURFSQL) | ✅ Done |
+| 6 | Create six pack modules (Phase 1 priority: PACKPUL, PACKLLM) | ✅ Done |
+| 7 | Create `markdown-governance.aps.md` | ✅ Done |
+| 8 | Replace Multi-Language section in `index.aps.md` | ✅ Done |
+
+#### Outstanding council §16.5 items
+
+| Item | Status |
+| ---- | ------ |
+| §16.5 #3 — kernel prerequisite work (extractor refactor, grammar version in cache key, parser thread-safety, panic removal, grammar maturity audit) | Captured in LANGTS Ready Checklist; needs implementation |
+| §16.5 #4 — pack architecture | ✅ ADR-027 (Proposed) |
+| §16.5 #5 — Rust T3 architecture enforcement location | Captured in RSTLAN Ready Checklist; ADR not yet written |
+| §16.5 #7 — operational supplement | ✅ OPSUP module created |
+| §16.5 #8 — anchor re-scoring process gate | ✅ Process guide created; permanent owner still open |
+| §16.5 #9 — acceptance bar revision (FP rate < N% AND ≥1 external codebase) | Captured in each module's Ready Checklist; canonical wording not yet centralised |
+| §16.5 #10 — Markdown M1 acceptance softening | Captured inline in MDGOV |
+| §16.5 #11 — Markdown crate assignment | ✅ ADR-028 (Proposed) |
+| §16.5 #12 — parallelism-is-logical-dependency clarification | Inline in spec §9; track modules inherit |
+| Council C-025 — suppression parser authority | ✅ ADR-029 (Proposed) |
 
 ### Config Intelligence (Draft)
 
@@ -397,19 +534,19 @@ Active module themes:
 
 | Theme | Module File |
 | ----- | ----------- |
-| Branch Recovery | [branch-reconciliation](./modules/branch-reconciliation.aps.md) |
-| Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
-| Continuous Improvement | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
+| Branch Recovery | [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md) |
+| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
+| Continuous Improvement | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
 | Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
-| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./modules/feature-flagging.aps.md), [feature-flag-migration](./modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
+| Engineering Platform | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./archive/modules/feature-flagging.aps.md), [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./archive/modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) |
 | Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
 | Agent Infrastructure | [weave](./modules/weave.aps.md) |
-| Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
+| Language & Coverage | 5-track design — see [Language & Coverage](#language--coverage-draft) and [spec](./specs/2026-04-08-language-and-coverage-design.md). Track 1: [lang-ts-audit](./modules/lang-ts-audit.aps.md), [lang-rust](./modules/lang-rust.aps.md), [lang-python](./modules/lang-python.aps.md). Track 2: [lang-tail-wave](./modules/lang-tail-wave.aps.md). Track 3: [surface-sql-migrations](./modules/surface-sql-migrations.aps.md), [surface-github-actions](./modules/surface-github-actions.aps.md), [surface-dockerfile](./modules/surface-dockerfile.aps.md), [surface-shell](./modules/surface-shell.aps.md), [surface-env-files](./modules/surface-env-files.aps.md). Track 4: [pack-pulumi](./modules/pack-pulumi.aps.md), [pack-llm-provider](./modules/pack-llm-provider.aps.md), [pack-drizzle](./modules/pack-drizzle.aps.md), [pack-nextjs](./modules/pack-nextjs.aps.md), [pack-hono](./modules/pack-hono.aps.md), [pack-tokio](./modules/pack-tokio.aps.md). Track 5: [markdown-governance](./modules/markdown-governance.aps.md). Cross-track: [operational-supplement](./modules/operational-supplement.aps.md). Decisions: [ADR-027](./decisions/027-pack-architecture.md), [ADR-028](./decisions/028-markdown-governance-crate.md), [ADR-029](./decisions/029-suppression-parser-authority.md). Process: [anchor-rescoring-process](../docs/guides/anchor-rescoring-process.md). |
 
 ### Superseded
 
@@ -417,7 +554,7 @@ Active module themes:
 > ADR-011: Ratatui replaces Ink.
 
 > ~~interactive-tutorial~~ (TUTOR) — absorbed into
-> [WELCOME](./modules/restore-welcome-screen.aps.md) (18/18 complete). All 13
+> [WELCOME](./archive/modules/restore-welcome-screen.aps.md) (18/18 complete). All 13
 > TUTOR items mapped to WELCOME phases. See
 > [archived plan](./archive/modules/interactive-tutorial.aps.md).
 
@@ -860,15 +997,68 @@ Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plan
 
 </details>
 
-### Task Status — Multi-Language (Draft)
+### Task Status — Language & Coverage (Draft)
 
-Tasks will be defined when each module moves from Draft to Ready status.
+All modules below are at status **Draft**. Tasks per module will be defined
+when each module's Ready Checklist passes — most are gated on outstanding
+ADRs (TS T3 acceptance checklist, pack architecture, Rust T3 enforcement
+location, kernel prerequisite work, operational supplement).
 
-| Module  | Language | Estimated Tasks | Prerequisite       | Status      |
-| ------- | -------- | --------------- | ------------------ | ----------- |
-| PYLAN   | Python   | 6               | HTMLCSS-001        | Draft |
-| RSTLAN  | Rust     | 5               | HTMLCSS-001        | Draft |
-| DNLAN   | .NET/C#  | 5               | HTMLCSS-001        | Draft |
+Authoritative source: [2026-04-08 Language and Coverage Design](./specs/2026-04-08-language-and-coverage-design.md).
+
+**Track 1 — Anchors** (TS audit + Rust → T3 + Python → T3)
+
+| Scope ID | Module | Status | Phase | Notes |
+| -------- | ------ | ------ | ----- | ----- |
+| LANGTS   | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | Draft | 1 | Anchor item zero — produces T3 acceptance checklist |
+| RSTLAN   | [lang-rust](./modules/lang-rust.aps.md) | Draft | 2 | Rewritten for T3 target; gated on LANGTS + Rust T3 enforcement ADR |
+| PYLAN    | [lang-python](./modules/lang-python.aps.md) | Draft | 2 | Rewritten for T3 target; gated on LANGTS + RSTLAN |
+
+**Track 2 — Tail T1 wave** (single batched sprint)
+
+| Scope ID | Module | Status | Phase | Notes |
+| -------- | ------ | ------ | ----- | ----- |
+| LANGTAIL | [lang-tail-wave](./modules/lang-tail-wave.aps.md) | Draft | 2 | Merges Dart, Go, Java, Kotlin, .NET, C/C++ — C/C++ at-risk per spec §12.3 |
+| —        | `lang-swift`, `lang-zig` | Cut (spec §13) | — | Archived — no implementation planned |
+
+**Track 3 — Governance surfaces**
+
+| Scope ID | Module | Target tier | Status | Phase |
+| -------- | ------ | ----------- | ------ | ----- |
+| SURFSQL  | [surface-sql-migrations](./modules/surface-sql-migrations.aps.md) | T2 | Draft | 1 |
+| SURFGHA  | [surface-github-actions](./modules/surface-github-actions.aps.md) | T2 | Draft | 2 |
+| SURFDOCK | [surface-dockerfile](./modules/surface-dockerfile.aps.md) | T2 | Draft | 3 |
+| SURFSH   | [surface-shell](./modules/surface-shell.aps.md) | T1 | Draft | 3 |
+| SURFENV  | [surface-env-files](./modules/surface-env-files.aps.md) | T1 | Draft | 3 |
+
+**Track 4 — Semantic packs**
+
+| Scope ID | Module | Substrate | Min substrate | Status | Phase |
+| -------- | ------ | --------- | ------------- | ------ | ----- |
+| PACKPUL  | [pack-pulumi](./modules/pack-pulumi.aps.md) | TS | T3 | Draft | 1 |
+| PACKLLM  | [pack-llm-provider](./modules/pack-llm-provider.aps.md) | TS → Python | T3 → T2+ | Draft (warn-only default) | 1 + 2 |
+| PACKDRZ  | [pack-drizzle](./modules/pack-drizzle.aps.md) | TS | T3 | Draft | 2 |
+| PACKNXT  | [pack-nextjs](./modules/pack-nextjs.aps.md) | TS | T3 | Draft | 2 |
+| PACKHON  | [pack-hono](./modules/pack-hono.aps.md) | TS | T3 | Draft | 2 |
+| PACKTOK  | [pack-tokio](./modules/pack-tokio.aps.md) | Rust | T2+ | Draft | 2 |
+| —        | `pack-django`, `pack-fastapi`, `pack-axum` | Python / Rust | T2+ | Phase 3 — file created on promotion | 3 |
+
+**Track 5 — Markdown governance**
+
+| Scope ID | Module | Target tier | Status | Phase |
+| -------- | ------ | ----------- | ------ | ----- |
+| MDGOV    | [markdown-governance](./modules/markdown-governance.aps.md) | M1 | Draft | 2 |
+
+**Cross-track infrastructure**
+
+| Scope ID | Module | Status | Notes |
+| -------- | ------ | ------ | ----- |
+| OPSUP    | [operational-supplement](./modules/operational-supplement.aps.md) | Draft | Owns check-ID registry, drift schema versioning, per-track flags, FP reporting. Delivered in slices — surfaces and packs may move to Ready against partial OPSUP. |
+
+The previous Multi-Language Task Status table (PYLAN / RSTLAN / DNLAN with
+HTMLCSS-001 prerequisites) is fully superseded. .NET/C# is folded into
+Track 2's `lang-tail-wave` under the new ranking — zero confirmed demand and
+no pack potential (spec §8.2).
 
 ## Risks & Mitigations
 
