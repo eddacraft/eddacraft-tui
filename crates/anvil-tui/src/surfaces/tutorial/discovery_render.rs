@@ -268,10 +268,25 @@ fn render_finding_detail(
         )));
     }
 
-    // Summary at the bottom of the detail pane.
+    // Summary at the bottom of the detail pane. When the walker hit the
+    // scan cap, say so explicitly — otherwise a large repo looks like it
+    // ran clean when really we only looked at the first N files. The
+    // "first" prefix is skipped for files_scanned <= 1 so "the first 1
+    // file" doesn't leak out in the degenerate case where only one
+    // candidate was successfully read.
     let duration_s = results.duration_ms / 1000;
+    let scope = if results.truncated && results.files_scanned > 1 {
+        "first "
+    } else {
+        ""
+    };
+    let truncated_note = if results.truncated {
+        " (scan limited)"
+    } else {
+        ""
+    };
     let summary = format!(
-        "{total} issue{} in {} file{} ({duration_s}s)  —  enter to continue",
+        "{total} issue{} in {scope}{} file{}{truncated_note} ({duration_s}s)  —  enter to continue",
         if total == 1 { "" } else { "s" },
         results.files_scanned,
         if results.files_scanned == 1 { "" } else { "s" },
@@ -301,27 +316,59 @@ fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme:
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    // "the first" is suppressed unless at least two files were read — a
+    // single-file truncation is a scanner edge case (499 failed reads)
+    // and rendering "the first 1 file" reads badly. files_scanned == 0
+    // is handled as a distinct branch since we have nothing meaningful
+    // to report.
     let summary_line = match &state.results {
+        Some(r) if r.files_scanned == 0 => "No files could be scanned.".to_string(),
         Some(r) if !r.findings.is_empty() => {
             let total = r.findings.len();
+            let scope = if r.truncated && r.files_scanned > 1 {
+                "the first "
+            } else {
+                ""
+            };
             format!(
-                "Found {total} issue{} across {} file{}.",
+                "Found {total} issue{} across {scope}{} file{}.",
                 if total == 1 { "" } else { "s" },
                 r.files_scanned,
                 if r.files_scanned == 1 { "" } else { "s" },
             )
         }
-        Some(r) => format!(
-            "No issues found in {} file{}.",
-            r.files_scanned,
-            if r.files_scanned == 1 { "" } else { "s" },
-        ),
+        Some(r) => {
+            let scope = if r.truncated && r.files_scanned > 1 {
+                "the first "
+            } else {
+                ""
+            };
+            format!(
+                "No issues found in {scope}{} file{}.",
+                r.files_scanned,
+                if r.files_scanned == 1 { "" } else { "s" },
+            )
+        }
         None => "Scan skipped.".to_string(),
     };
 
-    let lines = vec![
+    // Skip the "re-run on a subdirectory" hint when files_scanned == 0 —
+    // the cap is irrelevant if nothing was read; the real failure is
+    // elsewhere (permissions, filter) and we don't want to send the
+    // user chasing the wrong fix.
+    let truncated_note = matches!(&state.results, Some(r) if r.truncated && r.files_scanned > 0);
+
+    let mut lines = vec![
         Line::default(),
         Line::from(Span::styled(summary_line, Style::default().fg(theme.fg()))),
+    ];
+    if truncated_note {
+        lines.push(Line::from(Span::styled(
+            "Scan was limited — re-run on a subdirectory for complete coverage.",
+            Style::default().fg(theme.muted()),
+        )));
+    }
+    lines.extend([
         Line::default(),
         Line::from(Span::styled(
             "Press Enter to continue",
@@ -329,7 +376,7 @@ fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme:
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
         )),
-    ];
+    ]);
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
@@ -424,6 +471,41 @@ mod tests {
     }
 
     #[test]
+    fn continue_screen_notes_truncation() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: vec![make_finding(FindingSeverity::Error, "e")],
+            files_scanned: 500,
+            duration_ms: 1500,
+            truncated: true,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains("the first 500 file"),
+            "truncated summary should say `the first N files`: {rendered}"
+        );
+        assert!(
+            rendered.contains("Scan was limited"),
+            "truncated continue screen should carry the limited-scan note: {rendered}"
+        );
+    }
+
+    #[test]
     fn renders_in_small_area_without_panic() {
         let backend = TestBackend::new(40, 10);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -433,6 +515,121 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    #[test]
+    fn detail_summary_notes_truncation() {
+        // set_results with findings lands on the Results/detail phase;
+        // we intentionally do NOT advance to the continue screen so the
+        // detail-pane summary is what renders. Widen the backend so the
+        // right-hand Detail pane has room for the full summary line —
+        // at 80 cols the pane is ~36 wide and the summary clips before
+        // "(scan limited)".
+        let backend = TestBackend::new(140, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: vec![make_finding(FindingSeverity::Error, "e")],
+            files_scanned: 500,
+            duration_ms: 1500,
+            truncated: true,
+        });
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains("first 500 file"),
+            "detail-pane summary should say `first N file(s)`: {rendered}"
+        );
+        assert!(
+            rendered.contains("(scan limited)"),
+            "detail-pane summary should carry the `(scan limited)` tag: {rendered}"
+        );
+    }
+
+    #[test]
+    fn truncation_note_visible_in_small_area() {
+        // Narrow terminals were silently clipping the truncation line.
+        // This test doesn't require the full string to fit — just that
+        // enough of it lands in the buffer for the user to recognise the
+        // warning.
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: Vec::new(),
+            files_scanned: 500,
+            duration_ms: 1500,
+            truncated: true,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains("limited"),
+            "narrow continue screen should still show the truncation warning: {rendered}"
+        );
+    }
+
+    #[test]
+    fn continue_screen_handles_zero_files_scanned() {
+        // Degenerate case: every candidate panicked or failed to read,
+        // so files_scanned saturates to 0 even though truncated==true.
+        // We should not render "the first 0 files" — that's grammatically
+        // broken and semantically wrong (we scanned nothing). Expect a
+        // distinct message and no truncation-hint.
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: Vec::new(),
+            files_scanned: 0,
+            duration_ms: 500,
+            truncated: true,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            !rendered.contains("the first 0"),
+            "zero-files case must not render `the first 0`: {rendered}"
+        );
+        assert!(
+            rendered.contains("No files could be scanned"),
+            "zero-files case should surface a distinct message: {rendered}"
+        );
     }
 
     #[test]

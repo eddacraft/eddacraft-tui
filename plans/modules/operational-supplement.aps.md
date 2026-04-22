@@ -1,0 +1,145 @@
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
+<!-- Executable only if tasks exist and status is Ready. -->
+
+# Operational Supplement (Cross-Track Infrastructure)
+
+| ID    | Owner | Status |
+| ----- | ----- | ------ |
+| OPSUP | —     | Draft  |
+
+## Purpose
+
+Single home for the cross-cutting operational concerns surfaced by the
+[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+council review (§16.5 #7). Every Track 3 governance surface and Track 4
+semantic pack pulls these in as prerequisites; without one shared module
+each new module would re-design the same operational story differently.
+
+Specifically owns:
+
+- **Check registry with stable IDs** (council C-008) — replaces the
+  hardcoded `AVAILABLE_CHECKS` array in `gate.rs`. `--skip_checks` must
+  resolve against the registry, and newly shipped checks must be skippable
+  without a binary downgrade.
+- **Drift baseline schema versioning + `anvil drift migrate`** (council
+  C-009) — the spec adds 7 new surfaces each with new baseline fields. The
+  hardcoded `SCHEMA_VERSION = "1.0.0"` cannot absorb this silently. Owns
+  the schema version field, the migration command, and the on-upgrade
+  upgrade path so existing user baselines do not break.
+- **Per-track feature flags** (council C-020) — every binary upgrade
+  currently ships all tracks. Per-track flags let a user disable
+  surfaces/packs that are noisy on their codebase without rolling back the
+  whole release. Defaults: each new track ships behind a flag for one
+  release, then flips on.
+- **CI wall-time budget + file-presence guards** (council C-023) — a repo
+  with no `.sql` files should pay zero cost for the SQL surface. Each
+  surface and pack declares the file shapes it needs; if absent, the
+  check short-circuits before doing work.
+- **FP reporting channel** (council C-024) — Anvil's own repo is one
+  controlled data point. Production signal currently arrives only via
+  support tickets. Owns the reporting mechanism (CLI `anvil report-fp`,
+  telemetry channel, anonymisation policy) so users have a non-anecdotal
+  way to flag false positives.
+
+## In Scope
+
+- Stable check-ID registry crate or module, including:
+  - ID assignment scheme (e.g. `ANV-SURF-SQL-001`)
+  - Skip/disable resolution against the registry
+  - Migration of existing `AVAILABLE_CHECKS` entries to the registry
+- Drift baseline schema versioning:
+  - `SCHEMA_VERSION` becomes a versioned enum
+  - `anvil drift migrate` command for on-upgrade migration
+  - Per-surface/pack baseline-field declarations
+- Per-track feature flag taxonomy:
+  - Flag naming convention (e.g. `track.surface.sql`, `track.pack.pulumi`)
+  - Default-state policy (new tracks start opt-in for one release)
+  - Integration with the existing flag governance per
+    [feature-flag-governance.md](../../docs/guides/feature-flag-governance.md)
+- CI runtime budget framework:
+  - Per-check declared file-shape needs
+  - File-presence guards short-circuit before work
+  - Per-check wall-time cap with surfaceable timeout reason
+- FP reporting channel:
+  - CLI command (`anvil report-fp <check-id> <file:line>`)
+  - Telemetry destination (TBD — almost certainly the existing Kindling
+    pipeline)
+  - Anonymisation: file path hashing, no source content shipped by default
+
+## Out of Scope
+
+- Concrete surface or pack rules (those live in their own modules).
+- Replacement of the existing feature-flag system — OPSUP layers on top of
+  it, does not replace it.
+- Telemetry-data analytics dashboards (the channel exists; what gets done
+  with the data is a separate dashboard module concern).
+- Backwards-compatibility of the legacy `AVAILABLE_CHECKS` API beyond a
+  one-release transition window.
+
+## Interfaces
+
+**Depends on:**
+
+- Existing `AVAILABLE_CHECKS` in `gate.rs` (migrates from).
+- Existing `SCHEMA_VERSION` in `drift.rs` (migrates from).
+- Existing feature-flag system per [`feature-flagging`](./feature-flagging.aps.md)
+  and [`feature-flag-migration`](./feature-flag-migration.aps.md).
+- Kindling pipeline (likely host for FP telemetry).
+
+**Exposes:**
+
+- Check-ID registry — referenced by every Track 3 surface and Track 4 pack
+  module.
+- Drift schema versioning + `anvil drift migrate` — referenced by every
+  module that adds a baseline field.
+- Per-track flag taxonomy — referenced by every Track 3/4 module.
+- File-presence guard helpers — referenced by every Track 3/4 module.
+- FP reporting CLI command — referenced from CLI surface modules.
+
+## Prerequisites
+
+None — this module unblocks others, not vice versa.
+
+## Ready Checklist
+
+Change status to **Ready** when:
+
+- [ ] Owner named.
+- [ ] Check-ID scheme drafted and reviewed.
+- [ ] Drift schema migration policy drafted and reviewed.
+- [ ] Per-track flag taxonomy aligns with existing flag governance.
+- [ ] FP reporting destination confirmed (Kindling vs other).
+
+## Tasks
+
+Tasks will be defined when this module moves to Ready. Anticipated:
+
+- OPSUP-001: Check-ID registry — schema, ID assignment, migration of
+  existing entries.
+- OPSUP-002: Skip/disable resolution against the registry; replace
+  hardcoded array.
+- OPSUP-003: Drift baseline schema versioning — versioned enum + per-field
+  declarations.
+- OPSUP-004: `anvil drift migrate` command + on-upgrade migration path.
+- OPSUP-005: Per-track feature flag taxonomy + governance integration.
+- OPSUP-006: File-presence guard helpers + per-check wall-time caps.
+- OPSUP-007: FP reporting CLI + telemetry destination.
+
+## Risks
+
+| Risk | Impact | Mitigation |
+| ---- | ------ | ---------- |
+| Check-ID renames cascade through user `--skip_checks` configs | High | One-release deprecation window with old IDs aliased to new ones |
+| Drift schema migrations corrupt existing baselines | Critical | Migration is one-way write-with-backup; backup file retained for one release |
+| Per-track flag explosion (one flag per surface + pack = 12+) | Medium | Hierarchical flags (`track.surface.*` umbrella) with per-leaf overrides |
+| FP telemetry leaks user code | High | Anonymisation by default; opt-in for source snippets; never enabled in default config |
+| OPSUP becomes a long-running prerequisite that delays every Track 3/4 module | High | Deliver in slices — check registry first (unblocks IDs), then drift versioning, then flags, then FP reporting; surfaces can move to Ready against partial OPSUP delivery if their needs are met |
+
+## Open Questions
+
+- [ ] Hosting the FP telemetry — Kindling pipeline reuse or new endpoint?
+- [ ] Per-track flag default policy — opt-in for one release then flip on,
+      or opt-in until an explicit promotion decision?
+- [ ] How do legacy `AVAILABLE_CHECKS` IDs map to the new registry — via
+      alias table or one-shot rename in a major release?
+- [ ] Wall-time budget — global default, per-check, or per-track?

@@ -236,9 +236,12 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
     frame.render_widget(block, area);
 
     let watch_stats = &state.data.stats;
-    let pass_colour = if watch_stats.pass_rate >= 0.8 {
+    let display_pass_rate = (*state.anim_pass_rate).clamp(0.0, 1.0);
+    let display_avg_duration = (*state.anim_avg_duration_ms).max(0.0);
+
+    let pass_colour = if display_pass_rate >= 0.8 {
         theme.success()
-    } else if watch_stats.pass_rate >= 0.5 {
+    } else if display_pass_rate >= 0.5 {
         theme.warning()
     } else {
         theme.error()
@@ -255,7 +258,7 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         Line::from(vec![
             Span::styled("  Pass rate:    ", Style::default().fg(theme.muted())),
             Span::styled(
-                format!("{:.0}%", watch_stats.pass_rate * 100.0),
+                format!("{:.0}%", display_pass_rate * 100.0),
                 Style::default()
                     .fg(pass_colour)
                     .add_modifier(Modifier::BOLD),
@@ -264,7 +267,7 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         Line::from(vec![
             Span::styled("  Avg duration: ", Style::default().fg(theme.muted())),
             Span::styled(
-                format!("{}ms", watch_stats.avg_duration_ms),
+                format!("{display_avg_duration:.0}ms"),
                 Style::default().fg(theme.fg()),
             ),
         ]),

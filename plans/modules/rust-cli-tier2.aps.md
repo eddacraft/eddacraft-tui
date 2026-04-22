@@ -29,6 +29,20 @@ the Node.js CLI for common tasks, defeating the single-binary goal.
 **ADR:** [012-rust-cli-replacement](../decisions/012-rust-cli-replacement.md)
 **Spec:** [2026-03-18-rust-cli-design](../specs/2026-03-18-rust-cli-design.md) §6 Tier 2
 
+## Language Guardrails
+
+This module extends Anvil's quality-facing CLI, so it must follow the canonical
+language defined in
+`plans/specs/2026-04-21-anvil-quality-language-design.md`.
+
+- Use `check` for the smallest evaluative unit
+- Use `gate` for workflow judgement over one or more checks
+- Use `finding` as the generic result noun where the output spans warnings,
+  violations, and similar result types
+- Use `scan` for evidence-gathering actions, not as the primary user model
+- Avoid introducing new command copy that treats `gate` as a generic synonym
+  for any control, preflight, or config surface
+
 ## In Scope
 
 - 8 commands (or command groups) classified as Tier 2 in the design spec
@@ -70,6 +84,8 @@ the Node.js CLI for common tasks, defeating the single-binary goal.
   domain logic exists (in Rust or TypeScript)
 - Same error handling conventions as RCLI: `anyhow` for application code,
   `thiserror` for library errors
+- User-facing help, docs, and task copy should describe results as findings
+  unless a narrower subtype is genuinely required
 
 ## Ready Checklist
 
@@ -95,8 +111,11 @@ Change status to **Ready** when:
   selection modes: explicit paths, `--all`, `--changed`, `--staged`,
   `--since <ref>`. Runs GateRunner in planless mode. Supports interactive
   review with nudge coaching, suppression filtering, and caching
+- **Language Note:** `check` is the evaluative command; result summaries should
+  use `findings` as the generic noun, with `warning` or `violation` reserved
+  for specific severities/types
 - **Expected Outcome:** `anvil check --changed` analyses modified files and
-  reports warnings with severity levels; `--json` produces machine-readable
+  reports findings with severity levels; `--json` produces machine-readable
   output; `--interactive` prompts per-warning
 - **Validation:** Warning counts and severities match Node.js CLI for same
   project state; exit code 0 on clean, 1 on warnings
@@ -134,6 +153,9 @@ Change status to **Ready** when:
   baseline), `compare` (diff two snapshots), `report` (longitudinal analysis),
   `list` (enumerate snapshots). Reads/writes `.anvil/snapshots/` directory.
   Supports `--json` output for all subcommands
+- **Language Note:** Drift is a reporting surface over findings and state
+  changes; avoid letting it establish a separate result vocabulary from the
+  core checks/findings/gates model
 - **Expected Outcome:** `anvil drift snapshot --name release-1.0` captures
   current state; `anvil drift compare s1 s2` shows deltas in violations,
   antipatterns, and suppressions
@@ -153,6 +175,9 @@ Change status to **Ready** when:
 - **Intent:** Port `anvil gate-config`. List, enable, disable, and
   interactively configure gate checks and thresholds. Reads/writes
   `.anvil/gate-config.json`
+- **Language Note:** Make clear in help and docs that this surface configures
+  the checks used by gate evaluation; avoid implying that checks and gates are
+  separate unrelated systems
 - **Expected Outcome:** `anvil gate-config --list` shows current config;
   `--enable policy` enables a check; `--interactive` walks through all
   settings
@@ -208,7 +233,7 @@ Change status to **Ready** when:
 
 - **Status:** Proposed
 - **Intent:** Port `anvil pr-comment`. Generates PR annotations from gate
-  results. Formats warnings as GitHub PR review comments with file/line
+  results. Formats findings as GitHub PR review comments with file/line
   context, severity badges, and summary table
 - **Expected Outcome:** `anvil pr-comment --gate-output results.json` posts
   annotations to the current PR via GitHub API

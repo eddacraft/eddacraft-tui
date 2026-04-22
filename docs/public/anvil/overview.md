@@ -39,6 +39,16 @@ anvil validates changes **at save-time**—before they reach review.
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
+The important distinction is:
+
+- **checks** evaluate one concern
+- **findings** are the results emitted by checks
+- **gates** are the workflow judgement over one or more checks
+
+That is why `anvil check` and `anvil gate` both exist. `check` is best for
+targeted analysis; `gate` is best when you need to know whether work can
+advance.
+
 ### 1. Watch Mode
 
 anvil runs in the background, watching for file changes:
@@ -60,7 +70,7 @@ When files change, anvil runs quality gates:
 
 ### 3. Immediate Feedback
 
-Issues surface instantly in your terminal or editor—not in a PR comment hours
+Findings surface instantly in your terminal or editor—not in a PR comment hours
 later.
 
 ```
@@ -71,8 +81,8 @@ later.
 
 ### 4. Evidence Trail
 
-Every validation run produces evidence: what was checked, what passed, what
-failed, and when.
+Every validation run produces evidence: which checks ran, what findings were
+emitted, what passed, what failed, and when.
 
 ## Key Features
 
@@ -143,6 +153,9 @@ anvil is focused. It doesn't:
 - **Replace code review** — it augments review, not replaces it
 
 anvil catches _structural_ and _architectural_ issues that other tools miss.
+
+For the full explanation of checks, findings, and gates, see
+[Understand gates](/anvil/concepts/gates).
 
 ---
 

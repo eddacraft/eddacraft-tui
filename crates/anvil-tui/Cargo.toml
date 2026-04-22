@@ -9,6 +9,7 @@ description = "Anvil TUI surfaces built on eddacraft-tui — watch dashboard, ga
 name = "anvil_tui"
 
 [dependencies]
+animate = { workspace = true }
 eddacraft-tui = { workspace = true }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 ratatui = { workspace = true }

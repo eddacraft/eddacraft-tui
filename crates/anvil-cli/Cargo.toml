@@ -14,6 +14,7 @@ name = "anvil"
 path = "src/main.rs"
 
 [dependencies]
+animate = { workspace = true }
 anvil-tui = { path = "../anvil-tui", package = "eddacraft-anvil-tui" }
 anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }

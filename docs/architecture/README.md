@@ -4,6 +4,7 @@ System design and architectural deep-dives.
 
 - [Anvil Architecture Evolution](anvil-architecture-evolution.md) — Phased
   rollout from TypeScript to Rust kernel
+- [Quality Model](quality-model.md) — Checks, findings, gates, and surface roles
 - [Edda Stack](edda-stack.md) — Memory stack (Kindling / Ember / Edda)
 - [Rust Kernel Spec](rust-kernel-spec.md) — H1 Rust kernel specification
 - [Rust Architecture Overview](rust-architecture-overview.md) — Crate structure
