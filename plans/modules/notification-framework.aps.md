@@ -3,9 +3,9 @@
 
 # Notification Framework
 
-| ID     | Owner | Status      | Progress |
-|--------|-------|-------------|----------|
-| NOTIFY | —     | In Progress | 5/9      |
+| ID     | Owner | Status   | Progress |
+|--------|-------|----------|----------|
+| NOTIFY | —     | Complete | 9/9      |
 
 ## Purpose
 
@@ -163,8 +163,10 @@ delivery.
 - **Dependencies:** NOTIFY-005
 - **Validation:** Targeted output tests and fixture updates pass
 - **Confidence:** medium
-- **Status:** Committed — PR #1035 adds notification payloads for `check` and
-  `gate`; `doctor` and `audit` remain to be aligned in follow-up work
+- **Status:** Complete — `check`/`gate` shipped via PR #1035; `doctor`
+  emits health/failure notifications with per-check mapping and a summary;
+  `audit` emits finding notifications per issue and a severity-driven
+  summary
 
 ### NOTIFY-007: Add shared TUI notification model
 
@@ -172,34 +174,56 @@ delivery.
   and related surfaces
 - **Expected Outcome:** High/critical and grouped notifications are represented
   consistently in TUI surfaces
-- **Files:** `crates/anvil-tui/src/surfaces/watch/`,
-  `crates/anvil-tui/src/surfaces/tutorial/`, `crates/anvil-tui/src/surfaces/onboarding/`
+- **Files:** `crates/anvil-tui/src/surfaces/notifications.rs`,
+  `crates/anvil-tui/src/surfaces/watch/`,
+  `crates/anvil-tui/src/surfaces/tutorial/`,
+  `crates/anvil-tui/src/surfaces/onboarding/hooks.rs`
 - **Dependencies:** NOTIFY-005
-- **Validation:** Targeted TUI tests and snapshots pass
+- **Validation:** `cargo test -p eddacraft-anvil-tui` — watch, tutorial, and
+  onboarding hooks implement `NotificationSource` and expose canonical
+  notifications
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete — initial adoption. The `NotificationSource` trait
+  lives in `crates/anvil-tui/src/surfaces/notifications.rs` and is
+  implemented by the three surfaces that actively carry notification-like
+  state today: `WatchState`, `TutorialState`, and onboarding `HooksState`.
+  The remaining TUI surfaces (gate, audit, doctor, status, welcome, wizard,
+  browser, init) either render read-only data or have no notification
+  queue, so there is nothing to expose through the trait. Reopen with a
+  new task if a non-onboarding surface gains notification-like state.
 
 ### NOTIFY-008: Define notification telemetry stream contract
 
 - **Intent:** Define the stream/event contract for notification subscribers
 - **Expected Outcome:** Telemetry-lane payload shape is documented and reusable
-- **Files:** `plans/specs/`, `docs/architecture/`, `plans/specs/anvil-driver-framework/`
+- **Files:** `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`
 - **Dependencies:** NOTIFY-005
-- **Validation:** Stream schema or contract doc exists and is referenced by
-  follow-on work
+- **Validation:** Envelope (`anvil.notification.v1`) is documented with
+  producer/subscriber contracts and referenced by NOTIFY-009 and INTD-013
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### NOTIFY-009: Integrate intercept control decisions with notification model
 
 - **Intent:** Ensure intercept/control-plane decisions reuse the shared
   notification taxonomy and delivery split
-- **Expected Outcome:** Block/interrupt/fence notifications mirror control-lane
-  outcomes without inventing parallel semantics
+- **Expected Outcome:** Design contract that binds future block/interrupt/
+  fence notifications to the taxonomy so intercept implementation work
+  cannot invent parallel semantics. Actual emission code lives under
+  `INTD-013` (intercept-daemon module) and is tracked separately.
 - **Files:** `plans/modules/intercept-daemon.aps.md`,
-  `plans/specs/anvil-driver-framework/`, `crates/anvil-cli/`, `crates/anvil-tui/`
+  `plans/specs/2026-04-22-intercept-notification-integration.md`
 - **Dependencies:** NOTIFY-008
-- **Validation:** Intercept-facing planning or implementation references the
-  shared model
+- **Validation:** Three doc-scope checks — all verifiable from this repo
+  without the intercept crate existing:
+  1. `plans/modules/intercept-daemon.aps.md` declares a `NOTIFY` dependency
+     in its Interfaces section.
+  2. The same module carries a "Notification Model Integration" section
+     with the fixed mapping table for `allow` / `warn` / `block` /
+     `interrupt` plus fence-state transitions.
+  3. `INTD-013` is tracked as a code work item whose own validation command
+     (`cargo test -p eddacraft-anvil-intercept --lib telemetry`) will run
+     once the intercept crate is created — this task remains `Draft` under
+     INTD and is the gate for the code-level assertion.
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete (doc-only scope; code emission lands with INTD-013)

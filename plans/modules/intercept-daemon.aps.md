@@ -48,9 +48,38 @@ persisted to disk to survive restarts.
 - **Depends on:** anvil-intercept-proto (shared NDJSON message types, session
   model, IPC command enum), anvil-checks (secret detection, antipattern
   scanning), anvil-kernel (watcher ChangeBatch channel), intercept-rules (INTR,
-  rule trait and rule set)
+  rule trait and rule set), notification-framework (NOTIFY — canonical
+  notification taxonomy and telemetry stream contract)
 - **Exposes:** IPC interface for session lifecycle and worktree status; in-process
-  API for embedded mode; disk-persisted fence state readable by launcher
+  API for embedded mode; disk-persisted fence state readable by launcher;
+  telemetry-lane notification stream mirroring control-lane decisions
+
+## Notification Model Integration
+
+Enforcement decisions (`allow` / `warn` / `block` / `interrupt`) are mirrored
+onto the telemetry lane as canonical notifications so operators, TUIs, and
+observability subscribers see the same state transitions the drivers act on.
+The mapping is fixed:
+
+| Control decision | Notification class | Priority |
+| --- | --- | --- |
+| `allow` | usually no notification, else `info` | `low` |
+| `warn` | `warning` | `high` |
+| `block` | `block` (+ `fence-state` on worktree apply) | `critical` |
+| `interrupt` | `interrupt` (+ `fence-state` on worktree apply) | `critical` |
+
+All emitted telemetry events follow the envelope defined in
+`plans/specs/2026-04-22-notification-telemetry-stream-contract.md`, with
+`correlation.source = "intercept"` and the `mirror` object set to the
+originating control decision, driver id, and ack requirement. Fence state
+changes additionally carry `grouping.transition` (e.g. `active -> fenced`,
+`fenced -> active`) so subscribers can distinguish transitions from repeat
+polls.
+
+Intercept-facing tasks must not invent parallel event vocabulary. Block,
+interrupt, and fence events use the canonical classes above; anything that
+does not fit becomes a `health` notification on the same stream rather than
+a new lane.
 
 ## Tasks
 
@@ -184,4 +213,24 @@ persisted to disk to survive restarts.
   `.github/workflows/rust.yml`; this task blocks all other tasks from being
   marked Complete
 - **Validation:** `gh run list --workflow=rust.yml` shows passing Windows jobs
+- **Status:** Draft
+
+### INTD-013: Mirror Enforcement Decisions Onto Notification Telemetry
+
+- **Intent:** Emit every control-lane decision as a canonical notification on
+  the telemetry lane so subscribers see one shape across surfaces
+- **Expected Outcome:** The enforcement pipeline produces a
+  `anvil.notification.v1` envelope per decision with `mirror.decision` set to
+  the control-lane outcome, `notification.class` drawn from the fixed mapping
+  in the "Notification Model Integration" section, and `correlation.source =
+  "intercept"`; fence transitions (`active -> fenced`, `fenced -> active`)
+  populate `grouping.transition`
+- **Files:** `crates/anvil-intercept/src/enforcement.rs`,
+  `crates/anvil-intercept/src/telemetry.rs` (new),
+  `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`,
+  `crates/anvil-kernel-types/src/notifications.rs`
+- **Dependencies:** INTD-005, INTD-007, NOTIFY-008
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib telemetry`
+  — tests assert the mapping table, schema value, mirror population, and
+  fence-transition grouping
 - **Status:** Draft

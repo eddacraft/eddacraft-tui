@@ -75,6 +75,8 @@ anvil doctor
 anvil doctor --fix
 
 # JSON output for CI/CD
+# (archived Node CLI emitted a bare array; current Rust CLI emits
+# { checks: [...], notifications: [...] } — see CHANGELOG.md for migration.)
 anvil doctor --json
 
 # Verbose output

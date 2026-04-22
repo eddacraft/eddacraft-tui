@@ -1,6 +1,9 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
+use anvil_kernel_types::{
+    Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
 use anvil_tui::surfaces::audit::{
     AuditData, AuditIssue, AuditState, HistoricalScore, IssueSeverity,
 };
@@ -358,6 +361,13 @@ fn print_plain(data: &AuditData) {
 // Output: JSON
 // ---------------------------------------------------------------------------
 
+/// `issues[]` is the canonical list of audit findings — always emitted in full.
+/// `notifications[]` is a taxonomy-aligned envelope (`class`, `priority`,
+/// `title`, `message`, `context`) for subscribers that consume the shared
+/// notification model across `check`, `gate`, `doctor`, and `audit`. When the
+/// two overlap, `issues[]` is authoritative: `notifications[]` mirrors the
+/// highest-priority findings (capped — see `MAX_ISSUE_NOTIFICATIONS`) plus a
+/// single summary. Consumers that want the full list should read `issues[]`.
 #[derive(Serialize)]
 struct AuditOutput {
     project_name: String,
@@ -365,6 +375,7 @@ struct AuditOutput {
     issues: Vec<IssueOutput>,
     historical_scores: Vec<ScoreOutput>,
     next_steps: Vec<String>,
+    notifications: Vec<Notification>,
 }
 
 #[derive(Serialize)]
@@ -384,8 +395,134 @@ struct ScoreOutput {
     issue_count: usize,
 }
 
-fn print_json(data: &AuditData) -> anyhow::Result<()> {
-    let output = AuditOutput {
+/// Cap on per-issue notifications mirrored into `AuditOutput.notifications`.
+///
+/// Large monorepos produce thousands of `TODO`/console findings; without a cap
+/// each `--json` invocation would allocate one `Notification` per issue plus
+/// the full pretty-JSON buffer (OPS-002). `issues[]` remains the canonical
+/// unbounded list; `notifications[]` is capped to the highest-priority entries
+/// with a single overflow notification announcing truncation.
+const MAX_ISSUE_NOTIFICATIONS: usize = 500;
+
+fn notification_priority_for_severity(severity: IssueSeverity) -> NotificationPriority {
+    // NOTE: `Critical` is reserved by the taxonomy for control-plane events
+    // (block / interrupt / fence-state). Audit findings — including critical
+    // severity — map to `High` so that a future control-lane `critical`
+    // notification stays distinguishable from a high-severity finding.
+    match severity {
+        IssueSeverity::Critical | IssueSeverity::High => NotificationPriority::High,
+        IssueSeverity::Medium => NotificationPriority::Normal,
+        IssueSeverity::Low | IssueSeverity::Info => NotificationPriority::Low,
+    }
+}
+
+fn notification_for_issue(issue: &AuditIssue) -> Notification {
+    Notification::new(
+        NotificationClass::Finding,
+        notification_priority_for_severity(issue.severity),
+        format!("[{}] {}", issue.severity.label_full(), issue.category),
+        issue.message.clone(),
+    )
+    .with_context(NotificationContext {
+        file: Some(issue.file.clone()),
+        source: Some("audit".to_string()),
+    })
+}
+
+fn severity_rank(severity: IssueSeverity) -> u8 {
+    // Lower value = higher priority for the cap selector below.
+    match severity {
+        IssueSeverity::Critical => 0,
+        IssueSeverity::High => 1,
+        IssueSeverity::Medium => 2,
+        IssueSeverity::Low => 3,
+        IssueSeverity::Info => 4,
+    }
+}
+
+fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
+    let audit_context = NotificationContext {
+        file: None,
+        source: Some("audit".to_string()),
+    };
+
+    // Pick the top-N highest-priority issues, preserving original order within
+    // each severity bucket so tests remain stable.
+    let mut indexed: Vec<(usize, &AuditIssue)> = data.issues.iter().enumerate().collect();
+    indexed.sort_by_key(|(idx, issue)| (severity_rank(issue.severity), *idx));
+    let total_issues = indexed.len();
+    let truncated = total_issues.saturating_sub(MAX_ISSUE_NOTIFICATIONS);
+
+    let mut notifications: Vec<Notification> = indexed
+        .into_iter()
+        .take(MAX_ISSUE_NOTIFICATIONS)
+        .map(|(_, issue)| notification_for_issue(issue))
+        .collect();
+
+    if truncated > 0 {
+        notifications.push(
+            Notification::new(
+                NotificationClass::Info,
+                NotificationPriority::Normal,
+                "Audit notifications truncated",
+                format!(
+                    "Emitted {MAX_ISSUE_NOTIFICATIONS} of {total_issues} findings as notifications; see issues[] for the full list.",
+                ),
+            )
+            .with_context(audit_context.clone()),
+        );
+    }
+
+    let critical = data.issue_count_by_severity(IssueSeverity::Critical);
+    let high = data.issue_count_by_severity(IssueSeverity::High);
+    let medium = data.issue_count_by_severity(IssueSeverity::Medium);
+
+    // Summary class follows finding severity. Priority is capped at `High` —
+    // `Critical` is reserved for control-plane notifications.
+    let (class, priority, message) = if critical > 0 {
+        (
+            NotificationClass::Failure,
+            NotificationPriority::High,
+            format!(
+                "{critical} critical, {high} high, {medium} medium, {} total",
+                data.issues.len()
+            ),
+        )
+    } else if high > 0 {
+        (
+            NotificationClass::Warning,
+            NotificationPriority::High,
+            format!(
+                "0 critical, {high} high, {medium} medium, {} total",
+                data.issues.len()
+            ),
+        )
+    } else if data.issues.is_empty() {
+        (
+            NotificationClass::Info,
+            NotificationPriority::Low,
+            format!("No issues across {} files", data.total_files),
+        )
+    } else {
+        (
+            NotificationClass::Warning,
+            NotificationPriority::Normal,
+            format!(
+                "0 critical, 0 high, {medium} medium, {} total",
+                data.issues.len()
+            ),
+        )
+    };
+
+    notifications.push(
+        Notification::new(class, priority, "Audit summary", message).with_context(audit_context),
+    );
+
+    notifications
+}
+
+fn build_audit_output(data: &AuditData) -> AuditOutput {
+    AuditOutput {
         project_name: data.project_name.clone(),
         total_files: data.total_files,
         issues: data
@@ -410,8 +547,12 @@ fn print_json(data: &AuditData) -> anyhow::Result<()> {
             })
             .collect(),
         next_steps: data.next_steps.clone(),
-    };
+        notifications: notifications_for_audit(data),
+    }
+}
 
+fn print_json(data: &AuditData) -> anyhow::Result<()> {
+    let output = build_audit_output(data);
     let json = serde_json::to_string_pretty(&output)?;
     println!("{json}");
     Ok(())
@@ -901,5 +1042,202 @@ mod tests {
         ];
         let steps = generate_next_steps(&issues);
         assert!(steps.iter().any(|s| s.contains("2 console")));
+    }
+
+    // --- notification mapping ---
+
+    fn issue_with(severity: IssueSeverity) -> AuditIssue {
+        AuditIssue {
+            severity,
+            category: "Quality".to_string(),
+            message: "sample".to_string(),
+            file: "src/a.rs".to_string(),
+            line: 1,
+            fixable: false,
+        }
+    }
+
+    #[test]
+    fn issue_severity_maps_to_notification_priority() {
+        // Taxonomy reserves `Critical` priority for control-plane events
+        // (block / interrupt / fence-state); audit findings cap at `High`.
+        let cases = [
+            (IssueSeverity::Critical, NotificationPriority::High),
+            (IssueSeverity::High, NotificationPriority::High),
+            (IssueSeverity::Medium, NotificationPriority::Normal),
+            (IssueSeverity::Low, NotificationPriority::Low),
+            (IssueSeverity::Info, NotificationPriority::Low),
+        ];
+        for (severity, priority) in cases {
+            let notification = notification_for_issue(&issue_with(severity));
+            assert_eq!(notification.class, NotificationClass::Finding);
+            assert_eq!(notification.priority, priority);
+            assert_eq!(
+                notification
+                    .context
+                    .as_ref()
+                    .and_then(|c| c.source.as_deref()),
+                Some("audit")
+            );
+            assert_eq!(
+                notification
+                    .context
+                    .as_ref()
+                    .and_then(|c| c.file.as_deref()),
+                Some("src/a.rs")
+            );
+        }
+    }
+
+    #[test]
+    fn notification_priority_never_uses_critical() {
+        for severity in [
+            IssueSeverity::Critical,
+            IssueSeverity::High,
+            IssueSeverity::Medium,
+            IssueSeverity::Low,
+            IssueSeverity::Info,
+        ] {
+            assert_ne!(
+                notification_priority_for_severity(severity),
+                NotificationPriority::Critical,
+                "audit must not emit Critical priority for {severity:?}",
+            );
+        }
+    }
+
+    fn empty_audit_data() -> AuditData {
+        AuditData {
+            project_name: "p".to_string(),
+            total_files: 10,
+            issues: Vec::new(),
+            historical_scores: Vec::new(),
+            next_steps: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn summary_notification_is_info_when_no_issues() {
+        let notifications = notifications_for_audit(&empty_audit_data());
+        assert_eq!(notifications.len(), 1);
+        let summary = &notifications[0];
+        assert_eq!(summary.class, NotificationClass::Info);
+        assert_eq!(summary.priority, NotificationPriority::Low);
+    }
+
+    #[test]
+    fn summary_notification_is_failure_when_critical_present() {
+        let mut data = empty_audit_data();
+        data.issues.push(issue_with(IssueSeverity::Critical));
+        let notifications = notifications_for_audit(&data);
+        let summary = notifications.last().unwrap();
+        assert_eq!(summary.class, NotificationClass::Failure);
+        // Priority is High (not Critical) — Critical is reserved for
+        // control-plane events per the notification taxonomy.
+        assert_eq!(summary.priority, NotificationPriority::High);
+    }
+
+    #[test]
+    fn summary_notification_is_warning_when_high_present() {
+        let mut data = empty_audit_data();
+        data.issues.push(issue_with(IssueSeverity::High));
+        let notifications = notifications_for_audit(&data);
+        let summary = notifications.last().unwrap();
+        assert_eq!(summary.class, NotificationClass::Warning);
+        assert_eq!(summary.priority, NotificationPriority::High);
+    }
+
+    #[test]
+    fn summary_notification_is_warning_when_only_medium_severity() {
+        let mut data = empty_audit_data();
+        data.issues.push(issue_with(IssueSeverity::Medium));
+        let notifications = notifications_for_audit(&data);
+        let summary = notifications.last().unwrap();
+        // Previously `Info/Normal` — upgraded to `Warning/Normal` so a non-
+        // empty medium-severity rollup is distinguishable from a clean run.
+        assert_eq!(summary.class, NotificationClass::Warning);
+        assert_eq!(summary.priority, NotificationPriority::Normal);
+    }
+
+    #[test]
+    fn summary_notification_is_warning_when_only_low_or_info() {
+        for severity in [IssueSeverity::Low, IssueSeverity::Info] {
+            let mut data = empty_audit_data();
+            data.issues.push(issue_with(severity));
+            let notifications = notifications_for_audit(&data);
+            let summary = notifications.last().unwrap();
+            assert_eq!(
+                summary.class,
+                NotificationClass::Warning,
+                "class for only-{severity:?}",
+            );
+            assert_eq!(summary.priority, NotificationPriority::Normal);
+        }
+    }
+
+    #[test]
+    fn build_audit_output_includes_notifications() {
+        let mut data = empty_audit_data();
+        data.issues.push(issue_with(IssueSeverity::Medium));
+        data.issues.push(issue_with(IssueSeverity::Low));
+        let output = build_audit_output(&data);
+        // 2 per-issue notifications + 1 summary
+        assert_eq!(output.notifications.len(), 3);
+        let json = serde_json::to_value(&output).unwrap();
+        assert!(json["notifications"].is_array());
+        assert_eq!(json["notifications"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn notifications_are_capped_with_overflow_marker() {
+        // OPS-002: unbounded allocation on large repos. Cap kicks in above
+        // MAX_ISSUE_NOTIFICATIONS and emits a single truncation notification.
+        let mut data = empty_audit_data();
+        let overflow = 50;
+        for _ in 0..(MAX_ISSUE_NOTIFICATIONS + overflow) {
+            data.issues.push(issue_with(IssueSeverity::Low));
+        }
+        let notifications = notifications_for_audit(&data);
+
+        // cap + 1 truncation + 1 summary
+        assert_eq!(
+            notifications.len(),
+            MAX_ISSUE_NOTIFICATIONS + 2,
+            "notifications must be capped at {MAX_ISSUE_NOTIFICATIONS}",
+        );
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Audit notifications truncated"
+                    && n.class == NotificationClass::Info),
+            "expected truncation notification, got {notifications:?}",
+        );
+        assert!(
+            notifications.iter().any(|n| n.title == "Audit summary"),
+            "summary must still be present alongside the truncation marker",
+        );
+    }
+
+    #[test]
+    fn notifications_cap_prefers_highest_priority_findings() {
+        // When truncated, the emitted per-issue notifications should be the
+        // highest-severity ones so operators still see the signal.
+        let mut data = empty_audit_data();
+        // Fill most of the cap with Low, then add a handful of Critical.
+        for _ in 0..MAX_ISSUE_NOTIFICATIONS {
+            data.issues.push(issue_with(IssueSeverity::Low));
+        }
+        for _ in 0..3 {
+            data.issues.push(issue_with(IssueSeverity::Critical));
+        }
+        let notifications = notifications_for_audit(&data);
+        let critical_findings = notifications
+            .iter()
+            .filter(|n| n.class == NotificationClass::Finding && n.title.contains("Critical"))
+            .count();
+        assert_eq!(
+            critical_findings, 3,
+            "all Critical findings must survive truncation",
+        );
     }
 }

@@ -6,6 +6,29 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [Unreleased]
+
+### Changed (breaking)
+
+- **`anvil doctor --json` output shape** — the root changed from a bare JSON
+  array of check objects to `{ "checks": [...], "notifications": [...] }`.
+  Consumers that iterated the array must switch to `data.checks`. The new
+  `notifications[]` field aligns doctor with the notification taxonomy used by
+  `check`, `gate`, and `audit` (`NOTIFY-006`).
+
+### Added
+
+- **`anvil audit --json` notifications** — audit gained a `notifications[]`
+  field alongside the existing `issues[]`/`next_steps[]` payload, mapping each
+  finding to a canonical notification envelope with taxonomy-aligned class and
+  priority metadata (`NOTIFY-006`). Per-issue notifications are capped to keep
+  output bounded on large repos; overflow is reported via a single truncation
+  notification.
+- **Shared TUI notification model** — `NotificationSource` trait in
+  `anvil-tui` lets `watch`, `tutorial`, and `onboarding/hooks` expose their
+  current notices through the canonical `Notification` envelope so future
+  telemetry subscribers see one shape across surfaces (`NOTIFY-007`).
+
 ## [0.3.3-beta] — WinGet Distribution & Windows UX
 
 ### Added
