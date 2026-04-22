@@ -2,9 +2,10 @@ use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anvil_kernel_types::EngineEvent;
+use animate::is_animating;
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::watch::WatchState;
@@ -224,6 +225,8 @@ fn watch_demo_loop(
     event_rx: &Receiver<EngineEvent>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
+    let mut last_tick = Instant::now();
+
     loop {
         // Drain engine events.
         while let Ok(engine_event) = event_rx.try_recv() {
@@ -232,6 +235,10 @@ fn watch_demo_loop(
 
         // Advance time-based overlay hints.
         state.tick();
+
+        tick_animations(&mut last_tick, state.is_dirty(), || {
+            state.mark_dirty();
+        });
 
         let poll_timeout = if state.is_dirty() {
             Duration::ZERO
@@ -343,6 +350,7 @@ fn watch_loop(
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
     let mut adapter = WatchEventAdapter::new();
+    let mut last_tick = Instant::now();
 
     loop {
         // Drain all pending engine events.
@@ -350,6 +358,10 @@ fn watch_loop(
             adapter.handle_event(&engine_event, &mut state.data);
             state.mark_dirty();
         }
+
+        tick_animations(&mut last_tick, state.is_dirty(), || {
+            state.mark_dirty();
+        });
 
         // Skip the poll wait when already dirty — render immediately.
         let poll_timeout = if state.is_dirty() {
@@ -399,4 +411,23 @@ fn watch_loop(
     }
 
     Ok(())
+}
+
+fn tick_animations<F>(last_tick: &mut Instant, already_dirty: bool, mut mark_dirty: F)
+where
+    F: FnMut(),
+{
+    let now = Instant::now();
+    let elapsed = now.saturating_duration_since(*last_tick);
+    *last_tick = now;
+
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let ms = elapsed.as_millis().min(usize::MAX as u128) as usize;
+    if ms > 0 {
+        animate::tick(ms);
+    }
+
+    if !already_dirty && is_animating() {
+        mark_dirty();
+    }
 }

@@ -1,10 +1,24 @@
 use std::time::{Duration, Instant};
 
 use anvil_kernel_types::EngineEvent;
+use animate::{Animate, Lerp, Once};
 use eddacraft_tui::keyboard::Action;
 
 use crate::surfaces::watch::WatchData;
 use crate::surfaces::watch::event_adapter::WatchEventAdapter;
+
+type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+
+const OVERLAY_ANIM_DURATION_MS: f64 = 220.0;
+
+fn animated_f64(initial: f64) -> AnimatedF64 {
+    Once::new(
+        initial,
+        OVERLAY_ANIM_DURATION_MS,
+        animate::easing::quad_out as fn(f64) -> f64,
+        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+    )
+}
 
 /// Guided overlay phase during the watch demo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +59,8 @@ pub struct WatchDemoState {
     pub auto_hints: bool,
     /// Whether the state has changed since last render.
     dirty: bool,
+    overlay_reveal: AnimatedF64,
+    overlay_reveal_target: f64,
 }
 
 impl WatchDemoState {
@@ -61,6 +77,8 @@ impl WatchDemoState {
             snapshot_count: 0,
             auto_hints: true,
             dirty: true,
+            overlay_reveal: animated_f64(1.0),
+            overlay_reveal_target: 1.0,
         }
     }
 
@@ -79,11 +97,14 @@ impl WatchDemoState {
                 self.overlay = OverlayPhase::CycleComplete;
             }
         }
+
+        self.sync_overlay_animation();
     }
 
     /// Advance overlay hints based on elapsed time.
     pub fn tick(&mut self) {
         if !self.auto_hints || self.cycle_seen || self.overlay == OverlayPhase::Dismissed {
+            self.sync_overlay_animation();
             return;
         }
         let elapsed = self.started_at.elapsed();
@@ -101,6 +122,8 @@ impl WatchDemoState {
             self.overlay = new_phase;
             self.dirty = true;
         }
+
+        self.sync_overlay_animation();
     }
 
     pub fn handle_key(&mut self, action: Action) {
@@ -117,6 +140,7 @@ impl WatchDemoState {
                     // Dismiss the intro overlay so user can see the full dashboard.
                     self.overlay = OverlayPhase::Dismissed;
                     self.dirty = true;
+                    self.sync_overlay_animation();
                 }
             }
             _ => {}
@@ -133,6 +157,24 @@ impl WatchDemoState {
 
     pub fn take_dirty(&mut self) -> bool {
         std::mem::replace(&mut self.dirty, false)
+    }
+
+    pub fn overlay_reveal(&self) -> f64 {
+        *self.overlay_reveal
+    }
+
+    fn sync_overlay_animation(&mut self) {
+        let target = if self.overlay == OverlayPhase::Dismissed {
+            0.0
+        } else {
+            1.0
+        };
+
+        if (target - self.overlay_reveal_target).abs() > f64::EPSILON {
+            self.overlay_reveal.set(target);
+            self.overlay_reveal_target = target;
+        }
+        self.overlay_reveal.update();
     }
 
     pub fn overlay_text(&self) -> &'static str {
