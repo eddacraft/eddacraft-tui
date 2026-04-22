@@ -3,7 +3,21 @@ pub mod render;
 
 use std::collections::VecDeque;
 
+use animate::{Animate, Lerp, Once};
 use eddacraft_tui::keyboard::Action;
+
+type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+
+const ANIM_DURATION_MS: f64 = 250.0;
+
+fn animated_f64(initial: f64) -> AnimatedF64 {
+    Once::new(
+        initial,
+        ANIM_DURATION_MS,
+        animate::easing::quad_out as fn(f64) -> f64,
+        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+    )
+}
 
 /// Current watch mode status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,6 +132,10 @@ pub struct WatchState {
     pub selected_item: usize,
     pub should_quit: bool,
     pub wants_back: bool,
+    pub(crate) anim_pass_rate: AnimatedF64,
+    pub(crate) anim_pass_rate_target: f64,
+    pub(crate) anim_avg_duration_ms: AnimatedF64,
+    pub(crate) anim_avg_duration_target: f64,
     /// Set when state changes; consumed by `take_dirty()` before redraw.
     /// Use `mark_dirty()` / `take_dirty()` — field is crate-visible for tests.
     pub(crate) dirty: bool,
@@ -125,12 +143,20 @@ pub struct WatchState {
 
 impl WatchState {
     pub fn new(data: WatchData) -> Self {
+        let pass_rate = data.stats.pass_rate;
+        #[allow(clippy::cast_precision_loss)]
+        let avg_duration_ms = data.stats.avg_duration_ms as f64;
+
         Self {
             data,
             focused_panel: WatchPanel::Status,
             selected_item: 0,
             should_quit: false,
             wants_back: false,
+            anim_pass_rate: animated_f64(pass_rate),
+            anim_pass_rate_target: pass_rate,
+            anim_avg_duration_ms: animated_f64(avg_duration_ms),
+            anim_avg_duration_target: avg_duration_ms,
             dirty: true, // render immediately on first frame
         }
     }
@@ -149,6 +175,23 @@ impl WatchState {
     /// Clears the flag immediately — call this right before rendering.
     pub fn take_dirty(&mut self) -> bool {
         std::mem::replace(&mut self.dirty, false)
+    }
+
+    pub fn sync_animations(&mut self) {
+        let pass_rate = self.data.stats.pass_rate;
+        if (pass_rate - self.anim_pass_rate_target).abs() > f64::EPSILON {
+            self.anim_pass_rate.set(pass_rate);
+            self.anim_pass_rate_target = pass_rate;
+        }
+        self.anim_pass_rate.update();
+
+        #[allow(clippy::cast_precision_loss)]
+        let avg_duration = self.data.stats.avg_duration_ms as f64;
+        if (avg_duration - self.anim_avg_duration_target).abs() > f64::EPSILON {
+            self.anim_avg_duration_ms.set(avg_duration);
+            self.anim_avg_duration_target = avg_duration;
+        }
+        self.anim_avg_duration_ms.update();
     }
 
     fn max_items_in_panel(&self) -> usize {
