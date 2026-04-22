@@ -30,7 +30,7 @@
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["archive/**"],
+      "exclude": ["archive/**", "tools/nx-rust/**"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"
@@ -44,17 +44,21 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
-      "exclude": ["archive/**"],
+      "exclude": ["archive/**", "tools/nx-rust/**"],
       "options": {
         "targetName": "lint"
       }
     },
     {
       "plugin": "@nx/vite/plugin",
-      "exclude": ["archive/**"],
+      "exclude": ["archive/**", "tools/nx-rust/**"],
       "options": {
         "testTarget": "test"
       }
+    },
+    {
+      "plugin": "nxrust",
+      "options": {}
     }
   ],
   "targetDefaults": {

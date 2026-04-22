@@ -1,0 +1,1 @@
+{"version":3,"file":"executor.js","sourceRoot":"","sources":["../../../src/executors/test/executor.ts"],"names":[],"mappings":";;AAiBA,+BAMC;AArBD,6DAA2D;AAC3D,6CAAiD;AAclC,KAAK,UAAU,YAAY,CACxC,OAA2B,EAC3B,OAAwB;IAExB,MAAM,IAAI,GAAG,IAAA,8BAAc,EAAC,MAAM,EAAE,OAAO,EAAE,OAAO,CAAC,CAAC;IACtD,OAAO,IAAA,oBAAY,EAAC,GAAG,IAAI,CAAC,CAAC;AAC/B,CAAC"}

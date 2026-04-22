@@ -1,0 +1,16 @@
+# Vendored package — dist/ IS committed here so Nx can load the plugin at
+# startup without an install-time build step. See SPLIT.md.
+#
+# NOTE: this file diverges from the upstream eddacraft/nxrust repo, which
+# gitignores dist/. Keep this in mind when syncing back.
+
+node_modules/
+coverage/
+.nx/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.local
+
+# Re-include dist/ (the root .gitignore excludes it project-wide).
+!dist/
