@@ -24,10 +24,10 @@ engineering maintenance are recorded in the
   priority metadata (`NOTIFY-006`). Per-issue notifications are capped to keep
   output bounded on large repos; overflow is reported via a single truncation
   notification.
-- **Shared TUI notification model** — `NotificationSource` trait in
-  `anvil-tui` lets `watch`, `tutorial`, and `onboarding/hooks` expose their
-  current notices through the canonical `Notification` envelope so future
-  telemetry subscribers see one shape across surfaces (`NOTIFY-007`).
+- **Shared TUI notification model** — `NotificationSource` trait in `anvil-tui`
+  lets `watch`, `tutorial`, and `onboarding/hooks` expose their current notices
+  through the canonical `Notification` envelope so future telemetry subscribers
+  see one shape across surfaces (`NOTIFY-007`).
 
 ## [0.3.3-beta] — WinGet Distribution & Windows UX
 
