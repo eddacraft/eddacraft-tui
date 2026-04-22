@@ -5,7 +5,7 @@ use anvil_kernel_types::{
     NotificationPriority,
 };
 
-use super::{QueuedChange, RunHistory, WatchData, WatchStatus};
+use super::{QueuedNotification, RunHistory, WatchData, WatchStatus};
 
 /// Maximum number of entries retained in the change queue.
 const MAX_QUEUE_LEN: usize = 200;
@@ -75,7 +75,7 @@ impl WatchEventAdapter {
                 self.handle_violation(file, message, &event.timestamp, data);
             }
             EventPayload::Error(err) => {
-                self.handle_error(&err.message, &event.timestamp, data);
+                self.handle_error(&err.message, err.file.as_deref(), &event.timestamp, data);
             }
         }
     }
@@ -169,19 +169,28 @@ impl WatchEventAdapter {
         );
     }
 
-    fn handle_error(&mut self, message: &str, timestamp: &str, data: &mut WatchData) {
+    fn handle_error(
+        &mut self,
+        message: &str,
+        file: Option<&str>,
+        timestamp: &str,
+        data: &mut WatchData,
+    ) {
         self.error_count += 1;
         data.status = WatchStatus::Failing;
+        // Prefer the offending file as the title when available so the watch
+        // queue is immediately actionable; fall back to a generic label.
+        let title = file.unwrap_or("Watch error");
         Self::push_queue(
             data,
             Notification::new(
                 NotificationClass::Failure,
                 NotificationPriority::High,
-                "Watch error",
+                title,
                 message,
             )
             .with_context(NotificationContext {
-                file: None,
+                file: file.map(str::to_string),
                 source: Some("watch".to_string()),
             }),
             timestamp,
@@ -193,7 +202,7 @@ impl WatchEventAdapter {
         if data.queue.len() >= MAX_QUEUE_LEN {
             data.queue.pop_front();
         }
-        data.queue.push_back(QueuedChange {
+        data.queue.push_back(QueuedNotification {
             notification,
             timestamp: timestamp.to_string(),
         });
@@ -296,6 +305,10 @@ mod tests {
     }
 
     fn error_event(message: &str) -> EngineEvent {
+        error_event_for(message, None)
+    }
+
+    fn error_event_for(message: &str, file: Option<&str>) -> EngineEvent {
         EngineEvent {
             event_type: EventType::Error,
             seq: 0,
@@ -303,7 +316,7 @@ mod tests {
             engine: EngineId::Rust,
             payload: EventPayload::Error(ErrorPayload {
                 code: ErrorCode::Internal,
-                file: None,
+                file: file.map(str::to_string),
                 message: message.to_string(),
                 recoverable: false,
             }),
@@ -428,6 +441,26 @@ mod tests {
                 .as_ref()
                 .is_some_and(|ctx| ctx.file.is_none())
         );
+    }
+
+    #[test]
+    fn error_event_with_file_populates_notification_context() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        adapter.handle_event(
+            &error_event_for("parse failed", Some("src/bad.ts")),
+            &mut data,
+        );
+
+        assert_eq!(data.queue.len(), 1);
+        assert_eq!(data.queue[0].notification.title, "src/bad.ts");
+        let ctx = data.queue[0]
+            .notification
+            .context
+            .as_ref()
+            .expect("context populated");
+        assert_eq!(ctx.file.as_deref(), Some("src/bad.ts"));
     }
 
     #[test]

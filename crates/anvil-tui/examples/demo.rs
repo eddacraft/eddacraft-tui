@@ -18,7 +18,7 @@ use anvil_tui::surfaces::status::{
 };
 use anvil_tui::surfaces::tutorial::TutorialState;
 use anvil_tui::surfaces::watch::{
-    QueuedChange, RunHistory, WatchData, WatchState, WatchStats, WatchStatus,
+    QueuedNotification, RunHistory, WatchData, WatchState, WatchStats, WatchStatus,
 };
 use anvil_tui::surfaces::welcome::WelcomeState;
 use anvil_tui::surfaces::wizard::{Template, WizardState};
@@ -336,7 +336,7 @@ fn mock_watch_data() -> WatchData {
     WatchData {
         status: WatchStatus::Passing,
         queue: std::collections::VecDeque::from([
-            QueuedChange {
+            QueuedNotification {
                 notification: Notification::new(
                     NotificationClass::Finding,
                     NotificationPriority::High,
@@ -345,7 +345,7 @@ fn mock_watch_data() -> WatchData {
                 ),
                 timestamp: "09:14:32".into(),
             },
-            QueuedChange {
+            QueuedNotification {
                 notification: Notification::new(
                     NotificationClass::Finding,
                     NotificationPriority::High,
@@ -354,7 +354,7 @@ fn mock_watch_data() -> WatchData {
                 ),
                 timestamp: "09:14:35".into(),
             },
-            QueuedChange {
+            QueuedNotification {
                 notification: Notification::new(
                     NotificationClass::Finding,
                     NotificationPriority::High,

@@ -49,9 +49,9 @@ impl WatchStatus {
     }
 }
 
-/// A file change queued for processing.
+/// A notification queued for processing.
 #[derive(Debug, Clone)]
-pub struct QueuedChange {
+pub struct QueuedNotification {
     pub notification: Notification,
     pub timestamp: String,
 }
@@ -79,7 +79,7 @@ pub struct WatchStats {
 #[derive(Debug, Clone)]
 pub struct WatchData {
     pub status: WatchStatus,
-    pub queue: VecDeque<QueuedChange>,
+    pub queue: VecDeque<QueuedNotification>,
     pub history: Vec<RunHistory>,
     pub stats: WatchStats,
 }
@@ -305,13 +305,13 @@ impl crate::surface::Surface for WatchState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
+    use anvil_kernel_types::{NotificationClass, NotificationPriority};
 
     fn sample_data() -> WatchData {
         WatchData {
             status: WatchStatus::Passing,
             queue: VecDeque::from([
-                QueuedChange {
+                QueuedNotification {
                     notification: Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
@@ -320,7 +320,7 @@ mod tests {
                     ),
                     timestamp: "10:30:01".to_string(),
                 },
-                QueuedChange {
+                QueuedNotification {
                     notification: Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,

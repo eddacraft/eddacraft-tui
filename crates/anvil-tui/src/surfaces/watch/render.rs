@@ -290,13 +290,13 @@ mod tests {
     use ratatui::backend::TestBackend;
 
     fn sample_state() -> WatchState {
-        use super::super::{QueuedChange, RunHistory, WatchData, WatchStats};
+        use super::super::{QueuedNotification, RunHistory, WatchData, WatchStats};
         use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 
         WatchState::new(WatchData {
             status: WatchStatus::Passing,
             queue: std::collections::VecDeque::from([
-                QueuedChange {
+                QueuedNotification {
                     notification: Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
@@ -305,7 +305,7 @@ mod tests {
                     ),
                     timestamp: "10:30:01".to_string(),
                 },
-                QueuedChange {
+                QueuedNotification {
                     notification: Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
