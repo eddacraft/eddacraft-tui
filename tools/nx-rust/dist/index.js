@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createDependencies = exports.createNodesV2 = void 0;
 /**
- * Entry point for the `nxrust` Nx plugin. Re-exports the project-graph
- * integration so `nx.json`'s `plugins: ["nxrust"]` wiring sees the
+ * Entry point for the `@eddacraft/nx-rust` Nx plugin. Re-exports the
+ * project-graph integration so `nx.json`'s plugin wiring sees the
  * `createNodesV2` + `createDependencies` pair.
  */
 var graph_1 = require("./graph");

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/schema",
   "$id": "NxRustBinary",
-  "title": "nxrust:binary",
+  "title": "@eddacraft/nx-rust:binary",
   "description": "Scaffold a new Cargo binary crate.",
   "type": "object",
   "properties": {

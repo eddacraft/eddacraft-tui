@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/schema",
   "$id": "NxRustInit",
-  "title": "nxrust:init",
+  "title": "@eddacraft/nx-rust:init",
   "description": "Initialise a Cargo workspace inside an Nx workspace.",
   "type": "object",
   "properties": {

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/schema",
   "version": 2,
   "outputCapture": "direct-nodejs",
-  "title": "nxrust:run",
+  "title": "@eddacraft/nx-rust:run",
   "description": "Run a Rust binary with `cargo run`.",
   "type": "object",
   "properties": {

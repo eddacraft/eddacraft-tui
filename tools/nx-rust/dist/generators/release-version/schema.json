@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/schema",
   "$id": "NxRustReleaseVersion",
-  "title": "nxrust:release-version",
+  "title": "@eddacraft/nx-rust:release-version",
   "description": "Bump a Cargo crate's version in Cargo.toml. Invoked via `nx release version`.",
   "type": "object",
   "properties": {

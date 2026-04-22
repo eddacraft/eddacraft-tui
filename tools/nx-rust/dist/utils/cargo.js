@@ -1,15 +1,18 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cargoCommand = cargoCommand;
 exports.cargoMetadata = cargoMetadata;
 exports.isExternal = isExternal;
 const node_child_process_1 = require("node:child_process");
 const node_path_1 = require("node:path");
-const chalk_1 = __importDefault(require("chalk"));
 const run_process_1 = require("./run-process");
+// Inline ANSI dim instead of pulling chalk in. The vendored package's chalk
+// dep was being shadowed by chalk@5 hoisted at the workspace root, breaking
+// chalk's CJS default-import interop at runtime under the Nx plugin loader.
+// One log line doesn't justify that mess. Listed in SPLIT.md as a
+// divergence from upstream.
+const DIM = '[2m';
+const RESET_DIM = '[22m';
 /**
  * Spawn `cargo <args>` with inherited stdio and always-on colour. Returns the
  * success flag. Logs the command in dim text so failures are easy to
@@ -23,7 +26,7 @@ async function cargoCommand(...args) {
     const ordered = head && head.startsWith('+')
         ? [head, '--color', 'always', ...rest]
         : ['--color', 'always', ...args];
-    console.log(chalk_1.default.dim(`> cargo ${redactArgs(ordered).join(' ')}`));
+    console.log(`${DIM}> cargo ${redactArgs(ordered).join(' ')}${RESET_DIM}`);
     return (0, run_process_1.runProcess)('cargo', ...ordered);
 }
 /**

@@ -197,7 +197,7 @@ function inferProjectConfig(pkg: CargoPackage, root: string): ProjectConfigurati
   if (!isPrivate) {
     targets['nx-release-publish'] = {
       dependsOn: ['^nx-release-publish'],
-      executor: 'nxrust:release-publish',
+      executor: '@eddacraft/nx-rust:release-publish',
       options: {},
     };
   }

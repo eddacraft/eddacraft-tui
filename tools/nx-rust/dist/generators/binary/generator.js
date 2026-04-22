@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = binaryGenerator;
 const generator_1 = __importDefault(require("../crate/generator"));
 /**
- * Alias for `nxrust:crate --bin`. Kept as a distinct generator so it shows up
+ * Alias for `@eddacraft/nx-rust:crate --bin`. Kept as a distinct generator so it shows up
  * in `nx list` with its own description and `x-type: application` metadata.
  */
 async function binaryGenerator(tree, options) {

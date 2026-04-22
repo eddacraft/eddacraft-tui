@@ -17,7 +17,7 @@ const BINARY_OUTPUTS = ['{options.target-dir}', '{workspaceRoot}/target'];
 
 export function buildTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:build',
+    executor: '@eddacraft/nx-rust:build',
     cache: true,
     outputs: BINARY_OUTPUTS,
     options,
@@ -29,7 +29,7 @@ export function buildTargetConfig(options: AnyOpts = {}): TargetConfiguration {
 
 export function checkTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:check',
+    executor: '@eddacraft/nx-rust:check',
     cache: true,
     outputs: [],
     options,
@@ -38,7 +38,7 @@ export function checkTargetConfig(options: AnyOpts = {}): TargetConfiguration {
 
 export function clippyTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:clippy',
+    executor: '@eddacraft/nx-rust:clippy',
     cache: true,
     outputs: [],
     options,
@@ -51,7 +51,7 @@ export function clippyTargetConfig(options: AnyOpts = {}): TargetConfiguration {
  */
 export function fmtTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:fmt',
+    executor: '@eddacraft/nx-rust:fmt',
     options,
   };
 }
@@ -62,7 +62,7 @@ export function fmtTargetConfig(options: AnyOpts = {}): TargetConfiguration {
  */
 export function fmtCheckTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:fmt',
+    executor: '@eddacraft/nx-rust:fmt',
     cache: true,
     outputs: [],
     options: { check: true, ...options },
@@ -71,7 +71,7 @@ export function fmtCheckTargetConfig(options: AnyOpts = {}): TargetConfiguration
 
 export function testTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:test',
+    executor: '@eddacraft/nx-rust:test',
     cache: true,
     outputs: BINARY_OUTPUTS,
     options,
@@ -83,7 +83,7 @@ export function testTargetConfig(options: AnyOpts = {}): TargetConfiguration {
 
 export function runTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
-    executor: 'nxrust:run',
+    executor: '@eddacraft/nx-rust:run',
     options,
     configurations: {
       production: { release: true },

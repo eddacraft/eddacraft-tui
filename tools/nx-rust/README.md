@@ -24,28 +24,28 @@ Register in `nx.json`:
 
 ## Executors
 
-| Executor                | Wraps                  | Cache |
-| ----------------------- | ---------------------- | ----- |
-| `nxrust:build`          | `cargo build`          | yes   |
-| `nxrust:check`          | `cargo check`          | yes   |
-| `nxrust:clippy` / `lint`| `cargo clippy`         | yes   |
-| `nxrust:fmt`            | `cargo fmt`            | yes   |
-| `nxrust:run`            | `cargo run`            | no    |
-| `nxrust:test`           | `cargo test`           | yes   |
-| `nxrust:release-publish`| `cargo publish`        | no (use via `nx release publish`) |
+| Executor                 | Wraps           | Cache                             |
+| ------------------------ | --------------- | --------------------------------- |
+| `nxrust:build`           | `cargo build`   | yes                               |
+| `nxrust:check`           | `cargo check`   | yes                               |
+| `nxrust:clippy` / `lint` | `cargo clippy`  | yes                               |
+| `nxrust:fmt`             | `cargo fmt`     | yes                               |
+| `nxrust:run`             | `cargo run`     | no                                |
+| `nxrust:test`            | `cargo test`    | yes                               |
+| `nxrust:release-publish` | `cargo publish` | no (use via `nx release publish`) |
 
 All executors accept a shared option set:
 
-| Option        | Type                   | Notes                                          |
-| ------------- | ---------------------- | ---------------------------------------------- |
-| `toolchain`   | `stable`/`beta`/`nightly` | Translates to `cargo +<toolchain> …`        |
-| `target`      | `string`               | Rust target triple                             |
-| `profile`     | `string`               | `cargo` profile (e.g. `dev`, `release`)        |
-| `release`     | `boolean`              | `--release`                                    |
-| `features`    | `string \| string[]`   | `--features`                                   |
-| `all-features`| `boolean`              | `--all-features`                               |
-| `target-dir`  | `string`               | `--target-dir`                                 |
-| `args`        | `string \| string[]`   | Forwarded after `--`                           |
+| Option         | Type                      | Notes                                   |
+| -------------- | ------------------------- | --------------------------------------- |
+| `toolchain`    | `stable`/`beta`/`nightly` | Translates to `cargo +<toolchain> …`    |
+| `target`       | `string`                  | Rust target triple                      |
+| `profile`      | `string`                  | `cargo` profile (e.g. `dev`, `release`) |
+| `release`      | `boolean`                 | `--release`                             |
+| `features`     | `string \| string[]`      | `--features`                            |
+| `all-features` | `boolean`                 | `--all-features`                        |
+| `target-dir`   | `string`                  | `--target-dir`                          |
+| `args`         | `string \| string[]`      | Forwarded after `--`                    |
 
 Individual executors add specialised flags — see each schema.
 
@@ -90,5 +90,5 @@ This is what makes `nx affected -t test` correct across your Rust crates.
 Apache-2.0 © EddaCraft. See [LICENSE](./LICENSE).
 
 This project does not contain any code copied from `@monodon/rust` — it
-references its public API shape only. `cargo metadata` is the official
-Rust tooling contract.
+references its public API shape only. `cargo metadata` is the official Rust
+tooling contract.

@@ -1,8 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import { isAbsolute, relative, resolve } from 'node:path';
-import chalk from 'chalk';
 import type { CargoDependency, CargoMetadata, CargoPackage } from '../models/cargo-metadata';
 import { runProcess } from './run-process';
+
+// Inline ANSI dim instead of pulling chalk in. The vendored package's chalk
+// dep was being shadowed by chalk@5 hoisted at the workspace root, breaking
+// chalk's CJS default-import interop at runtime under the Nx plugin loader.
+// One log line doesn't justify that mess. Listed in SPLIT.md as a
+// divergence from upstream.
+const DIM = '[2m';
+const RESET_DIM = '[22m';
 
 /**
  * Spawn `cargo <args>` with inherited stdio and always-on colour. Returns the
@@ -19,8 +26,7 @@ export async function cargoCommand(...args: string[]): Promise<{ success: boolea
       ? [head, '--color', 'always', ...rest]
       : ['--color', 'always', ...args];
 
-   
-  console.log(chalk.dim(`> cargo ${redactArgs(ordered).join(' ')}`));
+  console.log(`${DIM}> cargo ${redactArgs(ordered).join(' ')}${RESET_DIM}`);
   return runProcess('cargo', ...ordered);
 }
 

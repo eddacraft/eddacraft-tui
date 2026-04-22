@@ -10,7 +10,7 @@ exports.runTargetConfig = runTargetConfig;
 const BINARY_OUTPUTS = ['{options.target-dir}', '{workspaceRoot}/target'];
 function buildTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:build',
+        executor: '@eddacraft/nx-rust:build',
         cache: true,
         outputs: BINARY_OUTPUTS,
         options,
@@ -21,7 +21,7 @@ function buildTargetConfig(options = {}) {
 }
 function checkTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:check',
+        executor: '@eddacraft/nx-rust:check',
         cache: true,
         outputs: [],
         options,
@@ -29,7 +29,7 @@ function checkTargetConfig(options = {}) {
 }
 function clippyTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:clippy',
+        executor: '@eddacraft/nx-rust:clippy',
         cache: true,
         outputs: [],
         options,
@@ -41,7 +41,7 @@ function clippyTargetConfig(options = {}) {
  */
 function fmtTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:fmt',
+        executor: '@eddacraft/nx-rust:fmt',
         options,
     };
 }
@@ -51,7 +51,7 @@ function fmtTargetConfig(options = {}) {
  */
 function fmtCheckTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:fmt',
+        executor: '@eddacraft/nx-rust:fmt',
         cache: true,
         outputs: [],
         options: { check: true, ...options },
@@ -59,7 +59,7 @@ function fmtCheckTargetConfig(options = {}) {
 }
 function testTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:test',
+        executor: '@eddacraft/nx-rust:test',
         cache: true,
         outputs: BINARY_OUTPUTS,
         options,
@@ -70,7 +70,7 @@ function testTargetConfig(options = {}) {
 }
 function runTargetConfig(options = {}) {
     return {
-        executor: 'nxrust:run',
+        executor: '@eddacraft/nx-rust:run',
         options,
         configurations: {
             production: { release: true },

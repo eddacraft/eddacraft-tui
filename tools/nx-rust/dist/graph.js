@@ -155,7 +155,7 @@ function inferProjectConfig(pkg, root) {
     if (!isPrivate) {
         targets['nx-release-publish'] = {
             dependsOn: ['^nx-release-publish'],
-            executor: 'nxrust:release-publish',
+            executor: '@eddacraft/nx-rust:release-publish',
             options: {},
         };
     }

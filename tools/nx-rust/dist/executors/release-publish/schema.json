@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/schema",
   "version": 2,
   "outputCapture": "direct-nodejs",
-  "title": "nxrust:release-publish",
+  "title": "@eddacraft/nx-rust:release-publish",
   "description": "Publish a Rust crate. Invoked by `nx release publish`.",
   "type": "object",
   "properties": {

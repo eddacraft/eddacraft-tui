@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/schema",
-  "name": "nxrust",
+  "name": "@eddacraft/nx-rust",
   "version": "0.1.0",
   "generators": {
     "init": {

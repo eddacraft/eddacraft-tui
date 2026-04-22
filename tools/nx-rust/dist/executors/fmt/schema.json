@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/schema",
   "version": 2,
   "outputCapture": "direct-nodejs",
-  "title": "nxrust:fmt",
+  "title": "@eddacraft/nx-rust:fmt",
   "description": "Format a Rust crate with `cargo fmt`.",
   "type": "object",
   "properties": {

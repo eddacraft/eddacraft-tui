@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/schema",
   "version": 2,
   "outputCapture": "direct-nodejs",
-  "title": "nxrust:clippy",
+  "title": "@eddacraft/nx-rust:clippy",
   "description": "Lint a Rust crate with `cargo clippy`.",
   "type": "object",
   "properties": {

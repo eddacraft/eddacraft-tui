@@ -38,7 +38,6 @@ export function runProcess(command: string, ...args: string[]): Promise<{ succes
     };
 
     child.on('error', (err) => {
-       
       console.error(`Failed to spawn ${command}: ${err.message}`);
       cleanup();
       resolve({ success: false });

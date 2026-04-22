@@ -915,9 +915,6 @@ importers:
       '@ltd/j-toml':
         specifier: ^1.38.0
         version: 1.38.0
-      chalk:
-        specifier: ^4.1.2
-        version: 4.1.2
     devDependencies:
       '@nx/devkit':
         specifier: ^22.6.5

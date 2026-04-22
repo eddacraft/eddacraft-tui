@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/schema",
   "$id": "NxRustCrate",
-  "title": "nxrust:crate",
+  "title": "@eddacraft/nx-rust:crate",
   "description": "Scaffold a new Cargo workspace-member crate.",
   "type": "object",
   "properties": {

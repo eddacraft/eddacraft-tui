@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/schema",
   "version": 2,
   "outputCapture": "direct-nodejs",
-  "title": "nxrust:check",
+  "title": "@eddacraft/nx-rust:check",
   "description": "Type-check a Rust crate with `cargo check`.",
   "type": "object",
   "properties": {

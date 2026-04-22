@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/schema",
   "version": 2,
   "outputCapture": "direct-nodejs",
-  "title": "nxrust:build",
+  "title": "@eddacraft/nx-rust:build",
   "description": "Build a Rust crate with `cargo build`.",
   "type": "object",
   "properties": {

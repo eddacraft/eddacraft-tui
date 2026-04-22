@@ -39,8 +39,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ltd/j-toml": "^1.38.0",
-    "chalk": "^4.1.2"
+    "@ltd/j-toml": "^1.38.0"
   },
   "peerDependencies": {
     "@nx/devkit": ">=22.0.0"

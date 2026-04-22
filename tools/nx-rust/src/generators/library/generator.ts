@@ -4,7 +4,7 @@ import type { CrateGeneratorSchema } from '../crate/schema';
 
 export type LibraryGeneratorSchema = Omit<CrateGeneratorSchema, 'bin'>;
 
-/** Alias for `nxrust:crate` (library is the default). */
+/** Alias for `@eddacraft/nx-rust:crate` (library is the default). */
 export default async function libraryGenerator(
   tree: Tree,
   options: LibraryGeneratorSchema
