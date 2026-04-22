@@ -3,9 +3,9 @@
 
 # Notification Framework
 
-| ID     | Owner | Status      | Progress |
-|--------|-------|-------------|----------|
-| NOTIFY | —     | In Progress | 3/4      |
+| ID     | Owner | Status   | Progress |
+|--------|-------|----------|----------|
+| NOTIFY | —     | Complete | 4/4      |
 
 ## Purpose
 
@@ -69,7 +69,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
       taxonomy
 - [x] Future block/interrupt/fence events are mapped into the same model rather
       than a parallel one
-- [ ] Follow-on implementation work is identified for runtime surfaces and
+- [x] Follow-on implementation work is identified for runtime surfaces and
       daemon-era transport
 
 ## Constraints
@@ -135,4 +135,4 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 - **Dependencies:** NOTIFY-003
 - **Validation:** Follow-on work items are listed with scope and validation
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
