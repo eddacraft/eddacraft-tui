@@ -434,7 +434,9 @@ fn compile_check_from_diagnostics(
             s = if diagnostics.len() == 1 { "" } else { "s" },
         ),
         details: Some(format!(
-            "{details}\n\nSee tests/scanner-parity/README.md for known PCRE lookaround gaps."
+            "{details}\n\nSee tests/scanner-parity/README.md — 'Rust-side handling \
+             of PCRE lookaround rules' — for the pattern-rewrite contract and \
+             fix guidance."
         )),
         auto_fixable: false,
     }

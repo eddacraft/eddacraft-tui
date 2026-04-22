@@ -29,10 +29,11 @@ Active
 
 - **stress** -- Kernel-level stress scenarios (graph, policy, cold start,
   incremental throughput).
-- **antipattern_scan** -- Parallel anti-pattern scan throughput on a 256-file
-  synthetic corpus. Exercises the rayon fan-out plus every enabled registry
-  rule (including the SPG-003 post-filter rules). This is the CI guard for
-  the parallel-scan claim in ADR-026.
+- **antipattern_scan** -- Parallel anti-pattern scan throughput on a
+  320-artifact synthetic corpus spanning every `ArtifactKind`. Exercises
+  the rayon fan-out plus every enabled registry rule (including the
+  SPG-003 post-filter rules and the `flags:"i"` inline prefix). This is
+  the CI guard for the parallel-scan claim in ADR-026.
 
 Run a single bench:
 

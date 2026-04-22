@@ -317,10 +317,12 @@ TS-only in the registry itself (and the scanner warns when it's run).
     registry.
   - SPG-004: fixtures cover every enabled registry rule with a positive
     and negative case; parity harness grew a `scan_options.include_opt_in`
-    field for opt-in rules. 40 fixtures pass on both engines.
+    field for opt-in rules. 47 fixtures (spanning every `ArtifactKind`
+    plus a multi-rule co-firing case) pass on both engines.
   - SPG-005: `benches/antipattern_scan.rs` in `anvil-bench` measures
-    256-artifact parallel-scan throughput; baseline recorded in the crate
-    README and referenced from the release runbook preflight.
+    320-artifact parallel-scan throughput across all four artifact kinds;
+    baseline recorded in the crate README and referenced from the release
+    runbook preflight.
   - SPG-006: `docs/guides/anvil-rule-authoring.md` gained an
     "Engine compatibility" rewrite and a "Registry integrity" subsection
     naming `ANVIL_REGISTRY_PATH` as a trust boundary.
