@@ -5,11 +5,11 @@ use clap::Args;
 use regex::Regex;
 use serde::Serialize;
 
+use crate::GlobalArgs;
 use crate::commands::check_catalog::{
     GATE_INTERNAL_CHECKS, gate_canonical_name_from_internal, gate_canonical_names,
     gate_internal_name,
 };
-use crate::GlobalArgs;
 
 #[derive(Debug, Default, Args)]
 #[allow(clippy::struct_excessive_bools)]
@@ -353,7 +353,7 @@ fn run_check_antipattern(
     if !plan_files.is_empty() {
         files_to_scan.retain(|f| {
             plan_files.iter().any(|pf| {
-                if pf.ends_with('/') {
+                if pf.ends_with('/') || root.join(pf).is_dir() {
                     f.starts_with(pf.as_str())
                 } else {
                     f == pf.as_str()
@@ -1016,7 +1016,10 @@ fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::Hash
 }
 
 fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
-    let unknown: Vec<&&str> = names.iter().filter(|n| gate_internal_name(n).is_none()).collect();
+    let unknown: Vec<&&str> = names
+        .iter()
+        .filter(|n| gate_internal_name(n).is_none())
+        .collect();
     if !unknown.is_empty() {
         let unknown_str: Vec<&str> = unknown.into_iter().copied().collect();
         let available = gate_canonical_names();
@@ -1033,7 +1036,10 @@ fn normalize_gate_check_set(
     names: &std::collections::HashSet<&str>,
 ) -> Result<std::collections::HashSet<&'static str>> {
     validate_check_names(names)?;
-    Ok(names.iter().filter_map(|name| gate_internal_name(name)).collect())
+    Ok(names
+        .iter()
+        .filter_map(|name| gate_internal_name(name))
+        .collect())
 }
 
 /// Run all gate checks with default settings and return TUI-ready data.
@@ -1846,10 +1852,14 @@ rules: []
 
     #[test]
     fn validate_check_names_accepts_known() {
-        let names: std::collections::HashSet<&str> =
-            ["lint", "secret-detection", "import-boundaries", "antipattern-scan"]
-                .into_iter()
-                .collect();
+        let names: std::collections::HashSet<&str> = [
+            "lint",
+            "secret-detection",
+            "import-boundaries",
+            "antipattern-scan",
+        ]
+        .into_iter()
+        .collect();
         assert!(validate_check_names(&names).is_ok());
     }
 

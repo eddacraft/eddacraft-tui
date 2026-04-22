@@ -5,10 +5,10 @@ use anyhow::{Result, bail};
 use clap::Args;
 use serde::{Deserialize, Serialize};
 
+use crate::GlobalArgs;
 use crate::commands::check_catalog::{
     canonical_check_name, default_gate_config_checks, definition_by_canonical,
 };
-use crate::GlobalArgs;
 use crate::output::{self, OutputMode};
 
 const ANVIL_DIR: &str = ".anvil";
@@ -246,6 +246,57 @@ mod tests {
     }
 
     #[test]
+    fn normalize_check_names_upgrades_legacy_internal_names() {
+        let mut config = GateConfig {
+            version: 1,
+            checks: vec![
+                GateCheck {
+                    name: "secret".to_string(),
+                    description: "old description".to_string(),
+                    enabled: true,
+                    config: None,
+                },
+                GateCheck {
+                    name: "architecture".to_string(),
+                    description: "old description".to_string(),
+                    enabled: true,
+                    config: None,
+                },
+            ],
+            thresholds: BTreeMap::new(),
+            global_config: None,
+        };
+        normalize_check_names(&mut config);
+        assert_eq!(config.checks[0].name, "secret-detection");
+        assert_eq!(
+            config.checks[0].description,
+            "Detect leaked secrets and credentials"
+        );
+        assert_eq!(config.checks[1].name, "import-boundaries");
+        assert_eq!(
+            config.checks[1].description,
+            "Enforce module import boundaries"
+        );
+    }
+
+    #[test]
+    fn toggle_accepts_legacy_internal_name() {
+        let dir = tempfile::tempdir().unwrap();
+        save_config(dir.path(), &default_config()).unwrap();
+
+        // Disable via legacy internal name.
+        run_toggle(dir.path(), "secret", false, OutputMode::Plain).unwrap();
+
+        let reloaded = load_config(dir.path()).unwrap();
+        let check = reloaded
+            .checks
+            .iter()
+            .find(|c| c.name == "secret-detection")
+            .unwrap();
+        assert!(!check.enabled);
+    }
+
+    #[test]
     fn normalize_check_names_refreshes_canonical_descriptions() {
         let mut config = GateConfig {
             version: 1,
@@ -260,7 +311,10 @@ mod tests {
         };
         normalize_check_names(&mut config);
         assert_eq!(config.checks[0].name, "secret-detection");
-        assert_eq!(config.checks[0].description, "Detect leaked secrets and credentials");
+        assert_eq!(
+            config.checks[0].description,
+            "Detect leaked secrets and credentials"
+        );
     }
 
     // ── Config round-trip ───────────────────────────────────────

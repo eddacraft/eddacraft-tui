@@ -86,11 +86,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
     },
 ];
 
-pub(crate) const DEFAULT_INIT_CHECKS: &[&str] = &[
-    "secret-detection",
-    "import-boundaries",
-    "antipattern-scan",
-];
+pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
+    &["secret-detection", "import-boundaries", "antipattern-scan"];
 
 pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "lint",
@@ -104,15 +101,23 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
 ];
 
 pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {
-    CHECK_DEFINITIONS.iter().find(|def| def.canonical_name == name)
+    CHECK_DEFINITIONS
+        .iter()
+        .find(|def| def.canonical_name == name)
+}
+
+pub(crate) fn definition_by_name(name: &str) -> Option<&'static CheckDefinition> {
+    CHECK_DEFINITIONS
+        .iter()
+        .find(|def| def.canonical_name == name || def.internal_name == name)
 }
 
 pub(crate) fn canonical_check_name(name: &str) -> Option<&'static str> {
-    definition_by_canonical(name).map(|def| def.canonical_name)
+    definition_by_name(name).map(|def| def.canonical_name)
 }
 
 pub(crate) fn gate_internal_name(name: &str) -> Option<&'static str> {
-    definition_by_canonical(name)
+    definition_by_name(name)
         .filter(|def| def.gate_supported)
         .map(|def| def.internal_name)
 }
@@ -133,7 +138,10 @@ pub(crate) fn gate_canonical_names() -> Vec<&'static str> {
 }
 
 pub(crate) fn default_init_check_names() -> Vec<String> {
-    DEFAULT_INIT_CHECKS.iter().map(|name| (*name).to_string()).collect()
+    DEFAULT_INIT_CHECKS
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 pub(crate) fn default_init_available_checks() -> Vec<AvailableCheck> {
@@ -152,6 +160,12 @@ pub(crate) fn default_gate_config_checks() -> Vec<(&'static str, &'static str, b
     CHECK_DEFINITIONS
         .iter()
         .filter(|def| def.gate_config_supported)
-        .map(|def| (def.canonical_name, def.description, def.canonical_name != "coverage"))
+        .map(|def| {
+            (
+                def.canonical_name,
+                def.description,
+                def.canonical_name != "coverage",
+            )
+        })
         .collect()
 }

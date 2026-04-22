@@ -117,7 +117,7 @@ Use `secret-detection` and `import-boundaries`, not older internal names.
     },
     {
       "name": "secret-detection",
-      "description": "Secret and credential detection",
+      "description": "Detect leaked secrets and credentials",
       "enabled": true
     },
     {
@@ -132,7 +132,7 @@ Use `secret-detection` and `import-boundaries`, not older internal names.
     },
     {
       "name": "policy",
-      "description": "Policy compliance evaluation",
+      "description": "Evaluate OPA policy rules",
       "enabled": true
     }
   ],
