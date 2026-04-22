@@ -5,7 +5,7 @@
 
 | ID     | Owner | Status      | Progress |
 |--------|-------|-------------|----------|
-| NOTIFY | —     | In Progress | 1/4      |
+| NOTIFY | —     | In Progress | 2/4      |
 
 ## Purpose
 
@@ -64,7 +64,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 
 - [x] A current-state inventory exists for notification-like outputs in the
       CLI/TUI and active plans
-- [ ] Notification classes and priorities are defined with unambiguous meanings
+- [x] Notification classes and priorities are defined with unambiguous meanings
 - [ ] Current warning/nudge/failure outputs are mapped onto the notification
       taxonomy
 - [ ] Future block/interrupt/fence events are mapped into the same model rather
@@ -110,7 +110,7 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 - **Validation:** Discovery/design doc includes taxonomy table and priority
   rules
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Complete
 
 ### NOTIFY-003: Define delivery architecture for current and future surfaces
 
