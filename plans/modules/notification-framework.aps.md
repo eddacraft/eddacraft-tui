@@ -1,3 +1,6 @@
+<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
+<!-- Executable only if tasks exist and status is Ready. -->
+
 # Notification Framework
 
 | ID     | Owner | Status      | Progress |
