@@ -3,9 +3,9 @@
 
 # Notification Framework
 
-| ID     | Owner | Status   | Progress |
-|--------|-------|----------|----------|
-| NOTIFY | —     | Complete | 4/4      |
+| ID     | Owner | Status      | Progress |
+|--------|-------|-------------|----------|
+| NOTIFY | —     | In Progress | 5/9      |
 
 ## Purpose
 
@@ -16,9 +16,11 @@ nudges, watch updates, audit issues, setup diagnostics, and future block /
 interrupt states. Without a shared notification model, each new surface will
 invent its own event vocabulary, priority rules, and delivery path.
 
-This module is discovery-first. It establishes the architecture for a unified
-notification plane that can support current CLI/TUI surfaces and later extend
-cleanly into daemon-driven interruption and multi-surface delivery.
+This module began as discovery-first work and now carries the bounded follow-on
+implementation slices defined by `NOTIFY-004`. It establishes the architecture
+for a unified notification plane that can support current CLI/TUI surfaces and
+later extend cleanly into daemon-driven interruption and multi-surface
+delivery.
 
 ## In Scope
 
@@ -136,3 +138,68 @@ cleanly into daemon-driven interruption and multi-surface delivery.
 - **Validation:** Follow-on work items are listed with scope and validation
 - **Confidence:** medium
 - **Status:** Complete
+
+### NOTIFY-005: Implement shared notification model
+
+- **Intent:** Create the shared notification envelope and source-mapping layer
+  for current runtime surfaces
+- **Expected Outcome:** Runtime surfaces can emit canonical notification
+  classes instead of ad hoc status and warning strings only
+- **Files:** `crates/anvil-kernel-types/`, `crates/anvil-tui/`
+- **Dependencies:** NOTIFY-004
+- **Validation:** Shared notification types and unit tests exist
+- **Confidence:** medium
+- **Status:** Complete
+
+### NOTIFY-006: Align CLI and JSON outputs to notification taxonomy
+
+- **Intent:** Bring current CLI and machine-readable outputs into alignment with
+  the notification framework
+- **Expected Outcome:** `gate`, `check`, `doctor`, and `audit` expose coherent
+  notification semantics
+- **Files:** `crates/anvil-cli/src/commands/check.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`, `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/audit.rs`
+- **Dependencies:** NOTIFY-005
+- **Validation:** Targeted output tests and fixture updates pass
+- **Confidence:** medium
+- **Status:** Committed — PR #1035 adds notification payloads for `check` and
+  `gate`; `doctor` and `audit` remain to be aligned in follow-up work
+
+### NOTIFY-007: Add shared TUI notification model
+
+- **Intent:** Introduce a shared TUI notification approach for watch, tutorial,
+  and related surfaces
+- **Expected Outcome:** High/critical and grouped notifications are represented
+  consistently in TUI surfaces
+- **Files:** `crates/anvil-tui/src/surfaces/watch/`,
+  `crates/anvil-tui/src/surfaces/tutorial/`, `crates/anvil-tui/src/surfaces/onboarding/`
+- **Dependencies:** NOTIFY-005
+- **Validation:** Targeted TUI tests and snapshots pass
+- **Confidence:** medium
+- **Status:** Ready
+
+### NOTIFY-008: Define notification telemetry stream contract
+
+- **Intent:** Define the stream/event contract for notification subscribers
+- **Expected Outcome:** Telemetry-lane payload shape is documented and reusable
+- **Files:** `plans/specs/`, `docs/architecture/`, `plans/specs/anvil-driver-framework/`
+- **Dependencies:** NOTIFY-005
+- **Validation:** Stream schema or contract doc exists and is referenced by
+  follow-on work
+- **Confidence:** medium
+- **Status:** Ready
+
+### NOTIFY-009: Integrate intercept control decisions with notification model
+
+- **Intent:** Ensure intercept/control-plane decisions reuse the shared
+  notification taxonomy and delivery split
+- **Expected Outcome:** Block/interrupt/fence notifications mirror control-lane
+  outcomes without inventing parallel semantics
+- **Files:** `plans/modules/intercept-daemon.aps.md`,
+  `plans/specs/anvil-driver-framework/`, `crates/anvil-cli/`, `crates/anvil-tui/`
+- **Dependencies:** NOTIFY-008
+- **Validation:** Intercept-facing planning or implementation references the
+  shared model
+- **Confidence:** medium
+- **Status:** Ready
