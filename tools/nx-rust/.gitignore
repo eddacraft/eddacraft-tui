@@ -12,5 +12,8 @@ coverage/
 .env
 .env.local
 
-# Re-include dist/ (the root .gitignore excludes it project-wide).
-!dist/
+# Re-include only the package-level dist/ (rooted with leading slash so
+# nested dist/ subdirectories — e.g. inside generator templates — stay
+# ignored per the root rule). The root .gitignore excludes `dist`
+# project-wide.
+!/dist/

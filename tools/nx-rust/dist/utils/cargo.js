@@ -1,17 +1,15 @@
-'use strict';
-var __importDefault =
-  (this && this.__importDefault) ||
-  function (mod) {
-    return mod && mod.__esModule ? mod : { default: mod };
-  };
-Object.defineProperty(exports, '__esModule', { value: true });
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.cargoCommand = cargoCommand;
 exports.cargoMetadata = cargoMetadata;
 exports.isExternal = isExternal;
-const node_child_process_1 = require('node:child_process');
-const node_path_1 = require('node:path');
-const chalk_1 = __importDefault(require('chalk'));
-const run_process_1 = require('./run-process');
+const node_child_process_1 = require("node:child_process");
+const node_path_1 = require("node:path");
+const chalk_1 = __importDefault(require("chalk"));
+const run_process_1 = require("./run-process");
 /**
  * Spawn `cargo <args>` with inherited stdio and always-on colour. Returns the
  * success flag. Logs the command in dim text so failures are easy to
@@ -21,14 +19,12 @@ const run_process_1 = require('./run-process');
  * toolchain selector we emit it ahead of `--color always`.
  */
 async function cargoCommand(...args) {
-  const [head, ...rest] = args;
-  const ordered =
-    head && head.startsWith('+')
-      ? [head, '--color', 'always', ...rest]
-      : ['--color', 'always', ...args];
-  // eslint-disable-next-line no-console
-  console.log(chalk_1.default.dim(`> cargo ${redactArgs(ordered).join(' ')}`));
-  return (0, run_process_1.runProcess)('cargo', ...ordered);
+    const [head, ...rest] = args;
+    const ordered = head && head.startsWith('+')
+        ? [head, '--color', 'always', ...rest]
+        : ['--color', 'always', ...args];
+    console.log(chalk_1.default.dim(`> cargo ${redactArgs(ordered).join(' ')}`));
+    return (0, run_process_1.runProcess)('cargo', ...ordered);
 }
 /**
  * Redact secret-bearing flag values in-place for log output. Cargo surfaces
@@ -36,17 +32,17 @@ async function cargoCommand(...args) {
  * history, `/proc/<pid>/cmdline` readers, or CI log scrapers.
  */
 function redactArgs(argv) {
-  const SECRET_FLAGS = new Set(['--token']);
-  const out = [];
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i];
-    out.push(token);
-    if (SECRET_FLAGS.has(token) && i + 1 < argv.length) {
-      out.push('***');
-      i++;
+    const SECRET_FLAGS = new Set(['--token']);
+    const out = [];
+    for (let i = 0; i < argv.length; i++) {
+        const token = argv[i];
+        out.push(token);
+        if (SECRET_FLAGS.has(token) && i + 1 < argv.length) {
+            out.push('***');
+            i++;
+        }
     }
-  }
-  return out;
+    return out;
 }
 /**
  * Run `cargo metadata --format-version=1` and parse the JSON output. Returns
@@ -60,22 +56,19 @@ function redactArgs(argv) {
  * Uses `execFileSync` (no shell) so cargo arg injection is not possible.
  */
 function cargoMetadata(cwd) {
-  try {
-    const output = (0, node_child_process_1.execFileSync)(
-      'cargo',
-      ['metadata', '--format-version=1'],
-      {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        maxBuffer: 1024 * 1024 * 64,
-        cwd,
-        windowsHide: true,
-      }
-    );
-    return JSON.parse(output);
-  } catch {
-    return null;
-  }
+    try {
+        const output = (0, node_child_process_1.execFileSync)('cargo', ['metadata', '--format-version=1'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            maxBuffer: 1024 * 1024 * 64,
+            cwd,
+            windowsHide: true,
+        });
+        return JSON.parse(output);
+    }
+    catch {
+        return null;
+    }
 }
 /**
  * True if the package/dep resolves to a registry, git, or out-of-workspace
@@ -83,26 +76,24 @@ function cargoMetadata(cwd) {
  * external `cargo:<name>` node.
  */
 function isExternal(packageOrDep, workspaceRoot) {
-  const source = packageOrDep.source ?? '';
-  if (source.startsWith('registry+')) return true;
-  if (source.startsWith('git+')) return true;
-  // cargo metadata emits absolute manifest/path values, so the workspace root
-  // must also be absolute for `relative()` to produce correct answers.
-  const absRoot = (0, node_path_1.isAbsolute)(workspaceRoot)
-    ? workspaceRoot
-    : (0, node_path_1.resolve)(workspaceRoot);
-  const candidate =
-    ('manifest_path' in packageOrDep && packageOrDep.manifest_path) ||
-    ('path' in packageOrDep && packageOrDep.path) ||
-    null;
-  // No source and no path → almost certainly a workspace-inherited registry
-  // dep whose `source` is elided in the metadata. Treat as external; a missing
-  // path cannot describe a local path dep.
-  if (!candidate) return true;
-  const absCandidate = (0, node_path_1.isAbsolute)(candidate)
-    ? candidate
-    : (0, node_path_1.resolve)(absRoot, candidate);
-  const rel = (0, node_path_1.relative)(absRoot, absCandidate);
-  return rel.startsWith('..') || (0, node_path_1.isAbsolute)(rel);
+    const source = packageOrDep.source ?? '';
+    if (source.startsWith('registry+'))
+        return true;
+    if (source.startsWith('git+'))
+        return true;
+    // cargo metadata emits absolute manifest/path values, so the workspace root
+    // must also be absolute for `relative()` to produce correct answers.
+    const absRoot = (0, node_path_1.isAbsolute)(workspaceRoot) ? workspaceRoot : (0, node_path_1.resolve)(workspaceRoot);
+    const candidate = ('manifest_path' in packageOrDep && packageOrDep.manifest_path) ||
+        ('path' in packageOrDep && packageOrDep.path) ||
+        null;
+    // No source and no path → almost certainly a workspace-inherited registry
+    // dep whose `source` is elided in the metadata. Treat as external; a missing
+    // path cannot describe a local path dep.
+    if (!candidate)
+        return true;
+    const absCandidate = (0, node_path_1.isAbsolute)(candidate) ? candidate : (0, node_path_1.resolve)(absRoot, candidate);
+    const rel = (0, node_path_1.relative)(absRoot, absCandidate);
+    return rel.startsWith('..') || (0, node_path_1.isAbsolute)(rel);
 }
 //# sourceMappingURL=cargo.js.map

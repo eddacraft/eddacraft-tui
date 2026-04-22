@@ -9,44 +9,33 @@ import { type Tree } from '@nx/devkit';
  * We only fall back to bump keywords for local-only releases.
  */
 export interface ReleaseVersionGeneratorSchema {
-  projects:
-    | Array<{
+    projects: Array<{
         name: string;
         data: {
-          root: string;
+            root: string;
         };
-      }>
-    | string[];
-  projectGraph?: {
-    nodes?: Record<
-      string,
-      {
-        name: string;
-        data?: {
-          root?: string;
-        };
-      }
-    >;
-  };
-  specifier?: string;
-  specifierSource?: string;
-  currentVersionResolver?: string;
-  firstRelease?: boolean;
-  preid?: string;
-  [key: string]: unknown;
+    }> | string[];
+    projectGraph?: {
+        nodes?: Record<string, {
+            name: string;
+            data?: {
+                root?: string;
+            };
+        }>;
+    };
+    specifier?: string;
+    specifierSource?: string;
+    currentVersionResolver?: string;
+    firstRelease?: boolean;
+    preid?: string;
+    [key: string]: unknown;
 }
-export declare function releaseVersionGenerator(
-  tree: Tree,
-  options: ReleaseVersionGeneratorSchema
-): Promise<{
-  data: Record<
-    string,
-    {
-      currentVersion: string | null;
-      newVersion: string | null;
-    }
-  >;
-  callback: () => Promise<void>;
+export declare function releaseVersionGenerator(tree: Tree, options: ReleaseVersionGeneratorSchema): Promise<{
+    data: Record<string, {
+        currentVersion: string | null;
+        newVersion: string | null;
+    }>;
+    callback: () => Promise<void>;
 }>;
 export default releaseVersionGenerator;
 //# sourceMappingURL=generator.d.ts.map

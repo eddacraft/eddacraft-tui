@@ -8,7 +8,7 @@ import type { CargoDependency, CargoMetadata, CargoPackage } from '../models/car
  * toolchain selector we emit it ahead of `--color always`.
  */
 export declare function cargoCommand(...args: string[]): Promise<{
-  success: boolean;
+    success: boolean;
 }>;
 /**
  * Run `cargo metadata --format-version=1` and parse the JSON output. Returns
@@ -27,8 +27,5 @@ export declare function cargoMetadata(cwd?: string): CargoMetadata | null;
  * path. Used to decide whether a dep becomes an internal Nx edge or an
  * external `cargo:<name>` node.
  */
-export declare function isExternal(
-  packageOrDep: CargoPackage | CargoDependency,
-  workspaceRoot: string
-): boolean;
+export declare function isExternal(packageOrDep: CargoPackage | CargoDependency, workspaceRoot: string): boolean;
 //# sourceMappingURL=cargo.d.ts.map

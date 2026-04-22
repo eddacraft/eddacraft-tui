@@ -1,6 +1,6 @@
 import { type Tree } from '@nx/devkit';
 export interface InitGeneratorSchema {
-  skipFormat?: boolean;
+    skipFormat?: boolean;
 }
 /**
  * Write a Cargo workspace root if one doesn't exist yet, plus a

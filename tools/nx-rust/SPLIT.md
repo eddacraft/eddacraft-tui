@@ -1,50 +1,52 @@
-# Splitting `nxrust` Back Out
+# Splitting `@eddacraft/nx-rust` Back Out
 
-This package is **vendored** into `anvil-001` from upstream
-[eddacraft/nxrust](https://github.com/EddaCraft/nxrust). The original
-intent (per `plans/modules/nx-rust-plugin.aps.md`) was an in-repo Nx
-plugin linked via the pnpm workspace protocol; the upstream standalone
-repo exists but is unpublished. This vendor copy unblocks CI without
-forcing a publish flow.
+> **Vendored from [eddacraft/nxrust](https://github.com/EddaCraft/nxrust)
+> at commit `646231204d7972de22f55b670b7e2cfabb4d5d0e`.**
+> Update this header on every re-sync (see §Sync invariants below) so the
+> upstream pin is verifiable.
 
-If you ever want to extract `nxrust` back into a standalone package
+This package is **vendored** into `anvil-001`. The original intent (per
+`plans/modules/nx-rust-plugin.aps.md`) was an in-repo Nx plugin linked
+via the pnpm workspace protocol; the upstream standalone repo exists but
+is unpublished. This vendor copy unblocks CI without forcing a publish
+flow.
+
+If you ever want to extract this back into a standalone published package
 (publish to npm, share with other monorepos, give it independent release
-cadence), the path is intentionally short:
+cadence), the path is short — but it requires reverting the
+anvil-specific divergences listed below.
 
-## Pre-vendor invariants — keep these aligned with upstream
+## Anvil-specific divergences from upstream
 
-To make a future split mechanical, the following fields stay **identical
-to the upstream `eddacraft/nxrust` package** and are not bent to fit
-anvil-specific conventions:
+These differ from upstream and **must be reverted** at split time:
 
-- `package.json` `name` (`nxrust` — unscoped, publish-ready)
-- `package.json` `version` (currently `0.1.0`)
-- `package.json` `license` (`Apache-2.0`)
-- `package.json` `repository.url` (`https://github.com/EddaCraft/nxrust.git`)
-- `package.json` `homepage` (same)
-- `package.json` `publishConfig` (`{ "access": "public" }`)
-- `package.json` `main`, `types`, `files` (publish-shape)
-- `package.json` `dependencies`, `peerDependencies`, `devDependencies`
-- `tsconfig.json`, `tsconfig.spec.json`, `vitest.config.ts` — local to
-  the package, not inherited from anvil's root configs
-- `tools/copy-assets.mjs` — the package's own build helper
-- `README.md`, `LICENSE`, `CHANGELOG.md`
+- **`package.json` `name`** — vendored as `@eddacraft/nx-rust` (matches
+  the APS plan and removes the npm-name-squat surface). Upstream is
+  `nxrust` (unscoped, publish-ready).
+- **`package.json` `license`** — vendored as `PROPRIETARY` (matches
+  `tools/generators/` convention; we have no need to ship Apache-2.0
+  licence text inside anvil's monorepo). Upstream is `Apache-2.0`.
+- **`LICENSE` file** — removed in the vendor copy (PROPRIETARY packages
+  inside anvil don't ship a LICENSE file). Upstream keeps the Apache-2.0
+  text.
+- **`package.json` `publishConfig`** — removed in the vendor copy (we're
+  not publishing this from anvil's tree). Upstream keeps
+  `{ "access": "public" }`.
+- **`package.json` `files` array** — `"LICENSE"` entry removed (no
+  LICENSE file to ship).
+- **`package.json` devDependencies** — `typescript` bumped to `~6.0.3`
+  and `vitest` bumped to `^4.1.4` to match anvil's root workspace
+  versions and prevent dual-version trees in the lockfile. Upstream
+  pins `^5.6.0` and `^2.1.0` respectively.
+- **`.gitignore`** — anvil's root `.gitignore` excludes `dist`
+  project-wide, so the vendored `.gitignore` adds `!/dist/` (rooted) to
+  re-include only the package-level dist. dist/ **is committed** in this
+  vendor copy because Nx loads plugins at process startup, before any
+  install-time build script could fire. Upstream `eddacraft/nxrust`
+  keeps `dist/` ignored and rebuilt per release.
 
-If you find yourself wanting to "fix up" any of these to match an
-anvil-specific style — don't. Add a wrapper in anvil instead, or accept
-the divergence as a one-way intentional fork.
+## Other anvil-specific differences (no revert needed)
 
-## Anvil-specific differences from upstream
-
-These differ from upstream and are flagged so a re-sync knows what to
-revert:
-
-- **`.gitignore`** — anvil's root `.gitignore` has `dist`, so the
-  vendored `.gitignore` adds `!dist/` to re-include it. dist/ **is**
-  committed in this vendor copy because Nx loads plugins at process
-  startup, before any install-time build script could fire.
-  Upstream `eddacraft/nxrust` keeps `dist/` ignored and rebuilt per
-  release.
 - **`pnpm-lock.yaml`** — upstream has its own lockfile; not vendored.
   Dependencies resolve through anvil's root lockfile.
 - **`bin/`, `lib/`, `aps-planning/`, `plans/`, `.claude/`, `.envrc`** —
@@ -53,27 +55,77 @@ revert:
   When syncing source, remember these directories exist upstream and
   are intentionally not mirrored here.
 
+## Sync invariants — fields to audit on every sync
+
+When merging upstream changes into this vendor copy (`rsync` direction:
+upstream → vendor), audit these fields after the rsync to confirm the
+divergences above are still in place:
+
+- `package.json` `name` (must stay `@eddacraft/nx-rust`)
+- `package.json` `license` (must stay `PROPRIETARY`)
+- `package.json` `files` (must NOT include `"LICENSE"`)
+- `package.json` `publishConfig` (must NOT be present)
+- `package.json` `devDependencies.typescript` (must stay `~6.0.3`)
+- `package.json` `devDependencies.vitest` (must stay `^4.1.4`)
+- `package.json` `scripts.prepare` — if upstream introduces one (e.g.
+  for npm publish lifecycle), decide whether to keep it. pnpm runs
+  `prepare` on workspace packages erratically; the original vendor
+  intentionally has no `prepare`.
+- `LICENSE` (must NOT be present in the vendor copy)
+- `.gitignore` `!/dist/` line (must stay; not present upstream)
+- The "Vendored from … at commit `<sha>`" header at the top of this
+  file (must be updated to the synced upstream SHA)
+
+If any of these snap back to upstream values during rsync, fix them
+before committing the sync.
+
 ## Splitting back out
 
 When the time comes (e.g. a second monorepo wants to consume it, or
-`nxrust` needs an independent release cadence):
+`@eddacraft/nx-rust` needs an independent release cadence):
 
-1. **Sync any anvil-side improvements back upstream**:
+1. **Revert anvil-specific package.json changes**, restoring upstream
+   identifiers:
+
+   ```diff
+   -"name": "@eddacraft/nx-rust",
+   +"name": "nxrust",
+   -"license": "PROPRIETARY",
+   +"license": "Apache-2.0",
+    "files": [
+      "dist/**/*.js",
+      ...
+   +  "LICENSE",
+      "README.md",
+      "CHANGELOG.md"
+    ],
+   +"publishConfig": { "access": "public" },
+    "devDependencies": {
+      ...
+   -  "typescript": "~6.0.3",
+   -  "vitest": "^4.1.4"
+   +  "typescript": "^5.6.0",
+   +  "vitest": "^2.1.0"
+    }
+   ```
+
+2. **Restore the LICENSE file** (Apache-2.0 text, copied from upstream).
+
+3. **Sync src/CHANGELOG.md/README.md back upstream** (this picks up any
+   anvil-side fixes):
 
    ```sh
+   REPO_ROOT=$(git rev-parse --show-toplevel)
    rsync -a --delete \
      --exclude=node_modules --exclude=.nx \
      --exclude=.gitignore --exclude=SPLIT.md \
-     ~/Projects/src/EddaCraft/anvil-001/tools/nx-rust/ \
+     "$REPO_ROOT/tools/nx-rust/" \
      ~/Projects/src/nxrust/
    ```
 
-   Excluded files: `.gitignore` (intentionally diverges), `SPLIT.md`
-   (anvil-only). If `dist/` was edited here without rebuilding from
-   source, rebuild upstream from the synced `src/` before committing
-   there.
+   `.gitignore` and `SPLIT.md` are anvil-only and excluded.
 
-2. **Publish from upstream**:
+4. **Publish from upstream**:
 
    ```sh
    cd ~/Projects/src/nxrust
@@ -82,32 +134,45 @@ When the time comes (e.g. a second monorepo wants to consume it, or
    pnpm publish --access public
    ```
 
-3. **Switch anvil to the published version**:
+5. **Switch anvil to the published version**:
 
    ```diff
     "devDependencies": {
-   -  "nxrust": "workspace:*"
+   -  "@eddacraft/nx-rust": "workspace:*"
    +  "nxrust": "^0.1.0"
     }
    ```
 
-4. **Delete the vendor copy**:
+   And in `nx.json`:
+
+   ```diff
+    {
+   -  "plugin": "@eddacraft/nx-rust"
+   +  "plugin": "nxrust"
+    }
+   ```
+
+6. **Delete the vendor copy**:
 
    ```sh
    git rm -r tools/nx-rust
    pnpm install   # regenerates lockfile against the registry version
    ```
 
-5. **Commit, PR, done.**
+7. **Commit, PR, done.** Don't forget to remove the
+   `--exclude=@eddacraft/nx-rust` flags from the root `package.json`
+   `build`, `test`, `test:coverage:ts`, and `typecheck` scripts (they
+   were added so anvil's CI doesn't run the vendored package's own
+   pipeline; once the package is external, those exclusions are stale).
 
 ## Local development on this vendor copy
 
-If you only need to iterate on `nxrust` from inside this repo:
+If you only need to iterate from inside this repo:
 
 ```sh
 cd tools/nx-rust
-pnpm build       # rebuilds dist/
-cd ../..
+pnpm build       # rebuilds dist/ (CI verifies this matches src/)
+cd "$(git rev-parse --show-toplevel)"
 pnpm install     # picks up the rebuilt workspace package
 ```
 
@@ -115,3 +180,11 @@ If you prefer to develop in the upstream repo and have changes reflect
 here without a copy step, use `pnpm link` from the upstream checkout
 into this repo. That gives you the dev-loop without changing the
 committed dependency.
+
+## CI guard
+
+Anvil's `lint` job runs `pnpm --filter @eddacraft/nx-rust build` and
+fails if `git diff tools/nx-rust/dist/` reports a delta. This catches
+the case where someone edits `src/` and forgets to rebuild `dist/`. If
+you see that failure, run `cd tools/nx-rust && pnpm build` and commit
+the resulting dist diff.

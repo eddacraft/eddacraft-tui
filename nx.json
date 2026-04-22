@@ -57,8 +57,7 @@
       }
     },
     {
-      "plugin": "nxrust",
-      "options": {}
+      "plugin": "@eddacraft/nx-rust"
     }
   ],
   "targetDefaults": {

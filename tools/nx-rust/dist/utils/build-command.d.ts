@@ -14,9 +14,5 @@ import type { BaseCargoOptions } from '../models/base-options';
  *
  * Kept as a pure function so it's unit-testable without touching cargo.
  */
-export declare function buildCargoArgs<T extends BaseCargoOptions>(
-  subcommand: string,
-  options: T,
-  context: Pick<ExecutorContext, 'projectName'>
-): string[];
+export declare function buildCargoArgs<T extends BaseCargoOptions>(subcommand: string, options: T, context: Pick<ExecutorContext, 'projectName'>): string[];
 //# sourceMappingURL=build-command.d.ts.map

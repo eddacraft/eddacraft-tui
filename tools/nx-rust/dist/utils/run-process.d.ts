@@ -7,10 +7,7 @@
  * the parent-process listeners are removed once the child exits so repeated
  * invocations don't leak handlers.
  */
-export declare function runProcess(
-  command: string,
-  ...args: string[]
-): Promise<{
-  success: boolean;
+export declare function runProcess(command: string, ...args: string[]): Promise<{
+    success: boolean;
 }>;
 //# sourceMappingURL=run-process.d.ts.map

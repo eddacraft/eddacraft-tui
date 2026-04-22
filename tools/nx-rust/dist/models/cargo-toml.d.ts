@@ -4,26 +4,26 @@
  * through `stringifyCargoToml`.
  */
 export interface CargoToml {
-  package?: {
-    name?: string;
-    version?: string;
-    edition?: string;
-    description?: string;
-    license?: string;
-    [key: string]: unknown;
-  };
-  workspace?: {
-    members?: string[];
-    resolver?: string;
-    package?: Record<string, unknown>;
+    package?: {
+        name?: string;
+        version?: string;
+        edition?: string;
+        description?: string;
+        license?: string;
+        [key: string]: unknown;
+    };
+    workspace?: {
+        members?: string[];
+        resolver?: string;
+        package?: Record<string, unknown>;
+        dependencies?: Record<string, unknown>;
+        [key: string]: unknown;
+    };
     dependencies?: Record<string, unknown>;
+    'dev-dependencies'?: Record<string, unknown>;
+    'build-dependencies'?: Record<string, unknown>;
+    lib?: Record<string, unknown>;
+    bin?: Array<Record<string, unknown>>;
     [key: string]: unknown;
-  };
-  dependencies?: Record<string, unknown>;
-  'dev-dependencies'?: Record<string, unknown>;
-  'build-dependencies'?: Record<string, unknown>;
-  lib?: Record<string, unknown>;
-  bin?: Array<Record<string, unknown>>;
-  [key: string]: unknown;
 }
 //# sourceMappingURL=cargo-toml.d.ts.map
