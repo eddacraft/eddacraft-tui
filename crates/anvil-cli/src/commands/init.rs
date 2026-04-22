@@ -2,13 +2,13 @@ use std::fs;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
+use anvil_tui::surfaces::init::AvailableCheck;
 use anvil_tui::surfaces::init::InitState;
 use anyhow::Context;
 use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
-use crate::commands::defaults::{default_available_checks, default_check_names};
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -17,6 +17,9 @@ pub struct InitArgs {
     force: bool,
 }
 
+/// Default checks enabled in a fresh `.anvilrc`. Names must be valid
+/// `gate::AVAILABLE_CHECKS` entries — see #1016.
+const DEFAULT_CHECKS: &[&str] = &["secret", "architecture"];
 /// Schema version for generated `.anvilrc` files.
 const SCHEMA_VERSION: &str = "1.0.0";
 
@@ -35,7 +38,7 @@ impl Default for AnvilConfig {
             schema_version: SCHEMA_VERSION.to_string(),
             planning_dir: "plans".to_string(),
             format: "yaml".to_string(),
-            checks: default_check_names(),
+            checks: DEFAULT_CHECKS.iter().map(|s| (*s).to_string()).collect(),
         }
     }
 }
@@ -94,7 +97,7 @@ fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
     }
 
     let checks: Vec<String> = if state.config.checks.is_empty() {
-        default_check_names()
+        DEFAULT_CHECKS.iter().map(|s| (*s).to_string()).collect()
     } else {
         state.config.checks
     };
@@ -282,6 +285,38 @@ pub(crate) fn format_label(fmt: anvil_tui::surfaces::init::ConfigFormat) -> Stri
     }
 }
 
+/// Checks offered by the init TUI. Names must match `gate::AVAILABLE_CHECKS`
+/// so the selection round-trips through `.anvilrc#checks` into the gate
+/// dispatcher. Descriptions are display-only and can read naturally.
+fn default_available_checks() -> Vec<AvailableCheck> {
+    vec![
+        AvailableCheck {
+            name: "secret".to_string(),
+            description: "Detect leaked secrets and credentials".to_string(),
+            enabled: true,
+        },
+        AvailableCheck {
+            name: "architecture".to_string(),
+            description: "Enforce architecture layers and import boundaries".to_string(),
+            enabled: true,
+        },
+        AvailableCheck {
+            name: "policy".to_string(),
+            description: "Evaluate OPA policy rules".to_string(),
+            enabled: false,
+        },
+        AvailableCheck {
+            name: "dependency".to_string(),
+            description: "Scan dependencies for blocked or vulnerable packages".to_string(),
+            enabled: false,
+        },
+        AvailableCheck {
+            name: "lint".to_string(),
+            description: "Code quality and style checks".to_string(),
+            enabled: false,
+        },
+    ]
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,8 +346,10 @@ mod tests {
         assert!(content.contains("schemaVersion: \"1.0.0\""));
         assert!(content.contains("planningDir: \"plans\""));
         assert!(content.contains("format: \"yaml\""));
-        assert!(content.contains("secret-detection"));
-        assert!(content.contains("import-boundaries"));
+        assert!(content.contains("- \"secret\""));
+        assert!(content.contains("- \"architecture\""));
+        assert!(!content.contains("secret-detection"));
+        assert!(!content.contains("import-boundaries"));
 
         let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gitignore.contains(".anvil/cache/"));
@@ -384,8 +421,8 @@ mod tests {
         assert_eq!(config.planning_dir, "plans");
         assert_eq!(config.format, "yaml");
         assert_eq!(config.checks.len(), 2);
-        assert!(config.checks.contains(&"secret-detection".to_string()));
-        assert!(config.checks.contains(&"import-boundaries".to_string()));
+        assert!(config.checks.contains(&"secret".to_string()));
+        assert!(config.checks.contains(&"architecture".to_string()));
     }
 
     #[test]
@@ -395,5 +432,26 @@ mod tests {
         assert!(checks[0].enabled);
         assert!(checks[1].enabled);
         assert!(!checks[2].enabled);
+    }
+
+    // Regression guard for #1016: every check name init writes to
+    // `.anvilrc#checks` (either as a default or via the TUI selector) must
+    // match a dispatchable `gate::AVAILABLE_CHECKS` entry.
+    #[test]
+    fn init_checks_are_registered_gate_names() {
+        use crate::commands::gate::AVAILABLE_CHECKS;
+        for name in DEFAULT_CHECKS {
+            assert!(
+                AVAILABLE_CHECKS.contains(name),
+                "init DEFAULT_CHECKS contains unregistered '{name}'; valid: {AVAILABLE_CHECKS:?}"
+            );
+        }
+        for check in default_available_checks() {
+            assert!(
+                AVAILABLE_CHECKS.contains(&check.name.as_str()),
+                "init default_available_checks contains unregistered '{}'; valid: {AVAILABLE_CHECKS:?}",
+                check.name
+            );
+        }
     }
 }
