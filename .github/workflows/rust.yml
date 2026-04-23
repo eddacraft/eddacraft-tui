@@ -50,11 +50,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
-        with:
-          nx-shas: true
       - name: Detect Rust Nx projects
         if: github.event_name == 'pull_request'
         id: rust-projects
@@ -74,7 +74,7 @@ jobs:
           RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            pnpm exec nx affected -t check --projects="$RUST_PROJECTS" --outputStyle=static
+            pnpm exec nx affected -t check --projects="$RUST_PROJECTS" --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
           else
             cargo check --workspace --all-targets
           fi
@@ -84,11 +84,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
-        with:
-          nx-shas: true
       - name: Detect Rust Nx projects
         if: github.event_name == 'pull_request'
         id: rust-projects
@@ -142,7 +142,9 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
-        run: pnpm exec nx affected -t test --projects="$RUST_PROJECTS" --outputStyle=static
+        run:
+          pnpm exec nx affected -t test --projects="$RUST_PROJECTS" --base="origin/${{
+          github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
 
       - name: Cache cargo-llvm-cov
         if: github.event_name != 'pull_request'
@@ -213,11 +215,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
-        with:
-          nx-shas: true
       - name: Detect Rust Nx projects
         if: github.event_name == 'pull_request'
         id: rust-projects
@@ -236,7 +238,7 @@ jobs:
           RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            pnpm exec nx affected -t clippy --projects="$RUST_PROJECTS" --outputStyle=static
+            pnpm exec nx affected -t clippy --projects="$RUST_PROJECTS" --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
           else
             cargo clippy --workspace --all-targets -- -D warnings
           fi
@@ -246,11 +248,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
-        with:
-          nx-shas: true
       - name: Detect Rust Nx projects
         if: github.event_name == 'pull_request'
         id: rust-projects
@@ -268,7 +270,9 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
-        run: pnpm exec nx affected -t fmt-check --projects="$RUST_PROJECTS" --outputStyle=static
+        run:
+          pnpm exec nx affected -t fmt-check --projects="$RUST_PROJECTS" --base="origin/${{
+          github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
       - uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1
         if: github.event_name != 'pull_request'
 
