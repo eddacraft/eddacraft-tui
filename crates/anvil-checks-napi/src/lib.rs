@@ -24,7 +24,8 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use anvil_checks::antipattern::{
-    Artifact, ArtifactKind, ScanOptions, scan_artifact as scan_artifact_rust,
+    Artifact, ArtifactKind, ScanOptions, get_default_patterns as get_default_patterns_rust,
+    get_pattern as get_pattern_rust, scan_artifact as scan_artifact_rust,
 };
 use napi::{Error, Result, Status};
 use napi_derive::napi;
@@ -142,4 +143,40 @@ fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
 #[napi]
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+/// Return the default (enabled, non-opt-in) pattern catalogue as a JSON
+/// array. Mirrors `anvil_checks::antipattern::get_default_patterns` —
+/// consumers use this to enumerate rules for UI, docs, or diagnostics
+/// without running a scan.
+///
+/// The wire shape is `AntiPattern`'s serde output: camelCase keys where
+/// the struct renames them (`fileExtensions`, `allFileTypes`, `optIn`)
+/// and `snake_case` otherwise (`definition_ref`, `spectrum_position`).
+/// That inconsistency is inherited from the core types; aligning it is
+/// tracked separately — changing it here would break the TS consumer
+/// parity the wrapper depends on.
+#[napi]
+pub fn get_default_patterns_json() -> Result<String> {
+    let patterns = get_default_patterns_rust();
+    serde_json::to_string(&patterns)
+        .map_err(|e| Error::new(Status::GenericFailure, format!("serialise patterns: {e}")))
+}
+
+/// Look up a single pattern by id. Returns `null` on the JS side (via
+/// `Option<String>`) when the id is unknown, rather than throwing — the
+/// TS consumer's surface is `getPattern(id): AntiPattern | undefined`,
+/// and a miss is a normal negative result, not an error.
+//
+// `String` over `&str` matches the napi-rs idiom for JS-string args — see
+// the same allow on `scan_artifact_json`.
+#[allow(clippy::needless_pass_by_value)]
+#[napi]
+pub fn get_pattern_json(id: String) -> Result<Option<String>> {
+    let Some(pattern) = get_pattern_rust(&id) else {
+        return Ok(None);
+    };
+    serde_json::to_string(&pattern)
+        .map(Some)
+        .map_err(|e| Error::new(Status::GenericFailure, format!("serialise pattern: {e}")))
 }
