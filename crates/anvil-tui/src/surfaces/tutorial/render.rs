@@ -234,7 +234,7 @@ fn render_path_select(
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent()))
         .padding(Padding::new(1, 1, 1, 1))
-        .title(" Choose a Tutorial Path ");
+        .title(" Choose a Learning Path ");
     let inner = block.inner(box_area);
     frame.render_widget(block, box_area);
 
@@ -291,7 +291,7 @@ fn render_path_select(
         ])
         .split(below);
         let hint = Paragraph::new(Line::from(Span::styled(
-            "Each path takes about 5 minutes. Complete them in any order.",
+            "Start with scan -> checks -> findings -> gate, then pick the area you want to learn next.",
             Style::default().fg(theme.muted()),
         )));
         frame.render_widget(hint, hint_chunks[1]);

@@ -21,6 +21,10 @@ anvil uses two configuration files and CLI flags for runtime options.
 
 Created by `anvil init`. Supports JSON, YAML, and TOML formats.
 
+`.anvilrc` selects the checks Anvil runs by default when it scans your project.
+Those checks produce findings. `anvil gate` then combines those findings with
+broader build-and-CI checks to decide whether the workflow gate passes.
+
 ### YAML (default)
 
 `anvil init` generates a YAML `.anvilrc` by default.
@@ -83,6 +87,9 @@ Managed by `anvil gate-config`. Stored at `.anvil/gate-config.json`.
 
 Use `anvil gate-config --list` to view the current configuration, and
 `--enable <check>` / `--disable <check>` to toggle individual checks.
+
+Use this file to control which checks feed the gate and what threshold the gate
+uses when it summarises the overall result.
 
 `.anvilrc` sets your project's default analysis checks. `gate-config` controls
 the broader gate run, including build-and-CI checks such as `lint`, `test`,
@@ -151,6 +158,8 @@ canonical names above.
 ```
 
 Each check can have an optional `config` object for check-specific settings.
+Those settings affect how the check produces findings before the gate evaluates
+the overall result.
 
 ## Architecture Definition
 

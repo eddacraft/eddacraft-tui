@@ -7,9 +7,9 @@ See: plans/aps-rules.md
 
 # Quality Language Onboarding and Docs
 
-| ID    | Owner | Status |
-|-------|-------|--------|
-| QLODX | —     | Ready  |
+| ID    | Owner | Status   | Progress |
+|-------|-------|----------|----------|
+| QLODX | —     | Complete | 2/2      |
 
 ## Purpose
 
@@ -59,11 +59,11 @@ tutorial, and docs surfaces.
 
 ## Acceptance Criteria
 
-- [ ] Welcome and tutorial teach scan -> checks -> findings -> gate before
+- [x] Welcome and tutorial teach scan -> checks -> findings -> gate before
       subsystem detail
-- [ ] Tutorial path descriptions are framed around user understanding rather
+- [x] Tutorial path descriptions are framed around user understanding rather
       than raw command names
-- [ ] Targeted public docs use the canonical terminology and avoid incompatible
+- [x] Targeted public docs use the canonical terminology and avoid incompatible
       parallel result vocabularies
 
 ## Tasks
@@ -81,7 +81,7 @@ tutorial, and docs surfaces.
   tutorial path text aligns with the canonical language design
 - **Confidence:** medium
 - **Dependencies:** QLRUN-001
-- **Status:** Ready
+- **Status:** Complete
 
 ### QLODX-002: Public docs terminology cleanup
 
@@ -96,4 +96,4 @@ tutorial, and docs surfaces.
   `plans/specs/2026-04-21-anvil-quality-language-design.md`
 - **Confidence:** medium
 - **Dependencies:** QLRUN-001, QLODX-001
-- **Status:** Ready
+- **Status:** Complete

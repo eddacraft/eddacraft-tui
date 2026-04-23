@@ -35,29 +35,29 @@ pub enum TutorialPath {
 impl TutorialPath {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Policy => "Policy",
-            Self::Architecture => "Architecture",
-            Self::Drift => "Drift",
-            Self::CI => "CI Integration",
+            Self::Policy => "Policy checks",
+            Self::Architecture => "Boundary findings",
+            Self::Drift => "Configuration drift",
+            Self::CI => "CI gate integration",
         }
     }
 
     pub fn from_label(s: &str) -> Option<Self> {
         match s {
-            "Policy" => Some(Self::Policy),
-            "Architecture" => Some(Self::Architecture),
-            "Drift" => Some(Self::Drift),
-            "CI Integration" => Some(Self::CI),
+            "Policy checks" => Some(Self::Policy),
+            "Boundary findings" => Some(Self::Architecture),
+            "Configuration drift" => Some(Self::Drift),
+            "CI gate integration" => Some(Self::CI),
             _ => None,
         }
     }
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::Policy => "Learn to write and test gate policies",
-            Self::Architecture => "Set up architecture boundary enforcement",
-            Self::Drift => "Capture and compare configuration drift snapshots",
-            Self::CI => "Integrate Anvil checks into your CI pipeline",
+            Self::Policy => "Define checks that produce findings and influence the gate",
+            Self::Architecture => "See how boundary checks turn imports into actionable findings",
+            Self::Drift => "Capture state changes and review the findings between snapshots",
+            Self::CI => "Carry checks, findings, and gate outcomes into your delivery workflow",
         }
     }
 }
@@ -811,10 +811,10 @@ mod tests {
 
     #[test]
     fn path_labels() {
-        assert_eq!(TutorialPath::Policy.label(), "Policy");
-        assert_eq!(TutorialPath::Architecture.label(), "Architecture");
-        assert_eq!(TutorialPath::Drift.label(), "Drift");
-        assert_eq!(TutorialPath::CI.label(), "CI Integration");
+        assert_eq!(TutorialPath::Policy.label(), "Policy checks");
+        assert_eq!(TutorialPath::Architecture.label(), "Boundary findings");
+        assert_eq!(TutorialPath::Drift.label(), "Configuration drift");
+        assert_eq!(TutorialPath::CI.label(), "CI gate integration");
     }
 
     // --- Command execution tests ---
