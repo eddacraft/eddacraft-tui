@@ -60,7 +60,8 @@ jobs:
         id: rust-projects
         shell: bash
         run: |
-          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -71,10 +72,14 @@ jobs:
           save-if: 'false'
       - name: Run check (affected on PRs, all on push)
         env:
-          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            pnpm exec nx affected -t check --projects="$RUST_PROJECTS" --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
+            if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+              echo "No affected Rust projects detected"
+              exit 0
+            fi
+            pnpm exec nx run-many -t check --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
           else
             cargo check --workspace --all-targets
           fi
@@ -94,7 +99,8 @@ jobs:
         id: rust-projects
         shell: bash
         run: |
-          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
 
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning toolchain install time.
@@ -141,10 +147,13 @@ jobs:
       - name: Run tests (affected on PRs, full coverage on push)
         if: github.event_name == 'pull_request'
         env:
-          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
-        run:
-          pnpm exec nx affected -t test --projects="$RUST_PROJECTS" --base="origin/${{
-          github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+            echo "No affected Rust projects detected"
+            exit 0
+          fi
+          pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
 
       - name: Cache cargo-llvm-cov
         if: github.event_name != 'pull_request'
@@ -225,7 +234,8 @@ jobs:
         id: rust-projects
         shell: bash
         run: |
-          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: clippy
@@ -235,10 +245,14 @@ jobs:
           save-if: 'false'
       - name: Run clippy (affected on PRs, all on push)
         env:
-          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            pnpm exec nx affected -t clippy --projects="$RUST_PROJECTS" --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
+            if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+              echo "No affected Rust projects detected"
+              exit 0
+            fi
+            pnpm exec nx run-many -t clippy --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
           else
             cargo clippy --workspace --all-targets -- -D warnings
           fi
@@ -258,7 +272,8 @@ jobs:
         id: rust-projects
         shell: bash
         run: |
-          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: rustfmt
@@ -269,10 +284,13 @@ jobs:
       - name: Run rustfmt check (affected on PRs)
         if: github.event_name == 'pull_request'
         env:
-          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
-        run:
-          pnpm exec nx affected -t fmt-check --projects="$RUST_PROJECTS" --base="origin/${{
-          github.base_ref }}" --head="$GITHUB_SHA" --outputStyle=static
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+            echo "No affected Rust projects detected"
+            exit 0
+          fi
+          pnpm exec nx run-many -t fmt-check --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
       - uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1
         if: github.event_name != 'pull_request'
 
