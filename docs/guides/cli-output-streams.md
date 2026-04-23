@@ -49,6 +49,14 @@ Commands with a `--json` flag must:
 
 This ensures `anvil check --json | jq .` always produces valid JSON.
 
+### Current payload notes
+
+- `doctor --json` now emits an object root:
+  `{ "checks": [...], "notifications": [...] }`.
+- `audit --json` emits `issues[]`, `next_steps[]`, and `notifications[]`.
+- When evolving a JSON payload, document the change in `CHANGELOG.md` and the
+  public release docs before shipping.
+
 ## Adding a new command
 
 ### TypeScript (legacy CLI)

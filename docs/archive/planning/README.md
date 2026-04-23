@@ -1,19 +1,26 @@
 # Planning Documents
 
+> Historical archive only.
+>
+> This directory predates the current APS planning system. The statuses and
+> process notes below are preserved for reference but are no longer the active
+> planning workflow. Use `plans/index.aps.md` and `plans/modules/` for current
+> planning.
+
 **Last Updated:** 2025-10-23
 
-## Overview
+## Historical Overview
 
 This directory contains strategic plans, implementation roadmaps, and task
 tracking for the Anvil project.
 
-## Documents
+## Archived Documents
 
 ### [Strategic Plan](strategic-plan.md)
 
 The three-act vision and overall strategy for Anvil.
 
-**Status:** Active **Scope:** Multi-year roadmap **Contents:**
+**Status at the time:** Active **Scope:** Multi-year roadmap **Contents:**
 
 - Act 1: Foundation (MVP)
 - Act 2: Maturity
@@ -23,7 +30,8 @@ The three-act vision and overall strategy for Anvil.
 
 Detailed technical implementation plan for the adapter framework.
 
-**Status:** Active **Scope:** Current development cycle **Contents:**
+**Status at the time:** Active **Scope:** Current development cycle
+**Contents:**
 
 - Adapter framework architecture
 - SpecKit adapter implementation
@@ -34,7 +42,7 @@ Detailed technical implementation plan for the adapter framework.
 
 Detailed implementation plan for OPA integration and architecture validation.
 
-**Status:** In Progress **Priority:** High (Most Requested Feature)
+**Status at the time:** In Progress **Priority:** High (Most Requested Feature)
 **Contents:**
 
 - OPA binary management
@@ -47,14 +55,14 @@ Detailed implementation plan for OPA integration and architecture validation.
 
 Current TODO list and task tracking.
 
-**Status:** Active **Update Frequency:** Daily/Weekly **Contents:**
+**Status at the time:** Active **Update Frequency:** Daily/Weekly **Contents:**
 
 - In-progress tasks
 - Blocked items
 - Upcoming priorities
 - Completed items
 
-## Planning Process
+## Historical Planning Process
 
 ### Weekly Planning
 

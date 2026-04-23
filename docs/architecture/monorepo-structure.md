@@ -82,22 +82,22 @@ anvil/
 
 ## Migration Status
 
-| Component           | Current                      | Target                       | Status     |
-| ------------------- | ---------------------------- | ---------------------------- | ---------- |
-| CLI (Rust)          | `crates/anvil-cli/`          | `crates/anvil-cli/`          | In place   |
-| Kernel              | `crates/anvil-kernel/`       | `crates/anvil-kernel/`       | In place   |
-| TUI                 | `crates/anvil-tui/`          | `crates/anvil-tui/`          | In place   |
-| Checks (Rust)       | `crates/anvil-checks/`       | `crates/anvil-checks/`       | In place   |
-| Policy (Rust)       | `crates/anvil-policy/`       | `crates/anvil-policy/`       | In place   |
-| Architecture (Rust) | `crates/anvil-architecture/` | `crates/anvil-architecture/` | In place   |
-| Core (TS)           | `packages/anvil/*`           | `packages/anvil/*`           | In place   |
-| Adapters            | `packages/adapters/`         | `packages/adapters/*`        | In place   |
-| API                 | `apps/anvil-api/`            | `apps/anvil-api/`            | In place   |
-| Website             | `apps/website/`              | `apps/website/`              | In place   |
-| Docs site           | `apps/docs-site/`            | `apps/docs-site/`            | In place   |
-| E2E                 | `apps/e2e/`                  | `apps/e2e/*`                 | In place   |
-| CLI (Node.js)       | `apps/anvil-cli/`            | —                            | Deprecated |
-| Scripts             | `tools/scripts/`             | `tools/scripts/`             | In place   |
+| Component           | Current                      | Target                       | Status   |
+| ------------------- | ---------------------------- | ---------------------------- | -------- |
+| CLI (Rust)          | `crates/anvil-cli/`          | `crates/anvil-cli/`          | In place |
+| Kernel              | `crates/anvil-kernel/`       | `crates/anvil-kernel/`       | In place |
+| TUI                 | `crates/anvil-tui/`          | `crates/anvil-tui/`          | In place |
+| Checks (Rust)       | `crates/anvil-checks/`       | `crates/anvil-checks/`       | In place |
+| Policy (Rust)       | `crates/anvil-policy/`       | `crates/anvil-policy/`       | In place |
+| Architecture (Rust) | `crates/anvil-architecture/` | `crates/anvil-architecture/` | In place |
+| Core (TS)           | `packages/anvil/*`           | `packages/anvil/*`           | In place |
+| Adapters            | `packages/adapters/`         | `packages/adapters/*`        | In place |
+| API                 | `apps/anvil-api/`            | `apps/anvil-api/`            | In place |
+| Website             | `apps/website/`              | `apps/website/`              | In place |
+| Docs site           | `apps/docs-site/`            | `apps/docs-site/`            | Legacy   |
+| E2E                 | `apps/e2e/`                  | `apps/e2e/*`                 | In place |
+| CLI (Node.js)       | `archive/anvil-cli-node/`    | —                            | Archived |
+| Scripts             | `tools/scripts/`             | `tools/scripts/`             | In place |
 
 ## Migration Plan
 

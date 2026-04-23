@@ -61,6 +61,13 @@ irm https://install.eddacraft.ai/windows | iex
 
 # Or via Homebrew (macOS/Linux)
 brew install eddacraft/tap/anvil
+
+# Or via WinGet (Windows)
+winget install eddacraft.anvil
+
+# Or via Scoop (Windows)
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
 ```
 
 The install script detects your platform and architecture (x86_64, aarch64) and
@@ -145,7 +152,7 @@ is smoother, more responsive, and more consistent across terminal emulators.
 
 Features that were difficult or impractical in the Node.js version:
 
-- **Kernel engine** — a persistent daemon mode with incremental parsing and a
+- **Kernel engine** — foreground watch mode with incremental parsing and a
   semantic dependency graph that updates in real time as files change
 - **Policy evaluation** — policy configuration and rule loading are handled
   natively; OPA is still required for Rego evaluation
@@ -191,19 +198,28 @@ pnpm remove @eddacraft/anvil-cli
 ### Step 4: Authenticate
 
 ```bash
-anvil login
+anvil auth login
 ```
 
 If you were previously authenticated with the Node.js CLI, your credentials
-migrate automatically on first run. Run `anvil login` only if prompted or if you
-see exit code 3 (auth required).
+migrate automatically on first run. `anvil login` still works as an alias, but
+`anvil auth login` is the canonical form. Add `--otp` if you need the email OTP
+flow instead of device code.
 
-### Step 5: Update CI
+### Step 5: Upgrade path
+
+Once installed, use the native updater:
+
+```bash
+anvil update
+```
+
+### Step 6: Update CI
 
 Replace any `pnpm anvil` or `npx anvil` invocations with direct `anvil` calls.
 Remove the Node.js install step if anvil was the only reason it was there.
 
-### Step 6: Test
+### Step 7: Test
 
 ```bash
 anvil gate

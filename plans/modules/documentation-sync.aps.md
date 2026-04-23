@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 9/20 (Rust-migration phase 9/10; Future 0/4 Draft; Scanner / Two-Engine 0/6 Draft) |
+| DOCSYNC | —     | In Progress | 10/21 (Rust-migration phase 9/10; Future 1/5; Scanner / Two-Engine 0/6 Draft) |
 
 ## Purpose
 
@@ -80,6 +80,7 @@ documentation updates that aren't tracked.
 - DOCSYNC-012: Policy governance documentation updates
 - DOCSYNC-013: Multi-language support documentation
 - DOCSYNC-014: Docs contribution guide
+- DOCSYNC-021: Refresh docs for 0.3.2-beta/0.3.3-beta and current repo topology
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -95,9 +96,9 @@ documentation updates that aren't tracked.
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |     4 |    0 |           0 |     4 |
+| Future                          |     5 |    1 |           0 |     4 |
 | Scanner / Two-Engine State      |     6 |    0 |           0 |     6 |
-| **Total**                       |    20 |    9 |           0 |    11 |
+| **Total**                       |    21 |   10 |           0 |    11 |
 
 ### Item Detail
 
@@ -117,6 +118,7 @@ documentation updates that aren't tracked.
 | DOCSYNC-012 | Draft  |                                               |
 | DOCSYNC-013 | Draft  |                                               |
 | DOCSYNC-014 | Draft  |                                               |
+| DOCSYNC-021 | Done   | 0.3.2/0.3.3 public release docs, auth quickstarts, README and repo-topology docs refreshed |
 | DOCSYNC-015 | Draft  | Origin: operations-reviewer OPS-001 (RSCAN-008 council) |
 | DOCSYNC-016 | Draft  | Origin: operations-reviewer OPS-002 (RSCAN-008 council) |
 | DOCSYNC-017 | Draft  | Origin: operations-reviewer OPS-003 (RSCAN-008 council) |

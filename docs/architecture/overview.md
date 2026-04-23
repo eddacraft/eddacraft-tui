@@ -91,8 +91,9 @@ contracts (zero deps)
 | `crates/anvil-cli/` | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
 | `apps/anvil-api/`   | REST API (Hono + Vercel + Neon Postgres).               |
 | `apps/website/`     | Marketing site + dashboard (Next.js).                   |
-| `apps/docs-site/`   | Documentation (Docusaurus).                             |
-| `apps/e2e/`         | Playwright E2E tests.                                   |
+| `apps/docs-public/` | Public Docusaurus docs for APS, Kindling, edda-stack.   |
+| `apps/docs-shell/`  | Next.js docs entrypoint and auth proxy.                 |
+| `apps/e2e/`         | Vitest E2E harness across CLI, API, and contracts.      |
 
 ### Dependency Diagram
 
@@ -562,13 +563,13 @@ sequenceDiagram
 
 | Category          | Technology              | Version  | Purpose                                            |
 | ----------------- | ----------------------- | -------- | -------------------------------------------------- |
-| Language          | TypeScript              | 5.9      | Domain packages, API, website (strict mode, ESM)   |
-| Runtime           | Node.js                 | >= 20    | TypeScript execution environment                   |
+| Language          | TypeScript              | 6.0      | Domain packages, API, website (strict mode, ESM)   |
+| Runtime           | Node.js                 | >= 22.13 | TypeScript execution environment                   |
 | Package manager   | pnpm                    | >= 10.20 | Workspace management, strict isolation             |
-| Monorepo          | NX                      | 22.5     | Task orchestration, caching, dependency graph      |
+| Monorepo          | NX                      | 22.x     | Task orchestration, caching, dependency graph      |
 | HTTP framework    | Hono                    | --       | REST API (Vercel-deployable)                       |
 | Testing           | Vitest                  | 4.x      | Unit and integration tests                         |
-| E2E testing       | Playwright              | --       | End-to-end browser and CLI tests                   |
+| E2E testing       | Vitest                  | 4.x      | End-to-end harness across CLI, API, and contracts  |
 | Schema validation | Zod                     | --       | Runtime type validation, source of truth for types |
 | Static analysis   | dependency-cruiser      | --       | Import graph analysis, layer violations            |
 | Policy engine     | OPA / Rego              | --       | Policy-as-code evaluation                          |
@@ -576,7 +577,7 @@ sequenceDiagram
 | Formatting        | Prettier                | 3.x      | Code formatting                                    |
 | IaC               | Pulumi (TypeScript)     | --       | Vercel, GitHub, Azure DNS management               |
 | Database          | Neon Postgres           | --       | API persistence layer                              |
-| Deployment        | Vercel                  | --       | Website, docs-site, API hosting                    |
+| Deployment        | Vercel                  | --       | Website, docs apps, and API hosting                |
 | CI/CD             | GitHub Actions          | --       | Build, test, deploy                                |
 | Memory storage    | SQLite (better-sqlite3) | --       | Kindling operational memory                        |
 

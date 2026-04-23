@@ -27,6 +27,8 @@ export PATH="$HOME/.eddacraft/bin:$PATH"
 
 If you installed via Homebrew, run `brew link eddacraft/tap/anvil`.
 
+If you installed via Scoop, run `scoop reset anvil`.
+
 **Windows (PowerShell):**
 
 ```powershell
@@ -68,6 +70,22 @@ irm https://install.eddacraft.ai/windows | iex
 
 See [The Switch to Rust](/anvil/releases/rust-rewrite) for full migration
 details.
+
+### Updater Not Finding a New Release
+
+If `anvil update` reports that you are already current but you expect a newer
+beta:
+
+```bash
+anvil --version
+anvil update
+```
+
+If the updater still cannot see the release:
+
+- re-run the install script to pick up the latest published artefact
+- verify that the GitHub release exists for your platform
+- on Windows, try `winget upgrade eddacraft.anvil` or `scoop update anvil`
 
 ## Configuration Issues
 

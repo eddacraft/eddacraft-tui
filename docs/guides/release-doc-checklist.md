@@ -73,7 +73,6 @@ Only update packages that changed in this release.
 - [ ] `packages/anvil/README.md` — core/runtime API changes
 - [ ] `packages/edda-stack/README.md` — Edda/Ember contract changes
 - [ ] `packages/aps/README.md` — APS format changes
-- [ ] `packages/platform/README.md` — platform config changes
 - [ ] `packages/vscode-extension/README.md` — extension changes
 - [ ] `apps/anvil-api/README.md` — API route changes
 
@@ -86,7 +85,6 @@ Only update packages that changed in this release.
 
 ### Post-release
 
-- [ ] Verify `npm view @eddacraft/anvil-cli@<version>` returns correct version
 - [ ] Human comms sent (see runbook section 8)
 - [ ] GitHub release notes reviewed and published
 - [ ] Close related documentation issues (label: `docs`)
@@ -106,7 +104,6 @@ Only update packages that changed in this release.
 - [ ] `crates/anvil-cli/Cargo.toml` — crate version
 - [ ] `crates/anvil-policy/Cargo.toml` — crate version
 - [ ] `crates/anvil-tui/Cargo.toml` — crate version
-- [ ] `crates/eddacraft-tui/Cargo.toml` — crate version
 - [ ] `crates/spike/Cargo.toml` — crate version (if applicable)
 
 ### Pre-release: public docs sync
@@ -116,6 +113,9 @@ Only update packages that changed in this release.
 - [ ] `docs/public/anvil/quickstart.md` — if Rust CLI replaces or supplements
       Node CLI, update install commands
 - [ ] `docs/public/anvil/operations/troubleshooting.md` — Rust-specific errors
+- [ ] `docs/public/anvil/integrations/vscode.md` — extension and diagnostics
+      behaviour
+- [ ] `docs/public/anvil/integrations/mcp.md` — MCP integration changes
 
 ### Pre-release: internal docs sync
 
@@ -123,6 +123,7 @@ Only update packages that changed in this release.
 - [ ] `docs/architecture/rust-architecture-endstate.md` — endstate alignment
 - [ ] `docs/architecture/rust-kernel-spec.md` — kernel spec changes
 - [ ] `docs/guides/cli-output-streams.md` — output format changes
+- [ ] `docs/guides/anvil-rule-authoring.md` — rule-format and authoring changes
 - [ ] `docs/guides/eddacraft-autonomy-constitution.md` — autonomy model changes
 - [ ] `docs/architecture/kernel-benchmarking-spec.md` — benchmark methodology
       changes
@@ -136,7 +137,6 @@ Only update packages that changed in this release.
 - [ ] `crates/anvil-cli/README.md`
 - [ ] `crates/anvil-policy/README.md`
 - [ ] `crates/anvil-tui/README.md`
-- [ ] `crates/eddacraft-tui/README.md`
 
 ### Pre-release: public distribution repo (eddacraft/anvil)
 

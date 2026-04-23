@@ -1,6 +1,6 @@
 # Auth System — As-Built
 
-> **Status:** Live (beta) **Last reviewed:** 2026-03-15 **Service:**
+> **Status:** Live (beta) **Last reviewed:** 2026-04-23 **Service:**
 > `apps/anvil-api` (Hono on Vercel) **Database:** Neon Postgres (`beta_users`,
 > `access_tokens`, `audit_log`)
 
@@ -95,12 +95,11 @@ created_at). Token hashes are not returned.
 
 ### Device Code Flow
 
-1. CLI calls `POST /auth/device/start` — receives a `device_code`, `user_code`,
-   and `verification_uri`
-2. User opens `verification_uri` in a browser and enters the `user_code` to
-   confirm
-3. CLI polls `POST /auth/device/poll` with the `device_code` until the user
-   confirms or the code expires
+1. CLI calls `POST /auth/device/start` — receives `userCode`, `verificationUrl`,
+   `pollToken`, `expiresIn`, and `interval`
+2. User opens `verificationUrl` in a browser and enters `userCode` to confirm
+3. CLI polls `POST /auth/device/poll` with `pollToken` until the user confirms
+   or the code expires
 4. On confirmation, the poll response returns a JWT + refresh token pair
 
 ### Email OTP Flow
@@ -114,8 +113,9 @@ created_at). Token hashes are not returned.
 ### Admin Approval Flow
 
 1. Admin CLI calls `POST /admin/approve` with the waitlisted user's email
-2. API activates the user and sends a beta invite email containing a device code
-3. User follows the link to confirm and receives access
+2. API activates the user and sends a beta invite email
+3. The user then completes device-code or OTP login through the standard auth
+   surfaces
 
 ### JWT Session Refresh
 
@@ -166,11 +166,12 @@ offline window short while avoiding verify calls on every invocation.
 ```sql
 beta_users      (id uuid PK, email citext UNIQUE, name, status, notes, created_at, updated_at)
 access_tokens   (id uuid PK, user_id FK, token_hash UNIQUE, scopes text[], expires_at, revoked_at, created_at)
-audit_log       (id uuid PK, action, actor, metadata jsonb, created_at)
+audit_log       (id uuid PK, action, actor, auth_method, metadata jsonb, created_at)
 waitlist        (id serial PK, email citext UNIQUE, source, created_at, updated_at)
-device_codes    (id uuid PK, device_code, user_code, user_id FK, status, expires_at, created_at)
-otp_codes       (id uuid PK, email citext, code, attempts, expires_at, created_at)
+device_codes    (id uuid PK, user_id FK, user_code UNIQUE, poll_token UNIQUE, confirmed_at, expires_at, last_polled_at, created_at)
+otp_codes       (id uuid PK, user_id FK, code_hash, attempts, expires_at, consumed_at, created_at)
 refresh_tokens  (id uuid PK, user_id FK, token_hash UNIQUE, family_id uuid, consumed_at, revoked_at, expires_at, created_at)
+admin_keys      (id uuid PK, label, key_hash UNIQUE, created_at, revoked_at, last_used_at)
 ```
 
 Extensions: `citext`, `pgcrypto`.
@@ -183,7 +184,8 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | Variable                      | Required | Used by                                 | Description                                                      |
 | ----------------------------- | -------- | --------------------------------------- | ---------------------------------------------------------------- |
 | `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                  |
-| `ADMIN_KEY`                   | Yes      | Admin middleware                        | Bearer token for admin endpoints                                 |
+| `ANVIL_API_DATABASE_URL`      | No       | Database cutover compatibility          | Transitional alias used during database consolidation            |
+| `ADMIN_KEY`                   | No       | Legacy admin middleware path            | Legacy bearer token for admin endpoints                          |
 | `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                   |
 | `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                             |
 | `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                  |
@@ -192,6 +194,7 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                  |
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                |
 | `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
+| `ANVIL_ADMIN_ACTOR`           | No       | Admin audit trail                       | Default actor label for admin operations                         |
 
 ## Cross-Cutting Concerns
 

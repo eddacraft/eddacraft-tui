@@ -49,14 +49,23 @@ irm https://install.eddacraft.ai/windows | iex
 brew install eddacraft/tap/anvil
 ```
 
+**WinGet (Windows):**
+
+```powershell
+winget install eddacraft.anvil
+```
+
 No Node.js or npm required. The installer downloads a single static binary for
 your platform.
 
 ### Authenticate
 
 ```bash
-anvil login
+anvil auth login
 ```
+
+The default flow is device-code login in your browser. If you need email OTP,
+run `anvil auth login --otp`.
 
 ### Set up a project
 
@@ -88,6 +97,19 @@ irm https://install.eddacraft.ai/windows | iex
 
 ```bash
 brew upgrade eddacraft/tap/anvil
+```
+
+**Built-in updater:**
+
+```bash
+anvil update
+```
+
+**WinGet / Scoop (Windows):**
+
+```powershell
+winget upgrade eddacraft.anvil
+scoop update anvil
 ```
 
 Verify your version:

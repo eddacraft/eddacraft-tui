@@ -11,6 +11,55 @@ Guides for upgrading between anvil versions.
 
 ## Current Version: 0.3.3-beta
 
+## Upgrading to 0.3.3-beta
+
+Drop-in upgrade from `0.3.2-beta`. No configuration migration is required.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.3.3-beta
+
+- **Windows distribution** — WinGet landed and Scoop became part of the
+  documented install/upgrade story.
+- **Admin operations** — `anvil admin` gained list/show/invite/audit/revoke and
+  migration tooling.
+- **Windows UX fixes** — onboarding, discovery, and key handling improved.
+
+## Upgrading to 0.3.2-beta
+
+Drop-in upgrade from `0.3.1-beta`. No configuration migration is required.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
 ## Upgrading to 0.3.1-beta
 
 Drop-in upgrade from 0.3.0-beta. No configuration changes required.
@@ -23,7 +72,7 @@ curl -fsSL https://install.eddacraft.ai | sh
 brew upgrade eddacraft/tap/anvil
 
 # Or via the built-in updater
-anvil-update
+anvil update
 ```
 
 ### What's New in 0.3.1-beta
@@ -63,8 +112,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 - **Native binary** — 5–10x faster scanning, 80% less memory in watch mode, no
   Node.js dependency.
-- **Kernel engine** — persistent daemon with incremental parsing and real-time
-  semantic graph updates.
+- **Kernel engine** — foreground watch mode, incremental parsing, and real-time
+  semantic graph updates in the native Rust runtime.
 - **Ratatui TUI** — rebuilt interactive surfaces with the eddacraft Terminal
   Standard design system.
 - **Welcome & onboarding** — first-run interactive experience; run

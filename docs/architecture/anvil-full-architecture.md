@@ -130,13 +130,14 @@
 | `packages/edda-stack`           | Three-layer memory: Kindling → Ember → Edda | **[CURRENT]** |
 | `packages/kindling-integration` | Kindling observation capture integration    | **[CURRENT]** |
 
-### Platform
+### Shared and Support Packages
 
-| Package                     | Purpose                            | Status        |
-| --------------------------- | ---------------------------------- | ------------- |
-| `packages/platform/config`  | Config file loading and resolution | **[CURRENT]** |
-| `packages/platform/storage` | File-system storage abstraction    | **[CURRENT]** |
-| `packages/platform/crypto`  | Cryptographic utilities            | **[CURRENT]** |
+| Package                            | Purpose                            | Status        |
+| ---------------------------------- | ---------------------------------- | ------------- |
+| `packages/shared/`                 | Shared cross-cutting utilities     | **[CURRENT]** |
+| `packages/shared/storage/`         | Shared storage helpers             | **[CURRENT]** |
+| `packages/shared/admin-contracts/` | Shared admin API schemas and types | **[CURRENT]** |
+| `packages/libs/render/`            | Shared render-layer utilities      | **[CURRENT]** |
 
 ### Tooling & Integration
 

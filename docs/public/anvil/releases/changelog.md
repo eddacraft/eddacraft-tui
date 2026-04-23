@@ -9,6 +9,65 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
+## [Unreleased]
+
+### Changed (breaking)
+
+- **`anvil doctor --json` output shape** — the root changed from a bare JSON
+  array of check objects to `{ "checks": [...], "notifications": [...] }`.
+  Consumers that iterated the array must switch to `data.checks`.
+
+### Added
+
+- **`anvil audit --json` notifications** — audit now includes a
+  `notifications[]` field alongside `issues[]` and `next_steps[]`.
+- **Shared notification envelope** — `check`, `gate`, `audit`, `doctor`, and TUI
+  surfaces are converging on one notification taxonomy for machine consumers.
+
+## [0.3.3-beta] — WinGet Distribution & Windows UX
+
+### Added
+
+- **WinGet distribution** — Windows users can now install and upgrade anvil via
+  WinGet.
+- **Scoop support** — Scoop bucket install guidance is now part of the supported
+  Windows distribution surface.
+- **Admin CLI operational commands** — `anvil admin` now covers `list`, `show`,
+  `approve`, `invite`, `audit`, `revoke`, and `send-migration`.
+- **Nightly stress test workflow** — CI benchmark coverage expanded to catch
+  native-engine regressions earlier.
+
+### Fixed
+
+- **Windows TUI input** — duplicate keypress handling on Windows was removed.
+- **Discovery and tutorial UX** — onboarding and tutorial completion flows were
+  stabilised after the Rust cutover.
+- **Admin approval and migration flows** — reliability and error handling were
+  tightened across the beta-access operator tooling.
+
+### Improved
+
+- **Release automation** — Windows signing groundwork, public-release promotion,
+  and release-script hardening all landed as part of the `0.3.3-beta` cycle.
+
+## [0.3.2-beta] — Update Command & Onboarding Completion
+
+### Added
+
+- **`anvil update`** — the native binary now ships with an in-place updater via
+  the `anvil update` command.
+- **Welcome/onboarding completion** — the first-run experience, tutorial, and
+  welcome hub reached feature-complete beta coverage.
+- **Interactive release workflow** — release automation gained a manifest-driven
+  handoff for agent-assisted release verification.
+
+### Fixed
+
+- **Tutorial command drift** — tutorial steps were realigned with the shipped
+  Rust CLI.
+- **Install flow polish** — installer next steps and Homebrew publishing were
+  made more reliable.
+
 ## [0.3.1-beta] — Docs Cutover & Onboarding Fixes
 
 ### Added
@@ -48,7 +107,7 @@ All notable changes to anvil are documented here.
 - **Installation** — `curl -fsSL https://install.eddacraft.ai | sh` (macOS /
   Linux) or `irm https://install.eddacraft.ai/windows | iex` (Windows). Also
   available via Homebrew: `brew install eddacraft/tap/anvil`. Built-in
-  self-updater via `anvil-update`.
+  self-updater via `anvil update`.
 - **Platform support** — builds for x86_64 and aarch64 on macOS, Linux, and
   Windows (6 targets via cargo-dist).
 - **Ratatui TUI** — all 10 interactive surfaces (welcome, tutorial, watch,
