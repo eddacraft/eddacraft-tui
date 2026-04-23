@@ -141,7 +141,16 @@ pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock:
         .collect()
 });
 
-pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
+/// Compile the combined built-in + user-supplied secret patterns.
+///
+/// Returns `(compiled, errors)` — callers must surface `errors` so a
+/// misconfigured custom pattern doesn't silently produce zero matches.
+/// Prefer iterating `DEFAULT_COMPILED_PATTERNS` chained with
+/// `compile_custom_patterns` on hot paths rather than rebuilding the full
+/// `Vec` here.
+pub fn compile_secret_patterns(
+    custom_patterns: &[SecretPatternDef],
+) -> (Vec<CompiledPattern>, Vec<String>) {
     // Built-ins go through the fail-fast path; custom patterns tolerate
     // compile failures because they come from user config.
     let mut compiled: Vec<CompiledPattern> = DEFAULT_COMPILED_PATTERNS
@@ -151,9 +160,9 @@ pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<Comp
             regex: p.regex.clone(),
         })
         .collect();
-    let (custom, _errors) = compile_custom_patterns(custom_patterns);
+    let (custom, errors) = compile_custom_patterns(custom_patterns);
     compiled.extend(custom);
-    compiled
+    (compiled, errors)
 }
 
 /// Compile only the user-supplied custom patterns.
@@ -357,7 +366,11 @@ mod tests {
             ),
         ];
 
-        let compiled = compile_secret_patterns(&[]);
+        let (compiled, errors) = compile_secret_patterns(&[]);
+        assert!(
+            errors.is_empty(),
+            "no custom patterns should yield no errors"
+        );
 
         for (name, sample) in &examples {
             let maybe_pattern = compiled.iter().find(|pattern| pattern.name == *name);
@@ -373,7 +386,7 @@ mod tests {
 
     #[test]
     fn generic_secret_matches_compound_names() {
-        let compiled = compile_secret_patterns(&[]);
+        let (compiled, _errors) = compile_secret_patterns(&[]);
         let pattern = compiled
             .iter()
             .find(|p| p.name == "Generic Secret")

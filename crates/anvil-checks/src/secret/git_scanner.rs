@@ -1,9 +1,7 @@
 use std::io;
 use std::process::Command;
 
-use crate::secret::patterns::{
-    CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
-};
+use crate::secret::patterns::{DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns};
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
 /// Output of a git-history secret scan.
@@ -22,17 +20,6 @@ pub fn scan_git_history(
 ) -> Result<GitScanOutput, io::Error> {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
     let (custom_patterns, pattern_errors) = compile_custom_patterns(&config.custom_patterns);
-    let default_patterns: Vec<CompiledPattern> = DEFAULT_COMPILED_PATTERNS
-        .iter()
-        .map(|p| CompiledPattern {
-            name: p.name.clone(),
-            regex: p.regex.clone(),
-        })
-        .collect();
-    let patterns: Vec<&CompiledPattern> = default_patterns
-        .iter()
-        .chain(custom_patterns.iter())
-        .collect();
     let depth = config.git_history_depth.clamp(1, 1000);
 
     let git_check = Command::new("git")
@@ -99,7 +86,10 @@ pub fn scan_git_history(
         }
 
         let line_content = &line[1..];
-        for pattern in &patterns {
+        for pattern in DEFAULT_COMPILED_PATTERNS
+            .iter()
+            .chain(custom_patterns.iter())
+        {
             let maybe_match = pattern.regex.find(line_content);
             let matched_value = match maybe_match {
                 Some(match_result) => match_result.as_str(),
@@ -159,7 +149,7 @@ mod tests {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_nanos())
         ));
-        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).expect("should create temporary test directory");
         let config = SecretCheckConfig {
             scan_git_history: true,
             custom_patterns: vec![SecretPatternDef {

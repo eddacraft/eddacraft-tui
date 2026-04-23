@@ -571,9 +571,11 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     let mut findings: Vec<Finding> = all_findings.into_iter().flatten().collect();
 
     // Surface custom-pattern compile errors once at the discovery boundary so
-    // that misconfigured user regexes don't silently produce zero hits across
-    // every scanned file. Compiled here rather than inside scan_one to avoid
-    // N+1 compilations.
+    // misconfigured user regexes don't silently produce zero hits across every
+    // scanned file. This compile is for error reporting only — scan_one still
+    // performs its own per-file compilation. Eliminating that redundancy
+    // requires threading pre-compiled patterns into scan_one/scan_content and
+    // is tracked separately (EAMIG follow-on to C-002).
     let (_, pattern_errors) =
         anvil_checks::secret::patterns::compile_custom_patterns(&secret_config.custom_patterns);
     for err in &pattern_errors {
