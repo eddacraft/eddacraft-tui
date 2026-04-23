@@ -10,8 +10,8 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::{
-    GATE_INTERNAL_CHECKS, gate_canonical_name_from_internal, gate_canonical_names,
-    gate_internal_name,
+    GATE_INTERNAL_CHECKS, canonical_check_name, gate_canonical_name_from_internal,
+    gate_canonical_names, gate_internal_name,
 };
 
 #[derive(Debug, Default, Args)]
@@ -1127,10 +1127,15 @@ fn read_anvilrc_checks(workspace_root: &Path) -> Result<Option<std::collections:
         ));
     };
 
+    let checks: std::collections::HashSet<String> = checks
+        .into_iter()
+        .map(|name| canonical_check_name(&name).unwrap_or(&name).to_string())
+        .collect();
+
     if checks.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(checks.into_iter().collect()))
+        Ok(Some(checks))
     }
 }
 
@@ -2254,8 +2259,8 @@ rules: []
         .unwrap();
         let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
         assert_eq!(checks.len(), 2);
-        assert!(checks.contains("secret"));
-        assert!(checks.contains("architecture"));
+        assert!(checks.contains("secret-detection"));
+        assert!(checks.contains("import-boundaries"));
     }
 
     #[test]
@@ -2267,8 +2272,8 @@ rules: []
         )
         .unwrap();
         let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
-        assert!(checks.contains("secret"));
-        assert!(checks.contains("architecture"));
+        assert!(checks.contains("secret-detection"));
+        assert!(checks.contains("import-boundaries"));
     }
 
     #[test]
@@ -2280,7 +2285,7 @@ rules: []
         )
         .unwrap();
         let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
-        assert!(checks.contains("secret"));
+        assert!(checks.contains("secret-detection"));
         assert!(checks.contains("policy"));
     }
 

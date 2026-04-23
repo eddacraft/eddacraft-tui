@@ -260,7 +260,9 @@ when specific work is identified.
 | [feature-flagging](./archive/modules/feature-flagging.aps.md) | FLAGS | 9/9 | BAUTH, DOCSAUTH, OPAG, observability-foundation — **Complete** |
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
-| [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 6/9 | rust-cli, docs, tui surfaces — **In Progress** |
+| [check-language-and-onboarding](./archive/modules/check-language-and-onboarding.aps.md) | CLAR | 9/9 | discovery and alignment complete; `CLAR-006` -> `QLRUN-001`, `CLAR-007` -> `QLODX-001`, `CLAR-008` -> `QLODX-002` — **Complete** |
+| [quality-language-runtime-alignment](./modules/quality-language-runtime-alignment.aps.md) | QLRUN | 1/1 | CLAR (complete), rust-cli runtime/config surfaces — **Complete** |
+| [quality-language-onboarding-and-docs](./modules/quality-language-onboarding-and-docs.aps.md) | QLODX | 0/2 | QLRUN, welcome/tutorial/docs surfaces — **Ready** |
 | [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 9/9 | CLAR, INTD, current CLI/TUI surfaces — **Complete** (doctor/audit alignment, shared TUI `NotificationSource`, telemetry contract, intercept integration spec) |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
