@@ -104,8 +104,8 @@ tracked as follow-up work.
 :::
 
 `.anvilrc` sets your project's default analysis checks that `anvil gate`
-actually consumes. `gate-config` is the forward-looking surface for the
-broader gate run.
+actually consumes. `gate-config` is the forward-looking surface for the broader
+gate run.
 
 :::note
 
