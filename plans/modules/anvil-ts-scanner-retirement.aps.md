@@ -145,23 +145,25 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
   Rust toolchain and the scanner runs
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Scope-reduced (per ADR-030)
+- **Status:** Complete (2026-04-23, scope-reduced per ADR-030)
 - **Scope after ADR-030:** The daemon is the runtime bundling point;
   npm publication of `@eddacraft/anvil-checks-native` is not required
   to complete this module. The CI matrix + test-without-Rust-toolchain
   path remains valuable as a canary on the binding, so the workflow
-  stays. What was "remaining to reach Complete" is now **not planned**:
+  stays. The following are **not planned**:
   - `"private": true` stays; no `NPM_TOKEN` wiring needed.
   - OOB install smoke tests for `aarch64-unknown-linux-gnu` and
-    `x86_64-apple-darwin` are **not planned** — the binding is
+    `x86_64-apple-darwin` are not planned — the binding is
     internal-only.
-  - `--provenance` / `id-token: write` decision is **not planned** —
+  - `--provenance` / `id-token: write` decision is not planned —
     there is no publish to provenance.
-- **Residual work (minor):** Keep `crates/anvil-checks-napi/` building
-  in CI as today so the binding doesn't rot while DRVR is in flight.
-  Mark this TSRET-002 as Complete once the napi.yml workflow has run
-  cleanly on the feat/TSRET-resume work and this plan change is
-  merged.
+- **Closeout evidence:** `napi.yml` workflow ran green on every
+  commit of PR #1060 (run IDs 24836269971, 24838233352, 24838796988
+  — last one 9m15s on the final head, all five build targets plus
+  three test runners passing without a Rust toolchain installed).
+  Plan-change ADR-030 merged as commit `0be1bcf7`. Follow-up
+  maintenance of the CI matrix (keeping it green on dependency
+  bumps) is ongoing hygiene, not TSRET-002 work.
 
 ---
 
