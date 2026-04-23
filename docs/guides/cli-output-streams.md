@@ -82,15 +82,15 @@ during `run()` execution):
 | Default            | `{err}` — outer context only  | Programmer-written string; no wrapped paths. |
 | `--verbose` / `-v` | `{err:#}` — full anyhow chain | Includes root cause and any embedded paths.  |
 
-Prefer the helper `crate::util::format_user_error(err, verbose)` rather than raw
-`format!` — it keeps the convention in one place and has unit coverage against
-path leakage.
+Prefer the helper `crate::util::format_user_error(&err, verbose)` rather than
+raw `format!` — it keeps the convention in one place and has unit coverage
+against path leakage.
 
-**Blind spot — path-embedding context strings.** The helper only redacts paths
-that appear inside the _wrapped_ error chain (e.g. `notify::Error`,
-`std::io::Error`). Context strings added by the programmer that _themselves_
-embed a path become part of the outermost message and will leak even at
-`verbose = false`:
+**Blind spot — path-embedding context strings.** At `verbose = false` the helper
+prints only the outermost context (`{err}`) and so avoids printing paths that
+live in the _wrapped_ error chain (e.g. `notify::Error`, `std::io::Error`).
+Context strings added by the programmer that _themselves_ embed a path become
+part of that outermost message and will leak even at `verbose = false`:
 
 ```rust
 // BAD — path is in the outer context, {err} prints it
