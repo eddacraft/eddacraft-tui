@@ -258,10 +258,12 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 
 - **Intent:** Run only affected Rust crates on PRs, matching the TS-side CI
   behaviour
-- **Expected Outcome:** `rust.yml` (or a merged workflow) uses
-  `nx affected -t test lint build` with base ref set via `nrwl/nx-set-shas`
-  on PRs targeting `dev`/`main`; pushes to `main` run everything; the
-  cross-compile matrix is unchanged
+- **Expected Outcome:** `rust.yml` runs only the Rust crates affected by a
+  PR by diffing against the PR's base ref (`origin/$GITHUB_BASE_REF`) and
+  invoking `nx run-many` for `check`, `test`, `clippy`, and `fmt-check` on
+  the resolved crate list. Pushes to `main`/`dev` run the full workspace via
+  the existing `cargo --workspace` paths. The cross-compile matrix is
+  unchanged.
 - **Scope:** `.github/workflows/rust.yml`, possibly `.github/workflows/ci.yml`
 - **Dependencies:** RUSTNX-006
 - **Validation:** A PR that only touches `crates/anvil-cli/src/**` skips
