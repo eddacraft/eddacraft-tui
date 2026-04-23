@@ -156,8 +156,12 @@
     },
     "onlyBuiltDependencies": [
       "@pulumi/command",
+      "better-sqlite3",
       "esbuild",
-      "nx"
+      "node-pty",
+      "nx",
+      "protobufjs",
+      "sharp"
     ],
     "ignoredBuiltDependencies": [
       "@devm33/node-pty",
