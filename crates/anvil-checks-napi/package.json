@@ -30,13 +30,6 @@
     "test": "node --test __tests__/*.test.mjs",
     "prepublishOnly": "napi pre-publish --tag-style npm --no-gh-release --dry-run"
   },
-  "optionalDependencies": {
-    "@eddacraft/anvil-checks-native-linux-x64-gnu": "0.3.3-beta",
-    "@eddacraft/anvil-checks-native-linux-arm64-gnu": "0.3.3-beta",
-    "@eddacraft/anvil-checks-native-darwin-x64": "0.3.3-beta",
-    "@eddacraft/anvil-checks-native-darwin-arm64": "0.3.3-beta",
-    "@eddacraft/anvil-checks-native-win32-x64-msvc": "0.3.3-beta"
-  },
   "devDependencies": {
     "@napi-rs/cli": "^3.4.0"
   }

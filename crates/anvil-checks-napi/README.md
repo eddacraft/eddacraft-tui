@@ -26,6 +26,12 @@ Before tagging `napi-v*`:
    `--provenance` through to `napi pre-publish`.
 5. Run an out-of-band install test on aarch64-linux and x86_64-darwin
    (no native runner in the test matrix).
+6. Add the per-platform sub-packages to `optionalDependencies` in
+   `package.json` once they exist on npm (see step 2 above). Until
+   then, `napi pre-publish` generates them at publish time from the
+   `napi.targets` array — declaring them statically while they 404
+   breaks `pnpm install --frozen-lockfile` for downstream workspace
+   consumers (Vercel previews etc.).
 
 ## Build
 
