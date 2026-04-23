@@ -1,8 +1,8 @@
 # Check Language and Onboarding
 
-| ID    | Owner  | Status      | Progress |
-|-------|--------|-------------|----------|
-| CLAR  | @aneki | In Progress | 6/9      |
+| ID    | Owner  | Status   | Progress                     |
+|-------|--------|----------|------------------------------|
+| CLAR  | @aneki | Complete | 9/9 (6 complete, 3 reparented) |
 
 ## Purpose
 
@@ -17,6 +17,13 @@ multiple overlapping vocabularies. Users meet different names in onboarding,
 configuration, command output, docs, and internal code, which makes it harder
 to understand what Anvil does, which parts are distinct, and which words are
 aliases for the same thing.
+
+The discovery, taxonomy, canonical-language design, onboarding audit, and APS
+reconciliation work all landed. The remaining implementation work was split out
+into dedicated follow-on modules so this parent module can close cleanly:
+
+- `QLRUN` — `plans/modules/quality-language-runtime-alignment.aps.md`
+- `QLODX` — `plans/modules/quality-language-onboarding-and-docs.aps.md`
 
 ## In Scope
 
@@ -61,16 +68,16 @@ aliases for the same thing.
 
 ## Acceptance Criteria
 
-- [ ] A repo-wide inventory exists for every user-visible check/scan/gate/graph/
+- [x] A repo-wide inventory exists for every user-visible check/scan/gate/graph/
       policy/warning term and its source location
-- [ ] The inventory also captures planned and emerging commands, surfaces, and
+- [x] The inventory also captures planned and emerging commands, surfaces, and
       nouns described in APS modules and specs
-- [ ] Canonical product language is defined, with aliases and deprecated terms
+- [x] Canonical product language is defined, with aliases and deprecated terms
       explicitly listed
-- [ ] A short mental-model document explains how Anvil's concepts fit together
+- [x] A short mental-model document explains how Anvil's concepts fit together
       for a new user
-- [ ] Onboarding, tutorial, and docs gaps are documented against that model
-- [ ] Follow-on tasks are identified for code, copy, and UX changes needed to
+- [x] Onboarding, tutorial, and docs gaps are documented against that model
+- [x] Follow-on tasks are identified for code, copy, and UX changes needed to
       align the product
 
 ## Constraints
@@ -157,7 +164,7 @@ aliases for the same thing.
 - **Confidence:** medium
 - **Status:** Complete
 
-### CLAR-006: Runtime naming alignment for checks and gates
+### CLAR-006: Runtime naming alignment for checks and gates (reparented -> QLRUN-001)
 
 - **Intent:** Align onboarding, config, gate execution, and gate-config around
   one user-facing naming layer for checks and gates
@@ -173,9 +180,10 @@ aliases for the same thing.
 - **Validation:** One canonical check-name table matches onboarding, gate, and
   gate-config surfaces, or the mapping is explicitly documented and tested
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Reparented — superseded by **QLRUN-001** in
+  `plans/modules/quality-language-runtime-alignment.aps.md`. Closed here.
 
-### CLAR-007: Welcome and tutorial model rewrite
+### CLAR-007: Welcome and tutorial model rewrite (reparented -> QLODX-001)
 
 - **Intent:** Rewrite first-run teaching surfaces so they explain the canonical
   model before introducing subsystem-specific commands and modes
@@ -188,9 +196,10 @@ aliases for the same thing.
 - **Validation:** First-run flow contains an explicit model explanation and
   tutorial path text aligns with the canonical language design
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Reparented — superseded by **QLODX-001** in
+  `plans/modules/quality-language-onboarding-and-docs.aps.md`. Closed here.
 
-### CLAR-008: Public docs terminology cleanup
+### CLAR-008: Public docs terminology cleanup (reparented -> QLODX-002)
 
 - **Intent:** Bring config and tutorial docs into alignment with the canonical
   quality language
@@ -204,7 +213,8 @@ aliases for the same thing.
 - **Validation:** Targeted docs reviewed against
   `plans/specs/2026-04-21-anvil-quality-language-design.md`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Reparented — superseded by **QLODX-002** in
+  `plans/modules/quality-language-onboarding-and-docs.aps.md`. Closed here.
 
 ### CLAR-009: APS wording reconciliation for active modules
 
