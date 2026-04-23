@@ -179,19 +179,26 @@ function inferProjectConfig(pkg: CargoPackage, root: string): ProjectConfigurati
   const hasBin = pkg.targets.some((t) => t.kind.includes('bin'));
   const isPrivate = pkg.publish?.length === 0;
 
+  // Pin the cargo package explicitly on every target. When another inference
+  // plugin (e.g. `@nx/js` on a crate that also ships a `package.json`, like
+  // napi-rs bindings) takes over the Nx project name, the executors must not
+  // fall back to `context.projectName` — that would feed cargo a non-cargo
+  // name (e.g. `@eddacraft/anvil-checks-native`) and fail parsing.
+  const pkgOpts = { package: pkg.name };
+
   const targets: ProjectConfiguration['targets'] = {
-    build: buildTargetConfig(),
-    check: checkTargetConfig(),
-    clippy: clippyTargetConfig(),
+    build: buildTargetConfig(pkgOpts),
+    check: checkTargetConfig(pkgOpts),
+    clippy: clippyTargetConfig(pkgOpts),
     // `fmt` rewrites files (uncached); `fmt-check` is the lint mode that
     // caches safely because its output is just an exit status.
-    fmt: fmtTargetConfig(),
-    'fmt-check': fmtCheckTargetConfig(),
-    test: testTargetConfig(),
+    fmt: fmtTargetConfig(pkgOpts),
+    'fmt-check': fmtCheckTargetConfig(pkgOpts),
+    test: testTargetConfig(pkgOpts),
   };
 
   if (hasBin) {
-    targets.run = runTargetConfig();
+    targets.run = runTargetConfig(pkgOpts);
   }
 
   if (!isPrivate) {
