@@ -98,12 +98,12 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-file-format](./archive/modules/anvil-file-format.aps.md) | ANVFMT | Complete | 15/16 (1 reparented to RSCAN-006 under ADR-026) |
 | [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
 | [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
-| [anvil-scanner-parity-gaps](./modules/anvil-scanner-parity-gaps.aps.md) | SPG | Complete | 6/6 (`flags:"i"` honoured, lookaround rules handled via post-filters, doctor surfaces compile failures, fixtures cover every rule, `antipattern_scan` bench + trust-boundary docs landed) |
+| [anvil-scanner-parity-gaps](./archive/modules/anvil-scanner-parity-gaps.aps.md) | SPG | Complete | 6/6 (`flags:"i"` honoured, lookaround rules handled via post-filters, doctor surfaces compile failures, fixtures cover every rule, `antipattern_scan` bench + trust-boundary docs landed) |
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Proposed | 0/5 (napi-rs binding + VSCode/MCP cutover + TS scanner deletion; depends on SPG) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
-| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Ready | 0/8 |
-| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 3/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2 depends on NXRUST) |
+| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
+| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 5/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2: -004/-005 delivered via NXRUST plugin + `sharedGlobals`; -006/-007 still draft) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -261,7 +261,7 @@ when specific work is identified.
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 6/9 | rust-cli, docs, tui surfaces — **In Progress** |
-| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 5/9 | CLAR, INTD, current CLI/TUI surfaces — **In Progress** (`NOTIFY-006` in PR #1035) |
+| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 9/9 | CLAR, INTD, current CLI/TUI surfaces — **Complete** (doctor/audit alignment, shared TUI `NotificationSource`, telemetry contract, intercept integration spec) |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
@@ -465,7 +465,14 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/11 | anvil-checks, anvil-kernel (watcher), INTR, INTL |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/13 | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+<!--
+  INTD count history:
+  - Pre-NOTIFY-009: index claimed 0/11, module already had 12 tasks (001–012) — off-by-one.
+  - NOTIFY-009 added INTD-013 to mirror control decisions onto telemetry.
+  - Net: module now has 13 tasks; index reconciled to 0/13.
+-->
+
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
 
@@ -947,8 +954,8 @@ See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
 | RUSTNX-001  | rustnx  | Add Swatinem/rust-cache to Rust CI jobs               | Complete | high     | 1    |
 | RUSTNX-002  | rustnx  | Adopt cargo-nextest for workspace test runs          | Complete | high     | 1    |
 | RUSTNX-003  | rustnx  | Parallelise Rust CI jobs behind shared cache         | Complete | medium   | 1    |
-| RUSTNX-004  | rustnx  | Scaffold per-crate project.json wrappers             | Ready  | high     | 2    |
-| RUSTNX-005  | rustnx  | Configure Nx inputs, outputs, and remote cache       | Ready  | high     | 2    |
+| RUSTNX-004  | rustnx  | Bring Rust crates under Nx via `@eddacraft/nx-rust`  | Complete | high     | 2    |
+| RUSTNX-005  | rustnx  | Workspace-level cache inputs for Rust                | Complete | high     | 2    |
 | RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Ready  | medium   | 2    |
 | RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Ready  | high     | 2    |
 | RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Ready  | medium   | 3    |
