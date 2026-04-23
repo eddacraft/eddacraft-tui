@@ -43,11 +43,14 @@ impl TutorialPath {
     }
 
     pub fn from_label(s: &str) -> Option<Self> {
+        // Legacy labels ("Policy", "Architecture", "Drift", "CI Integration")
+        // are kept so progress files written by older builds still round-trip
+        // into the correct enum variant after the onboarding rename.
         match s {
-            "Policy checks" => Some(Self::Policy),
-            "Boundary findings" => Some(Self::Architecture),
-            "Configuration drift" => Some(Self::Drift),
-            "CI gate integration" => Some(Self::CI),
+            "Policy checks" | "Policy" => Some(Self::Policy),
+            "Boundary findings" | "Architecture" => Some(Self::Architecture),
+            "Configuration drift" | "Drift" => Some(Self::Drift),
+            "CI gate integration" | "CI Integration" => Some(Self::CI),
             _ => None,
         }
     }
@@ -1260,6 +1263,25 @@ mod tests {
             assert_eq!(TutorialPath::from_label(path.label()), Some(*path));
         }
         assert_eq!(TutorialPath::from_label("Nonexistent"), None);
+    }
+
+    #[test]
+    fn from_label_accepts_legacy_labels() {
+        // Pre-rename progress files still need to resume into the matching
+        // enum variant after the labels were reframed for onboarding clarity.
+        assert_eq!(
+            TutorialPath::from_label("Policy"),
+            Some(TutorialPath::Policy)
+        );
+        assert_eq!(
+            TutorialPath::from_label("Architecture"),
+            Some(TutorialPath::Architecture)
+        );
+        assert_eq!(TutorialPath::from_label("Drift"), Some(TutorialPath::Drift));
+        assert_eq!(
+            TutorialPath::from_label("CI Integration"),
+            Some(TutorialPath::CI)
+        );
     }
 
     #[test]

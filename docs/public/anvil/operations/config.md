@@ -88,13 +88,24 @@ Managed by `anvil gate-config`. Stored at `.anvil/gate-config.json`.
 Use `anvil gate-config --list` to view the current configuration, and
 `--enable <check>` / `--disable <check>` to toggle individual checks.
 
-Use this file to control which checks feed the gate and what threshold the gate
-uses when it summarises the overall result.
+This file records the intended gate composition — which build-and-CI checks
+(`lint`, `test`, `coverage`, `dependency`) and Anvil analysis checks
+(`secret-detection`, `import-boundaries`, `antipattern-scan`, `policy`) belong
+to the gate, plus the scoring threshold.
 
-`.anvilrc` sets your project's default analysis checks. `gate-config` controls
-the broader gate run, including build-and-CI checks such as `lint`, `test`,
-`coverage`, and `dependency` alongside Anvil analysis checks such as
-`secret-detection`, `import-boundaries`, `antipattern-scan`, and `policy`.
+:::note
+
+`anvil gate` does not currently read `.anvil/gate-config.json`. The gate run is
+controlled by the `--only-checks` / `--skip-checks` flags and, as a default
+filter, the `checks` list in `.anvilrc`. Use `gate-config` to plan and document
+the intended gate composition today; wiring it into the `anvil gate` runner is
+tracked as follow-up work.
+
+:::
+
+`.anvilrc` sets your project's default analysis checks that `anvil gate`
+actually consumes. `gate-config` is the forward-looking surface for the
+broader gate run.
 
 :::note
 

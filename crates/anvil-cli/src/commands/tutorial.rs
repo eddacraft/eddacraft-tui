@@ -178,7 +178,17 @@ fn save_progress_from_state(
     existing: &TutorialProgress,
     state: &TutorialState,
 ) -> anyhow::Result<()> {
-    let mut completed: Vec<String> = existing.completed_paths.clone();
+    // Normalise any legacy path labels in the existing file to their current
+    // canonical form so a re-completion after a label rename does not write a
+    // duplicate entry (e.g. "Policy" alongside "Policy checks").
+    let mut completed: Vec<String> = Vec::with_capacity(existing.completed_paths.len());
+    for entry in &existing.completed_paths {
+        let canonical = TutorialPath::from_label(entry)
+            .map_or_else(|| entry.clone(), |p| p.label().to_string());
+        if !completed.contains(&canonical) {
+            completed.push(canonical);
+        }
+    }
 
     // Check if the current path was fully completed in this session.
     if state.phase == TutorialPhase::Complete
@@ -280,7 +290,11 @@ mod tests {
         save_progress_from_state(&path, &existing, &state).unwrap();
 
         let loaded = load_progress(&path);
-        assert!(loaded.completed_paths.contains(&"Policy".to_string()));
+        assert!(
+            loaded
+                .completed_paths
+                .contains(&"Policy checks".to_string())
+        );
     }
 
     #[test]
@@ -322,6 +336,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("tutorial-progress.json");
 
+        // Seed the existing file with a legacy label to exercise the
+        // on-save normalisation: older builds wrote "Architecture" before
+        // labels were reframed to "Boundary findings".
         let existing = TutorialProgress {
             completed_paths: vec!["Architecture".to_string()],
             in_progress: None,
@@ -333,8 +350,19 @@ mod tests {
         save_progress_from_state(&path, &existing, &state).unwrap();
 
         let loaded = load_progress(&path);
-        assert!(loaded.completed_paths.contains(&"Architecture".to_string()));
-        assert!(loaded.completed_paths.contains(&"Policy".to_string()));
+        // Legacy "Architecture" is migrated to the current canonical label.
+        assert!(
+            loaded
+                .completed_paths
+                .contains(&"Boundary findings".to_string())
+        );
+        assert!(
+            loaded
+                .completed_paths
+                .contains(&"Policy checks".to_string())
+        );
+        // No duplicate legacy entry should remain in the saved file.
+        assert!(!loaded.completed_paths.contains(&"Architecture".to_string()));
     }
 
     // --- In-progress persistence tests ---
@@ -355,7 +383,7 @@ mod tests {
 
         let loaded = load_progress(&path);
         let session = loaded.in_progress.expect("should have in_progress");
-        assert_eq!(session.path, "Drift");
+        assert_eq!(session.path, "Configuration drift");
         assert_eq!(session.current_step, 1);
         assert_eq!(session.steps_completed.len(), state.steps.len());
         assert!(session.steps_completed[0]);
@@ -375,7 +403,11 @@ mod tests {
 
         let loaded = load_progress(&path);
         assert!(loaded.in_progress.is_none());
-        assert!(loaded.completed_paths.contains(&"Policy".to_string()));
+        assert!(
+            loaded
+                .completed_paths
+                .contains(&"Policy checks".to_string())
+        );
     }
 
     #[test]
