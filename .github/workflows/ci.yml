@@ -239,6 +239,7 @@ jobs:
             --exclude=eddacraft-anvil-architecture
             --exclude=eddacraft-anvil-kernel-types
             --exclude=eddacraft-anvil-checks
+            --exclude=eddacraft-anvil-checks-napi
             --exclude=eddacraft-anvil-kernel
             --exclude=eddacraft-anvil-policy
             --exclude=eddacraft-anvil
@@ -246,11 +247,16 @@ jobs:
             --exclude=anvil-bench
             --exclude=anvil-spike
           )
+          # The napi binding ships its own .github/workflows/napi.yml that
+          # builds the .node artefact then runs `pnpm test`. The standard
+          # test workflow can't run it because the .node binary isn't built
+          # here — exclude both the cargo-side project (RUST_EXCLUDES above)
+          # and the npm-side workspace package.
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e "${RUST_EXCLUDES[@]}" \
+            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
               -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           else
-            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/nx-rust "${RUST_EXCLUDES[@]}" \
+            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/nx-rust --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
               -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           fi
 

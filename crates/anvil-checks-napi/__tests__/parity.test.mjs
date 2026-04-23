@@ -35,8 +35,8 @@ function napiScan() {
         reference: 'fixtures/sample.ts',
         content: fixtureContent,
       }),
-      null,
-    ),
+      null
+    )
   );
 }
 
@@ -54,13 +54,11 @@ test('napi scan produces warnings on the fixture', () => {
   // silently drops a rule) trips this assertion. AP-001 is enabled by
   // default — it's handled via the manual two-regex path in the Rust
   // scanner's `prepare_pattern`, not via the opt-in flag.
-  const detail = result.warnings
-    .map((w) => `${w.id}:${w.location.line}`)
-    .join(', ');
+  const detail = result.warnings.map((w) => `${w.id}:${w.location.line}`).join(', ');
   assert.equal(
     result.warnings.length,
     4,
-    `expected exactly 4 warnings, got ${result.warnings.length} (${detail})`,
+    `expected exactly 4 warnings, got ${result.warnings.length} (${detail})`
   );
   // AP-003 (any), AP-001 (eslint-disable), DD-001 (untracked TODO) must
   // all fire on the fixture in the default scan.
@@ -78,8 +76,8 @@ test('napi options are accepted and filter rules', () => {
         reference: 'fixtures/sample.ts',
         content: fixtureContent,
       }),
-      JSON.stringify({ patterns: ['AP-003'], includeOptIn: true }),
-    ),
+      JSON.stringify({ patterns: ['AP-003'], includeOptIn: true })
+    )
   );
   assert.deepEqual(result.patternsChecked, ['AP-003']);
   assert.ok(result.warnings.every((w) => w.id === 'AP-003'));
@@ -87,12 +85,8 @@ test('napi options are accepted and filter rules', () => {
 
 test('napi rejects unknown artifact kind', () => {
   assert.throws(
-    () =>
-      scanArtifactJson(
-        JSON.stringify({ kind: 'invalid', reference: 'x', content: '' }),
-        null,
-      ),
-    /unknown artifact kind/,
+    () => scanArtifactJson(JSON.stringify({ kind: 'invalid', reference: 'x', content: '' }), null),
+    /unknown artifact kind/
   );
 });
 
@@ -110,6 +104,6 @@ test('cold and warm call timings (informational)', () => {
   const warmAvg = (performance.now() - start) / iterations;
 
   console.log(
-    `[TSRET-001] cold call: ${cold.toFixed(3)}ms; warm avg over ${iterations} calls: ${warmAvg.toFixed(4)}ms`,
+    `[TSRET-001] cold call: ${cold.toFixed(3)}ms; warm avg over ${iterations} calls: ${warmAvg.toFixed(4)}ms`
   );
 });
