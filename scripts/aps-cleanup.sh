@@ -117,8 +117,16 @@ count_work_items() {
 # Extract header count from module file (e.g. "43/64" or "In Progress (15/16)")
 extract_header_count() {
   local file="$1"
-  # Look for N/N pattern in the header table (first 20 lines)
-  head -20 "$file" | grep -oE '[0-9]+/[0-9]+' | head -1 || echo ""
+  # Look for N/N pattern in the header *table row* only. Anchoring to lines
+  # that start with `|` stops us picking up things like "CLAR-007/008" from
+  # a module header comment, which previously produced a false COUNT
+  # MISMATCH on the reparented QLODX module.
+  head -20 "$file" \
+    | grep -E '^\|' \
+    | grep -viE '^\| *(ID|Scope|Module) ' \
+    | grep -vE '^[[:space:]|:-]+$' \
+    | grep -oE '[0-9]+/[0-9]+' \
+    | head -1 || echo ""
 }
 
 # Extract status from module header table row (lines starting with |)
