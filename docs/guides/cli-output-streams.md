@@ -70,24 +70,24 @@ This ensures `anvil check --json | jq .` always produces valid JSON.
 
 `anyhow::Error` chains can embed absolute paths — most commonly via
 `notify::Error` and `std::io::Error` — whose Display includes the watched
-directory, the user's `$HOME`, or project layout. When such output is
-captured (CI logs, terminal recordings, screenshots, pastebins) it reveals
-usernames and internal directory structure.
+directory, the user's `$HOME`, or project layout. When such output is captured
+(CI logs, terminal recordings, screenshots, pastebins) it reveals usernames and
+internal directory structure.
 
-**Rule for non-top-level sites** (TUI flows, best-effort fallbacks,
-logging during `run()` execution):
+**Rule for non-top-level sites** (TUI flows, best-effort fallbacks, logging
+during `run()` execution):
 
-| Verbosity                | Format                                     | Notes                                                                 |
-| ------------------------ | ------------------------------------------ | --------------------------------------------------------------------- |
-| Default                  | `{err}` — outer context only               | Programmer-written string; no wrapped paths.                          |
-| `--verbose` / `-v`       | `{err:#}` — full anyhow chain              | Includes root cause and any embedded paths.                           |
+| Verbosity          | Format                        | Notes                                        |
+| ------------------ | ----------------------------- | -------------------------------------------- |
+| Default            | `{err}` — outer context only  | Programmer-written string; no wrapped paths. |
+| `--verbose` / `-v` | `{err:#}` — full anyhow chain | Includes root cause and any embedded paths.  |
 
-Prefer the helper `crate::util::format_user_error(err, verbose)` rather
-than raw `format!` — it keeps the convention in one place and has unit
-coverage against path leakage.
+Prefer the helper `crate::util::format_user_error(err, verbose)` rather than raw
+`format!` — it keeps the convention in one place and has unit coverage against
+path leakage.
 
-**Blind spot — path-embedding context strings.** The helper only redacts
-paths that appear inside the _wrapped_ error chain (e.g. `notify::Error`,
+**Blind spot — path-embedding context strings.** The helper only redacts paths
+that appear inside the _wrapped_ error chain (e.g. `notify::Error`,
 `std::io::Error`). Context strings added by the programmer that _themselves_
 embed a path become part of the outermost message and will leak even at
 `verbose = false`:
@@ -98,9 +98,9 @@ std::fs::read_to_string(&path)
     .with_context(|| format!("reading {}", path.display()))
 ```
 
-If an error chain is going to be routed through `format_user_error`, keep
-the outer context path-free and let the inner `io::Error` carry the path
-only for verbose mode:
+If an error chain is going to be routed through `format_user_error`, keep the
+outer context path-free and let the inner `io::Error` carry the path only for
+verbose mode:
 
 ```rust
 // GOOD — outer context is path-free; the wrapped io::Error carries the path
@@ -118,24 +118,23 @@ eprintln!(
 eprintln!("Watch demo unavailable: {err:#}");
 ```
 
-**Top-level CLI error handlers** (`main.rs` command dispatch) are
-exempt: the user ran the command, a full chain is useful, and the shell
-session is already private to them. Any new top-level handler that tees
-to shared log storage (e.g. tracing subscribers shipping to a SaaS sink)
-must opt back into this convention.
+**Top-level CLI error handlers** (`main.rs` command dispatch) are exempt: the
+user ran the command, a full chain is useful, and the shell session is already
+private to them. Any new top-level handler that tees to shared log storage (e.g.
+tracing subscribers shipping to a SaaS sink) must opt back into this convention.
 
 ### Audit scope
 
-When adding a new `eprintln!`/`tracing::warn!`/`tracing::error!` site
-that prints an `anyhow::Error`, ask:
+When adding a new `eprintln!`/`tracing::warn!`/`tracing::error!` site that
+prints an `anyhow::Error`, ask:
 
 1. Can the error chain contain a filesystem path? (`notify::`, `std::io::`,
    `std::fs::`, `reqwest::Error` with a local URL, `tempfile::` errors.)
-2. Is this site reachable during CI or automated capture? (TUI demos,
-   progress watchers, best-effort fallbacks that don't abort.)
+2. Is this site reachable during CI or automated capture? (TUI demos, progress
+   watchers, best-effort fallbacks that don't abort.)
 
-If both answers are "yes," route through `format_user_error(&err, verbose)`
-with a `verbose` source that reflects the user's `--verbose` choice.
+If both answers are "yes," route through `format_user_error(&err, verbose)` with
+a `verbose` source that reflects the user's `--verbose` choice.
 
-See issue #1017 and council review `council-8a7372c7` (finding C-009) for
-the original motivating case in the tutorial watcher.
+See issue #1017 and council review `council-8a7372c7` (finding C-009) for the
+original motivating case in the tutorial watcher.

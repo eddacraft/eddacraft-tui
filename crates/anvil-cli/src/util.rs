@@ -369,10 +369,8 @@ mod tests {
     /// force an explicit convention update.
     #[test]
     fn format_user_error_does_not_redact_paths_in_outer_context() {
-        let err = anyhow::anyhow!("io error").context(format!(
-            "reading {}",
-            "/home/victim/secret-project".to_string()
-        ));
+        let err = anyhow::anyhow!("io error")
+            .context(format!("reading {}", "/home/victim/secret-project"));
 
         let msg = format_user_error(&err, false);
 
