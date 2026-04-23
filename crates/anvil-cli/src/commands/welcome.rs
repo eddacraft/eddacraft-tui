@@ -570,6 +570,25 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
 
     let mut findings: Vec<Finding> = all_findings.into_iter().flatten().collect();
 
+    // Surface custom-pattern compile errors once at the discovery boundary so
+    // that misconfigured user regexes don't silently produce zero hits across
+    // every scanned file. Compiled here rather than inside scan_one to avoid
+    // N+1 compilations.
+    let (_, pattern_errors) =
+        anvil_checks::secret::patterns::compile_custom_patterns(&secret_config.custom_patterns);
+    for err in &pattern_errors {
+        findings.push(Finding {
+            file: ".anvilrc".to_string(),
+            line: None,
+            severity: anvil_tui::surfaces::tutorial::discovery::FindingSeverity::Warning,
+            source: anvil_tui::surfaces::tutorial::discovery::FindingSource::Secret,
+            title: "Custom secret pattern failed to compile".to_string(),
+            message: err.clone(),
+            suggestion: "Fix or remove the offending pattern in your secret-scan configuration."
+                .to_string(),
+        });
+    }
+
     // Deterministic ordering: severity desc, then file asc, line asc, title
     // asc. Without this the rayon collect order leaks thread scheduling into
     // user-visible output and snapshot tests.

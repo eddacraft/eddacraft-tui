@@ -1,15 +1,38 @@
 use std::io;
 use std::process::Command;
 
-use crate::secret::patterns::{PatternMatcher, compile_secret_patterns};
+use crate::secret::patterns::{
+    CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
+};
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
+
+/// Output of a git-history secret scan.
+///
+/// `pattern_errors` holds compile failures for `config.custom_patterns` so the
+/// caller can surface them — silently dropped errors mean a misconfigured
+/// custom pattern produces zero matches with no user-visible signal.
+pub struct GitScanOutput {
+    pub findings: Vec<SecretFinding>,
+    pub pattern_errors: Vec<String>,
+}
 
 pub fn scan_git_history(
     workspace_root: &str,
     config: &SecretCheckConfig,
-) -> Result<Vec<SecretFinding>, io::Error> {
+) -> Result<GitScanOutput, io::Error> {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
-    let patterns = compile_secret_patterns(&config.custom_patterns);
+    let (custom_patterns, pattern_errors) = compile_custom_patterns(&config.custom_patterns);
+    let default_patterns: Vec<CompiledPattern> = DEFAULT_COMPILED_PATTERNS
+        .iter()
+        .map(|p| CompiledPattern {
+            name: p.name.clone(),
+            regex: p.regex.clone(),
+        })
+        .collect();
+    let patterns: Vec<&CompiledPattern> = default_patterns
+        .iter()
+        .chain(custom_patterns.iter())
+        .collect();
     let depth = config.git_history_depth.clamp(1, 1000);
 
     let git_check = Command::new("git")
@@ -18,7 +41,10 @@ pub fn scan_git_history(
         .output()?;
 
     if !git_check.status.success() {
-        return Ok(Vec::new());
+        return Ok(GitScanOutput {
+            findings: Vec::new(),
+            pattern_errors,
+        });
     }
 
     let depth_flag = format!("-{depth}");
@@ -41,7 +67,10 @@ pub fn scan_git_history(
         .output()?;
 
     if !output.status.success() {
-        return Ok(Vec::new());
+        return Ok(GitScanOutput {
+            findings: Vec::new(),
+            pattern_errors,
+        });
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -96,12 +125,16 @@ pub fn scan_git_history(
         }
     }
 
-    Ok(findings)
+    Ok(GitScanOutput {
+        findings,
+        pattern_errors,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::secret::types::SecretCheckConfig;
+    use super::scan_git_history;
+    use crate::secret::types::{SecretCheckConfig, SecretPatternDef};
 
     #[test]
     fn clamps_depth() {
@@ -112,5 +145,44 @@ mod tests {
 
         let depth = config.git_history_depth.clamp(1, 1000);
         assert_eq!(depth, 1);
+    }
+
+    #[test]
+    fn surfaces_invalid_custom_pattern_errors_in_git_scan() {
+        // Run against a non-git directory so the early-return path triggers
+        // — but pattern_errors must still be populated so callers can see
+        // the misconfiguration even when no commits are scanned.
+        let tmp = std::env::temp_dir().join(format!(
+            "anvil-git-scan-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos())
+        ));
+        let _ = std::fs::create_dir_all(&tmp);
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            custom_patterns: vec![SecretPatternDef {
+                name: "broken-rule".to_string(),
+                pattern: "(unclosed".to_string(),
+            }],
+            ..SecretCheckConfig::default()
+        };
+
+        let output = scan_git_history(&tmp.to_string_lossy(), &config).expect("scan returns Ok");
+
+        assert!(output.findings.is_empty(), "non-git dir yields no findings");
+        assert_eq!(
+            output.pattern_errors.len(),
+            1,
+            "pattern_errors is populated even on early-return path"
+        );
+        assert!(
+            output.pattern_errors[0].contains("'broken-rule'"),
+            "error names the offending pattern: {}",
+            output.pattern_errors[0]
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

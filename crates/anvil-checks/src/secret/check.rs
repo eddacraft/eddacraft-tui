@@ -38,8 +38,10 @@ pub fn run_secret_check(
 
     if config.scan_git_history {
         let root = workspace_root.unwrap_or(".");
-        if let Ok(history_findings) = scan_git_history(root, config) {
-            findings.extend(history_findings);
+        if let Ok(history) = scan_git_history(root, config) {
+            findings.extend(history.findings);
+            // history.pattern_errors are duplicates of the file-scan errors
+            // (same custom_patterns input compiled twice) — already captured.
         }
     }
 
