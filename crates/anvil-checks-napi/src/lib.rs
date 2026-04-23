@@ -170,7 +170,10 @@ pub fn get_default_patterns_json() -> Result<String> {
     }))
     .map_err(|payload| {
         let msg = panic_message(&payload);
-        Error::new(Status::GenericFailure, format!("pattern registry panicked: {msg}"))
+        Error::new(
+            Status::GenericFailure,
+            format!("pattern registry panicked: {msg}"),
+        )
     })?
 }
 
@@ -198,6 +201,9 @@ pub fn get_pattern_json(id: String) -> Result<Option<String>> {
     }))
     .map_err(|payload| {
         let msg = panic_message(&payload);
-        Error::new(Status::GenericFailure, format!("pattern registry panicked: {msg}"))
+        Error::new(
+            Status::GenericFailure,
+            format!("pattern registry panicked: {msg}"),
+        )
     })?
 }
