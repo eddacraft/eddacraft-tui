@@ -85,6 +85,7 @@ Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026
 | [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Proposed |
 | [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Proposed |
 | [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Proposed |
+| [030](030-surface-drivers-supersede-napi-cutover.md) | Surface drivers (editor + MCP) on the intercept daemon supersede TSRET-003/-004; TSRET-005 retargeted; napi publication no longer required | Proposed |
 
 ## Superseded
 

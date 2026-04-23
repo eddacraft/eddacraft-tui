@@ -99,7 +99,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
 | [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
 | [anvil-scanner-parity-gaps](./archive/modules/anvil-scanner-parity-gaps.aps.md) | SPG | Complete | 6/6 (`flags:"i"` honoured, lookaround rules handled via post-filters, doctor surfaces compile failures, fixtures cover every rule, `antipattern_scan` bench + trust-boundary docs landed) |
-| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | 1/5 (TSRET-001 landed; TSRET-002 matrix built + green on PRs — remaining: flip `private: true`, OOB arm64-linux / x64-darwin install tests, provenance decision) |
+| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | 1/5 (TSRET-001 landed; TSRET-002 scope-reduced per ADR-030 — napi stays private, CI matrix retained as canary; TSRET-003/-004 **superseded** by DRVR; TSRET-005 retained, now blocks on DRVR) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
@@ -477,8 +477,9 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
+| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/5 | INTD-004/-005/-010, KERN-050, ADR-030 — supersedes TSRET-003/-004 |
 
-**Architecture Decision:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md)
+**Architecture Decisions:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md), [D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md)
 
 ### Agent Infrastructure (Draft — no code yet)
 

@@ -2,9 +2,10 @@
 APS Module: Anvil TS Scanner Retirement
 ========================================
 Retire the TypeScript antipattern scanner now that the Rust engine is
-authoritative. Binds the Rust engine to Node surfaces via napi-rs (or
-WASM fallback) so VSCode + MCP stop running a second implementation.
-Follows ADR-026. See: plans/aps-rules.md
+authoritative. Follows ADR-026. ADR-030 supersedes the napi-cutover
+plan for TSRET-003/-004 with surface drivers on the intercept daemon
+(module DRVR); TSRET-005 is retained with re-pointed dependencies.
+See: plans/aps-rules.md
 -->
 
 # Anvil TS Scanner Retirement
@@ -12,6 +13,14 @@ Follows ADR-026. See: plans/aps-rules.md
 | ID    | Owner | Status      |
 | ----- | ----- | ----------- |
 | TSRET | —     | In Progress |
+
+> **Plan change (2026-04-23, ADR-030):** TSRET-003 and TSRET-004 are
+> superseded by the `surface-drivers` module (**DRVR**). Both consumers
+> cut over to drivers on the anvil-intercept daemon rather than
+> embedding a napi binding in-process. TSRET-002's remaining residual
+> is narrowed: the napi crate stays `"private": true`; no npm publish,
+> no provenance decision, no OOB install-test requirement. TSRET-005
+> is retained but now blocks on DRVR rather than on TSRET-003/-004.
 
 ## Purpose
 
@@ -122,53 +131,49 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
   Rust toolchain and the scanner runs
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** In Progress
-- **Remaining to reach Complete (as of 2026-04-23):**
-  - Flip `crates/anvil-checks-napi/package.json` from `"private": true`
-    and wire `NPM_TOKEN` so a `napi-v*` tag actually publishes (the
-    publish job currently runs `pre-publish` which is a dry-run on a
-    private package).
-  - Run install smoke tests for `aarch64-unknown-linux-gnu` and
-    `x86_64-apple-darwin` out-of-band — GitHub-hosted test runners
-    only cover linux-x64, macos-arm64, and windows-x64. The napi.yml
-    workflow comment marks this as a TSRET-003 blocker.
-  - Decide on `--provenance`: either enable `id-token: write` in the
-    publish job (currently commented out) or record the decision to
-    ship without provenance in an ADR.
+- **Status:** Scope-reduced (per ADR-030)
+- **Scope after ADR-030:** The daemon is the runtime bundling point;
+  npm publication of `@eddacraft/anvil-checks-native` is not required
+  to complete this module. The CI matrix + test-without-Rust-toolchain
+  path remains valuable as a canary on the binding, so the workflow
+  stays. What was "remaining to reach Complete" is now **not planned**:
+  - `"private": true` stays; no `NPM_TOKEN` wiring needed.
+  - OOB install smoke tests for `aarch64-unknown-linux-gnu` and
+    `x86_64-apple-darwin` are **not planned** — the binding is
+    internal-only.
+  - `--provenance` / `id-token: write` decision is **not planned** —
+    there is no publish to provenance.
+- **Residual work (minor):** Keep `crates/anvil-checks-napi/` building
+  in CI as today so the binding doesn't rot while DRVR is in flight.
+  Mark this TSRET-002 as Complete once the napi.yml workflow has run
+  cleanly on the feat/TSRET-resume work and this plan change is
+  merged.
 
 ---
 
-### TSRET-003: VSCode extension cuts over to the napi scanner
+### TSRET-003: VSCode extension cuts over to the napi scanner — **Superseded**
 
-- **Intent:** VSCode users run the authoritative scanner.
-- **Expected Outcome:** The VSCode extension imports
-  `@eddacraft/anvil-checks-native` instead of
-  `@eddacraft/anvil-core/antipattern`. Diagnostics in VSCode match CLI
-  output on the same file. Existing extension tests pass; add one that
-  asserts a lookaround-affected rule fires (or explicitly doesn't, if
-  TSRET is gated on SPG-003).
-- **Scope:** `packages/vscode-extension/`
-- **Dependencies:** TSRET-002
-- **Validation:** `pnpm --filter anvil-vscode test` passes;
-  manual scan in VSCode matches `anvil check` output
-- **Confidence:** high
-- **Priority:** High
-- **Status:** Proposed
+- **Status:** Superseded by ADR-030 / DRVR-003.
+- **Why:** The driver-framework direction (ADR-015, ADR-030, and
+  the design in `plans/specs/anvil-driver-framework/`) routes the
+  VSCode extension through a driver on the `anvil-intercept` daemon
+  rather than through an in-process napi binding. See `DRVR-003` in
+  `plans/modules/surface-drivers.aps.md`.
+- **Residual link:** The napi spike work (TSRET-001) is retained as
+  an internal CLI acceleration path; nothing from this work item
+  needs to be re-executed under DRVR.
 
 ---
 
-### TSRET-004: MCP server cuts over to the napi scanner
+### TSRET-004: MCP server cuts over to the napi scanner — **Superseded**
 
-- **Intent:** MCP tool calls run the authoritative scanner.
-- **Expected Outcome:** The MCP server imports the napi binding. The
-  `scan_artifact` MCP tool returns Rust-scanner output.
-- **Scope:** `packages/mcp-server/`
-- **Dependencies:** TSRET-002
-- **Validation:** `pnpm --filter @eddacraft/anvil-mcp test`; e2e
-  MCP call through the harness
-- **Confidence:** high
-- **Priority:** High
-- **Status:** Proposed
+- **Status:** Superseded by ADR-030 / DRVR-004.
+- **Why:** MCP becomes a driver on the daemon (per the
+  driver-framework ADR's "MCP as secondary / fallback driver"
+  position). The MCP tool handlers stop importing
+  `@eddacraft/anvil-runtime`'s `GateRunner` and instead translate
+  into daemon RPCs. See `DRVR-004` in
+  `plans/modules/surface-drivers.aps.md`.
 
 ---
 
@@ -179,7 +184,7 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
   `registry-loader.ts`, `prepare.ts`, and
   `scanner-parity.test.ts` are deleted. Any lingering type-only exports
   from that module that other code depends on are preserved as a thin
-  shim re-exporting from the napi binding (or moved to
+  shim re-exporting from the daemon's contracts package (or moved to
   `@eddacraft/anvil-contracts` if they're pure types). The Rust side of
   `tests/scanner-parity/` and the root `test:scanner-parity` script are
   retired. `docs/architecture/rust-architecture-endstate.md` and
@@ -188,8 +193,8 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
 - **Scope:** `packages/anvil/core/src/antipattern/`,
   `crates/anvil-checks/tests/scanner_parity.rs`,
   `tests/scanner-parity/`, `package.json`, docs
-- **Dependencies:** TSRET-003, TSRET-004, SPG-003 (so no user-visible
-  regression from losing TS-only rules)
+- **Dependencies:** DRVR-003, DRVR-004 (per ADR-030 supersession),
+  SPG-003 (already Complete)
 - **Validation:** `pnpm test` passes with scanner-parity suite
   removed; `grep -r "scanner-parity" docs/` returns nothing
   load-bearing
