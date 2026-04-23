@@ -86,17 +86,17 @@ contracts (zero deps)
 
 ### Apps
 
-| App                         | Purpose                                                 |
-| --------------------------- | ------------------------------------------------------- |
-| `crates/anvil-cli/`         | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
-| `apps/anvil-api/`           | REST API (Hono + Vercel + Neon Postgres).               |
-| `apps/admin-cli/`           | Operator CLI for admin/audit flows against the API.     |
-| `apps/website/`             | Marketing site + dashboard (Next.js).                   |
-| `apps/docs-public/`         | Public Docusaurus docs for APS, Kindling, edda-stack.   |
-| `apps/docs-shell/`          | Next.js docs entrypoint and auth proxy.                 |
-| `apps/anvil-docs-private/`  | Gated internal Docusaurus docs.                         |
-| `apps/docs-site/`           | Legacy Docusaurus docs site (cutover to docs-public).   |
-| `apps/e2e/`                 | Vitest E2E harness across CLI, API, and contracts.      |
+| App                        | Purpose                                                 |
+| -------------------------- | ------------------------------------------------------- |
+| `crates/anvil-cli/`        | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
+| `apps/anvil-api/`          | REST API (Hono + Vercel + Neon Postgres).               |
+| `apps/admin-cli/`          | Operator CLI for admin/audit flows against the API.     |
+| `apps/website/`            | Marketing site + dashboard (Next.js).                   |
+| `apps/docs-public/`        | Public Docusaurus docs for APS, Kindling, edda-stack.   |
+| `apps/docs-shell/`         | Next.js docs entrypoint and auth proxy.                 |
+| `apps/anvil-docs-private/` | Gated internal Docusaurus docs.                         |
+| `apps/docs-site/`          | Legacy Docusaurus docs site (cutover to docs-public).   |
+| `apps/e2e/`                | Vitest E2E harness across CLI, API, and contracts.      |
 
 ### Dependency Diagram
 
@@ -564,25 +564,25 @@ sequenceDiagram
 
 ### TypeScript (Domain Packages + Services)
 
-| Category          | Technology              | Version  | Purpose                                            |
-| ----------------- | ----------------------- | -------- | -------------------------------------------------- |
-| Language          | TypeScript              | 6.0      | Domain packages, API, website (strict mode, ESM)   |
-| Runtime           | Node.js                 | >= 22.13 | TypeScript execution environment                   |
-| Package manager   | pnpm                    | >= 10.20 | Workspace management, strict isolation             |
-| Monorepo          | NX                      | 22.x     | Task orchestration, caching, dependency graph      |
-| HTTP framework    | Hono                    | --       | REST API (Vercel-deployable)                       |
-| Testing           | Vitest                  | 4.x      | Unit and integration tests                         |
+| Category          | Technology              | Version   | Purpose                                                                                              |
+| ----------------- | ----------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| Language          | TypeScript              | 6.0       | Domain packages, API, website (strict mode, ESM)                                                     |
+| Runtime           | Node.js                 | >= 22.13  | TypeScript execution environment                                                                     |
+| Package manager   | pnpm                    | >= 10.20  | Workspace management, strict isolation                                                               |
+| Monorepo          | NX                      | 22.x      | Task orchestration, caching, dependency graph                                                        |
+| HTTP framework    | Hono                    | --        | REST API (Vercel-deployable)                                                                         |
+| Testing           | Vitest                  | 4.x       | Unit and integration tests                                                                           |
 | E2E testing       | Vitest + Playwright     | 4.x / 1.x | `apps/e2e` Vitest harness (CLI/API/contracts); Playwright for browser flows (`playwright.config.ts`) |
-| Schema validation | Zod                     | --       | Runtime type validation, source of truth for types |
-| Static analysis   | dependency-cruiser      | --       | Import graph analysis, layer violations            |
-| Policy engine     | OPA / Rego              | --       | Policy-as-code evaluation                          |
-| Linting           | ESLint                  | 9.x      | Code quality and style enforcement                 |
-| Formatting        | Prettier                | 3.x      | Code formatting                                    |
-| IaC               | Pulumi (TypeScript)     | --       | Vercel, GitHub, Azure DNS management               |
-| Database          | Neon Postgres           | --       | API persistence layer                              |
-| Deployment        | Vercel                  | --       | Website, docs apps, and API hosting                |
-| CI/CD             | GitHub Actions          | --       | Build, test, deploy                                |
-| Memory storage    | SQLite (better-sqlite3) | --       | Kindling operational memory                        |
+| Schema validation | Zod                     | --        | Runtime type validation, source of truth for types                                                   |
+| Static analysis   | dependency-cruiser      | --        | Import graph analysis, layer violations                                                              |
+| Policy engine     | OPA / Rego              | --        | Policy-as-code evaluation                                                                            |
+| Linting           | ESLint                  | 9.x       | Code quality and style enforcement                                                                   |
+| Formatting        | Prettier                | 3.x       | Code formatting                                                                                      |
+| IaC               | Pulumi (TypeScript)     | --        | Vercel, GitHub, Azure DNS management                                                                 |
+| Database          | Neon Postgres           | --        | API persistence layer                                                                                |
+| Deployment        | Vercel                  | --        | Website, docs apps, and API hosting                                                                  |
+| CI/CD             | GitHub Actions          | --        | Build, test, deploy                                                                                  |
+| Memory storage    | SQLite (better-sqlite3) | --        | Kindling operational memory                                                                          |
 
 ---
 
