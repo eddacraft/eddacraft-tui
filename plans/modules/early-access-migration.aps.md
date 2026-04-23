@@ -66,12 +66,19 @@ but they represent genuine improvements that should be addressed before GA.
 
 ### EAMIG-003 — Surface invalid custom pattern errors in secret scanning
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** `compile_secret_patterns` silently drops invalid custom regex
   patterns. Return errors so misconfigured patterns are visible to the user.
-- **Files:** `crates/anvil-checks/src/secret/patterns.rs`
+- **Files:** `crates/anvil-checks/src/secret/patterns.rs`,
+  `crates/anvil-checks/src/secret/check.rs`,
+  `crates/anvil-checks/src/secret/types.rs`
+- **Notes:** `compile_custom_patterns` now returns
+  `(Vec<CompiledPattern>, Vec<String>)`. `SecretCheckResult` gained a
+  `pattern_errors: Vec<String>` field (`#[serde(default)]`, wire-compatible).
+  Regression test `compile_custom_patterns_separates_invalid_from_valid`
+  locks the behaviour.
 
 ### EAMIG-004 — Expand git scanner file extension coverage
 
@@ -503,13 +510,15 @@ but they represent genuine improvements that should be addressed before GA.
 
 ### EAMIG-046 — Add publish = false to anvil-bench
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Missing `publish = false` means the dev-only crate could be
   accidentally published. Its deps (tempfile, rand) would ship as production
   dependencies.
 - **Files:** `crates/anvil-bench/Cargo.toml`
+- **Notes:** Already shipped — `publish = false` is present in
+  `crates/anvil-bench/Cargo.toml:7`. APS entry was stale.
 
 ### EAMIG-047 — Fix graph_memory per-step measurement
 

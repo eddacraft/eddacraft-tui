@@ -78,4 +78,9 @@ pub struct SecretCheckResult {
     pub score: u8,
     pub message: String,
     pub findings: Vec<SecretFinding>,
+    /// Configuration errors surfaced during the run — currently populated when
+    /// a `custom_patterns` regex fails to compile. Wire-compatible with
+    /// pre-EAMIG-003 consumers via `serde(default)`.
+    #[serde(default)]
+    pub pattern_errors: Vec<String>,
 }
