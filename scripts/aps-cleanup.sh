@@ -63,7 +63,7 @@ count_work_items() {
     $0 ~ re { in_item=1; next }
     /^### [A-Z][A-Z0-9]*-[0-9]/ { in_item=0 }
     /^## / { in_item=0 }
-    in_item && /^- \*\*Status\*\*|^- \*\*Status:|^Status:/ { print }
+    in_item && /(^- \*\*Status\*\*|^- \*\*Status:|^Status:)/ { print }
   ' "$file" 2>/dev/null || true)
 
   if [[ -n "$status_block" ]]; then

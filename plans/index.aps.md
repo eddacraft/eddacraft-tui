@@ -268,7 +268,7 @@ when specific work is identified.
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 9/20 | docs-site, feature modules — **In Progress** (Rust migration phase complete; 11 scanner/future items deferred) |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 9/20 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; 11 Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 
