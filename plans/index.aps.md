@@ -103,7 +103,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
-| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 5/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2: -004/-005 delivered via NXRUST plugin + `sharedGlobals`; -006/-007 still draft) |
+| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 7/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2: -004/-005 delivered via NXRUST plugin + `sharedGlobals`; -006 unifies root scripts, -007 lands affected-only Rust CI) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 

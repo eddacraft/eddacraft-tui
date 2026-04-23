@@ -233,7 +233,7 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   picks these up via the existing `@nx/azure-cache` plugin with no
   Rust-specific configuration.
 
-### RUSTNX-006: Unify root scripts across TS and Rust
+### RUSTNX-006: Unify root scripts across TS and Rust [Complete]
 
 - **Intent:** Make `pnpm test`, `pnpm lint`, `pnpm typecheck` cover both
   TypeScript and Rust projects via `nx run-many`
@@ -245,8 +245,16 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Validation:** `pnpm test` runs at least one target per Rust crate and
   exits 0
 - **Confidence:** high
+- **Resolution:** Root `package.json` now routes Rust through the same top-level
+  contributor commands as TypeScript. `pnpm test` already covered the Rust Nx
+  `test` targets; `pnpm run lint:check` now adds Rust `clippy` + `fmt-check`,
+  and `pnpm run typecheck` now adds Rust `check` across the dynamically
+  discovered Rust crate set. The
+  remaining validation blocker was unrelated TS path resolution in
+  `apps/anvil-api` and `apps/docs-site`; both tsconfigs now see the workspace
+  package paths, so the root scripts run end-to-end.
 
-### RUSTNX-007: Switch Rust CI to nx affected
+### RUSTNX-007: Switch Rust CI to nx affected [Complete]
 
 - **Intent:** Run only affected Rust crates on PRs, matching the TS-side CI
   behaviour
@@ -263,6 +271,15 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Risks:** `nx affected` granularity depends on correct input declarations
   from RUSTNX-005. A missed input means affected detection silently skips
   work that should have run
+- **Resolution:** `rust.yml` now uses `./.github/actions/setup-workspace`
+  plus `nrwl/nx-set-shas` on pull requests, discovers the Rust Nx projects via
+  `nx show projects --withTarget=clippy`, and runs `nx affected` for
+  `check`, `test`, `clippy`, and `fmt-check`. Pushes keep the full-workspace
+  cargo path, doctests still run on pull requests, coverage stays on the full
+  test run, and the cross-compile matrix remains unchanged. `nx.json`
+  `sharedGlobals` now include the Rust workflow, setup action, package-manager
+  metadata, the root workspace manifest, and vendored `tools/nx-rust/**` so Rust CI/tooling changes
+  correctly fan out to all Rust projects.
 
 ### RUSTNX-008: Adopt cargo-hakari workspace-hack
 

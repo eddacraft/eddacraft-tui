@@ -8,6 +8,12 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+      - 'pnpm-workspace.yaml'
+      - 'nx.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tools/nx-rust/**'
+      - '.github/actions/setup-workspace/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
@@ -15,6 +21,12 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+      - 'pnpm-workspace.yaml'
+      - 'nx.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tools/nx-rust/**'
+      - '.github/actions/setup-workspace/**'
       - '.github/workflows/rust.yml'
 
 permissions:
@@ -38,6 +50,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+        with:
+          nx-shas: true
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -46,13 +69,32 @@ jobs:
           # first job to finish actually saves. Restore-only here lets the
           # test job (the most comprehensive one) populate the cache.
           save-if: 'false'
-      - run: cargo check --workspace --all-targets
+      - name: Run check (affected on PRs, all on push)
+        env:
+          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            pnpm exec nx affected -t check --projects="$RUST_PROJECTS" --outputStyle=static
+          else
+            cargo check --workspace --all-targets
+          fi
 
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+        with:
+          nx-shas: true
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
 
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning toolchain install time.
@@ -96,7 +138,14 @@ jobs:
       - name: Lint policies with Regal
         run: regal lint --format github policies/fixtures/
 
+      - name: Run tests (affected on PRs, full coverage on push)
+        if: github.event_name == 'pull_request'
+        env:
+          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
+        run: pnpm exec nx affected -t test --projects="$RUST_PROJECTS" --outputStyle=static
+
       - name: Cache cargo-llvm-cov
+        if: github.event_name != 'pull_request'
         id: cache-llvm-cov
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
         with:
@@ -107,16 +156,18 @@ jobs:
           key: cargo-llvm-cov-${{ runner.os }}-${{ env.CARGO_LLVM_COV_VERSION }}
 
       - name: Install cargo-llvm-cov
-        if: steps.cache-llvm-cov.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.cache-llvm-cov.outputs.cache-hit != 'true'
         # TODO: swap to taiki-e/install-action@<verified-sha> for faster install
         run: cargo install cargo-llvm-cov --locked --version ${{ env.CARGO_LLVM_COV_VERSION }}
 
       - name: Install cargo-nextest
+        if: github.event_name != 'pull_request'
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
       - name: Run tests with coverage (nextest)
+        if: github.event_name != 'pull_request'
         run: |
           cargo llvm-cov nextest --workspace --json --output-path coverage-rust.json
           cargo llvm-cov report --summary-only | tee coverage-rust-summary.txt
@@ -162,6 +213,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+        with:
+          nx-shas: true
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: clippy
@@ -169,13 +231,32 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run clippy (affected on PRs, all on push)
+        env:
+          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            pnpm exec nx affected -t clippy --projects="$RUST_PROJECTS" --outputStyle=static
+          else
+            cargo clippy --workspace --all-targets -- -D warnings
+          fi
 
   format:
     name: Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+        with:
+          nx-shas: true
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "projects=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: rustfmt
@@ -183,7 +264,13 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
+      - name: Run rustfmt check (affected on PRs)
+        if: github.event_name == 'pull_request'
+        env:
+          RUST_PROJECTS: ${{ steps.rust-projects.outputs.projects }}
+        run: pnpm exec nx affected -t fmt-check --projects="$RUST_PROJECTS" --outputStyle=static
       - uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1
+        if: github.event_name != 'pull_request'
 
   cross-compile:
     name: Cross (${{ matrix.target }})
