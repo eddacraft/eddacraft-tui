@@ -23,6 +23,9 @@ packages:
   - packages/tooling/*
   # Tools
   - tools/*
+  # Native binding crates that ship as npm packages (Rust source lives in
+  # the cargo workspace; pnpm picks them up here for `pnpm --filter` access).
+  - crates/anvil-checks-napi
   # Exclude archived packages
   - '!archive/**'
 

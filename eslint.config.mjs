@@ -29,6 +29,10 @@ export default typescriptEslint.config(
       '**/build/',
       '.claude/',
       'archive/',
+      // Scanner test fixtures intentionally contain anti-patterns the scanner
+      // is supposed to detect (any, eslint-disable, untracked TODO, etc.).
+      // ESLint must not try to fix or flag them.
+      'crates/**/fixtures/',
       '**/*.md',
       '**/next-env.d.ts',
       'vitest.config.js',

@@ -1,0 +1,43 @@
+{
+  "name": "@eddacraft/anvil-checks-native",
+  "version": "0.3.3-beta",
+  "description": "Native Anvil scanner via Node-API binding to the Rust engine",
+  "private": true,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "napi": {
+    "binaryName": "anvil-checks-native",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "scripts": {
+    "build": "napi build --platform --profile release-napi --js index.js --dts index.d.ts --manifest-path Cargo.toml",
+    "build:debug": "napi build --platform --js index.js --dts index.d.ts --manifest-path Cargo.toml",
+    "pretest": "node scripts/check-binding-fresh.mjs",
+    "test": "node --test __tests__/*.test.mjs",
+    "prepublishOnly": "napi pre-publish --tag-style npm --no-gh-release --dry-run"
+  },
+  "optionalDependencies": {
+    "@eddacraft/anvil-checks-native-linux-x64-gnu": "0.3.3-beta",
+    "@eddacraft/anvil-checks-native-linux-arm64-gnu": "0.3.3-beta",
+    "@eddacraft/anvil-checks-native-darwin-x64": "0.3.3-beta",
+    "@eddacraft/anvil-checks-native-darwin-arm64": "0.3.3-beta",
+    "@eddacraft/anvil-checks-native-win32-x64-msvc": "0.3.3-beta"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.4.0"
+  }
+}
