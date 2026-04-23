@@ -106,13 +106,21 @@ jobs:
         # Matrix values are workflow-defined (no user input), but routing
         # them through env keeps the security-hook contract intact and
         # makes the run line trivially auditable.
+        #
+        # `--profile release-napi` (defined in workspace Cargo.toml) is
+        # load-bearing: it sets `panic = "unwind"` so the
+        # `catch_unwind` boundary in `scan_artifact_json` can convert a
+        # scanner panic to a JS exception instead of aborting the host
+        # Node process. Plain `--release` would silently drop back to
+        # the workspace default `panic = "abort"` and ship an artefact
+        # that crashes VSCode/MCP on any panic.
         env:
           NAPI_TARGET: ${{ matrix.target }}
           NAPI_EXTRA_ARGS: ${{ matrix.extra_args }}
         shell: bash
         run: |
           pnpm --filter @eddacraft/anvil-checks-native exec \
-            napi build --platform --release \
+            napi build --platform --profile release-napi \
               --js index.js --dts index.d.ts \
               --manifest-path Cargo.toml \
               --target "$NAPI_TARGET" $NAPI_EXTRA_ARGS

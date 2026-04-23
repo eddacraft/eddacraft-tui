@@ -2,7 +2,8 @@
 //!
 //! TSRET-001 spike scope: prove `anvil_checks::antipattern::scan_artifact` can
 //! be called from Node with acceptable startup and per-call overhead, and that
-//! the result is byte-for-byte identical to what the Rust CLI produces.
+//! warning *content* matches what the Rust CLI's underlying scan call produces
+//! (the JSON envelope is intentionally distinct — see below).
 //!
 //! Wire shape is intentionally JSON-in / JSON-out for the spike. It keeps
 //! the binding small and avoids committing to a typed napi surface before
@@ -59,7 +60,9 @@ struct ScanResultOutput<'a> {
 }
 
 /// Scan a single artifact. Both arguments are JSON strings; the return value
-/// is the JSON-serialised `ScanResult`.
+/// is the JSON-serialised `ScanResultOutput` wrapper used by this binding
+/// (per-artifact, camelCase, full `Warning` fields) — *not* the Rust
+/// `ScanResult` type or the CLI's `--json` shape.
 ///
 /// Errors map to JS `Error` with `Status::InvalidArg` for bad input or
 /// `Status::GenericFailure` for serialisation failures (which should be

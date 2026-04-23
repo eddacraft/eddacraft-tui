@@ -49,15 +49,25 @@ test('napi scan produces warnings on the fixture', () => {
   const result = napiScan();
   assert.equal(result.file, 'fixtures/sample.ts');
   assert.equal(result.artifactType, 'source');
-  assert.ok(
-    result.warnings.length >= 2,
-    `expected >= 2 warnings, got ${result.warnings.length}`,
+  // Exact count pins the fixture's expected behaviour: any change to a
+  // default-enabled rule that touches this fixture (or a regression that
+  // silently drops a rule) trips this assertion. AP-001 is enabled by
+  // default — it's handled via the manual two-regex path in the Rust
+  // scanner's `prepare_pattern`, not via the opt-in flag.
+  const detail = result.warnings
+    .map((w) => `${w.id}:${w.location.line}`)
+    .join(', ');
+  assert.equal(
+    result.warnings.length,
+    4,
+    `expected exactly 4 warnings, got ${result.warnings.length} (${detail})`,
   );
-  // AP-003 (any usage) and DD-001 (untracked TODO) must both fire on the
-  // fixture; AP-001 (eslint-disable) is opt-in so we don't assert it here.
+  // AP-003 (any), AP-001 (eslint-disable), DD-001 (untracked TODO) must
+  // all fire on the fixture in the default scan.
   const ids = new Set(result.warnings.map((w) => w.id));
-  assert.ok(ids.has('AP-003'), `AP-003 missing from ${[...ids].join(',')}`);
-  assert.ok(ids.has('DD-001'), `DD-001 missing from ${[...ids].join(',')}`);
+  for (const id of ['AP-003', 'AP-001', 'DD-001']) {
+    assert.ok(ids.has(id), `${id} missing from ${[...ids].join(',')}`);
+  }
 });
 
 test('napi options are accepted and filter rules', () => {
