@@ -32,8 +32,9 @@ All notable changes to anvil are documented here.
   WinGet.
 - **Scoop support** — Scoop bucket install guidance is now part of the supported
   Windows distribution surface.
-- **Admin CLI operational commands** — `anvil admin` now covers `list`, `show`,
-  `approve`, `invite`, `audit`, `revoke`, and `send-migration`.
+- **Admin operator tooling** — the separate `anvil-admin` operator CLI now
+  covers `list`, `show`, `approve`, `invite`, `audit`, `revoke`, and
+  `send-migration` for beta access operations.
 - **Nightly stress test workflow** — CI benchmark coverage expanded to catch
   native-engine regressions earlier.
 

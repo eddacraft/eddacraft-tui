@@ -41,8 +41,8 @@ scoop update anvil
 
 - **Windows distribution** — WinGet landed and Scoop became part of the
   documented install/upgrade story.
-- **Admin operations** — `anvil admin` gained list/show/invite/audit/revoke and
-  migration tooling.
+- **Admin operations** — the separate `anvil-admin` operator CLI gained
+  list/show/invite/audit/revoke and migration tooling.
 - **Windows UX fixes** — onboarding, discovery, and key handling improved.
 
 ## Upgrading to 0.3.2-beta

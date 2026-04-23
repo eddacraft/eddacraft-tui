@@ -171,7 +171,7 @@ waitlist        (id serial PK, email citext UNIQUE, source, created_at, updated_
 device_codes    (id uuid PK, user_id FK, user_code UNIQUE, poll_token UNIQUE, confirmed_at, expires_at, last_polled_at, created_at)
 otp_codes       (id uuid PK, user_id FK, code_hash, attempts, expires_at, consumed_at, created_at)
 refresh_tokens  (id uuid PK, user_id FK, token_hash UNIQUE, family_id uuid, consumed_at, revoked_at, expires_at, created_at)
-admin_keys      (id uuid PK, label, key_hash UNIQUE, created_at, revoked_at, last_used_at)
+admin_keys      (id uuid PK, hashed_key UNIQUE, actor_email, note, created_at, revoked_at)
 ```
 
 Extensions: `citext`, `pgcrypto`.
@@ -185,6 +185,8 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | ----------------------------- | -------- | --------------------------------------- | ---------------------------------------------------------------- |
 | `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                  |
 | `ADMIN_KEY`                   | Yes      | `adminAuth` middleware (`/admin/*`)     | Bearer token for admin endpoints; unset fails closed with `500`  |
+| `ADMIN_PER_OPERATOR_KEYS`     | No       | `adminAuth` middleware                  | Enables per-operator admin-key lookup                            |
+| `ADMIN_KEY_PEPPER`            | No       | `adminAuth` middleware                  | HMAC secret used to hash per-operator admin keys                 |
 | `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                   |
 | `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                             |
 | `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                  |
@@ -193,6 +195,9 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                  |
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                |
 | `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
+
+`ANVIL_ADMIN_ACTOR` belongs to the separate `anvil-admin` operator CLI, not the
+API service itself.
 
 ## Cross-Cutting Concerns
 

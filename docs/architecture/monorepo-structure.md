@@ -1,8 +1,10 @@
 # Monorepo Structure
 
-This document describes the current and target monorepo structure.
+This document describes a historical monorepo migration plan plus the archived
+target shape it was aiming for. For the live repository layout, prefer the root
+`README.md`, `apps/README.md`, and `plans/index.aps.md`.
 
-## Current Structure
+## Historical Current Structure
 
 ```
 anvil/
@@ -17,7 +19,7 @@ anvil/
 │   ├── anvil-bench/         # Stress-test harness and benchmarks
 │   └── spike/               # Phase 0 validation spikes (tree-sitter, notify, petgraph)
 ├── apps/                    # Deployable applications (TypeScript)
-│   ├── anvil-cli/           # Legacy Node.js CLI (deprecated — see crates/anvil-cli/)
+│   ├── anvil-cli/           # Legacy Node.js CLI at the time of this plan
 │   ├── anvil-api/
 │   ├── website/
 │   ├── docs-site/
@@ -39,7 +41,7 @@ anvil/
 └── plans/                   # APS planning specs
 ```
 
-## Target Structure (v1.1+)
+## Historical Target Structure (v1.1+ at the Time)
 
 ```
 anvil/
@@ -56,7 +58,7 @@ anvil/
 ├── apps/                        # Deployable applications (TypeScript)
 │   ├── anvil-api/              # REST API (Hono + Vercel)
 │   ├── website/                # Marketing site + dashboard (Next.js)
-│   ├── docs-site/              # Public documentation
+│   ├── docs-site/              # Public documentation in the pre-cutover plan
 │   └── e2e/                    # E2E test suites
 │
 ├── packages/
@@ -72,7 +74,7 @@ anvil/
 │   │
 │   ├── adapters/               # Per-integration adapters
 │   ├── mcp-server/             # MCP tools, resources, prompts
-│   ├── platform/               # Cross-cutting infrastructure
+│   ├── platform/               # Cross-cutting infrastructure in the old plan
 │   └── tooling/                # Build configurations
 │
 ├── tools/                      # Nx generators and scripts
@@ -81,6 +83,10 @@ anvil/
 ```
 
 ## Migration Status
+
+The table below is the most useful section of this document for current readers;
+it reflects which elements from the old plan are now in place, legacy, or
+archived.
 
 | Component           | Current                      | Target                       | Status   |
 | ------------------- | ---------------------------- | ---------------------------- | -------- |
