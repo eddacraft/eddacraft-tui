@@ -107,22 +107,26 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         let mut tutorial_state =
                             anvil_tui::surfaces::tutorial::TutorialState::new();
                         tutorial_state.set_scan_results(results);
-                        let exit =
-                            run_tutorial_with_fix(&mut terminal, &theme, &mut tutorial_state)?;
+                        let exit = run_tutorial_with_fix(
+                            &mut terminal,
+                            &theme,
+                            &mut tutorial_state,
+                            global.verbose,
+                        )?;
                         if exit == SurfaceExit::Quit {
                             Ok(())
                         } else {
-                            run_welcome_hub(&mut terminal, &theme)
+                            run_welcome_hub(&mut terminal, &theme, global.verbose)
                         }
                     }
-                    None => run_welcome_hub(&mut terminal, &theme),
+                    None => run_welcome_hub(&mut terminal, &theme, global.verbose),
                 }
             }
-            Ok(OnboardingOutcome::Skip) => run_welcome_hub(&mut terminal, &theme),
+            Ok(OnboardingOutcome::Skip) => run_welcome_hub(&mut terminal, &theme, global.verbose),
             Err(e) => Err(e),
         }
     } else {
-        run_welcome_hub(&mut terminal, &theme)
+        run_welcome_hub(&mut terminal, &theme, global.verbose)
     };
 
     // Always teardown terminal, even on error.
@@ -617,6 +621,7 @@ fn run_tutorial_with_fix(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    verbose: bool,
 ) -> anyhow::Result<SurfaceExit> {
     // Try to start a file watcher for live verification (WELCOME-013).
     // If unavailable, the tutorial enters static mode (all steps become
@@ -649,9 +654,14 @@ fn run_tutorial_with_fix(
             drop(watcher.take());
 
             // Treat failures as best-effort so the welcome/tutorial flow
-            // resumes instead of aborting.
+            // resumes instead of aborting. Routes through format_user_error
+            // so wrapped notify::Error paths only leak when --verbose is
+            // explicit (see #1017).
             if let Err(err) = run_watch_demo_from_tutorial(terminal, theme) {
-                eprintln!("Watch demo unavailable: {err:#}");
+                eprintln!(
+                    "Watch demo unavailable: {}",
+                    crate::util::format_user_error(&err, verbose)
+                );
             }
 
             // Advance past the watch demo step and resume.
@@ -837,6 +847,7 @@ fn start_watch_from_hub(
 fn run_welcome_hub(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     let mut welcome = WelcomeState::new();
 
@@ -919,7 +930,8 @@ fn run_welcome_hub(
                 if let Some(results) = run_discovery(terminal, theme)? {
                     let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
                     tutorial_state.set_scan_results(results);
-                    let sub_exit = run_tutorial_with_fix(terminal, theme, &mut tutorial_state)?;
+                    let sub_exit =
+                        run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)?;
                     if sub_exit == SurfaceExit::Quit {
                         break;
                     }
@@ -955,8 +967,12 @@ fn run_welcome_hub(
                             let mut tutorial_state =
                                 anvil_tui::surfaces::tutorial::TutorialState::new();
                             tutorial_state.set_scan_results(results);
-                            let sub_exit =
-                                run_tutorial_with_fix(terminal, theme, &mut tutorial_state)?;
+                            let sub_exit = run_tutorial_with_fix(
+                                terminal,
+                                theme,
+                                &mut tutorial_state,
+                                verbose,
+                            )?;
                             if sub_exit == SurfaceExit::Quit {
                                 break;
                             }
