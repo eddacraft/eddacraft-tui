@@ -184,8 +184,7 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | Variable                      | Required | Used by                                 | Description                                                      |
 | ----------------------------- | -------- | --------------------------------------- | ---------------------------------------------------------------- |
 | `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                  |
-| `ANVIL_API_DATABASE_URL`      | No       | Database cutover compatibility          | Transitional alias used during database consolidation            |
-| `ADMIN_KEY`                   | No       | Legacy admin middleware path            | Legacy bearer token for admin endpoints                          |
+| `ADMIN_KEY`                   | Yes      | `adminAuth` middleware (`/admin/*`)     | Bearer token for admin endpoints; unset fails closed with `500`  |
 | `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                   |
 | `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                             |
 | `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                  |
@@ -194,7 +193,6 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                  |
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                |
 | `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
-| `ANVIL_ADMIN_ACTOR`           | No       | Admin audit trail                       | Default actor label for admin operations                         |
 
 ## Cross-Cutting Concerns
 

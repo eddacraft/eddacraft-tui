@@ -93,8 +93,12 @@ anvil/
 | Core (TS)           | `packages/anvil/*`           | `packages/anvil/*`           | In place |
 | Adapters            | `packages/adapters/`         | `packages/adapters/*`        | In place |
 | API                 | `apps/anvil-api/`            | `apps/anvil-api/`            | In place |
+| Admin CLI           | `apps/admin-cli/`            | `apps/admin-cli/`            | In place |
 | Website             | `apps/website/`              | `apps/website/`              | In place |
-| Docs site           | `apps/docs-site/`            | `apps/docs-site/`            | Legacy   |
+| Docs (public)       | `apps/docs-public/`          | `apps/docs-public/`          | In place |
+| Docs (shell)        | `apps/docs-shell/`           | `apps/docs-shell/`           | In place |
+| Docs (internal)     | `apps/anvil-docs-private/`   | `apps/anvil-docs-private/`   | In place |
+| Docs site (legacy)  | `apps/docs-site/`            | —                            | Legacy   |
 | E2E                 | `apps/e2e/`                  | `apps/e2e/*`                 | In place |
 | CLI (Node.js)       | `archive/anvil-cli-node/`    | —                            | Archived |
 | Scripts             | `tools/scripts/`             | `tools/scripts/`             | In place |

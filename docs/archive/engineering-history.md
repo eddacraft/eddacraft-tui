@@ -441,7 +441,6 @@ Initial pre-release.
 - API response validation strengthened
 - Subprocess execution hardened across the codebase
 
-[Unreleased]: https://github.com/eddacraft/anvil-001/compare/v0.2.1-beta...HEAD
 [0.2.1-beta]:
   https://github.com/eddacraft/anvil-001/compare/v0.1.3...v0.2.1-beta
 [0.1.3]: https://github.com/eddacraft/anvil-001/compare/v0.1.2-beta...v0.1.3

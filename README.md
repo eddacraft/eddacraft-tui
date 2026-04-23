@@ -228,11 +228,13 @@ and tooling.
 
 ### Tools
 
-| Directory          | Description               |
-| ------------------ | ------------------------- |
-| `tools/scripts`    | Build and utility scripts |
-| `tools/generators` | NX code generators        |
-| `tools/codemods`   | Codemod transformations   |
+| Directory          | Description                            |
+| ------------------ | -------------------------------------- |
+| `tools/scripts`    | Build and utility scripts              |
+| `tools/generators` | NX code generators                     |
+| `tools/codemods`   | Codemod transformations                |
+| `tools/nx-rust`    | NX plugin for Rust crate integration   |
+| `tools/test-utils` | Shared test utilities and fixtures     |
 
 ### Plans
 
@@ -246,7 +248,9 @@ and tooling.
 
 ### Prerequisites
 
-- **Node.js** >= 22.13.0
+- **Node.js** >= 22.13.0 (minimum per `package.json` engines); **Node 24** is
+  the recommended/pinned version for contributors — see `.nvmrc` /
+  `.node-version`
 - **pnpm** >= 10.20.0
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
 - **cargo-llvm-cov** (optional, for Rust coverage) —
