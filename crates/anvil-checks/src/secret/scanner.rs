@@ -10,7 +10,7 @@ pub fn scan_content(
     config: &SecretCheckConfig,
 ) -> Vec<SecretFinding> {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
-    let custom_patterns = compile_custom_patterns(&config.custom_patterns);
+    let (custom_patterns, _custom_errors) = compile_custom_patterns(&config.custom_patterns);
     let default_patterns: &[CompiledPattern] = &DEFAULT_COMPILED_PATTERNS;
     let mut findings = Vec::new();
 

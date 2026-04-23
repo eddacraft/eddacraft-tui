@@ -382,12 +382,27 @@ fn run_check_secret(
     let root_str = root.to_string_lossy();
     let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
 
+    let pattern_errors_suffix = if result.pattern_errors.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\n⚠ {} custom secret pattern(s) failed to compile and were skipped:\n{}",
+            result.pattern_errors.len(),
+            result
+                .pattern_errors
+                .iter()
+                .map(|err| format!("  - {err}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    };
+
     if result.passed {
         CheckResult {
             name: name.to_string(),
             passed: true,
             score: 100.0,
-            message: "No hardcoded secrets found".to_string(),
+            message: format!("No hardcoded secrets found{pattern_errors_suffix}"),
         }
     } else {
         let locations: Vec<String> = result
@@ -400,7 +415,7 @@ fn run_check_secret(
             passed: false,
             score: f64::from(result.score),
             message: format!(
-                "Potential secrets found in {} location(s):\n{}",
+                "Potential secrets found in {} location(s):\n{}{pattern_errors_suffix}",
                 result.findings.len(),
                 locations.join("\n")
             ),

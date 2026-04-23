@@ -141,7 +141,16 @@ pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock:
         .collect()
 });
 
-pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
+/// Compile the combined built-in + user-supplied secret patterns.
+///
+/// Returns `(compiled, errors)` — callers must surface `errors` so a
+/// misconfigured custom pattern doesn't silently produce zero matches.
+/// Prefer iterating `DEFAULT_COMPILED_PATTERNS` chained with
+/// `compile_custom_patterns` on hot paths rather than rebuilding the full
+/// `Vec` here.
+pub fn compile_secret_patterns(
+    custom_patterns: &[SecretPatternDef],
+) -> (Vec<CompiledPattern>, Vec<String>) {
     // Built-ins go through the fail-fast path; custom patterns tolerate
     // compile failures because they come from user config.
     let mut compiled: Vec<CompiledPattern> = DEFAULT_COMPILED_PATTERNS
@@ -151,27 +160,37 @@ pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<Comp
             regex: p.regex.clone(),
         })
         .collect();
-    compiled.extend(compile_custom_patterns(custom_patterns));
-    compiled
+    let (custom, errors) = compile_custom_patterns(custom_patterns);
+    compiled.extend(custom);
+    (compiled, errors)
 }
 
 /// Compile only the user-supplied custom patterns.
 ///
-/// Pair the result with `DEFAULT_COMPILED_PATTERNS` when scanning — callers on
-/// the hot path should chain the two iterators rather than calling
+/// Returns the patterns that compiled successfully and a list of errors for
+/// patterns that did not. Callers must surface the errors to the user — a
+/// silently dropped pattern is a misconfiguration the scanner cannot detect on
+/// its own. Pair the result with `DEFAULT_COMPILED_PATTERNS` when scanning;
+/// callers on the hot path should chain the two iterators rather than calling
 /// `compile_secret_patterns`, which recompiles the 18 built-ins every time.
-pub fn compile_custom_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
-    custom_patterns
-        .iter()
-        .filter_map(|pattern| {
-            Regex::new(&pattern.pattern)
-                .ok()
-                .map(|regex| CompiledPattern {
-                    name: pattern.name.clone(),
-                    regex,
-                })
-        })
-        .collect()
+pub fn compile_custom_patterns(
+    custom_patterns: &[SecretPatternDef],
+) -> (Vec<CompiledPattern>, Vec<String>) {
+    let mut compiled = Vec::with_capacity(custom_patterns.len());
+    let mut errors = Vec::new();
+    for pattern in custom_patterns {
+        match Regex::new(&pattern.pattern) {
+            Ok(regex) => compiled.push(CompiledPattern {
+                name: pattern.name.clone(),
+                regex,
+            }),
+            Err(err) => errors.push(format!(
+                "custom secret pattern '{}' failed to compile: {err}",
+                pattern.name
+            )),
+        }
+    }
+    (compiled, errors)
 }
 
 pub struct PatternMatcher {
@@ -272,9 +291,11 @@ impl PatternMatcher {
 
 #[cfg(test)]
 mod tests {
+    use crate::secret::types::SecretPatternDef;
+
     use super::{
         DEFAULT_ALLOWLIST, DEFAULT_COMPILED_PATTERNS, PatternMatcher, SECRET_PATTERNS,
-        compile_secret_patterns,
+        compile_custom_patterns, compile_secret_patterns,
     };
 
     #[test]
@@ -345,7 +366,11 @@ mod tests {
             ),
         ];
 
-        let compiled = compile_secret_patterns(&[]);
+        let (compiled, errors) = compile_secret_patterns(&[]);
+        assert!(
+            errors.is_empty(),
+            "no custom patterns should yield no errors"
+        );
 
         for (name, sample) in &examples {
             let maybe_pattern = compiled.iter().find(|pattern| pattern.name == *name);
@@ -361,7 +386,7 @@ mod tests {
 
     #[test]
     fn generic_secret_matches_compound_names() {
-        let compiled = compile_secret_patterns(&[]);
+        let (compiled, _errors) = compile_secret_patterns(&[]);
         let pattern = compiled
             .iter()
             .find(|p| p.name == "Generic Secret")
@@ -374,6 +399,40 @@ mod tests {
         assert!(pattern.regex.is_match(&db_password));
         assert!(pattern.regex.is_match(&my_secret));
         assert!(pattern.regex.is_match(&admin_pwd));
+    }
+
+    #[test]
+    fn compile_custom_patterns_separates_invalid_from_valid() {
+        let inputs = vec![
+            SecretPatternDef {
+                name: "ok".to_string(),
+                pattern: r"valid_[A-Z]+".to_string(),
+            },
+            SecretPatternDef {
+                name: "broken".to_string(),
+                pattern: "(unclosed".to_string(),
+            },
+            SecretPatternDef {
+                name: "lookahead-not-supported".to_string(),
+                pattern: r"foo(?=bar)".to_string(),
+            },
+        ];
+
+        let (compiled, errors) = compile_custom_patterns(&inputs);
+
+        assert_eq!(compiled.len(), 1, "only the valid pattern compiles");
+        assert_eq!(compiled[0].name, "ok");
+        assert_eq!(errors.len(), 2, "both invalid patterns reported");
+        assert!(
+            errors[0].contains("'broken'"),
+            "error names the offending pattern, got: {}",
+            errors[0]
+        );
+        assert!(
+            errors[1].contains("'lookahead-not-supported'"),
+            "error names the offending pattern, got: {}",
+            errors[1]
+        );
     }
 
     #[test]
