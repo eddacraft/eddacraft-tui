@@ -22,12 +22,22 @@ interface ExpectedMatch {
   line: number;
 }
 
+interface FixtureScanOptions {
+  include_opt_in?: boolean;
+}
+
 interface Fixture {
   name: string;
   artifact_kind: ArtifactKind;
   reference: string;
   content: string;
   expected_matches: ExpectedMatch[];
+  /**
+   * Optional scan tuning. Default mirrors the scanner's default options
+   * (opt-in rules off). Fixtures targeting opt-in rules (AP-002, AP-005,
+   * AP-007) must set `include_opt_in: true`.
+   */
+  scan_options?: FixtureScanOptions;
 }
 
 interface FixtureFile {
@@ -67,7 +77,10 @@ describe('Scanner parity (RSCAN-007)', () => {
         ref: fixture.reference,
         content: fixture.content,
       };
-      const result = scanArtifact(artifact);
+      const result = scanArtifact(
+        artifact,
+        fixture.scan_options?.include_opt_in ? { includeOptIn: true } : undefined
+      );
 
       const actual: ExpectedMatch[] = result.warnings.map((w) => ({
         id: w.id,

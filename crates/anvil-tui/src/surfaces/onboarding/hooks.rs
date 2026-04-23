@@ -1,4 +1,7 @@
+use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use eddacraft_tui::keyboard::Action;
+
+use crate::surfaces::notifications::{NotificationSource, surface_notification};
 
 /// A git hook definition.
 pub struct HookDef {
@@ -205,6 +208,50 @@ impl HooksState {
             }
             _ => {}
         }
+    }
+}
+
+impl NotificationSource for HooksState {
+    fn notifications(&self) -> Vec<Notification> {
+        let mut out = Vec::new();
+
+        if let Some(err) = self.install_error.as_ref() {
+            out.push(surface_notification(
+                "onboarding-hooks",
+                NotificationClass::Failure,
+                NotificationPriority::High,
+                "Hook install failed",
+                err.clone(),
+            ));
+        } else if self.installed {
+            out.push(surface_notification(
+                "onboarding-hooks",
+                NotificationClass::Info,
+                NotificationPriority::Low,
+                "Hooks installed",
+                format!(
+                    "Installed {} hook(s) via {}",
+                    self.selected_hooks.iter().filter(|v| **v).count(),
+                    self.hook_manager.label()
+                ),
+            ));
+        }
+
+        // Only warn about the missing hook manager while installation has not
+        // succeeded. Once `installed == true` with `HookManager::None`, the
+        // fallback to raw `.git/hooks` worked and the warning would contradict
+        // the "Hooks installed" notification above.
+        if self.hook_manager == HookManager::None && !self.installed {
+            out.push(surface_notification(
+                "onboarding-hooks",
+                NotificationClass::Warning,
+                NotificationPriority::Normal,
+                "No hook manager detected",
+                "Anvil will install raw git hooks under .git/hooks.",
+            ));
+        }
+
+        out
     }
 }
 
@@ -681,5 +728,83 @@ mod tests {
             detect_hook_manager(Path::new("/tmp/anvil_nonexistent_xyz_999999")),
             HookManager::None
         );
+    }
+
+    // ---------- NotificationSource impl ----------
+
+    #[test]
+    fn notifications_warns_when_no_hook_manager() {
+        let dir = empty_dir();
+        let state = HooksState::new(&dir);
+        let notifications = state.notifications();
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "No hook manager detected"
+                    && n.class == NotificationClass::Warning),
+            "expected warning notification"
+        );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn notifications_reports_installed() {
+        let dir = empty_dir();
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        let mut state = HooksState::new(&dir);
+        state.mark_installed();
+        let notifications = state.notifications();
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Hooks installed" && n.class == NotificationClass::Info),
+            "expected installed notification"
+        );
+        assert!(
+            !notifications
+                .iter()
+                .any(|n| n.title == "No hook manager detected"),
+            "detected hook manager should suppress warning"
+        );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn notifications_reports_install_failure() {
+        let dir = empty_dir();
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        let mut state = HooksState::new(&dir);
+        state.mark_failed("git returned error".to_string());
+        let notifications = state.notifications();
+        let failure = notifications
+            .iter()
+            .find(|n| n.class == NotificationClass::Failure)
+            .expect("failure notification present");
+        assert_eq!(failure.priority, NotificationPriority::High);
+        assert_eq!(failure.title, "Hook install failed");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn notifications_do_not_warn_when_installed_with_no_hook_manager() {
+        // Council finding: without this, installed=true + hook_manager=None
+        // emits both "Hooks installed" (Info) and "No hook manager detected"
+        // (Warning), which is contradictory from the operator's view.
+        let dir = empty_dir();
+        let mut state = HooksState::new(&dir);
+        assert_eq!(state.hook_manager, HookManager::None);
+        state.mark_installed();
+        let notifications = state.notifications();
+        assert!(
+            notifications.iter().any(|n| n.title == "Hooks installed"),
+            "installed notification must be present",
+        );
+        assert!(
+            !notifications
+                .iter()
+                .any(|n| n.title == "No hook manager detected"),
+            "warning must be suppressed after successful install",
+        );
+        cleanup(&dir);
     }
 }

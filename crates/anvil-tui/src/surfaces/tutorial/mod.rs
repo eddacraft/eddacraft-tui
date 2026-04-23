@@ -10,9 +10,12 @@ pub mod verify;
 pub mod watch_demo;
 pub mod watch_demo_render;
 
+use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use discovery::ScanResults;
 use eddacraft_tui::keyboard::Action;
 use verify::{Verify, VerifyResult};
+
+use crate::surfaces::notifications::{NotificationSource, surface_notification};
 
 /// Notice rendered when the file watcher can't be started and the tutorial
 /// falls back to static mode. Shared between `anvil tutorial` and
@@ -543,6 +546,81 @@ impl crate::surface::Surface for TutorialState {
 impl Default for TutorialState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl NotificationSource for TutorialState {
+    fn notifications(&self) -> Vec<Notification> {
+        let mut out = Vec::new();
+
+        if let Some(notice) = self.static_notice.as_ref() {
+            out.push(surface_notification(
+                "tutorial",
+                NotificationClass::Warning,
+                NotificationPriority::High,
+                "Interactive mode unavailable",
+                notice,
+            ));
+        }
+
+        if let Some(notice) = self.resuming_notice.as_ref() {
+            out.push(surface_notification(
+                "tutorial",
+                NotificationClass::Info,
+                NotificationPriority::Normal,
+                "Tutorial resumed",
+                notice,
+            ));
+        }
+
+        // Only emit step-level failures while the tutorial is actively
+        // running on a non-completed step. Once a step is skipped or the
+        // phase flips to Complete, its stored `output`/`verify_result` are
+        // stale and must not re-surface as live failures (adversarial F-002).
+        if self.phase == TutorialPhase::Running
+            && let Some(step) = self.steps.get(self.current_step)
+            && !step.completed
+        {
+            if let Some(output) = &step.output
+                && !output.success
+            {
+                // Do NOT echo stderr into the notification message. stderr
+                // from shell commands regularly contains absolute paths,
+                // credential-helper output, and $HOME/username — shipping
+                // it via NotificationSource would leak that to every
+                // telemetry subscriber (CWE-209). Keep the raw stderr on
+                // `step.output` for local TUI rendering only.
+                let message = format!(
+                    "{} failed with exit code {}",
+                    step.title,
+                    output.exit_code.unwrap_or(-1),
+                );
+                out.push(surface_notification(
+                    "tutorial",
+                    NotificationClass::Failure,
+                    NotificationPriority::High,
+                    "Tutorial step failed",
+                    message,
+                ));
+            }
+            if matches!(step.verify_result, Some(VerifyResult::Fail(_))) {
+                // verify_hint is author-controlled (tutorial path definitions),
+                // not user input, so it is safe to surface verbatim.
+                let hint = step
+                    .verify_hint
+                    .as_deref()
+                    .unwrap_or("Verification failed.");
+                out.push(surface_notification(
+                    "tutorial",
+                    NotificationClass::Failure,
+                    NotificationPriority::High,
+                    "Verification failed",
+                    hint.to_string(),
+                ));
+            }
+        }
+
+        out
     }
 }
 
@@ -1443,5 +1521,142 @@ mod tests {
         state.wants_fix = true;
         <TutorialState as crate::surface::Surface>::reset(&mut state);
         assert!(!state.wants_fix);
+    }
+
+    // --- NotificationSource impl ---
+
+    #[test]
+    fn notifications_empty_without_notices() {
+        let state = TutorialState::new();
+        assert!(state.notifications().is_empty());
+    }
+
+    #[test]
+    fn notifications_include_static_notice_as_warning() {
+        let mut state = TutorialState::new();
+        state.enable_static_mode_with_reason("watcher unavailable");
+        let notifications = state.notifications();
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(notifications[0].class, NotificationClass::Warning);
+        assert_eq!(notifications[0].priority, NotificationPriority::High);
+        assert_eq!(
+            notifications[0]
+                .context
+                .as_ref()
+                .and_then(|c| c.source.as_deref()),
+            Some("tutorial")
+        );
+    }
+
+    #[test]
+    fn notifications_include_resume_notice_as_info() {
+        let mut state = TutorialState::new();
+        state.resume_path(
+            TutorialPath::Policy,
+            1,
+            &[true, false, false, false, false, false],
+        );
+        let notifications = state.notifications();
+        let resume = notifications
+            .iter()
+            .find(|n| n.title == "Tutorial resumed")
+            .expect("resume notification present");
+        assert_eq!(resume.class, NotificationClass::Info);
+        assert_eq!(resume.priority, NotificationPriority::Normal);
+    }
+
+    #[test]
+    fn notifications_include_failure_when_command_fails() {
+        let mut state = state_with_command_step("exit 1");
+        state.handle_key(Action::Select);
+        let notifications = state.notifications();
+        let failure = notifications
+            .iter()
+            .find(|n| n.class == NotificationClass::Failure)
+            .expect("failure notification present");
+        assert_eq!(failure.priority, NotificationPriority::High);
+        assert_eq!(failure.title, "Tutorial step failed");
+    }
+
+    #[test]
+    fn notifications_include_failure_when_verify_fails() {
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("world".to_string()),
+            "Output should contain world.",
+        );
+        state.handle_key(Action::Select);
+        let notifications = state.notifications();
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Verification failed" && n.class == NotificationClass::Failure),
+            "expected verification failure notification, got {notifications:?}"
+        );
+    }
+
+    #[test]
+    fn notifications_never_echo_stderr_contents() {
+        // Security regression (CWE-209): failed-command notifications must
+        // never embed the step's stderr, which frequently contains absolute
+        // paths, credential-helper output, or $HOME/username fragments.
+        let mut state = state_with_command_step("/bin/sh -c 'exit 7'");
+        state.steps[0].output = Some(CommandOutput {
+            stdout: String::new(),
+            stderr: "/home/secret-user/work/tokens/.env: permission denied".to_string(),
+            success: false,
+            exit_code: Some(7),
+        });
+        let notifications = state.notifications();
+        for n in &notifications {
+            assert!(
+                !n.message.contains("secret-user"),
+                "notification leaked $HOME fragment: {:?}",
+                n.message
+            );
+            assert!(
+                !n.message.contains("/home/"),
+                "notification leaked absolute path: {:?}",
+                n.message
+            );
+            assert!(
+                !n.message.contains("permission denied"),
+                "notification leaked stderr text: {:?}",
+                n.message
+            );
+        }
+        // And we still report a failure — with the sanitised message.
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Tutorial step failed" && n.message.contains("exit code 7")),
+            "expected sanitised failure notification, got {notifications:?}"
+        );
+    }
+
+    #[test]
+    fn notifications_suppressed_after_verify_fail_skip_complete() {
+        // Adversarial F-002: after verify-fail -> skip -> phase=Complete,
+        // advance_step() doesn't clear step.verify_result, but notifications()
+        // must not re-surface the stale failure because the tutorial is done.
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("world".to_string()),
+            "Output should contain world.",
+        );
+        state.handle_key(Action::Select); // command succeeds, verify fails
+        assert!(state.current_step_failed());
+
+        state.handle_key(Action::Character('s')); // skip
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+
+        let notifications = state.notifications();
+        assert!(
+            !notifications
+                .iter()
+                .any(|n| n.class == NotificationClass::Failure),
+            "completed tutorial must not emit Failure notifications: {notifications:?}",
+        );
     }
 }

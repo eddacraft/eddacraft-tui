@@ -127,6 +127,7 @@ name = "anvil-bench"
 version = "0.3.3-beta"
 dependencies = [
  "criterion",
+ "eddacraft-anvil-checks",
  "eddacraft-anvil-kernel-types",
  "petgraph",
  "rand 0.10.1",

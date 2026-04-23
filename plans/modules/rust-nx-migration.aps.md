@@ -184,41 +184,54 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   matrix — gating it behind check avoids wasting 6 matrix runners when a
   basic compile error would fail them all.
 
-### RUSTNX-004: Scaffold per-crate project.json wrappers
+### RUSTNX-004: Bring Rust crates under Nx via `@eddacraft/nx-rust` [Complete]
 
-- **Intent:** Make every Rust crate visible to Nx with a minimal
-  `project.json` that wraps `cargo` commands as Nx targets
-- **Expected Outcome:** Each of the 9 crates has `project.json` defining
-  `build`, `test`, `lint`, `typecheck` (cargo check), and `clippy` targets;
-  `nx show projects` lists all Rust crates alongside TS projects
-- **Scope:** `crates/*/project.json`, `nx.json` (targetDefaults)
-- **Dependencies:** RUSTNX-003
-- **Validation:** `nx show projects --type=app,lib` lists every crate;
-  `nx run anvil-kernel:test --dry-run` prints a valid cargo invocation
-- **Confidence:** medium
-- **Risks:** Nx input hashing must include `Cargo.lock` and
-  `rust-toolchain.toml` at the workspace level, or cache keys will miss
-  dependency upgrades
+- **Intent:** Make every Rust crate visible to Nx with executors wrapping
+  `cargo` commands as Nx targets
+- **Expected Outcome:** Each of the 9 crates registers as an Nx project
+  with `build`, `test`, `check`, `clippy`, `fmt`/`fmt-check`, and
+  `nx-release-publish` targets; `nx show projects` lists every crate
+  alongside TS projects
+- **Scope:** `tools/nx-rust/` (plugin) and `nx.json` (plugin registration)
+- **Dependencies:** RUSTNX-003, NXRUST
+- **Validation:** `pnpm exec nx show projects` lists all 9 crates by
+  Cargo package name; `pnpm exec nx show project eddacraft-anvil-kernel-types --json`
+  shows plugin-provided targets
+- **Confidence:** high
+- **Resolution:** Delivered via the NXRUST module (see
+  `plans/modules/nx-rust-plugin.aps.md`) rather than hand-rolled
+  `project.json` files. The plugin's `cargo metadata` graph driver
+  auto-registers every workspace member with pre-wired executors and
+  dependency edges, so `nx affected` is correct across Rust-to-Rust
+  edges. ADR-026 captures the tooling decision.
 
-### RUSTNX-005: Configure Nx inputs, outputs, and remote cache for Rust
+### RUSTNX-005: Workspace-level cache inputs for Rust [Complete]
 
-- **Intent:** Make Rust cargo targets cacheable on the Azure remote cache by
-  declaring correct inputs and outputs
-- **Expected Outcome:** `nx.json` `targetDefaults` for the Rust targets
-  include `Cargo.lock`, `rust-toolchain.toml`, and
-  `{projectRoot}/src/**/*.rs` as inputs, and `target/<profile>/<crate>` as
-  outputs; a second run of `nx run anvil-kernel:test` (no code changes)
-  restores from cache instead of rebuilding
-- **Scope:** `nx.json`, possibly `.nxignore`
+- **Intent:** Ensure Nx cache keys for Rust targets invalidate when the
+  workspace toolchain or resolved dependency set changes
+- **Expected Outcome:** `nx.json` `namedInputs.sharedGlobals` includes
+  `Cargo.lock` and `rust-toolchain.toml` so every Rust target's hash
+  picks up toolchain bumps and dependency updates; per-target inputs
+  and outputs (e.g. narrow `outputs` for lint targets, full `target/`
+  for build/test) are owned by `@eddacraft/nx-rust`
+- **Scope:** `nx.json` `namedInputs.sharedGlobals`
 - **Dependencies:** RUSTNX-004
-- **Validation:** `nx run anvil-kernel:test` twice in a row — second run
-  reports "cache hit" (local); with Azure credentials, a fresh clone also
-  hits the remote cache
-- **Confidence:** medium
+- **Validation:** `nx show project <crate> --json` reports `cache: true`
+  on build/test; `nx reset && nx run <crate>:check` then repeat reports
+  "cache hit" on the second run; a `Cargo.lock` edit invalidates the
+  cache on the next run
+- **Confidence:** high
 - **Risks:** Caching cargo build artifacts is notoriously fragile —
-  `target/` has embedded absolute paths, workspace fingerprints, and
-  rebuild-on-timestamp behaviour. May need to cache test results and
-  clippy exit codes rather than raw build output
+  `target/` has embedded absolute paths. Plugin mitigates by caching
+  exit-code-only for check/clippy/fmt-check and scoping build/test
+  outputs to `{options.target-dir}` + `{workspaceRoot}/target`
+- **Resolution:** Delivered in branch `feat/nxrust`. Added
+  `{workspaceRoot}/Cargo.lock` and `{workspaceRoot}/rust-toolchain.toml`
+  to `nx.json` `namedInputs.sharedGlobals`. Per-target input/output
+  declarations come from `@eddacraft/nx-rust` — see
+  `tools/nx-rust/src/utils/target-configs.ts`. The Azure remote cache
+  picks these up via the existing `@nx/azure-cache` plugin with no
+  Rust-specific configuration.
 
 ### RUSTNX-006: Unify root scripts across TS and Rust
 

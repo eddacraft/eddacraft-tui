@@ -2,6 +2,9 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::process::Command;
 
+use anvil_kernel_types::{
+    Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
 use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState};
 use serde::Serialize;
 
@@ -70,6 +73,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_anvil_dir_writable(),
         check_plans_dir(),
         check_hooks_installed(),
+        check_registry_patterns_compile(),
     ]
 }
 
@@ -390,6 +394,57 @@ fn check_hooks_installed() -> DiagnosticCheck {
     }
 }
 
+/// SPG-002: surface any registry rule whose regex fails to compile under the
+/// Rust `regex` crate. Without this, lookaround-bearing rules silently drop
+/// out of the scanner catalogue and users cannot tell the difference between
+/// "rule ran, no matches" and "rule never ran".
+fn check_registry_patterns_compile() -> DiagnosticCheck {
+    compile_check_from_diagnostics(&anvil_checks::antipattern::registry_compile_diagnostics())
+}
+
+fn compile_check_from_diagnostics(
+    diagnostics: &[anvil_checks::antipattern::CompileDiagnostic],
+) -> DiagnosticCheck {
+    if diagnostics.is_empty() {
+        return DiagnosticCheck {
+            name: "registry-patterns-compile".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Pass,
+            message: "all registry patterns compile under the Rust engine".to_string(),
+            details: None,
+            auto_fixable: false,
+        };
+    }
+
+    let summary = diagnostics
+        .iter()
+        .map(|d| d.pattern_id.clone())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let details = diagnostics
+        .iter()
+        .map(|d| format!("{} ({}): {}", d.pattern_id, d.pattern_title, d.error))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    DiagnosticCheck {
+        name: "registry-patterns-compile".to_string(),
+        category: "Configuration".to_string(),
+        status: CheckStatus::Warn,
+        message: format!(
+            "{count} registry rule{s} failed to compile: {summary}",
+            count = diagnostics.len(),
+            s = if diagnostics.len() == 1 { "" } else { "s" },
+        ),
+        details: Some(format!(
+            "{details}\n\nSee tests/scanner-parity/README.md — 'Rust-side handling \
+             of PCRE lookaround rules' — for the pattern-rewrite contract and \
+             fix guidance."
+        )),
+        auto_fixable: false,
+    }
+}
+
 // --- Fix application ---
 
 /// Apply a fix to a single check by index. Used by the welcome hub
@@ -509,26 +564,128 @@ struct JsonCheck {
     auto_fixable: bool,
 }
 
-fn print_json(checks: &[DiagnosticCheck]) -> anyhow::Result<()> {
+#[derive(Serialize)]
+struct DoctorOutput {
+    checks: Vec<JsonCheck>,
+    notifications: Vec<Notification>,
+}
+
+fn status_str(status: CheckStatus) -> &'static str {
+    match status {
+        CheckStatus::Pass => "pass",
+        CheckStatus::Fail => "fail",
+        CheckStatus::Warn => "warn",
+        CheckStatus::Skipped => "skipped",
+        CheckStatus::Running => "running",
+    }
+}
+
+/// Map a per-check status to notification class + priority.
+///
+/// Returns `None` for statuses that should not emit a per-check notification
+/// (Pass, Running). Pass is represented by the summary; Running is a transient
+/// in-flight state, not a delivery artefact.
+fn notification_classification(
+    status: CheckStatus,
+) -> Option<(NotificationClass, NotificationPriority)> {
+    match status {
+        CheckStatus::Fail => Some((NotificationClass::Failure, NotificationPriority::High)),
+        CheckStatus::Warn => Some((NotificationClass::Warning, NotificationPriority::High)),
+        CheckStatus::Skipped => Some((NotificationClass::Info, NotificationPriority::Low)),
+        CheckStatus::Pass | CheckStatus::Running => None,
+    }
+}
+
+/// Build a notification for a non-Pass check.
+///
+/// Deliberately does NOT include `check.details` in the message: parser errors
+/// from `check_config_valid` can echo offending tokens from `.anvilrc`, and
+/// shipping those into `--json` output leaks arbitrary config content into CI
+/// logs (CWE-532). `details` remains on the `DiagnosticCheck` for local/TUI
+/// rendering; the notification carries only the surface-safe `message`.
+fn notification_for_check(check: &DiagnosticCheck) -> Option<Notification> {
+    let (class, priority) = notification_classification(check.status)?;
+    Some(
+        Notification::new(
+            class,
+            priority,
+            format!("Doctor: {}", check.name),
+            check.message.clone(),
+        )
+        .with_context(NotificationContext {
+            file: None,
+            source: Some("doctor".to_string()),
+        }),
+    )
+}
+
+fn notifications_for_doctor(checks: &[DiagnosticCheck]) -> Vec<Notification> {
+    let mut notifications: Vec<Notification> =
+        checks.iter().filter_map(notification_for_check).collect();
+
+    let failed = checks
+        .iter()
+        .filter(|c| c.status == CheckStatus::Fail)
+        .count();
+    let warned = checks
+        .iter()
+        .filter(|c| c.status == CheckStatus::Warn)
+        .count();
+
+    let (class, priority, message) = if failed > 0 {
+        (
+            NotificationClass::Failure,
+            NotificationPriority::High,
+            format!("{failed} failing, {warned} warning"),
+        )
+    } else if warned > 0 {
+        (
+            NotificationClass::Warning,
+            NotificationPriority::High,
+            format!("0 failing, {warned} warning"),
+        )
+    } else {
+        (
+            NotificationClass::Health,
+            NotificationPriority::Normal,
+            "All diagnostics healthy".to_string(),
+        )
+    };
+
+    notifications.push(
+        Notification::new(class, priority, "Doctor summary", message).with_context(
+            NotificationContext {
+                file: None,
+                source: Some("doctor".to_string()),
+            },
+        ),
+    );
+
+    notifications
+}
+
+fn build_doctor_output(checks: &[DiagnosticCheck]) -> DoctorOutput {
     let json_checks: Vec<JsonCheck> = checks
         .iter()
         .map(|c| JsonCheck {
             name: c.name.clone(),
             category: c.category.clone(),
-            status: match c.status {
-                CheckStatus::Pass => "pass".to_string(),
-                CheckStatus::Fail => "fail".to_string(),
-                CheckStatus::Warn => "warn".to_string(),
-                CheckStatus::Skipped => "skipped".to_string(),
-                CheckStatus::Running => "running".to_string(),
-            },
+            status: status_str(c.status).to_string(),
             message: c.message.clone(),
             details: c.details.clone(),
             auto_fixable: c.auto_fixable,
         })
         .collect();
 
-    println!("{}", serde_json::to_string_pretty(&json_checks)?);
+    DoctorOutput {
+        checks: json_checks,
+        notifications: notifications_for_doctor(checks),
+    }
+}
+
+fn print_json(checks: &[DiagnosticCheck]) -> anyhow::Result<()> {
+    let output = build_doctor_output(checks);
+    println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
 
@@ -536,6 +693,40 @@ fn print_json(checks: &[DiagnosticCheck]) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use anvil_tui::surfaces::doctor::DiagnosticSummary;
+
+    #[test]
+    fn compile_check_passes_when_no_diagnostics() {
+        let check = compile_check_from_diagnostics(&[]);
+        assert_eq!(check.name, "registry-patterns-compile");
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(check.details.is_none());
+    }
+
+    #[test]
+    fn compile_check_warns_when_diagnostics_present() {
+        use anvil_checks::antipattern::CompileDiagnostic;
+
+        let diagnostics = vec![
+            CompileDiagnostic {
+                pattern_id: "DD-001".to_string(),
+                pattern_title: "Untracked TODO".to_string(),
+                error: "unsupported look-around".to_string(),
+            },
+            CompileDiagnostic {
+                pattern_id: "RL-005".to_string(),
+                pattern_title: "Deferred without artifact".to_string(),
+                error: "unsupported look-around".to_string(),
+            },
+        ];
+        let check = compile_check_from_diagnostics(&diagnostics);
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.message.contains("2 registry rules"));
+        assert!(check.message.contains("DD-001"));
+        assert!(check.message.contains("RL-005"));
+        let details = check.details.expect("details populated");
+        assert!(details.contains("DD-001 (Untracked TODO): unsupported look-around"));
+        assert!(details.contains("tests/scanner-parity/README.md"));
+    }
 
     #[test]
     fn git_available_passes_on_dev_machine() {
@@ -619,37 +810,164 @@ mod tests {
     }
 
     #[test]
-    fn run_all_checks_returns_eight() {
+    fn run_all_checks_includes_registry_compile_check() {
         let checks = run_all_checks();
-        assert_eq!(checks.len(), 8);
+        assert!(
+            checks.iter().any(|c| c.name == "registry-patterns-compile"),
+            "registry-patterns-compile must be registered in run_all_checks",
+        );
     }
 
     #[test]
     fn json_output_is_valid() {
         let checks = run_all_checks();
-        // Ensure print_json doesn't panic — capture output
-        let json_checks: Vec<JsonCheck> = checks
-            .iter()
-            .map(|c| JsonCheck {
-                name: c.name.clone(),
-                category: c.category.clone(),
-                status: match c.status {
-                    CheckStatus::Pass => "pass".to_string(),
-                    CheckStatus::Fail => "fail".to_string(),
-                    CheckStatus::Warn => "warn".to_string(),
-                    CheckStatus::Skipped => "skipped".to_string(),
-                    CheckStatus::Running => "running".to_string(),
-                },
-                message: c.message.clone(),
-                details: c.details.clone(),
-                auto_fixable: c.auto_fixable,
-            })
-            .collect();
-
-        let json = serde_json::to_string(&json_checks).unwrap();
+        let output = build_doctor_output(&checks);
+        let json = serde_json::to_string(&output).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert!(parsed.is_array());
-        assert_eq!(parsed.as_array().unwrap().len(), 8);
+        assert!(parsed.is_object());
+        assert_eq!(parsed["checks"].as_array().unwrap().len(), checks.len());
+        // Structural assertion: one notification per non-Pass/non-Running check,
+        // plus exactly one summary. Environment-dependent: on a healthy dev
+        // machine Pass-only checks produce a single summary.
+        let expected_notifications = checks
+            .iter()
+            .filter(|c| notification_classification(c.status).is_some())
+            .count()
+            + 1;
+        assert_eq!(
+            parsed["notifications"].as_array().unwrap().len(),
+            expected_notifications,
+        );
+    }
+
+    #[test]
+    fn notification_mapping_for_check_statuses() {
+        // Per-check notifications emit only for actionable states. Pass and
+        // Running are represented by the summary / transient UI, not per-check
+        // delivery artefacts.
+        let emitting = [
+            (
+                CheckStatus::Warn,
+                NotificationClass::Warning,
+                NotificationPriority::High,
+            ),
+            (
+                CheckStatus::Fail,
+                NotificationClass::Failure,
+                NotificationPriority::High,
+            ),
+            (
+                CheckStatus::Skipped,
+                NotificationClass::Info,
+                NotificationPriority::Low,
+            ),
+        ];
+        for (status, class, priority) in emitting {
+            let check = make_check("example", status, false);
+            let notification =
+                notification_for_check(&check).expect("emitting status produces notification");
+            assert_eq!(notification.class, class, "class for {status:?}");
+            assert_eq!(notification.priority, priority, "priority for {status:?}");
+            assert_eq!(
+                notification
+                    .context
+                    .as_ref()
+                    .and_then(|c| c.source.as_deref()),
+                Some("doctor")
+            );
+        }
+
+        let suppressed = [CheckStatus::Pass, CheckStatus::Running];
+        for status in suppressed {
+            let check = make_check("example", status, false);
+            assert!(
+                notification_for_check(&check).is_none(),
+                "{status:?} should not emit a per-check notification",
+            );
+        }
+    }
+
+    #[test]
+    fn notification_message_does_not_echo_check_details() {
+        // Security regression: check.details can contain raw parser errors
+        // that echo offending tokens from .anvilrc. Notifications must carry
+        // only the surface-safe `message`. (council / security finding.)
+        let check = DiagnosticCheck {
+            name: "config-valid".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Fail,
+            message: ".anvilrc failed to parse".to_string(),
+            details: Some("leaked-token=sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string()),
+            auto_fixable: false,
+        };
+        let notification = notification_for_check(&check).expect("Fail emits notification");
+        assert!(
+            !notification.message.contains("leaked-token"),
+            "notification message must not echo `check.details`: got {:?}",
+            notification.message,
+        );
+        assert!(
+            !notification.message.contains("sk-"),
+            "notification message must not echo secret material from `check.details`",
+        );
+    }
+
+    #[test]
+    fn all_pass_emits_only_summary() {
+        // Combined coverage for the suppression fix (#5 / OPS-006).
+        let checks = vec![
+            make_check("a", CheckStatus::Pass, false),
+            make_check("b", CheckStatus::Pass, false),
+            make_check("c", CheckStatus::Pass, false),
+        ];
+        let notifications = notifications_for_doctor(&checks);
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(notifications[0].title, "Doctor summary");
+        assert_eq!(notifications[0].class, NotificationClass::Health);
+    }
+
+    #[test]
+    fn empty_check_list_emits_health_summary_only() {
+        let notifications = notifications_for_doctor(&[]);
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(notifications[0].class, NotificationClass::Health);
+        assert_eq!(notifications[0].priority, NotificationPriority::Normal);
+    }
+
+    #[test]
+    fn doctor_summary_is_failure_when_any_check_fails() {
+        let checks = vec![
+            make_check("pass", CheckStatus::Pass, false),
+            make_check("fail", CheckStatus::Fail, false),
+            make_check("warn", CheckStatus::Warn, false),
+        ];
+        let notifications = notifications_for_doctor(&checks);
+        let summary = notifications.last().unwrap();
+        assert_eq!(summary.class, NotificationClass::Failure);
+        assert_eq!(summary.priority, NotificationPriority::High);
+        assert_eq!(summary.title, "Doctor summary");
+    }
+
+    #[test]
+    fn doctor_summary_is_health_when_all_pass() {
+        let checks = vec![
+            make_check("a", CheckStatus::Pass, false),
+            make_check("b", CheckStatus::Pass, false),
+        ];
+        let notifications = notifications_for_doctor(&checks);
+        let summary = notifications.last().unwrap();
+        assert_eq!(summary.class, NotificationClass::Health);
+    }
+
+    #[test]
+    fn doctor_summary_is_warning_when_only_warnings() {
+        let checks = vec![
+            make_check("a", CheckStatus::Pass, false),
+            make_check("b", CheckStatus::Warn, false),
+        ];
+        let notifications = notifications_for_doctor(&checks);
+        let summary = notifications.last().unwrap();
+        assert_eq!(summary.class, NotificationClass::Warning);
     }
 
     #[test]
@@ -769,24 +1087,6 @@ mod tests {
         assert_eq!(json["auto_fixable"], false);
     }
 
-    /// Convert a [`DiagnosticCheck`] to a [`JsonCheck`] using the same mapping as `print_json`.
-    fn to_json_check(c: &DiagnosticCheck) -> JsonCheck {
-        JsonCheck {
-            name: c.name.clone(),
-            category: c.category.clone(),
-            status: match c.status {
-                CheckStatus::Pass => "pass".to_string(),
-                CheckStatus::Fail => "fail".to_string(),
-                CheckStatus::Warn => "warn".to_string(),
-                CheckStatus::Skipped => "skipped".to_string(),
-                CheckStatus::Running => "running".to_string(),
-            },
-            message: c.message.clone(),
-            details: c.details.clone(),
-            auto_fixable: c.auto_fixable,
-        }
-    }
-
     #[test]
     fn json_check_status_values_are_lowercase() {
         let statuses = vec![
@@ -797,14 +1097,7 @@ mod tests {
             (CheckStatus::Running, "running"),
         ];
         for (status, expected) in statuses {
-            let diagnostic = make_check("test", status, false);
-            let json_check = to_json_check(&diagnostic);
-            let json: serde_json::Value = serde_json::to_value(&json_check).unwrap();
-            assert_eq!(
-                json["status"].as_str().unwrap(),
-                expected,
-                "status should be lowercase"
-            );
+            assert_eq!(status_str(status), expected);
         }
     }
 

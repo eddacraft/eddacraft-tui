@@ -50,6 +50,16 @@ describeCli('CLI › doctor', () => {
     const result = await runCli(['doctor', '--json'], { cwd: ws.root });
     // doctor should produce output regardless of exit code
     expect(result.output.length).toBeGreaterThan(0);
+
+    // Root shape contract (see CHANGELOG): doctor --json is an object with
+    // `checks` (array) and `notifications` (array). Guard against a regression
+    // back to a bare array or a drop of the notifications envelope.
+    const parsed = JSON.parse(result.output) as unknown;
+    expect(parsed).not.toBeNull();
+    expect(Array.isArray(parsed)).toBe(false);
+    const doc = parsed as { checks?: unknown; notifications?: unknown };
+    expect(Array.isArray(doc.checks)).toBe(true);
+    expect(Array.isArray(doc.notifications)).toBe(true);
   });
 });
 

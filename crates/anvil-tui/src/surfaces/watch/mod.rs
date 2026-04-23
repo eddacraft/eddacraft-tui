@@ -4,8 +4,10 @@ pub mod render;
 use std::collections::VecDeque;
 
 use animate::{Animate, Lerp, Once};
-use anvil_kernel_types::Notification;
+use anvil_kernel_types::{Notification, NotificationContext};
 use eddacraft_tui::keyboard::Action;
+
+use crate::surfaces::notifications::NotificationSource;
 
 type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
 
@@ -262,6 +264,33 @@ impl WatchState {
             }
             _ => {}
         }
+    }
+}
+
+impl NotificationSource for WatchState {
+    fn notifications(&self) -> Vec<Notification> {
+        // Per the telemetry stream contract, `correlation.source` must equal
+        // `notification.context.source`. Queue notifications produced by the
+        // event adapter already carry `source = "watch"`, but the trait impl
+        // defensively backfills the context so any future producer path (or
+        // test fixture that constructs QueuedNotification directly) can't
+        // leak a `source: None` event through this surface.
+        self.data
+            .queue
+            .iter()
+            .map(|q| {
+                let mut n = q.notification.clone();
+                let needs_source = n.context.as_ref().is_none_or(|c| c.source.is_none());
+                if needs_source {
+                    let file = n.context.as_ref().and_then(|c| c.file.clone());
+                    n.context = Some(NotificationContext {
+                        file,
+                        source: Some("watch".to_string()),
+                    });
+                }
+                n
+            })
+            .collect()
     }
 }
 
@@ -634,5 +663,32 @@ mod tests {
         assert!(!state.should_quit);
         assert!(!state.wants_back);
         assert!(state.dirty); // reset restores dirty for re-entry
+    }
+
+    #[test]
+    fn notification_source_exposes_queue() {
+        let state = WatchState::new(sample_data());
+        let notifications = state.notifications();
+        assert_eq!(notifications.len(), 2);
+        assert_eq!(notifications[0].title, "src/main.rs");
+        assert_eq!(notifications[1].title, "src/lib.rs");
+    }
+
+    #[test]
+    fn notification_source_backfills_source_context() {
+        // Adversarial F-003: emitted notifications must satisfy the telemetry
+        // producer contract `correlation.source == notification.context.source`.
+        // sample_data constructs queue items without a context — the trait
+        // impl must inject `source="watch"` so subscribers see a valid source.
+        let state = WatchState::new(sample_data());
+        let notifications = state.notifications();
+        for n in &notifications {
+            let source = n.context.as_ref().and_then(|c| c.source.as_deref());
+            assert_eq!(
+                source,
+                Some("watch"),
+                "emitted notification missing source=watch: {n:?}",
+            );
+        }
     }
 }
