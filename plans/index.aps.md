@@ -261,7 +261,7 @@ when specific work is identified.
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [check-language-and-onboarding](./modules/check-language-and-onboarding.aps.md) | CLAR | 6/9 | rust-cli, docs, tui surfaces — **In Progress** |
-| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 5/9 | CLAR, INTD, current CLI/TUI surfaces — **In Progress** (`NOTIFY-006` in PR #1035) |
+| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 9/9 | CLAR, INTD, current CLI/TUI surfaces — **Complete** (doctor/audit alignment, shared TUI `NotificationSource`, telemetry contract, intercept integration spec) |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
@@ -465,7 +465,14 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/11 | anvil-checks, anvil-kernel (watcher), INTR, INTL |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/13 | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+<!--
+  INTD count history:
+  - Pre-NOTIFY-009: index claimed 0/11, module already had 12 tasks (001–012) — off-by-one.
+  - NOTIFY-009 added INTD-013 to mirror control decisions onto telemetry.
+  - Net: module now has 13 tasks; index reconciled to 0/13.
+-->
+
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
 
