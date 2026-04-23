@@ -9,9 +9,9 @@ Follows ADR-026. See: plans/aps-rules.md
 
 # Anvil TS Scanner Retirement
 
-| ID    | Owner | Status   |
-| ----- | ----- | -------- |
-| TSRET | —     | Proposed |
+| ID    | Owner | Status      |
+| ----- | ----- | ----------- |
+| TSRET | —     | In Progress |
 
 ## Purpose
 
@@ -103,7 +103,7 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
   asserts parity with the CLI on a sample fixture
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** Complete
 
 ---
 
@@ -122,7 +122,7 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
   Rust toolchain and the scanner runs
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** In Progress
 
 ---
 
@@ -214,3 +214,122 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
   OPS-006 in the council review of RSCAN-008 commit `f17a074e`.
   Blocks on `anvil-scanner-parity-gaps` / SPG landing first so the
   Rust engine actually fires every default rule before TS goes away.
+- **2026-04-23 — TSRET kicked off; SPG dependency complete.** Module
+  status moved to In Progress. TSRET-001 spike landed:
+  `crates/anvil-checks-napi/` exposes `scan_artifact` to Node via
+  napi-rs v3 with a JSON-in/JSON-out wire format (typed surface
+  deferred to TSRET-003/-004 once VSCode/MCP consumer needs are
+  pinned). Numbers on the spike fixture (`fixtures/sample.ts`,
+  `node v25.9.0`, Linux x64, release build):
+  - cold call: ~1.1 ms
+  - warm avg over 200 calls: ~0.48 ms
+  - debug-build comparison: cold ~6.8 ms, warm ~6.4 ms (use release
+    for any VSCode hot-path budget question)
+
+  Well inside the few-hundred-ms VSCode diagnostic budget on a small
+  file. TSRET-002 needs to repeat the measurement on a realistic
+  (multi-KB, regex-heavy) artefact and confirm prebuild distribution
+  works on every shipping target before we cut consumers over.
+- **2026-04-23 — TSRET-002 scaffolding landed.**
+  `.github/workflows/napi.yml` adds a 5-target build matrix
+  (linux-x64-gnu, linux-arm64-gnu, darwin-x64, darwin-arm64,
+  win32-x64-msvc) plus a 3-platform install-test matrix (linux-x64,
+  darwin-arm64, win32-x64 — the platforms with native GH runners). The
+  test job installs with no Rust toolchain to prove the TSRET-002
+  contract. Publishing is tag-gated (`napi-v*`), `private: true` on
+  the package blocks any accidental publish until the checklist in
+  `crates/anvil-checks-napi/README.md` is cleared. `napi
+  create-npm-dirs` verified locally — generates the five per-platform
+  `npm/<platformArchABI>/package.json` stubs correctly.
+
+  Left open before TSRET-002 can be marked Complete:
+  1. Real CI run of `napi.yml` on every target, end-to-end green.
+  2. Out-of-band install test on aarch64-linux and x86_64-darwin
+     (cross-compiled, no native runner).
+  3. Publish-path rehearsal: `@eddacraft` scope ownership, NPM_TOKEN
+     secret, one successful `napi pre-publish --dry-run` against the
+     registry.
+  4. Decision on npm provenance (`id-token: write`, `--provenance`).
+- **2026-04-23 — council review (session council-515b14ec).** 5
+  reviewers (council-reviewer, security-analyst, adversarial-reviewer,
+  operations-reviewer, pragmatic-lead). 5 critical + 14 major findings.
+  Fixed in-session:
+  - **C-001 (CI workflow ERR_MODULE_NOT_FOUND):** `napi.yml` now uploads
+    `index.js` + `index.d.ts` alongside the `.node` artefact and drops
+    the `napi create-npm-dirs` "regen" step (it never produced what its
+    comment claimed).
+  - **C-002 (false parity claim):** README + `lib.rs` crate-level doc
+    + test comments rewritten. The binding's `ScanResultOutput` is
+    deliberately distinct from the CLI's aggregate `CheckOutput`
+    shape. Warning content is parity by construction; envelope is not.
+  - **C-003 (`panic = "abort"` host-kill risk):** new
+    `[profile.release-napi]` in workspace Cargo.toml inherits release
+    but sets `panic = "unwind"`. `package.json` build script now uses
+    `--profile release-napi`. `scan_artifact_json` body wrapped in
+    `std::panic::catch_unwind`, mapping caught panics to
+    `Status::GenericFailure`. CLI binary keeps abort.
+  - **C-005 (stale local `.node`):** `pretest` runs
+    `scripts/check-binding-fresh.mjs` which fails if `.node` is missing
+    or older than `src/`. Verified: triggers correctly on a stale
+    binary, passes after rebuild. Tests still green (cold ~1.1 ms,
+    warm ~0.52 ms — no regression from the unwind profile).
+  Deferred:
+  - **C-004 (silent registry-load failure):** pre-existing in the Rust
+    scanner's `PATTERN_CATALOGUE` LazyLock. Surfaced more sharply by
+    the napi binding (long-running host) but not introduced by TSRET.
+    Carved out as a separate item — file under SPG follow-up rather
+    than TSRET.
+
+  TSRET-003 prerequisites (the 14 majors — must address before
+  consumer cutover):
+
+  Supply chain (security):
+  1. Pre-reserve all five `@eddacraft/anvil-checks-native-*`
+     sub-package names on npm (publish 0.0.0 placeholders) before
+     flipping `private:false`.
+  2. Enable npm provenance in the same PR that flips `private:false`
+     (`id-token: write` + `--provenance`).
+  3. Replace the long-lived classic `NPM_TOKEN` with a granular
+     access token (or OIDC trusted publishing); wrap publish job in a
+     GH environment with required-reviewer protection.
+  4. Add manual approval gate / environment protection to the publish
+     job; the current tag-trigger has no human checkpoint.
+
+  Test/parity:
+  5. Add a golden-snapshot diff against CLI output; current parity
+     test asserts only id membership, not field values or counts.
+  6. Correct the AP-001 opt-in misconception in the test comment;
+     assert AP-001 fires on the fixture and pin an exact warning
+     count.
+  7. Re-measure timings on a representative ~500-line TS fixture; the
+     9-line spike fixture is not actionable evidence for the VSCode
+     hot-path budget.
+  8. Exercise `includeOptIn` round-trip without a `patterns` filter
+     (current test passes both, which short-circuits the opt-in
+     branch).
+
+  Workflow operations:
+  9. Verify `pnpm install --frozen-lockfile` against the
+     optionalDependencies 404 in a clean checkout; loosen if needed
+     until the placeholder packages are published.
+  10. Add `timeout-minutes` to every job (build 30, test 15, publish
+      30); default is 6 hours.
+  11. Scope `concurrency` per-job: keep `cancel-in-progress: true`
+      for build/test, set false for publish (a partially-uploaded
+      release is non-recoverable).
+  12. Split publish into per-target steps with `continue-on-error`
+      and a final aggregation step; add a failure notification path;
+      document the rollback story (npm unpublish within 72h).
+  13. Right-size `paths:` filter — keep `crates/anvil-checks/**` on
+      push to main/dev, scope `pull_request` to
+      `crates/anvil-checks-napi/**` only (full 8-job matrix on every
+      scanner PR is CI noise).
+  14. (covered by C-002) README/test parity docs.
+
+  Minors / nits documented in reviewer outputs (workflow `extra_args`
+  shape hardening, FFI input size cap, `engines.node` upper bound,
+  `prepublishOnly` semantics, `unsafe_code = "deny"` instead of
+  `"allow"`, napi-cross glibc ABI, `registry.json` paths trigger gap,
+  cache key sharing note, `patterns_checked` sort stability,
+  `ScanResultOutput` mirror drift risk, `ScanOptionsInput`
+  snake_case alias) — pick up opportunistically during TSRET-003.
