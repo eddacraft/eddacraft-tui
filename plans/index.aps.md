@@ -958,8 +958,8 @@ See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
 | RUSTNX-003  | rustnx  | Parallelise Rust CI jobs behind shared cache         | Complete | medium   | 1    |
 | RUSTNX-004  | rustnx  | Bring Rust crates under Nx via `@eddacraft/nx-rust`  | Complete | high     | 2    |
 | RUSTNX-005  | rustnx  | Workspace-level cache inputs for Rust                | Complete | high     | 2    |
-| RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Ready  | medium   | 2    |
-| RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Ready  | high     | 2    |
+| RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Complete | medium   | 2    |
+| RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Complete | high     | 2    |
 | RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Ready  | medium   | 3    |
 | RUSTNX-009  | rustnx  | Add cargo-deny CI gate                               | Ready  | medium   | 3    |
 

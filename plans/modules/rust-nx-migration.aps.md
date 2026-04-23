@@ -272,9 +272,10 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   from RUSTNX-005. A missed input means affected detection silently skips
   work that should have run
 - **Resolution:** `rust.yml` now uses `./.github/actions/setup-workspace`
-  plus `nrwl/nx-set-shas` on pull requests, discovers the Rust Nx projects via
-  `nx show projects --withTarget=clippy`, and runs `nx affected` for
-  `check`, `test`, `clippy`, and `fmt-check`. Pushes keep the full-workspace
+  on pull requests, discovers the Rust Nx projects via
+  `nx show projects --affected --withTarget=check` with `--base=origin/<PR base ref>`,
+  and runs `nx run-many` for `check`, `test`, `clippy`, and `fmt-check` against
+  the resolved affected list. Pushes keep the full-workspace
   cargo path, doctests still run on pull requests, coverage stays on the full
   test run, and the cross-compile matrix remains unchanged. `nx.json`
   `sharedGlobals` now include the Rust workflow, setup action, package-manager
