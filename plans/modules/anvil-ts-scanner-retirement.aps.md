@@ -123,6 +123,18 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
 - **Confidence:** medium
 - **Priority:** High
 - **Status:** In Progress
+- **Remaining to reach Complete (as of 2026-04-23):**
+  - Flip `crates/anvil-checks-napi/package.json` from `"private": true`
+    and wire `NPM_TOKEN` so a `napi-v*` tag actually publishes (the
+    publish job currently runs `pre-publish` which is a dry-run on a
+    private package).
+  - Run install smoke tests for `aarch64-unknown-linux-gnu` and
+    `x86_64-apple-darwin` out-of-band — GitHub-hosted test runners
+    only cover linux-x64, macos-arm64, and windows-x64. The napi.yml
+    workflow comment marks this as a TSRET-003 blocker.
+  - Decide on `--provenance`: either enable `id-token: write` in the
+    publish job (currently commented out) or record the decision to
+    ship without provenance in an ADR.
 
 ---
 
