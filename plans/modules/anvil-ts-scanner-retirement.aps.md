@@ -37,13 +37,19 @@ compromise. It carries ongoing costs:
 - `tests/scanner-parity/` is indefinitely load-bearing maintenance
   until one engine retires.
 
-This module retires the TS scanner by binding the Rust engine into Node
-via `napi-rs` (or WASM as fallback if napi-rs is infeasible on the
-targets we ship). After it lands, the VSCode extension and MCP server
-call into the same compiled Rust code the CLI uses; the TS scanner code
-path is deleted; the parity harness is retired.
+**Implementation path (post-ADR-030):** The original plan retired the
+TS scanner by binding the Rust engine into Node via `napi-rs` and
+swapping the import in each consumer. ADR-030 supersedes that: both
+consumers become drivers on the `anvil-intercept` daemon (module
+DRVR), and the TS scanner is deleted once no surface imports it
+(TSRET-005, rewired to depend on DRVR-003/-004). The napi crate
+remains as an internal acceleration path for the CLI only; no npm
+publication, no per-consumer embedding.
 
-Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
+Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
+(Rust scanner authoritative) and
+[ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
+(surface drivers supersede napi cutover).
 
 ## Background
 
@@ -52,42 +58,50 @@ Authoritative ADR: [ADR-026](../decisions/026-rust-scanner-authoritative.md).
 - The VSCode extension at `packages/vscode-extension/` imports it for
   in-editor diagnostics.
 - The MCP server at `packages/mcp-server/` imports it for tool calls.
-- `napi-rs` is the standard way to expose Rust functions to Node with
-  prebuilt per-platform binaries; Anvil already ships native binaries
-  per-platform so the distribution story is compatible.
+- `napi-rs` was the originally-planned bridge. TSRET-001 landed the
+  spike and TSRET-002 landed the prebuild matrix; both are retained,
+  but per ADR-030 the binding now serves the CLI only (not editor or
+  MCP consumers). The `"private": true` crate flag stays and no npm
+  publication is planned.
 - Dependency: SPG must land first, or at minimum SPG-001..003, so the
   Rust engine actually runs every default rule before the TS path is
-  removed.
+  removed. SPG is now Complete (6/6), so this dependency is satisfied.
 
 ## Scope
 
 **In scope:**
 
-- `napi-rs` binding crate exposing `scan_artifact` and related surface
-- Platform prebuilds for every platform VSCode + MCP must run on
-  (Linux x64/arm64, macOS x64/arm64, Windows x64)
-- Replacing the TS scanner invocation in the VSCode extension and MCP
-  server with the napi binding
+- `napi-rs` binding crate exposing `scan_artifact_json` and pattern
+  registry getters — *retained* as CLI-internal acceleration (TSRET-001
+  Complete, TSRET-002 scope-reduced; see the per-work-item notes below).
 - Deleting `packages/anvil/core/src/antipattern/scanner.ts`,
-  `registry-loader.ts`, and supporting TS files
-- Retiring the TS half of `tests/scanner-parity/`
-- Documentation updates reflecting the now-single-engine state
+  `registry-loader.ts`, and supporting TS files (TSRET-005, now
+  blocks on DRVR-003 / DRVR-004).
+- Retiring the TS half of `tests/scanner-parity/`.
+- Documentation updates reflecting the now-single-engine state.
+
+**Moved to DRVR (per ADR-030):**
+
+- Cutting VSCode and MCP over to a Rust-backed scanner. Those
+  consumers become drivers on the intercept daemon; see
+  `plans/modules/surface-drivers.aps.md`.
 
 **Out of scope:**
 
-- Further scanner feature work (lives in SPG or a successor module)
+- Further scanner feature work (lives in SPG or a successor module).
 - Replacing other TS engine code beyond the antipattern scanner
-  (e.g. gate runner, provenance) — separate modules
+  (e.g. gate runner, provenance) — separate modules.
 
 ## Interfaces
 
 **Depends on:**
 
-- `anvil-scanner-parity-gaps` (SPG-001..003 at minimum — cannot retire
-  the TS engine while it's the only engine that fires 6 default rules)
-- `crates/anvil-checks/` — Rust scanner surface to expose
-- `packages/vscode-extension/`, `packages/mcp-server/` — consumers
-- `packages/anvil/core/src/antipattern/` — being retired
+- `anvil-scanner-parity-gaps` (SPG, Complete — dependency satisfied).
+- `crates/anvil-checks/` — Rust scanner surface used by the napi
+  binding and by the daemon.
+- **DRVR-003 and DRVR-004** — TSRET-005 (delete TS scanner) waits for
+  these before executing, per ADR-030.
+- `packages/anvil/core/src/antipattern/` — being retired.
 
 **Exposes:**
 

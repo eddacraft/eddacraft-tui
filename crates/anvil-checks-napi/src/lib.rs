@@ -156,27 +156,48 @@ pub fn version() -> &'static str {
 /// That inconsistency is inherited from the core types; aligning it is
 /// tracked separately — changing it here would break the TS consumer
 /// parity the wrapper depends on.
+///
+/// Wrapped in `catch_unwind` to match `scan_artifact_json` — the first
+/// call to `get_default_patterns_rust` forces `LazyLock` initialisation
+/// of the registry, which can panic on a malformed `.anvil` source
+/// tree. Without the guard a panic would abort the host Node process.
 #[napi]
 pub fn get_default_patterns_json() -> Result<String> {
-    let patterns = get_default_patterns_rust();
-    serde_json::to_string(&patterns)
-        .map_err(|e| Error::new(Status::GenericFailure, format!("serialise patterns: {e}")))
+    catch_unwind(AssertUnwindSafe(|| {
+        let patterns = get_default_patterns_rust();
+        serde_json::to_string(&patterns)
+            .map_err(|e| Error::new(Status::GenericFailure, format!("serialise patterns: {e}")))
+    }))
+    .map_err(|payload| {
+        let msg = panic_message(&payload);
+        Error::new(Status::GenericFailure, format!("pattern registry panicked: {msg}"))
+    })?
 }
 
 /// Look up a single pattern by id. Returns `null` on the JS side (via
 /// `Option<String>`) when the id is unknown, rather than throwing — the
 /// TS consumer's surface is `getPattern(id): AntiPattern | undefined`,
 /// and a miss is a normal negative result, not an error.
+///
+/// Wrapped in `catch_unwind` for the same reason as
+/// `get_default_patterns_json`: the underlying registry load can
+/// panic on first access and we must not abort the host Node process.
 //
 // `String` over `&str` matches the napi-rs idiom for JS-string args — see
 // the same allow on `scan_artifact_json`.
 #[allow(clippy::needless_pass_by_value)]
 #[napi]
 pub fn get_pattern_json(id: String) -> Result<Option<String>> {
-    let Some(pattern) = get_pattern_rust(&id) else {
-        return Ok(None);
-    };
-    serde_json::to_string(&pattern)
-        .map(Some)
-        .map_err(|e| Error::new(Status::GenericFailure, format!("serialise pattern: {e}")))
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(pattern) = get_pattern_rust(&id) else {
+            return Ok(None);
+        };
+        serde_json::to_string(&pattern)
+            .map(Some)
+            .map_err(|e| Error::new(Status::GenericFailure, format!("serialise pattern: {e}")))
+    }))
+    .map_err(|payload| {
+        let msg = panic_message(&payload);
+        Error::new(Status::GenericFailure, format!("pattern registry panicked: {msg}"))
+    })?
 }

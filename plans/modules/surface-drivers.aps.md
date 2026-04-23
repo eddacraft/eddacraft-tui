@@ -50,9 +50,11 @@ execute because no surface imports scanner code.
 
 - Editor driver (VSCode extension) cut over from
   `@eddacraft/anvil-core/antipattern` to a JSON-RPC client of the
-  daemon. LSP for the parts the protocol covers (`textDocument/diagnostic`,
-  `textDocument/codeAction`); custom Anvil extensions for what it
-  doesn't (suppression state, gate results, nudge metadata).
+  daemon. LSP for the parts the protocol covers
+  (`textDocument/publishDiagnostics` — push model, matches the daemon's
+  telemetry-lane event emission; `textDocument/codeAction`); custom
+  Anvil extensions for what it doesn't (suppression state, gate
+  results, nudge metadata).
 - MCP driver: the MCP server's `check.tool.ts`, `fix.tool.ts`,
   `gate.tool.ts`, and related surfaces re-implemented as JSON-RPC
   callers against the daemon. Existing MCP wire contract with agents
