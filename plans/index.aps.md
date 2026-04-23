@@ -261,14 +261,14 @@ when specific work is identified.
 | [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md) | FLAGM | 6/6 | FLAGS (complete), BAUTH, DOCSAUTH, RCLI — **Complete** |
 | [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | 0/6 | FLAGS (complete), FLAGM (complete) — **Draft** |
 | [check-language-and-onboarding](./archive/modules/check-language-and-onboarding.aps.md) | CLAR | 9/9 | discovery and alignment complete; `CLAR-006` -> `QLRUN-001`, `CLAR-007` -> `QLODX-001`, `CLAR-008` -> `QLODX-002` — **Complete** |
-| [quality-language-runtime-alignment](./modules/quality-language-runtime-alignment.aps.md) | QLRUN | 1/1 | CLAR (complete), rust-cli runtime/config surfaces — **Complete** |
+| [quality-language-runtime-alignment](./archive/modules/quality-language-runtime-alignment.aps.md) | QLRUN | 1/1 | CLAR (complete), rust-cli runtime/config surfaces — **Complete** |
 | [quality-language-onboarding-and-docs](./modules/quality-language-onboarding-and-docs.aps.md) | QLODX | 0/2 | QLRUN, welcome/tutorial/docs surfaces — **Ready** |
-| [notification-framework](./modules/notification-framework.aps.md) | NOTIFY | 9/9 | CLAR, INTD, current CLI/TUI surfaces — **Complete** (doctor/audit alignment, shared TUI `NotificationSource`, telemetry contract, intercept integration spec) |
+| [notification-framework](./archive/modules/notification-framework.aps.md) | NOTIFY | 9/9 | CLAR, INTD, current CLI/TUI surfaces — **Complete** (doctor/audit alignment, shared TUI `NotificationSource`, telemetry contract, intercept integration spec) |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md) | CMDSH | 4/4 | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete** |
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 9/20 | docs-site, feature modules — **In Progress** (Rust migration phase complete; 11 scanner/future items deferred) |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 9/20 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; 11 Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 

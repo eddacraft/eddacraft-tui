@@ -113,7 +113,7 @@ differ from preflight gate evaluation and live interruption.
 - **Expected Outcome:** The design note defines shared finding semantics and the
   distinction between preflight gate judgement and live enforcement decisions
 - **Files:** `plans/specs/`, `docs/architecture/quality-model.md`,
-  `plans/modules/notification-framework.aps.md`
+  `plans/archive/modules/notification-framework.aps.md`
 - **Dependencies:** CMDSH-002
 - **Validation:** Design note includes finding/judgement mapping and escalation
   rules
