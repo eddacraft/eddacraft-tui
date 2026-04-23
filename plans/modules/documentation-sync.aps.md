@@ -7,9 +7,9 @@ See: plans/aps-rules.md
 
 # Documentation Sync
 
-| ID      | Owner | Status      |
-| ------- | ----- | ----------- |
-| DOCSYNC | —     | In Progress (9/10 Rust-migration phase; Future items deferred) |
+| ID      | Owner | Status      | Progress |
+| ------- | ----- | ----------- | -------- |
+| DOCSYNC | —     | In Progress | 9/20 (Rust-migration phase 9/10; Future 0/4 Draft; Scanner / Two-Engine 0/6 Draft) |
 
 ## Purpose
 
