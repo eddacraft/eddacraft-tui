@@ -11,11 +11,11 @@ anvil uses two configuration files and CLI flags for runtime options.
 
 ## Configuration Files
 
-| File                       | Purpose                                        |
-| -------------------------- | ---------------------------------------------- |
-| `.anvilrc`                 | Project-level settings (checks, format, paths) |
+| File                       | Purpose                                         |
+| -------------------------- | ----------------------------------------------- |
+| `.anvilrc`                 | Project-level settings (checks, format, paths)  |
 | `.anvil/gate-config.json`  | Checks used by `anvil gate` and gate thresholds |
-| `.anvil/architecture.yaml` | Architecture layer and boundary definitions    |
+| `.anvil/architecture.yaml` | Architecture layer and boundary definitions     |
 
 ## `.anvilrc`
 
@@ -93,9 +93,9 @@ the broader gate run, including build-and-CI checks such as `lint`, `test`,
 
 For the shared Anvil analysis checks, `gate-config` uses the same canonical
 names shown in init and `.anvilrc`. Use `secret-detection` and
-`import-boundaries`, not older internal names.
-Legacy aliases like `secret` and `architecture` are accepted for compatibility,
-but Anvil normalises them to the canonical names above.
+`import-boundaries`, not older internal names. Legacy aliases like `secret` and
+`architecture` are accepted for compatibility, but Anvil normalises them to the
+canonical names above.
 
 :::
 
