@@ -21,6 +21,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 walkdir = { workspace = true }
+globset = { workspace = true }
 rayon = { workspace = true }
 num_cpus = { workspace = true }
 workspace-hack.workspace = true

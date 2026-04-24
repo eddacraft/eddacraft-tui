@@ -32,11 +32,14 @@ pub struct WatchArgs {
     #[arg(long)]
     all: bool,
 
-    /// Glob patterns to watch (comma-separated)
+    /// Glob patterns to watch (comma-separated, e.g. "src/**/*.ts,lib/**/*.ts").
+    /// Empty = watch everything that passes the built-in denylist.
     #[arg(long)]
     patterns: Option<String>,
 
-    /// Directory names to exclude (comma-separated, e.g. "vendor,tmp")
+    /// Glob patterns to exclude (comma-separated, e.g. "vendor/**,**/*.test.ts").
+    /// Bare directory names like "vendor" only match the directory itself —
+    /// use "vendor/**" to exclude its contents.
     #[arg(long)]
     exclude: Option<String>,
 
@@ -60,8 +63,9 @@ const SOURCE_PATTERNS: &[&str] = &[
     "crates/**/*.rs",
 ];
 
-// Default excludes are handled by FileFilter::default_patterns() in the kernel.
-// CLI --exclude adds to those defaults via build_filter().
+// FileFilter owns the hardcoded internal denylist (node_modules, .git, …).
+// User --patterns / --exclude are glob filters applied separately by the
+// kernel's WatchPatternFilter — they no longer extend FileFilter.
 
 #[derive(Debug, Serialize)]
 struct WatchEvent {
@@ -146,24 +150,12 @@ fn resolve_watch_root(workspace_root: &std::path::Path, file_arg: Option<&str>) 
     }
 }
 
-/// Build a `FileFilter` from CLI patterns and exclude args.
-fn build_filter(exclude: &[String]) -> anvil_kernel::watcher::filter::FileFilter {
-    if exclude.is_empty() {
-        anvil_kernel::watcher::filter::FileFilter::default()
-    } else {
-        let mut patterns = anvil_kernel::watcher::filter::FileFilter::default_patterns();
-        for ex in exclude {
-            let cleaned = ex.trim_end_matches('/').trim_end_matches("/**");
-            let cleaned = std::path::Path::new(cleaned)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(cleaned);
-            if !patterns.iter().any(|p| p == cleaned) {
-                patterns.push(cleaned.to_string());
-            }
-        }
-        anvil_kernel::watcher::filter::FileFilter::new(patterns)
-    }
+/// The internal `FileFilter` (denylist + parseable-extension gate) is now
+/// independent of the user's `--patterns` / `--exclude` flags — those are
+/// globs handled by the kernel's `WatchPatternFilter`. We keep this helper
+/// as a thin alias so call-sites stay legible.
+fn build_filter() -> anvil_kernel::watcher::filter::FileFilter {
+    anvil_kernel::watcher::filter::FileFilter::default()
 }
 
 /// Validate the `--action` argument.
@@ -260,11 +252,15 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             .collect()
     };
 
-    // Build exclude patterns and create file filter
+    // Exclude globs are applied by the kernel's WatchPatternFilter — they
+    // no longer extend the internal FileFilter denylist. The internal
+    // denylist (node_modules, .git, target, …) stays in place via
+    // build_filter(); user-supplied excludes are passed through as
+    // WatchConfig.exclude_patterns below.
     let exclude: Vec<String> = args.exclude.as_ref().map_or_else(Vec::new, |s| {
         s.split(',').map(|s| s.trim().to_string()).collect()
     });
-    let filter = build_filter(&exclude);
+    let filter = build_filter();
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
     let arch_config = if arch_config_path.exists() {
@@ -516,21 +512,12 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn build_filter_includes_extra_excludes() {
-        let filter = build_filter(&["vendor".to_string(), "tmp".to_string()]);
-        assert!(filter.should_ignore(std::path::Path::new("vendor/lib.ts")));
-        assert!(filter.should_ignore(std::path::Path::new("tmp/scratch.ts")));
-        // Default excludes still work
-        assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
-    }
-
-    #[test]
-    fn build_filter_dedup_existing_default() {
-        let filter = build_filter(&["node_modules".to_string()]);
-        // Should still work — no duplicate panic or double-entry
-        assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
-    }
+    // The previous tests that exercised --exclude extending the internal
+    // FileFilter denylist were removed in LAUNCH-001: --exclude is now a
+    // user-glob path, applied by the kernel's WatchPatternFilter, and no
+    // longer touches the internal denylist. Coverage moved to
+    // crates/anvil-kernel/src/watcher/pattern.rs (unit) and
+    // crates/anvil-kernel/tests/watch_pattern_filter.rs (integration).
 
     #[test]
     fn resolve_watch_root_rejects_nonexistent_traversal() {
@@ -583,14 +570,6 @@ mod tests {
             cmd.get_current_dir(),
             Some(std::path::Path::new("/my/project"))
         );
-    }
-
-    #[test]
-    fn build_filter_sanitises_deep_paths() {
-        let filter = build_filter(&["apps/foo/vendor".to_string()]);
-        assert!(filter.should_ignore(std::path::Path::new("vendor/lib.ts")));
-        // Full deep path also matches because FileFilter checks each component
-        assert!(filter.should_ignore(std::path::Path::new("apps/foo/vendor/lib.ts")));
     }
 
     // The concurrency guard (action_running/action_pending AtomicBool pair) is
@@ -666,12 +645,12 @@ mod tests {
         assert!(!json.contains("\"eventType\""));
     }
 
-    // --- build_filter with empty excludes ---
+    // --- build_filter ---
 
     #[test]
-    fn build_filter_empty_excludes_returns_default() {
-        let filter = build_filter(&[]);
-        // Default filter should still ignore standard dirs like node_modules
+    fn build_filter_returns_default_denylist() {
+        let filter = build_filter();
+        // Default filter still ignores standard dirs like node_modules
         assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
         // But not arbitrary dirs
         assert!(!filter.should_ignore(std::path::Path::new("src/main.rs")));

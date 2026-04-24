@@ -1035,6 +1035,7 @@ version = "0.3.3-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-kernel-types",
+ "globset",
  "notify",
  "num_cpus",
  "petgraph",

@@ -171,7 +171,7 @@ new primitive, this module follows three rules:
 - **Confidence:** low — the working scope is a feature build, not a
   wire-up; total cost depends on the glob engine choice and how the
   user-pattern path interacts with the existing internal denylist.
-- **Status:** Todo
+- **Status:** Complete
 
 ---
 

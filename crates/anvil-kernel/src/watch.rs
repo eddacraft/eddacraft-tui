@@ -20,6 +20,7 @@ use crate::policy::invariants::public_api::PublicApiExpansion;
 use crate::protocol::emitter::EventEmitter;
 use crate::watcher::events::ChangeKind;
 use crate::watcher::filter::FileFilter;
+use crate::watcher::pattern::{PatternError, WatchPatternFilter};
 use crate::watcher::{WatcherConfig, start_watcher};
 
 static POOL_INIT: std::sync::Once = std::sync::Once::new();
@@ -37,6 +38,8 @@ pub enum WatchError {
     ConfigParse(#[from] serde_yaml::Error),
     #[error("watcher error: {0}")]
     Watcher(#[from] crate::watcher::WatcherError),
+    #[error("invalid watch pattern: {0}")]
+    Pattern(#[from] PatternError),
     #[error("watch loop terminated unexpectedly")]
     ThreadPanicked,
 }
@@ -45,13 +48,13 @@ pub struct WatchConfig {
     pub root: PathBuf,
     pub architecture_config: Option<PathBuf>,
     pub watcher: WatcherConfig,
-    /// Include glob patterns. These are currently wired through on
-    /// `WatchConfig` but are not yet consumed by the watch loop, so they
-    /// do not affect which files trigger re-evaluation.
+    /// User-supplied include glob patterns. Empty = include everything.
+    /// Compiled into a `WatchPatternFilter` at `run_watch` start.
+    /// Distinct from `WatcherConfig.filter`, which owns the hardcoded
+    /// internal denylist (`node_modules`, `.git`, `target`, …).
     pub include_patterns: Vec<String>,
-    /// Exclude glob patterns. These are also wired through but are not yet
-    /// enforced by the watch loop, so matching files are not currently
-    /// skipped based on this filter.
+    /// User-supplied exclude glob patterns. Empty = exclude nothing.
+    /// Takes precedence over `include_patterns` when both match.
     pub exclude_patterns: Vec<String>,
 }
 
@@ -102,6 +105,7 @@ impl WatchState {
 fn initial_scan(
     root: &Path,
     filter: &FileFilter,
+    pattern_filter: &WatchPatternFilter,
     arch_config: &ArchitectureConfig,
     state: &mut WatchState,
     emitter: &EventEmitter,
@@ -114,7 +118,10 @@ fn initial_scan(
         .into_iter()
         .filter_map(|r| match r {
             Ok(e) => {
-                if e.file_type().is_file() && filter.should_process(e.path()) {
+                if e.file_type().is_file()
+                    && filter.should_process(e.path())
+                    && pattern_matches(pattern_filter, root, e.path())
+                {
                     Some(e.path().to_path_buf())
                 } else {
                     None
@@ -261,6 +268,7 @@ fn evaluate_baseline(
 fn watch_loop(
     root: &Path,
     batch_rx: &mpsc::Receiver<crate::watcher::events::ChangeBatch>,
+    pattern_filter: &WatchPatternFilter,
     arch_config: &ArchitectureConfig,
     state: &mut WatchState,
     emitter: &EventEmitter,
@@ -274,6 +282,14 @@ fn watch_loop(
         };
 
         for change in &batch.changes {
+            // Drop events that don't pass the user's --patterns / --exclude
+            // filter. We still want delete events for tracked files so the
+            // graph can clean up — those are checked in `process_change`.
+            if change.kind != ChangeKind::Removed
+                && !pattern_matches(pattern_filter, root, &change.path)
+            {
+                continue;
+            }
             // Isolate per-change work so a panic in parse/extract/evaluate
             // surfaces as an error event and the loop keeps draining events
             // instead of silently terminating the watch thread.
@@ -399,6 +415,17 @@ fn process_change(
     }
 }
 
+/// Apply the user's pattern filter to a path, computing the
+/// repo-relative form first because globs like `src/**/*.ts` are
+/// always written relative to the workspace root.
+fn pattern_matches(filter: &WatchPatternFilter, root: &Path, path: &Path) -> bool {
+    if filter.is_noop() {
+        return true;
+    }
+    let rel = path.strip_prefix(root).unwrap_or(path);
+    filter.matches(rel)
+}
+
 fn panic_message(panic: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = panic.downcast_ref::<&'static str>() {
         (*s).to_string()
@@ -429,6 +456,8 @@ pub fn run_watch(
     };
 
     let filter = config.watcher.filter.clone().unwrap_or_default();
+    let pattern_filter =
+        WatchPatternFilter::new(&config.include_patterns, &config.exclude_patterns)?;
     let mut watcher_config = config.watcher.clone();
     watcher_config.root.clone_from(&config.root);
     let (watcher, batch_rx, setup_diagnostics) = start_watcher(&watcher_config)?;
@@ -469,6 +498,7 @@ pub fn run_watch(
         initial_scan(
             &root,
             &filter,
+            &pattern_filter,
             &arch_config,
             &mut state,
             &emitter,
@@ -477,6 +507,7 @@ pub fn run_watch(
         watch_loop(
             &root,
             &batch_rx,
+            &pattern_filter,
             &arch_config,
             &mut state,
             &emitter,
