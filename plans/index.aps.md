@@ -137,7 +137,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-cli](./archive/modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
-| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | Draft | 0/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
+| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 1/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |

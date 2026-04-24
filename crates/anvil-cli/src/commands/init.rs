@@ -9,6 +9,11 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::commands::defaults::{default_available_checks, default_check_names};
+use crate::output::plain;
+use crate::services::sample_analyser::{
+    self, AnalysisOutcome, SampleSource, run_post_init_analysis,
+};
+use anvil_checks::antipattern::WarningSeverity;
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -118,6 +123,7 @@ fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
     generate_config_with_force(&config, &init_root, force)?;
     print_success(&config.planning_dir, &checks);
     print_capacity_recommendation(&init_root);
+    print_post_init_analysis(&init_root);
     Ok(())
 }
 
@@ -126,7 +132,88 @@ fn run_plain(root: &Path, force: bool) -> anyhow::Result<()> {
     generate_config_with_force(&config, root, force)?;
     print_success(&config.planning_dir, &config.checks);
     print_capacity_recommendation(root);
+    print_post_init_analysis(root);
     Ok(())
+}
+
+/// Run the post-init sample analysis (LAUNCH-004) and render an inline
+/// summary so the user lands on a real first signal of value instead of
+/// a "now run `anvil doctor`" stub. Silent if no analysable files were
+/// found — an empty repo should not get a misleading "0 warnings" block.
+fn print_post_init_analysis(root: &Path) {
+    let Some(outcome) = run_post_init_analysis(root) else {
+        return;
+    };
+    render_analysis(&outcome);
+}
+
+fn render_analysis(outcome: &AnalysisOutcome) {
+    plain::blank();
+    plain::section("First scan");
+
+    let source_label = match outcome.source {
+        SampleSource::GitHistory => "from recent git history",
+        SampleSource::RepoWalk => "sampled from project tree",
+        // `Empty` is filtered before reaching here — guard rather than panic.
+        SampleSource::Empty => "no files matched",
+    };
+    plain::dim(&format!(
+        "Scanned {} file(s) ({source_label}) in {}ms",
+        outcome.files_scanned,
+        outcome.elapsed.as_millis()
+    ));
+
+    if outcome.exceeded_budget {
+        plain::dim(&format!(
+            "Note: scan took longer than the {}s soft budget — large samples may be trimmed in a future release.",
+            sample_analyser::ANALYSIS_TIME_BUDGET.as_secs()
+        ));
+    }
+
+    plain::blank();
+    let s = &outcome.summary;
+    if s.total == 0 {
+        plain::success("No warnings found in this sample.");
+        plain::dim("Run `anvil check --all` to scan the whole project.");
+        plain::blank();
+        return;
+    }
+
+    plain::label("Total", s.total);
+    if s.errors > 0 {
+        plain::label("Errors", s.errors);
+    }
+    if s.warnings > 0 {
+        plain::label("Warnings", s.warnings);
+    }
+    if s.info > 0 {
+        plain::label("Info", s.info);
+    }
+    if s.suppressed > 0 {
+        plain::label("Suppressed", s.suppressed);
+    }
+
+    if !outcome.top_warnings.is_empty() {
+        plain::blank();
+        plain::dim("Top findings:");
+        for w in &outcome.top_warnings {
+            let icon = severity_icon(w.severity);
+            plain::item(icon, &format!("[{}] {}", w.id, w.title));
+            plain::dim(&format!("{}:{}", w.file, w.line));
+        }
+    }
+
+    plain::blank();
+    plain::dim("Run `anvil check --all` for the full report.");
+    plain::blank();
+}
+
+const fn severity_icon(severity: WarningSeverity) -> &'static str {
+    match severity {
+        WarningSeverity::Error => "\u{2717}",
+        WarningSeverity::Warning => "\u{26a0}",
+        WarningSeverity::Info => "\u{2139}",
+    }
 }
 
 /// Surface a one-shot recommendation when the host's inotify headroom is
@@ -244,7 +331,6 @@ fn print_success(planning_dir: &str, checks: &[String]) {
     println!("  Config:    .anvilrc");
     println!("  Plans:     {planning_dir}/");
     println!("  Checks:    {}", checks.join(", "));
-    println!("Run `anvil doctor` to verify your setup.");
     println!();
 }
 

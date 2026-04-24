@@ -10,9 +10,9 @@ See: plans/aps-rules.md
 
 # Launch Flow Readiness
 
-| ID     | Owner | Status |
-| ------ | ----- | ------ |
-| LAUNCH | —     | Draft  |
+| ID     | Owner | Status      |
+| ------ | ----- | ----------- |
+| LAUNCH | —     | In Progress |
 
 ## Purpose
 
@@ -238,7 +238,7 @@ new primitive, this module follows three rules:
 - **Validation:** Integration test against a temp repo asserts that
   `anvil init --force` exits with sample-analysis output present.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete
 
 ---
 
