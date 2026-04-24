@@ -446,25 +446,32 @@ fn process_change(
 ///
 /// On platforms where the watcher emits paths via a different prefix
 /// than the configured root (notably macOS, where `/tmp` resolves to
-/// `/private/tmp` via a symlink), `strip_prefix` against the raw root
-/// would always fail and the absolute path would be silently matched
-/// against repo-relative globs (i.e. nothing would ever match). The
-/// caller passes a *canonicalised* root so the prefix comparison
-/// accepts whatever notify produces; if the path still cannot be made
-/// relative, the file lives outside the workspace and is dropped from
-/// any non-noop filter.
+/// `/private/tmp` via a symlink), a raw `strip_prefix` would fail and
+/// the absolute path would be silently matched against repo-relative
+/// globs (i.e. nothing would ever match). To stay correct without
+/// paying a syscall per event, we try `strip_prefix(canonical_root)`
+/// on the raw path first — that succeeds for paths produced by
+/// `initial_scan` (already under the canonical root) and for any
+/// notify event whose prefix happens to match. Only when that fails
+/// do we fall back to canonicalising the path itself. If the path
+/// still cannot be made relative after that, the file lives outside
+/// the workspace and is dropped from any non-noop filter.
 fn pattern_matches(filter: &WatchPatternFilter, canonical_root: &Path, path: &Path) -> bool {
     if filter.is_noop() {
         return true;
     }
-    let canon = path.canonicalize();
-    let candidate = canon.as_deref().unwrap_or(path);
-    match candidate.strip_prefix(canonical_root) {
-        Ok(rel) => filter.matches(rel),
-        // Path lives outside the workspace root after canonicalisation.
-        // A user pattern is repo-relative, so we cannot meaningfully
-        // match it — drop the event rather than fall back to matching
-        // an absolute path against a relative-style glob.
+    if let Ok(rel) = path.strip_prefix(canonical_root) {
+        return filter.matches(rel);
+    }
+    match path.canonicalize() {
+        Ok(canon) => match canon.strip_prefix(canonical_root) {
+            Ok(rel) => filter.matches(rel),
+            // Path lives outside the workspace root after canonicalisation.
+            // A user pattern is repo-relative, so we cannot meaningfully
+            // match it — drop the event rather than fall back to matching
+            // an absolute path against a relative-style glob.
+            Err(_) => false,
+        },
         Err(_) => false,
     }
 }
@@ -501,21 +508,24 @@ pub fn run_watch(
     let filter = config.watcher.filter.clone().unwrap_or_default();
     let pattern_filter =
         WatchPatternFilter::new(&config.include_patterns, &config.exclude_patterns)?;
-    let mut watcher_config = config.watcher.clone();
-    watcher_config.root.clone_from(&config.root);
-    let (watcher, batch_rx, setup_diagnostics) = start_watcher(&watcher_config)?;
-
-    let stop = Arc::new(AtomicBool::new(false));
-    let stop_clone = Arc::clone(&stop);
-    // Canonicalise the watch root so user-pattern matching is robust
-    // against symlink prefixes the OS watcher might emit (macOS notably
-    // resolves /tmp through /private/tmp). Falls back to the raw root
-    // when canonicalise fails so we don't lose existing platforms where
-    // it would have worked.
+    // Canonicalise the watch root once and use the same form for both
+    // the OS watcher and downstream path comparisons. Without this, the
+    // watcher would register against the raw root (e.g. /tmp/...) while
+    // the rest of the loop strips a canonicalised prefix (e.g.
+    // /private/tmp/... on macOS), forcing per-event canonicalisation
+    // and making behaviour depend on which form notify happens to emit.
+    // Falls back to the raw root when canonicalise fails so we don't
+    // lose existing platforms where it would have worked.
     let root = config
         .root
         .canonicalize()
         .unwrap_or_else(|_| config.root.clone());
+    let mut watcher_config = config.watcher.clone();
+    watcher_config.root.clone_from(&root);
+    let (watcher, batch_rx, setup_diagnostics) = start_watcher(&watcher_config)?;
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_clone = Arc::clone(&stop);
 
     let thread = thread::spawn(move || {
         let emitter = EventEmitter::new(event_tx, EngineId::Rust);

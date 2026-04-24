@@ -272,11 +272,17 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     //   --plans + --source  → both
     //   --patterns "..."    → use those verbatim
     //
+    // --all is checked first so it stays "watch everything" even when
+    // combined with the narrower flags — without this, `--all --plans`
+    // would silently scope to planning docs.
+    //
     // Previously the no-flag and bare --plans cases both sent
     // DEFAULT_WATCH_PATTERNS, which silently restricted `anvil watch`
     // to planning docs and dropped every source-file event before it
     // ever reached the policy engine.
-    let patterns: Vec<String> = if let Some(ref p) = args.patterns {
+    let patterns: Vec<String> = if args.all {
+        Vec::new()
+    } else if let Some(ref p) = args.patterns {
         p.split(',').map(|s| s.trim().to_string()).collect()
     } else if args.source && args.plans {
         DEFAULT_WATCH_PATTERNS
@@ -292,7 +298,6 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             .map(ToString::to_string)
             .collect()
     } else {
-        // --all and bare-no-flags share the broad default.
         Vec::new()
     };
 
@@ -736,7 +741,9 @@ mod tests {
 
     fn collect_patterns(args: &[&str]) -> Vec<String> {
         let w = Wrapper::try_parse_from(args).unwrap();
-        if let Some(ref p) = w.inner.patterns {
+        if w.inner.all {
+            Vec::new()
+        } else if let Some(ref p) = w.inner.patterns {
             p.split(',').map(|s| s.trim().to_string()).collect()
         } else if w.inner.source && w.inner.plans {
             DEFAULT_WATCH_PATTERNS
@@ -752,7 +759,6 @@ mod tests {
                 .map(ToString::to_string)
                 .collect()
         } else {
-            // --all and bare-no-flags share the broad default.
             Vec::new()
         }
     }
@@ -806,5 +812,23 @@ mod tests {
             .map(ToString::to_string)
             .collect();
         assert_eq!(patterns, expected);
+    }
+
+    #[test]
+    fn pattern_selection_all_overrides_narrower_flags() {
+        // --all is "watch everything" — combining it with --plans,
+        // --source, or --patterns must not silently narrow scope.
+        for combo in [
+            vec!["test", "--all", "--plans"],
+            vec!["test", "--all", "--source"],
+            vec!["test", "--all", "--plans", "--source"],
+            vec!["test", "--all", "--patterns", "src/**/*.ts"],
+        ] {
+            let patterns = collect_patterns(&combo);
+            assert!(
+                patterns.is_empty(),
+                "{combo:?} should keep --all's broad scope, got {patterns:?}"
+            );
+        }
     }
 }
