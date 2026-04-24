@@ -493,9 +493,9 @@ Maps to DRVR work items:
 
 | Step | Work item | Blocks on |
 |------|-----------|-----------|
-| Shared client library | DRVR-001 | INTD-004 stable IPC surface |
+| Shared client library | DRVR-001 | INTD-002 stable IPC surface |
 | Protocol spec + contracts | DRVR-002 | DRVR-001, this doc, operations review |
-| Editor driver cutover | DRVR-003 | DRVR-002, INTD-010 violation stream |
+| Editor driver cutover | DRVR-003 | DRVR-002, INTD-013 violation stream (telemetry mirror) |
 | MCP driver cutover | DRVR-004 | DRVR-002, INTD rule-evaluation RPC |
 | Docs + cross-links | DRVR-005 | DRVR-003 and DRVR-004 complete |
 

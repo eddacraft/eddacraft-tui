@@ -293,16 +293,15 @@ crates/
 
 #### Phase 5 — Daemon Mode [SUPERSEDED by INTD — ADR-030, 2026-04-24]
 
-| ID       | Description                              | Superseded by |
-| -------- | ---------------------------------------- | ------------- |
-| KERN-050 | Unix socket transport (JSON-RPC 2.0)     | INTD-002 (IPC Listener in `anvil-intercept`) |
-| KERN-051 | Session management + client multiplexing | INTD-002 + INTD-013 (telemetry mirror) |
-| KERN-052 | Graceful shutdown + state persistence    | INTD-003 (Session Registry) |
+| ID       | Description                         | Superseded by                                |
+| -------- | ----------------------------------- | -------------------------------------------- |
+| KERN-050 | Unix domain socket transport        | INTD-002 (IPC Listener in `anvil-intercept`) |
+| KERN-051 | JSON-RPC protocol + notifications   | INTD-002 + INTD-013 (telemetry mirror)       |
+| KERN-052 | Session management + client fan-out | INTD-003 (Session Registry)                  |
 
-The intercept daemon (`crates/anvil-intercept`) hosts the kernel
-in-process and owns the daemon-mode IPC surface. See
-`plans/archive/modules/rust-kernel.aps.md` Phase 5 supersession note
-and ADR-030 for the decision chain.
+The intercept daemon (`crates/anvil-intercept`) hosts the kernel in-process and
+owns the daemon-mode IPC surface. See `plans/archive/modules/rust-kernel.aps.md`
+Phase 5 supersession note and ADR-030 for the decision chain.
 
 ---
 
@@ -664,10 +663,9 @@ longer required to run the CLI.
 - Installed via `curl | sh` or GitHub Releases
 - Node.js `@eddacraft/anvil-cli` package deprecated
 - Ink TUI removed; Ratatui is the only TUI
-- The 3 remaining KERN items (KERN-050–052, Phase 5 daemon-mode)
-  are superseded by INTD per ADR-030: the intercept daemon hosts the
-  kernel in-process and owns the daemon-mode IPC surface, so a
-  parallel kernel-owned transport is not built
+- The 3 remaining KERN items (KERN-050–052, Phase 5 daemon-mode) are superseded
+  by INTD per ADR-030: the intercept daemon hosts the kernel in-process and owns
+  the daemon-mode IPC surface, so a parallel kernel-owned transport is not built
 
 ---
 

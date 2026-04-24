@@ -42,10 +42,12 @@ execute because no surface imports scanner code.
 - The Rust kernel already exposes the scan, graph, and policy surfaces
   the daemon needs (KERN module, 22/25 done). KERN-050/-051/-052
   (Phase 5 daemon-mode items — Unix socket, JSON-RPC protocol, client
-  session management) are **superseded by INTD-002 and INTD-003**:
-  `anvil-intercept` is the same long-running Rust process the kernel
-  daemon was going to be, so the intercept daemon's IPC surface *is*
-  the stable socket transport this module rides on.
+  session management) are **superseded by INTD-002, INTD-003, and
+  INTD-013** (KERN-050 → INTD-002; KERN-051 → INTD-002 + INTD-013
+  telemetry mirror; KERN-052 → INTD-003): `anvil-intercept` is the
+  same long-running Rust process the kernel daemon was going to be,
+  so the intercept daemon's IPC surface *is* the stable socket
+  transport this module rides on.
 
 ## Scope
 
