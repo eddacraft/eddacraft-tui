@@ -171,6 +171,15 @@ fn render_analysis(outcome: &AnalysisOutcome) {
     }
 
     plain::blank();
+    // Guard: if no files were actually scanned (extension mismatch, unreadable
+    // content, non-UTF8, etc.), "No warnings found" would be misleading.
+    // Mirrors the pattern in `commands/check.rs`.
+    if outcome.files_scanned == 0 {
+        plain::warn("No analysable files found (0 scanned) — skipping first scan.");
+        plain::blank();
+        return;
+    }
+
     let s = &outcome.summary;
     if s.total == 0 {
         plain::success("No warnings found in this sample.");

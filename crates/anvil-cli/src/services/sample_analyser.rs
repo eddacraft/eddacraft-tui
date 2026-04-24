@@ -251,7 +251,14 @@ fn walk_repo_for_sample(
         if !has_matching_extension(&path_str, &config.extensions) {
             continue;
         }
-        files.push(path.to_path_buf());
+        // Canonicalise so `normalise_file_path` can strip the canonical
+        // workspace root prefix consistently with the git-history branch
+        // (which also canonicalises). Without this, a relative caller-supplied
+        // root (e.g. `.`) produces walked paths like `./src/foo.ts` that won't
+        // strip against the absolute canonical workspace root, leaving
+        // un-normalised entries in `TopWarning.file`.
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        files.push(canonical);
         if files.len() >= limit {
             break;
         }
