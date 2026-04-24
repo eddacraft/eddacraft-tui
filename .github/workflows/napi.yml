@@ -20,18 +20,24 @@ name: NAPI
 on:
   push:
     branches: [main, dev]
-    # Per ADR-030 the napi binding is an internal CLI-acceleration path
-    # (not published, not consumer-facing via VSCode / MCP). Scope the
-    # path filter to only what affects the napi crate's compile /
-    # behaviour: the binding itself, anvil-checks Rust sources +
-    # manifest (its direct dependency), and toolchain / workflow
-    # files. Pattern-registry data files, anvil-checks tests/, benches/,
-    # and docs do NOT affect the binding and no longer trigger the
-    # 8-job matrix. Council review X4 (2026-04-24).
+    # Per ADR-030 the napi binding is an internal CLI-acceleration
+    # path (not published, not consumer-facing via VSCode / MCP).
+    # Scope the path filter to what affects the binding's compile
+    # surface (binding + anvil-checks Rust sources + manifest +
+    # toolchain / workflow) *plus* the compiled pattern registry
+    # that `anvil_checks::antipattern::registry_loader` reads at
+    # runtime — registry content changes what
+    # `getDefaultPatternsJson` and `getPatternJson` return, so a
+    # registry-only change must still retrigger the napi canary.
+    # Anvil-checks tests/, benches/, and docs do not affect the
+    # binding and are deliberately excluded. Council review X4
+    # (2026-04-24, refined after copilot pointed out the registry
+    # gap).
     paths:
       - 'crates/anvil-checks-napi/**'
       - 'crates/anvil-checks/src/**'
       - 'crates/anvil-checks/Cargo.toml'
+      - 'patterns/compiled/registry.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -43,6 +49,7 @@ on:
       - 'crates/anvil-checks-napi/**'
       - 'crates/anvil-checks/src/**'
       - 'crates/anvil-checks/Cargo.toml'
+      - 'patterns/compiled/registry.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'

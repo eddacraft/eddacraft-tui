@@ -205,7 +205,18 @@ fn panic_to_error(kind: &str, payload: &Box<dyn std::any::Any + Send>) -> Error 
     } else {
         "<non-string panic payload>".to_string()
     };
-    eprintln!("[anvil-checks-napi] {kind} panicked: {detail}");
+    // Prefix every line separately so multi-line payloads (backtraces,
+    // panic formatters that include file:line context) still carry the
+    // `[anvil-checks-napi] {kind} panicked:` tag on each line. Single
+    // eprintln! with a `\n` inside would produce continuation lines
+    // without the prefix and confuse log aggregators.
+    if detail.is_empty() {
+        eprintln!("[anvil-checks-napi] {kind} panicked:");
+    } else {
+        for line in detail.lines() {
+            eprintln!("[anvil-checks-napi] {kind} panicked: {line}");
+        }
+    }
     Error::new(
         Status::GenericFailure,
         format!("{kind} internal error; see host log for details"),
