@@ -78,7 +78,7 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
-    /// Show Anvil's licence and third-party attribution.
+    /// Show Anvil's acknowledgements and third-party licence attribution.
     Licenses(commands::licenses::LicensesArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),

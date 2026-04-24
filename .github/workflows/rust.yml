@@ -339,8 +339,8 @@ jobs:
       - name: Run cargo deny check
         run: cargo deny check
 
-  about-diff:
-    name: Third-party notices freshness
+  acknowledgements-diff:
+    name: Acknowledgements freshness
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -354,12 +354,10 @@ jobs:
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
         with:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
-      - name: Regenerate notices and fail on drift
+      - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
-          cargo about generate about.hbs -o /tmp/third-party-notices.generated.md
-          if ! diff -q crates/anvil-cli/resources/third-party-notices.md /tmp/third-party-notices.generated.md; then
-            echo "::error::third-party-notices.md is stale. Run 'pnpm run licenses:generate' locally and commit."
-            diff -u crates/anvil-cli/resources/third-party-notices.md /tmp/third-party-notices.generated.md | head -100
+          if ! tools/generate-acknowledgements.sh --check; then
+            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'pnpm run licenses:generate' locally and commit."
             exit 1
           fi
 

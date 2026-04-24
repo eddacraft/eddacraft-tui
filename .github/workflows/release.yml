@@ -378,6 +378,51 @@ jobs:
               --notes-file "$RUNNER_TEMP/notes.txt" \
               artifacts/*
           fi
+      - name: Publish ACKNOWLEDGEMENTS.md to eddacraft/anvil
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          # ACKNOWLEDGEMENTS.md lives in this (private) repo and contains
+          # both the hand-curated thanks section and the auto-generated
+          # third-party licence attribution. Push it to eddacraft/anvil
+          # (public) so the file is visible alongside each release, and
+          # attach it as a release asset for direct download.
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::secrets.ANVIL_RELEASES_TOKEN is required to publish ACKNOWLEDGEMENTS.md."
+            exit 1
+          fi
+
+          if [ ! -f ACKNOWLEDGEMENTS.md ]; then
+            echo "::warning title=Missing ACKNOWLEDGEMENTS.md::File not found at repo root; skipping publish."
+            exit 0
+          fi
+
+          # Upload as a release asset for per-release download link.
+          gh release upload "$RELEASE_TAG" \
+            --repo eddacraft/anvil \
+            --clobber \
+            ACKNOWLEDGEMENTS.md
+
+          # Commit to the public repo's main so it is visible in the GitHub
+          # file browser. Uses the contents API with the existing SHA (if any)
+          # so we update in place rather than creating a parallel file history.
+          CONTENT=$(base64 -w 0 ACKNOWLEDGEMENTS.md)
+          EXISTING_SHA=$(gh api repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --jq '.sha' 2>/dev/null || echo "")
+
+          SHA_ARG=""
+          if [ -n "$EXISTING_SHA" ]; then
+            SHA_ARG="-f sha=$EXISTING_SHA"
+          fi
+
+          gh api \
+            --method PUT \
+            repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md \
+            -f message="chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG" \
+            -f content="$CONTENT" \
+            $SHA_ARG
+
       - name: Promote public release to Latest
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}

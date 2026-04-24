@@ -33,5 +33,7 @@ plans/**
 # Ignore generated JSON schema
 core/src/schema/aps.schema.json
 
-# Ignore generated third-party attribution (cargo-about output; template is about.hbs)
-crates/anvil-cli/resources/third-party-notices.md
+# ACKNOWLEDGEMENTS.md has a hand-curated top section plus an auto-generated
+# attribution block from cargo-about. Ignore the whole file — the template
+# lives in about.hbs.
+ACKNOWLEDGEMENTS.md
