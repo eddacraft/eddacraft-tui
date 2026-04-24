@@ -172,6 +172,12 @@ daemon. The latter is strictly better because:
   [adf-summary](../specs/adf-summary.md)
 - APS modules: **DRVR** (new — supersedes TSRET-003/-004),
   **TSRET** (this ADR adjusts -002 scope and -005 dependencies),
-  **INTD / INTL / INTR** (upstream dependencies), **KERN** (graph +
-  watcher substrate; Phase 5 daemon-mode work items KERN-050..052
-  remain valid and are reused here)
+  **INTD / INTL / INTR** (upstream dependencies — DRVR pins to
+  INTD-002 / -003 / -005 / -013), **KERN** (graph + watcher
+  substrate). **Correction (2026-04-24):** Phase 5 daemon-mode work
+  items KERN-050 / -051 / -052 are *superseded* by INTD-002 /
+  INTD-003, not retained — `anvil-intercept` is the same long-running
+  Rust process the kernel daemon was going to be, so the intercept
+  daemon's IPC surface is the transport this ADR depends on. The
+  archived KERN module now carries a supersession note on those
+  three items.

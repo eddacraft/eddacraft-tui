@@ -130,7 +130,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./archive/modules/rust-kernel.aps.md) | KERN | Complete | 22/25 (3 deferred) | — |
+| [rust-kernel](./archive/modules/rust-kernel.aps.md) | KERN | Complete | 22/25 (3 superseded by INTD per ADR-030 — KERN-050 → INTD-002, KERN-051 → INTD-002+INTD-013, KERN-052 → INTD-003) | — |
 | [rust-core-engine](./archive/modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./archive/modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
@@ -477,7 +477,7 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
-| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/5 | INTD-004/-005/-010, KERN-050, ADR-030 — supersedes TSRET-003/-004 |
+| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/5 | INTD-002/-003/-005/-013, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030) |
 
 **Architecture Decisions:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md), [D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md)
 

@@ -41,8 +41,11 @@ execute because no surface imports scanner code.
   bundling point and the napi crate stays private.
 - The Rust kernel already exposes the scan, graph, and policy surfaces
   the daemon needs (KERN module, 22/25 done). KERN-050/-051/-052
-  (daemon mode, Phase 5, deferred) are upstream dependencies for the
-  stable socket transport this module rides on.
+  (Phase 5 daemon-mode items — Unix socket, JSON-RPC protocol, client
+  session management) are **superseded by INTD-002 and INTD-003**:
+  `anvil-intercept` is the same long-running Rust process the kernel
+  daemon was going to be, so the intercept daemon's IPC surface *is*
+  the stable socket transport this module rides on.
 
 ## Scope
 
@@ -87,18 +90,24 @@ execute because no surface imports scanner code.
 
 **Depends on:**
 
-- **INTD-004** (IPC listener, NDJSON framing) — required for DRVR-001
-- **INTD-005** (session registry) — required before any driver can
+- **INTD-002** (IPC Listener — NDJSON over UDS / named pipe) —
+  required for DRVR-001
+- **INTD-003** (Session Registry) — required before any driver can
   register
-- **INTD-010** (violation emission) or equivalent telemetry surface —
-  required before the editor driver can render diagnostics
-- **KERN-050** (Unix socket transport, JSON-RPC 2.0) — retained from
-  KERN Phase 5; required if the daemon re-hosts kernel events over the
-  same transport rather than bridging internally
+- **INTD-005** (Enforcement Decision Pipeline) and **INTD-013**
+  (Mirror Enforcement Decisions Onto Notification Telemetry) —
+  required before the editor driver can render diagnostics; INTD-013
+  is the canonical telemetry-lane emission point drivers subscribe to
 - **ADR-030** — this module's authority
 - **Driver-framework ADR** (`plans/specs/anvil-driver-framework/`) —
   defines driver capabilities, enforcement ladder, and the two-lane
   transport model
+- *(KERN-050/-051/-052 — Unix socket, JSON-RPC, client session
+  management — were previously listed here. They are now superseded
+  by INTD-002 and INTD-003: the intercept daemon is the same
+  long-running Rust process the kernel daemon was going to be, so
+  its IPC surface is the transport DRVR rides on. See KERN module
+  archive for the supersession note.)*
 
 **Exposes:**
 
@@ -124,7 +133,8 @@ execute because no surface imports scanner code.
   `subscribe<E>(topic, handler)`, `close()`. Transport auto-selects by
   platform. Reconnection is transparent with a documented backoff.
 - **Scope:** `packages/anvil-driver-client/`
-- **Dependencies:** INTD-004, INTD stable IPC wire-format doc
+- **Dependencies:** INTD-002 (IPC Listener), INTD stable IPC
+  wire-format doc
 - **Validation:** Unit tests cover the JSON-RPC framer, NDJSON split,
   reconnection under dropped sockets, and happy-path request/response
   roundtrip against a fake daemon. Integration test connects to a real
@@ -173,7 +183,8 @@ execute because no surface imports scanner code.
   tests pass after refactor; one new test covers the fallback path
   when the daemon is unreachable.
 - **Scope:** `packages/vscode-extension/`
-- **Dependencies:** DRVR-001, DRVR-002, INTD-004, INTD violation stream
+- **Dependencies:** DRVR-001, DRVR-002, INTD-002 (IPC Listener),
+  INTD-013 (telemetry mirror — the canonical violation stream)
 - **Validation:** `pnpm --filter anvil-vscode test` passes; manual
   scan in VSCode matches `anvil check` output on the same fixture;
   fallback test asserts no diagnostics appear and a status-bar item
@@ -196,8 +207,9 @@ execute because no surface imports scanner code.
   the daemon is unreachable (MCP tool returns a structured error that
   agents can reason about).
 - **Scope:** `packages/mcp-server/`
-- **Dependencies:** DRVR-001, DRVR-002, INTD-004, INTD rule evaluation
-  surface exposed over RPC
+- **Dependencies:** DRVR-001, DRVR-002, INTD-002 (IPC Listener),
+  INTD-005 (Enforcement Decision Pipeline — the rule-evaluation
+  surface MCP tools translate to)
 - **Validation:** `pnpm --filter @eddacraft/anvil-mcp test`; E2E
   harness call through the MCP transport returns structurally
   identical results to pre-cutover for the fixture set.
@@ -236,9 +248,9 @@ execute because no surface imports scanner code.
 - **INTD slippage.** DRVR is blocked on the intercept daemon shipping
   a stable IPC surface. If INTD slips, DRVR slips with it. Mitigation:
   each DRVR work item pins to a specific INTD deliverable
-  (INTD-004 / -005 / -010) rather than the module as a whole, and
-  DRVR-001 can start against a mock daemon to decouple the TS-side
-  work from daemon progress.
+  (INTD-002 / -003 / -005 / -013) rather than the module as a whole,
+  and DRVR-001 can start against a mock daemon to decouple the
+  TS-side work from daemon progress.
 - **LSP extension sprawl.** Anvil's suppression / gate / nudge surfaces
   don't fit stock LSP cleanly. The editor-driver protocol (DRVR-002)
   must bound what's custom; un-capped extension leads to per-editor
