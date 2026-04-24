@@ -4,6 +4,23 @@ Design for the final two work items in the `rust-nx-migration` APS module
 (RUSTNX-008, RUSTNX-009) plus a closely-related attribution deliverable that
 falls out of RUSTNX-009's licence work.
 
+> **Shipped implementation note (2026-04-24, PR #1067)**
+>
+> What landed differs from the original design in one notable way: the
+> attribution artefact is **`ACKNOWLEDGEMENTS.md` at repo root**, not
+> `THIRD_PARTY_NOTICES.md` /
+> `crates/anvil-cli/resources/third-party-notices.md` as described below.
+> The file carries a hand-curated thanks section above a marker-delimited
+> auto-generated block produced by `tools/generate-acknowledgements.sh`,
+> which wraps `cargo about generate` scoped to `crates/anvil-cli/Cargo.toml`
+> (so dev-deps are excluded). `anvil licenses` embeds the whole file via
+> `include_str!`. The CI freshness job is named `acknowledgements-diff`,
+> not `about-diff`. The release pipeline also publishes `ACKNOWLEDGEMENTS.md`
+> to `eddacraft/anvil` main branch per release.
+>
+> The rest of this design (hakari, cargo-deny, `anvil licenses` command
+> shape, CI version pinning) matches what shipped.
+
 ## Goals
 
 1. **RUSTNX-008** — unify feature resolution across the Rust workspace so

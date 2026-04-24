@@ -2,6 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Shipped implementation note (2026-04-24, PR #1067)**
+>
+> This plan was written against an earlier design that split attribution into
+> a separate `THIRD_PARTY_NOTICES.md` committed at
+> `crates/anvil-cli/resources/third-party-notices.md`. What actually shipped
+> consolidates that into a single repo-root **`ACKNOWLEDGEMENTS.md`**, with a
+> hand-curated thanks section above a marker-delimited auto-generated block.
+> Generation is driven by `tools/generate-acknowledgements.sh` (which wraps
+> `cargo about generate --manifest-path crates/anvil-cli/Cargo.toml` so
+> dev-deps are excluded). The CI freshness job is named
+> `acknowledgements-diff`, not `about-diff`. `anvil licenses` embeds the
+> whole `ACKNOWLEDGEMENTS.md` via `include_str!`. The release pipeline
+> publishes the file to `eddacraft/anvil` main branch per release.
+>
+> Follow the shipped file paths (above), not the legacy ones in the task
+> sections below, when using this plan as a reference.
+
 **Goal:** Finish the `rust-nx-migration` APS module by shipping `cargo-hakari` workspace-hack (RUSTNX-008), the `cargo-deny` licence/advisory gate (RUSTNX-009), a `cargo-about`-generated `THIRD_PARTY_NOTICES.md`, and an `anvil licenses` CLI subcommand that prints that attribution at runtime.
 
 **Architecture:** Three Rust tooling adoptions (hakari, deny, about) plus one CLI feature. Tooling configs live at repo root (`deny.toml`, `about.toml`, `about.hbs`, `.config/hakari.toml`). Generated attribution is committed to `crates/anvil-cli/resources/third-party-notices.md` and embedded in the anvil binary via `include_str!`. CI (`.github/workflows/rust.yml`) gets three new steps — hakari-verify, cargo-deny, about-diff — all behind the existing shared rust-cache.
