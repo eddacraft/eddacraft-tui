@@ -1,4 +1,31 @@
-# Real-Time Validation: Full Scope (Unified Validation Server)
+<!-- Archived: 2026-04-24 | Reason: Pre-dates the daemon + drivers architecture (ADR-030); the unified-validation-server framing is replaced by drivers on the intercept daemon, owned by RTAI. -->
+
+# Real-Time Validation: Full Scope (Unified Validation Server) — SUPERSEDED
+
+| ID   | Owner | Status     |
+| ---- | ----- | ---------- |
+| RTVF | —     | Superseded |
+
+> **Superseded by:** [realtime-ai-validation (RTAI)](../../modules/realtime-ai-validation.aps.md)
+> for the in-flight / mid-edit validation path against the
+> intercept daemon and surface drivers, and
+> [surface-drivers (DRVR)](../../modules/surface-drivers.aps.md) for
+> the per-surface integration (editor driver, MCP driver) that
+> replaces the standalone validation-server framing.
+>
+> This module was drafted before ADR-030 landed the daemon + drivers
+> architecture. Its core framing — a single Node.js validation server
+> exposing LSP, HTTP, and stdin interfaces — duplicates work that the
+> intercept daemon (INTD) plus driver framework (DRVR) now own. Each
+> surface (VSCode, MCP, etc.) becomes a driver attached to the
+> daemon over JSON-RPC 2.0 + NDJSON; the daemon hosts the validation
+> engine (`anvil-checks` reached via INTR rules); and the *real-time*
+> half — validating AI output mid-edit, before save — is the explicit
+> scope of RTAI.
+>
+> Rather than re-scope this whole module, the surviving intent is
+> forwarded into RTAI / DRVR and this spec is archived. See the
+> per-phase "Superseded by" notes below for the mapping.
 
 ## Overview
 
@@ -175,6 +202,19 @@ export const validatePlanTool: Tool = {
 
 ### Phase 1: Validation Server Core (5 days)
 
+> **Superseded by:** RTAI-002 (daemon mid-edit RPC surface),
+> RTAI-003 (mid-edit latency benchmark + budget enforcement), and
+> RTAI-004 (`DriverClient` mid-edit envelope + debouncer). The
+> "shared validation core + three interface adapters" framing is
+> replaced by "validation lives in the intercept daemon, surfaces
+> reach it via drivers". SERVER-001 (extract validation core) is
+> already realised in `anvil-checks` reached via the INTR rule
+> registry. SERVER-002 (HTTP), SERVER-003 (stdin), and SERVER-005
+> (unified launcher) are dropped — drivers ride the daemon's
+> JSON-RPC over UDS / named pipe surface (INTD-002), not a
+> separate process. SERVER-004 (LSP) is reframed as the
+> editor-driver mid-edit path under RTAI-005.
+
 **Goal:** Single-binary server with three interfaces sharing validation core
 
 **Tasks:**
@@ -287,6 +327,16 @@ export const validatePlanTool: Tool = {
 
 ### Phase 2: Editor Integration (3 days)
 
+> **Superseded by:** DRVR-002 (editor-driver protocol), DRVR-003
+> (VSCode editor-driver cutover), DRVR-008 (non-VSCode LSP client
+> capability negotiation), and RTAI-005 (editor-driver mid-edit
+> path). EDITOR-001 lives in DRVR-003 + RTAI-005. EDITOR-002 / -003
+> / -004 (Vim, Emacs, IntelliJ) are absorbed by DRVR-008's
+> capability-handshake model — every LSP client gets diagnostics
+> for free; per-editor shim work is no longer the integration unit.
+> The "5 editors × bespoke integration" multiplier RTVF carried
+> goes away.
+
 **Goal:** LSP clients configured for major editors
 
 **Tasks:**
@@ -370,6 +420,17 @@ export const validatePlanTool: Tool = {
 **Confidence:** low (IntelliJ LSP support is less mature, may have limitations)
 
 ### Phase 3: AI Tool Integrations (5 days)
+
+> **Superseded by:** DRVR-004 (MCP server cutover) and RTAI-006
+> (MCP-driver pre-write path) for the MCP-shaped tools (Claude
+> Code, MCP-aware agents). For LSP-shaped tools (Cursor,
+> Copilot-in-VSCode, Continue) the editor-driver path under
+> DRVR-003 + RTAI-005 is the integration; no per-tool extension
+> is built. Aider's stdin-pipe integration is dropped as a
+> first-class target — Aider users either run `anvil watch`
+> (LAUNCH) or attach via MCP if/when Aider grows MCP support.
+> AI-001..AI-005 in this phase no longer ship as five distinct
+> integrations.
 
 **Goal:** Working integrations with 5 major AI tools
 
@@ -482,6 +543,15 @@ export const validatePlanTool: Tool = {
 
 ### Phase 4: Documentation & Testing (2 days)
 
+> **Superseded by:** RTAI-008 (errors-as-first-class contract test —
+> the cross-driver consumer fixture), RTAI-009 (architecture doc +
+> supersession cross-links), and DRVR-005 (architecture doc + ADR
+> supersession). Multi-interface integration testing (TEST-003) is
+> replaced by the daemon's JSON-RPC conformance suite (INTD-014)
+> plus the mid-edit contract fixture (RTAI-008). Per-editor /
+> per-AI-tool documentation collapses into the per-driver docs
+> under DRVR.
+
 **Goal:** Comprehensive documentation and integration testing
 
 **Tasks:**
@@ -573,6 +643,18 @@ export const validatePlanTool: Tool = {
 **Confidence:** medium (requires coordination with testers, issues likely to emerge)
 
 ### Phase 5: Notification Framework (6.5 days)
+
+> **Superseded by:** the **NOTIFY** module (already its own first-
+> class module, with the canonical envelope and telemetry-stream
+> contract from `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`),
+> plus INTD-013 (mirror enforcement decisions onto telemetry),
+> INTD-015 (daemon-enforced telemetry subscription scoping), and
+> RTAI-007 (mid-edit telemetry mirror). The "build a notification
+> service inside the validation server" framing is replaced by
+> "the daemon emits canonical notifications on the telemetry
+> lane; channel fan-out and presentation are NOTIFY's job".
+> NOTIFY-001..NOTIFY-005 already cover the channel work
+> (terminal, desktop, sound, colour, Slack) this phase enumerated.
 
 **Goal:** Comprehensive notification system for alerting users to validation errors across 25+ concurrent agents
 
@@ -976,8 +1058,9 @@ export const validatePlanTool: Tool = {
 
 ---
 
-**Status:** Draft
-**Priority:** Medium (after simplified scope validates value)
-**Dependencies:** Simplified scope must be complete first
-**Target Milestone:** v0.7.0 — Unified Validation Server with Notifications
-**Estimated Effort:** 22 days (5 + 3 + 5 + 2 + 6.5, rounded to 22)
+**Status:** Superseded (2026-04-24)
+**Superseded by:** RTAI (in-flight validation against daemon + drivers), DRVR (per-surface integration), NOTIFY (notification channels)
+**Priority:** —
+**Dependencies:** —
+**Target Milestone:** —
+**Estimated Effort:** — (work redistributed across RTAI, DRVR, NOTIFY)

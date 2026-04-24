@@ -1,4 +1,4 @@
-<!-- Archived: 2026-04-24 | Reason: Zombie module against retired Ink/TS stack; absorbed by LAUNCH (watch polish) and RTVF (validation core). -->
+<!-- Archived: 2026-04-24 | Reason: Zombie module against retired Ink/TS stack; absorbed by LAUNCH (watch polish) and RTAI (validation core, originally pointed at RTVF — RTVF itself was superseded later the same day, see archive/modules/real-time-validation-full.aps.md). -->
 
 # Real-Time Validation: Simplified Scope (AI Output Validation) — SUPERSEDED
 
@@ -8,8 +8,10 @@
 
 > **Superseded by:** [launch-flow-readiness (LAUNCH)](../../modules/launch-flow-readiness.aps.md)
 > for the watch-mode and TUI dashboard work, and
-> [real-time-validation-full (RTVF)](../../modules/real-time-validation-full.aps.md)
+> [realtime-ai-validation (RTAI)](../../modules/realtime-ai-validation.aps.md)
 > for the validation core engine and reasoning patterns.
+> *(Originally pointed at RTVF, which was itself superseded later
+> the same day — see [archived RTVF](./real-time-validation-full.aps.md).)*
 >
 > This module was drafted against the retired TypeScript Ink CLI
 > (`cli/src/tui/...`, `core/src/validation/fast-validator.ts`). Those

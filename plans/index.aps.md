@@ -138,6 +138,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | Draft | 0/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
+| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
 | [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
@@ -507,8 +508,8 @@ harness build — schedule after the intercept-loop thesis is proven.
 | Module | Scope | Description | Status |
 | ------ | ----- | ----------- | ------ |
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Parse open-spec format as planning source | Draft |
-| ~~real-time-validation-simplified~~ | ~~RTVS~~ | Superseded 2026-04-24 by LAUNCH (watch polish) + RTVF (validation core); spec was written against retired Ink/TS stack — [archived](./archive/modules/real-time-validation-simplified.aps.md) | Superseded |
-| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Unified validation server (LSP, HTTP, stdin) | Draft |
+| ~~real-time-validation-simplified~~ | ~~RTVS~~ | Superseded 2026-04-24 by LAUNCH (watch polish) + RTAI (validation core, originally pointed at RTVF before RTVF itself was superseded); spec was written against retired Ink/TS stack — [archived](./archive/modules/real-time-validation-simplified.aps.md) | Superseded |
+| ~~real-time-validation-full~~ | ~~RTVF~~ | Superseded 2026-04-24 by RTAI (in-flight validation against daemon + drivers), DRVR (per-surface integration), NOTIFY (notification channels); RTVF's "unified validation server" framing pre-dated ADR-030 — [archived](./archive/modules/real-time-validation-full.aps.md) | Superseded |
 | [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Gateway integration with pocketflow | Draft |
 | [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Early access migration tooling | Ready |
 | [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Early access test infrastructure | Ready |
