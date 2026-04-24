@@ -173,7 +173,8 @@ Out of memory errors.
 **Solutions:**
 
 - Reduce watch scope with `anvil watch --file <path>`
-- Exclude large generated directories by name with `--exclude` (for example `node_modules,dist,.next`)
+- Exclude large generated directories by name with `--exclude` (for example
+  `node_modules,dist,.next`)
 - Check for very large files being scanned
 - Check `inotify` limits on Linux (see File Watching section above)
 - If RSS exceeds expected bounds (~30-50MB for a medium project), file a bug

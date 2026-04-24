@@ -335,16 +335,16 @@ anvil watch --file src/api/              # Scope to specific path
 anvil watch --action gate                # Run gate on each change
 ```
 
-| Flag         | Short | Default | Description                                                                         |
-| ------------ | ----- | ------- | ----------------------------------------------------------------------------------- |
-| `--source`   |       | —       | Watch source files (`src/**/*.ts`, `src/**/*.tsx`, `lib/**/*.ts`, `crates/**/*.rs`) |
-| `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)   |
-| `--all`      |       | —       | Watch all file types (source + plans)                                               |
-| `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                             |
-| `--exclude`  |       | —       | Comma-separated directory names to exclude in the watcher filter                    |
+| Flag         | Short | Default | Description                                                                                     |
+| ------------ | ----- | ------- | ----------------------------------------------------------------------------------------------- |
+| `--source`   |       | —       | Watch source files (`src/**/*.ts`, `src/**/*.tsx`, `lib/**/*.ts`, `crates/**/*.rs`)             |
+| `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)               |
+| `--all`      |       | —       | Watch all file types (source + plans)                                                           |
+| `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                                         |
+| `--exclude`  |       | —       | Comma-separated directory names to exclude in the watcher filter                                |
 | `--patterns` |       | —       | Comma-separated glob patterns carried on the watch config; full loop filtering is still limited |
-| `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                         |
-| `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                          |
+| `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                                     |
+| `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                                      |
 
 ## CI Mode
 

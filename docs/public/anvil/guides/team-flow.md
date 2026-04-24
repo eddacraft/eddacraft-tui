@@ -142,8 +142,9 @@ out of git:
 .anvilrc.local
 ```
 
-Use `--file` and `--debounce` as the primary day-to-day tuning knobs. `--exclude`
-currently works best for obvious generated/build directories by name.
+Use `--file` and `--debounce` as the primary day-to-day tuning knobs.
+`--exclude` currently works best for obvious generated/build directories by
+name.
 
 ### Team-Wide Suppressions
 
