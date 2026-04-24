@@ -593,6 +593,11 @@ mod tests {
     }
 
     #[test]
+    fn bypass_auth_licenses() {
+        assert!(!requires_auth(&parse_command(&["licenses"])));
+    }
+
+    #[test]
     fn bypass_auth_new() {
         assert!(!requires_auth(&parse_command(&["new"])));
     }

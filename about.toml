@@ -1,4 +1,11 @@
-# cargo-about config. Allowlist MUST stay in sync with deny.toml [licenses].
+# cargo-about config for third-party attribution.
+#
+# `accepted` mirrors deny.toml [licenses].allow for third-party crates;
+# LicenseRef-Proprietary is intentionally omitted here because the
+# private = { ignore = true } filter below excludes our internal
+# LicenseRef-Proprietary crates from the generated notices.
+# Keep this list in sync with deny.toml when adding/removing third-party
+# licences.
 
 accepted = [
     "MIT",

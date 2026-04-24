@@ -32,3 +32,6 @@ plans/**
 
 # Ignore generated JSON schema
 core/src/schema/aps.schema.json
+
+# Ignore generated third-party attribution (cargo-about output; template is about.hbs)
+crates/anvil-cli/resources/third-party-notices.md
