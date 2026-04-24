@@ -394,7 +394,8 @@ semantic graph. They operate on file content directly.
 > checks, full-repo CI scans). The TypeScript scanner in
 > `packages/anvil/core/src/antipattern/` remains only as a transition-window
 > path for surfaces that have not yet moved onto intercept-daemon drivers
-> (currently VSCode extension and MCP server, per ADR-030). Both engines consume
+> (currently VSCode extension and MCP server, per [ADR-030]). Both engines
+> consume
 > the same registry and are held in partial parity by `tests/scanner-parity/`
 > while that window remains open. Known engine divergences — mostly Rust `regex`
 > limitations such as lookaround rewrites — are enumerated in
@@ -405,6 +406,7 @@ semantic graph. They operate on file content directly.
 > drifting silently.
 >
 > [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
+> [ADR-030]: ../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
 
 ### Additional Items
 

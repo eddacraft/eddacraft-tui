@@ -8,11 +8,12 @@ into `patterns/compiled/registry.json` by `scripts/compile-patterns`.
 in `crates/anvil-checks` (authoritative, per [ADR-026]) and the temporary
 TypeScript scanner in `packages/anvil/core/src/antipattern` that still backs a
 small transition window for VSCode and MCP surfaces until the intercept-daemon
-driver cutover lands (ADR-030). Authoring a rule means editing the `.anvil`
+driver cutover lands ([ADR-030]). Authoring a rule means editing the `.anvil`
 source and recompiling the registry — neither engine carries its own
 hand-written pattern table.
 
 [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
+[ADR-030]: ../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
 
 ## Layout
 
