@@ -175,10 +175,7 @@ pub fn scan_artifact_json(artifact_json: String, options_json: Option<String>) -
     let result = catch_unwind(AssertUnwindSafe(|| {
         scan_artifact_rust(&artifact, options.as_ref())
     }))
-    .map_err(|payload| {
-        let msg = panic_message(&payload);
-        Error::new(Status::GenericFailure, format!("scanner panicked: {msg}"))
-    })?;
+    .map_err(|payload| panic_to_error("scanner", &payload))?;
 
     let output = ScanResultOutput {
         file: &result.file,
@@ -191,14 +188,28 @@ pub fn scan_artifact_json(artifact_json: String, options_json: Option<String>) -
         .map_err(|e| Error::new(Status::GenericFailure, format!("serialise result: {e}")))
 }
 
-fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
-    if let Some(s) = payload.downcast_ref::<&'static str>() {
+/// Route a caught panic into a generic JS error + a stderr log entry.
+///
+/// The raw panic payload is logged to stderr (visible in the daemon /
+/// host log) so a developer can debug what actually happened. The JS
+/// error returned to the caller carries only a fixed, non-informative
+/// message — raw panic payloads can include absolute file paths,
+/// partial file content, or internal invariant strings that a consumer
+/// surfacing the error to a non-local log or remote agent should not
+/// leak. Council review X3 (2026-04-24).
+fn panic_to_error(kind: &str, payload: &Box<dyn std::any::Any + Send>) -> Error {
+    let detail = if let Some(s) = payload.downcast_ref::<&'static str>() {
         (*s).to_string()
     } else if let Some(s) = payload.downcast_ref::<String>() {
         s.clone()
     } else {
         "<non-string panic payload>".to_string()
-    }
+    };
+    eprintln!("[anvil-checks-napi] {kind} panicked: {detail}");
+    Error::new(
+        Status::GenericFailure,
+        format!("{kind} internal error; see host log for details"),
+    )
 }
 
 /// Returns the binding's semver. Useful for the parity test to assert the
@@ -231,13 +242,7 @@ pub fn get_default_patterns_json() -> Result<String> {
         serde_json::to_string(&patterns)
             .map_err(|e| Error::new(Status::GenericFailure, format!("serialise patterns: {e}")))
     }))
-    .map_err(|payload| {
-        let msg = panic_message(&payload);
-        Error::new(
-            Status::GenericFailure,
-            format!("pattern registry panicked: {msg}"),
-        )
-    })?
+    .map_err(|payload| panic_to_error("pattern registry", &payload))?
 }
 
 /// Look up a single pattern by id. Returns `null` on the JS side (via
@@ -268,13 +273,7 @@ pub fn get_pattern_json(id: String) -> Result<Option<String>> {
             .map(Some)
             .map_err(|e| Error::new(Status::GenericFailure, format!("serialise pattern: {e}")))
     }))
-    .map_err(|payload| {
-        let msg = panic_message(&payload);
-        Error::new(
-            Status::GenericFailure,
-            format!("pattern registry panicked: {msg}"),
-        )
-    })?
+    .map_err(|payload| panic_to_error("pattern registry", &payload))?
 }
 
 // The registry-missing error path is exercised by a JS integration test

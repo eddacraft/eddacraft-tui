@@ -20,9 +20,18 @@ name: NAPI
 on:
   push:
     branches: [main, dev]
+    # Per ADR-030 the napi binding is an internal CLI-acceleration path
+    # (not published, not consumer-facing via VSCode / MCP). Scope the
+    # path filter to only what affects the napi crate's compile /
+    # behaviour: the binding itself, anvil-checks Rust sources +
+    # manifest (its direct dependency), and toolchain / workflow
+    # files. Pattern-registry data files, anvil-checks tests/, benches/,
+    # and docs do NOT affect the binding and no longer trigger the
+    # 8-job matrix. Council review X4 (2026-04-24).
     paths:
       - 'crates/anvil-checks-napi/**'
-      - 'crates/anvil-checks/**'
+      - 'crates/anvil-checks/src/**'
+      - 'crates/anvil-checks/Cargo.toml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -32,7 +41,8 @@ on:
   pull_request:
     paths:
       - 'crates/anvil-checks-napi/**'
-      - 'crates/anvil-checks/**'
+      - 'crates/anvil-checks/src/**'
+      - 'crates/anvil-checks/Cargo.toml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -55,6 +65,11 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
+    # Cap each build matrix leg. Warm builds complete in 2–6m; aarch64
+    # cross-compile is the slowest typically ~5m. 30m absorbs a cold
+    # sccache miss or a runner cold-start blip without turning a hung
+    # job into a 6-hour runner squat. Council review M15 (2026-04-24).
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -150,6 +165,11 @@ jobs:
     name: Test (${{ matrix.runner }})
     needs: build
     runs-on: ${{ matrix.runner }}
+    # Pure test job: download artefact + pnpm install (no Rust
+    # toolchain) + `node --test`. Warm runs finish in 1–3m. 15m is a
+    # generous cap that still fails fast on a hung Node process.
+    # Council review M15 (2026-04-24).
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -196,6 +216,11 @@ jobs:
     needs: [build, test]
     if: startsWith(github.ref, 'refs/tags/napi-v')
     runs-on: ubuntu-latest
+    # Tag-gated job; ADR-030 keeps the crate private so this path is
+    # dormant in practice. 30m still prevents a hung publish step from
+    # squatting a runner if it ever flips live. Council review M15
+    # (2026-04-24).
+    timeout-minutes: 30
     permissions:
       contents: read
       # `id-token: write` is what `npm publish --provenance` needs.

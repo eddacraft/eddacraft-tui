@@ -1,12 +1,11 @@
-// TSRET-003 prep: pattern-registry getters.
+// Pattern-registry getters on the internal napi binding.
 //
-// `scan_artifact_json` alone is not enough to replace the TS scanner
-// surface consumed by the VSCode extension (`embeddedAnalysis.ts`) and
-// MCP server — both reach for `getPattern(id)` and `getDefaultPatterns()`
-// to drive UI and diagnostics metadata without running a scan.
-//
-// These tests pin the new napi entry points against the Rust catalogue
-// so cutover work can depend on them without re-verifying rule content.
+// Per ADR-030 the binding is a CLI-acceleration path, not a VSCode /
+// MCP consumer surface (those go through the intercept daemon in
+// DRVR). These tests pin `getDefaultPatternsJson()` and
+// `getPatternJson(id)` against the Rust catalogue so any consumer
+// using the binding for rule enumeration (docs generation, diagnostics
+// without running a scan) has a stable wire contract.
 //
 // Run via: `pnpm --filter @eddacraft/anvil-checks-native test`.
 
