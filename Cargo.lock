@@ -4687,6 +4687,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace-hack"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "bitflags 2.11.1",
+ "cc",
+ "clap",
+ "clap_builder",
+ "eddacraft-tui",
+ "either",
+ "errno",
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "getrandom 0.4.2",
+ "hyper",
+ "hyper-util",
+ "indexmap",
+ "libc",
+ "memchr",
+ "mio",
+ "num-traits",
+ "once_cell",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "regex-automata",
+ "regex-syntax",
+ "rustix",
+ "serde",
+ "serde_core",
+ "serde_json",
+ "slab",
+ "smallvec",
+ "syn 2.0.117",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "winapi",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "writeable"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -11,6 +11,7 @@ members = [
   "crates/anvil-cli",
   "crates/anvil-policy",
   "crates/anvil-architecture",
+  "crates/workspace-hack",
 ]
 
 [workspace.package]
