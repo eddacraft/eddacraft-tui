@@ -1,5 +1,5 @@
 <!-- APS Module: rust-nx-migration -->
-<!-- Status: In Progress -->
+<!-- Status: Complete -->
 
 # Rust Nx Migration
 
@@ -284,7 +284,7 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   metadata, the root workspace manifest, and vendored `tools/nx-rust/**` so Rust CI/tooling changes
   correctly fan out to all Rust projects.
 
-### RUSTNX-008: Adopt cargo-hakari workspace-hack
+### RUSTNX-008: Adopt cargo-hakari workspace-hack [Complete]
 
 - **Intent:** Unify feature flags across crates so per-crate builds share
   dependency compilations instead of rebuilding with different feature sets
@@ -301,8 +301,16 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Risks:** Hakari can interact awkwardly with `publish = true` crates;
   none of Anvil's crates publish to crates.io today, so this should be
   safe, but worth confirming before the module ships any
+- **Resolution:** Workspace-hack crate scaffolded at `crates/workspace-hack/`
+  (private, `publish = false`, `LicenseRef-Proprietary`). Every workspace
+  member depends on it via `workspace-hack.workspace = true` using the
+  workspace-dotted line style. `.config/hakari.toml` pins the target triples
+  to match the cross-compile matrix. All other internal crates now also
+  carry `publish = false` so cargo-deny's `allow-wildcard-paths` covers the
+  intra-workspace path deps. CI enforces freshness via a new `hakari` job
+  that runs `cargo hakari verify` and `cargo hakari generate --diff`.
 
-### RUSTNX-009: Add cargo-deny CI gate
+### RUSTNX-009: Add cargo-deny CI gate [Complete]
 
 - **Intent:** Match TypeScript `pnpm audit` with Rust-side licence,
   advisory, and dependency-ban checks
@@ -319,6 +327,16 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
 - **Non-scope:** Yanked-crate detection (already covered by
   `cargo audit`-style tooling elsewhere), SBOM generation, signature
   verification
+- **Resolution:** `deny.toml` enforces advisories (v2), licences (v2
+  allowlist: MIT, Apache-2.0 + LLVM, BSD-2/3, ISC, Unicode-DFS-2016,
+  Unicode-3.0, CC0-1.0, Zlib, MPL-2.0, LicenseRef-Proprietary), bans
+  (`multiple-versions = warn`, `wildcards = deny`, `allow-wildcard-paths =
+  true`, `workspace-hack` skipped), and sources (crates.io only). CI adds a
+  `deny` job. `about.toml` + `about.hbs` generate
+  `crates/anvil-cli/resources/third-party-notices.md`, committed to git and
+  enforced fresh by the CI `about-diff` job. The `anvil licenses`
+  subcommand prints the embedded attribution at runtime, honouring
+  `NO_COLOR` and `--no-tui` for colour suppression.
 
 ---
 

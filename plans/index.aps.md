@@ -103,7 +103,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
-| [rust-nx-migration](./modules/rust-nx-migration.aps.md) | RUSTNX | In Progress | 7/9 (Tier 1 complete: rust-cache + nextest + parallel jobs; Tier 2: -004/-005 delivered via NXRUST plugin + `sharedGlobals`; -006 unifies root scripts, -007 lands affected-only Rust CI) |
+| [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md) | RUSTNX | Complete | 9/9 |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -569,7 +569,7 @@ Active module themes:
 | Theme | Module File |
 | ----- | ----------- |
 | Branch Recovery | [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md) |
-| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [nx-task-migration](./archive/modules/nx-task-migration.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md), [rust-nx-migration](./modules/rust-nx-migration.aps.md) |
+| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [nx-task-migration](./archive/modules/nx-task-migration.aps.md), [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
 | Continuous Improvement | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded) |
 | Rust Engine | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
@@ -950,7 +950,7 @@ Nx-orchestrated per-project targets.
 
 Bring the Rust workspace up to parity with the TypeScript Nx setup: CI caching,
 affected-only builds, and workspace hygiene. Mirrors NXTASK for Rust crates.
-See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
+See [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md) for full module.
 
 | Task        | Module  | Description                                           | Status | Priority | Tier |
 | ----------- | ------- | ----------------------------------------------------- | ------ | -------- | ---- |
@@ -961,8 +961,8 @@ See [rust-nx-migration](./modules/rust-nx-migration.aps.md) for full module.
 | RUSTNX-005  | rustnx  | Workspace-level cache inputs for Rust                | Complete | high     | 2    |
 | RUSTNX-006  | rustnx  | Unify root scripts across TS and Rust                | Complete | medium   | 2    |
 | RUSTNX-007  | rustnx  | Switch Rust CI to nx affected                        | Complete | high     | 2    |
-| RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Ready  | medium   | 3    |
-| RUSTNX-009  | rustnx  | Add cargo-deny CI gate                               | Ready  | medium   | 3    |
+| RUSTNX-008  | rustnx  | Adopt cargo-hakari workspace-hack                    | Complete | medium   | 3    |
+| RUSTNX-009  | rustnx  | Add cargo-deny CI gate                               | Complete | medium   | 3    |
 
 ### Task Status — Hardening & Maintenance (Forge & Temper) — ARCHIVED
 
