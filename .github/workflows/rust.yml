@@ -46,7 +46,7 @@ env:
   # RUSTNX-008/009: pinned hakari/deny/about versions — see
   # Task 1 of the RUSTNX completion plan for how to rev them.
   CARGO_HAKARI_VERSION: '0.9.37'
-  CARGO_DENY_VERSION: '0.18.9'
+  CARGO_DENY_VERSION: '0.19.4'
   CARGO_ABOUT_VERSION: '0.8.4'
 
 jobs:
