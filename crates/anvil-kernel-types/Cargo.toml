@@ -10,6 +10,7 @@ name = "anvil_kernel_types"
 
 [dependencies]
 serde = { workspace = true }
+workspace-hack.workspace = true
 
 [dev-dependencies]
 serde_json = { workspace = true }

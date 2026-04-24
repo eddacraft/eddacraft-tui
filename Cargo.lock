@@ -134,6 +134,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -147,6 +148,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -984,6 +986,7 @@ dependencies = [
  "toml",
  "walkdir",
  "wiremock",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1000,6 +1003,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "walkdir",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1012,6 +1016,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1024,6 +1029,7 @@ dependencies = [
  "napi-derive",
  "serde",
  "serde_json",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1047,6 +1053,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-typescript",
  "walkdir",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1055,6 +1062,7 @@ version = "0.3.3-beta"
 dependencies = [
  "serde",
  "serde_json",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1074,6 +1082,7 @@ dependencies = [
  "wait-timeout",
  "walkdir",
  "which",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1090,6 +1099,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "unicode-width 0.2.2",
+ "workspace-hack",
 ]
 
 [[package]]

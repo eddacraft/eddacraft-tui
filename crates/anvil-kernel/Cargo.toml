@@ -23,6 +23,7 @@ thiserror = { workspace = true }
 walkdir = { workspace = true }
 rayon = { workspace = true }
 num_cpus = { workspace = true }
+workspace-hack.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }

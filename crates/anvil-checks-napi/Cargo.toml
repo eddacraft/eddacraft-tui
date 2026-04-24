@@ -14,6 +14,7 @@ napi = { version = "3", default-features = false, features = ["napi6", "serde-js
 napi-derive = "3"
 serde = { workspace = true }
 serde_json = { workspace = true }
+workspace-hack.workspace = true
 
 [build-dependencies]
 napi-build = "2"

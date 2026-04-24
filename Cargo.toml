@@ -69,6 +69,9 @@ regex = "1"
 insta = { version = "1", features = ["yaml"] }
 criterion = { version = "0.8", features = ["html_reports"] }
 
+# Internal workspace-hack (managed by cargo hakari)
+workspace-hack = { version = "0.1.0", path = "crates/workspace-hack" }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
