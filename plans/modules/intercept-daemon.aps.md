@@ -103,12 +103,16 @@ a new lane.
   path, accepts connections, parses NDJSON frames, and dispatches to
   command handlers. Socket / pipe creation is pinned end-to-end, not
   left to umask / default DACL:
-  - Unix: `mkdir $XDG_RUNTIME_DIR/anvil` with mode 0700 and
-    `O_NOFOLLOW` (refuse if exists with wrong owner or mode); `bind()`
-    inside that dir; `fchmod` the socket fd to 0600 before `listen()`.
-    If `$XDG_RUNTIME_DIR` is unset, fall through to
-    `$HOME/.local/state/anvil/` with the same mode guard — never
-    `/tmp`.
+  - Unix: `lstat` the target (or open its parent with `openat` +
+    `O_NOFOLLOW` and stat from there) to refuse symlinks and to
+    verify that `$XDG_RUNTIME_DIR/anvil` is owned by the current
+    user with mode 0700 if it already exists. If absent, create it
+    with `mkdir` passing an explicit mode 0700, then re-verify with
+    `stat` / `fstat` that owner and mode match. `bind()` inside
+    that dir; `fchmod` the socket fd to 0600 before `listen()`. If
+    `$XDG_RUNTIME_DIR` is unset, fall through to
+    `$HOME/.local/state/anvil/` with the same check-create-verify
+    sequence — never `/tmp`.
   - Windows: named pipe created with an explicit `SECURITY_DESCRIPTOR`
     (owner = current user SID, DACL = generic-all-owner-only),
     `PIPE_REJECT_REMOTE_CLIENTS` set.
@@ -122,7 +126,7 @@ a new lane.
 - **Status:** Draft
 - **Council review (2026-04-24):** M8 (security-analyst) pinned the
   end-to-end creation sequence above; see
-  `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  PR #1063.
 
 ### INTD-003: Session Registry
 
@@ -270,11 +274,15 @@ a new lane.
   codes, and the distinction between request `id: null` and
   notification. A latency harness measures round-trip p50 / p95 for a
   small RPC (`session.heartbeat`) and a telemetry-emission path
-  (`enforcement.decision` round-trip) on a warm daemon and records the
-  numbers. Without this, non-VSCode LSP clients (Neovim's built-in,
-  Zed, Helix) may reject the connection or silently drop responses, and
-  the `editor-and-mcp-driver-design.md` §3.4 save-time budget
-  (< 100ms p95 warm) has no factual basis.
+  (`enforcement.decision` round-trip) on a warm daemon and records
+  the numbers. The surface under test is the daemon↔driver JSON-RPC
+  boundary (what `DriverClient` in DRVR-001 talks to) — editors
+  reach the daemon via the editor-driver, not by connecting
+  LSP-style directly, so the risk to cover is silent drift between
+  the daemon's wire behaviour and the driver client's expected
+  request/response semantics. The latency numbers back the
+  `editor-and-mcp-driver-design.md` §3.4 save-time budget
+  (< 100ms p95 warm), which otherwise has no factual basis.
 - **Files:** `crates/anvil-intercept/src/ipc.rs`,
   `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (new),
   `crates/anvil-intercept/benches/ipc_roundtrip.rs` (new)
@@ -285,7 +293,7 @@ a new lane.
   ipc_roundtrip` records baseline numbers in the workspace bench
   dashboard.
 - **Source:** 2026-04-24 council review M1 (adversarial reviewer) —
-  tracked in `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  tracked in PR #1063.
 - **Status:** Draft
 
 ### INTD-015: Daemon-Enforced Telemetry Subscription Scoping
@@ -317,7 +325,7 @@ a new lane.
   (b) own-session subscribe honoured, (c) content excerpts redacted
   on cross-session allowlist hit.
 - **Source:** 2026-04-24 council review M5 (security-analyst) —
-  tracked in `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  tracked in PR #1063.
 - **Status:** Draft
 
 ### INTD-016: DoS Protection Budgets — Connection Cap, Rate Limits, Timeouts
@@ -349,5 +357,5 @@ a new lane.
   terminating the connection.
 - **Source:** 2026-04-24 council review M9 (security-analyst +
   adversarial-reviewer) — tracked in
-  `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  PR #1063.
 - **Status:** Draft

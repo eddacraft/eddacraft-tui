@@ -183,7 +183,7 @@ execute because no surface imports scanner code.
 
   The design doc MUST resolve the following council-review items
   before sign-off (council findings are all tracked in
-  `plans/specs/2026-04-24-adr-030-council-findings.md`):
+  PR #1063):
   - **Fail-soft vs enforcement-participating contradiction (M2):**
     pick a single behaviour for daemon-drop mid-session. Options:
     fence locally on drop (safe default) or fall through to
@@ -320,8 +320,10 @@ execute because no surface imports scanner code.
   - **(c) Expand** INTD scope with new work items for the missing
     RPCs, acknowledging the cost and slipping the DRVR-004 schedule.
   Whichever path lands, the design-spec §4.3 and the DRVR-004
-  expected-outcome are rewritten to match. If (c) lands, file the
-  new INTD items in this PR.
+  expected-outcome are rewritten to match. If (c) is chosen, file
+  the new INTD items as part of the DRVR-006 execution work (not
+  the current docs PR, which will already be merged by the time
+  this decision lands).
 - **Scope:** `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`,
   `plans/modules/surface-drivers.aps.md` (DRVR-004 expected outcome),
   `plans/modules/intercept-daemon.aps.md` (only if path (c) is
@@ -333,7 +335,7 @@ execute because no surface imports scanner code.
   that lack a backing INTD item (or driver-local helper).
 - **Source:** 2026-04-24 council review C2 (adversarial reviewer +
   council-reviewer, judge-upgraded) — tracked in
-  `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  PR #1063.
 - **Confidence:** medium
 - **Priority:** High
 - **Status:** Draft
@@ -382,7 +384,7 @@ execute because no surface imports scanner code.
   land) include a hostile-driver fixture per category.
 - **Source:** 2026-04-24 council review M5 / M6 / M7 / M11
   (security-analyst + adversarial-reviewer) — tracked in
-  `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  PR #1063.
 - **Confidence:** medium
 - **Priority:** High
 - **Status:** Draft
@@ -429,7 +431,7 @@ execute because no surface imports scanner code.
   returns a structured warning and the driver stays Attached.
 - **Source:** 2026-04-24 council review M10
   (adversarial-reviewer) — tracked in
-  `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  PR #1063.
 - **Confidence:** medium
 - **Priority:** Medium
 - **Status:** Draft

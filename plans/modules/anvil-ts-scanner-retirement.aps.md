@@ -253,7 +253,7 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
   test (add a rule to Rust registry without the TS loader mirror)
   fails the canary loudly.
 - **Source:** 2026-04-24 council review M14 (operations-reviewer) —
-  tracked in `plans/specs/2026-04-24-adr-030-council-findings.md`.
+  tracked in PR #1063.
 - **Confidence:** medium
 - **Priority:** Medium
 - **Status:** Proposed
