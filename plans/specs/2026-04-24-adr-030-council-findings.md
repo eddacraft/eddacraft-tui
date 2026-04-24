@@ -231,17 +231,21 @@ follow-up work items rather than on this tracker:
 
 ## How this tracks
 
-This doc is the single source of truth for the review; keep it checked-box
-in sync with landed fixes. Each must-fix / should-fix item is either landed
-or has a specific APS work-item home from PR #1065. When a DRVR / INTD /
-TSRET work item completes, tick the corresponding box above — the mapping
-stays the authoritative trace from "council reviewer said X" back to
-"work-item Y closed it."
+This doc is the single source of truth for the review. In the checklist
+above, `[x]` means the finding is **accounted for** — either the fix has
+landed, or the finding has a specific APS work-item home, or a decision
+has been recorded in the ADR. It does NOT mean the follow-up work is
+implemented. Execution status lives in the linked DRVR / INTD / TSRET
+work items and any inline status notes next to each finding; keep those
+in sync as work progresses, but don't use the checkbox itself to
+distinguish "routed to APS" from "fully implemented." The mapping is the
+authoritative trace from "council reviewer said X" back to the owning
+follow-up or landed change.
 
-When all criticals + majors tick, close or retarget this PR and move the
-doc to `plans/reviews/archive/` (directory is tracked even though the
-parent `plans/reviews/` itself is gitignored — see the existing files in
-the tree for the pattern).
+When the tracker's purpose is spent, close or retarget this PR and move
+the already-tracked doc to `plans/reviews/archive/` (new files under
+`plans/reviews/` are gitignored and need to be added explicitly; see
+existing files in the tree for the pattern).
 
 Reviewer raw outputs (unabridged) live in the session transcript; this
 summary is deliberately condensed for operational use.
