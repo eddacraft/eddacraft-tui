@@ -1,4 +1,27 @@
-# Real-Time Validation: Simplified Scope (AI Output Validation)
+<!-- Archived: 2026-04-24 | Reason: Zombie module against retired Ink/TS stack; absorbed by LAUNCH (watch polish) and RTVF (validation core). -->
+
+# Real-Time Validation: Simplified Scope (AI Output Validation) — SUPERSEDED
+
+| ID   | Owner | Status     |
+| ---- | ----- | ---------- |
+| RTVS | —     | Superseded |
+
+> **Superseded by:** [launch-flow-readiness (LAUNCH)](../../modules/launch-flow-readiness.aps.md)
+> for the watch-mode and TUI dashboard work, and
+> [real-time-validation-full (RTVF)](../../modules/real-time-validation-full.aps.md)
+> for the validation core engine and reasoning patterns.
+>
+> This module was drafted against the retired TypeScript Ink CLI
+> (`cli/src/tui/...`, `core/src/validation/fast-validator.ts`). Those
+> surfaces no longer exist — see archived
+> [ink-to-ratatui-port (PORT)](./ink-to-ratatui-port.aps.md)
+> (Complete, 15/15). The current stack is the Rust CLI
+> (`crates/anvil-cli/`) and Ratatui TUI (`crates/anvil-tui/`).
+>
+> Rather than re-scope this whole module against the new stack and
+> duplicate work already owned by LAUNCH and RTVF, the surviving intent
+> is forwarded into those modules and this spec is archived. See the
+> per-phase "Superseded by" notes below for the mapping.
 
 ## Overview
 
@@ -174,6 +197,14 @@ const watchConfig: WatchConfig = {
 
 ### Phase 1: Fast Validation Engine (3 days)
 
+> **Superseded by:** RTVF Phase 1 (`SERVER-001` — extract validation core).
+> RTVF must own the shared validation engine to serve its LSP/HTTP/stdin
+> interfaces; the AI reasoning patterns (VALID-002) and content-hash
+> caching (VALID-003) move into that core. Note: the original TypeScript
+> file paths (`core/src/validation/fast-validator.ts`,
+> `core/src/validation/ai-reasoning/`) are obsolete — RTVF will need to
+> re-target the Rust crates when it leaves Draft.
+
 **Goal:** In-memory validation with parallel execution and reasoning patterns
 
 **Tasks:**
@@ -238,6 +269,14 @@ const watchConfig: WatchConfig = {
 
 ### Phase 2: Enhanced Watch Mode (2 days)
 
+> **Superseded by:** LAUNCH (watch-flow polish on the Rust CLI / Ratatui
+> stack). Specifically: WATCH-001 (debouncing) is absorbed into
+> LAUNCH's broader watch-config work; WATCH-002 (parallel validation
+> wiring) lands inside the kernel watch loop owned by LAUNCH-001 /
+> LAUNCH-003 once RTVF provides the validation core; WATCH-003
+> (progress indicators) is folded into LAUNCH-003 (real-time stats
+> rollup in the watch TUI).
+
 **Goal:** Optimize watch mode for AI-generated content with faster feedback
 
 **Tasks:**
@@ -294,6 +333,16 @@ const watchConfig: WatchConfig = {
 **Confidence:** medium (TUI rendering needs optimization, Ink performance can vary)
 
 ### Phase 3: Terminal TUI Dashboard (2 days)
+
+> **Superseded by:** LAUNCH-003 (real-time stats rollup in the watch
+> TUI) and TUIDASH (the json-render dashboard surface that ultimately
+> replaces the bespoke watch panes). The Ink references here
+> (`cli/src/tui/commands/watch/ValidationDashboard.tsx`, "Ink
+> components", "Ink renderer") are obsolete; equivalent surfaces now
+> live under `crates/anvil-tui/src/surfaces/watch/`. TUI-013/-014/-015
+> intent (issue list, detail view, copy-to-clipboard) is reframed as
+> validation-issue presentation inside the Ratatui watch dashboard and
+> belongs to TUIDASH if and when those affordances are wanted.
 
 **Goal:** Rich terminal UI showing validation results with quick actions
 
@@ -358,6 +407,13 @@ const watchConfig: WatchConfig = {
 **Confidence:** high (clipboardy is battle-tested)
 
 ### Phase 4: Testing & Documentation (2 days)
+
+> **Superseded by:** the receiving modules. Cursor / Aider integration
+> testing (TEST-001, TEST-002) belongs to RTVF Phase 3 (AI Tool
+> Integrations) where those surfaces are actually built. User
+> documentation (DOC-001) and the demo video (DOC-002) ship with
+> whichever module lands the user-facing capability — RTVF for the
+> validation server, LAUNCH for the watch flow polish.
 
 **Goal:** Validate with real AI tools and document workflows
 
@@ -528,8 +584,9 @@ const watchConfig: WatchConfig = {
 
 ---
 
-**Status:** Draft
-**Priority:** High
-**Dependencies:** None (independent feature)
-**Target Milestone:** v0.6.0 — Real-Time Validation
-**Estimated Effort:** 9 days (3 + 2 + 2 + 2)
+**Status:** Superseded (2026-04-24)
+**Superseded by:** LAUNCH (watch + TUI work), RTVF (validation core + reasoning patterns)
+**Priority:** —
+**Dependencies:** —
+**Target Milestone:** —
+**Estimated Effort:** — (work redistributed across LAUNCH and RTVF)
