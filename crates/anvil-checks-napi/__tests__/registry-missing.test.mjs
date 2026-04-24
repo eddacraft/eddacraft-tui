@@ -37,9 +37,7 @@ assert.equal(
 );
 process.env.ANVIL_REGISTRY_PATH = missingRegistryPath;
 
-const { scanArtifactJson, getDefaultPatternsJson, getPatternJson } = await import(
-  '../index.js'
-);
+const { scanArtifactJson, getDefaultPatternsJson, getPatternJson } = await import('../index.js');
 
 test('getDefaultPatternsJson throws when registry is unavailable', () => {
   assert.throws(
