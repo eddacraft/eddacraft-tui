@@ -154,8 +154,12 @@ new primitive, this module follows three rules:
 - **Intent:** A watch invocation respects the include / exclude
   patterns the user passes on the command line.
 - **Expected Outcome:** `anvil watch --patterns "src/**/*.ts" --exclude "vendor/**"`
-  causes only matching files to trigger re-evaluation. A glob engine
-  (e.g. `globset`) is introduced so user-supplied patterns are matched
+  causes only matching files to trigger re-evaluation. Both
+  `--patterns` and `--exclude` are treated as user-supplied glob
+  filters, and the CLI help / behaviour is updated to document that
+  `--exclude` now matches glob patterns rather than the current
+  comma-separated list of directory names. A glob engine (e.g.
+  `globset`) is introduced so user-supplied patterns are matched
   against changed paths in the watch loop. The dead
   `WatchConfig.include_patterns` / `exclude_patterns` fields are
   either consumed or removed; the existing internal `FileFilter` is
