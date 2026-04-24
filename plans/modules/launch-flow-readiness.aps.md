@@ -255,7 +255,7 @@ new primitive, this module follows three rules:
 - **Validation:** JSON-mode output for each check includes a non-empty
   `remediation` field; snapshot tests cover the new fields.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete
 
 ---
 

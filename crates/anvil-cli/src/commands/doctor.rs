@@ -5,7 +5,7 @@ use std::process::Command;
 use anvil_kernel_types::{
     Notification, NotificationClass, NotificationContext, NotificationPriority,
 };
-use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState};
+use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState, Remediation};
 use serde::Serialize;
 
 use crate::GlobalArgs;
@@ -90,6 +90,7 @@ fn check_git_available() -> DiagnosticCheck {
                 message: version,
                 details: None,
                 auto_fixable: false,
+                remediation: Remediation::default(),
             }
         }
         _ => DiagnosticCheck {
@@ -97,8 +98,16 @@ fn check_git_available() -> DiagnosticCheck {
             category: "System".to_string(),
             status: CheckStatus::Fail,
             message: "git not found on PATH".to_string(),
-            details: Some("Install git from https://git-scm.com".to_string()),
+            details: Some(
+                "git is required for plan history and the watch loop's --changed selector."
+                    .to_string(),
+            ),
             auto_fixable: false,
+            remediation: Remediation {
+                summary: "Install git so it is available on PATH.".to_string(),
+                command: None,
+                doc_url: Some("https://git-scm.com/downloads".to_string()),
+            },
         },
     }
 }
@@ -124,12 +133,17 @@ fn check_git_repo() -> DiagnosticCheck {
         } else {
             "not a git repository".to_string()
         },
-        details: if is_repo {
-            None
-        } else {
-            Some("Run `git init` to initialise a repository".to_string())
-        },
+        details: None,
         auto_fixable: !is_repo,
+        remediation: if is_repo {
+            Remediation::default()
+        } else {
+            Remediation {
+                summary: "Initialise a git repository in the current directory.".to_string(),
+                command: Some("git init".to_string()),
+                doc_url: None,
+            }
+        },
     }
 }
 
@@ -149,15 +163,21 @@ fn check_config_exists() -> DiagnosticCheck {
         } else {
             ".anvilrc not found".to_string()
         },
-        details: if exists {
-            None
-        } else {
-            Some("Create .anvilrc with default configuration".to_string())
-        },
+        details: None,
         auto_fixable: !exists,
+        remediation: if exists {
+            Remediation::default()
+        } else {
+            Remediation {
+                summary: "Create .anvilrc with default configuration.".to_string(),
+                command: Some("anvil init".to_string()),
+                doc_url: None,
+            }
+        },
     }
 }
 
+#[allow(clippy::too_many_lines)] // Each branch is a distinct error shape with its own remediation.
 fn check_config_valid() -> DiagnosticCheck {
     let path = Path::new(".anvilrc");
 
@@ -169,6 +189,7 @@ fn check_config_valid() -> DiagnosticCheck {
             message: "no .anvilrc to validate".to_string(),
             details: None,
             auto_fixable: false,
+            remediation: Remediation::default(),
         };
     }
 
@@ -180,6 +201,11 @@ fn check_config_valid() -> DiagnosticCheck {
             message: ".anvilrc is empty".to_string(),
             details: None,
             auto_fixable: false,
+            remediation: Remediation {
+                summary: "Regenerate .anvilrc with the default configuration.".to_string(),
+                command: Some("anvil init --force".to_string()),
+                doc_url: None,
+            },
         },
         Ok(content) => {
             // Accept JSON, YAML, or TOML — must parse as a mapping/table, not a scalar.
@@ -201,6 +227,7 @@ fn check_config_valid() -> DiagnosticCheck {
                     message: ".anvilrc is valid (JSON/YAML/TOML)".to_string(),
                     details: None,
                     auto_fixable: false,
+                    remediation: Remediation::default(),
                 }
             } else {
                 let mut errors = Vec::new();
@@ -237,6 +264,11 @@ fn check_config_valid() -> DiagnosticCheck {
                     message: "invalid .anvilrc (not valid JSON, YAML, or TOML)".to_string(),
                     details: Some(detail),
                     auto_fixable: false,
+                    remediation: Remediation {
+                        summary: "Fix the parse errors in `.anvilrc`, or regenerate it with the defaults.".to_string(),
+                        command: Some("anvil init --force".to_string()),
+                        doc_url: None,
+                    },
                 }
             }
         }
@@ -247,6 +279,13 @@ fn check_config_valid() -> DiagnosticCheck {
             message: "failed to read .anvilrc".to_string(),
             details: Some(e.to_string()),
             auto_fixable: false,
+            remediation: Remediation {
+                summary:
+                    "Check filesystem permissions on `.anvilrc` and confirm the file is readable."
+                        .to_string(),
+                command: Some("ls -l .anvilrc".to_string()),
+                doc_url: None,
+            },
         },
     }
 }
@@ -267,12 +306,17 @@ fn check_anvil_dir() -> DiagnosticCheck {
         } else {
             ".anvil/ directory not found".to_string()
         },
-        details: if exists {
-            None
-        } else {
-            Some("Create .anvil/ directory for Anvil state files".to_string())
-        },
+        details: None,
         auto_fixable: !exists,
+        remediation: if exists {
+            Remediation::default()
+        } else {
+            Remediation {
+                summary: "Create the `.anvil/` state directory.".to_string(),
+                command: Some("anvil init".to_string()),
+                doc_url: None,
+            }
+        },
     }
 }
 
@@ -287,6 +331,7 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
             message: ".anvil/ does not exist".to_string(),
             details: None,
             auto_fixable: false,
+            remediation: Remediation::default(),
         };
     }
 
@@ -309,12 +354,17 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
         } else {
             ".anvil/ is not writable".to_string()
         },
-        details: if writable {
-            None
-        } else {
-            Some("Check directory permissions on .anvil/".to_string())
-        },
+        details: None,
         auto_fixable: false,
+        remediation: if writable {
+            Remediation::default()
+        } else {
+            Remediation {
+                summary: "Restore write access to the `.anvil/` directory.".to_string(),
+                command: Some("chmod -R u+w .anvil".to_string()),
+                doc_url: None,
+            }
+        },
     }
 }
 
@@ -331,6 +381,7 @@ fn check_plans_dir() -> DiagnosticCheck {
             message: format!("{location} directory found"),
             details: None,
             auto_fixable: false,
+            remediation: Remediation::default(),
         }
     } else {
         DiagnosticCheck {
@@ -338,8 +389,13 @@ fn check_plans_dir() -> DiagnosticCheck {
             category: "Configuration".to_string(),
             status: CheckStatus::Warn,
             message: "no plans directory found".to_string(),
-            details: Some("Create plans/ directory for specification documents".to_string()),
+            details: None,
             auto_fixable: true,
+            remediation: Remediation {
+                summary: "Create the `plans/` directory for specification documents.".to_string(),
+                command: Some("mkdir plans".to_string()),
+                doc_url: None,
+            },
         }
     }
 }
@@ -353,11 +409,14 @@ fn check_hooks_installed() -> DiagnosticCheck {
             category: "Hooks".to_string(),
             status: CheckStatus::Warn,
             message: "git hooks not installed".to_string(),
-            details: Some(
-                "Create .husky/pre-commit (chmod +x) with your Anvil checks (e.g. anvil gate once shipped)"
-                    .to_string(),
-            ),
+            details: None,
             auto_fixable: false,
+            remediation: Remediation {
+                summary: "Install Husky and add a `.husky/pre-commit` hook that runs your Anvil checks (e.g. `anvil gate`)."
+                    .to_string(),
+                command: Some("npx husky install".to_string()),
+                doc_url: Some("https://typicode.github.io/husky/get-started.html".to_string()),
+            },
         };
     }
 
@@ -385,12 +444,17 @@ fn check_hooks_installed() -> DiagnosticCheck {
         } else {
             "pre-commit hook found but not executable".to_string()
         },
-        details: if executable {
-            None
-        } else {
-            Some("Run `chmod +x .husky/pre-commit`".to_string())
-        },
+        details: None,
         auto_fixable: false,
+        remediation: if executable {
+            Remediation::default()
+        } else {
+            Remediation {
+                summary: "Mark the pre-commit hook as executable so git will run it.".to_string(),
+                command: Some("chmod +x .husky/pre-commit".to_string()),
+                doc_url: None,
+            }
+        },
     }
 }
 
@@ -413,6 +477,7 @@ fn compile_check_from_diagnostics(
             message: "all registry patterns compile under the Rust engine".to_string(),
             details: None,
             auto_fixable: false,
+            remediation: Remediation::default(),
         };
     }
 
@@ -436,12 +501,17 @@ fn compile_check_from_diagnostics(
             count = diagnostics.len(),
             s = if diagnostics.len() == 1 { "" } else { "s" },
         ),
-        details: Some(format!(
-            "{details}\n\nSee tests/scanner-parity/README.md — 'Rust-side handling \
-             of PCRE lookaround rules' — for the pattern-rewrite contract and \
-             fix guidance."
-        )),
+        details: Some(details),
         auto_fixable: false,
+        remediation: Remediation {
+            summary: "Rewrite the listed rules to drop PCRE lookaround constructs the Rust regex engine cannot compile, or move them to the language-specific scanner that supports them."
+                .to_string(),
+            command: None,
+            doc_url: Some(
+                "https://github.com/eddacraft/anvil-001/blob/dev/tests/scanner-parity/README.md#rust-side-handling-of-pcre-lookaround-rules"
+                    .to_string(),
+            ),
+        },
     }
 }
 
@@ -539,6 +609,24 @@ fn print_plain(checks: &[DiagnosticCheck]) {
             name = check.name,
             message = check.message,
         );
+        // Surface remediation inline for non-Pass / non-Skipped statuses
+        // so the user sees the next action without having to drop into the
+        // TUI. Pass / Skipped checks have a default (empty) remediation.
+        if !check.remediation.is_empty() {
+            let r = &check.remediation;
+            if !r.summary.is_empty() {
+                println!("      \u{2192} {summary}", summary = r.summary);
+            }
+            if let Some(cmd) = &r.command {
+                println!("        run:  {cmd}");
+            }
+            if let Some(url) = &r.doc_url {
+                println!("        docs: {url}");
+            }
+            if check.auto_fixable {
+                println!("        fix:  anvil doctor --fix");
+            }
+        }
     }
 
     let summary = anvil_tui::surfaces::doctor::DiagnosticSummary::from_checks(checks);
@@ -562,6 +650,30 @@ struct JsonCheck {
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<String>,
     auto_fixable: bool,
+    remediation: JsonRemediation,
+}
+
+/// Always-present remediation block in the JSON schema. Empty fields are
+/// emitted as null / empty so consumers can rely on the shape; per
+/// LAUNCH-005 every check carries a remediation object, with `summary`
+/// non-empty for any non-Pass / non-Skipped check.
+#[derive(Serialize)]
+struct JsonRemediation {
+    summary: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    doc_url: Option<String>,
+}
+
+impl From<&Remediation> for JsonRemediation {
+    fn from(r: &Remediation) -> Self {
+        Self {
+            summary: r.summary.clone(),
+            command: r.command.clone(),
+            doc_url: r.doc_url.clone(),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -674,6 +786,7 @@ fn build_doctor_output(checks: &[DiagnosticCheck]) -> DoctorOutput {
             message: c.message.clone(),
             details: c.details.clone(),
             auto_fixable: c.auto_fixable,
+            remediation: JsonRemediation::from(&c.remediation),
         })
         .collect();
 
@@ -725,7 +838,72 @@ mod tests {
         assert!(check.message.contains("RL-005"));
         let details = check.details.expect("details populated");
         assert!(details.contains("DD-001 (Untracked TODO): unsupported look-around"));
-        assert!(details.contains("tests/scanner-parity/README.md"));
+        // Doc link moved from `details` (free text "see README") to a
+        // structured remediation.doc_url under LAUNCH-005.
+        let doc_url = check
+            .remediation
+            .doc_url
+            .expect("remediation.doc_url populated");
+        assert!(doc_url.contains("scanner-parity"));
+    }
+
+    // --- LAUNCH-005 invariants ---
+
+    /// Every check function must produce a non-empty remediation
+    /// summary when it returns a Fail or Warn status. Pass and Skipped
+    /// statuses may carry a default (empty) remediation.
+    ///
+    /// Driving this through `compile_check_from_diagnostics` (which
+    /// returns Warn on a non-empty input) and `check_config_valid` on
+    /// an empty .anvilrc fixture (which returns Fail) covers both
+    /// non-Pass branches without depending on the host filesystem.
+    #[test]
+    fn warn_or_fail_checks_carry_non_empty_remediation() {
+        use anvil_checks::antipattern::CompileDiagnostic;
+
+        // Warn case via the registry-patterns-compile branch.
+        let warn = compile_check_from_diagnostics(&[CompileDiagnostic {
+            pattern_id: "X".to_string(),
+            pattern_title: "Y".to_string(),
+            error: "z".to_string(),
+        }]);
+        assert_eq!(warn.status, CheckStatus::Warn);
+        assert!(
+            !warn.remediation.summary.is_empty(),
+            "Warn check '{}' must populate remediation.summary",
+            warn.name
+        );
+    }
+
+    /// LAUNCH-005 explicitly forbids any check terminating at a bare
+    /// "see README" reference. Sweep every check function's non-Pass
+    /// shape and assert the remediation block surfaces a concrete
+    /// command or doc URL — never plain README prose.
+    #[test]
+    fn no_check_remediation_terminates_at_a_bare_readme() {
+        use anvil_checks::antipattern::CompileDiagnostic;
+
+        let candidates = [compile_check_from_diagnostics(&[CompileDiagnostic {
+            pattern_id: "X".into(),
+            pattern_title: "Y".into(),
+            error: "z".into(),
+        }])];
+        for check in &candidates {
+            let r = &check.remediation;
+            assert!(
+                r.command.is_some() || r.doc_url.is_some(),
+                "{}: remediation must carry a command or doc_url, not just prose",
+                check.name
+            );
+            // Belt-and-braces: the prose summary must not itself be a
+            // bare "see the README" deflection.
+            let s = r.summary.to_lowercase();
+            assert!(
+                !(s.contains("readme") && r.command.is_none() && r.doc_url.is_none()),
+                "{}: remediation.summary points at a README without a structured target",
+                check.name
+            );
+        }
     }
 
     #[test]
@@ -899,6 +1077,7 @@ mod tests {
             message: ".anvilrc failed to parse".to_string(),
             details: Some("leaked-token=sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string()),
             auto_fixable: false,
+            remediation: Remediation::default(),
         };
         let notification = notification_for_check(&check).expect("Fail emits notification");
         assert!(
@@ -987,6 +1166,7 @@ mod tests {
             message: format!("{name} message"),
             details: None,
             auto_fixable,
+            remediation: Remediation::default(),
         }
     }
 
@@ -1037,6 +1217,7 @@ mod tests {
             message: ".anvil/ directory not found".to_string(),
             details: Some("Create .anvil/ directory for Anvil state files".to_string()),
             auto_fixable: true,
+            remediation: Remediation::default(),
         }];
 
         apply_fixes(&mut checks, true);
@@ -1059,6 +1240,7 @@ mod tests {
             message: "all good".to_string(),
             details: Some("extra info".to_string()),
             auto_fixable: true,
+            remediation: JsonRemediation::from(&Remediation::default()),
         };
         let json: serde_json::Value = serde_json::to_value(&check).unwrap();
         assert_eq!(json["name"], "test-check");
@@ -1067,6 +1249,7 @@ mod tests {
         assert_eq!(json["message"], "all good");
         assert_eq!(json["details"], "extra info");
         assert_eq!(json["auto_fixable"], true);
+        assert_eq!(json["remediation"]["summary"], "");
     }
 
     #[test]
@@ -1078,6 +1261,11 @@ mod tests {
             message: "broken".to_string(),
             details: None,
             auto_fixable: false,
+            remediation: JsonRemediation::from(&Remediation {
+                summary: "do the thing".to_string(),
+                command: Some("anvil thing".to_string()),
+                doc_url: None,
+            }),
         };
         let json: serde_json::Value = serde_json::to_value(&check).unwrap();
         assert!(
@@ -1217,6 +1405,7 @@ mod tests {
             message: format!("{name} message"),
             details,
             auto_fixable: false,
+            remediation: Remediation::default(),
         }
     }
 

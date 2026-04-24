@@ -9,7 +9,14 @@ use super::{CheckStatus, DoctorState};
 
 #[allow(clippy::too_many_lines)]
 pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCraftTheme) {
-    let detail_height = if state.expanded { 4 } else { 0 };
+    // Grow the detail panel when expanded so the remediation block has
+    // room (summary + optional command + optional doc_url + fix hint
+    // can run to ~5 lines on top of the technical details line).
+    let detail_height = if state.expanded {
+        detail_panel_height(state)
+    } else {
+        0
+    };
     let chunks = Layout::vertical([
         Constraint::Length(3),             // Summary header
         Constraint::Min(4),                // Check list
@@ -108,14 +115,59 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
             detail_text,
             Style::default().fg(theme.fg()),
         ))];
+
+        let r = &check.remediation;
+        if !r.summary.is_empty() {
+            lines.push(Line::from(Span::styled(
+                format!("\u{2192} {}", r.summary),
+                Style::default().fg(theme.fg()),
+            )));
+        }
+        if let Some(cmd) = &r.command {
+            lines.push(Line::from(vec![
+                Span::styled("  run:  ", Style::default().fg(theme.muted())),
+                Span::styled(cmd.clone(), Style::default().fg(theme.accent())),
+            ]));
+        }
+        if let Some(url) = &r.doc_url {
+            lines.push(Line::from(vec![
+                Span::styled("  docs: ", Style::default().fg(theme.muted())),
+                Span::styled(url.clone(), Style::default().fg(theme.accent())),
+            ]));
+        }
         if check.auto_fixable {
             lines.push(Line::from(Span::styled(
-                "Auto-fixable",
+                "Auto-fixable — press `f` (or `anvil doctor --fix`)",
                 Style::default().fg(theme.accent()),
             )));
         }
         frame.render_widget(Paragraph::new(Text::from(lines)), detail_area);
     }
+}
+
+/// Height needed for the detail panel: 1 line for `details`, optional
+/// lines for `summary` / `command` / `doc_url` / fix hint, plus the
+/// 2-line border. Capped so it never dominates the surface.
+fn detail_panel_height(state: &DoctorState) -> u16 {
+    let Some(check) = state.checks.get(state.selected) else {
+        return 4;
+    };
+    let mut content_lines: u16 = 1; // details line is always rendered
+    let r = &check.remediation;
+    if !r.summary.is_empty() {
+        content_lines += 1;
+    }
+    if r.command.is_some() {
+        content_lines += 1;
+    }
+    if r.doc_url.is_some() {
+        content_lines += 1;
+    }
+    if check.auto_fixable {
+        content_lines += 1;
+    }
+    // 2 border lines + content. Cap at 10 so the check list remains usable.
+    (content_lines + 2).clamp(4, 10)
 }
 
 #[cfg(test)]
@@ -127,6 +179,8 @@ mod tests {
     fn sample_state() -> DoctorState {
         use super::super::DiagnosticCheck;
 
+        use super::super::Remediation;
+
         DoctorState::new(vec![
             DiagnosticCheck {
                 name: "Node.js".to_string(),
@@ -135,6 +189,7 @@ mod tests {
                 message: "v22.0.0 found".to_string(),
                 details: Some("Path: /usr/bin/node".to_string()),
                 auto_fixable: false,
+                remediation: Remediation::default(),
             },
             DiagnosticCheck {
                 name: "ESLint config".to_string(),
@@ -143,6 +198,11 @@ mod tests {
                 message: "No .eslintrc found".to_string(),
                 details: Some("Run `npx eslint --init`".to_string()),
                 auto_fixable: true,
+                remediation: Remediation {
+                    summary: "Create an ESLint config".to_string(),
+                    command: Some("npx eslint --init".to_string()),
+                    doc_url: None,
+                },
             },
             DiagnosticCheck {
                 name: "Git hooks".to_string(),
@@ -151,6 +211,11 @@ mod tests {
                 message: "Hooks not installed".to_string(),
                 details: None,
                 auto_fixable: true,
+                remediation: Remediation {
+                    summary: "Install pre-commit hooks".to_string(),
+                    command: Some("npx husky install".to_string()),
+                    doc_url: None,
+                },
             },
         ])
     }
