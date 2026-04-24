@@ -95,10 +95,6 @@ Recommended config for solo development:
     "secrets": {
       "enabled": true
     }
-  },
-  "watch": {
-    "debounce_ms": 300,
-    "ignore": ["node_modules", "dist", ".git"]
   }
 }
 ```
@@ -108,7 +104,8 @@ Recommended config for solo development:
 - **Architecture without boundaries** — catches circular deps, still useful
 - **Core anti-patterns only** — high signal, low noise
 - **Secrets always on** — prevent accidental commits
-- **300ms debounce** — balances responsiveness with CPU
+- **Watch defaults are usually enough** — start with `anvil watch --source` and
+  add CLI flags only if you need a narrower scope or slower debounce
 
 ## VS Code Integration
 

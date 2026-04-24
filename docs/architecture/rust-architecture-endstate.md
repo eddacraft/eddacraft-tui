@@ -392,14 +392,17 @@ semantic graph. They operate on file content directly.
 > scans artifacts in parallel with `rayon::par_iter`, achieving parallel
 > throughput scaling on multi-artifact workloads (watch fan-out, multi-PR gate
 > checks, full-repo CI scans). The TypeScript scanner in
-> `packages/anvil/core/src/antipattern/` is still used from in-process surfaces
-> (VSCode extension, MCP server); both engines consume the same registry and are
-> held in partial parity by `tests/scanner-parity/` (see RSCAN-007). Known
-> engine divergences — lookaround patterns the Rust `regex` crate cannot
-> compile, and the `flags: "i"` case-insensitive flag dropped by the Rust loader
-> — are enumerated in `tests/scanner-parity/README.md` and tracked as follow-ups
-> to ADR-026. The TS scanner will retire once a napi-rs / WASM binding makes the
-> Rust engine callable from Node surfaces (future module, out of scope here).
+> `packages/anvil/core/src/antipattern/` remains only as a transition-window path
+> for surfaces that have not yet moved onto intercept-daemon drivers
+> (currently VSCode extension and MCP server, per ADR-030). Both engines consume
+> the same registry and are held in partial parity by `tests/scanner-parity/`
+> while that window remains open. Known engine divergences — mostly Rust `regex`
+> limitations such as lookaround rewrites — are enumerated in
+> `tests/scanner-parity/README.md`. The retirement path is now driver-based, not
+> napi-based: once DRVR lands and no surface imports the TS scanner,
+> `TSRET-005` deletes the TS implementation. `TSRET-006` adds `engineVersion`
+> attribution and a divergence canary so transition-window mismatches fail
+> loudly instead of drifting silently.
 >
 > [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
 

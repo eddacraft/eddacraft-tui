@@ -159,5 +159,7 @@ For the full explanation of checks, findings, and gates, see
 
 ---
 
-**Ready to start?** [Request access](https://eddacraft.ai/#waitlist) or
-[go to the quickstart →](/anvil/quickstart) if you already have an invite.
+**Ready to start?** [Go to the quickstart →](/anvil/quickstart)
+
+anvil is currently in early access, with the Rust CLI as the current fresh-start
+install path.

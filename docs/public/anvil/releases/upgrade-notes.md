@@ -90,21 +90,20 @@ continue to work without modification.
 
 ## Upgrading to 0.3.0-beta
 
-**Major change:** anvil is now a native Rust binary. The Node.js package
-(`@eddacraft/anvil-cli`) is deprecated and will not receive further updates.
+`0.3.0-beta` was the release where anvil became a native Rust binary. Current
+docs assume a fresh install on the Rust CLI rather than a staged migration from
+the legacy Node.js package.
 
 ```bash
 # Install the native binary
 curl -fsSL https://install.eddacraft.ai | sh
-
-# Remove the old Node.js package (global)
-npm uninstall -g @eddacraft/anvil-cli
-# or if installed as a project dependency:
-# pnpm remove @eddacraft/anvil-cli
 ```
 
-Your `.anvilrc` and `.anvil/` directory work without changes. Authentication
-tokens are migrated automatically on first run.
+If an older npm-installed `anvil` is still earlier on your `PATH`, remove
+`@eddacraft/anvil-cli` and re-run `anvil --version` so you know the native
+binary is the command being executed.
+
+Your `.anvilrc` and `.anvil/` directory work without changes.
 
 For full details, see [The Switch to Rust](./rust-rewrite.md).
 
@@ -126,8 +125,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 ### Breaking Changes
 
-- **Installation method** — `npm i -g @eddacraft/anvil-cli` no longer works. Use
-  the install script or Homebrew.
+- **Installation method** — install anvil as a native binary via the installer,
+  Homebrew, WinGet, or Scoop.
 - **CI workflows** — replace `pnpm anvil` / `npx anvil` with direct `anvil`
   calls. Remove Node.js setup steps if anvil was the only reason they existed.
 - **Docs access** — the `/anvil` documentation is now gated behind GitHub OAuth

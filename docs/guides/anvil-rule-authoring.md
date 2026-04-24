@@ -5,11 +5,12 @@ catalogue. All rules live as `.anvil` files under `patterns/` and are compiled
 into `patterns/compiled/registry.json` by `scripts/compile-patterns`.
 
 `registry.json` is the **contract both scan engines consume**: the Rust scanner
-in `crates/anvil-checks` (authoritative, per [ADR-026]) and the TypeScript
-scanner in `packages/anvil/core/src/antipattern` (kept for the VSCode extension
-and MCP server until the napi-rs migration lands). Authoring a rule means
-editing the `.anvil` source and recompiling the registry — neither engine
-carries its own hand-written pattern table.
+in `crates/anvil-checks` (authoritative, per [ADR-026]) and the temporary
+TypeScript scanner in `packages/anvil/core/src/antipattern` that still backs a
+small transition window for VSCode and MCP surfaces until the intercept-daemon
+driver cutover lands (ADR-030). Authoring a rule means editing the `.anvil`
+source and recompiling the registry — neither engine carries its own
+hand-written pattern table.
 
 [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
 

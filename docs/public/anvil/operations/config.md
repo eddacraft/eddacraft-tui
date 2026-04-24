@@ -329,8 +329,8 @@ anvil watch --source                     # Watch source files
 anvil watch --plans                      # Watch planning documents
 anvil watch --all                        # Watch everything
 anvil watch --debounce 500               # Custom debounce (ms, default: 300)
-anvil watch --exclude "vendor,tmp"       # Exclude directories
-anvil watch --patterns "**/*.ts,**/*.rs" # Custom file patterns
+anvil watch --exclude "vendor,tmp"       # Exclude extra directory names
+anvil watch --patterns "**/*.ts,**/*.rs" # Pattern flags are accepted for future watch filtering
 anvil watch --file src/api/              # Scope to specific path
 anvil watch --action gate                # Run gate on each change
 ```
@@ -341,8 +341,8 @@ anvil watch --action gate                # Run gate on each change
 | `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)   |
 | `--all`      |       | —       | Watch all file types (source + plans)                                               |
 | `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                             |
-| `--exclude`  |       | —       | Comma-separated directory names to skip                                             |
-| `--patterns` |       | —       | Comma-separated glob patterns to watch                                              |
+| `--exclude`  |       | —       | Comma-separated directory names to exclude in the watcher filter                    |
+| `--patterns` |       | —       | Comma-separated glob patterns carried on the watch config; full loop filtering is still limited |
 | `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                         |
 | `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                          |
 

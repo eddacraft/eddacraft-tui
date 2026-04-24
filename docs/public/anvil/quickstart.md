@@ -17,10 +17,11 @@ minutes.
 
 ## Install
 
-:::info Closed beta
+:::info Early access
 
-anvil is currently in early access. You need to
-[request access](https://eddacraft.ai/#waitlist) before you can install.
+anvil is still in early access. The install flow below is the fresh-start path
+for the current Rust CLI. If your team has gated beta access, use the GitHub
+account tied to that access when prompted by anvil or the docs site.
 
 :::
 
@@ -139,7 +140,7 @@ All gates passed.
 
 ## Turn On Watch Mode
 
-Start anvil in the background so it validates on every save:
+Start anvil so it validates on every save:
 
 ```bash
 anvil watch --source

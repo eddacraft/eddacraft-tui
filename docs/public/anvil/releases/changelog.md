@@ -104,7 +104,9 @@ All notable changes to anvil are documented here.
 - **Native Rust binary** — anvil is now distributed as a single static binary
   with no Node.js runtime required. The Node.js package (`@eddacraft/anvil-cli`)
   is deprecated and will not receive further updates. See
-  [The Switch to Rust](./rust-rewrite.md) for migration instructions.
+  [The Switch to Rust](./rust-rewrite.md) for background on the Rust cutover and
+  the small amount of path-cleanup guidance needed if you still have the old npm
+  CLI installed.
 - **Installation** — `curl -fsSL https://install.eddacraft.ai | sh` (macOS /
   Linux) or `irm https://install.eddacraft.ai/windows | iex` (Windows). Also
   available via Homebrew: `brew install eddacraft/tap/anvil`. Built-in

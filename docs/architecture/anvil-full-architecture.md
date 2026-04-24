@@ -215,37 +215,32 @@ checks against repository state and produces pass/fail/warn results.
                           Record            (CLI/MCP)      Provider
 ```
 
-### Proposed Gate Pipeline (End State)
+### Current Gate Pipeline
 
 ```
-                              [PROPOSED]
                                  │
-  .anvil/gate.yaml ──► GateConfigManager ──► Engine Selector
+  .anvil/gate.yaml ──► GateConfigManager ──► Rust Engine / Kernel
                                                 │
-                              ┌─────────────────┴──────────────┐
-                              ▼                                ▼
-                      Legacy TS Engine                  Rust Kernel Engine
-                      (--engine legacy)                 (--engine rust)
-                              │                                │
-                              ▼                                ▼
-                       GateRunner (TS)              ┌──────────────────┐
-                       (as today)                   │ Watcher          │
-                                                    │ → Parser         │
-                                                    │ → Semantic Graph │
-                                                    │ → Policy Engine  │
-                                                    │ → Event Emission │
-                                                    └──────────────────┘
-                              │                                │
-                              ▼                                ▼
+                                                ▼
+                                       ┌──────────────────┐
+                                       │ Watcher          │
+                                       │ → Parser         │
+                                       │ → Semantic Graph │
+                                       │ → Policy Engine  │
+                                       │ → Event Emission │
+                                       └──────────────────┘
+                                                │
+                                                ▼
                     ┌────────────────────────────────────────────┐
                     │         Engine Event Protocol              │
                     │  Progress | Snapshot | Violation | Error   │
                     └────────────────────────────────────────────┘
                                        │
-                              ┌────────┼────────┐
-                              ▼        ▼        ▼
-                           CLI      Website   VS Code
-                           TUI     Dashboard  Extension
+                              ┌────────┼─────────────┐
+                              ▼        ▼             ▼
+                           CLI/TUI  Website     Driver clients
+                                                 (editor / MCP,
+                                                 planned via daemon)
 ```
 
 ---
