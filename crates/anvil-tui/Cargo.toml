@@ -3,6 +3,7 @@ name = "eddacraft-anvil-tui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Anvil TUI surfaces built on eddacraft-tui — watch dashboard, gate explorer, wizard"
 
 [lib]

@@ -3,6 +3,7 @@ name = "eddacraft-anvil-architecture"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Anvil architecture enforcement — boundary definitions, import rules, drift detection"
 
 [lib]

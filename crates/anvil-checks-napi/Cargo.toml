@@ -3,6 +3,7 @@ name = "eddacraft-anvil-checks-napi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Node-API binding for the authoritative Anvil Rust scanner"
 
 [lib]
