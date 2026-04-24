@@ -99,7 +99,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [anvil-rust-scanner](./archive/modules/anvil-rust-scanner.aps.md) | RSCAN | Complete | 8/8 (RSCAN-008 landed — docs now describe the authoritative Rust scanner and the scanner-parity story per ADR-026) |
 | [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
 | [anvil-scanner-parity-gaps](./archive/modules/anvil-scanner-parity-gaps.aps.md) | SPG | Complete | 6/6 (`flags:"i"` honoured, lookaround rules handled via post-filters, doctor surfaces compile failures, fixtures cover every rule, `antipattern_scan` bench + trust-boundary docs landed) |
-| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | 2/5 (TSRET-001 landed; TSRET-002 **Complete** 2026-04-23 under the ADR-030-reduced scope — napi stays private, CI matrix retained as canary; TSRET-003/-004 **superseded** by DRVR; TSRET-005 retained, now blocks on DRVR) |
+| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | 2/6 (TSRET-001 landed; TSRET-002 **Complete** 2026-04-23 under the ADR-030-reduced scope — napi stays private, CI matrix retained as canary; TSRET-003/-004 **superseded** by DRVR; TSRET-005 retained, blocks on DRVR; TSRET-006 added 2026-04-24 for transition-window engine-version diagnostics per council review M14) |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
@@ -467,17 +467,20 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/13 | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/16 | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
 <!--
   INTD count history:
   - Pre-NOTIFY-009: index claimed 0/11, module already had 12 tasks (001–012) — off-by-one.
   - NOTIFY-009 added INTD-013 to mirror control decisions onto telemetry.
-  - Net: module now has 13 tasks; index reconciled to 0/13.
+  - 2026-04-24 council review M1/M5/M9 filed INTD-014 (JSON-RPC 2.0
+    conformance + latency benchmark), INTD-015 (daemon-enforced
+    telemetry subscription scoping), INTD-016 (DoS protection budgets).
+  - Net: module now has 16 tasks; index reconciled to 0/16.
 -->
 
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
-| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/5 | INTD-002/-003/-005/-013, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030) |
+| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/8 | INTD-002/-003/-005/-013/-015, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-006/-007/-008 added 2026-04-24 per council review C2/M5-M7/M10-M11 |
 
 **Architecture Decisions:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md), [D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md)
 

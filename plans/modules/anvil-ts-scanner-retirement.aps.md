@@ -105,8 +105,11 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
 
 **Exposes:**
 
-- A single authoritative scanner, reached by every surface
-- `@eddacraft/anvil-checks-native` (or similar) napi package
+- A single authoritative scanner, reached by every surface — the
+  intercept daemon hosts it per ADR-030 (not a published binding).
+- `crates/anvil-checks-napi/` — internal CLI-acceleration binding.
+  Retained private (`"private": true` in its `package.json`); not
+  published to npm. See ADR-030 and council review S4.
 
 ## Tasks
 
@@ -218,28 +221,70 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
 - **Priority:** Medium
 - **Status:** Proposed
 
+---
+
+### TSRET-006: Engine-version diagnostics + transition-window divergence canary
+
+- **Intent:** Close the monitoring gap in the TS-to-daemon transition
+  window. Rules added to the compiled registry after TSRET-002 but
+  before DRVR-003 are invisible to TS-scanner surfaces
+  (VSCode + MCP via `GateRunner`) with no attribution path. A user
+  reporting "Anvil flagged this wrong at 14:22" currently cannot be
+  told which engine (TS or Rust) served the warning.
+- **Expected Outcome:** Every diagnostic / scan result carries an
+  `engineVersion` field derived from the compiled registry's
+  `compiled_at` timestamp (or equivalent). Both the TS scanner path
+  (in `packages/anvil/core/src/antipattern/`) and the Rust scanner
+  path (via the napi binding and eventually the daemon) populate
+  the field. A CI canary job runs a small repo-hosted fixture set
+  through both engines and fails if warning counts or ids diverge
+  beyond a recorded tolerance — turning silent drift into a CI
+  signal. Fixture set uses the repo's own `.anvil` sources so new
+  rules are covered automatically.
+- **Scope:** `packages/anvil/core/src/antipattern/` (add the field,
+  with a fallback when registry metadata is absent),
+  `crates/anvil-checks/src/antipattern/` (same on Rust side),
+  `crates/anvil-checks-napi/src/lib.rs` (surface the field),
+  `tests/scanner-parity/` (extend fixture set + canary script),
+  `.github/workflows/ci.yml` (wire the canary into PR CI)
+- **Dependencies:** SPG-003 (Complete), TSRET-001 (Complete)
+- **Validation:** Canary fixture run returns structured output
+  containing `engineVersion` on both sides; deliberate rule-divergence
+  test (add a rule to Rust registry without the TS loader mirror)
+  fails the canary loudly.
+- **Source:** 2026-04-24 council review M14 (operations-reviewer) —
+  tracked in `plans/specs/2026-04-24-adr-030-council-findings.md`.
+- **Confidence:** medium
+- **Priority:** Medium
+- **Status:** Proposed
+
 ## Risks
 
-- **napi-rs overhead on the VSCode hot path.** VSCode expects
-  diagnostics within a few hundred ms of a save. Per-call napi overhead
-  plus Rust scan latency must stay inside that budget. Measure in
-  TSRET-001 before committing to cutover.
-- **Windows arm64 or other niche targets.** If a target we ship to
-  lacks a napi prebuild, we either drop the target or keep the TS
-  path as a fallback. Decide in TSRET-002 based on actual targets.
 - **Transitive consumers of the TS module.** Any code that imports
-  `@eddacraft/anvil-core/antipattern` outside the extension/MCP must be
-  inventoried in TSRET-005; some may need a TS-side adapter rather
-  than a straight import swap.
+  `@eddacraft/anvil-core/antipattern` outside the extension/MCP must
+  be inventoried before TSRET-005 runs; some may need a TS-side
+  adapter rather than a straight import swap.
+
+  *(Vacated risks — napi-rs overhead on the VSCode hot path, and
+  Windows arm64 / niche-target prebuilds — were removed 2026-04-24
+  per ADR-030. VSCode no longer goes through napi; the napi crate is
+  internal-only and does not ship to npm. See council review S2.)*
 
 ## Milestones
 
-- **M1 (TSRET-001, TSRET-002):** napi binding exists and installs
-  without a Rust toolchain on every target platform.
-- **M2 (TSRET-003, TSRET-004):** VSCode + MCP run on the Rust engine
-  in production; parity harness still running green.
-- **M3 (TSRET-005):** TS scanner deleted; parity harness retired;
-  single-engine state documented.
+- **M1 (TSRET-001, TSRET-002 — Complete):** napi binding exists and
+  installs without a Rust toolchain on every target platform; CI
+  matrix green. Under ADR-030 the binding is an internal CLI
+  acceleration path, not a published consumer surface.
+- **M2 (TSRET-006):** transition-window divergence canary green
+  and `engineVersion` field on every diagnostic. Bridges the gap
+  between `GateRunner` (TS scanner) consumers and the daemon-routed
+  surfaces DRVR delivers.
+- **M3 (TSRET-005, via DRVR-003 / DRVR-004):** TS scanner deleted;
+  parity harness retired; single-engine state documented.
+
+  *(The old M2 — "VSCode + MCP run on the Rust engine via napi" —
+  was superseded by ADR-030. See council review S3.)*
 
 ## Progress Log
 

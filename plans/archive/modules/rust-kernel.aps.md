@@ -534,14 +534,26 @@ Incrementalupdate at 10µs is 10,000x under the 100ms target.
 
 ### KERN-052: Client session management + event fan-out — **Superseded**
 
-- **Status:** Superseded by INTD-003 (Session Registry)
+- **Status:** Superseded by INTD-003 (Session Registry), INTD-007
+  (Fence Persistence), and INTD-015 (Daemon-Enforced Telemetry
+  Subscription Scoping)
 - **Original intent:** Manage multiple client sessions with
-  per-session event filtering and fan-out.
-- **Replacement:** INTD-003 carries the session registry. Per-session
-  event filtering is a driver capability (per the driver-framework
-  spec §6.2 / §10.1) rather than a kernel-layer concern, which keeps
-  the kernel free of surface-shaped policy and gives drivers explicit
-  control over their subscription scope.
+  per-session event filtering and fan-out. The original work item
+  also implicitly covered state persistence across daemon restarts
+  (multi-client sessions must survive process restart with fences
+  intact).
+- **Replacement:** INTD-003 carries the session registry and the
+  single-session-per-worktree constraint. INTD-007 covers fence
+  state persisted to disk — the state-persistence concern this
+  item originally carried. INTD-015 (filed 2026-04-24 after the
+  council review flagged this as M5) provides the daemon-enforced
+  telemetry filter; earlier framing here treated per-session
+  filtering as a driver capability, which the security-analyst
+  reviewer correctly identified as delegation of an access-control
+  check to the subscriber. The filter belongs at the fan-out layer
+  on the daemon side, exactly where the original KERN-052 placed
+  it; INTD-015 restores that. Council review S5 (adversarial) added
+  the INTD-007 pointer; M5 (security) prompted the INTD-015 filing.
 
 ---
 
