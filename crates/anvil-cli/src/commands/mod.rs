@@ -12,6 +12,7 @@ pub mod gate;
 pub mod gate_config;
 pub mod hooks;
 pub mod init;
+pub mod licenses;
 pub mod new;
 pub mod policy;
 pub mod status;

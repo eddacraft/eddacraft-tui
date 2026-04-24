@@ -3,6 +3,7 @@ name = "eddacraft-anvil-kernel"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Anvil Rust kernel — watcher, parser, semantic graph, policy engine"
 
 [lib]
@@ -22,6 +23,7 @@ thiserror = { workspace = true }
 walkdir = { workspace = true }
 rayon = { workspace = true }
 num_cpus = { workspace = true }
+workspace-hack.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }

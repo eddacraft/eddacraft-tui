@@ -3,6 +3,7 @@ name = "eddacraft-anvil-checks"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Anvil quality gate checks ported to Rust - secret scan, anti-pattern detection, command safety"
 
 [lib]
@@ -13,6 +14,7 @@ rayon = { workspace = true }
 regex = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
+workspace-hack.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }

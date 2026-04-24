@@ -3,6 +3,7 @@ name = "eddacraft-anvil-architecture"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Anvil architecture enforcement — boundary definitions, import rules, drift detection"
 
 [lib]
@@ -19,6 +20,7 @@ sha2 = "0.11"
 hex = "0.4"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 tempfile = "3"
+workspace-hack.workspace = true
 
 [dev-dependencies]
 

@@ -3,6 +3,7 @@ name = "eddacraft-anvil"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Anvil CLI — structural governance for AI-assisted development"
 repository = "https://github.com/eddacraft/anvil"
 
@@ -43,6 +44,7 @@ sha2 = "0.11"
 hex = "0.4"
 ctrlc = "3"
 axoupdater = { version = "0.10", features = ["blocking"] }
+workspace-hack.workspace = true
 
 [dev-dependencies]
 temp-env = "0.3"

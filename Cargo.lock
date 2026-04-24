@@ -134,6 +134,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -146,6 +147,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -982,6 +984,7 @@ dependencies = [
  "toml",
  "walkdir",
  "wiremock",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -998,6 +1001,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "walkdir",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1009,6 +1013,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1021,6 +1026,7 @@ dependencies = [
  "napi-derive",
  "serde",
  "serde_json",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1042,6 +1048,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-typescript",
  "walkdir",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1050,6 +1057,7 @@ version = "0.3.3-beta"
 dependencies = [
  "serde",
  "serde_json",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1069,6 +1077,7 @@ dependencies = [
  "wait-timeout",
  "walkdir",
  "which",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1085,6 +1094,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "unicode-width 0.2.2",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3059,9 +3069,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.12"
+version = "0.103.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8279bb85272c9f10811ae6a6c547ff594d6a7f3c6c6b02ee9726d1d0dcfcdd06"
+checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -4679,6 +4689,51 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
+]
+
+[[package]]
+name = "workspace-hack"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "bitflags 2.11.1",
+ "cc",
+ "clap",
+ "clap_builder",
+ "eddacraft-tui",
+ "either",
+ "errno",
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "getrandom 0.4.2",
+ "hyper",
+ "hyper-util",
+ "indexmap",
+ "libc",
+ "memchr",
+ "mio",
+ "num-traits",
+ "once_cell",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "regex-automata",
+ "regex-syntax",
+ "rustix",
+ "serde",
+ "serde_core",
+ "serde_json",
+ "slab",
+ "smallvec",
+ "syn 2.0.117",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "winapi",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

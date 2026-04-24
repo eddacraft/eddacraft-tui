@@ -30,6 +30,8 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "typecheck:rust": "RUST_PROJECTS=$(pnpm -s run projects:rust) && nx run-many -t check --projects=\"$RUST_PROJECTS\"",
+    "licenses:generate": "tools/generate-acknowledgements.sh",
+    "licenses:verify": "tools/generate-acknowledgements.sh --check",
     "typecheck": "nx run-many -t typecheck --exclude=anvil-vscode --exclude=@eddacraft/nx-rust && pnpm run typecheck:rust",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
