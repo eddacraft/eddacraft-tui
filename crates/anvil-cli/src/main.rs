@@ -78,6 +78,8 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// Show Anvil's licence and third-party attribution.
+    Licenses(commands::licenses::LicensesArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
@@ -134,6 +136,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
+        Commands::Licenses(_) => "licenses",
         Commands::New(_) => "new",
         Commands::Wizard(_) => "wizard",
         Commands::Admin(_) => "admin",
@@ -457,6 +460,7 @@ fn main() -> ExitCode {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
