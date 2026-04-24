@@ -283,12 +283,37 @@ fn watch_loop(
 
         for change in &batch.changes {
             // Drop events that don't pass the user's --patterns / --exclude
-            // filter. We still want delete events for tracked files so the
-            // graph can clean up — those are checked in `process_change`.
-            if change.kind != ChangeKind::Removed
-                && !pattern_matches(pattern_filter, root, &change.path)
-            {
-                continue;
+            // filter.
+            //
+            // Removed events get a narrow exemption: a delete event for a
+            // file the graph already tracks must always flow through so
+            // the graph can clean up — even if the user later changed
+            // their patterns to exclude the path. A delete event for a
+            // file the graph never tracked (e.g. .git or node_modules
+            // churn from a rebase) gets dropped like any other excluded
+            // event; today `remove_file` would no-op on it, but
+            // forwarding generates spurious work and grows the surface
+            // area of any future side effect added to `process_change`.
+            let pattern_passes = pattern_matches(pattern_filter, root, &change.path);
+            if !pattern_passes {
+                if change.kind != ChangeKind::Removed {
+                    continue;
+                }
+                // Mirror pattern_matches: canonicalise before strip_prefix
+                // so a non-canonical change.path against a canonical root
+                // (the macOS /private/tmp case) doesn't silently turn the
+                // graph-membership check into "always empty".
+                let canon = change.path.canonicalize();
+                let candidate = canon.as_deref().unwrap_or(&change.path);
+                let Ok(rel) = candidate.strip_prefix(root) else {
+                    // Path lives outside the workspace and is excluded —
+                    // nothing in the graph could match anyway.
+                    continue;
+                };
+                let rel_str = rel.to_string_lossy();
+                if state.graph.symbols_in_file(&rel_str).is_empty() {
+                    continue;
+                }
             }
             // Isolate per-change work so a panic in parse/extract/evaluate
             // surfaces as an error event and the loop keeps draining events
@@ -418,12 +443,30 @@ fn process_change(
 /// Apply the user's pattern filter to a path, computing the
 /// repo-relative form first because globs like `src/**/*.ts` are
 /// always written relative to the workspace root.
-fn pattern_matches(filter: &WatchPatternFilter, root: &Path, path: &Path) -> bool {
+///
+/// On platforms where the watcher emits paths via a different prefix
+/// than the configured root (notably macOS, where `/tmp` resolves to
+/// `/private/tmp` via a symlink), `strip_prefix` against the raw root
+/// would always fail and the absolute path would be silently matched
+/// against repo-relative globs (i.e. nothing would ever match). The
+/// caller passes a *canonicalised* root so the prefix comparison
+/// accepts whatever notify produces; if the path still cannot be made
+/// relative, the file lives outside the workspace and is dropped from
+/// any non-noop filter.
+fn pattern_matches(filter: &WatchPatternFilter, canonical_root: &Path, path: &Path) -> bool {
     if filter.is_noop() {
         return true;
     }
-    let rel = path.strip_prefix(root).unwrap_or(path);
-    filter.matches(rel)
+    let canon = path.canonicalize();
+    let candidate = canon.as_deref().unwrap_or(path);
+    match candidate.strip_prefix(canonical_root) {
+        Ok(rel) => filter.matches(rel),
+        // Path lives outside the workspace root after canonicalisation.
+        // A user pattern is repo-relative, so we cannot meaningfully
+        // match it — drop the event rather than fall back to matching
+        // an absolute path against a relative-style glob.
+        Err(_) => false,
+    }
 }
 
 fn panic_message(panic: &Box<dyn std::any::Any + Send>) -> String {
@@ -464,7 +507,15 @@ pub fn run_watch(
 
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = Arc::clone(&stop);
-    let root = config.root.clone();
+    // Canonicalise the watch root so user-pattern matching is robust
+    // against symlink prefixes the OS watcher might emit (macOS notably
+    // resolves /tmp through /private/tmp). Falls back to the raw root
+    // when canonicalise fails so we don't lose existing platforms where
+    // it would have worked.
+    let root = config
+        .root
+        .canonicalize()
+        .unwrap_or_else(|_| config.root.clone());
 
     let thread = thread::spawn(move || {
         let emitter = EventEmitter::new(event_tx, EngineId::Rust);

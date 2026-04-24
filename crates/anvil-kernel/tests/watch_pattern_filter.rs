@@ -195,8 +195,11 @@ fn excluded_runtime_change_does_not_emit_violation() {
     };
 
     let handle = run_watch(&cfg, tx).unwrap();
-    thread::sleep(Duration::from_millis(200));
-    let _ = touched_files_in_violations(&[]); // helper-import marker
+    // Let the initial scan complete before we write the new vendor file.
+    thread::sleep(Duration::from_millis(300));
+    // Drain events from the initial scan so we only assess what was
+    // produced after the vendor write.
+    let _ = rx.try_iter().count();
 
     fs::write(
         tmp.path().join("vendor/lib/added.ts"),
@@ -204,7 +207,7 @@ fn excluded_runtime_change_does_not_emit_violation() {
     )
     .unwrap();
 
-    let events = collect_events(&rx, Duration::from_millis(400));
+    let events = collect_events(&rx, Duration::from_millis(600));
     handle.stop().unwrap();
 
     let touched = touched_files_in_violations(&events);
@@ -213,3 +216,20 @@ fn excluded_runtime_change_does_not_emit_violation() {
         "vendor file should not produce events; touched files: {touched:?}"
     );
 }
+
+// NOTE: an integration test for "deleting an excluded file emits no
+// event" was considered and dropped. Under both the pre-M3 and post-M3
+// code paths, a Removed event for an untracked path is a no-op at the
+// event surface: `process_change` calls `remove_file`, which returns
+// an empty delta, the snapshot branch is skipped, and nothing is
+// emitted. Such a test would pass regardless of whether the M3
+// graph-membership gate is in place, so it would not catch the bypass
+// regressing.
+//
+// The M3 fix is a perf/cleanliness improvement (avoid spurious work
+// on `.git`/`node_modules` churn during rebases) — not a behavioural
+// change at the event surface. We accept that there is no isolating
+// regression test for the gate today; if the bypass is ever needed
+// under load (e.g. a perf benchmark observes the spurious work), add
+// a benchmark-anchored guard there rather than re-introducing this
+// tautological event-level test.

@@ -158,6 +158,33 @@ fn build_filter() -> anvil_kernel::watcher::filter::FileFilter {
     anvil_kernel::watcher::filter::FileFilter::default()
 }
 
+/// `--exclude` switched from "directory names" to glob patterns in
+/// LAUNCH-001. A user who previously ran `--exclude vendor` will now
+/// find their vendor tree silently watched, because the bare name
+/// matches only a path equal to "vendor". Detect that shape at parse
+/// time and warn with the corrected form.
+fn warn_on_bare_exclude_patterns(patterns: &[String]) {
+    for pattern in patterns {
+        if is_likely_bare_directory_name(pattern) {
+            eprintln!(
+                "\u{26a0} `--exclude {pattern}` matches only a path named exactly \"{pattern}\"; \
+                 to exclude its contents use `--exclude {pattern}/**`."
+            );
+        }
+    }
+}
+
+/// A pattern is a "likely bare directory name" if it contains no glob
+/// metacharacters and no path separator — i.e. exactly the shape that
+/// the previous denylist-based `--exclude` accepted. Empty strings and
+/// patterns that look like glob expressions are not warned on.
+fn is_likely_bare_directory_name(pattern: &str) -> bool {
+    if pattern.is_empty() {
+        return false;
+    }
+    !pattern.contains(['/', '\\', '*', '?', '[', '{', '!'])
+}
+
 /// Validate the `--action` argument.
 fn validate_action(action: Option<&str>) -> Result<Option<&str>> {
     match action {
@@ -234,10 +261,24 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     // Resolve watch root — if --file is given, scope to that path
     let watch_root = resolve_watch_root(&workspace_root, args.file.as_deref())?;
 
-    // Build include patterns — passed to kernel WatchConfig
+    // Build include patterns passed to the kernel's WatchPatternFilter.
+    //
+    // The defaults assume the user wants the broadest reasonable scope
+    // unless they opt into a narrower one:
+    //   no flags            → empty (let the FileFilter denylist define scope)
+    //   --all               → empty (same — FileFilter is the only gate)
+    //   --plans only        → DEFAULT_WATCH_PATTERNS (planning docs)
+    //   --source only       → SOURCE_PATTERNS (parseable sources)
+    //   --plans + --source  → both
+    //   --patterns "..."    → use those verbatim
+    //
+    // Previously the no-flag and bare --plans cases both sent
+    // DEFAULT_WATCH_PATTERNS, which silently restricted `anvil watch`
+    // to planning docs and dropped every source-file event before it
+    // ever reached the policy engine.
     let patterns: Vec<String> = if let Some(ref p) = args.patterns {
         p.split(',').map(|s| s.trim().to_string()).collect()
-    } else if args.all || (args.source && args.plans) {
+    } else if args.source && args.plans {
         DEFAULT_WATCH_PATTERNS
             .iter()
             .chain(SOURCE_PATTERNS.iter())
@@ -245,11 +286,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             .collect()
     } else if args.source {
         SOURCE_PATTERNS.iter().map(ToString::to_string).collect()
-    } else {
+    } else if args.plans {
         DEFAULT_WATCH_PATTERNS
             .iter()
             .map(ToString::to_string)
             .collect()
+    } else {
+        // --all and bare-no-flags share the broad default.
+        Vec::new()
     };
 
     // Exclude globs are applied by the kernel's WatchPatternFilter — they
@@ -260,6 +304,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let exclude: Vec<String> = args.exclude.as_ref().map_or_else(Vec::new, |s| {
         s.split(',').map(|s| s.trim().to_string()).collect()
     });
+    warn_on_bare_exclude_patterns(&exclude);
     let filter = build_filter();
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
@@ -645,6 +690,32 @@ mod tests {
         assert!(!json.contains("\"eventType\""));
     }
 
+    // --- bare-exclude warning heuristic (M4) ---
+
+    #[test]
+    fn bare_directory_name_is_detected() {
+        assert!(is_likely_bare_directory_name("vendor"));
+        assert!(is_likely_bare_directory_name("tmp"));
+        assert!(is_likely_bare_directory_name("node_modules"));
+    }
+
+    #[test]
+    fn glob_patterns_are_not_treated_as_bare_names() {
+        assert!(!is_likely_bare_directory_name("vendor/**"));
+        assert!(!is_likely_bare_directory_name("**/*.test.ts"));
+        assert!(!is_likely_bare_directory_name("src/foo"));
+        assert!(!is_likely_bare_directory_name("*.log"));
+        assert!(!is_likely_bare_directory_name("file?.ts"));
+        assert!(!is_likely_bare_directory_name("[abc]/lib"));
+        assert!(!is_likely_bare_directory_name("{a,b}/lib"));
+        assert!(!is_likely_bare_directory_name("!skip"));
+    }
+
+    #[test]
+    fn empty_string_does_not_trigger_bare_warning() {
+        assert!(!is_likely_bare_directory_name(""));
+    }
+
     // --- build_filter ---
 
     #[test]
@@ -657,12 +728,17 @@ mod tests {
     }
 
     // --- Pattern selection logic ---
+    //
+    // The helper mirrors the include-pattern computation in `run()`.
+    // Keep them in sync — a test-local duplicate that drifts from the
+    // production logic was the gap that let the M2 default-pattern bug
+    // ship in the original LAUNCH-001 commit.
 
     fn collect_patterns(args: &[&str]) -> Vec<String> {
         let w = Wrapper::try_parse_from(args).unwrap();
         if let Some(ref p) = w.inner.patterns {
             p.split(',').map(|s| s.trim().to_string()).collect()
-        } else if w.inner.all || (w.inner.source && w.inner.plans) {
+        } else if w.inner.source && w.inner.plans {
             DEFAULT_WATCH_PATTERNS
                 .iter()
                 .chain(SOURCE_PATTERNS.iter())
@@ -670,11 +746,14 @@ mod tests {
                 .collect()
         } else if w.inner.source {
             SOURCE_PATTERNS.iter().map(ToString::to_string).collect()
-        } else {
+        } else if w.inner.plans {
             DEFAULT_WATCH_PATTERNS
                 .iter()
                 .map(ToString::to_string)
                 .collect()
+        } else {
+            // --all and bare-no-flags share the broad default.
+            Vec::new()
         }
     }
 
@@ -686,14 +765,14 @@ mod tests {
     }
 
     #[test]
-    fn pattern_selection_all_picks_both() {
+    fn pattern_selection_all_returns_empty_for_broadest_scope() {
+        // --all delegates scope to the FileFilter denylist; the kernel
+        // pattern filter is intentionally noop.
         let patterns = collect_patterns(&["test", "--all"]);
-        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
-            .iter()
-            .chain(SOURCE_PATTERNS.iter())
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(patterns, expected);
+        assert!(
+            patterns.is_empty(),
+            "--all should send empty include_patterns, got {patterns:?}"
+        );
     }
 
     #[test]
@@ -708,17 +787,19 @@ mod tests {
     }
 
     #[test]
-    fn pattern_selection_default_picks_default_watch_patterns() {
+    fn pattern_selection_default_returns_empty_for_broadest_scope() {
+        // No flags = let the FileFilter denylist define scope; do not
+        // silently restrict to plan files (the M2 regression).
         let patterns = collect_patterns(&["test"]);
-        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(patterns, expected);
+        assert!(
+            patterns.is_empty(),
+            "no flags should send empty include_patterns, got {patterns:?}"
+        );
     }
 
     #[test]
-    fn pattern_selection_plans_alone_picks_default() {
+    fn pattern_selection_plans_alone_picks_plan_patterns() {
+        // Bare --plans is now opt-in narrowing, not the default.
         let patterns = collect_patterns(&["test", "--plans"]);
         let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
             .iter()
