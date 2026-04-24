@@ -144,7 +144,6 @@ dependencies = [
  "notify",
  "petgraph",
  "rustix",
- "serde",
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
@@ -981,7 +980,6 @@ dependencies = [
  "sha2 0.11.0",
  "temp-env",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "toml",
  "walkdir",
@@ -1011,7 +1009,6 @@ name = "eddacraft-anvil-checks"
 version = "0.3.3-beta"
 dependencies = [
  "criterion",
- "insta",
  "rayon",
  "regex",
  "serde",
@@ -1038,7 +1035,6 @@ version = "0.3.3-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-kernel-types",
- "insta",
  "notify",
  "num_cpus",
  "petgraph",
@@ -1048,7 +1044,6 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "thiserror 2.0.18",
- "tokio",
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",

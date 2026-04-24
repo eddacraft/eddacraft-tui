@@ -34,7 +34,6 @@ toml = { workspace = true }
 crossterm = { workspace = true }
 ratatui = { workspace = true }
 anyhow = { workspace = true }
-thiserror = { workspace = true }
 dirs = { workspace = true }
 tempfile = "3"
 walkdir = { workspace = true }
