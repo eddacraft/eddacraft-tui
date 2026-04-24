@@ -19,7 +19,21 @@ accepted = [
     "CC0-1.0",
     "Zlib",
     "MPL-2.0",
+    # Accepted for the `ring` crate only — activated via the `ring` workaround
+    # below. ring is not currently a runtime dep (rustls defaults to aws-lc-rs
+    # in this workspace), but it's in Cargo.lock behind optional feature flags
+    # in quinn-proto and rustls-webpki. This is defensive: if we ever flip
+    # rustls's crypto backend to ring, cargo-about will attribute it correctly
+    # rather than silently dropping it.
+    "OpenSSL",
 ]
+
+# Built-in cargo-about workarounds for crates with complicated licences.
+# The `ring` workaround resolves the `ISC AND OpenSSL AND MIT` licence
+# expression by attributing the correct licence files. Paired with the
+# `OpenSSL` entry in `accepted` above; both are defensive against a future
+# crypto-backend switch to ring.
+workarounds = ["ring"]
 
 # Private crates we ship as part of Anvil; omit them from attribution.
 # All anvil-* workspace members carry `license = "LicenseRef-Proprietary"`

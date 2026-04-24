@@ -11,10 +11,13 @@ const ACKNOWLEDGEMENTS: &str = include_str!("../../../../ACKNOWLEDGEMENTS.md");
 
 #[derive(Debug, Default, Clone, Copy, clap::ValueEnum)]
 pub enum Format {
-    /// Paginated, human-readable output (default).
+    /// Anvil version banner followed by ACKNOWLEDGEMENTS.md as markdown
+    /// (default). Pipe through a pager or markdown renderer for the best
+    /// reading experience.
     #[default]
     Plain,
-    /// Raw markdown source, suitable for piping or conversion.
+    /// Just the raw ACKNOWLEDGEMENTS.md contents, suitable for piping or
+    /// format conversion.
     Markdown,
 }
 
@@ -55,15 +58,9 @@ fn render_plain(use_colour: bool) -> String {
     let _ = writeln!(out, "Copyright (C) 2026 EddaCraft. All rights reserved.");
     let _ = writeln!(out, "Licensed under LicenseRef-Proprietary.");
     let _ = writeln!(out);
-    if use_colour {
-        let _ = writeln!(
-            out,
-            "\x1b[1mAcknowledgements & third-party dependencies:\x1b[0m"
-        );
-    } else {
-        let _ = writeln!(out, "Acknowledgements & third-party dependencies:");
-    }
-    let _ = writeln!(out);
+    // ACKNOWLEDGEMENTS.md already starts with its own `# Acknowledgements`
+    // heading; emit the body directly rather than duplicating it with a
+    // synthetic section header.
     out.push_str(ACKNOWLEDGEMENTS);
     out
 }
@@ -89,8 +86,9 @@ mod tests {
     fn plain_without_colour_contains_proprietary_header() {
         let out = render(Format::Plain, false);
         assert!(out.contains("Licensed under LicenseRef-Proprietary."));
-        assert!(out.contains("Acknowledgements & third-party dependencies:"));
         assert!(out.contains("Anvil "));
+        // ACKNOWLEDGEMENTS.md's own top heading shows through in plain mode.
+        assert!(out.contains("# Acknowledgements"));
     }
 
     #[test]
@@ -109,15 +107,11 @@ mod tests {
     }
 
     #[test]
-    fn plain_with_colour_uses_bold_headers() {
+    fn plain_with_colour_uses_bold_header() {
         let out = render(Format::Plain, true);
         assert!(
             out.contains("\x1b[1mAnvil "),
-            "expected bold Anvil header when colour enabled"
-        );
-        assert!(
-            out.contains("\x1b[1mAcknowledgements & third-party dependencies:"),
-            "expected bold section header when colour enabled"
+            "expected bold Anvil version banner when colour enabled"
         );
     }
 }
