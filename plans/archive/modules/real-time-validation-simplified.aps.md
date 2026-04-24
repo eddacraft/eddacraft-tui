@@ -21,9 +21,14 @@
 > (`crates/anvil-cli/`) and Ratatui TUI (`crates/anvil-tui/`).
 >
 > Rather than re-scope this whole module against the new stack and
-> duplicate work already owned by LAUNCH and RTVF, the surviving intent
+> duplicate work already owned by LAUNCH and RTAI, the surviving intent
 > is forwarded into those modules and this spec is archived. See the
 > per-phase "Superseded by" notes below for the mapping.
+>
+> *(The mapping originally pointed at RTVF for validation-core work;
+> RTVF was itself superseded by RTAI later the same day after ADR-030
+> made its server framing obsolete. Per-phase notes have been updated
+> to reflect the current owners.)*
 
 ## Overview
 
@@ -199,13 +204,18 @@ const watchConfig: WatchConfig = {
 
 ### Phase 1: Fast Validation Engine (3 days)
 
-> **Superseded by:** RTVF Phase 1 (`SERVER-001` — extract validation core).
-> RTVF must own the shared validation engine to serve its LSP/HTTP/stdin
-> interfaces; the AI reasoning patterns (VALID-002) and content-hash
-> caching (VALID-003) move into that core. Note: the original TypeScript
-> file paths (`core/src/validation/fast-validator.ts`,
-> `core/src/validation/ai-reasoning/`) are obsolete — RTVF will need to
-> re-target the Rust crates when it leaves Draft.
+> **Superseded by:** RTAI-002 / RTAI-003 / RTAI-004 — the daemon-side
+> mid-edit RPC and DriverClient mid-edit envelope. The shared validation
+> engine lives in `anvil-checks` (Rust) and is reached via the INTR rule
+> registry on the daemon's hot path. AI reasoning patterns (originally
+> VALID-002) and content-hash caching (originally VALID-003) are folded
+> into that path; the original TypeScript file paths
+> (`core/src/validation/fast-validator.ts`,
+> `core/src/validation/ai-reasoning/`) are obsolete.
+>
+> *(Originally pointed at RTVF Phase 1 / `SERVER-001`; RTVF was
+> superseded by RTAI when its LSP/HTTP/stdin server framing was
+> overtaken by ADR-030's daemon + drivers architecture.)*
 
 **Goal:** In-memory validation with parallel execution and reasoning patterns
 
@@ -275,7 +285,9 @@ const watchConfig: WatchConfig = {
 > stack). Specifically: WATCH-001 (debouncing) is absorbed into
 > LAUNCH's broader watch-config work; WATCH-002 (parallel validation
 > wiring) lands inside the kernel watch loop owned by LAUNCH-001 /
-> LAUNCH-003 once RTVF provides the validation core; WATCH-003
+> LAUNCH-003 — the validation core lives in `anvil-checks` and is
+> reached via INTR (no separate "validation core provider" required);
+> WATCH-003
 > (progress indicators) is folded into LAUNCH-003 (real-time stats
 > rollup in the watch TUI).
 
@@ -411,11 +423,14 @@ const watchConfig: WatchConfig = {
 ### Phase 4: Testing & Documentation (2 days)
 
 > **Superseded by:** the receiving modules. Cursor / Aider integration
-> testing (TEST-001, TEST-002) belongs to RTVF Phase 3 (AI Tool
-> Integrations) where those surfaces are actually built. User
-> documentation (DOC-001) and the demo video (DOC-002) ship with
-> whichever module lands the user-facing capability — RTVF for the
-> validation server, LAUNCH for the watch flow polish.
+> testing (TEST-001, TEST-002) belongs to RTAI-005 (editor driver) and
+> RTAI-006 (MCP driver) — surfaces are now drivers on the intercept
+> daemon per ADR-030. User documentation (DOC-001) and the demo video
+> (DOC-002) ship with whichever module lands the user-facing capability
+> — RTAI for the real-time validation flow, LAUNCH for the watch flow
+> polish.
+>
+> *(Originally pointed at RTVF Phase 3; RTVF was superseded by RTAI.)*
 
 **Goal:** Validate with real AI tools and document workflows
 
@@ -587,8 +602,8 @@ const watchConfig: WatchConfig = {
 ---
 
 **Status:** Superseded (2026-04-24)
-**Superseded by:** LAUNCH (watch + TUI work), RTVF (validation core + reasoning patterns)
+**Superseded by:** LAUNCH (watch + TUI work), RTAI (validation core + reasoning patterns, on the daemon + drivers architecture per ADR-030)
 **Priority:** —
 **Dependencies:** —
 **Target Milestone:** —
-**Estimated Effort:** — (work redistributed across LAUNCH and RTVF)
+**Estimated Effort:** — (work redistributed across LAUNCH and RTAI; originally redistributed across LAUNCH and RTVF — RTVF was itself superseded by RTAI later the same day)

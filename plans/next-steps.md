@@ -251,7 +251,7 @@ The headline-capability work and everything that gates it.
 
 | Module | ID | Status | Verdict rationale |
 |--------|----|--------|-------------------|
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | The daemon. RTAI cannot exist without it; DRVR cannot consumers without it. Pick up immediately after H1 cut per ADR-030 Option A. Critical-path root. |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | The daemon. RTAI cannot exist without it; DRVR cannot function without it. Pick up immediately after H1 cut per ADR-030 Option A. Critical-path root. |
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | Session ingress for shell-launched agents. Required for the daemon's session-attribution story to hold once non-editor agents (Claude Code in a tmux pane) become a demo target. |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | Rule trait + initial rule set. RTAI evaluates whatever INTR registers. Cannot ship the headline demo without at least the secret-detection and antipattern wrappers running on the hot path. |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | The driver framework. DRVR-001/-002 plus one of DRVR-003/-004 is the H2 minimum. |
