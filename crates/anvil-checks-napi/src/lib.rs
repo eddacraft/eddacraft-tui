@@ -18,12 +18,20 @@
 //! ## Registry-load behaviour
 //!
 //! Every entry point requires the compiled pattern registry
-//! (`patterns/compiled/registry.json`, discovered by walking upward from the
-//! current working directory). If the registry is missing or malformed,
-//! entry points return a `GenericFailure` error carrying the loader's
-//! warnings — they do NOT silently return an empty catalogue or a
-//! zero-warning scan. Silent-empty behaviour is the failure mode the
-//! 2026-04-24 council review flagged as critical C1.
+//! (`patterns/compiled/registry.json`). The underlying loader resolves
+//! the registry in this order (see `anvil_checks::antipattern::registry_loader`):
+//!
+//!   1. `ANVIL_REGISTRY_PATH` env var override.
+//!   2. Upward walk from the current working directory.
+//!   3. Upward walk from the executable's directory — so discovery still
+//!      works when the host process is launched with a CWD outside the
+//!      monorepo (editor extensions, installed binaries).
+//!
+//! If the registry is missing or malformed, entry points return a
+//! `GenericFailure` error carrying the loader's warnings — they do NOT
+//! silently return an empty catalogue or a zero-warning scan. Silent-empty
+//! behaviour is the failure mode the 2026-04-24 council review flagged as
+//! critical C1.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 

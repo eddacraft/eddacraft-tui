@@ -14,13 +14,28 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 // Point the Rust loader at a path that cannot exist. `resolve_registry_path`
 // rejects non-existent paths, so the loader enters the "not found" branch
 // and `load_registry_or_err` surfaces a `GenericFailure`. Must be set
 // before `../index.js` is imported — the napi binding's static state is
 // established on load.
-process.env.ANVIL_REGISTRY_PATH = '/definitely/does/not/exist/anywhere/registry.json';
+//
+// Built under `os.tmpdir()` with a random UUID so the path is guaranteed
+// nonexistent on every platform, including Windows (where a POSIX-style
+// `/definitely/...` path would resolve to `C:\definitely\...` on the
+// current drive and could theoretically exist).
+const missingRegistryPath = join(tmpdir(), `anvil-missing-registry-${randomUUID()}.json`);
+assert.equal(
+  existsSync(missingRegistryPath),
+  false,
+  'test precondition: missingRegistryPath must not exist'
+);
+process.env.ANVIL_REGISTRY_PATH = missingRegistryPath;
 
 const { scanArtifactJson, getDefaultPatternsJson, getPatternJson } = await import(
   '../index.js'
