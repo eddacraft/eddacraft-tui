@@ -18,7 +18,6 @@ petgraph = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-tokio = { workspace = true }
 thiserror = { workspace = true }
 walkdir = { workspace = true }
 rayon = { workspace = true }
@@ -26,7 +25,6 @@ num_cpus = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
-insta = { workspace = true }
 tempfile = "3"
 
 [[bench]]
