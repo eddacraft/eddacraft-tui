@@ -15,14 +15,16 @@
 
 ## Status at a glance (2026-04-24)
 
-| Status                                     | Count | Items                                                                                |
-| ------------------------------------------ | ----- | ------------------------------------------------------------------------------------ |
-| **Landed** (code + docs merged)            | 10    | C1, M8, M13, M16, S1, S2, S3, S4, S5, X1                                             |
-| **Routed to APS** (have a work-item home)  | 15    | C2, M1, M2, M3, M4, M5, M6, M7, M9, M10, M11, M12, M14, S6, S7                       |
-| **Still open** (need a home)               | 4     | M15, X2, X3, X4                                                                      |
-| **Team decision**                          | 1     | X5                                                                                   |
+| Status                                     | Count | Items                                                                                                   |
+| ------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------- |
+| **Landed** (code + docs merged)            | 10    | C1, M8, M13, M16, S1, S2, S3, S4, S5, X1                                                                |
+| **Landing in PR #1068**                    | 4     | M15, X2, X3, X4 — napi hygiene bundle                                                                   |
+| **Routed to APS** (have a work-item home)  | 15    | C2, M1, M2, M3, M4, M5, M6, M7, M9, M10, M11, M12, M14, S6, S7                                          |
+| **Decided** (recorded in ADR-030)          | 1     | X5 — **Option A: INTD picked up straight after v0.4.0-beta**                                            |
 
-Close condition for this PR: every critical + major box ticked. S / X items may follow in chore PRs.
+All 30 findings now have a home — this tracker PR is closeable once
+#1068 merges. Remaining execution visibility is in the DRVR / INTD /
+TSRET work items themselves.
 
 ---
 
@@ -174,15 +176,14 @@ Close condition for this PR: every critical + major box ticked. S / X items may 
       `crates/anvil-checks/**`. Still open — small chore-PR
       candidate; bundle with M15 / X2 / X3 as the "napi hygiene"
       PR.
-- [ ] **X5.** **Sequencing decision owed.** Pragmatic-lead
-      recommends the team pick explicitly between **Option A**
-      (commit an owner to INTD-001 + INTD-002 this sprint; accept
-      TSRET-005 is 2+ months away; document the parity-harness
-      cost line with a known exit condition) and **Option B**
-      (un-supersede TSRET-003/-004; annotate ADR-030 that napi is
-      a stepping stone; land TSRET; delete the TS scanner; then
-      build DRVR from a cleaner baseline). Current state — ADR
-      accepted with no INTD owner named — is "the worst of both."
+- [x] **X5.** **Decided 2026-04-24 — Option A.** INTD-001 and
+      INTD-002 are picked up straight after the v0.4.0-beta
+      release. The TS scanner and the `tests/scanner-parity/`
+      harness remain live until TSRET-005 fires (expected 2+
+      months), which is the explicit cost accepted under Option A
+      for a single architecturally clean migration to the
+      daemon-hosted scanner. Decision recorded in ADR-030
+      References ("Sequencing decision" section).
 
 ---
 
@@ -216,16 +217,15 @@ Six more findings are baked into existing work-item expected outcomes rather tha
 
 ## Still-open checklist
 
-Five items have no PR yet. Four are small enough to bundle as a single "napi hygiene" chore PR:
+All 30 findings now have a home. Remaining execution lives in
+follow-up work items rather than on this tracker:
 
-- [ ] **M15** — `napi.yml` per-job timeouts
-- [ ] **X2** — stale "TSRET-003 prep" test header
-- [ ] **X3** — `panic_message` payload sanitisation
-- [ ] **X4** — `napi.yml` path filter tightening
-
-And one team decision:
-
-- [ ] **X5** — Option A vs Option B sequencing
+- **M15, X2, X3, X4** — landing in PR #1068 (napi hygiene bundle).
+- **X5** — decided. Option A recorded in ADR-030 References.
+- **C2, M1–M7, M9–M12, M14, S6, S7** — follow via their APS work
+  items (DRVR-001 through DRVR-008, INTD-002 / -014 / -015 / -016,
+  TSRET-006, plus the expected-outcome amendments on DRVR-001 /
+  DRVR-002 / INTD-002).
 
 ---
 

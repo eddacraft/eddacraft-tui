@@ -181,3 +181,27 @@ daemon. The latter is strictly better because:
   daemon's IPC surface is the transport this ADR depends on. The
   archived KERN module now carries a supersession note on those
   three items.
+
+## Sequencing decision (2026-04-24, X5 closed)
+
+The 2026-04-24 council review (pragmatic-lead) surfaced a sequencing
+question: the pivot created a compound block — `TSRET-005` (delete TS
+scanner) waits on `DRVR-003/-004`, which wait on `DRVR-002`, which
+waits on `DRVR-001`, which waits on `INTD-002`. With no owner on INTD
+at the time of the review the end-state was indefinitely deferred.
+
+**Decision: Option A.** `INTD-001` and `INTD-002` are picked up
+straight after the `v0.4.0-beta` release. Under this sequencing the
+TS scanner remains in the codebase for the length of the INTD → DRVR
+build-out (expected 2+ months). The `tests/scanner-parity/` harness
+stays live until `TSRET-005` fires, which is the explicit cost
+accepted here.
+
+Option B (un-supersede TSRET-003/-004 and land the napi cutover as a
+stepping stone) was rejected in favour of the architecturally clean
+single-migration path, given the commitment to begin INTD work
+immediately after the release cut.
+
+This paragraph closes council-review item X5; see
+`plans/specs/2026-04-24-adr-030-council-findings.md` for the full
+review context.
