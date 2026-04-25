@@ -18,6 +18,11 @@ See: plans/aps-rules.md
 | ----- | ----- | ------ |
 | V041F | —     | Ready  |
 
+11 work items (V041F-001 through V041F-011). Items 001–010 captured
+from the three council rounds + Codex CLI external review during
+release prep. V041F-011 added 2026-04-26 from the copilot review on
+PR #1081 (scan_content recompile / silent-error).
+
 ## Purpose
 
 Capture every hardening item the v0.4.0-beta release council surfaced
@@ -190,6 +195,27 @@ require a coordinated bundle — pick them off in any order.
   AND add `cargo hakari verify` + `cargo deny check` to
   `scripts/release.sh` so local preflight catches what CI catches.
 - **Confidence:** high
+- **Status:** Todo
+
+### V041F-011: Refactor `scan_content` to surface custom-pattern compile errors
+
+- **Surface:** `crates/anvil-checks/src/secret/scanner.rs:17`
+- **Flagged by:** copilot reviewer (PR #1081 review, 2026-04-26)
+- **Intent:** `scan_content` recompiles `config.custom_patterns` on every
+  call (per file) and discards the compile diagnostics
+  (`_custom_errors`). The gate path already collects pattern errors via
+  `run_secret_check` (gate.rs:385), so end users running `anvil gate`
+  are not affected. The silent-loss risk is on third-party callers
+  using `scan_content` directly — they get the redundant compilation
+  cost AND no signal when a custom pattern fails to compile.
+- **Expected outcome:** Either (a) compile custom patterns once per
+  check run and pass the compiled slice into `scan_content`, or
+  (b) change `scan_content` to return both findings and pattern errors
+  so the error-reporting contract is enforced by the function
+  signature. Pairs naturally with V041F-006 (allowlist regex caching)
+  since both are in the secret/scanner hot path.
+- **Confidence:** medium — signature change touches every direct
+  caller of `scan_content`
 - **Status:** Todo
 
 ### V041F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
