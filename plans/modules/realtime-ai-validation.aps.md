@@ -382,6 +382,14 @@ convention" section). Concretely:
   warns and proceeds, or proceeds with diagnostics attached.
   The choice between block / warn / proceed is governed by the
   same `.anvil.yaml` enforcement block INTD-008 already loads.
+  The MCP driver enumerates and wraps per-client write tools:
+  `apply_edit` (Cursor), `fs.write` and `edit_file` (Claude
+  Code), and performs tool-registration discovery for unknown
+  clients (logs the discovered write-class tool names so the
+  inventory is not silently incomplete when a new client is
+  attached). The enumeration is data, not code: the per-client
+  tool-name list lives alongside the driver and is updated
+  when a new client lands, not when a new release ships.
 - **Blocks on:** RTAI-004, DRVR-002, DRVR-004 (MCP driver
   must exist before its pre-write path can be wired).
 - **Coordinates with:** DRVR-006 (MCP daemon-RPC translation
@@ -504,6 +512,22 @@ convention" section). Concretely:
   surfaces around them differ. RTAI-005 and RTAI-006 must each
   spell out their consumer contract; conflating them in
   prose-only docs has burned this module's predecessors.
+- **Bypass asymmetry between LSP advisory and MCP refusable.**
+  Cursor in-buffer edits that skip the MCP tool call route
+  through LSP `didChange` (advisory only) — the daemon cannot
+  refuse the write because there is no pending tool call to
+  refuse. The same physical keystroke can be demo-stable
+  (when Cursor routes via `apply_edit` through the MCP driver)
+  or demo-fragile (when Cursor edits the buffer directly and
+  only fires `didChange`). RTAI-002's protocol must document
+  this asymmetry explicitly so demo operators understand which
+  scenarios are demo-stable (MCP-routed) vs. demo-fragile
+  (in-buffer); the runbook §4.3.iii is the operator-facing
+  surface of the same problem. Mitigation: prefer MCP for the
+  headline demo path; surface the degraded-mode indicator
+  loudly on the editor-driver path so an operator can see
+  in real time when a Cursor edit went in-buffer and dodged
+  the refusable surface.
 
 ## Open questions
 
@@ -518,12 +542,24 @@ convention" section). Concretely:
    the user their own keystrokes). If the answer is "MCP can
    block, editor cannot", that asymmetry needs to be in the
    protocol from RTAI-002 — not bolted on later.
-3. **Where do reasoning-pattern rules live?** The RTVS catalogue
-   (AI-001..AI-007) is owned by neither `anvil-checks` nor
-   `anvil-checks-reasoning` (the latter does not exist).
-   Decide before RTAI-003 lands: add to existing
-   `anvil-checks` antipattern crate, or carve out a new crate?
-   The latter is cleaner; the former is faster.
+3. **AI-001 reasoning-pattern rule home: TBD before A1 starts.**
+   The RTVS catalogue (AI-001..AI-007) is owned by neither
+   `anvil-checks` nor `anvil-checks-reasoning` (the latter does
+   not exist). Options:
+   - **(a)** Extend `crates/anvil-checks` with a new `reasoning`
+     module — faster to land, keeps the rule registry single,
+     but mixes intent-detection with the existing
+     antipattern/secret/path-deny vocabulary.
+   - **(b)** New `crates/anvil-checks-reasoning` crate — cleaner
+     separation, more honest about the different shape of the
+     analysis (reasoning patterns are not antipatterns), but
+     adds a crate boundary and a registration step in INTR.
+   Decision required **before Scenario B in the demo runbook is
+   demo-stable** — until the AI-001 rule lands somewhere
+   reachable from the rule registry, the demo runbook §2.2
+   substitutes Scenarios A or C (per the runbook's own fallback
+   note). Tracked as task #24 in the followup list (see
+   `RELEASE-PLAN.md` Required prerequisites).
 4. **Confidence scoping is uniformly medium.** All RTAI-002
    onwards tasks are marked `Confidence: medium` against a
    stack (INTD + DRVR) that does not yet exist. RTAI-001 will

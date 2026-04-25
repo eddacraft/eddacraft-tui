@@ -11,7 +11,7 @@ Scopes: RCLI3 (main)
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| RCLI3 | —     | Proposed | 0/18     |
+| RCLI3 | —     | Proposed | 0/20     |
 
 **Last reviewed:** 2026-04-26
 
@@ -434,7 +434,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   resolution and escape detection (confirms if writing outside workspace)
 - **Expected Outcome:** `anvil mcp-config --target claude-code --write`
   creates `.claude/mcp.json` with correct server entry. Each target generates
-  its editor-specific config format
+  its editor-specific config format. `anvil mcp-config --target claude-code
+  --verify` confirms current installation state without writing — prints the
+  resolved client config path, the entry already present (if any), and whether
+  the file parses cleanly; exits non-zero if the entry is missing or malformed
 - **Validation:** Generated configs are valid for each editor; VSCode format
   (type field) differs from others (command/args) — both correct
 - **Files:** `crates/anvil-cli/src/commands/mcp_config.rs`
@@ -443,6 +446,40 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Priority:** **High** (was Low — promoted with pull-forward)
 - **Dependencies:** RCLI (foundation), DRVR-002 (driver protocol — so the
   generated config points at a working daemon endpoint)
+
+---
+
+### RCLI3-016b: mcp install wrapper command 🔒 PULLED FORWARD TO A1 (current release)
+
+- **Status:** Ready (pulled forward 2026-04-26 — required by A1 RTAI Spike
+  Slice demo runbook prerequisites; the runbook's §1.4 install step calls
+  `anvil mcp install --client cursor|claude-code` directly, so this wrapper
+  must ship in the locked release alongside RCLI3-016.)
+- **Intent:** Provide a single-command MCP install / wire-up wrapper around
+  `anvil mcp-config`. `anvil mcp install --client <cursor|claude-code>`
+  detects the client config path, generates the correct config entry, writes
+  it, and prints the next-step "restart your editor" hint. Idempotent on
+  re-run. Mirrors the runbook's "one command, then restart" UX promise.
+- **Expected Outcome:** `anvil mcp install --client cursor` resolves
+  `~/.cursor/mcp.json` (or platform equivalent), writes the `anvil` MCP server
+  entry, and prints the operator-visible "Detected client / Installing /
+  Restart" lines the demo runbook §1.4 expects. `anvil mcp install --client
+  claude-code` does the same against Claude Code's config path. Re-running is
+  a no-op if the entry already matches; re-running with a drifted entry
+  rewrites and warns. Exits non-zero only on hard failure (no client config
+  path resolvable, write refused, etc.)
+- **Validation:** Generated config matches RCLI3-016 output for the same
+  `--target`; `anvil mcp install --client cursor && anvil mcp-config --target
+  cursor --verify` exits zero on a fresh install; idempotent re-run leaves
+  the file byte-identical
+- **Files:** `crates/anvil-cli/src/commands/mcp.rs` (new),
+  `crates/anvil-cli/src/commands/mcp_config.rs` (shared resolver)
+- **Confidence:** high (thin wrapper over RCLI3-016 — config resolution and
+  write are already implemented there)
+- **Priority:** **High** (A1 demo runbook prerequisite)
+- **Dependencies:** RCLI3-016 (provides the underlying config writer and
+  client-path resolution), DRVR-002 (driver protocol — generated entry must
+  point at a working daemon endpoint)
 
 ---
 
@@ -462,6 +499,41 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   logic needs porting)
 - **Priority:** Low
 - **Dependencies:** RCLI (foundation)
+
+---
+
+### RCLI3-017b: intercept unblock CLI surface
+
+- **Status:** Ready (carved out 2026-04-26 — INTD-007 covers fence
+  persistence and the data-path unblock primitive, but the operator-visible
+  CLI surface had no work-item home until now. The demo runbook's §3.1
+  soft-reset path calls `anvil intercept unblock --worktree "$PWD"`
+  directly.)
+- **Intent:** Port `anvil intercept unblock --worktree <path>`. CLI surface
+  for removing a fenced worktree from the daemon's persistence file, so an
+  operator can clear demo / test fences without restarting the daemon.
+  Wraps the IPC command INTD-007 / INTD-011 expose.
+- **Expected Outcome:** `anvil intercept unblock --worktree "$PWD"` sends
+  the unblock IPC command for the resolved worktree path, removes the
+  matching entry from the disk-persisted fence file, and prints a
+  confirmation line. `anvil intercept status` immediately reflects the
+  cleared fence (`fences: 0` for that worktree). Unblocking a worktree that
+  is not currently fenced is a no-op and exits zero (idempotent), with an
+  informational note. Optional `--all` flag clears every fence in one call;
+  `--dry-run` lists what would be cleared without modifying state.
+- **Validation:** Integration test against a daemon with a seeded fence
+  asserts the fence is removed from both in-memory state and disk
+  persistence; idempotent re-run leaves the persistence file byte-identical;
+  `--dry-run` produces no side effects
+- **Files:** `crates/anvil-cli/src/commands/intercept.rs` (extend existing
+  surface)
+- **Confidence:** high (thin CLI wrapper over the IPC command INTD-007
+  already persists; daemon side does the work)
+- **Priority:** **Medium** (A1 demo runbook §3.1 prerequisite, but the
+  hard-reset path in §3.2 also clears fences so the demo is recoverable
+  without this CLI in the worst case)
+- **Dependencies:** INTD-007 (fence persistence + unblock primitive),
+  INTD-011 (daemon status / IPC surface for fence query)
 
 ---
 
@@ -522,5 +594,5 @@ audit; reviewed 2026-04-26):
 | 1 — Edda & Ember | 7 | Proposed |
 | 2 — Plan & Stack | 4 | Proposed |
 | 3 — Agent & Authorship | 3 | Proposed |
-| 4 — Utility Commands | 4 | Proposed |
-| **Total** | **18** | — |
+| 4 — Utility Commands | 6 | Proposed |
+| **Total** | **20** | — |
