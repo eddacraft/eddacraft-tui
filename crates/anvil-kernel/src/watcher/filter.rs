@@ -67,10 +67,23 @@ impl FileFilter {
         )
     }
 
-    /// Combined check: not ignored AND (extension gate disabled OR has a
-    /// parseable extension).
+    /// Combined check: not ignored AND a plausible file path.
+    ///
+    /// In default mode (`respect_extensions = true`), restricts to the
+    /// hardcoded ts/js parseable list. In bypass mode (caller supplied
+    /// scoped patterns), still requires the path to have *some* extension
+    /// so directory `Create` events and bare paths cannot reach the parser
+    /// pipeline — only the JS/TS extension restriction yields, not the
+    /// "must look like a file" floor.
     pub fn should_process(&self, path: &Path) -> bool {
-        !self.should_ignore(path) && (!self.respect_extensions || self.is_parseable(path))
+        if self.should_ignore(path) {
+            return false;
+        }
+        if self.respect_extensions {
+            self.is_parseable(path)
+        } else {
+            path.extension().is_some()
+        }
     }
 }
 
@@ -179,6 +192,18 @@ mod tests {
         assert!(filter.should_process(Path::new("README.md")));
         // Denylist still applies regardless of the extension gate.
         assert!(!filter.should_process(Path::new("node_modules/foo.rs")));
+    }
+
+    #[test]
+    fn respect_extensions_disabled_still_rejects_directory_paths() {
+        // Bypass mode must still keep directory `Create` events and bare
+        // paths out of the parser pipeline — relaxing the JS/TS gate is not
+        // the same as relaxing the "must look like a file" floor.
+        let filter = FileFilter::default().with_respect_extensions(false);
+        assert!(!filter.should_process(Path::new("src")));
+        assert!(!filter.should_process(Path::new("crates/anvil-cli/src")));
+        assert!(!filter.should_process(Path::new("Makefile")));
+        // Denylist still applies — a denylisted directory remains rejected.
         assert!(!filter.should_process(Path::new("target/debug/anvil")));
     }
 

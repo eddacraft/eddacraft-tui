@@ -792,8 +792,6 @@ jobs:
       # silently — previously this job exited 0 with no body whatsoever,
       # masking winget/scoop push failures behind a green announce step.
       - name: Summarise release outcome
-        env:
-          STEP_SUMMARY: ${{ github.step_summary }}
         run: |
           set -euo pipefail
           echo "::notice title=anvil release ${RELEASE_TAG}::host=success winget=${WINGET_RESULT} scoop=${SCOOP_RESULT}"

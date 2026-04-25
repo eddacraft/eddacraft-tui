@@ -165,15 +165,22 @@ fn build_filter(user_supplied_patterns: bool) -> anvil_kernel::watcher::filter::
 /// find their vendor tree silently watched, because the bare name
 /// matches only a path equal to "vendor". Detect that shape at parse
 /// time and warn with the corrected form.
-fn warn_on_bare_exclude_patterns(patterns: &[String]) {
+///
+/// Routes through stderr in `--json` mode so the JSON-lines event stream
+/// on stdout stays parseable; otherwise stdout, alongside the rest of the
+/// watch surface.
+fn warn_on_bare_exclude_patterns(patterns: &[String], json_mode: bool) {
     for pattern in patterns {
         if is_likely_bare_directory_name(pattern) {
-            // stdout, not stderr — keeps the warning aligned with the rest
-            // of the watch surface and visible in piped recordings.
-            println!(
+            let line = format!(
                 "\u{26a0} `--exclude {pattern}` matches only a path named exactly \"{pattern}\"; \
                  to exclude its contents use `--exclude {pattern}/**`."
             );
+            if json_mode {
+                eprintln!("{line}");
+            } else {
+                println!("{line}");
+            }
         }
     }
 }
@@ -334,12 +341,18 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let exclude: Vec<String> = args.exclude.as_ref().map_or_else(Vec::new, |s| {
         s.split(',').map(|s| s.trim().to_string()).collect()
     });
-    warn_on_bare_exclude_patterns(&exclude);
-    // When the user has supplied a scoping criterion of any kind (--patterns,
-    // --source, --plans, --all), the FileFilter must not additionally enforce
+    warn_on_bare_exclude_patterns(&exclude, global.json);
+    // When the user has supplied an explicit scoped pattern (--patterns,
+    // --source, --plans), the FileFilter must not additionally enforce
     // its hardcoded ts/js extension gate — that would silently drop events
-    // for any other file type the user just asked us to watch.
-    let user_supplied_patterns = args.patterns.is_some() || args.source || args.plans || args.all;
+    // for file types the user explicitly asked us to watch.
+    //
+    // `--all` is deliberately *not* in this set: it widens scope to "watch
+    // everything that passes the denylist", but the kernel's parser still
+    // only handles TS/JS today, so forwarding non-JS files to it produces
+    // UnsupportedLanguage errors and noisy snapshots. Keep the extension
+    // gate enabled for `--all` until the kernel supports more languages.
+    let user_supplied_patterns = args.patterns.is_some() || args.source || args.plans;
     let filter = build_filter(user_supplied_patterns);
 
     print_active_scope(&patterns, &exclude, global);

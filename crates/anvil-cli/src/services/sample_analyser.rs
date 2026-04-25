@@ -170,10 +170,17 @@ fn select_sample(
 /// when git itself never returns.
 const GIT_RECENT_FILES_TIMEOUT: Duration = Duration::from_secs(3);
 
+/// Poll interval while waiting for the git subprocess to exit. Small
+/// enough that the timeout boundary is tight; large enough that we don't
+/// burn CPU spinning on `try_wait`.
+const GIT_RECENT_FILES_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
 /// Ask git for files touched in the last `days`. Returns `None` if the
 /// directory is not a git repo, git is unavailable, or the git subprocess
-/// exceeded `GIT_RECENT_FILES_TIMEOUT`; an empty Vec means the repo exists
-/// but no in-window changes match our extensions.
+/// exceeded `GIT_RECENT_FILES_TIMEOUT` (in which case the child is killed
+/// before returning so a hung filesystem call can't leak a stuck process).
+/// An empty Vec means the repo exists but no in-window changes match our
+/// extensions.
 fn git_recent_files(
     root: &Path,
     days: u32,
@@ -183,33 +190,45 @@ fn git_recent_files(
     // `--diff-filter=d` excludes deletions, so we don't try to scan files
     // git knows about but no longer exist on disk.
     let since = format!("--since={days}.days");
-    let root_owned = root.to_path_buf();
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let result = Command::new("git")
-            .arg("-C")
-            .arg(&root_owned)
-            .args([
-                "log",
-                &since,
-                "--name-only",
-                "--pretty=format:",
-                "--diff-filter=d",
-            ])
-            .output();
-        // If the receiver has already timed out and dropped the channel,
-        // the send fails; the orphaned process completes and is reaped by
-        // the OS — better than blocking init forever.
-        let _ = tx.send(result);
-    });
-    let output = match rx.recv_timeout(GIT_RECENT_FILES_TIMEOUT) {
-        Ok(Ok(output)) => output,
-        Ok(Err(_)) => return None,
-        Err(_) => {
-            // Timeout: the git call is taking too long (NFS, stalled
-            // remote, network filesystem). Fall through to the walk-based
-            // sample so init still surfaces something rather than hanging.
-            return None;
+    let mut child = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args([
+            "log",
+            &since,
+            "--name-only",
+            "--pretty=format:",
+            "--diff-filter=d",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .ok()?;
+
+    let started = Instant::now();
+    let output = loop {
+        match child.try_wait() {
+            Ok(Some(_)) => match child.wait_with_output() {
+                Ok(output) => break output,
+                Err(_) => return None,
+            },
+            Ok(None) => {
+                if started.elapsed() >= GIT_RECENT_FILES_TIMEOUT {
+                    // Timeout: the git call is taking too long (NFS, stalled
+                    // remote, network filesystem). Terminate the child so we
+                    // do not leak a stuck subprocess, then fall through to
+                    // the walk-based sample so init still surfaces something.
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return None;
+                }
+                std::thread::sleep(GIT_RECENT_FILES_POLL_INTERVAL);
+            }
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
         }
     };
 
