@@ -3,9 +3,9 @@
 
 # Attribution Pipeline v3
 
-| ID     | Owner | Status |
-| ------ | ----- | ------ |
-| ATTRIB | —     | Draft  |
+| ID     | Owner      | Status |
+| ------ | ---------- | ------ |
+| ATTRIB | joshuaboys | Ready  |
 
 ## Purpose
 
@@ -152,71 +152,145 @@ the same source of truth.
 - A documented contract for the BEGIN/END marker block format,
   callable from any project regardless of ecosystem.
 
+**Known downstream consumers:**
+
+- `little-termi` — already runs a hand-ported v1 copy; primary
+  validation target for ATTRIB-009.
+- The Anvil VS Code extension (Node ecosystem) — will adopt the kit
+  once published.
+- Owner's future public projects — drives the
+  ATTRIB-011 milestone (extract to a public sibling repo so non-anvil
+  consumers don't have to copy out of a private repo).
+
 ## Prerequisites
 
-- Confirm the actual-vs-design discrepancy notes in
-  `plans/specs/2026-04-23-rustnx-completion-design.md` are still
-  accurate (path, CI job name, `anvil licenses` subcommand
-  behaviour).
-- Decide where the starter kit lives: `docs/guides/...` (read-only
-  documentation), `tools/starters/...` (vendored copy other repos
-  fetch), or a sibling repo (`acknowledgements-starter`). Each has
-  different update-propagation semantics.
-- Confirm CycloneDX as the intermediate-of-choice (vs a homegrown
-  JSON / TOML schema). Industry standard, supported by every modern
-  ecosystem's licence tooling, gives future-vuln-scanning for free
-  if/when that lands.
-- Owner named.
+All resolved as of 2026-04-25. See [Decisions](#decisions) below for the
+chosen answers and rationale.
+
+## Decisions
+
+Recorded on transition to Ready (2026-04-25).
+
+| Question | Decision | Rationale |
+| --- | --- | --- |
+| Starter-kit location | `tools/starters/acknowledgements/` inside this repo | Vendor-friendly: downstream repos `git subtree pull` for updates instead of copy-paste rot. `docs/guides/...` would be read-only and force manual reconciliation; a sibling repo is overkill for the current consumer set. **Public-extract is queued as ATTRIB-011** since anvil-001 is private and the VS Code extension + future public projects can't `git subtree` from it. |
+| Intermediate format | CycloneDX SBOM JSON | Standards-compliant; every modern licence tool emits it (`cargo-cyclonedx`, `cyclonedx-npm`, `cyclonedx-gradle-plugin`, `cyclonedx-python`); gives future vuln-scanning leverage for free. A homegrown TOML schema is lighter today but pays back the cost the moment a fourth ecosystem joins. |
+| `deny.toml` in v3 scope? | Yes — included in v3 | ATTRIB-006 (single-source-of-truth licence allow-list) only earns its keep when both `about.toml` and `deny.toml` consume it. Splitting them across modules means doing the refactor twice. |
+| First downstream consumer | `little-termi` (existing hand-port; primary validation target for ATTRIB-009). Plus the Anvil VS Code extension and the owner's future public projects as anticipated consumers — these drive the ATTRIB-011 public-extract milestone. | — |
+| Owner | `joshuaboys` | — |
+| Discrepancy notes accuracy | Confirmed accurate (verified 2026-04-25) | All claims in `plans/specs/2026-04-23-rustnx-completion-design.md`'s shipped-implementation note still hold: file path (`ACKNOWLEDGEMENTS.md`), generator (`tools/generate-acknowledgements.sh` wrapping `cargo about generate` scoped to `crates/anvil-cli/Cargo.toml`), CLI surface (`anvil licenses` via `include_str!`), CI gate (`acknowledgements-diff`), and release-pipeline publish (`.github/workflows/release.yml` mirrors the file to `eddacraft/anvil`). |
+
+Two open questions remain — neither blocks Ready and both are expected to
+resolve naturally during their respective tasks:
+
+- `anvil licenses --json` — whether the CLI subcommand grows a structured
+  output mode emitting the merged CycloneDX intermediate. Decide during
+  ATTRIB-005; defer to a future module if the use case doesn't surface.
+- SPDX expression rigour for bundled binaries — whether
+  `tools/bundled-binaries.toml` accepts arbitrary SPDX strings or a
+  closed enum. Decide during ATTRIB-004 schema design once we have a
+  concrete first binary to attribute.
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+All items satisfied; see [Decisions](#decisions) above.
 
-- [ ] Discrepancy notes confirmed (or updated) in the design spec.
-- [ ] Starter-kit location decided and recorded (ADR or design note).
-- [ ] Intermediate format chosen (CycloneDX vs custom).
-- [ ] First downstream consumer identified beyond anvil itself
-      (e.g. `little-termi` is already using a hand-ported copy and is
-      a natural validator).
-- [ ] Decision recorded on whether `deny.toml` is part of v3 scope
-      (vs deferred to a follow-up under `security.aps.md`).
-- [ ] Owner named.
+- [x] Discrepancy notes confirmed (or updated) in the design spec.
+- [x] Starter-kit location decided and recorded (ADR or design note).
+- [x] Intermediate format chosen (CycloneDX vs custom).
+- [x] First downstream consumer identified beyond anvil itself
+      (`little-termi`; plus VS Code extension + future public projects).
+- [x] Decision recorded on whether `deny.toml` is part of v3 scope
+      (yes — included in v3).
+- [x] Owner named (`joshuaboys`).
 
 ## Tasks
 
-Tasks will be defined when this module moves to Ready. Anticipated:
+A v1.5 reference draft (per-language split, env-var-parameterised script,
+TS recipe sketch) lives at `~/scratch/anvil-attribution-v1.5-draft/` on
+the owner's machine. It predates the v3 design (single config file,
+multi-block markers, CycloneDX intermediate) and is reference-only — its
+marker-contract documentation may seed ATTRIB-001 verbatim, but the
+script and per-language structure are superseded by ATTRIB-002/003/008.
 
-- ATTRIB-001: Document the marker-splice contract and the existing
-  generator's invariants in a stable reference (the starter-kit
-  README that downstream consumers read).
-- ATTRIB-002: Parameterise `tools/generate-acknowledgements.sh` so it
-  reads project metadata from a config file instead of baked-in
-  paths and command strings.
-- ATTRIB-003: Extract the starter kit (script, config templates,
-  template files, sample `ACKNOWLEDGEMENTS.md`, README) into the
-  agreed location (`docs/guides/acknowledgements-starter/` or
-  `tools/starters/...`).
-- ATTRIB-004: Add a `bundled-binaries.toml` schema and ingest plugin;
-  document it in the starter kit even though anvil itself does not
-  bundle binaries today.
-- ATTRIB-005: Add CycloneDX as a parallel intermediate alongside the
-  cargo-about-direct path; render both through the same template
-  layer.
-- ATTRIB-006: Single-source-of-truth licence allow-list
-  (`licences.toml` or chosen format) with an expander that produces
-  the `about.toml.accepted` block (and, when `deny.toml` lands, its
-  allow-list block). CI lints for drift.
-- ATTRIB-007: Workspace-crate `license` field lint (hard fail rather
-  than cargo-about warning).
-- ATTRIB-008: Multi-block marker support — `<!-- BEGIN AUTO-GENERATED rust -->`,
-  `<!-- BEGIN AUTO-GENERATED binaries -->`, `<!-- BEGIN AUTO-GENERATED gradle -->`
-  etc., independently splice-able so partial regeneration is safe.
-- ATTRIB-009: Validate the kit by porting it back into
-  `little-termi` (replacing the hand-ported copy already there) and
-  confirming both repos regenerate identically.
-- ATTRIB-010: Update `docs/guides/release-doc-checklist.md` and the
-  release runbook to reference the starter-kit location and the
-  `--check` invocation downstream consumers should run pre-release.
+### ATTRIB-001: Document the marker-splice contract
+
+- **Status:** Pending
+- **Intent:** Stable reference that downstream consumers read before adopting the kit.
+- **Expected Outcome:** README in `tools/starters/acknowledgements/` covers marker syntax, idempotency invariants, `--check` exit-code semantics, atomic-write / empty-output / marker-count guarantees.
+- **Validation:** README exists; `markdownlint` clean; cross-references resolve.
+
+### ATTRIB-002: Parameterise the generator via a config file
+
+- **Status:** Pending
+- **Intent:** Eliminate hard-coded `crates/anvil-cli/Cargo.toml` and `pnpm run licenses:generate` strings from the bash.
+- **Expected Outcome:** Generator reads `attribution.toml` (per-ecosystem manifests + project metadata) instead of baked-in paths. Anvil's existing config lives at repo root.
+- **Validation:** `tools/generate-acknowledgements.sh --check` passes against unchanged anvil graph after the refactor; no project-specific strings remain in the script.
+
+### ATTRIB-003: Extract starter kit to `tools/starters/acknowledgements/`
+
+- **Status:** Pending
+- **Intent:** Vendor the kit at its agreed canonical location so downstream repos can `git subtree pull` without copy-paste rot.
+- **Expected Outcome:** Directory contains the parameterised script, `attribution.toml.example`, template files, `ACKNOWLEDGEMENTS.md.template`, README, and the GitHub Actions snippet. Self-contained: no imports from the rest of the repo.
+- **Validation:** `tar -czf` of the directory extracts cleanly; a fresh repo can adopt by copy + `attribution.toml` edit only.
+
+### ATTRIB-004: `bundled-binaries.toml` schema and ingest plugin
+
+- **Status:** Pending
+- **Intent:** Allow attribution of third-party binaries that aren't Cargo crates (OpenSSH, Mosh, FFmpeg, ...).
+- **Expected Outcome:** Schema documented in starter kit; ingest plugin emits CycloneDX intermediate from a hand-maintained TOML inventory. Anvil ships an empty inventory today.
+- **Validation:** Sample `bundled-binaries.toml` with one fixture entry round-trips through the generator and renders into a `binaries` block.
+- **Open:** Whether the schema accepts arbitrary SPDX expressions or a closed enum — decide during implementation.
+
+### ATTRIB-005: CycloneDX intermediate alongside cargo-about-direct
+
+- **Status:** Pending
+- **Intent:** Add CycloneDX as the canonical inter-ecosystem format; keep cargo-about-direct path as a faster-but-Rust-only fallback.
+- **Expected Outcome:** Generator can run in two modes: CycloneDX (multi-ecosystem merge) and direct (today's behaviour). Output identical for the Rust-only case.
+- **Validation:** `tools/generate-acknowledgements.sh --check` passes in both modes against the current anvil graph.
+- **Open:** Whether `anvil licenses --json` grows to expose the merged intermediate — decide during this task.
+
+### ATTRIB-006: Single-source-of-truth licence allow-list
+
+- **Status:** Pending
+- **Intent:** Eliminate the `about.toml.accepted` ↔ `deny.toml.[licenses].allow` drift smell.
+- **Expected Outcome:** Canonical `licences.toml` at repo root; expander script produces both `about.toml`-shaped and `deny.toml`-shaped fragments at run time. CI lints for drift.
+- **Validation:** Contributor adds a licence to `licences.toml`; both consumers reflect it without further edits. Removing from one without `licences.toml` triggers CI failure.
+
+### ATTRIB-007: Workspace-crate `license` field lint
+
+- **Status:** Pending
+- **Intent:** Make cargo-about's "no license field" warning a hard error so missing fields can't slip past review.
+- **Expected Outcome:** CI step fails when a workspace crate lacks a `license` (or `license-file`) field. Existing crates already comply (per RUSTNX-009); this prevents regression.
+- **Validation:** Test crate without a `license` field triggers the lint locally and in CI.
+
+### ATTRIB-008: Multi-block marker support
+
+- **Status:** Pending
+- **Intent:** Allow `<!-- BEGIN AUTO-GENERATED rust -->`, `<!-- BEGIN AUTO-GENERATED binaries -->`, `<!-- BEGIN AUTO-GENERATED node -->` etc. to coexist in one file, each independently splice-able so a partial failure can't clobber unrelated content.
+- **Expected Outcome:** Generator accepts a block name; splices only the named block; preserves all other blocks verbatim. Marker count gate validates per-block (one BEGIN, one END each).
+- **Validation:** Two-block fixture round-trips through partial regeneration without touching the other block.
+
+### ATTRIB-009: Port the kit back into `little-termi`
+
+- **Status:** Pending
+- **Intent:** Replace the hand-ported v1 copy in `little-termi` with the v3 starter kit; confirm both repos regenerate identically.
+- **Expected Outcome:** `little-termi` adopts the kit via `git subtree pull` (or copy if subtree isn't workable) and runs `--check` clean. Divergence is a `little-termi` CI failure.
+- **Validation:** Both repos pass their respective `acknowledgements-diff` jobs after the port.
+
+### ATTRIB-010: Update release runbook + doc checklist
+
+- **Status:** Pending
+- **Intent:** Reference the starter-kit location and the `--check` invocation downstream consumers should run pre-release.
+- **Expected Outcome:** `docs/guides/release-doc-checklist.md` mentions the kit; release runbook calls out the gate.
+- **Validation:** Release runbook references resolve; doc lint passes.
+
+### ATTRIB-011: Mirror starter kit to a public sibling repo
+
+- **Status:** Pending
+- **Intent:** Make the kit usable from public projects (the Anvil VS Code extension, the owner's future public projects) that can't `git subtree` from the private `anvil-001` repo.
+- **Expected Outcome:** New public repo (proposed: `eddacraft/acknowledgements-starter`) mirrors `tools/starters/acknowledgements/` with a one-shot or scheduled mirror job. Public repo carries its own README pointing at this module for design history.
+- **Validation:** Public repo exists; mirror job succeeds; one external project (anvil VS Code extension) consumes it.
 
 ## Risks
 
@@ -225,29 +299,13 @@ Tasks will be defined when this module moves to Ready. Anticipated:
 | Scope creeps into supply-chain attestation / SBOM publication | High | v3 stops at the markdown attribution artefact; SBOM publication is explicitly out of scope and queued under `release-management` |
 | CycloneDX intermediate is heavier than the project needs today | Medium | Keep `cargo-about` direct path supported; CycloneDX is additive, not forced |
 | Hand-ported starter-kit copies drift from canonical | Medium | ATTRIB-009 validates the kit by re-porting it into a known consumer (little-termi); divergence is a CI failure there |
-| Starter-kit location is read-only and downstream repos still copy-paste | Medium | If `docs/guides/...` is the chosen location, document the copy-update workflow explicitly; alternatively pick `tools/starters/...` and provide a `git subtree pull` recipe |
+| Public consumers (VS Code extension, future public projects) can't `git subtree` from a private repo | Medium | ATTRIB-011 mirrors the kit to a public sibling repo; design history stays in this private module |
 | Manual `## Thanks` section still rots over time | Low | CI requires the section exists with at least one entry per ecosystem represented in the auto-generated block; contents stay manual by design |
 | `licences.toml` drift gate produces false-positive churn during adds | Low | Drift gate runs `--check` mode; surfaces an actionable diff rather than blocking the commit silently |
 
 ## Open Questions
 
-- [ ] CycloneDX vs a homegrown JSON / TOML schema for the
-      intermediate? CycloneDX is the standards answer; a homegrown
-      schema is lighter for today's needs. Decide before
-      ATTRIB-005.
-- [ ] Where does the starter kit live: `docs/guides/...` (docs-only),
-      `tools/starters/...` (vendorable), or a sibling repo
-      (`eddacraft/acknowledgements-starter`)? Each has different
-      propagation semantics — pick before ATTRIB-003.
-- [ ] Should `deny.toml` integration be in v3, or queued under
-      `security.aps.md` as a follow-up? The single-allow-list refactor
-      in ATTRIB-006 only pays off once both consumers exist.
-- [ ] Does `anvil licenses` (the CLI subcommand that
-      `include_str!`-embeds the markdown) need a corresponding
-      `anvil licenses --json` mode that returns the structured
-      intermediate? If yes, that's a v3 deliverable; if no,
-      defer to a future module.
-- [ ] What's the canonical SPDX expression for "BSD-style as in
-      OpenSSH" — does the bundled-binaries schema accept arbitrary
-      SPDX strings, or a closed enum? Affects ATTRIB-004 schema
-      rigour.
+All Ready-blocking questions resolved in [Decisions](#decisions).
+The two tactical questions deferred to their respective tasks
+(`anvil licenses --json` mode, SPDX rigour for bundled binaries) live
+inline against ATTRIB-005 and ATTRIB-004.
