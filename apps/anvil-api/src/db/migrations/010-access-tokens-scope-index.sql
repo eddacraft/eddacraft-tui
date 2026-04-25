@@ -1,10 +1,18 @@
--- Migration: backfill the access_tokens index that supports
--- findActiveScopesForUser. The index existed in schema.sql (fresh-install
--- DDL) but was never written as a migration, so production databases
--- that pre-date it take a sequential scan on access_tokens for every
--- /session/refresh, /auth/device/poll, /auth/github/callback, and
--- /auth/otp/verify call. At launch traffic that saturates Neon
--- connection slots and produces visible auth latency.
+-- Migration: add the access_tokens indexes that support
+-- findActiveScopesForUser. Two indexes here:
+--   * idx_access_tokens_user_id — a single-column index that exists in
+--     schema.sql for fresh installs but was never written as a migration,
+--     so production databases stood up before that schema.sql change run
+--     a sequential scan on access_tokens for every /session/refresh,
+--     /auth/device/poll, /auth/github/callback, and /auth/otp/verify
+--     call. This migration backfills it.
+--   * idx_access_tokens_active_scope_lookup — a partial composite that is
+--     net-new in this release (also added to schema.sql alongside the
+--     migration so fresh installs match production). The partial form
+--     skips revoked rows; the (user_id, created_at DESC) leading edge
+--     covers the query's filter and ORDER BY.
+-- At launch traffic the absence of either index would saturate Neon
+-- connection slots and produce visible auth latency.
 --
 -- Composite index aligns with the query shape — filter by user_id, drop
 -- revoked / expired rows, take the most recent first. Using

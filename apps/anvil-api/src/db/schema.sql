@@ -87,6 +87,14 @@ CREATE TABLE refresh_tokens (
 -- Indexes
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
+-- Mirrors migration 010-access-tokens-scope-index.sql so fresh-install
+-- environments (CI, ephemeral preview deployments, disaster recovery)
+-- get the partial composite index findActiveScopesForUser uses on the
+-- auth hot path. Migration 010 backfills onto existing prod DBs; this
+-- entry keeps schema.sql authoritative for new ones.
+CREATE INDEX idx_access_tokens_active_scope_lookup
+  ON access_tokens(user_id, created_at DESC)
+  WHERE revoked_at IS NULL;
 CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_actor ON audit_log(actor);
 CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
