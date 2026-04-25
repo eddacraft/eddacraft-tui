@@ -18,10 +18,16 @@ See: plans/aps-rules.md
 | ----- | ----- | ------ |
 | V041F | —     | Ready  |
 
-11 work items (V041F-001 through V041F-011). Items 001–010 captured
-from the three council rounds + Codex CLI external review during
-release prep. V041F-011 added 2026-04-26 from the copilot review on
-PR #1081 (scan_content recompile / silent-error).
+14 work items. Items 001–010 captured from the three council rounds +
+Codex CLI external review during release prep; V041F-011 added 2026-04-26
+from the copilot review on PR #1081 (`scan_content` recompile / silent-
+error); V041F-012 + V041F-013 + V041F-014 added from the v0.4.0-beta
+tag run (workflow 24937011902) and post-tag prod deploy (run 24937001778)
+— scoop PAT scope failure, winget gh CLI arg-count regression, and the
+absence of a migration runner. All three v0.4.0-beta surface gaps were
+closed manually (scoop bucket commit `4f3becf6`, winget PR
+microsoft/winget-pkgs#365186, prod migrations applied by hand);
+CI / deploy pipelines must be repaired before the next tag.
 
 ## Purpose
 
@@ -216,6 +222,85 @@ require a coordinated bundle — pick them off in any order.
   since both are in the secret/scanner hot path.
 - **Confidence:** medium — signature change touches every direct
   caller of `scan_content`
+- **Status:** Todo
+
+### V041F-012: Fix CI scoop publisher PAT scope
+
+- **Surface:** `.github/workflows/release.yml` `scoop` job; `ANVIL_RELEASES_TOKEN` PAT
+- **Flagged by:** v0.4.0-beta release run (workflow run 24937011902)
+- **Intent:** The scoop publisher job failed with
+  `HTTP 403 — Resource not accessible by personal access token` when
+  pushing the manifest to `eddacraft/scoop-bucket`. The bucket was updated
+  manually for v0.4.0-beta via `gh api PUT contents/bucket/anvil.json`
+  from a developer machine (commit
+  `eddacraft/scoop-bucket@4f3becf6`), but the CI path needs to work
+  for the next tag.
+- **Expected outcome:** Either rotate `ANVIL_RELEASES_TOKEN` to a PAT
+  with `contents:write` on `eddacraft/scoop-bucket`, or migrate the
+  scoop push to a GitHub App / fine-grained token that scopes correctly.
+  Verify with a dry-run on a test tag before the next real release.
+- **Confidence:** high
+- **Status:** Todo
+
+### V041F-013: Fix CI winget publisher `gh` arg-count regression
+
+- **Surface:** `.github/workflows/release.yml` `winget` job (lines ~570–660,
+  the manifest-generation + fork + PR step)
+- **Flagged by:** v0.4.0-beta release run (workflow run 24937011902)
+- **Intent:** The winget publisher job failed with
+  `gh` CLI `accepts 1 arg(s), received 2` mid-script after the manifest
+  YAMLs generated. First v0.4.0-beta tag with the new ARM64
+  `Installers` entry; possibly a `gh repo fork` / `gh pr create`
+  arg-shape regression triggered by the runner's `gh` version, or a
+  shell-quoting issue on one of the substituted strings. The PR was
+  created manually via API for v0.4.0-beta
+  (microsoft/winget-pkgs#365186). The manual recovery used
+  `EddaCraft/anvil` casing initially and was rejected by the WinGet
+  validator — fix to lowercase pushed and accepted; record a defensive
+  assertion that the workflow's URL substitution stays lowercase too.
+- **Expected outcome:** Reproduce the failure locally with the same
+  `gh` version the runner uses (check the runner image manifest for
+  the `gh` version pin), repair the offending command, add a defensive
+  test (script-level `set -x` or a smoke step that runs the same
+  fork+commit+pr flow against a stub repo), assert URL casing on the
+  generated manifest before push.
+- **Confidence:** medium — root cause not yet diagnosed
+- **Status:** Todo
+
+### V041F-014: Wire a database-migration runner into the deploy pipeline
+
+- **Surface:** `apps/anvil-api/src/db/migrations/`,
+  `.github/workflows/release.yml` (Pulumi Up step),
+  `docs/runbooks/post-deploy-smoke-check.md`
+- **Flagged by:** v0.4.0-beta post-tag prod deploy (workflow run
+  24937001778, Pulumi Up failure on missing `admin_keys` table); also
+  flagged earlier by operations-reviewer round 3 (consider C-1: "no
+  migration runner is documented or automated").
+- **Intent:** Migrations are SQL files in `apps/anvil-api/src/db/migrations/`,
+  but no CI step applies them to staging or production. Each release
+  that adds a migration silently breaks the next deploy until an operator
+  runs `psql` by hand. v0.4.0-beta added migrations 007–010; the prod
+  Pulumi deploy failed with `relation "admin_keys" does not exist` and
+  was unblocked only by manually applying 007/008/009/010 against the
+  Neon prod database.
+- **Expected outcome:** A migration runner that:
+  1. Tracks applied migrations in a `_migrations` table (filename + sha
+     of the file at apply-time).
+  2. Discovers all `.sql` files in `apps/anvil-api/src/db/migrations/`
+     in lexical order, applies any not yet recorded in `_migrations`,
+     in a single transaction per file.
+  3. Refuses to apply a migration whose recorded sha differs from the
+     on-disk sha (catches retroactive edits to applied migrations).
+  4. Runs as a workflow step in `release.yml` between the `host` job
+     (artefacts published, public release Latest) and the Pulumi Up
+     step. Migrations apply BEFORE infra so Pulumi can rely on the
+     schema being current.
+  5. Has a manual operator runbook entry for ad-hoc apply (recovery,
+     staging tests).
+- **Confidence:** medium — needs a small design pass on whether to
+  reuse Drizzle Kit (already in the workspace), `node-pg-migrate`, or
+  ship a minimal first-party runner. Per-migration transaction +
+  `_migrations` tracking are the non-negotiable parts.
 - **Status:** Todo
 
 ### V041F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
