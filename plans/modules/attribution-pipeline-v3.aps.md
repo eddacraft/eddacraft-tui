@@ -31,9 +31,10 @@ exercises:
    strings into the bash. Lifting it into a sibling repo
    (e.g. `little-termi`, `arkahna-*`) means hand-editing the script.
 2. **Two sources of truth for the licence allow-list.** `about.toml`'s
-   `accepted = [...]` and (when present) `deny.toml`'s
-   `[licenses].allow = [...]` will drift. The current comment
-   "keep this list in sync with deny.toml" concedes the smell.
+   `accepted = [...]` and `deny.toml`'s `[licenses].allow = [...]`
+   already exist side-by-side in this repo and will drift. The
+   comment in `about.toml` ("keep this list in sync with deny.toml")
+   concedes the smell.
 3. **Single-language scope.** The pipeline only attributes Rust crates.
    Repos that ship Kotlin/Android, Node, Python, or bundled
    third-party binaries (OpenSSH, Mosh, FFmpeg, ...) need parallel
@@ -138,9 +139,10 @@ the same source of truth.
   parallel ingest option.
 - `crates/anvil-cli` — the `anvil licenses` subcommand consumes the
   output and must continue to work after the file format evolves.
-- Future `deny.toml` (when added under `security.aps.md`) — v3.3
-  generates the allow-list block of that file from the same canonical
-  source.
+- Existing `deny.toml` at repo root (enforced via the `cargo-deny`
+  CI job, owned under `security.aps.md`) — v3.3 generates or derives
+  its `[licenses].allow` block from the same canonical source rather
+  than introducing `deny.toml` itself.
 
 **Exposes:**
 
