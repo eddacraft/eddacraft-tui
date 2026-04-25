@@ -16,13 +16,13 @@ Guides for upgrading between anvil versions.
 Drop-in upgrade from `0.3.3-beta` for most users. Two behavioural changes
 require attention:
 
-- **`anvil watch --exclude` now takes glob patterns, not bare directory
-  names.** A previous `--exclude vendor` no longer excludes files under
-  `vendor/`; use `--exclude 'vendor/**'` instead. The CLI prints a
-  warning when a likely-bare-name pattern is detected.
+- **`anvil watch --exclude` now takes glob patterns, not bare directory names.**
+  A previous `--exclude vendor` no longer excludes files under `vendor/`; use
+  `--exclude 'vendor/**'` instead. The CLI prints a warning when a
+  likely-bare-name pattern is detected.
 - **`anvil doctor --json` output shape changed** from a bare array to
-  `{ "checks": [...], "notifications": [...] }`. Consumers iterating the
-  array must switch to `data.checks`.
+  `{ "checks": [...], "notifications": [...] }`. Consumers iterating the array
+  must switch to `data.checks`.
 
 ```bash
 # Upgrade via the installer
@@ -48,19 +48,19 @@ scoop update anvil
 
 ### What's New in 0.4.0-beta
 
-- **`anvil watch --patterns / --exclude`** — user-supplied glob filter
-  on the watch loop. Previously the flags were declared but never read;
-  watch silently used a hardcoded scope.
-- **Post-init auto-analysis** — `anvil init` now runs an inline first
-  scan and surfaces a real signal (top warnings + counts) rather than
-  pointing at `anvil doctor`.
-- **Doctor structured remediation** — every `anvil doctor` check emits
-  a concrete remediation field (link, command, or auto-fix prompt);
-  no check terminates at "see README".
-- **`anvil watch` startup banner** — prints active include / exclude
-  scope so the active filter is visible at a glance.
-- **Workspace hardening** — cargo-hakari workspace-hack, cargo-deny
-  policy, third-party notices via cargo-about (RUSTNX).
+- **`anvil watch --patterns / --exclude`** — user-supplied glob filter on the
+  watch loop. Previously the flags were declared but never read; watch silently
+  used a hardcoded scope.
+- **Post-init auto-analysis** — `anvil init` now runs an inline first scan and
+  surfaces a real signal (top warnings + counts) rather than pointing at
+  `anvil doctor`.
+- **Doctor structured remediation** — every `anvil doctor` check emits a
+  concrete remediation field (link, command, or auto-fix prompt); no check
+  terminates at "see README".
+- **`anvil watch` startup banner** — prints active include / exclude scope so
+  the active filter is visible at a glance.
+- **Workspace hardening** — cargo-hakari workspace-hack, cargo-deny policy,
+  third-party notices via cargo-about (RUSTNX).
 
 ## Upgrading to 0.3.3-beta
 
