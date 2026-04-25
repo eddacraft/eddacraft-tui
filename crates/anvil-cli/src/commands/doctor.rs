@@ -544,7 +544,39 @@ pub fn apply_fix_at(checks: &mut [DiagnosticCheck], index: usize) {
     }
 }
 
-fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
+/// Heuristic: is the current working directory plausibly an intended
+/// project root? Used to gate the destructive `git init` auto-fix so
+/// `anvil doctor --fix` invoked from `$HOME` (or any unintended location)
+/// does not silently turn that directory into a git repository.
+fn looks_like_project_root() -> bool {
+    const PROJECT_MARKERS: &[&str] = &[
+        ".anvilrc",
+        "package.json",
+        "Cargo.toml",
+        "pyproject.toml",
+        "go.mod",
+        "pnpm-workspace.yaml",
+        "deno.json",
+        "Gemfile",
+        "build.gradle",
+        "pom.xml",
+    ];
+    PROJECT_MARKERS.iter().any(|m| Path::new(m).exists())
+}
+
+/// Default `.anvilrc` produced by the `config-exists` auto-fix. Mirrors the
+/// shape that `anvil init` writes so the file passes `check_config_valid`
+/// rather than landing the user in a fix→fail loop.
+fn default_anvilrc_yaml() -> &'static str {
+    "schemaVersion: \"1.0.0\"\nplanningDir: \"plans\"\nformat: \"yaml\"\nchecks:\n  - \"secret-detection\"\n  - \"import-boundaries\"\n  - \"antipattern-scan\"\n"
+}
+
+fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
+    // `json` mode silences human-facing prose so the JSON envelope stays
+    // machine-parseable. Plain and TUI modes always print the per-check
+    // outcome — a silent "Fixed" is worse than no fix at all because the
+    // user has no idea the destructive action ran.
+    let speak = !json;
     for check in checks.iter_mut() {
         if !check.auto_fixable || check.status == CheckStatus::Pass {
             continue;
@@ -552,24 +584,53 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
 
         match check.name.as_str() {
             "git-repo" => {
+                if !looks_like_project_root() {
+                    if speak {
+                        println!(
+                            "  Skipped: git-repo — current directory has no project markers \
+                             (.anvilrc, package.json, Cargo.toml, …); refusing to run \
+                             `git init` here. Run `git init` manually if this is the \
+                             intended project root."
+                        );
+                    }
+                    continue;
+                }
                 if Command::new("git").arg("init").output().is_ok() {
                     check.status = CheckStatus::Pass;
                     check.message = "git repository initialised".to_string();
                     check.auto_fixable = false;
-                    if !quiet {
+                    if speak {
                         println!("  Fixed: git-repo — initialised git repository");
                     }
                 }
             }
             "config-exists" => {
-                let default_config = "{}";
-                if std::fs::write(".anvilrc", default_config).is_ok() {
-                    check.status = CheckStatus::Pass;
-                    check.message = ".anvilrc created with defaults".to_string();
-                    check.auto_fixable = false;
-                    if !quiet {
-                        println!("  Fixed: config-exists — created .anvilrc");
+                // A zero-byte `.anvilrc` triggers `check_config_exists`'s
+                // missing-file path; remove it before write_new opens with
+                // O_CREAT | O_EXCL, mirroring `anvil init`'s behaviour.
+                let path = Path::new(".anvilrc");
+                if let Ok(meta) = std::fs::metadata(path)
+                    && meta.is_file()
+                    && meta.len() == 0
+                {
+                    let _ = std::fs::remove_file(path);
+                }
+                match std::fs::write(path, default_anvilrc_yaml()) {
+                    Ok(()) => {
+                        check.status = CheckStatus::Pass;
+                        check.message = ".anvilrc created with defaults".to_string();
+                        check.auto_fixable = false;
+                        if speak {
+                            println!(
+                                "  Fixed: config-exists — created .anvilrc with default \
+                                 schema (yaml, three checks)"
+                            );
+                        }
                     }
+                    Err(e) if speak => {
+                        eprintln!("  Failed to fix config-exists: {e}");
+                    }
+                    Err(_) => {}
                 }
             }
             "anvil-dir" => match std::fs::create_dir_all(".anvil") {
@@ -577,12 +638,12 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
                     check.status = CheckStatus::Pass;
                     check.message = ".anvil/ directory created".to_string();
                     check.auto_fixable = false;
-                    if !quiet {
+                    if speak {
                         println!("  Fixed: anvil-dir — created .anvil/ directory");
                     }
                 }
                 Err(e) => {
-                    if !quiet {
+                    if speak {
                         eprintln!("  Failed to fix anvil-dir: {e}");
                     }
                 }
@@ -592,12 +653,12 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
                     check.status = CheckStatus::Pass;
                     check.message = "plans/ directory created".to_string();
                     check.auto_fixable = false;
-                    if !quiet {
+                    if speak {
                         println!("  Fixed: plans-dir — created plans/ directory");
                     }
                 }
                 Err(e) => {
-                    if !quiet {
+                    if speak {
                         eprintln!("  Failed to fix plans-dir: {e}");
                     }
                 }

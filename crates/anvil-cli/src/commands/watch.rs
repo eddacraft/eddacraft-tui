@@ -150,12 +150,14 @@ fn resolve_watch_root(workspace_root: &std::path::Path, file_arg: Option<&str>) 
     }
 }
 
-/// The internal `FileFilter` (denylist + parseable-extension gate) is now
-/// independent of the user's `--patterns` / `--exclude` flags — those are
-/// globs handled by the kernel's `WatchPatternFilter`. We keep this helper
-/// as a thin alias so call-sites stay legible.
-fn build_filter() -> anvil_kernel::watcher::filter::FileFilter {
+/// The internal `FileFilter` owns the hardcoded denylist and the
+/// parseable-extension gate. When the user has supplied their own scoping
+/// criterion (e.g. `--patterns '**/*.rs'`), the parseable gate must yield
+/// — otherwise events for non-JS files are dropped before the user's
+/// pattern matcher ever sees them.
+fn build_filter(user_supplied_patterns: bool) -> anvil_kernel::watcher::filter::FileFilter {
     anvil_kernel::watcher::filter::FileFilter::default()
+        .with_respect_extensions(!user_supplied_patterns)
 }
 
 /// `--exclude` switched from "directory names" to glob patterns in
@@ -166,7 +168,9 @@ fn build_filter() -> anvil_kernel::watcher::filter::FileFilter {
 fn warn_on_bare_exclude_patterns(patterns: &[String]) {
     for pattern in patterns {
         if is_likely_bare_directory_name(pattern) {
-            eprintln!(
+            // stdout, not stderr — keeps the warning aligned with the rest
+            // of the watch surface and visible in piped recordings.
+            println!(
                 "\u{26a0} `--exclude {pattern}` matches only a path named exactly \"{pattern}\"; \
                  to exclude its contents use `--exclude {pattern}/**`."
             );
@@ -183,6 +187,27 @@ fn is_likely_bare_directory_name(pattern: &str) -> bool {
         return false;
     }
     !pattern.contains(['/', '\\', '*', '?', '[', '{', '!'])
+}
+
+/// Print the active include/exclude scope so a viewer can see the LAUNCH-001
+/// glob filter is doing something. Silent in JSON mode (where structured
+/// telemetry is the canonical channel) and TUI mode (rendered separately).
+fn print_active_scope(include: &[String], exclude: &[String], global: &GlobalArgs) {
+    if global.json {
+        return;
+    }
+    let in_tui = !global.no_tui && std::io::stdout().is_terminal();
+    if in_tui {
+        return;
+    }
+    if include.is_empty() {
+        println!("\u{1f441} watching: everything (denylist still applies)");
+    } else {
+        println!("\u{1f441} watching: {}", include.join(", "));
+    }
+    if !exclude.is_empty() {
+        println!("\u{1f6ab} excluding: {}", exclude.join(", "));
+    }
 }
 
 /// Validate the `--action` argument.
@@ -310,7 +335,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         s.split(',').map(|s| s.trim().to_string()).collect()
     });
     warn_on_bare_exclude_patterns(&exclude);
-    let filter = build_filter();
+    // When the user has supplied a scoping criterion of any kind (--patterns,
+    // --source, --plans, --all), the FileFilter must not additionally enforce
+    // its hardcoded ts/js extension gate — that would silently drop events
+    // for any other file type the user just asked us to watch.
+    let user_supplied_patterns = args.patterns.is_some() || args.source || args.plans || args.all;
+    let filter = build_filter(user_supplied_patterns);
+
+    print_active_scope(&patterns, &exclude, global);
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
     let arch_config = if arch_config_path.exists() {
@@ -725,11 +757,23 @@ mod tests {
 
     #[test]
     fn build_filter_returns_default_denylist() {
-        let filter = build_filter();
+        let filter = build_filter(false);
         // Default filter still ignores standard dirs like node_modules
         assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
         // But not arbitrary dirs
         assert!(!filter.should_ignore(std::path::Path::new("src/main.rs")));
+    }
+
+    #[test]
+    fn build_filter_with_user_patterns_bypasses_extension_gate() {
+        // The demo-killer regression: --patterns '**/*.rs' must not be
+        // dropped by the FileFilter's hardcoded ts/js list before the
+        // user's WatchPatternFilter ever sees the event.
+        let filter = build_filter(true);
+        assert!(filter.should_process(std::path::Path::new("src/main.rs")));
+        assert!(filter.should_process(std::path::Path::new("lib.py")));
+        // Denylist still applies.
+        assert!(!filter.should_process(std::path::Path::new("node_modules/foo.rs")));
     }
 
     // --- Pattern selection logic ---

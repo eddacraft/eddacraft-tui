@@ -163,9 +163,17 @@ fn select_sample(
     (walked, source)
 }
 
+/// Hard cap on the git subprocess used to gather recent files. The
+/// `ANALYSIS_TIME_BUDGET` is measured *after* the subprocess returns and
+/// cannot bound a hung child — on NFS or a stalled remote, that budget is
+/// useless. This timeout prevents `anvil init` from blocking indefinitely
+/// when git itself never returns.
+const GIT_RECENT_FILES_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// Ask git for files touched in the last `days`. Returns `None` if the
-/// directory is not a git repo or git is unavailable; an empty Vec means
-/// the repo exists but no in-window changes match our extensions.
+/// directory is not a git repo, git is unavailable, or the git subprocess
+/// exceeded `GIT_RECENT_FILES_TIMEOUT`; an empty Vec means the repo exists
+/// but no in-window changes match our extensions.
 fn git_recent_files(
     root: &Path,
     days: u32,
@@ -175,18 +183,35 @@ fn git_recent_files(
     // `--diff-filter=d` excludes deletions, so we don't try to scan files
     // git knows about but no longer exist on disk.
     let since = format!("--since={days}.days");
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args([
-            "log",
-            &since,
-            "--name-only",
-            "--pretty=format:",
-            "--diff-filter=d",
-        ])
-        .output()
-        .ok()?;
+    let root_owned = root.to_path_buf();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = Command::new("git")
+            .arg("-C")
+            .arg(&root_owned)
+            .args([
+                "log",
+                &since,
+                "--name-only",
+                "--pretty=format:",
+                "--diff-filter=d",
+            ])
+            .output();
+        // If the receiver has already timed out and dropped the channel,
+        // the send fails; the orphaned process completes and is reaped by
+        // the OS — better than blocking init forever.
+        let _ = tx.send(result);
+    });
+    let output = match rx.recv_timeout(GIT_RECENT_FILES_TIMEOUT) {
+        Ok(Ok(output)) => output,
+        Ok(Err(_)) => return None,
+        Err(_) => {
+            // Timeout: the git call is taking too long (NFS, stalled
+            // remote, network filesystem). Fall through to the walk-based
+            // sample so init still surfaces something rather than hanging.
+            return None;
+        }
+    };
 
     if !output.status.success() {
         return None;

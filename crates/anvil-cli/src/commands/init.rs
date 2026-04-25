@@ -138,13 +138,30 @@ fn run_plain(root: &Path, force: bool) -> anyhow::Result<()> {
 
 /// Run the post-init sample analysis (LAUNCH-004) and render an inline
 /// summary so the user lands on a real first signal of value instead of
-/// a "now run `anvil doctor`" stub. Silent if no analysable files were
-/// found — an empty repo should not get a misleading "0 warnings" block.
+/// a "now run `anvil doctor`" stub. Empty repo gets a discoverable next-step
+/// hint rather than silence — a brand-new project should not look like the
+/// tool failed.
 fn print_post_init_analysis(root: &Path) {
     let Some(outcome) = run_post_init_analysis(root) else {
+        render_empty_repo_hint();
         return;
     };
     render_analysis(&outcome);
+}
+
+/// First-touch hint when there are no source files to scan yet. The user
+/// has just successfully initialised Anvil but the empty-tree case would
+/// otherwise print nothing under "First scan", which reads as a failure.
+fn render_empty_repo_hint() {
+    plain::blank();
+    plain::section("First scan");
+    plain::dim("No source files yet — nothing to scan.");
+    plain::blank();
+    plain::dim("Try one of:");
+    plain::dim("  • `anvil tutorial` for a guided walkthrough");
+    plain::dim("  • `anvil watch` once you've added some code");
+    plain::dim("  • `anvil check --all` to scan the whole project later");
+    plain::blank();
 }
 
 fn render_analysis(outcome: &AnalysisOutcome) {

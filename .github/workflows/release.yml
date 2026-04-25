@@ -778,8 +778,38 @@ jobs:
     runs-on: 'ubuntu-22.04'
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      WINGET_RESULT: ${{ needs.winget.result }}
+      SCOOP_RESULT: ${{ needs.scoop.result }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           submodules: recursive
+
+      # Surface a single line per release that operators can grep for in
+      # the workflow log, and hard-fail when a downstream publisher failed
+      # silently — previously this job exited 0 with no body whatsoever,
+      # masking winget/scoop push failures behind a green announce step.
+      - name: Summarise release outcome
+        env:
+          STEP_SUMMARY: ${{ github.step_summary }}
+        run: |
+          set -euo pipefail
+          echo "::notice title=anvil release ${RELEASE_TAG}::host=success winget=${WINGET_RESULT} scoop=${SCOOP_RESULT}"
+          {
+            echo "## anvil release ${RELEASE_TAG}"
+            echo
+            echo "| job | result |"
+            echo "| --- | ------ |"
+            echo "| host (cargo-dist + GitHub Releases) | success |"
+            echo "| winget | ${WINGET_RESULT} |"
+            echo "| scoop  | ${SCOOP_RESULT} |"
+            echo
+            echo "Public release: https://github.com/EddaCraft/anvil/releases/tag/${RELEASE_TAG}"
+            echo "Install site: https://install.eddacraft.ai"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${WINGET_RESULT}" = "failure" ] || [ "${SCOOP_RESULT}" = "failure" ]; then
+            echo "::error::Downstream publisher failed (winget=${WINGET_RESULT} scoop=${SCOOP_RESULT})"
+            exit 1
+          fi

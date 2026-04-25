@@ -343,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_rust_workspace_has_architecture_check() {
+    fn scaffold_rust_workspace_has_import_boundaries_check() {
         let dir = tempfile::tempdir().unwrap();
         let project_name = dir.path().join("rust-proj");
         let project_name_str = project_name.to_string_lossy().to_string();

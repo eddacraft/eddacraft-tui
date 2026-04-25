@@ -8,8 +8,16 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+## [0.4.0-beta] — First-Touch Polish
+
 ### Changed (breaking)
 
+- **`anvil watch --exclude` is now a glob filter, not a directory-name list.**
+  Previous `--exclude vendor` matched only a path equal to "vendor"; to
+  exclude its contents pass `--exclude 'vendor/**'`. The CLI prints a warning
+  when a likely-bare-name pattern is detected so existing scripts surface the
+  needed change rather than silently watching paths they used to skip
+  (`LAUNCH-001`).
 - **`anvil doctor --json` output shape** — the root changed from a bare JSON
   array of check objects to `{ "checks": [...], "notifications": [...] }`.
   Consumers that iterated the array must switch to `data.checks`. The new
@@ -25,13 +33,24 @@ engineering maintenance are recorded in the
 
 ### Added
 
+- **`anvil watch --patterns` and `--exclude`** — user-supplied glob filter on
+  the watch loop. The flags were previously declared but never consumed,
+  silently restricting watch to a hardcoded scope. `--patterns '**/*.rs'`,
+  `--patterns 'src/**/*.py'`, and similar non-JS scopes now work
+  end-to-end (`LAUNCH-001`).
+- **Post-init first scan** — `anvil init` now runs an inline sample
+  analysis on completion and surfaces real findings (top warnings, counts,
+  file:line pointers) rather than ending on "now run `anvil doctor`".
+  Empty repos receive a discoverable next-step hint instead of silence
+  (`LAUNCH-004`).
 - **`anvil doctor` remediation** — every doctor check now emits a concrete next
   action (a runnable command, a doc link, or an auto-fix prompt) instead of
   free-text deflection. Plain mode prints
   `→ summary / run: cmd / docs: url / fix: anvil doctor --fix` per non-passing
   check; the TUI detail panel renders the same lines when expanded
   (`LAUNCH-005`).
-
+- **`anvil watch` startup banner** — prints the active include / exclude
+  scope so the configured filter is visible at a glance in plain mode.
 - **`anvil audit --json` notifications** — audit gained a `notifications[]`
   field alongside the existing `issues[]`/`next_steps[]` payload, mapping each
   finding to a canonical notification envelope with taxonomy-aligned class and
@@ -42,6 +61,19 @@ engineering maintenance are recorded in the
   lets `watch`, `tutorial`, and `onboarding/hooks` expose their current notices
   through the canonical `Notification` envelope so future telemetry subscribers
   see one shape across surfaces (`NOTIFY-007`).
+
+### Fixed
+
+- **`anvil doctor --fix` for `config-exists`** now writes a valid default
+  `.anvilrc` (yaml schema, three default checks) instead of a bare `{}`
+  stub that the next `check_config_valid` immediately rejected.
+- **`anvil doctor --fix` for `git-repo`** refuses to auto-run `git init` in
+  directories that have no project markers (`.anvilrc`, `package.json`,
+  `Cargo.toml`, `pyproject.toml`, `go.mod`, …), surfacing guidance rather
+  than silently creating a `.git/` directory in `$HOME`.
+- **Post-init analysis subprocess timeout** — the git-history sample step
+  now bounds its git subprocess at 3 s so `anvil init` no longer hangs on
+  NFS, network filesystems, or stalled remotes.
 
 ## [0.3.3-beta] — WinGet Distribution & Windows UX
 
