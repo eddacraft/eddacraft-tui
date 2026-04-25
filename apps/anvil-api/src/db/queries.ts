@@ -140,6 +140,43 @@ export async function findTokenByHash(
   return TokenWithUserSchema.parse(r[0]);
 }
 
+/**
+ * Look up the scopes a user is currently entitled to, using the most recent
+ * non-revoked, non-expired `access_tokens` row.
+ *
+ * The JWT licence carries `scopes` claims, but those claims are issued at
+ * sign time — `/session/refresh` and the device/github first-issuance paths
+ * need a server-of-truth read so that scope changes (e.g. an admin promoting
+ * a user from `beta` to `preview` via `admin invite`) actually flow into
+ * the next licence the user gets. Without this query, those paths silently
+ * downgrade everyone to `['beta']` regardless of what the database says.
+ *
+ * Returns `['beta']` as a conservative default when no active access_tokens
+ * row exists — that path covers self-signup users who have not yet been
+ * issued a graded scope.
+ */
+export async function findActiveScopesForUser(sql: NeonClient, userId: string): Promise<string[]> {
+  const r = rows(
+    await sql`
+    SELECT scopes
+    FROM access_tokens
+    WHERE user_id = ${userId}
+      AND revoked_at IS NULL
+      AND expires_at > now()
+    ORDER BY created_at DESC
+    LIMIT 1
+  `
+  );
+  if (!r[0]) {
+    return ['beta'];
+  }
+  const ScopeSchema = z.object({
+    scopes: z.array(z.string()).default(['beta']),
+  });
+  const parsed = ScopeSchema.parse(r[0]);
+  return parsed.scopes.length > 0 ? parsed.scopes : ['beta'];
+}
+
 export async function revokeTokensByEmail(sql: NeonClient, email: string): Promise<number> {
   const r = rows(
     await sql`

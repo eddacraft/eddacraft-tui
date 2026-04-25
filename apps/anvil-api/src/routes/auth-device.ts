@@ -14,6 +14,7 @@ import {
   deviceCodeExistsByPollToken,
   consumeDeviceCode,
   insertRefreshToken,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
 import {
@@ -196,13 +197,19 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
     return c.json({ status: 'expired' });
   }
 
+  // Read scopes from the user's most recent active access_tokens row so a
+  // user invited with a graded scope (e.g. `preview`) keeps it through the
+  // device-code activation flow. Defaults to `['beta']` for users with no
+  // prior access_tokens row.
+  const scopes = await findActiveScopesForUser(sql, user.id);
+
   const claims: LicenceClaims = {
     sub: user.id,
     email: user.email,
     identity: { provider: 'email', id: null },
     org: null,
     tier: 'pro',
-    scopes: ['beta'],
+    scopes,
     seats: 1,
   };
   const license = await signLicence(claims, undefined, 7);

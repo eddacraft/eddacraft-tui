@@ -56,8 +56,33 @@ impl WatchPatternFilter {
     ///
     /// Paths must be repo-relative — globs like `src/**/*.ts` won't
     /// match an absolute path with a different prefix.
+    ///
+    /// Windows note: `Path::strip_prefix` preserves the OS separator
+    /// (`\\`) on Windows, but globs are conventionally written with
+    /// forward slashes (`/`). We normalise the path to forward-slash
+    /// form before matching so `src/**/*.ts` matches `src\foo.ts` as
+    /// users expect. The normalisation is platform-gated; on Unix the
+    /// path is matched directly because forward-slash is already the
+    /// separator.
     #[must_use]
     pub fn matches(&self, rel_path: &Path) -> bool {
+        #[cfg(windows)]
+        {
+            let normalised: String = rel_path
+                .to_string_lossy()
+                .chars()
+                .map(|c| if c == '\\' { '/' } else { c })
+                .collect();
+            let candidate = Path::new(&normalised);
+            return self.matches_inner(candidate);
+        }
+        #[cfg(not(windows))]
+        {
+            self.matches_inner(rel_path)
+        }
+    }
+
+    fn matches_inner(&self, rel_path: &Path) -> bool {
         if let Some(set) = &self.exclude
             && set.is_match(rel_path)
         {
@@ -161,5 +186,22 @@ mod tests {
         // inside the directory are still tracked because the glob does
         // not auto-recurse.
         assert!(filter.matches(Path::new("vendor/lib.ts")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_backslash_paths_match_forward_slash_globs() {
+        // The watcher strips a windows-prefixed path, leaving backslash
+        // separators in the relative form. Globs are written with forward
+        // slashes by convention. Without normalisation, `src/**/*.ts`
+        // would silently fail to match `src\foo.ts` on Windows.
+        let filter = WatchPatternFilter::new(&["src/**/*.ts".to_string()], &[]).unwrap();
+        assert!(filter.matches(Path::new("src\\foo.ts")));
+        assert!(filter.matches(Path::new("src\\sub\\bar.ts")));
+        // Forward-slash form still matches.
+        assert!(filter.matches(Path::new("src/foo.ts")));
+        // Excludes follow the same rule.
+        let filter = WatchPatternFilter::new(&[], &["vendor/**".to_string()]).unwrap();
+        assert!(!filter.matches(Path::new("vendor\\lib.ts")));
     }
 }

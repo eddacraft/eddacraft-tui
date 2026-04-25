@@ -172,9 +172,12 @@ fn build_filter(user_supplied_patterns: bool) -> anvil_kernel::watcher::filter::
 fn warn_on_bare_exclude_patterns(patterns: &[String], json_mode: bool) {
     for pattern in patterns {
         if is_likely_bare_directory_name(pattern) {
+            // ASCII-only so it renders cleanly on Windows terminals that
+            // are not configured for full Unicode (cmd.exe with a legacy
+            // code page, log capture pipelines, dumb TERM environments).
             let line = format!(
-                "\u{26a0} `--exclude {pattern}` matches only a path named exactly \"{pattern}\"; \
-                 to exclude its contents use `--exclude {pattern}/**`."
+                "[warn] --exclude {pattern} matches only a path named exactly \"{pattern}\"; \
+                 to exclude its contents use --exclude {pattern}/**"
             );
             if json_mode {
                 eprintln!("{line}");
@@ -207,13 +210,17 @@ fn print_active_scope(include: &[String], exclude: &[String], global: &GlobalArg
     if in_tui {
         return;
     }
+    // ASCII-only so it renders cleanly on Windows terminals without full
+    // Unicode support; the watch banner is the first thing a piped or
+    // recorded session captures and emoji mojibake at that exact moment
+    // is the kind of papercut a hype-builder demo can't afford.
     if include.is_empty() {
-        println!("\u{1f441} watching: everything (denylist still applies)");
+        println!("[watching] everything (denylist still applies)");
     } else {
-        println!("\u{1f441} watching: {}", include.join(", "));
+        println!("[watching] {}", include.join(", "));
     }
     if !exclude.is_empty() {
-        println!("\u{1f6ab} excluding: {}", exclude.join(", "));
+        println!("[excluding] {}", exclude.join(", "));
     }
 }
 

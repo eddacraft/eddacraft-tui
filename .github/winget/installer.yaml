@@ -11,5 +11,8 @@ Installers:
   - Architecture: x64
     InstallerUrl: '${X64_URL}'
     InstallerSha256: '${X64_SHA256}'
+  - Architecture: arm64
+    InstallerUrl: '${ARM64_URL}'
+    InstallerSha256: '${ARM64_SHA256}'
 ManifestType: installer
 ManifestVersion: 1.12.0

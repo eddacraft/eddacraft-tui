@@ -78,9 +78,17 @@ struct WatchState {
     parser: Parser,
     graph: SymbolGraph,
     all_imports: Vec<ImportEdge>,
+    /// Monotonic ID counter. Previously this was recomputed by scanning
+    /// every node in the graph on every file-change event
+    /// (`node_weights().map(|s| s.id).max()`), which is O(|symbols|) per
+    /// keystroke-driven save. Hot path uses incremental updates only.
     next_id: u64,
     engine: PolicyEngine,
     file_count: u64,
+    /// Files we have parsed at least once. Replaces the per-event
+    /// `node_weights().any(|s| s.file == rel_str)` scan that was O(|symbols|)
+    /// on every modify event.
+    tracked_files: std::collections::HashSet<String>,
 }
 
 impl WatchState {
@@ -98,6 +106,7 @@ impl WatchState {
             next_id: 0,
             engine,
             file_count: 0,
+            tracked_files: std::collections::HashSet::new(),
         }
     }
 }
@@ -201,19 +210,16 @@ fn initial_scan(
         };
         // Assign unique symbol IDs
         let base_id = state.next_id;
+        let symbol_count = file_symbols.symbols.len() as u64;
         for sym in &mut file_symbols.symbols {
             sym.id += base_id;
         }
+        let rel_str = rel_path.to_string_lossy().to_string();
         state.all_imports.extend(file_symbols.imports.clone());
         update_file(&mut state.graph, file_symbols);
-        state.next_id = state
-            .graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .map_or(0, |m| m + 1);
+        state.next_id = base_id + symbol_count;
         state.file_count += 1;
+        state.tracked_files.insert(rel_str);
         scanned_files.push(rel_path);
     }
 
@@ -401,20 +407,11 @@ fn process_change(
 
             let file_symbols =
                 extract_symbols(&parse_result.tree, &content, rel_path, state.next_id);
+            let symbol_count = file_symbols.symbols.len() as u64;
             let new_imports = file_symbols.imports.clone();
-            let was_tracked = state
-                .graph
-                .inner()
-                .node_weights()
-                .any(|s| s.file == rel_str);
+            let was_tracked = state.tracked_files.contains(&rel_str);
             let delta = update_file(&mut state.graph, file_symbols);
-            state.next_id = state
-                .graph
-                .inner()
-                .node_weights()
-                .map(|s| s.id)
-                .max()
-                .map_or(0, |m| m + 1);
+            state.next_id += symbol_count;
 
             // Replace imports for this file (remove old, add new)
             state.all_imports.retain(|i| i.from_file != rel_str);
@@ -435,6 +432,10 @@ fn process_change(
             if !was_tracked && !delta.added_symbols.is_empty() {
                 state.file_count += 1;
             }
+            // Track the file regardless of whether it added symbols, so
+            // a subsequent re-save of the same file reports `was_tracked
+            // = true` and we don't double-count the file_count.
+            state.tracked_files.insert(rel_str.clone());
             emitter.snapshot(&state.graph, state.file_count);
         }
     }

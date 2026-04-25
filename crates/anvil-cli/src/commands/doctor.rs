@@ -271,17 +271,14 @@ fn check_config_valid() -> DiagnosticCheck {
                     details: Some(detail),
                     auto_fixable: false,
                     remediation: Remediation {
-                        // Non-destructive recovery. `mv -n` (no-clobber)
-                        // protects an existing `.anvilrc.bak` from a
-                        // previous failed cycle — that earlier backup
-                        // may be the only surviving copy of credentials
-                        // the user needs to rotate before regenerating.
-                        summary:
-                            "Back up `.anvilrc` and regenerate defaults; rotate any credentials in it."
-                                .to_string(),
-                        command: Some(
-                            "mv -n .anvilrc .anvilrc.bak && anvil init".to_string(),
-                        ),
+                        // Cross-platform, anvil-native: `--force` overwrites
+                        // the existing file. We tell the user to back up
+                        // any credentials before running it; the alternative
+                        // would be shipping a Unix-only `mv -n` command that
+                        // does nothing on Windows.
+                        summary: "Back up any credentials inside `.anvilrc`, then regenerate defaults."
+                            .to_string(),
+                        command: Some("anvil init --force".to_string()),
                         doc_url: None,
                     },
                 }
@@ -295,10 +292,9 @@ fn check_config_valid() -> DiagnosticCheck {
             details: Some(e.to_string()),
             auto_fixable: false,
             remediation: Remediation {
-                summary:
-                    "Check filesystem permissions on `.anvilrc` and confirm the file is readable."
-                        .to_string(),
-                command: Some("ls -l .anvilrc".to_string()),
+                summary: "Check filesystem permissions on `.anvilrc` and confirm the file is readable in your shell."
+                    .to_string(),
+                command: None,
                 doc_url: None,
             },
         },
@@ -375,9 +371,9 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
             Remediation::default()
         } else {
             Remediation {
-                summary: "Restore write access to the `.anvil/` directory. If it lives on a read-only mount (Docker volume, NFS share), the mount itself needs to change."
+                summary: "Restore write access to the `.anvil/` directory in your OS file manager or shell. If it lives on a read-only mount (Docker volume, NFS share), the mount itself needs to change."
                     .to_string(),
-                command: Some("chmod u+w .anvil".to_string()),
+                command: None,
                 doc_url: None,
             }
         },
@@ -408,8 +404,8 @@ fn check_plans_dir() -> DiagnosticCheck {
             details: None,
             auto_fixable: true,
             remediation: Remediation {
-                summary: "Create the `plans/` directory for specification documents.".to_string(),
-                command: Some("mkdir plans".to_string()),
+                summary: "Create the `plans/` directory for specification documents (`anvil init` does this for you).".to_string(),
+                command: Some("anvil init".to_string()),
                 doc_url: None,
             },
         }
@@ -466,9 +462,13 @@ fn check_hooks_installed() -> DiagnosticCheck {
             Remediation::default()
         } else {
             Remediation {
-                summary: "Mark the pre-commit hook as executable so git will run it.".to_string(),
-                command: Some("chmod +x .husky/pre-commit".to_string()),
-                doc_url: None,
+                summary: "Mark the pre-commit hook as executable so git will run it. On Unix run `chmod +x .husky/pre-commit`; on Windows the file already runs (the executable bit is ignored by the git filesystem layer)."
+                    .to_string(),
+                command: None,
+                doc_url: Some(
+                    "https://typicode.github.io/husky/troubleshoot.html#hooks-not-running"
+                        .to_string(),
+                ),
             }
         },
     }

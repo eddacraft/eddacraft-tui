@@ -22,6 +22,13 @@ use crate::output::{self, OutputMode};
 /// JSON output schema version — shared across all output paths.
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 
+/// Hard cap on a single artifact's size for `anvil check --artifact`. PR
+/// descriptions and commit messages are kilobytes; agent outputs can grow
+/// but a multi-megabyte input is almost always an operator mistake (a
+/// build artefact piped by accident). Stops the artifact path from
+/// OOM-ing on `std::fs::read_to_string`.
+const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
+
 /// Default directories to ignore during file scanning.
 const IGNORE_DIRS: &[&str] = &[
     "node_modules",
@@ -35,8 +42,6 @@ const IGNORE_DIRS: &[&str] = &[
     ".nx",
     "coverage",
     "__pycache__",
-    ".turbo",
-    ".nx",
 ];
 
 // TODO(RCLI2): The following Node.js CLI flags are intentionally deferred:
@@ -307,6 +312,13 @@ fn run_non_source_artifact(
     // Load each path as artifact content. `reference` is the path as given
     // so operators can trace warnings back to their input (mirrors the TS
     // scanner's behaviour for non-source artifacts).
+    //
+    // `MAX_ARTIFACT_BYTES` (defined at module scope) is the hard cap on a
+    // single artifact's size. PR descriptions and commit messages are
+    // kilobytes; agent outputs can grow but a multi-megabyte input is
+    // almost always an operator mistake (a build artefact piped by
+    // accident). Refusing keeps `anvil check --artifact` out of the
+    // OOM-on-`std::fs::read_to_string` failure mode.
     let mut artifacts = Vec::with_capacity(args.files.len());
     for path_str in &args.files {
         let path = Path::new(path_str);
@@ -315,6 +327,16 @@ fn run_non_source_artifact(
         }
         if path.is_dir() {
             bail!("Expected a file, got a directory: {path_str}");
+        }
+        let metadata = std::fs::metadata(path)
+            .map_err(|e| anyhow::anyhow!("Failed to stat {path_str}: {e}"))?;
+        if metadata.len() > MAX_ARTIFACT_BYTES {
+            bail!(
+                "{path_str} is {} bytes; --artifact rejects inputs larger than {} bytes ({} MB) to avoid loading multi-megabyte files into memory. Trim the artifact or split it before scanning.",
+                metadata.len(),
+                MAX_ARTIFACT_BYTES,
+                MAX_ARTIFACT_BYTES / (1024 * 1024)
+            );
         }
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("Failed to read {path_str}: {e}"))?;

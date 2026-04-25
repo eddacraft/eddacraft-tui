@@ -19,6 +19,7 @@ vi.mock('../db/queries.js', () => ({
   deviceCodeExistsByPollToken: vi.fn(),
   consumeDeviceCode: vi.fn(),
   insertRefreshToken: vi.fn(),
+  findActiveScopesForUser: vi.fn(),
 }));
 
 vi.mock('../lib/token.js', async (importOriginal) => {
@@ -40,6 +41,7 @@ import {
   insertDummyDeviceCode,
   insertRefreshToken,
   pollDeviceCode,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 
 const app = new Hono();
@@ -70,6 +72,9 @@ beforeEach(() => {
   vi.mocked(deviceCodeExistsByPollToken).mockResolvedValue(false);
   vi.mocked(consumeDeviceCode).mockResolvedValue(null);
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
+  // Default to the conservative `['beta']` fallback so existing tests
+  // don't have to know about the new scope-lookup call.
+  vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
   delete process.env['ACTIVATE_URL'];
 });
 

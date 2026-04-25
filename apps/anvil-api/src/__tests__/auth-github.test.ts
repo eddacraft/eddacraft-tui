@@ -18,6 +18,7 @@ vi.mock('../db/queries.js', () => ({
     created_at: new Date().toISOString(),
   }),
   insertRefreshToken: vi.fn().mockResolvedValue(undefined),
+  findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
 }));
 
 vi.mock('../lib/token.js', async (importOriginal) => {
@@ -33,6 +34,7 @@ import {
   insertAuditLog,
   insertPendingUser,
   insertRefreshToken,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 import { hashToken } from '../lib/token.js';
 
@@ -80,6 +82,9 @@ beforeEach(() => {
     consumed_at: null,
     created_at: new Date().toISOString(),
   });
+  // Default to the conservative `['beta']` fallback so existing tests
+  // don't have to know about the new scope-lookup call.
+  vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
   process.env['GITHUB_CLIENT_ID'] = 'test-client-id';
   process.env['GITHUB_CLIENT_SECRET'] = 'test-client-secret';
   vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
