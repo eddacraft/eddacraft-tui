@@ -444,8 +444,11 @@ your own workflows.
 
 1. Fork and clone
 2. Create feature branch: `git checkout -b feature/my-feature`
-3. Make changes, run `pnpm test && pnpm typecheck && pnpm lint`
-4. Open PR
+3. Make changes, run
+   `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
+4. `git commit` will also run the Husky pre-commit hook, which applies
+   `lint-staged` fixes and re-checks staged `oxfmt`-managed files
+5. Open PR
 
 See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 

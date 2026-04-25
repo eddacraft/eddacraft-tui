@@ -102,7 +102,10 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 
 - Work in a disposable worktree — see `docs/guides/worktree-policy.md`
 - Follow TDD: tests before implementation
-- Run `pnpm typecheck && pnpm test` before committing
+- Run `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
+  before committing
+- `.husky/pre-commit` runs `lint-staged` and re-checks staged `oxfmt`-managed
+  files, but it does not replace the full repo checks above
 - Commit with conventional format referencing APS ID where applicable
 
 ### 3. Council Review (before PR)
