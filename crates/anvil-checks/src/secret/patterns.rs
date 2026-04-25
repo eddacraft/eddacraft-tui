@@ -172,7 +172,8 @@ pub fn compile_secret_patterns(
 /// silently dropped pattern is a misconfiguration the scanner cannot detect on
 /// its own. Pair the result with `DEFAULT_COMPILED_PATTERNS` when scanning;
 /// callers on the hot path should chain the two iterators rather than calling
-/// `compile_secret_patterns`, which recompiles the 18 built-ins every time.
+/// `compile_secret_patterns`, which rebuilds the combined `Vec` and clones
+/// the pre-compiled built-ins on every call.
 pub fn compile_custom_patterns(
     custom_patterns: &[SecretPatternDef],
 ) -> (Vec<CompiledPattern>, Vec<String>) {

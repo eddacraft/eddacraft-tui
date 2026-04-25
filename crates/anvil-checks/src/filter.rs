@@ -76,9 +76,15 @@ pub const ALWAYS_SCAN_FILENAMES: &[&str] = &[
 
 /// Return `true` if the file extension indicates a binary asset that secret
 /// and antipattern scanners should skip.
+///
+/// ASCII case-insensitive — `Logo.PNG` and `image.JPG` should be classified
+/// the same as their lowercase forms on case-insensitive filesystems and in
+/// mixed-case repos.
 #[must_use]
 pub fn is_binary_extension(ext: &str) -> bool {
-    BINARY_EXTENSIONS.contains(&ext)
+    BINARY_EXTENSIONS
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(ext))
 }
 
 /// Return `true` if the path's extension is a known binary asset.
