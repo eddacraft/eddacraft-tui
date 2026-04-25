@@ -34,6 +34,7 @@ These define how Anvil behaves by default. All features must align.
 | [011a](011a-rust-core-engine.md) | Rust core engine for performance-critical paths (watch mode, analysis, policy) | Superseded |
 | [012](012-rust-cli-replacement.md) | Single `anvil` Rust binary replaces Node.js CLI; big bang, no hybrid period | Accepted |
 | [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
+| [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted |
 
 ## Product and Distribution
 
@@ -48,6 +49,7 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [016](016-unified-config-format.md) | Consolidate three config files into single TOML with source delegation | Proposed |
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
+| [026](026-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) | Proposed |
 
 ## Intercept and Enforcement
 
@@ -66,13 +68,24 @@ These define how Anvil behaves by default. All features must align.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [024](024-internal-agent-harness.md) | Thin agent runtime (literate-core, Apache-2.0) in monorepo; anvil-agent harness with zero-copy graph access | Proposed |
+| [024](024-internal-agent-harness.md) | Thin agent runtime (weave, Apache-2.0) standalone at eddacraft/weave-rs; anvil-weave harness with zero-copy graph access | Proposed |
 
 ## Evaluation and Testing
 
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [013](013-eval-harness-adoption.md) | External eval harness behind `EvalHarnessPort` adapter boundary | Proposed |
+
+## Language and Coverage
+
+Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md).
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Proposed |
+| [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Proposed |
+| [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Proposed |
+| [030](030-surface-drivers-supersede-napi-cutover.md) | Surface drivers (editor + MCP) on the intercept daemon supersede TSRET-003/-004; TSRET-005 retargeted; napi publication no longer required | Proposed |
 
 ## Superseded
 

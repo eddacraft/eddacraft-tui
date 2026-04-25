@@ -1,10 +1,16 @@
 # Project Status
 
+> Historical archive only.
+>
+> This status index captures a 2025 planning snapshot from before the current APS
+> workflow, Rust CLI cutover, and docs-platform changes. For live status, use
+> `plans/index.aps.md` and current docs under `docs/`.
+
 **Last Updated:** 2025-10-23
 
-## Current State
+## Archived State
 
-### ✅ Completed (October 2025)
+### Completed at the Time (October 2025)
 
 - **CLI-SpecKit Integration** - [Full Report](cli-integration-complete.md)
   - All 69 adapter tests passing (100%)
@@ -13,14 +19,14 @@
   - Build configuration fixed
   - Status: Production-ready with explicit `--format` flag
 
-### ⏳ In Progress
+### In Progress at the Time
 
 - **Format Auto-Detection** - [Next Steps](next-steps.md)
   - Interface migration for SpecKit adapters
   - Estimated: 4-6 hours
   - Status: Medium priority (workaround available)
 
-### 📋 Planned
+### Planned at the Time
 
 - **BMAD Adapter** - Week 7-8
 - **Evidence Injection** - Post-MVP

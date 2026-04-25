@@ -1,6 +1,14 @@
+import type { ZodType } from 'zod';
+import {
+  WaitlistResponseSchema,
+  type WaitlistResponse,
+  type WaitlistItem,
+} from '@eddacraft/admin-contracts';
 import { AdminClient } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, renderTable, type Row } from '../format.js';
+
+export type { WaitlistResponse, WaitlistItem };
 
 export interface ListOptions extends ConfigFlags {
   status?: string;
@@ -10,21 +18,12 @@ export interface ListOptions extends ConfigFlags {
   json?: boolean;
 }
 
-export interface WaitlistItem {
-  email: string;
-  name: string | null;
-  source: string;
-  created_at: string;
-  approved_at: string | null;
-}
-
-export interface WaitlistResponse {
-  total: number;
-  items: WaitlistItem[];
-}
-
 export interface AdminReader {
-  get<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T>;
+  get<T>(
+    path: string,
+    query?: Record<string, string | number | boolean | undefined>,
+    schema?: ZodType<T>
+  ): Promise<T>;
 }
 
 export interface ListDeps {
@@ -50,7 +49,7 @@ export async function runListCommand(
   if (options.limit !== undefined) query.limit = options.limit;
   if (options.offset !== undefined) query.offset = options.offset;
 
-  const result = await client.get<WaitlistResponse>('/admin/waitlist', query);
+  const result = await client.get('/admin/waitlist', query, WaitlistResponseSchema);
 
   if (options.json) {
     stdout(formatJson(result) + '\n');

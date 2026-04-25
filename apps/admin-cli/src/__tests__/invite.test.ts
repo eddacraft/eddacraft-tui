@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runInviteCommand, type AdminWriter, type InviteResponse } from '../commands/invite.js';
+import { runInviteCommand, type InviteResponse } from '../commands/invite.js';
+import type { AdminWriter } from '../client.js';
 
 function makeClient(result: unknown): AdminWriter & { post: ReturnType<typeof vi.fn> } {
   const post = vi.fn(async () => result) as unknown as AdminWriter['post'] &
@@ -40,7 +41,11 @@ describe('runInviteCommand', () => {
       {},
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/invite', { email: 'alice@example.com' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/invite',
+      { email: 'alice@example.com' },
+      expect.anything()
+    );
   });
 
   it('forwards name, notes, days, and scopes when provided', async () => {
@@ -50,13 +55,17 @@ describe('runInviteCommand', () => {
       { name: 'Alice', notes: 'beta cohort 1', days: 30, scope: ['beta', 'preview'] },
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/invite', {
-      email: 'alice@example.com',
-      name: 'Alice',
-      notes: 'beta cohort 1',
-      days: 30,
-      scopes: ['beta', 'preview'],
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/invite',
+      {
+        email: 'alice@example.com',
+        name: 'Alice',
+        notes: 'beta cohort 1',
+        days: 30,
+        scopes: ['beta', 'preview'],
+      },
+      expect.anything()
+    );
   });
 
   it('renders a success summary in text mode', async () => {
@@ -90,11 +99,15 @@ describe('runInviteCommand', () => {
       { tokenOnly: true, scope: ['internal'] },
       { createClient: () => client, stdout: (s) => outs.push(s), stderr: (s) => errs.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/invite', {
-      email: 'ci@example.com',
-      scopes: ['internal'],
-      tokenOnly: true,
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/invite',
+      {
+        email: 'ci@example.com',
+        scopes: ['internal'],
+        tokenOnly: true,
+      },
+      expect.anything()
+    );
     expect(outs.join('')).toBe('tok_abc.SECRET\n');
     const err = errs.join('');
     expect(err).toContain('ONE-TIME ACCESS TOKEN');

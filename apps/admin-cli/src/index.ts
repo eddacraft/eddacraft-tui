@@ -2,6 +2,7 @@
 import { pathToFileURL } from 'node:url';
 import { Command, Option } from 'commander';
 import { AdminError } from './client.js';
+import { PromptEOFError } from './prompt.js';
 import { MissingConfigError } from './config.js';
 import { formatError } from './format.js';
 import { runListCommand, type ListOptions } from './commands/list.js';
@@ -179,7 +180,11 @@ export function handleError(
   if (isCommanderError(err)) {
     return exit(err.exitCode);
   }
-  if (err instanceof AdminError || err instanceof MissingConfigError) {
+  if (
+    err instanceof AdminError ||
+    err instanceof MissingConfigError ||
+    err instanceof PromptEOFError
+  ) {
     stderr.write(formatError(err.message) + '\n');
     return exit(err.exitCode);
   }

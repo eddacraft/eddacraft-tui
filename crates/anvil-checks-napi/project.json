@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "@eddacraft/anvil-checks-native",
+  "targets": {
+    "test": {
+      "executor": "@eddacraft/nx-rust:test",
+      "cache": true,
+      "outputs": ["{options.target-dir}", "{workspaceRoot}/target"],
+      "options": {
+        "package": "eddacraft-anvil-checks-napi"
+      }
+    }
+  }
+}

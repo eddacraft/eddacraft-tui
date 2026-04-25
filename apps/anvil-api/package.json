@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-api",
-  "version": "0.3.3-beta",
+  "version": "0.4.0-beta",
   "description": "Beta access API for Anvil — Hono on Vercel with Neon Postgres",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,16 +25,19 @@
   },
   "author": "eddacraft",
   "dependencies": {
+    "@eddacraft/admin-contracts": "workspace:*",
+    "@eddacraft/anvil-contracts": "workspace:*",
+    "@eddacraft/anvil-runtime": "workspace:*",
     "@eddacraft/transactional": "workspace:*",
     "@hono/zod-validator": "^0.7.0",
-    "@neondatabase/serverless": "^1.0.0",
+    "@neondatabase/serverless": "^1.1.0",
     "hono": "^4.12.14",
     "jose": "^6.2.2",
-    "resend": "^6.11.0",
+    "resend": "^6.12.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "typescript": "~6.0.2"
+    "typescript": "~6.0.3"
   }
 }

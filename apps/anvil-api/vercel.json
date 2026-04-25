@@ -1,5 +1,6 @@
 {
-  "buildCommand": "cd ../.. && npx pnpm --filter @eddacraft/transactional build && cd apps/anvil-api && npx tsc",
+  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/anvil-api packages/transactional",
+  "buildCommand": "cd ../.. && npx pnpm --filter '@eddacraft/anvil-api^...' build && cd apps/anvil-api && npx tsc",
   "crons": [
     {
       "path": "/api/v1/cron/cleanup",

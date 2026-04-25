@@ -1,5 +1,11 @@
 # Known Issues
 
+> Historical archive only.
+>
+> These issues describe an older pre-Rust, pre-APS project state and are kept as
+> reference material only. They are not the current known-issues list for the
+> active codebase.
+
 ## SpecKit Adapter Format Detection Not Working (Week 7)
 
 **GitHub Issue**: [#28](https://github.com/eddacraft/anvil-001/issues/28)

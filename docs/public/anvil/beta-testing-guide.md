@@ -12,7 +12,7 @@ sidebar_position: 6
 Welcome to the anvil early access. Thank you for helping us shape the tool —
 your feedback directly influences what we build next.
 
-**Current version:** 0.3.3-beta
+**Current version:** 0.4.0-beta
 
 anvil is a developer tool that analyses your codebase for architectural drift,
 anti-patterns, and convention violations, then helps you maintain consistency as
@@ -22,8 +22,7 @@ your project evolves.
 
 As of 0.3.0-beta, anvil is a native Rust binary. The Node.js package
 (`@eddacraft/anvil-cli`) is deprecated. See
-[The Switch to Rust](./releases/rust-rewrite.md) for details and migration
-instructions.
+[The Switch to Rust](./releases/rust-rewrite.md) for details.
 
 :::
 
@@ -49,14 +48,23 @@ irm https://install.eddacraft.ai/windows | iex
 brew install eddacraft/tap/anvil
 ```
 
+**WinGet (Windows):**
+
+```powershell
+winget install eddacraft.anvil
+```
+
 No Node.js or npm required. The installer downloads a single static binary for
 your platform.
 
 ### Authenticate
 
 ```bash
-anvil login
+anvil auth login
 ```
+
+The default flow is device-code login in your browser. If you need email OTP,
+run `anvil auth login --otp`.
 
 ### Set up a project
 
@@ -90,6 +98,19 @@ irm https://install.eddacraft.ai/windows | iex
 brew upgrade eddacraft/tap/anvil
 ```
 
+**Built-in updater:**
+
+```bash
+anvil update
+```
+
+**WinGet / Scoop (Windows):**
+
+```powershell
+winget upgrade eddacraft.anvil
+scoop update anvil
+```
+
 Verify your version:
 
 ```bash
@@ -97,7 +118,8 @@ anvil --version
 ```
 
 We recommend upgrading before each testing session to ensure you have the latest
-fixes and features.
+fixes and features. For testing, assume a fresh Rust CLI install rather than a
+legacy Node.js migration path.
 
 ## What to Test
 
@@ -241,8 +263,6 @@ your machine. No source code is sent to external services.
 **Do I need Node.js?** The anvil binary itself has no runtime dependencies.
 However, some gate checks (lint, test) shell out to your project's package
 manager, so Node.js and pnpm/npm are still needed if those checks are enabled.
-If you previously used the npm package, see
-[The Switch to Rust](./releases/rust-rewrite.md) for migration steps.
 
 **How do I reset my project configuration?** Run `anvil init --force` to
 regenerate your configuration from scratch.

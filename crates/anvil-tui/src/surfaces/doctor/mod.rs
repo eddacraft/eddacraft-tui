@@ -24,6 +24,35 @@ impl CheckStatus {
     }
 }
 
+/// Concrete next action for a check. Pass / Skipped checks may carry
+/// the default `Remediation` (empty summary, no command, no doc URL).
+/// For Fail / Warn checks, `summary` must be non-empty — see
+/// `eddacraft_anvil::commands::doctor::tests::every_check_fail_or_warn_branch_carries_remediation`
+/// in the CLI crate for the invariant test that exercises every
+/// `check_*` function.
+///
+/// The optional fields `command` and `doc_url` give the renderer a
+/// structured place to surface a runnable command vs a documentation
+/// link without re-parsing prose. They may both be set on the same
+/// remediation (e.g. a setup command alongside a "read more" doc).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Remediation {
+    /// Human-readable summary of what the user should do.
+    pub summary: String,
+    /// A specific shell command the user can run, if any.
+    pub command: Option<String>,
+    /// An optional documentation URL for further reading; may be set
+    /// alongside `command`.
+    pub doc_url: Option<String>,
+}
+
+impl Remediation {
+    /// True when the remediation has no actionable content.
+    pub fn is_empty(&self) -> bool {
+        self.summary.is_empty() && self.command.is_none() && self.doc_url.is_none()
+    }
+}
+
 /// A single diagnostic check result.
 #[derive(Debug, Clone)]
 pub struct DiagnosticCheck {
@@ -33,6 +62,7 @@ pub struct DiagnosticCheck {
     pub message: String,
     pub details: Option<String>,
     pub auto_fixable: bool,
+    pub remediation: Remediation,
 }
 
 /// Aggregate summary of all checks.
@@ -192,6 +222,7 @@ mod tests {
                 message: "v22.0.0 found".to_string(),
                 details: Some("Path: /usr/bin/node".to_string()),
                 auto_fixable: false,
+                remediation: Remediation::default(),
             },
             DiagnosticCheck {
                 name: "ESLint config".to_string(),
@@ -200,6 +231,11 @@ mod tests {
                 message: "No .eslintrc found".to_string(),
                 details: Some("Run `npx eslint --init` to create one".to_string()),
                 auto_fixable: true,
+                remediation: Remediation {
+                    summary: "Create an ESLint config".to_string(),
+                    command: Some("npx eslint --init".to_string()),
+                    doc_url: None,
+                },
             },
             DiagnosticCheck {
                 name: "Git hooks".to_string(),
@@ -208,6 +244,11 @@ mod tests {
                 message: "Hooks not installed".to_string(),
                 details: None,
                 auto_fixable: true,
+                remediation: Remediation {
+                    summary: "Install pre-commit hooks".to_string(),
+                    command: Some("npx husky init".to_string()),
+                    doc_url: None,
+                },
             },
         ]
     }
@@ -276,6 +317,7 @@ mod tests {
             message: "failed".to_string(),
             details: None,
             auto_fixable: false,
+            remediation: Remediation::default(),
         }];
         let mut state = DoctorState::new(checks);
         state.handle_key(Action::Character('f'));

@@ -97,11 +97,12 @@ crates/
 │   │   ├── git_scanner.rs          Git-aware scanning
 │   │   ├── check.rs                Check interface impl
 │   │   └── types.rs                Result types
-│   ├── src/antipattern/            Anti-pattern detection
-│   │   ├── patterns.rs             13 patterns (AP-001..AP-013)
-│   │   ├── scanner.rs              Pattern scanner
+│   ├── src/antipattern/            Anti-pattern detection (registry-driven)
+│   │   ├── registry_loader.rs      Loads patterns/compiled/registry.json
+│   │   ├── patterns.rs             LazyLock populated from the registry at first use
+│   │   ├── scanner.rs              rayon-parallel pattern scanner
 │   │   ├── check.rs                Check interface impl
-│   │   └── types.rs                Result types
+│   │   └── types.rs                Result types (with family provenance)
 │   ├── src/command_safety/         Command safety validation
 │   │   ├── parser.rs               Shell command parser
 │   │   ├── matcher.rs              Rule matcher
@@ -290,13 +291,17 @@ crates/
 | KERN-043 | Performance benchmarks against spec targets      | KERN-040           |
 | KERN-044 | Cross-compilation for Linux, macOS, Windows      | KERN-040           |
 
-#### Phase 5 — Daemon Mode [DEFERRED]
+#### Phase 5 — Daemon Mode [SUPERSEDED by INTD — ADR-030, 2026-04-24]
 
-| ID       | Description                              | Dependencies |
-| -------- | ---------------------------------------- | ------------ |
-| KERN-050 | Unix socket transport (JSON-RPC 2.0)     | KERN-041     |
-| KERN-051 | Session management + client multiplexing | KERN-050     |
-| KERN-052 | Graceful shutdown + state persistence    | KERN-050     |
+| ID       | Description                         | Superseded by                                |
+| -------- | ----------------------------------- | -------------------------------------------- |
+| KERN-050 | Unix domain socket transport        | INTD-002 (IPC Listener in `anvil-intercept`) |
+| KERN-051 | JSON-RPC protocol + notifications   | INTD-002 + INTD-013 (telemetry mirror)       |
+| KERN-052 | Session management + client fan-out | INTD-003 (Session Registry)                  |
+
+The intercept daemon (`crates/anvil-intercept`) hosts the kernel in-process and
+owns the daemon-mode IPC surface. See `plans/archive/modules/rust-kernel.aps.md`
+Phase 5 supersession note and ADR-030 for the decision chain.
 
 ---
 
@@ -375,12 +380,32 @@ semantic graph. They operate on file content directly.
 
 ### Completed Ports
 
-| ID       | Check          | TS Latency | Rust Latency | Speedup | Patterns                  |
-| -------- | -------------- | ---------- | ------------ | ------- | ------------------------- |
-| RENG-001 | Secret scan    | 200-800ms  | 5-20ms       | **40x** | Entropy + regex patterns  |
-| RENG-002 | Anti-pattern   | 500-2000ms | 20-100ms     | **25x** | 13 patterns (AP-001..013) |
-| RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs) |
-| RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness         |
+| ID       | Check          | TS Latency | Rust Latency | Speedup | Patterns                    |
+| -------- | -------------- | ---------- | ------------ | ------- | --------------------------- |
+| RENG-001 | Secret scan    | 200-800ms  | 5-20ms       | **40x** | Entropy + regex patterns    |
+| RENG-002 | Anti-pattern   | 500-2000ms | 20-100ms     | **25x** | 18 registry rules (ADR-026) |
+| RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs)   |
+| RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness           |
+
+> The Rust anti-pattern scanner is authoritative per [ADR-026]. It loads
+> `patterns/compiled/registry.json` on first use (cached via `LazyLock`) and
+> scans artifacts in parallel with `rayon::par_iter`, achieving parallel
+> throughput scaling on multi-artifact workloads (watch fan-out, multi-PR gate
+> checks, full-repo CI scans). The TypeScript scanner in
+> `packages/anvil/core/src/antipattern/` remains only as a transition-window
+> path for surfaces that have not yet moved onto intercept-daemon drivers
+> (currently VSCode extension and MCP server, per [ADR-030]). Both engines
+> consume the same registry and are held in partial parity by
+> `tests/scanner-parity/` while that window remains open. Known engine
+> divergences — mostly Rust `regex` limitations such as lookaround rewrites —
+> are enumerated in `tests/scanner-parity/README.md`. The retirement path is now
+> driver-based, not napi-based: once DRVR lands and no surface imports the TS
+> scanner, `TSRET-005` deletes the TS implementation. `TSRET-006` adds
+> `engineVersion` attribution and a divergence canary so transition-window
+> mismatches fail loudly instead of drifting silently.
+>
+> [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
+> [ADR-030]: ../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
 
 ### Additional Items
 
@@ -642,8 +667,9 @@ longer required to run the CLI.
 - Installed via `curl | sh` or GitHub Releases
 - Node.js `@eddacraft/anvil-cli` package deprecated
 - Ink TUI removed; Ratatui is the only TUI
-- The 3 remaining KERN items are Phase 5 daemon-mode tasks (KERN-050–052),
-  deferred post-H1: Unix socket transport, JSON-RPC protocol, session management
+- The 3 remaining KERN items (KERN-050–052, Phase 5 daemon-mode) are superseded
+  by INTD per ADR-030: the intercept daemon hosts the kernel in-process and owns
+  the daemon-mode IPC surface, so a parallel kernel-owned transport is not built
 
 ---
 

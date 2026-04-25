@@ -32,11 +32,14 @@ pub struct WatchArgs {
     #[arg(long)]
     all: bool,
 
-    /// Glob patterns to watch (comma-separated)
+    /// Glob patterns to watch (comma-separated, e.g. "src/**/*.ts,lib/**/*.ts").
+    /// Empty = watch everything that passes the built-in denylist.
     #[arg(long)]
     patterns: Option<String>,
 
-    /// Directory names to exclude (comma-separated, e.g. "vendor,tmp")
+    /// Glob patterns to exclude (comma-separated, e.g. "vendor/**,**/*.test.ts").
+    /// Bare directory names like "vendor" only match the directory itself —
+    /// use "vendor/**" to exclude its contents.
     #[arg(long)]
     exclude: Option<String>,
 
@@ -60,8 +63,9 @@ const SOURCE_PATTERNS: &[&str] = &[
     "crates/**/*.rs",
 ];
 
-// Default excludes are handled by FileFilter::default_patterns() in the kernel.
-// CLI --exclude adds to those defaults via build_filter().
+// FileFilter owns the hardcoded internal denylist (node_modules, .git, …).
+// User --patterns / --exclude are glob filters applied separately by the
+// kernel's WatchPatternFilter — they no longer extend FileFilter.
 
 #[derive(Debug, Serialize)]
 struct WatchEvent {
@@ -146,23 +150,77 @@ fn resolve_watch_root(workspace_root: &std::path::Path, file_arg: Option<&str>) 
     }
 }
 
-/// Build a `FileFilter` from CLI patterns and exclude args.
-fn build_filter(exclude: &[String]) -> anvil_kernel::watcher::filter::FileFilter {
-    if exclude.is_empty() {
-        anvil_kernel::watcher::filter::FileFilter::default()
-    } else {
-        let mut patterns = anvil_kernel::watcher::filter::FileFilter::default_patterns();
-        for ex in exclude {
-            let cleaned = ex.trim_end_matches('/').trim_end_matches("/**");
-            let cleaned = std::path::Path::new(cleaned)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(cleaned);
-            if !patterns.iter().any(|p| p == cleaned) {
-                patterns.push(cleaned.to_string());
+/// The internal `FileFilter` owns the hardcoded denylist and the
+/// parseable-extension gate. When the user has supplied their own scoping
+/// criterion (e.g. `--patterns '**/*.rs'`), the parseable gate must yield
+/// — otherwise events for non-JS files are dropped before the user's
+/// pattern matcher ever sees them.
+fn build_filter(user_supplied_patterns: bool) -> anvil_kernel::watcher::filter::FileFilter {
+    anvil_kernel::watcher::filter::FileFilter::default()
+        .with_respect_extensions(!user_supplied_patterns)
+}
+
+/// `--exclude` switched from "directory names" to glob patterns in
+/// LAUNCH-001. A user who previously ran `--exclude vendor` will now
+/// find their vendor tree silently watched, because the bare name
+/// matches only a path equal to "vendor". Detect that shape at parse
+/// time and warn with the corrected form.
+///
+/// Routes through stderr in `--json` mode so the JSON-lines event stream
+/// on stdout stays parseable; otherwise stdout, alongside the rest of the
+/// watch surface.
+fn warn_on_bare_exclude_patterns(patterns: &[String], json_mode: bool) {
+    for pattern in patterns {
+        if is_likely_bare_directory_name(pattern) {
+            // ASCII-only so it renders cleanly on Windows terminals that
+            // are not configured for full Unicode (cmd.exe with a legacy
+            // code page, log capture pipelines, dumb TERM environments).
+            let line = format!(
+                "[warn] --exclude {pattern} matches only a path named exactly \"{pattern}\"; \
+                 to exclude its contents use --exclude {pattern}/**"
+            );
+            if json_mode {
+                eprintln!("{line}");
+            } else {
+                println!("{line}");
             }
         }
-        anvil_kernel::watcher::filter::FileFilter::new(patterns)
+    }
+}
+
+/// A pattern is a "likely bare directory name" if it contains no glob
+/// metacharacters and no path separator — i.e. exactly the shape that
+/// the previous denylist-based `--exclude` accepted. Empty strings and
+/// patterns that look like glob expressions are not warned on.
+fn is_likely_bare_directory_name(pattern: &str) -> bool {
+    if pattern.is_empty() {
+        return false;
+    }
+    !pattern.contains(['/', '\\', '*', '?', '[', '{', '!'])
+}
+
+/// Print the active include/exclude scope so a viewer can see the LAUNCH-001
+/// glob filter is doing something. Silent in JSON mode (where structured
+/// telemetry is the canonical channel) and TUI mode (rendered separately).
+fn print_active_scope(include: &[String], exclude: &[String], global: &GlobalArgs) {
+    if global.json {
+        return;
+    }
+    let in_tui = !global.no_tui && std::io::stdout().is_terminal();
+    if in_tui {
+        return;
+    }
+    // ASCII-only so it renders cleanly on Windows terminals without full
+    // Unicode support; the watch banner is the first thing a piped or
+    // recorded session captures and emoji mojibake at that exact moment
+    // is the kind of papercut a hype-builder demo can't afford.
+    if include.is_empty() {
+        println!("[watching] everything (denylist still applies)");
+    } else {
+        println!("[watching] {}", include.join(", "));
+    }
+    if !exclude.is_empty() {
+        println!("[excluding] {}", exclude.join(", "));
     }
 }
 
@@ -203,10 +261,14 @@ fn build_action_command(
 /// Run the specified action when a file change is detected.
 /// Uses inherited stdio for real-time output streaming (C-007).
 fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, no_tui: bool) {
+    // ASCII-only labels match the rest of the watch surface (the banner,
+    // the bare-exclude warning, and per-event print_event_plain) so a
+    // legacy-codepage Windows terminal or a CI log capture doesn't mojibake
+    // on the --action error path.
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("\u{2717} Cannot resolve current executable: {e}");
+            eprintln!("[error] Cannot resolve current executable: {e}");
             return;
         }
     };
@@ -216,13 +278,13 @@ fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, n
         Ok(status) => {
             if !status.success() {
                 eprintln!(
-                    "\u{26a0} Action '{action}' exited with code {}",
+                    "[warn] Action '{action}' exited with code {}",
                     status.code().unwrap_or(-1)
                 );
             }
         }
         Err(e) => {
-            eprintln!("\u{2717} Failed to run action '{action}': {e}");
+            eprintln!("[error] Failed to run action '{action}': {e}");
         }
     }
 }
@@ -242,10 +304,30 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     // Resolve watch root — if --file is given, scope to that path
     let watch_root = resolve_watch_root(&workspace_root, args.file.as_deref())?;
 
-    // Build include patterns — passed to kernel WatchConfig
-    let patterns: Vec<String> = if let Some(ref p) = args.patterns {
+    // Build include patterns passed to the kernel's WatchPatternFilter.
+    //
+    // The defaults assume the user wants the broadest reasonable scope
+    // unless they opt into a narrower one:
+    //   no flags            → empty (let the FileFilter denylist define scope)
+    //   --all               → empty (same — FileFilter is the only gate)
+    //   --plans only        → DEFAULT_WATCH_PATTERNS (planning docs)
+    //   --source only       → SOURCE_PATTERNS (parseable sources)
+    //   --plans + --source  → both
+    //   --patterns "..."    → use those verbatim
+    //
+    // --all is checked first so it stays "watch everything" even when
+    // combined with the narrower flags — without this, `--all --plans`
+    // would silently scope to planning docs.
+    //
+    // Previously the no-flag and bare --plans cases both sent
+    // DEFAULT_WATCH_PATTERNS, which silently restricted `anvil watch`
+    // to planning docs and dropped every source-file event before it
+    // ever reached the policy engine.
+    let patterns: Vec<String> = if args.all {
+        Vec::new()
+    } else if let Some(ref p) = args.patterns {
         p.split(',').map(|s| s.trim().to_string()).collect()
-    } else if args.all || (args.source && args.plans) {
+    } else if args.source && args.plans {
         DEFAULT_WATCH_PATTERNS
             .iter()
             .chain(SOURCE_PATTERNS.iter())
@@ -253,18 +335,38 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             .collect()
     } else if args.source {
         SOURCE_PATTERNS.iter().map(ToString::to_string).collect()
-    } else {
+    } else if args.plans {
         DEFAULT_WATCH_PATTERNS
             .iter()
             .map(ToString::to_string)
             .collect()
+    } else {
+        Vec::new()
     };
 
-    // Build exclude patterns and create file filter
+    // Exclude globs are applied by the kernel's WatchPatternFilter — they
+    // no longer extend the internal FileFilter denylist. The internal
+    // denylist (node_modules, .git, target, …) stays in place via
+    // build_filter(); user-supplied excludes are passed through as
+    // WatchConfig.exclude_patterns below.
     let exclude: Vec<String> = args.exclude.as_ref().map_or_else(Vec::new, |s| {
         s.split(',').map(|s| s.trim().to_string()).collect()
     });
-    let filter = build_filter(&exclude);
+    warn_on_bare_exclude_patterns(&exclude, global.json);
+    // When the user has supplied an explicit scoped pattern (--patterns,
+    // --source, --plans), the FileFilter must not additionally enforce
+    // its hardcoded ts/js extension gate — that would silently drop events
+    // for file types the user explicitly asked us to watch.
+    //
+    // `--all` is deliberately *not* in this set: it widens scope to "watch
+    // everything that passes the denylist", but the kernel's parser still
+    // only handles TS/JS today, so forwarding non-JS files to it produces
+    // UnsupportedLanguage errors and noisy snapshots. Keep the extension
+    // gate enabled for `--all` until the kernel supports more languages.
+    let user_supplied_patterns = args.patterns.is_some() || args.source || args.plans;
+    let filter = build_filter(user_supplied_patterns);
+
+    print_active_scope(&patterns, &exclude, global);
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
     let arch_config = if arch_config_path.exists() {
@@ -369,7 +471,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     files_watched: 0,
                 },
             });
-        crate::tui::run_watch(state, &event_rx)?;
+        crate::tui::run_watch(state, &event_rx, Some(&shutdown))?;
     }
 
     handle.stop().context("stopping watcher")?;
@@ -379,11 +481,15 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
     use anvil_kernel_types::{EventPayload, EventType};
 
+    // ASCII-only labels so per-event watch output renders cleanly on
+    // Windows terminals and CI log captures that lack full Unicode. The
+    // banner and bare-exclude warning were previously fixed; this is the
+    // hot path during a demo and was missed in that round.
     let prefix = match event.event_type {
-        EventType::Progress => "\u{25b6}",
-        EventType::Snapshot => "\u{1f4f8}",
-        EventType::Violation => "\u{26a0}",
-        EventType::Error => "\u{2717}",
+        EventType::Progress => "[progress]",
+        EventType::Snapshot => "[snapshot]",
+        EventType::Violation => "[violation]",
+        EventType::Error => "[error]",
     };
 
     match &event.payload {
@@ -516,21 +622,12 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn build_filter_includes_extra_excludes() {
-        let filter = build_filter(&["vendor".to_string(), "tmp".to_string()]);
-        assert!(filter.should_ignore(std::path::Path::new("vendor/lib.ts")));
-        assert!(filter.should_ignore(std::path::Path::new("tmp/scratch.ts")));
-        // Default excludes still work
-        assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
-    }
-
-    #[test]
-    fn build_filter_dedup_existing_default() {
-        let filter = build_filter(&["node_modules".to_string()]);
-        // Should still work — no duplicate panic or double-entry
-        assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
-    }
+    // The previous tests that exercised --exclude extending the internal
+    // FileFilter denylist were removed in LAUNCH-001: --exclude is now a
+    // user-glob path, applied by the kernel's WatchPatternFilter, and no
+    // longer touches the internal denylist. Coverage moved to
+    // crates/anvil-kernel/src/watcher/pattern.rs (unit) and
+    // crates/anvil-kernel/tests/watch_pattern_filter.rs (integration).
 
     #[test]
     fn resolve_watch_root_rejects_nonexistent_traversal() {
@@ -583,14 +680,6 @@ mod tests {
             cmd.get_current_dir(),
             Some(std::path::Path::new("/my/project"))
         );
-    }
-
-    #[test]
-    fn build_filter_sanitises_deep_paths() {
-        let filter = build_filter(&["apps/foo/vendor".to_string()]);
-        assert!(filter.should_ignore(std::path::Path::new("vendor/lib.ts")));
-        // Full deep path also matches because FileFilter checks each component
-        assert!(filter.should_ignore(std::path::Path::new("apps/foo/vendor/lib.ts")));
     }
 
     // The concurrency guard (action_running/action_pending AtomicBool pair) is
@@ -666,24 +755,69 @@ mod tests {
         assert!(!json.contains("\"eventType\""));
     }
 
-    // --- build_filter with empty excludes ---
+    // --- bare-exclude warning heuristic (M4) ---
 
     #[test]
-    fn build_filter_empty_excludes_returns_default() {
-        let filter = build_filter(&[]);
-        // Default filter should still ignore standard dirs like node_modules
+    fn bare_directory_name_is_detected() {
+        assert!(is_likely_bare_directory_name("vendor"));
+        assert!(is_likely_bare_directory_name("tmp"));
+        assert!(is_likely_bare_directory_name("node_modules"));
+    }
+
+    #[test]
+    fn glob_patterns_are_not_treated_as_bare_names() {
+        assert!(!is_likely_bare_directory_name("vendor/**"));
+        assert!(!is_likely_bare_directory_name("**/*.test.ts"));
+        assert!(!is_likely_bare_directory_name("src/foo"));
+        assert!(!is_likely_bare_directory_name("*.log"));
+        assert!(!is_likely_bare_directory_name("file?.ts"));
+        assert!(!is_likely_bare_directory_name("[abc]/lib"));
+        assert!(!is_likely_bare_directory_name("{a,b}/lib"));
+        assert!(!is_likely_bare_directory_name("!skip"));
+    }
+
+    #[test]
+    fn empty_string_does_not_trigger_bare_warning() {
+        assert!(!is_likely_bare_directory_name(""));
+    }
+
+    // --- build_filter ---
+
+    #[test]
+    fn build_filter_returns_default_denylist() {
+        let filter = build_filter(false);
+        // Default filter still ignores standard dirs like node_modules
         assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
         // But not arbitrary dirs
         assert!(!filter.should_ignore(std::path::Path::new("src/main.rs")));
     }
 
+    #[test]
+    fn build_filter_with_user_patterns_bypasses_extension_gate() {
+        // The demo-killer regression: --patterns '**/*.rs' must not be
+        // dropped by the FileFilter's hardcoded ts/js list before the
+        // user's WatchPatternFilter ever sees the event.
+        let filter = build_filter(true);
+        assert!(filter.should_process(std::path::Path::new("src/main.rs")));
+        assert!(filter.should_process(std::path::Path::new("lib.py")));
+        // Denylist still applies.
+        assert!(!filter.should_process(std::path::Path::new("node_modules/foo.rs")));
+    }
+
     // --- Pattern selection logic ---
+    //
+    // The helper mirrors the include-pattern computation in `run()`.
+    // Keep them in sync — a test-local duplicate that drifts from the
+    // production logic was the gap that let the M2 default-pattern bug
+    // ship in the original LAUNCH-001 commit.
 
     fn collect_patterns(args: &[&str]) -> Vec<String> {
         let w = Wrapper::try_parse_from(args).unwrap();
-        if let Some(ref p) = w.inner.patterns {
+        if w.inner.all {
+            Vec::new()
+        } else if let Some(ref p) = w.inner.patterns {
             p.split(',').map(|s| s.trim().to_string()).collect()
-        } else if w.inner.all || (w.inner.source && w.inner.plans) {
+        } else if w.inner.source && w.inner.plans {
             DEFAULT_WATCH_PATTERNS
                 .iter()
                 .chain(SOURCE_PATTERNS.iter())
@@ -691,11 +825,13 @@ mod tests {
                 .collect()
         } else if w.inner.source {
             SOURCE_PATTERNS.iter().map(ToString::to_string).collect()
-        } else {
+        } else if w.inner.plans {
             DEFAULT_WATCH_PATTERNS
                 .iter()
                 .map(ToString::to_string)
                 .collect()
+        } else {
+            Vec::new()
         }
     }
 
@@ -707,14 +843,14 @@ mod tests {
     }
 
     #[test]
-    fn pattern_selection_all_picks_both() {
+    fn pattern_selection_all_returns_empty_for_broadest_scope() {
+        // --all delegates scope to the FileFilter denylist; the kernel
+        // pattern filter is intentionally noop.
         let patterns = collect_patterns(&["test", "--all"]);
-        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
-            .iter()
-            .chain(SOURCE_PATTERNS.iter())
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(patterns, expected);
+        assert!(
+            patterns.is_empty(),
+            "--all should send empty include_patterns, got {patterns:?}"
+        );
     }
 
     #[test]
@@ -729,8 +865,20 @@ mod tests {
     }
 
     #[test]
-    fn pattern_selection_default_picks_default_watch_patterns() {
+    fn pattern_selection_default_returns_empty_for_broadest_scope() {
+        // No flags = let the FileFilter denylist define scope; do not
+        // silently restrict to plan files (the M2 regression).
         let patterns = collect_patterns(&["test"]);
+        assert!(
+            patterns.is_empty(),
+            "no flags should send empty include_patterns, got {patterns:?}"
+        );
+    }
+
+    #[test]
+    fn pattern_selection_plans_alone_picks_plan_patterns() {
+        // Bare --plans is now opt-in narrowing, not the default.
+        let patterns = collect_patterns(&["test", "--plans"]);
         let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
             .iter()
             .map(ToString::to_string)
@@ -739,12 +887,20 @@ mod tests {
     }
 
     #[test]
-    fn pattern_selection_plans_alone_picks_default() {
-        let patterns = collect_patterns(&["test", "--plans"]);
-        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(patterns, expected);
+    fn pattern_selection_all_overrides_narrower_flags() {
+        // --all is "watch everything" — combining it with --plans,
+        // --source, or --patterns must not silently narrow scope.
+        for combo in [
+            vec!["test", "--all", "--plans"],
+            vec!["test", "--all", "--source"],
+            vec!["test", "--all", "--plans", "--source"],
+            vec!["test", "--all", "--patterns", "src/**/*.ts"],
+        ] {
+            let patterns = collect_patterns(&combo);
+            assert!(
+                patterns.is_empty(),
+                "{combo:?} should keep --all's broad scope, got {patterns:?}"
+            );
+        }
     }
 }

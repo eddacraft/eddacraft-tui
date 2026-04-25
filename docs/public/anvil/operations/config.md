@@ -11,15 +11,19 @@ anvil uses two configuration files and CLI flags for runtime options.
 
 ## Configuration Files
 
-| File                       | Purpose                                        |
-| -------------------------- | ---------------------------------------------- |
-| `.anvilrc`                 | Project-level settings (checks, format, paths) |
-| `.anvil/gate-config.json`  | Gate check definitions and thresholds          |
-| `.anvil/architecture.yaml` | Architecture layer and boundary definitions    |
+| File                       | Purpose                                         |
+| -------------------------- | ----------------------------------------------- |
+| `.anvilrc`                 | Project-level settings (checks, format, paths)  |
+| `.anvil/gate-config.json`  | Checks used by `anvil gate` and gate thresholds |
+| `.anvil/architecture.yaml` | Architecture layer and boundary definitions     |
 
 ## `.anvilrc`
 
 Created by `anvil init`. Supports JSON, YAML, and TOML formats.
+
+`.anvilrc` selects the checks Anvil runs by default when it scans your project.
+Those checks produce findings. `anvil gate` then combines those findings with
+broader build-and-CI checks to decide whether the workflow gate passes.
 
 ### YAML (default)
 
@@ -32,6 +36,7 @@ format: yaml
 checks:
   - secret-detection
   - import-boundaries
+  - antipattern-scan
 ```
 
 ### JSON
@@ -41,7 +46,7 @@ checks:
   "schemaVersion": "1.0.0",
   "planningDir": "plans",
   "format": "yaml",
-  "checks": ["secret-detection", "import-boundaries"]
+  "checks": ["secret-detection", "import-boundaries", "antipattern-scan"]
 }
 ```
 
@@ -51,7 +56,7 @@ checks:
 schema_version = "1.0.0"
 planning_dir = "plans"
 format = "yaml"
-checks = ["secret-detection", "import-boundaries"]
+checks = ["secret-detection", "import-boundaries", "antipattern-scan"]
 ```
 
 :::note
@@ -60,12 +65,12 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 
 :::
 
-| Field           | Type     | Default                                     | Description                         |
-| --------------- | -------- | ------------------------------------------- | ----------------------------------- |
-| `schemaVersion` | string   | `"1.0.0"`                                   | Config schema version               |
-| `planningDir`   | string   | `"plans"`                                   | Directory for APS plan files        |
-| `format`        | string   | `"yaml"`                                    | Plan format: `json`, `yaml`, `toml` |
-| `checks`        | string[] | `["secret-detection", "import-boundaries"]` | Enabled project checks              |
+| Field           | Type     | Default                                                         | Description                         |
+| --------------- | -------- | --------------------------------------------------------------- | ----------------------------------- |
+| `schemaVersion` | string   | `"1.0.0"`                                                       | Config schema version               |
+| `planningDir`   | string   | `"plans"`                                                       | Directory for APS plan files        |
+| `format`        | string   | `"yaml"`                                                        | Plan format: `json`, `yaml`, `toml` |
+| `checks`        | string[] | `["secret-detection", "import-boundaries", "antipattern-scan"]` | Enabled project checks              |
 
 ### Available Checks
 
@@ -74,7 +79,6 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 | `secret-detection`  | Detect leaked secrets and credentials |
 | `import-boundaries` | Enforce module import boundaries      |
 | `antipattern-scan`  | Detect common code anti-patterns      |
-| `architecture`      | Validate architecture definitions     |
 | `policy`            | Evaluate OPA policy rules             |
 
 ## Gate Configuration
@@ -83,6 +87,35 @@ Managed by `anvil gate-config`. Stored at `.anvil/gate-config.json`.
 
 Use `anvil gate-config --list` to view the current configuration, and
 `--enable <check>` / `--disable <check>` to toggle individual checks.
+
+This file records the intended gate composition — which build-and-CI checks
+(`lint`, `test`, `coverage`, `dependency`) and Anvil analysis checks
+(`secret-detection`, `import-boundaries`, `antipattern-scan`, `policy`) belong
+to the gate, plus the scoring threshold.
+
+:::note
+
+`anvil gate` does not currently read `.anvil/gate-config.json`. The gate run is
+controlled by the `--only-checks` / `--skip-checks` flags and, as a default
+filter, the `checks` list in `.anvilrc`. Use `gate-config` to plan and document
+the intended gate composition today; wiring it into the `anvil gate` runner is
+tracked as follow-up work.
+
+:::
+
+`.anvilrc` sets your project's default analysis checks that `anvil gate`
+actually consumes. `gate-config` is the forward-looking surface for the broader
+gate run.
+
+:::note
+
+For the shared Anvil analysis checks, `gate-config` uses the same canonical
+names shown in init and `.anvilrc`. Use `secret-detection` and
+`import-boundaries`, not older internal names. Legacy aliases like `secret` and
+`architecture` are accepted for compatibility, but Anvil normalises them to the
+canonical names above.
+
+:::
 
 ```json
 {
@@ -109,18 +142,23 @@ Use `anvil gate-config --list` to view the current configuration, and
       "enabled": true
     },
     {
-      "name": "secret",
-      "description": "Secret and credential detection",
+      "name": "secret-detection",
+      "description": "Detect leaked secrets and credentials",
       "enabled": true
     },
     {
-      "name": "architecture",
-      "description": "Architecture boundary validation",
+      "name": "import-boundaries",
+      "description": "Enforce module import boundaries",
+      "enabled": true
+    },
+    {
+      "name": "antipattern-scan",
+      "description": "Detect common code antipatterns",
       "enabled": true
     },
     {
       "name": "policy",
-      "description": "Policy compliance evaluation",
+      "description": "Evaluate OPA policy rules",
       "enabled": true
     }
   ],
@@ -131,6 +169,8 @@ Use `anvil gate-config --list` to view the current configuration, and
 ```
 
 Each check can have an optional `config` object for check-specific settings.
+Those settings affect how the check produces findings before the gate evaluates
+the overall result.
 
 ## Architecture Definition
 
@@ -215,33 +255,42 @@ Validate with `anvil architecture validate` and inspect with
 
 ## Anti-Patterns
 
-Anti-pattern detection is configured per-pattern. There are 13 built-in
-patterns: 4 enabled by default, 9 opt-in.
+Anti-pattern detection is configured per-pattern. There are 18 built-in patterns
+grouped into five families: **guardrail-suppression** (AP-001, AP-002, AP-004,
+AP-005, GS-001), **type-system-evasion** (AP-003), **error-visibility** (AP-006,
+AP-007), **responsibility-laundering** (RL-001..RL-006), and **deferred-debt**
+(DD-001..DD-004). 15 are enabled by default; 3 are opt-in. Rules are sourced
+from the compiled `.anvil` registry at `patterns/compiled/registry.json`.
 
 ### Default Patterns (always active)
 
-| Pattern  | Description            | Severity |
-| -------- | ---------------------- | -------- |
-| `AP-001` | Broad `eslint-disable` | warning  |
-| `AP-003` | Explicit `any` type    | warning  |
-| `AP-004` | `@ts-ignore` directive | warning  |
-| `AP-006` | Empty catch block      | warning  |
+| Pattern  | Family                    | Description                              | Severity |
+| -------- | ------------------------- | ---------------------------------------- | -------- |
+| `AP-001` | guardrail-suppression     | Broad `eslint-disable` added             | warning  |
+| `AP-003` | type-system-evasion       | Explicit `any` type usage                | warning  |
+| `AP-004` | guardrail-suppression     | `@ts-ignore` suppresses all errors       | warning  |
+| `AP-006` | error-visibility          | Empty catch block swallows errors        | warning  |
+| `GS-001` | guardrail-suppression     | Non-null assertion overrides nullability | warning  |
+| `RL-001` | responsibility-laundering | Unverified "pre-existing" claim          | warning  |
+| `RL-002` | responsibility-laundering | Phantom follow-up tracking               | warning  |
+| `RL-003` | responsibility-laundering | Blanket unrelated dismissal              | error    |
+| `RL-004` | responsibility-laundering | Unverified "not touched" claim           | warning  |
+| `RL-005` | responsibility-laundering | Deferred without artifact                | warning  |
+| `RL-006` | responsibility-laundering | Reply disguised as fix                   | info     |
+| `DD-001` | deferred-debt             | TODO/FIXME without tracking reference    | warning  |
+| `DD-002` | deferred-debt             | HACK comment without tracking reference  | warning  |
+| `DD-003` | deferred-debt             | Temporary code without expiry            | info     |
+| `DD-004` | deferred-debt             | Completion claim with outstanding TODOs  | warning  |
 
 ### Opt-in Patterns
 
 Enable with `anvil check --include-opt-in`:
 
-| Pattern  | Description                    | Severity |
-| -------- | ------------------------------ | -------- |
-| `AP-002` | Rule-specific `eslint-disable` | info     |
-| `AP-005` | `@ts-expect-error` directive   | info     |
-| `AP-007` | Console in production code     | info     |
-| `AP-008` | Inline `style` attribute       | warning  |
-| `AP-009` | Inline `<script>` block        | warning  |
-| `AP-010` | Inline event handler           | warning  |
-| `AP-011` | Deprecated HTML tag            | warning  |
-| `AP-012` | `!important` in CSS            | warning  |
-| `AP-013` | CSS `@import`                  | info     |
+| Pattern  | Family                | Description                     | Severity |
+| -------- | --------------------- | ------------------------------- | -------- |
+| `AP-002` | guardrail-suppression | Rule-specific `eslint-disable`  | info     |
+| `AP-005` | guardrail-suppression | `@ts-expect-error` used         | info     |
+| `AP-007` | error-visibility      | Console statement in production | info     |
 
 ## Secret Detection
 
@@ -280,8 +329,8 @@ anvil watch --source                     # Watch source files
 anvil watch --plans                      # Watch planning documents
 anvil watch --all                        # Watch everything
 anvil watch --debounce 500               # Custom debounce (ms, default: 300)
-anvil watch --exclude "vendor,tmp"       # Exclude directories
-anvil watch --patterns "**/*.ts,**/*.rs" # Custom file patterns
+anvil watch --exclude "vendor/**,tmp/**" # Exclude matching glob paths
+anvil watch --patterns "**/*.ts,**/*.rs" # Limit the watch loop to matching globs
 anvil watch --file src/api/              # Scope to specific path
 anvil watch --action gate                # Run gate on each change
 ```
@@ -292,10 +341,13 @@ anvil watch --action gate                # Run gate on each change
 | `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)   |
 | `--all`      |       | —       | Watch all file types (source + plans)                                               |
 | `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                             |
-| `--exclude`  |       | —       | Comma-separated directory names to skip                                             |
-| `--patterns` |       | —       | Comma-separated glob patterns to watch                                              |
+| `--exclude`  |       | —       | Comma-separated glob patterns to exclude from watch events                          |
+| `--patterns` |       | —       | Comma-separated glob patterns to include in watch events                            |
 | `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                         |
 | `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                          |
+
+Bare names match only that exact path. To exclude a directory's contents, use a
+glob such as `vendor/**` rather than `vendor`.
 
 ## CI Mode
 
@@ -317,8 +369,8 @@ anvil gate --list-profiles        # Show available profiles
 Additional runtime flags:
 
 ```bash
-anvil gate --skip-checks "coverage,dependency"   # Skip specific checks
-anvil gate --only-checks "secret,architecture"   # Run only specific checks
+anvil gate --skip-checks "coverage,dependency"                 # Skip specific checks
+anvil gate --only-checks "secret-detection,import-boundaries" # Run only specific checks
 anvil gate --fail-fast                           # Stop on first failure
 anvil gate --progress                            # Show real-time progress
 anvil --json gate                                # JSON output (global flag)
@@ -354,13 +406,13 @@ not supported.
 
 ## Exit Codes
 
-| Code | Meaning         | Typical action    |
-| ---- | --------------- | ----------------- |
-| 0    | All checks pass | Continue          |
-| 1    | General error   | Investigate       |
-| 2    | Gate failure    | Block merge       |
-| 3    | Auth required   | Run `anvil login` |
-| 4    | Config error    | Fix `.anvilrc`    |
+| Code | Meaning         | Typical action         |
+| ---- | --------------- | ---------------------- |
+| 0    | All checks pass | Continue               |
+| 1    | General error   | Investigate            |
+| 2    | Gate failure    | Block merge            |
+| 3    | Auth required   | Run `anvil auth login` |
+| 4    | Config error    | Fix `.anvilrc`         |
 
 ---
 

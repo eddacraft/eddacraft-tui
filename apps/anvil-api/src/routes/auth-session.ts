@@ -9,6 +9,7 @@ import {
   revokeRefreshTokenFamily,
   insertRefreshToken,
   findUserById,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 import { hashToken } from '../lib/token.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
@@ -89,6 +90,12 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
 
   await insertRefreshToken(sql, record.user_id, newHash, record.family_id, expiresAt);
 
+  // Carry the user's current scopes forward on every refresh. Reading from
+  // `access_tokens` (rather than hardcoding `['beta']`) stops scope grants
+  // issued via `admin invite` (FLAGM-005) from being silently downgraded
+  // on the user's first refresh.
+  const scopes = await findActiveScopesForUser(sql, user.id);
+
   // Sign a new 7-day JWT
   const claims: LicenceClaims = {
     sub: user.id,
@@ -96,7 +103,7 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     identity: { provider: 'email', id: null },
     org: null,
     tier: 'pro',
-    scopes: ['beta'],
+    scopes,
     seats: 1,
   };
 

@@ -100,38 +100,46 @@ Same invariant model applies to human-authored and agent-authored code. See
 
 ## 4. Current Architecture (Baseline)
 
-Today: TypeScript CLI is the main surface; the "engine" is effectively TS
-runtime logic that performs checks in batch/partial watch.
+Today: the Rust CLI/TUI is the primary surface and the Rust engine is the only
+runtime used by shipped user-facing commands. Editor and MCP surfaces remain on
+a temporary TypeScript scanner path until the intercept-daemon driver cutover
+lands.
 
 ```
              +---------------------+
-             |   TS CLI Surface    |
-             |  (commands + UX)    |
+             |  Rust CLI / TUI     |
+             |  (primary surface)  |
              +----------+----------+
                         |
                         v
              +---------------------+
-             |  TS Runtime/Engine  |
-             |  (scan/check/gate)  |
+             |  Rust Engine /      |
+             |  Kernel Runtime     |
              +----------+----------+
                         |
-                        v
-             +---------------------+
-             |   Repo / Git FS     |
-             +---------------------+
+          +-------------+-------------+
+          |                           |
+          v                           v
+ +-------------------+       +-------------------+
+ | Repo / Git FS     |       | Other clients     |
+ |                   |       | (editor/MCP via   |
+ |                   |       | transition paths) |
+ +-------------------+       +-------------------+
 ```
 
 Key properties:
 
-- Fast iteration for beta users
-- But limited by Node for persistent, incremental graph runtime and
-  ultra-low-latency watch loops (the "alive" feel) — see
-  [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md)
-  and [Rust Kernel Spec](rust-kernel-spec.md)
+- Single-binary install and Rust-native watch loop are already shipped
+- The remaining architecture migration is now at the client boundary, not the
+  scan engine boundary: VS Code and MCP still need to move onto intercept-daemon
+  drivers per ADR-030
 
 ---
 
 ## 5. H1 Architecture: Rust Kernel Introduced Behind a Stable Protocol
+
+This section is historical context for the transition that has now largely
+completed on the CLI/TUI path.
 
 **H1 goal:** Keep beta velocity while building the Rust kernel as a parallel
 engine implementation.
@@ -190,14 +198,16 @@ Minimum buildable scope (v1):
 
 ### 5.3 Engine Selection and Dual-Run
 
-Expose:
+This was a migration-stage mechanism, not the intended steady state.
+
+Historically exposed:
 
 - `anvil --engine legacy`
 - `anvil --engine rust`
 - `anvil --engine dual` (internal/dogfood)
 
-Dual mode runs both engines against same change stream and diffs normalised
-event streams.
+Dual mode ran both engines against the same change stream and diffed normalised
+event streams. The Rust engine is now the only shipped engine for CLI/TUI work.
 
 ---
 
@@ -328,10 +338,8 @@ PlanDrift:
 
 ## 8. H2 Architecture: Rust CLI/TUI Across eddacraft Stack
 
-**H2 goal:** Promote Rust from "engine only" to a full Rust-native surface set
-(CLI + TUI), while keeping protocol compatibility for other clients.
-
-This is explicitly a surface replacement decision, not required for H1.
+This is now the live direction: Rust owns the primary CLI/TUI surface set while
+other clients converge on protocol and driver-based integration.
 
 ### 8.1 H2 System Diagram
 
@@ -376,17 +384,16 @@ Diagrams remain downstream of the kernel; they are renderers, not analysers.
 
 ## 9. Phased Delivery Plan (Developer-First, Investor-Wow)
 
-### Phase A (Now → Beta Stability)
+### Phase A (Delivered)
 
-- Refactor legacy TS output to emit canonical protocol events
-- Ship improved UX with minimal invariants (high precision)
+- Refactored the product toward canonical protocol/event shapes
+- Shipped improved UX while keeping precision high
 
-### Phase B (H1 Kernel MVP)
+### Phase B (Delivered)
 
 - Rust kernel v1: watch + incremental parse + symbol/deps graphs + 3–5
   invariants
-- `--engine rust` hidden/opt-in
-- Dual-run harness for parity
+- Dual-run harness for parity during cutover
 
 ### Phase C (First Investor "Wow")
 
@@ -395,11 +402,12 @@ Diagrams remain downstream of the kernel; they are renderers, not analysers.
 - Live invariant streaming demo: immediate, semantic, deterministic — see
   [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md)
 
-### Phase D (H2 Surfaces)
+### Phase D (In Progress)
 
-- Rust CLI/TUI becomes primary surface
-- Optional daemon mode polished
-- VS Code + agent clients consume protocol
+- Rust CLI/TUI is the primary surface
+- Optional daemon mode and intercept IPC are still being hardened
+- VS Code, MCP, and agent clients are converging on protocol/driver integration
+  rather than in-process scanner embedding
 
 ---
 
@@ -437,7 +445,8 @@ Diagrams remain downstream of the kernel; they are renderers, not analysers.
 
 ```
 Current:
-  TS CLI -> TS runtime checks -> output
+  Rust CLI/TUI -> Rust engine/kernel -> output
+  Editor/MCP -> temporary TS path until daemon drivers land
 
 H1:
   Surfaces -> Protocol -> (Legacy TS engine OR Rust kernel engine)

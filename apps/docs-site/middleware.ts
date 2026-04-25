@@ -11,6 +11,8 @@
 
 import { jwtVerify, importSPKI } from 'jose';
 
+import { DOCS_ACCESS_FLAG_KEY, evaluateDocsAccess } from './lib/feature-flags.js';
+
 const COOKIE_NAME = 'anvil-docs-session';
 
 let cachedKey: CryptoKey | null = null;
@@ -53,8 +55,28 @@ export default async function middleware(request: Request): Promise<Response | u
 
   try {
     const publicKey = await getPublicKey();
-    await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
-    // Valid JWT — return undefined to let Vercel serve the static content
+    const { payload } = await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
+
+    // FLAGS-008 / FLAGM-004: route `/anvil` access through the shared flag
+    // resolver (imported directly from @eddacraft/anvil-runtime in
+    // apps/docs-site/lib/feature-flags.ts). Missing tier claim now resolves
+    // to disabled — all sessions were reissued with a tier claim before
+    // FLAGM-004 cutover, so the pre-cutover backwards-compat carve-out is
+    // gone.
+    const tierClaim = typeof payload.tier === 'string' ? payload.tier : null;
+    const sessionSubject = typeof payload.sub === 'string' ? payload.sub : null;
+    const resolution = evaluateDocsAccess({
+      accountTier: tierClaim,
+      sessionSubject,
+    });
+    if (resolution.variant === 'disabled') {
+      const deniedUrl = new URL('/auth/login', url.origin);
+      deniedUrl.searchParams.set('next', url.pathname);
+      deniedUrl.searchParams.set('reason', `${DOCS_ACCESS_FLAG_KEY}:disabled`);
+      return Response.redirect(deniedUrl.toString(), 302);
+    }
+
+    // Valid JWT and flag resolves enabled — let Vercel serve the static content
     return undefined;
   } catch {
     // Invalid or expired JWT — clear cookie and redirect to login

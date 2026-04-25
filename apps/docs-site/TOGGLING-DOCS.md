@@ -156,8 +156,8 @@ pnpm start
 | start-here | Disabled | Folded into homepage for go-live |
 | anvil      | Enabled  | Primary product                  |
 | aps        | Enabled  | OSS spec                         |
-| kindling   | Disabled | Hidden until post-launch         |
-| edda-stack | Disabled | Hidden until post-launch         |
+| kindling   | Enabled  | Public docs are live             |
+| edda-stack | Enabled  | Public docs are live             |
 
 ## Checklist for Disabling a Section
 

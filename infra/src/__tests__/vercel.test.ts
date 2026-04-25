@@ -7,6 +7,7 @@ vi.mock('../../src/keyvault.js', () => ({
       'anvil-api-database-url': 'mock-database-url',
       'resend-api-key': 'mock-resend-key',
       'anvil-admin-key': 'mock-admin-key',
+      'admin-key-pepper': 'mock-admin-pepper',
       'waitlist-resend-admin-token': 'mock-waitlist-token',
       'resend-waitlist-audience-id': 'mock-waitlist-audience-id',
       'resend-beta-audience-id': 'mock-beta-audience-id',
@@ -92,5 +93,16 @@ describe('Vercel resources', () => {
 
     const resend = envVars.find((e) => e.inputs.key === 'RESEND_API_KEY');
     expect(resend).toBeDefined();
+  });
+
+  it('wires ADMIN_KEY_PEPPER + ADMIN_PER_OPERATOR_KEYS into anvil-api', () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    const pepper = envVars.find((e) => e.inputs.key === 'ADMIN_KEY_PEPPER');
+    expect(pepper).toBeDefined();
+
+    const flag = envVars.find((e) => e.inputs.key === 'ADMIN_PER_OPERATOR_KEYS');
+    expect(flag).toBeDefined();
   });
 });

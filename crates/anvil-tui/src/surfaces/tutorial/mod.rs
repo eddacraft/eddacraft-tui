@@ -10,9 +10,18 @@ pub mod verify;
 pub mod watch_demo;
 pub mod watch_demo_render;
 
+use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use discovery::ScanResults;
 use eddacraft_tui::keyboard::Action;
 use verify::{Verify, VerifyResult};
+
+use crate::surfaces::notifications::{NotificationSource, surface_notification};
+
+/// Notice rendered when the file watcher can't be started and the tutorial
+/// falls back to static mode. Shared between `anvil tutorial` and
+/// `anvil welcome` so both entry points surface the same cause.
+pub const STATIC_MODE_WATCHER_UNAVAILABLE: &str =
+    "Live file watcher unavailable \u{2014} file saves won't retrigger checks.";
 
 /// Available tutorial paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,29 +35,32 @@ pub enum TutorialPath {
 impl TutorialPath {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Policy => "Policy",
-            Self::Architecture => "Architecture",
-            Self::Drift => "Drift",
-            Self::CI => "CI Integration",
+            Self::Policy => "Policy checks",
+            Self::Architecture => "Boundary findings",
+            Self::Drift => "Configuration drift",
+            Self::CI => "CI gate integration",
         }
     }
 
     pub fn from_label(s: &str) -> Option<Self> {
+        // Legacy labels ("Policy", "Architecture", "Drift", "CI Integration")
+        // are kept so progress files written by older builds still round-trip
+        // into the correct enum variant after the onboarding rename.
         match s {
-            "Policy" => Some(Self::Policy),
-            "Architecture" => Some(Self::Architecture),
-            "Drift" => Some(Self::Drift),
-            "CI Integration" => Some(Self::CI),
+            "Policy checks" | "Policy" => Some(Self::Policy),
+            "Boundary findings" | "Architecture" => Some(Self::Architecture),
+            "Configuration drift" | "Drift" => Some(Self::Drift),
+            "CI gate integration" | "CI Integration" => Some(Self::CI),
             _ => None,
         }
     }
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::Policy => "Learn to write and test gate policies",
-            Self::Architecture => "Set up architecture boundary enforcement",
-            Self::Drift => "Capture and compare configuration drift snapshots",
-            Self::CI => "Integrate Anvil checks into your CI pipeline",
+            Self::Policy => "Define checks that produce findings and influence the gate",
+            Self::Architecture => "See how boundary checks turn imports into actionable findings",
+            Self::Drift => "Capture state changes and review the findings between snapshots",
+            Self::CI => "Carry checks, findings, and gate outcomes into your delivery workflow",
         }
     }
 }
@@ -166,6 +178,13 @@ impl TutorialState {
         self.static_mode = true;
         self.static_notice =
             Some("Interactive mode unavailable \u{2014} showing guided walkthrough.".to_string());
+    }
+
+    /// Enable static mode with a caller-supplied notice so the user sees the
+    /// specific cause (e.g. watcher failed) instead of the generic fallback.
+    pub fn enable_static_mode_with_reason(&mut self, reason: impl Into<String>) {
+        self.static_mode = true;
+        self.static_notice = Some(reason.into());
     }
 
     /// Set which paths the user has previously completed (loaded from
@@ -533,6 +552,81 @@ impl Default for TutorialState {
     }
 }
 
+impl NotificationSource for TutorialState {
+    fn notifications(&self) -> Vec<Notification> {
+        let mut out = Vec::new();
+
+        if let Some(notice) = self.static_notice.as_ref() {
+            out.push(surface_notification(
+                "tutorial",
+                NotificationClass::Warning,
+                NotificationPriority::High,
+                "Interactive mode unavailable",
+                notice,
+            ));
+        }
+
+        if let Some(notice) = self.resuming_notice.as_ref() {
+            out.push(surface_notification(
+                "tutorial",
+                NotificationClass::Info,
+                NotificationPriority::Normal,
+                "Tutorial resumed",
+                notice,
+            ));
+        }
+
+        // Only emit step-level failures while the tutorial is actively
+        // running on a non-completed step. Once a step is skipped or the
+        // phase flips to Complete, its stored `output`/`verify_result` are
+        // stale and must not re-surface as live failures (adversarial F-002).
+        if self.phase == TutorialPhase::Running
+            && let Some(step) = self.steps.get(self.current_step)
+            && !step.completed
+        {
+            if let Some(output) = &step.output
+                && !output.success
+            {
+                // Do NOT echo stderr into the notification message. stderr
+                // from shell commands regularly contains absolute paths,
+                // credential-helper output, and $HOME/username — shipping
+                // it via NotificationSource would leak that to every
+                // telemetry subscriber (CWE-209). Keep the raw stderr on
+                // `step.output` for local TUI rendering only.
+                let message = format!(
+                    "{} failed with exit code {}",
+                    step.title,
+                    output.exit_code.unwrap_or(-1),
+                );
+                out.push(surface_notification(
+                    "tutorial",
+                    NotificationClass::Failure,
+                    NotificationPriority::High,
+                    "Tutorial step failed",
+                    message,
+                ));
+            }
+            if matches!(step.verify_result, Some(VerifyResult::Fail(_))) {
+                // verify_hint is author-controlled (tutorial path definitions),
+                // not user input, so it is safe to surface verbatim.
+                let hint = step
+                    .verify_hint
+                    .as_deref()
+                    .unwrap_or("Verification failed.");
+                out.push(surface_notification(
+                    "tutorial",
+                    NotificationClass::Failure,
+                    NotificationPriority::High,
+                    "Verification failed",
+                    hint.to_string(),
+                ));
+            }
+        }
+
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -720,10 +814,10 @@ mod tests {
 
     #[test]
     fn path_labels() {
-        assert_eq!(TutorialPath::Policy.label(), "Policy");
-        assert_eq!(TutorialPath::Architecture.label(), "Architecture");
-        assert_eq!(TutorialPath::Drift.label(), "Drift");
-        assert_eq!(TutorialPath::CI.label(), "CI Integration");
+        assert_eq!(TutorialPath::Policy.label(), "Policy checks");
+        assert_eq!(TutorialPath::Architecture.label(), "Boundary findings");
+        assert_eq!(TutorialPath::Drift.label(), "Configuration drift");
+        assert_eq!(TutorialPath::CI.label(), "CI gate integration");
     }
 
     // --- Command execution tests ---
@@ -1036,6 +1130,17 @@ mod tests {
     }
 
     #[test]
+    fn enable_static_mode_with_reason_overrides_notice() {
+        let mut state = TutorialState::new();
+        state.enable_static_mode_with_reason("watcher failed: inotify limit reached");
+        assert!(state.static_mode);
+        assert_eq!(
+            state.static_notice.as_deref(),
+            Some("watcher failed: inotify limit reached")
+        );
+    }
+
+    #[test]
     fn static_mode_select_advances_command_step_without_executing() {
         let mut state = state_with_command_step("echo should_not_run");
         state.enable_static_mode();
@@ -1158,6 +1263,25 @@ mod tests {
             assert_eq!(TutorialPath::from_label(path.label()), Some(*path));
         }
         assert_eq!(TutorialPath::from_label("Nonexistent"), None);
+    }
+
+    #[test]
+    fn from_label_accepts_legacy_labels() {
+        // Pre-rename progress files still need to resume into the matching
+        // enum variant after the labels were reframed for onboarding clarity.
+        assert_eq!(
+            TutorialPath::from_label("Policy"),
+            Some(TutorialPath::Policy)
+        );
+        assert_eq!(
+            TutorialPath::from_label("Architecture"),
+            Some(TutorialPath::Architecture)
+        );
+        assert_eq!(TutorialPath::from_label("Drift"), Some(TutorialPath::Drift));
+        assert_eq!(
+            TutorialPath::from_label("CI Integration"),
+            Some(TutorialPath::CI)
+        );
     }
 
     #[test]
@@ -1419,5 +1543,142 @@ mod tests {
         state.wants_fix = true;
         <TutorialState as crate::surface::Surface>::reset(&mut state);
         assert!(!state.wants_fix);
+    }
+
+    // --- NotificationSource impl ---
+
+    #[test]
+    fn notifications_empty_without_notices() {
+        let state = TutorialState::new();
+        assert!(state.notifications().is_empty());
+    }
+
+    #[test]
+    fn notifications_include_static_notice_as_warning() {
+        let mut state = TutorialState::new();
+        state.enable_static_mode_with_reason("watcher unavailable");
+        let notifications = state.notifications();
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(notifications[0].class, NotificationClass::Warning);
+        assert_eq!(notifications[0].priority, NotificationPriority::High);
+        assert_eq!(
+            notifications[0]
+                .context
+                .as_ref()
+                .and_then(|c| c.source.as_deref()),
+            Some("tutorial")
+        );
+    }
+
+    #[test]
+    fn notifications_include_resume_notice_as_info() {
+        let mut state = TutorialState::new();
+        state.resume_path(
+            TutorialPath::Policy,
+            1,
+            &[true, false, false, false, false, false],
+        );
+        let notifications = state.notifications();
+        let resume = notifications
+            .iter()
+            .find(|n| n.title == "Tutorial resumed")
+            .expect("resume notification present");
+        assert_eq!(resume.class, NotificationClass::Info);
+        assert_eq!(resume.priority, NotificationPriority::Normal);
+    }
+
+    #[test]
+    fn notifications_include_failure_when_command_fails() {
+        let mut state = state_with_command_step("exit 1");
+        state.handle_key(Action::Select);
+        let notifications = state.notifications();
+        let failure = notifications
+            .iter()
+            .find(|n| n.class == NotificationClass::Failure)
+            .expect("failure notification present");
+        assert_eq!(failure.priority, NotificationPriority::High);
+        assert_eq!(failure.title, "Tutorial step failed");
+    }
+
+    #[test]
+    fn notifications_include_failure_when_verify_fails() {
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("world".to_string()),
+            "Output should contain world.",
+        );
+        state.handle_key(Action::Select);
+        let notifications = state.notifications();
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Verification failed" && n.class == NotificationClass::Failure),
+            "expected verification failure notification, got {notifications:?}"
+        );
+    }
+
+    #[test]
+    fn notifications_never_echo_stderr_contents() {
+        // Security regression (CWE-209): failed-command notifications must
+        // never embed the step's stderr, which frequently contains absolute
+        // paths, credential-helper output, or $HOME/username fragments.
+        let mut state = state_with_command_step("/bin/sh -c 'exit 7'");
+        state.steps[0].output = Some(CommandOutput {
+            stdout: String::new(),
+            stderr: "/home/secret-user/work/tokens/.env: permission denied".to_string(),
+            success: false,
+            exit_code: Some(7),
+        });
+        let notifications = state.notifications();
+        for n in &notifications {
+            assert!(
+                !n.message.contains("secret-user"),
+                "notification leaked $HOME fragment: {:?}",
+                n.message
+            );
+            assert!(
+                !n.message.contains("/home/"),
+                "notification leaked absolute path: {:?}",
+                n.message
+            );
+            assert!(
+                !n.message.contains("permission denied"),
+                "notification leaked stderr text: {:?}",
+                n.message
+            );
+        }
+        // And we still report a failure — with the sanitised message.
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Tutorial step failed" && n.message.contains("exit code 7")),
+            "expected sanitised failure notification, got {notifications:?}"
+        );
+    }
+
+    #[test]
+    fn notifications_suppressed_after_verify_fail_skip_complete() {
+        // Adversarial F-002: after verify-fail -> skip -> phase=Complete,
+        // advance_step() doesn't clear step.verify_result, but notifications()
+        // must not re-surface the stale failure because the tutorial is done.
+        let mut state = state_with_verified_step(
+            "echo hello",
+            Verify::OutputContains("world".to_string()),
+            "Output should contain world.",
+        );
+        state.handle_key(Action::Select); // command succeeds, verify fails
+        assert!(state.current_step_failed());
+
+        state.handle_key(Action::Character('s')); // skip
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+
+        let notifications = state.notifications();
+        assert!(
+            !notifications
+                .iter()
+                .any(|n| n.class == NotificationClass::Failure),
+            "completed tutorial must not emit Failure notifications: {notifications:?}",
+        );
     }
 }

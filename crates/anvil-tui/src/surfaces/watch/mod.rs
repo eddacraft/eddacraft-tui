@@ -3,7 +3,24 @@ pub mod render;
 
 use std::collections::VecDeque;
 
+use animate::{Animate, Lerp, Once};
+use anvil_kernel_types::{Notification, NotificationContext};
 use eddacraft_tui::keyboard::Action;
+
+use crate::surfaces::notifications::NotificationSource;
+
+type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+
+const ANIM_DURATION_MS: f64 = 250.0;
+
+fn animated_f64(initial: f64) -> AnimatedF64 {
+    Once::new(
+        initial,
+        ANIM_DURATION_MS,
+        animate::easing::quad_out as fn(f64) -> f64,
+        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+    )
+}
 
 /// Current watch mode status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,11 +51,10 @@ impl WatchStatus {
     }
 }
 
-/// A file change queued for processing.
+/// A notification queued for processing.
 #[derive(Debug, Clone)]
-pub struct QueuedChange {
-    pub file: String,
-    pub kind: String,
+pub struct QueuedNotification {
+    pub notification: Notification,
     pub timestamp: String,
 }
 
@@ -65,7 +81,7 @@ pub struct WatchStats {
 #[derive(Debug, Clone)]
 pub struct WatchData {
     pub status: WatchStatus,
-    pub queue: VecDeque<QueuedChange>,
+    pub queue: VecDeque<QueuedNotification>,
     pub history: Vec<RunHistory>,
     pub stats: WatchStats,
 }
@@ -118,27 +134,31 @@ pub struct WatchState {
     pub selected_item: usize,
     pub should_quit: bool,
     pub wants_back: bool,
+    pub(crate) anim_pass_rate: AnimatedF64,
+    pub(crate) anim_pass_rate_target: f64,
+    pub(crate) anim_avg_duration_ms: AnimatedF64,
+    pub(crate) anim_avg_duration_target: f64,
     /// Set when state changes; consumed by `take_dirty()` before redraw.
     /// Use `mark_dirty()` / `take_dirty()` — field is crate-visible for tests.
     pub(crate) dirty: bool,
 }
 
 impl WatchState {
-    pub fn surface_name(&self) -> &'static str {
-        "w a t c h"
-    }
-
-    pub fn help_text(&self) -> &'static str {
-        "h/l j/k panels  esc back  q quit"
-    }
-
     pub fn new(data: WatchData) -> Self {
+        let pass_rate = data.stats.pass_rate;
+        #[allow(clippy::cast_precision_loss)]
+        let avg_duration_ms = data.stats.avg_duration_ms as f64;
+
         Self {
             data,
             focused_panel: WatchPanel::Status,
             selected_item: 0,
             should_quit: false,
             wants_back: false,
+            anim_pass_rate: animated_f64(pass_rate),
+            anim_pass_rate_target: pass_rate,
+            anim_avg_duration_ms: animated_f64(avg_duration_ms),
+            anim_avg_duration_target: avg_duration_ms,
             dirty: true, // render immediately on first frame
         }
     }
@@ -159,6 +179,23 @@ impl WatchState {
         std::mem::replace(&mut self.dirty, false)
     }
 
+    pub fn sync_animations(&mut self) {
+        let pass_rate = self.data.stats.pass_rate;
+        if (pass_rate - self.anim_pass_rate_target).abs() > f64::EPSILON {
+            self.anim_pass_rate.set(pass_rate);
+            self.anim_pass_rate_target = pass_rate;
+        }
+        self.anim_pass_rate.update();
+
+        #[allow(clippy::cast_precision_loss)]
+        let avg_duration = self.data.stats.avg_duration_ms as f64;
+        if (avg_duration - self.anim_avg_duration_target).abs() > f64::EPSILON {
+            self.anim_avg_duration_ms.set(avg_duration);
+            self.anim_avg_duration_target = avg_duration;
+        }
+        self.anim_avg_duration_ms.update();
+    }
+
     fn max_items_in_panel(&self) -> usize {
         match self.focused_panel {
             WatchPanel::Status | WatchPanel::Stats => 0,
@@ -170,15 +207,30 @@ impl WatchState {
     pub fn handle_key(&mut self, action: Action) {
         match action {
             Action::Up => {
-                if self.selected_item > 0 {
+                // Scroll within the panel while there are items above; once
+                // at the top (or on item-less panels like Status/Stats),
+                // spill over to the panel in the row above so arrow keys
+                // navigate the 2×2 grid without needing PgUp/PgDn.
+                if self.max_items_in_panel() > 0 && self.selected_item > 0 {
                     self.selected_item -= 1;
+                    self.mark_dirty();
+                } else {
+                    self.focused_panel = self.focused_panel.up();
+                    self.selected_item = 0;
                     self.mark_dirty();
                 }
             }
             Action::Down => {
+                // Scroll within the panel while there are items below; once
+                // at the bottom (or on item-less panels), spill over to the
+                // panel in the row below.
                 let max = self.max_items_in_panel().saturating_sub(1);
-                if self.selected_item < max {
+                if self.max_items_in_panel() > 0 && self.selected_item < max {
                     self.selected_item += 1;
+                    self.mark_dirty();
+                } else {
+                    self.focused_panel = self.focused_panel.down();
+                    self.selected_item = 0;
                     self.mark_dirty();
                 }
             }
@@ -215,13 +267,40 @@ impl WatchState {
     }
 }
 
+impl NotificationSource for WatchState {
+    fn notifications(&self) -> Vec<Notification> {
+        // Per the telemetry stream contract, `correlation.source` must equal
+        // `notification.context.source`. Queue notifications produced by the
+        // event adapter already carry `source = "watch"`, but the trait impl
+        // defensively backfills the context so any future producer path (or
+        // test fixture that constructs QueuedNotification directly) can't
+        // leak a `source: None` event through this surface.
+        self.data
+            .queue
+            .iter()
+            .map(|q| {
+                let mut n = q.notification.clone();
+                let needs_source = n.context.as_ref().is_none_or(|c| c.source.is_none());
+                if needs_source {
+                    let file = n.context.as_ref().and_then(|c| c.file.clone());
+                    n.context = Some(NotificationContext {
+                        file,
+                        source: Some("watch".to_string()),
+                    });
+                }
+                n
+            })
+            .collect()
+    }
+}
+
 impl crate::surface::Surface for WatchState {
     fn surface_name(&self) -> &'static str {
         "Watch"
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  PgUp/PgDn row  esc back  q quit"
+        "\u{2191}\u{2193}/jk scroll  \u{2190}\u{2192}/hl panel  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: eddacraft_tui::keyboard::Action) {
@@ -255,19 +334,28 @@ impl crate::surface::Surface for WatchState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel_types::{NotificationClass, NotificationPriority};
 
     fn sample_data() -> WatchData {
         WatchData {
             status: WatchStatus::Passing,
             queue: VecDeque::from([
-                QueuedChange {
-                    file: "src/main.rs".to_string(),
-                    kind: "modified".to_string(),
+                QueuedNotification {
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/main.rs",
+                        "modified",
+                    ),
                     timestamp: "10:30:01".to_string(),
                 },
-                QueuedChange {
-                    file: "src/lib.rs".to_string(),
-                    kind: "created".to_string(),
+                QueuedNotification {
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/lib.rs",
+                        "created",
+                    ),
                     timestamp: "10:30:02".to_string(),
                 },
             ]),
@@ -363,13 +451,10 @@ mod tests {
         state.handle_key(Action::Down);
         assert_eq!(state.selected_item, 1);
 
-        state.handle_key(Action::Down); // at max
-        assert_eq!(state.selected_item, 1);
-
-        state.handle_key(Action::Up);
-        assert_eq!(state.selected_item, 0);
-
-        state.handle_key(Action::Up); // at min
+        // At the bottom of the Queue list — another Down spills over to the
+        // panel in the row below (Stats).
+        state.handle_key(Action::Down);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
         assert_eq!(state.selected_item, 0);
     }
 
@@ -382,8 +467,35 @@ mod tests {
         assert_eq!(state.selected_item, 1);
         state.handle_key(Action::Down);
         assert_eq!(state.selected_item, 2);
-        state.handle_key(Action::Down); // at max
-        assert_eq!(state.selected_item, 2);
+
+        // At the bottom of the History list — another Down spills to the
+        // panel in the row below (which wraps back to Status).
+        state.handle_key(Action::Down);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
+        assert_eq!(state.selected_item, 0);
+    }
+
+    #[test]
+    fn arrow_up_at_top_of_list_spills_to_row_above() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::History;
+        state.selected_item = 0;
+
+        // Up at top of History list should spill up to Status.
+        state.handle_key(Action::Up);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
+        assert_eq!(state.selected_item, 0);
+    }
+
+    #[test]
+    fn arrow_down_at_bottom_of_list_spills_to_row_below() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.selected_item = state.data.queue.len() - 1;
+
+        // Down at bottom of Queue list should spill to Stats (row below).
+        state.handle_key(Action::Down);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
     }
 
     #[test]
@@ -483,39 +595,45 @@ mod tests {
     }
 
     #[test]
-    fn noop_scroll_stays_clean_queue() {
+    fn edge_scroll_spills_to_adjacent_row_queue() {
         let mut state = WatchState::new(sample_data());
         state.focused_panel = WatchPanel::Queue;
         state.selected_item = 0;
         state.dirty = false;
 
-        // Up at top — no change
+        // Up at top of Queue spills to the panel above (Stats — up wraps).
         state.handle_key(Action::Up);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
 
-        // Down to max
+        // Down at bottom of Queue spills to the panel below (Stats again).
+        state.focused_panel = WatchPanel::Queue;
         state.selected_item = state.data.queue.len() - 1;
         state.dirty = false;
         state.handle_key(Action::Down);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Stats);
     }
 
     #[test]
-    fn noop_scroll_stays_clean_history() {
+    fn edge_scroll_spills_to_adjacent_row_history() {
         let mut state = WatchState::new(sample_data());
         state.focused_panel = WatchPanel::History;
         state.selected_item = 0;
         state.dirty = false;
 
-        // Up at top — no change
+        // Up at top of History spills up to Status.
         state.handle_key(Action::Up);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
 
-        // Down to max
+        // Down at bottom of History spills down (wraps to Status).
+        state.focused_panel = WatchPanel::History;
         state.selected_item = state.data.history.len() - 1;
         state.dirty = false;
         state.handle_key(Action::Down);
-        assert!(!state.dirty);
+        assert!(state.dirty);
+        assert_eq!(state.focused_panel, WatchPanel::Status);
     }
 
     #[test]
@@ -545,5 +663,32 @@ mod tests {
         assert!(!state.should_quit);
         assert!(!state.wants_back);
         assert!(state.dirty); // reset restores dirty for re-entry
+    }
+
+    #[test]
+    fn notification_source_exposes_queue() {
+        let state = WatchState::new(sample_data());
+        let notifications = state.notifications();
+        assert_eq!(notifications.len(), 2);
+        assert_eq!(notifications[0].title, "src/main.rs");
+        assert_eq!(notifications[1].title, "src/lib.rs");
+    }
+
+    #[test]
+    fn notification_source_backfills_source_context() {
+        // Adversarial F-003: emitted notifications must satisfy the telemetry
+        // producer contract `correlation.source == notification.context.source`.
+        // sample_data constructs queue items without a context — the trait
+        // impl must inject `source="watch"` so subscribers see a valid source.
+        let state = WatchState::new(sample_data());
+        let notifications = state.notifications();
+        for n in &notifications {
+            let source = n.context.as_ref().and_then(|c| c.source.as_deref());
+            assert_eq!(
+                source,
+                Some("watch"),
+                "emitted notification missing source=watch: {n:?}",
+            );
+        }
     }
 }

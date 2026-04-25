@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-policy",
-  "version": "0.3.3-beta",
+  "version": "0.4.0-beta",
   "description": "OPA/Rego wrappers depending on contracts",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,7 +21,7 @@
     "tar": "^7.5.13"
   },
   "devDependencies": {
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.5"
   },
   "keywords": [
     "anvil",

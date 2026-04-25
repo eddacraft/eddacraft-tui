@@ -1,14 +1,35 @@
 use std::path::Path;
 
 /// Determines whether a file path should be processed or ignored.
+///
+/// `respect_extensions` controls whether the parseable-extension gate is
+/// applied in [`Self::should_process`]. When the caller has its own scoping
+/// criterion (e.g. the user passed `--patterns '**/*.rs'` to `anvil watch`),
+/// the hardcoded ts/js extension list must yield to the user's globs —
+/// otherwise events for non-JS files are dropped before the user's pattern
+/// matcher ever sees them. Default is `true` to preserve existing behaviour.
 #[derive(Debug, Clone)]
 pub struct FileFilter {
     ignore_patterns: Vec<String>,
+    respect_extensions: bool,
 }
 
 impl FileFilter {
     pub fn new(ignore_patterns: Vec<String>) -> Self {
-        Self { ignore_patterns }
+        Self {
+            ignore_patterns,
+            respect_extensions: true,
+        }
+    }
+
+    /// Build a filter that bypasses the parseable-extension gate. Use this
+    /// when the caller has its own scoping criterion (e.g. user-supplied
+    /// `--patterns` globs) and the hardcoded ts/js list would silently drop
+    /// matching events.
+    #[must_use]
+    pub fn with_respect_extensions(mut self, respect: bool) -> Self {
+        self.respect_extensions = respect;
+        self
     }
 
     /// Default ignore patterns for typical projects.
@@ -46,9 +67,23 @@ impl FileFilter {
         )
     }
 
-    /// Combined check: not ignored AND has a parseable extension.
+    /// Combined check: not ignored AND a plausible file path.
+    ///
+    /// In default mode (`respect_extensions = true`), restricts to the
+    /// hardcoded ts/js parseable list. In bypass mode (caller supplied
+    /// scoped patterns), still requires the path to have *some* extension
+    /// so directory `Create` events and bare paths cannot reach the parser
+    /// pipeline — only the JS/TS extension restriction yields, not the
+    /// "must look like a file" floor.
     pub fn should_process(&self, path: &Path) -> bool {
-        !self.should_ignore(path) && self.is_parseable(path)
+        if self.should_ignore(path) {
+            return false;
+        }
+        if self.respect_extensions {
+            self.is_parseable(path)
+        } else {
+            path.extension().is_some()
+        }
     }
 }
 
@@ -143,5 +178,39 @@ mod tests {
         assert!(filter.should_ignore(Path::new("vendor/lib.ts")));
         assert!(filter.should_ignore(Path::new("tmp/scratch.ts")));
         assert!(!filter.should_ignore(Path::new("node_modules/x.ts")));
+    }
+
+    #[test]
+    fn respect_extensions_disabled_passes_non_parseable_files() {
+        // When the caller scopes by user-supplied globs, the parseable gate
+        // must yield — otherwise `anvil watch --patterns '**/*.rs'` in a
+        // Rust repo drops every event before the user's pattern matcher
+        // sees it.
+        let filter = FileFilter::default().with_respect_extensions(false);
+        assert!(filter.should_process(Path::new("src/main.rs")));
+        assert!(filter.should_process(Path::new("Cargo.toml")));
+        assert!(filter.should_process(Path::new("README.md")));
+        // Denylist still applies regardless of the extension gate.
+        assert!(!filter.should_process(Path::new("node_modules/foo.rs")));
+    }
+
+    #[test]
+    fn respect_extensions_disabled_still_rejects_directory_paths() {
+        // Bypass mode must still keep directory `Create` events and bare
+        // paths out of the parser pipeline — relaxing the JS/TS gate is not
+        // the same as relaxing the "must look like a file" floor.
+        let filter = FileFilter::default().with_respect_extensions(false);
+        assert!(!filter.should_process(Path::new("src")));
+        assert!(!filter.should_process(Path::new("crates/anvil-cli/src")));
+        assert!(!filter.should_process(Path::new("Makefile")));
+        // Denylist still applies — a denylisted directory remains rejected.
+        assert!(!filter.should_process(Path::new("target/debug/anvil")));
+    }
+
+    #[test]
+    fn respect_extensions_default_keeps_ts_js_only() {
+        let filter = FileFilter::default();
+        assert!(filter.should_process(Path::new("src/main.ts")));
+        assert!(!filter.should_process(Path::new("src/main.rs")));
     }
 }

@@ -23,7 +23,7 @@ import {
   type DriftSnapshot,
 } from '@eddacraft/anvil-core/drift';
 import { createE2EWorkspace, type E2EWorkspace } from '../helpers/workspace.js';
-import { makeSourceWithSecret } from '../helpers/fixtures.js';
+import { makeSourceWithAntipatterns } from '../helpers/fixtures.js';
 
 let ws: E2EWorkspace;
 
@@ -31,7 +31,7 @@ beforeAll(() => {
   ws = createE2EWorkspace({
     files: {
       'src/clean.ts': 'export const x = 1;\n',
-      'src/dirty.ts': makeSourceWithSecret(),
+      'src/dirty.ts': makeSourceWithAntipatterns(),
     },
   });
 });
@@ -44,11 +44,16 @@ describe('Anti-pattern Scanning', () => {
     expect(patterns.length).toBeGreaterThan(0);
   });
 
-  it('scanFile detects secrets in dirty source', () => {
+  it('scanFile detects the antipatterns embedded in the dirty fixture', () => {
     const filePath = join(ws.root, 'src/dirty.ts');
-    const result: ScanResult = scanFile(filePath, makeSourceWithSecret());
-    // Should find at least one warning about the hardcoded secret
-    expect(result.warnings.length).toBeGreaterThan(0);
+    const result: ScanResult = scanFile(filePath, makeSourceWithAntipatterns());
+    // The fixture embeds AP-003 (any), AP-004 (@ts-ignore), AP-006 (empty
+    // catch) and AP-007 (console). At least one must fire for this fixture
+    // to remain a meaningful drift-signal source.
+    const firedIds = new Set(result.warnings.map((w) => w.id));
+    const expected = ['AP-003', 'AP-004', 'AP-006', 'AP-007'];
+    const hits = expected.filter((id) => firedIds.has(id));
+    expect(hits.length).toBeGreaterThan(0);
   });
 
   it('scanFile produces no warnings for clean source', () => {
@@ -60,7 +65,7 @@ describe('Anti-pattern Scanning', () => {
   it('scanFiles aggregates results across multiple files', () => {
     const results = scanFiles([
       { path: join(ws.root, 'src/clean.ts'), content: 'export const x = 1;\n' },
-      { path: join(ws.root, 'src/dirty.ts'), content: makeSourceWithSecret() },
+      { path: join(ws.root, 'src/dirty.ts'), content: makeSourceWithAntipatterns() },
     ]);
     expect(results.length).toBe(2);
     const totalWarnings = results.reduce(
@@ -75,7 +80,9 @@ describe('Drift Snapshots', () => {
   it('createEmptySnapshot returns a valid snapshot', () => {
     const snapshot = createEmptySnapshot();
     expect(snapshot).toBeDefined();
-    expect(validateSnapshot(snapshot)).toBe(true);
+    // validateSnapshot returns { success, data?, error? } — success === true means valid.
+    const result = validateSnapshot(snapshot);
+    expect(result.success).toBe(true);
   });
 
   it('comparing two identical snapshots shows no drift', () => {

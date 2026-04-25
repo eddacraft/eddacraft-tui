@@ -1,5 +1,9 @@
 # Add files here to ignore them from prettier formatting
 /dist
+# Vendored Nx plugin compiles to dist/ that we commit (so Nx can load the
+# plugin at startup before any install-time build step). Skip formatting
+# on its compiled output — source under tools/nx-rust/src/ stays formatted.
+tools/nx-rust/dist/
 **/coverage
 /.nx/cache
 /.nx/workspace-data
@@ -18,3 +22,12 @@ pnpm-lock.yaml
 # Claude Code dev tooling — agents, hooks, council sessions, skills
 .claude/
 archive/
+# cargo-about Handlebars template — oxfmt parses .hbs as Glimmer and rejects
+# handlebars parent-scope access like {{../name}}. Template is authoritative.
+about.hbs
+# ACKNOWLEDGEMENTS.md has a hand-curated top + auto-generated attribution
+# block; tools/generate-acknowledgements.sh is the source of truth.
+ACKNOWLEDGEMENTS.md
+# workspace-hack Cargo.toml is generated and rewritten by cargo-hakari;
+# oxfmt and hakari disagree on TOML style. Hakari owns this file.
+crates/workspace-hack/Cargo.toml

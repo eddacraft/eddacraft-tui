@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-mcp-server",
-  "version": "0.3.3-beta",
+  "version": "0.4.0-beta",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,6 +30,6 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.5"
   }
 }

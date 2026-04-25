@@ -1,20 +1,15 @@
-import { AdminClient, AdminError } from '../client.js';
+import { RevokeResponseSchema, type RevokeResponse } from '@eddacraft/admin-contracts';
+import { AdminClient, AdminError, type AdminWriter } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess } from '../format.js';
 import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
+
+export type { RevokeResponse };
 
 export interface RevokeOptions extends ConfigFlags {
   token?: string;
   yes?: boolean;
   json?: boolean;
-}
-
-export interface RevokeResponse {
-  revoked: number;
-}
-
-export interface AdminWriter {
-  post<T>(path: string, body?: unknown): Promise<T>;
 }
 
 export interface RevokeDeps {
@@ -64,13 +59,14 @@ export async function runRevokeCommand(
     );
     const answer = (await prompt(`> `)).trim();
     if (answer !== CONFIRM_WORD) {
-      stdout('Aborted.\n');
+      // #948: route abort notice to stderr when --json so stdout stays pure JSON.
+      (options.json ? stderr : stdout)('Aborted.\n');
       return;
     }
   }
 
   const body = hasEmail ? { email } : { token: options.token };
-  const result = await client.post<RevokeResponse>('/admin/revoke', body);
+  const result = await client.post('/admin/revoke', body, RevokeResponseSchema);
 
   if (options.json) {
     stdout(formatJson(result) + '\n');

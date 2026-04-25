@@ -55,7 +55,7 @@ fn render_status_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme:
         WatchStatus::Failing => theme.error(),
     };
 
-    let lines = vec![
+    let mut lines = vec![
         Line::default(),
         Line::from(vec![
             Span::styled(
@@ -77,6 +77,22 @@ fn render_status_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme:
             Style::default().fg(theme.muted()),
         )),
     ];
+
+    // When failing, surface the most recent violation/error so the user
+    // doesn't have to switch panels to see what went wrong.
+    if matches!(status, WatchStatus::Failing)
+        && let Some(last) = state.data.queue.back()
+    {
+        lines.push(Line::default());
+        lines.push(Line::from(Span::styled(
+            format!("  {}", last.notification.title),
+            Style::default().fg(theme.error()),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("  {}", last.notification.message),
+            Style::default().fg(theme.muted()),
+        )));
+    }
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
@@ -108,7 +124,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
             Line::from(vec![
                 Span::styled(indicator, Style::default().fg(theme.fg())),
                 Span::styled(
-                    &change.file,
+                    &change.notification.title,
                     if selected {
                         Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
                     } else {
@@ -116,14 +132,23 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
                     },
                 ),
                 Span::styled(
-                    format!("  {} {}", change.kind, change.timestamp),
+                    format!("  {} {}", change.notification.message, change.timestamp),
                     Style::default().fg(theme.muted()),
                 ),
             ])
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    // `selected_item` is shared across panels, so only apply scroll when
+    // this panel is focused — otherwise navigating in a sibling panel
+    // would scroll the Queue view even though its own selection cursor
+    // is parked at 0.
+    let scroll = if focused {
+        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+    } else {
+        0
+    };
+    frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
 }
 
 fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
@@ -179,7 +204,28 @@ fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    // See `render_queue_panel` — only apply scroll when focused so an
+    // unselected History panel doesn't scroll in sympathy with Queue
+    // navigation.
+    let scroll = if focused {
+        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+    } else {
+        0
+    };
+    frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
+}
+
+/// Compute a vertical scroll offset that keeps `selected` visible inside a
+/// panel of `height` rows containing `total` lines. Returns 0 when the panel
+/// can fit everything.
+fn scroll_offset_for(selected: usize, total: usize, height: u16) -> u16 {
+    let height = height as usize;
+    if total <= height || height == 0 {
+        return 0;
+    }
+    let max_offset = total - height;
+    let offset = selected.saturating_sub(height.saturating_sub(1));
+    u16::try_from(offset.min(max_offset)).unwrap_or(u16::MAX)
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -190,9 +236,12 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
     frame.render_widget(block, area);
 
     let watch_stats = &state.data.stats;
-    let pass_colour = if watch_stats.pass_rate >= 0.8 {
+    let display_pass_rate = (*state.anim_pass_rate).clamp(0.0, 1.0);
+    let display_avg_duration = (*state.anim_avg_duration_ms).max(0.0);
+
+    let pass_colour = if display_pass_rate >= 0.8 {
         theme.success()
-    } else if watch_stats.pass_rate >= 0.5 {
+    } else if display_pass_rate >= 0.5 {
         theme.warning()
     } else {
         theme.error()
@@ -209,7 +258,7 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         Line::from(vec![
             Span::styled("  Pass rate:    ", Style::default().fg(theme.muted())),
             Span::styled(
-                format!("{:.0}%", watch_stats.pass_rate * 100.0),
+                format!("{:.0}%", display_pass_rate * 100.0),
                 Style::default()
                     .fg(pass_colour)
                     .add_modifier(Modifier::BOLD),
@@ -218,7 +267,7 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         Line::from(vec![
             Span::styled("  Avg duration: ", Style::default().fg(theme.muted())),
             Span::styled(
-                format!("{}ms", watch_stats.avg_duration_ms),
+                format!("{display_avg_duration:.0}ms"),
                 Style::default().fg(theme.fg()),
             ),
         ]),
@@ -241,19 +290,28 @@ mod tests {
     use ratatui::backend::TestBackend;
 
     fn sample_state() -> WatchState {
-        use super::super::{QueuedChange, RunHistory, WatchData, WatchStats};
+        use super::super::{QueuedNotification, RunHistory, WatchData, WatchStats};
+        use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 
         WatchState::new(WatchData {
             status: WatchStatus::Passing,
             queue: std::collections::VecDeque::from([
-                QueuedChange {
-                    file: "src/main.rs".to_string(),
-                    kind: "modified".to_string(),
+                QueuedNotification {
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/main.rs",
+                        "modified",
+                    ),
                     timestamp: "10:30:01".to_string(),
                 },
-                QueuedChange {
-                    file: "src/lib.rs".to_string(),
-                    kind: "created".to_string(),
+                QueuedNotification {
+                    notification: Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        "src/lib.rs",
+                        "created",
+                    ),
                     timestamp: "10:30:02".to_string(),
                 },
             ]),

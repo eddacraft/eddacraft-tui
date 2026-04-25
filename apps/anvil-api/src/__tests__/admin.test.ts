@@ -40,6 +40,11 @@ vi.mock('../db/queries.js', () => ({
   findWaitlistPaginated: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   findAuditEntries: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   findRecentAuditForEmail: vi.fn().mockResolvedValue([]),
+  insertSendMigrationSnapshot: vi.fn(),
+  findSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
+  consumeSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
+  findAdminKeyByHash: vi.fn().mockResolvedValue(null),
+  findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
 }));
 
 // Mock token utilities
@@ -71,7 +76,13 @@ import {
   findWaitlistEntryByEmail,
   findUnapprovedWaitlistEntries,
   insertAuditLog,
+  findWaitlistBySource,
+  insertSendMigrationSnapshot,
+  findSendMigrationSnapshot,
+  consumeSendMigrationSnapshot,
+  findAdminKeyByHash,
 } from '../db/queries.js';
+import { sendWaitlistMigration } from '../lib/email.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -611,7 +622,8 @@ describe('admin endpoints', () => {
         expect.anything(),
         'user.approve.collision',
         expect.any(String),
-        { email: 'alice@example.com' }
+        { email: 'alice@example.com' },
+        'shared'
       );
     });
 
@@ -654,7 +666,8 @@ describe('admin endpoints', () => {
         expect.anything(),
         'user.approve.collision',
         expect.any(String),
-        { email: 'bob@example.com' }
+        { email: 'bob@example.com' },
+        'shared'
       );
     });
   });
@@ -813,6 +826,634 @@ describe('admin endpoints', () => {
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body.error).toBe('User was deleted during update');
+    });
+  });
+
+  describe('POST /admin/send-migration — request validation & auth', () => {
+    it('returns 401 without admin auth', async () => {
+      const res = await app.request('/admin/send-migration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'import', dryRun: true }),
+      });
+
+      expect(res.status).toBe(401);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(vi.mocked(insertSendMigrationSnapshot)).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid source via Zod with 400', async () => {
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'bogus', dryRun: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(vi.mocked(insertSendMigrationSnapshot)).not.toHaveBeenCalled();
+    });
+
+    it('rejects limit above 100 via Zod with 400', async () => {
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'import', dryRun: true, limit: 500 },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+    });
+
+    it('rejects limit below 1 via Zod with 400', async () => {
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'import', dryRun: true, limit: 0 },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+    });
+
+    it('passes the caller-supplied limit through to findWaitlistBySource on dry-run', async () => {
+      vi.mocked(findWaitlistBySource).mockResolvedValue([]);
+      vi.mocked(insertSendMigrationSnapshot).mockResolvedValue({
+        token: 'tk',
+        source: 'import',
+        recipients: [],
+        created_by_actor: 'shared-key@anvil',
+        created_at: '2026-04-17T09:00:00Z',
+        expires_at: '2026-04-17T09:10:00Z',
+        consumed_at: null,
+      });
+
+      const res = await request(
+        'POST',
+        '/admin/send-migration',
+        { source: 'import', dryRun: true, limit: 7 },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findWaitlistBySource)).toHaveBeenCalledWith(expect.anything(), 'import', 7);
+    });
+  });
+
+  describe('POST /admin/send-migration — snapshot token flow', () => {
+    const importedRecipients = [
+      { email: 'alice@example.com', name: 'Alice' },
+      { email: 'bob@example.com', name: null },
+    ];
+
+    function makeSnapshot(overrides: Partial<Record<string, unknown>> = {}) {
+      return {
+        token: 'snap-token-abc',
+        source: 'import',
+        recipients: importedRecipients,
+        created_by_actor: 'josh@arkahna.io',
+        created_at: '2026-04-17T09:00:00Z',
+        expires_at: '2026-04-17T09:10:00Z',
+        consumed_at: null,
+        ...overrides,
+      };
+    }
+
+    describe('dry-run', () => {
+      it('returns previewToken plus the recipient snapshot', async () => {
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(makeSnapshot());
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: true, limit: 20 },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.dryRun).toBe(true);
+        expect(body.source).toBe('import');
+        expect(body.count).toBe(2);
+        expect(body.recipients).toEqual(importedRecipients);
+        expect(body.previewToken).toBe('snap-token-abc');
+        expect(body.expiresAt).toBe('2026-04-17T09:10:00Z');
+
+        const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
+        expect(insertCall).toMatchObject({
+          source: 'import',
+          recipients: importedRecipients,
+          createdByActor: 'shared-key@anvil',
+          ttlSeconds: 600,
+        });
+        expect(typeof insertCall?.token).toBe('string');
+        expect(insertCall?.token.length).toBeGreaterThanOrEqual(16);
+      });
+
+      it('binds the snapshot to the sentinel and ignores X-Admin-Actor on shared-key auth', async () => {
+        vi.mocked(findWaitlistBySource).mockResolvedValue([]);
+        vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({ created_by_actor: 'shared-key@anvil', recipients: [] })
+        );
+
+        // Under ADMINCLIH-002, X-Admin-Actor is no longer trusted as the
+        // creator — shared-key requests always record the sentinel.
+        const res = await app.request('/admin/send-migration', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${ADMIN_KEY}`,
+            'X-Admin-Actor': 'mallory@evil.example',
+          },
+          body: JSON.stringify({ source: 'import', dryRun: true }),
+        });
+
+        expect(res.status).toBe(200);
+        const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
+        expect(insertCall?.createdByActor).toBe('shared-key@anvil');
+      });
+    });
+
+    describe('real-send', () => {
+      it('returns 400 preview_token_required when the token is missing', async () => {
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_required');
+        expect(vi.mocked(consumeSendMigrationSnapshot)).not.toHaveBeenCalled();
+      });
+
+      it('returns 410 preview_token_missing when the token is unknown', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(null);
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'ghost-token' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_missing');
+      });
+
+      it('returns 410 preview_token_missing when a different operator owns the token', async () => {
+        // The find is scoped to (token, actor) in the DB layer, so a
+        // caller who is not the creator receives `missing` — the server
+        // must never confirm to a non-owner that the token exists.
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(null);
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_missing');
+        // Find was called with the caller's actor, not with any
+        // foreign actor — the server does not widen the search.
+        expect(vi.mocked(findSendMigrationSnapshot)).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            token: 'snap-token-abc',
+            actor: expect.any(String),
+          })
+        );
+      });
+
+      it('returns 410 preview_token_consumed when the token was already used', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            consumed_at: '2026-04-17T09:05:00Z',
+          })
+        );
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_consumed');
+      });
+
+      it('returns 410 preview_token_expired when the token is past TTL', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            consumed_at: null,
+            expires_at: '2026-04-17T08:00:00Z',
+          })
+        );
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(410);
+        const body = await res.json();
+        expect(body.code).toBe('preview_token_expired');
+      });
+
+      it('returns 409 cohort_drift with added/removed when the cohort changed', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: [
+              { email: 'alice@example.com', name: 'Alice' },
+              { email: 'bob@example.com', name: null },
+            ],
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue([
+          { email: 'alice@example.com', name: 'Alice' },
+          { email: 'carol@example.com', name: 'Carol' },
+        ]);
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(409);
+        const body = await res.json();
+        expect(body.code).toBe('cohort_drift');
+        expect(body.added).toEqual(['carol@example.com']);
+        expect(body.removed).toEqual(['bob@example.com']);
+        // Must NOT have sent any emails on a drift rejection.
+        expect(vi.mocked(sendWaitlistMigration)).not.toHaveBeenCalled();
+        // And must NOT write an audit log for a send that never happened.
+        expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalled();
+      });
+
+      it('rejects a second real-send with the same token as preview_token_consumed', async () => {
+        // Simulate two back-to-back real-sends racing on the same token.
+        // The first consume wins; the second finds a row whose
+        // consumed_at is set and returns `preview_token_consumed`.
+        const snap = makeSnapshot({
+          created_by_actor: 'admin',
+          recipients: importedRecipients,
+        });
+        vi.mocked(consumeSendMigrationSnapshot)
+          .mockResolvedValueOnce(snap)
+          .mockResolvedValueOnce(null);
+        vi.mocked(findSendMigrationSnapshot).mockResolvedValueOnce(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: importedRecipients,
+            consumed_at: '2026-04-17T09:05:00Z',
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
+
+        const first = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+        const second = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(410);
+        expect((await second.json()).code).toBe('preview_token_consumed');
+        // Recipients were emailed exactly once across both calls.
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledTimes(importedRecipients.length);
+      });
+
+      it('sends to the snapshot recipients on the golden path', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: importedRecipients,
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.source).toBe('import');
+        expect(body.total).toBe(2);
+        expect(body.sent).toBe(2);
+        expect(body.failed).toBe(0);
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledWith('alice@example.com', 'Alice');
+        expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledWith('bob@example.com', undefined);
+        expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+          expect.anything(),
+          'migration.email.sent',
+          expect.any(String),
+          expect.objectContaining({
+            source: 'import',
+            sent: 2,
+            failed: 0,
+            previewToken: 'snap-token-abc',
+          }),
+          'shared'
+        );
+      });
+
+      it('records partial failures without aborting the send', async () => {
+        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+          makeSnapshot({
+            created_by_actor: 'admin',
+            recipients: importedRecipients,
+          })
+        );
+        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        vi.mocked(sendWaitlistMigration)
+          .mockResolvedValueOnce({ sent: true })
+          .mockResolvedValueOnce({ sent: false, message: 'smtp blew up' });
+
+        const res = await request(
+          'POST',
+          '/admin/send-migration',
+          { source: 'import', dryRun: false, previewToken: 'snap-token-abc' },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.sent).toBe(1);
+        expect(body.failed).toBe(1);
+        expect(body.results[1].error).toBe('smtp blew up');
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ADMINCLIH-002: per-operator admin keys
+  // -------------------------------------------------------------------------
+  describe('per-operator admin keys (ADMINCLIH-002)', () => {
+    const originalFlag = process.env['ADMIN_PER_OPERATOR_KEYS'];
+    const originalPepper = process.env['ADMIN_KEY_PEPPER'];
+
+    beforeEach(() => {
+      process.env['ADMIN_PER_OPERATOR_KEYS'] = '1';
+      process.env['ADMIN_KEY_PEPPER'] = 'test-pepper';
+    });
+
+    afterEach(() => {
+      if (originalFlag !== undefined) {
+        process.env['ADMIN_PER_OPERATOR_KEYS'] = originalFlag;
+      } else {
+        delete process.env['ADMIN_PER_OPERATOR_KEYS'];
+      }
+      if (originalPepper !== undefined) {
+        process.env['ADMIN_KEY_PEPPER'] = originalPepper;
+      } else {
+        delete process.env['ADMIN_KEY_PEPPER'];
+      }
+    });
+
+    function activeKey(
+      overrides: Partial<
+        Parameters<typeof vi.mocked<typeof findAdminKeyByHash>>[0] extends never
+          ? never
+          : NonNullable<Awaited<ReturnType<typeof findAdminKeyByHash>>>
+      > = {}
+    ): NonNullable<Awaited<ReturnType<typeof findAdminKeyByHash>>> {
+      return {
+        id: 'key-1',
+        hashed_key: 'hashed',
+        actor_email: 'alice@eddacraft.ai',
+        note: null,
+        created_at: new Date().toISOString(),
+        revoked_at: null,
+        ...overrides,
+      };
+    }
+
+    // Find the tagged-template call that issued the audit_log INSERT and
+    // return its bind values.
+    function findAuditInsertBinds(): unknown[] | undefined {
+      for (const call of mockSql.mock.calls as unknown[][]) {
+        const strings = call[0] as TemplateStringsArray | undefined;
+        if (!strings) continue;
+        if (strings.some((chunk) => chunk.includes('INSERT INTO audit_log'))) {
+          return call.slice(1);
+        }
+      }
+      return undefined;
+    }
+
+    it('authenticates via per-operator key and ignores X-Admin-Actor', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
+
+      mockSql.mockResolvedValueOnce([]); // upsertWaitlistWithName
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await app.request('/admin/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer operator-raw-bearer',
+          'X-Admin-Actor': 'mallory@evil.example',
+        },
+        body: JSON.stringify({ email: 'bob@example.com', tokenOnly: true }),
+      });
+
+      expect(res.status).toBe(201);
+      const binds = findAuditInsertBinds();
+      expect(binds).toBeDefined();
+      // Bind order (tokenOnly path): action, actor, metadata, auth_method
+      expect(binds).toContain('alice@eddacraft.ai');
+      expect(binds).toContain('per_operator');
+      expect(binds).not.toContain('mallory@evil.example');
+    });
+
+    it('returns 401 admin_key_revoked when the key is revoked', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(
+        activeKey({ revoked_at: new Date().toISOString() })
+      );
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        'revoked-bearer'
+      );
+
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.code).toBe('admin_key_revoked');
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'admin.auth.failed',
+        'admin-auth-failure@anvil',
+        expect.objectContaining({ outcome: 'rejected_revoked' }),
+        'per_operator'
+      );
+    });
+
+    it('returns 403 and audits unknown bearer when no key matches', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(null);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        'unknown-bearer'
+      );
+
+      expect(res.status).toBe(403);
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'admin.auth.failed',
+        'admin-auth-failure@anvil',
+        expect.objectContaining({
+          outcome: 'rejected_unknown',
+          hashed_bearer: expect.any(String),
+        }),
+        'shared'
+      );
+    });
+
+    it('falls back to shared-key path when admin_keys lookup throws', async () => {
+      vi.mocked(findAdminKeyByHash).mockRejectedValue(new Error('db down'));
+      // Shared-key comparison will succeed because the bearer is the ADMIN_KEY.
+      mockSql.mockResolvedValueOnce([]); // upsertWaitlistWithName
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(201);
+      const binds = findAuditInsertBinds();
+      expect(binds).toContain('shared-key@anvil');
+      expect(binds).toContain('shared');
+    });
+
+    it('shared-key path ignores X-Admin-Actor', async () => {
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(null);
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await app.request('/admin/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ADMIN_KEY}`,
+          'X-Admin-Actor': 'mallory@evil.example',
+        },
+        body: JSON.stringify({ email: 'bob@example.com', tokenOnly: true }),
+      });
+
+      expect(res.status).toBe(201);
+      const binds = findAuditInsertBinds();
+      expect(binds).toContain('shared-key@anvil');
+      expect(binds).not.toContain('mallory@evil.example');
+    });
+
+    it('with flag off, bypasses admin_keys lookup entirely', async () => {
+      process.env['ADMIN_PER_OPERATOR_KEYS'] = 'false';
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(201);
+      expect(vi.mocked(findAdminKeyByHash)).not.toHaveBeenCalled();
+      const binds = findAuditInsertBinds();
+      expect(binds).toContain('shared-key@anvil');
+    });
+
+    it('with flag on but pepper unset, skips per-operator lookup and logs loudly', async () => {
+      delete process.env['ADMIN_KEY_PEPPER'];
+      vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'bob@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        const res = await request(
+          'POST',
+          '/admin/invite',
+          { email: 'bob@example.com', tokenOnly: true },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(201);
+        // Lookup MUST be skipped — hashing with an empty pepper would be
+        // both predictable and guaranteed not to match any provisioned row.
+        expect(vi.mocked(findAdminKeyByHash)).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('ADMIN_KEY_PEPPER is unset'));
+        const binds = findAuditInsertBinds();
+        expect(binds).toContain('shared-key@anvil');
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
   });
 });

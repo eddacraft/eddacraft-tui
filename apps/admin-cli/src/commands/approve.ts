@@ -1,32 +1,20 @@
-import { AdminClient, AdminError } from '../client.js';
+import {
+  ApproveResponseSchema,
+  type ApproveResponse,
+  type ApprovedEntry,
+  type SkippedEntry,
+} from '@eddacraft/admin-contracts';
+import { AdminClient, AdminError, type AdminWriter } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess, renderTable, type Row } from '../format.js';
 import { defaultPrompt, isInteractiveTTY } from '../prompt.js';
+
+export type { ApproveResponse, ApprovedEntry, SkippedEntry };
 
 export interface ApproveOptions extends ConfigFlags {
   batch?: number;
   yes?: boolean;
   json?: boolean;
-}
-
-export interface ApprovedEntry {
-  email: string;
-  expiresAt: string;
-}
-
-export interface SkippedEntry {
-  email: string;
-  reason: string;
-  message?: string;
-}
-
-export interface ApproveResponse {
-  approved: ApprovedEntry[];
-  skipped?: SkippedEntry[];
-}
-
-export interface AdminWriter {
-  post<T>(path: string, body?: unknown): Promise<T>;
 }
 
 export interface ApproveDeps {
@@ -76,13 +64,14 @@ export async function runApproveCommand(
     const prompt = deps.prompt ?? defaultPrompt;
     const answer = (await prompt(`${summary} [y/N] `)).trim().toLowerCase();
     if (answer !== 'y' && answer !== 'yes') {
-      stdout('Aborted.\n');
+      // #948: route abort notice to stderr when --json so stdout stays pure JSON.
+      (options.json ? stderr : stdout)('Aborted.\n');
       return;
     }
   }
 
   const body = hasEmail ? { email } : { batch };
-  const result = await client.post<ApproveResponse>('/admin/approve', body);
+  const result = await client.post('/admin/approve', body, ApproveResponseSchema);
 
   if (options.json) {
     stdout(formatJson(result) + '\n');

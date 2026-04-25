@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runApproveCommand, type AdminWriter, type ApproveResponse } from '../commands/approve.js';
+import { runApproveCommand, type ApproveResponse } from '../commands/approve.js';
+import type { AdminWriter } from '../client.js';
 
 function makeClient(result: unknown): AdminWriter & { post: ReturnType<typeof vi.fn> } {
   const post = vi.fn(async () => result) as unknown as AdminWriter['post'] &
@@ -41,7 +42,11 @@ describe('runApproveCommand', () => {
       { yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/approve', { email: 'alice@example.com' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/approve',
+      { email: 'alice@example.com' },
+      expect.anything()
+    );
     const out = writes.join('');
     expect(out).toContain('Approved 1');
     expect(out).toContain('alice@example.com');
@@ -59,7 +64,7 @@ describe('runApproveCommand', () => {
       { batch: 5, yes: true },
       { createClient: () => client, stdout: (s) => outs.push(s), stderr: (s) => errs.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/approve', { batch: 5 });
+    expect(client.post).toHaveBeenCalledWith('/admin/approve', { batch: 5 }, expect.anything());
     expect(outs.join('')).toContain('Approved 2');
     const err = errs.join('');
     expect(err).toContain('Skipped 1');
@@ -85,6 +90,28 @@ describe('runApproveCommand', () => {
     expect(prompt.mock.calls[0]?.[0]).toContain('Approve alice@example.com?');
     expect(client.post).not.toHaveBeenCalled();
     expect(outs.join('')).toContain('Aborted.');
+  });
+
+  // #948: with --json, a declined confirmation must not pollute stdout.
+  it('with --json, a declined confirmation routes "Aborted" to stderr', async () => {
+    const client = makeClient(singleResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    const prompt = vi.fn(async () => 'n');
+    await runApproveCommand(
+      'alice@example.com',
+      { json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+        prompt,
+        isTTY: true,
+      }
+    );
+    expect(client.post).not.toHaveBeenCalled();
+    expect(outs.join('')).toBe(''); // stdout stays pure JSON-safe (empty)
+    expect(errs.join('')).toContain('Aborted.');
   });
 
   it('prompts and proceeds on "y"', async () => {

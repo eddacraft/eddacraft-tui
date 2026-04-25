@@ -1,7 +1,10 @@
 use std::io;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use animate::is_animating;
 use anvil_kernel_types::EngineEvent;
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
@@ -222,6 +225,8 @@ fn watch_demo_loop(
     event_rx: &Receiver<EngineEvent>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
+    let mut last_tick = Instant::now();
+
     loop {
         // Drain engine events.
         while let Ok(engine_event) = event_rx.try_recv() {
@@ -231,8 +236,17 @@ fn watch_demo_loop(
         // Advance time-based overlay hints.
         state.tick();
 
+        tick_animations(&mut last_tick, state.is_dirty(), || {
+            state.mark_dirty();
+        });
+
+        // While animating, cap to ~60 fps to avoid a busy-spin between frames.
         let poll_timeout = if state.is_dirty() {
-            Duration::ZERO
+            if is_animating() {
+                Duration::from_millis(16)
+            } else {
+                Duration::ZERO
+            }
         } else {
             Duration::from_millis(50)
         };
@@ -292,8 +306,16 @@ pub fn run_watch_demo_in(
 }
 
 /// Run the watch dashboard, draining kernel events from the given channel.
-#[allow(dead_code)]
-pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> anyhow::Result<()> {
+///
+/// When `shutdown` is provided the loop also exits if the flag becomes `true`
+/// — used by the CLI `watch` command to bridge a SIGINT handler into the TUI
+/// (raw mode normally swallows Ctrl-C as a key event, but some terminal
+/// multiplexers forward the signal anyway).
+pub fn run_watch(
+    mut state: WatchState,
+    event_rx: &Receiver<EngineEvent>,
+    shutdown: Option<&Arc<AtomicBool>>,
+) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -301,7 +323,7 @@ pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> any
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
-    let result = watch_loop(&mut terminal, &mut state, event_rx, &theme);
+    let result = watch_loop(&mut terminal, &mut state, event_rx, shutdown, &theme);
 
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -317,7 +339,7 @@ pub fn run_watch_in(
     event_rx: &Receiver<EngineEvent>,
 ) -> anyhow::Result<SurfaceExit> {
     let theme = EddaCraftTheme;
-    watch_loop(terminal, state, event_rx, &theme)?;
+    watch_loop(terminal, state, event_rx, None, &theme)?;
     if state.should_quit() {
         Ok(SurfaceExit::Quit)
     } else {
@@ -329,9 +351,11 @@ fn watch_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut WatchState,
     event_rx: &Receiver<EngineEvent>,
+    shutdown: Option<&Arc<AtomicBool>>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
     let mut adapter = WatchEventAdapter::new();
+    let mut last_tick = Instant::now();
 
     loop {
         // Drain all pending engine events.
@@ -340,9 +364,19 @@ fn watch_loop(
             state.mark_dirty();
         }
 
-        // Skip the poll wait when already dirty — render immediately.
+        tick_animations(&mut last_tick, state.is_dirty(), || {
+            state.mark_dirty();
+        });
+        state.sync_animations();
+
+        // When dirty, render quickly. While animating, cap to ~60 fps so the
+        // poll loop doesn't busy-spin between frames.
         let poll_timeout = if state.is_dirty() {
-            Duration::ZERO
+            if is_animating() {
+                Duration::from_millis(16)
+            } else {
+                Duration::ZERO
+            }
         } else {
             Duration::from_millis(50)
         };
@@ -371,14 +405,43 @@ fn watch_loop(
         if state.take_dirty() {
             terminal.draw(|frame| {
                 let area = frame.area();
-                anvil_tui::surfaces::watch::render::render(frame, area, state, theme);
+                let content =
+                    render_shell(frame, area, state.surface_name(), state.help_text(), theme);
+                anvil_tui::surfaces::watch::render::render(frame, content, state, theme);
             })?;
         }
 
         if state.should_quit() || state.should_back() {
             break;
         }
+        if let Some(flag) = shutdown
+            && flag.load(Ordering::SeqCst)
+        {
+            break;
+        }
     }
 
     Ok(())
+}
+
+fn tick_animations<F>(last_tick: &mut Instant, already_dirty: bool, mut mark_dirty: F)
+where
+    F: FnMut(),
+{
+    let now = Instant::now();
+    let elapsed = now.saturating_duration_since(*last_tick);
+
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let ms = elapsed.as_millis().min(usize::MAX as u128) as usize;
+    if ms > 0 {
+        // Advance last_tick by the whole-ms portion we consumed; the sub-ms
+        // remainder accumulates into the next iteration so animations still
+        // progress when individual loop iterations run faster than 1 ms.
+        *last_tick += Duration::from_millis(ms as u64);
+        animate::tick(ms);
+    }
+
+    if !already_dirty && is_animating() {
+        mark_dirty();
+    }
 }

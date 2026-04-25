@@ -102,7 +102,10 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 
 - Work in a disposable worktree — see `docs/guides/worktree-policy.md`
 - Follow TDD: tests before implementation
-- Run `pnpm typecheck && pnpm test` before committing
+- Run `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
+  before committing
+- `.husky/pre-commit` runs `lint-staged` and re-checks staged `oxfmt`-managed
+  files, but it does not replace the full repo checks above
 - Commit with conventional format referencing APS ID where applicable
 
 ### 3. Council Review (before PR)
@@ -156,6 +159,73 @@ When introducing or modifying feature flags, follow the governance rules in
 - `rollout` flags must have a sunset date (`expiryOrReviewDate`)
 - Retirement follows: `active` → `retiring` → `retired` → delete
 - Kill switch and entitlement flags fail closed on error
+
+## Test Infrastructure
+
+Tests are split across three stacks. All run in CI via
+`.github/workflows/ci.yml` (TS) and `.github/workflows/rust.yml` (Rust).
+
+### Where tests live
+
+| Stack       | Location                            | Runner              | CI job                   |
+| ----------- | ----------------------------------- | ------------------- | ------------------------ |
+| Unit (TS)   | `packages/**/__tests__`, co-located | vitest (via nx)     | `ci.yml` → `test`        |
+| Unit (Rust) | `crates/**/src/**/tests`            | `cargo test`        | `rust.yml` → `test`      |
+| E2E         | `apps/e2e/src/**/*.e2e.test.ts`     | vitest (workspace)  | `ci.yml` → `e2e-harness` |
+| Rego        | `policies/fixtures/*.rego`          | `opa test`, `regal` | `rust.yml` → `test`      |
+
+### Running locally
+
+```bash
+# TS unit tests (all packages, via nx)
+pnpm test
+
+# TS unit tests (one package)
+pnpm exec nx run @eddacraft/anvil-core:test
+
+# TS E2E harness (smoke + all surfaces)
+pnpm --filter @eddacraft/anvil-e2e test
+pnpm --filter @eddacraft/anvil-e2e test:smoke     # surfaces only
+pnpm --filter @eddacraft/anvil-e2e test:cli       # skipped unless Rust CLI is built
+
+# Rust unit tests + Rego
+cargo test --workspace
+opa test --verbose policies/fixtures/
+
+# Coverage (local)
+pnpm test -- --run --coverage --coverage.reporter=html
+cargo llvm-cov --workspace --html            # needs `cargo install cargo-llvm-cov`
+```
+
+### Coverage reports
+
+Coverage is advisory only — no blocking threshold. Each PR produces:
+
+- **TypeScript**: per-project line/branch/function/statement table in the
+  `Unit Tests` job summary. Raw `coverage/coverage-summary.json` uploaded as the
+  `coverage-report-22.x` artifact.
+- **Rust**: per-file summary from `cargo llvm-cov report --summary-only` in the
+  `Rust / Test` job summary. Raw JSON uploaded as `coverage-report-rust`.
+
+### E2E conventions
+
+- Every E2E test file ends in `.e2e.test.ts` and is under `apps/e2e/src/`.
+- Fixtures live in `apps/e2e/src/helpers/` and must match current adapter and
+  schema contracts — broken fixtures fail detection/parse tests first.
+- The CLI is now a Rust binary (ADR-011). CLI suites use `cliBinaryAvailable()`
+  from `apps/e2e/src/helpers/cli-runner.ts` and skip gracefully when
+  `target/{debug,release}/anvil` is absent, so a pure TS run does not require
+  `cargo build`.
+- Flaky tests retry once (`retry: 1` in `apps/e2e/vitest.config.ts`). Real
+  failures still fail the job; two retries were considered excessive.
+
+### OPA + Regal
+
+Both CI workflows install OPA `v0.60.0` (pinned to `DEFAULT_OPA_VERSION` in
+`packages/anvil/policy/src/opa-binary-manager.ts`) via
+`open-policy-agent/setup-opa`. Regal lints the fixture policies in `rust.yml`.
+Locally, the policy tests fall back to the host `opa` if available; the TS
+policy tests skip when absent.
 
 ## Code Quality
 

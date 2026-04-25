@@ -48,9 +48,38 @@ persisted to disk to survive restarts.
 - **Depends on:** anvil-intercept-proto (shared NDJSON message types, session
   model, IPC command enum), anvil-checks (secret detection, antipattern
   scanning), anvil-kernel (watcher ChangeBatch channel), intercept-rules (INTR,
-  rule trait and rule set)
+  rule trait and rule set), notification-framework (NOTIFY — canonical
+  notification taxonomy and telemetry stream contract)
 - **Exposes:** IPC interface for session lifecycle and worktree status; in-process
-  API for embedded mode; disk-persisted fence state readable by launcher
+  API for embedded mode; disk-persisted fence state readable by launcher;
+  telemetry-lane notification stream mirroring control-lane decisions
+
+## Notification Model Integration
+
+Enforcement decisions (`allow` / `warn` / `block` / `interrupt`) are mirrored
+onto the telemetry lane as canonical notifications so operators, TUIs, and
+observability subscribers see the same state transitions the drivers act on.
+The mapping is fixed:
+
+| Control decision | Notification class | Priority |
+| --- | --- | --- |
+| `allow` | usually no notification, else `info` | `low` |
+| `warn` | `warning` | `high` |
+| `block` | `block` (+ `fence-state` on worktree apply) | `critical` |
+| `interrupt` | `interrupt` (+ `fence-state` on worktree apply) | `critical` |
+
+All emitted telemetry events follow the envelope defined in
+`plans/specs/2026-04-22-notification-telemetry-stream-contract.md`, with
+`correlation.source = "intercept"` and the `mirror` object set to the
+originating control decision, driver id, and ack requirement. Fence state
+changes additionally carry `grouping.transition` (e.g. `active -> fenced`,
+`fenced -> active`) so subscribers can distinguish transitions from repeat
+polls.
+
+Intercept-facing tasks must not invent parallel event vocabulary. Block,
+interrupt, and fence events use the canonical classes above; anything that
+does not fit becomes a `health` notification on the same stream rather than
+a new lane.
 
 ## Tasks
 
@@ -68,12 +97,36 @@ persisted to disk to survive restarts.
 
 ### INTD-002: IPC Listener
 
-- **Intent:** Accept NDJSON connections over Unix domain sockets (Linux/macOS)
-  and named pipes (Windows) with restricted permissions
-- **Expected Outcome:** Daemon listens on a platform-appropriate socket path,
-  accepts connections, parses NDJSON frames, and dispatches to command handlers
+- **Intent:** Accept NDJSON connections over Unix domain sockets
+  (Linux/macOS) and named pipes (Windows) with restricted permissions
+- **Expected Outcome:** Daemon listens on a platform-appropriate socket
+  path, accepts connections, parses NDJSON frames, and dispatches to
+  command handlers. Socket / pipe creation is pinned end-to-end, not
+  left to umask / default DACL:
+  - Unix: `lstat` the target (or open its parent with `openat` +
+    `O_NOFOLLOW` and stat from there) to refuse symlinks and to
+    verify that `$XDG_RUNTIME_DIR/anvil` is owned by the current
+    user with mode 0700 if it already exists. If absent, create it
+    with `mkdir` passing an explicit mode 0700, then re-verify with
+    `stat` / `fstat` that owner and mode match. `bind()` inside
+    that dir; `fchmod` the socket fd to 0600 before `listen()`. If
+    `$XDG_RUNTIME_DIR` is unset, fall through to
+    `$HOME/.local/state/anvil/` with the same check-create-verify
+    sequence — never `/tmp`.
+  - Windows: named pipe created with an explicit `SECURITY_DESCRIPTOR`
+    (owner = current user SID, DACL = generic-all-owner-only),
+    `PIPE_REJECT_REMOTE_CLIENTS` set.
+  - Driver-side (enforced by `DriverClient` in DRVR-001): stat / open
+    the socket/pipe with `O_NOFOLLOW` equivalent and refuse if not
+    owned by the current user, to defend against pipe-squatting even
+    when the daemon side is correct.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
+  plus permission-creation unit tests on each platform (Linux/macOS
+  permission bits; Windows ACL).
 - **Status:** Draft
+- **Council review (2026-04-24):** M8 (security-analyst) pinned the
+  end-to-end creation sequence above; see
+  PR #1063.
 
 ### INTD-003: Session Registry
 
@@ -184,4 +237,125 @@ persisted to disk to survive restarts.
   `.github/workflows/rust.yml`; this task blocks all other tasks from being
   marked Complete
 - **Validation:** `gh run list --workflow=rust.yml` shows passing Windows jobs
+- **Status:** Draft
+
+### INTD-013: Mirror Enforcement Decisions Onto Notification Telemetry
+
+- **Intent:** Emit every control-lane decision as a canonical notification on
+  the telemetry lane so subscribers see one shape across surfaces
+- **Expected Outcome:** The enforcement pipeline produces a
+  `anvil.notification.v1` envelope per decision with `mirror.decision` set to
+  the control-lane outcome, `notification.class` drawn from the fixed mapping
+  in the "Notification Model Integration" section, and `correlation.source =
+  "intercept"`; fence transitions (`active -> fenced`, `fenced -> active`)
+  populate `grouping.transition`
+- **Files:** `crates/anvil-intercept/src/enforcement.rs`,
+  `crates/anvil-intercept/src/telemetry.rs` (new),
+  `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`,
+  `crates/anvil-kernel-types/src/notifications.rs`
+- **Dependencies:** INTD-005, INTD-007, NOTIFY-008
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib telemetry`
+  — tests assert the mapping table, schema value, mirror population, and
+  fence-transition grouping
+- **Status:** Draft
+
+### INTD-014: JSON-RPC 2.0 Conformance + Round-Trip Latency Benchmark
+
+- **Intent:** Pin the daemon's IPC surface as genuinely JSON-RPC 2.0
+  compliant (not just "NDJSON that looks JSON-RPC shaped") and establish
+  the end-to-end latency budget the driver-framework design relies on.
+  Absorbs the validation spec of the superseded KERN-051 — Phase 5
+  supersession preserved the transport surface under INTD-002 but did
+  not carry across the conformance-tests and latency-benchmarks clause
+  that KERN-051's Validation line carried.
+- **Expected Outcome:** A conformance test suite asserts: error object
+  shape (`code`, `message`, `data`), `id` semantics for request vs
+  notification, batch request behaviour, `-32600`..`-32603` reserved
+  codes, and the distinction between request `id: null` and
+  notification. A latency harness measures round-trip p50 / p95 for a
+  small RPC (`session.heartbeat`) and a telemetry-emission path
+  (`enforcement.decision` round-trip) on a warm daemon and records
+  the numbers. The surface under test is the daemon↔driver JSON-RPC
+  boundary (what `DriverClient` in DRVR-001 talks to) — editors
+  reach the daemon via the editor-driver, not by connecting
+  LSP-style directly, so the risk to cover is silent drift between
+  the daemon's wire behaviour and the driver client's expected
+  request/response semantics. The latency numbers back the
+  `editor-and-mcp-driver-design.md` §3.4 save-time budget
+  (< 100ms p95 warm), which otherwise has no factual basis.
+- **Files:** `crates/anvil-intercept/src/ipc.rs`,
+  `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (new),
+  `crates/anvil-intercept/benches/ipc_roundtrip.rs` (new)
+- **Dependencies:** INTD-002
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --test
+  jsonrpc_conformance` passes against a published JSON-RPC 2.0 test
+  fixture set; `cargo bench -p eddacraft-anvil-intercept --bench
+  ipc_roundtrip` records baseline numbers in the workspace bench
+  dashboard.
+- **Source:** 2026-04-24 council review M1 (adversarial reviewer) —
+  tracked in PR #1063.
+- **Status:** Draft
+
+### INTD-015: Daemon-Enforced Telemetry Subscription Scoping
+
+- **Intent:** Move per-session event filtering from driver-promised
+  (current shape after KERN-052 supersession) to daemon-enforced, so a
+  hostile or mis-configured driver cannot subscribe to violations from
+  sessions it does not own — including file paths and content excerpts
+  flagged by secret detection. Closes an exfiltration channel.
+- **Expected Outcome:** Each telemetry envelope carries
+  `originating_session_id` and `originating_driver_id`. The fan-out
+  layer computes a daemon-side allowlist per subscriber — defaults to
+  "events for sessions this driver owns, plus events explicitly
+  capability-granted" — and filters outbound delivery against it.
+  Global subscription is a daemon config flag, not a driver manifest
+  bit. Content excerpts in telemetry for sessions the subscriber does
+  not own are redacted (hash-of-path plus rule id) unless
+  operator-configured otherwise.
+- **Files:** `crates/anvil-intercept/src/telemetry.rs`,
+  `crates/anvil-intercept/src/fanout.rs` (new),
+  `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`
+  (add Subscribers MUST section on cross-session redaction),
+  `plans/archive/modules/rust-kernel.aps.md` (update KERN-052
+  supersession note to record the daemon-side filter as the
+  enforceable replacement, not driver capability)
+- **Dependencies:** INTD-003, INTD-013
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib
+  fanout` covers (a) cross-session subscribe attempt rejected,
+  (b) own-session subscribe honoured, (c) content excerpts redacted
+  on cross-session allowlist hit.
+- **Source:** 2026-04-24 council review M5 (security-analyst) —
+  tracked in PR #1063.
+- **Status:** Draft
+
+### INTD-016: DoS Protection Budgets — Connection Cap, Rate Limits, Timeouts
+
+- **Intent:** Re-home the defence-in-depth budgets that the KERN Phase
+  5 supersession silently dropped. KERN's future review would have
+  enforced them; INTD-002 currently has no written cap on simultaneous
+  connections, request rate, handshake timeout, idle timeout, or frame
+  size, making the daemon DoS-able by any same-UID peer.
+- **Expected Outcome:** Configurable limits with documented defaults:
+  concurrent driver connections (64), per-connection RPS (100
+  sustained / 1000 burst), handshake timeout from `accept()` to
+  manifest (5 s), driver-connection idle timeout separate from session
+  heartbeat TTL (60 s), max NDJSON frame size (64 KiB — manifests and
+  control-lane messages only; telemetry-lane sizing tracked
+  separately), explicit plaintext-local-only TLS stance recorded in
+  AD-4 until remote-shell driver arrives. Limits applied at the IPC
+  listener level — connection dropped with structured error on budget
+  exhaustion. Enforcement pipeline unaffected by exhausted budgets
+  (cannot be starved by a misbehaving peer).
+- **Files:** `crates/anvil-intercept/src/ipc.rs`,
+  `crates/anvil-intercept/src/config.rs`,
+  `plans/decisions/015-intercept-loop-enforcement.md` (extend AD-4
+  with the limits + TLS stance)
+- **Dependencies:** INTD-002, INTD-008
+- **Validation:** Unit tests assert each budget: slow-loris handshake
+  times out, over-cap connection rejected, frame larger than cap
+  rejected, RPS bucket exhaustion returns structured error without
+  terminating the connection.
+- **Source:** 2026-04-24 council review M9 (security-analyst +
+  adversarial-reviewer) — tracked in
+  PR #1063.
 - **Status:** Draft

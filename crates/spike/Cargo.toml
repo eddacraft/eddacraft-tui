@@ -28,7 +28,7 @@ tree-sitter-javascript = { workspace = true }
 notify = { workspace = true }
 petgraph = { workspace = true }
 rustix = { version = "1", features = ["param"] }
-serde = { workspace = true }
+workspace-hack.workspace = true
 
 [lints]
 workspace = true

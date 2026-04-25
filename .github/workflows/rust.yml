@@ -8,6 +8,12 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+      - 'pnpm-workspace.yaml'
+      - 'nx.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tools/nx-rust/**'
+      - '.github/actions/setup-workspace/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
@@ -15,6 +21,12 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+      - 'pnpm-workspace.yaml'
+      - 'nx.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tools/nx-rust/**'
+      - '.github/actions/setup-workspace/**'
       - '.github/workflows/rust.yml'
 
 permissions:
@@ -27,6 +39,15 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  # Pinned so cache invalidation is intentional when we bump this.
+  CARGO_LLVM_COV_VERSION: '0.6.14'
+  # Pinned so nextest behaviour (retry/timeout/output) is reproducible.
+  CARGO_NEXTEST_VERSION: '0.9.133'
+  # RUSTNX-008/009: pinned hakari/deny/about versions — see
+  # Task 1 of the RUSTNX completion plan for how to rev them.
+  CARGO_HAKARI_VERSION: '0.9.37'
+  CARGO_DENY_VERSION: '0.19.4'
+  CARGO_ABOUT_VERSION: '0.8.4'
 
 jobs:
   check:
@@ -34,24 +55,91 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
-      - run: cargo check --workspace --all-targets
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          # GitHub cache keys are write-once, so with a shared-key only the
+          # first job to finish actually saves. Restore-only here lets the
+          # test job (the most comprehensive one) populate the cache.
+          save-if: 'false'
+      - name: Run check (affected on PRs, all on push)
+        env:
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+              echo "No affected Rust projects detected"
+              exit 0
+            fi
+            pnpm exec nx run-many -t check --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
+          else
+            cargo check --workspace --all-targets
+          fi
 
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: check
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+
+      # Run the pin guard before any expensive setup so a stray version
+      # reference fails fast without burning toolchain install time.
+      # Invoke via `sh` so this doesn't depend on the executable bit surviving
+      # checkout (e.g. on Windows runners / some git configurations).
+      - name: Check OPA version pin is not duplicated outside allowlist
+        run: sh scripts/check-opa-version-pin.sh
+
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
         with:
-          version: latest
+          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          version: v0.60.0
+
+      - name: Verify OPA version
+        env:
+          EXPECTED_OPA_VERSION: '0.60.0'
+        run: |
+          installed=$(opa version | awk '/^Version:/ {print $2}')
+          if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
+            echo "::error::OPA version mismatch: installed=$installed expected=$EXPECTED_OPA_VERSION"
+            exit 1
+          fi
+          echo "OPA $installed installed"
 
       - name: Install Regal
-        uses: open-policy-agent/setup-regal@33a142b1189004e0f14bf42b15972c67eecce776 # v1
+        uses: open-policy-agent/setup-regal@761188c3b435761fa254beca508a44875619648f # v2.0.0
         with:
           version: latest
 
@@ -61,28 +149,217 @@ jobs:
       - name: Lint policies with Regal
         run: regal lint --format github policies/fixtures/
 
-      - run: cargo test --workspace
+      - name: Run tests (affected on PRs, full coverage on push)
+        if: github.event_name == 'pull_request'
+        env:
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+            echo "No affected Rust projects detected"
+            exit 0
+          fi
+          pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
+
+      - name: Cache cargo-llvm-cov
+        if: github.event_name != 'pull_request'
+        id: cache-llvm-cov
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          # Version-scoped key so bumping CARGO_LLVM_COV_VERSION below
+          # invalidates the cache deterministically rather than serving a
+          # stale pre-upgrade binary forever.
+          key: cargo-llvm-cov-${{ runner.os }}-${{ env.CARGO_LLVM_COV_VERSION }}
+
+      - name: Install cargo-llvm-cov
+        if: github.event_name != 'pull_request' && steps.cache-llvm-cov.outputs.cache-hit != 'true'
+        # TODO: swap to taiki-e/install-action@<verified-sha> for faster install
+        run: cargo install cargo-llvm-cov --locked --version ${{ env.CARGO_LLVM_COV_VERSION }}
+
+      - name: Install cargo-nextest
+        if: github.event_name != 'pull_request'
+        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        with:
+          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
+
+      - name: Run tests with coverage (nextest)
+        if: github.event_name != 'pull_request'
+        run: |
+          cargo llvm-cov nextest --workspace --json --output-path coverage-rust.json
+          cargo llvm-cov report --summary-only | tee coverage-rust-summary.txt
+
+      # nextest does not run doctests, so we run them separately to preserve
+      # the same test surface as the pre-RUSTNX-002 `cargo test` invocation.
+      # `if: always()` so doctest failures surface even if the coverage step
+      # failed — we want both signals, not a short-circuit.
+      - name: Run doctests
+        if: always()
+        run: cargo test --doc --workspace
+
+      - name: Rust coverage summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Rust Coverage"
+            echo
+            echo '<details><summary>Per-file / workspace summary (cargo llvm-cov)</summary>'
+            echo
+            echo '```'
+            if [ -f coverage-rust-summary.txt ]; then
+              cat coverage-rust-summary.txt
+            else
+              echo "(coverage summary not produced — cargo llvm-cov step failed)"
+            fi
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Rust coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report-rust
+          path: |
+            coverage-rust.json
+            coverage-rust-summary.txt
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
-    needs: check
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: clippy
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Run clippy (affected on PRs, all on push)
+        env:
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+              echo "No affected Rust projects detected"
+              exit 0
+            fi
+            pnpm exec nx run-many -t clippy --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
+          else
+            cargo clippy --workspace --all-targets -- -D warnings
+          fi
 
   format:
     name: Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Setup workspace for Nx affected
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+      - name: Detect Rust Nx projects
+        if: github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: rustfmt
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Run rustfmt check (affected on PRs)
+        if: github.event_name == 'pull_request'
+        env:
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+            echo "No affected Rust projects detected"
+            exit 0
+          fi
+          pnpm exec nx run-many -t fmt-check --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
       - uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1
+        if: github.event_name != 'pull_request'
+
+  hakari:
+    name: Hakari verify
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Install cargo-hakari
+        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        with:
+          tool: cargo-hakari@${{ env.CARGO_HAKARI_VERSION }}
+      - name: Verify workspace-hack manifest is current
+        # `generate --diff` first so CI logs show what drifted; `verify`
+        # then enforces (exit 1) if the manifest is stale.
+        run: |
+          cargo hakari generate --diff
+          cargo hakari verify
+
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        with:
+          tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
+      - name: Run cargo deny check
+        run: cargo deny check
+
+  acknowledgements-diff:
+    name: Acknowledgements freshness
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Install cargo-about
+        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+      - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
+        run: |
+          if ! tools/generate-acknowledgements.sh --check; then
+            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'pnpm run licenses:generate' locally and commit."
+            exit 1
+          fi
 
   cross-compile:
     name: Cross (${{ matrix.target }})
@@ -127,6 +404,26 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Install OPA
+        if: matrix.can_test
+        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        with:
+          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          version: v0.60.0
+
+      - name: Verify OPA version
+        if: matrix.can_test
+        shell: bash
+        env:
+          EXPECTED_OPA_VERSION: '0.60.0'
+        run: |
+          installed=$(opa version | awk '/^Version:/ {print $2}')
+          if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
+            echo "::error::OPA version mismatch: installed=$installed expected=$EXPECTED_OPA_VERSION"
+            exit 1
+          fi
+          echo "OPA $installed installed"
 
       - name: Build
         run: cargo build --workspace --target ${{ matrix.target }}

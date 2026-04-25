@@ -53,9 +53,18 @@ count_work_items() {
 
   # Method 1: Structured work items with Status field
   # Count by grepping status lines near work item headings
+  # Use awk to scan from each `### PREFIX-NNN` heading up to (but not
+  # including) the next `### PREFIX-` heading, so Status is found no matter
+  # how long the item body is. -A5 / fixed-N grep under-reports as soon as
+  # an item grows past the window.
   local status_block
-  status_block=$(grep -A5 "^### ${prefix}-[0-9]" "$file" 2>/dev/null \
-    | grep -i '^\- \*\*Status\|^Status:' || true)
+  status_block=$(awk -v pfx="$prefix" '
+    BEGIN { re="^### " pfx "-[0-9]" }
+    $0 ~ re { in_item=1; next }
+    /^### [A-Z][A-Z0-9]*-[0-9]/ { in_item=0 }
+    /^## / { in_item=0 }
+    in_item && /(^- \*\*Status\*\*|^- \*\*Status:|^Status:)/ { print }
+  ' "$file" 2>/dev/null || true)
 
   if [[ -n "$status_block" ]]; then
     done=$(echo "$status_block" | grep -ciE 'complete|done' || true)
@@ -108,8 +117,16 @@ count_work_items() {
 # Extract header count from module file (e.g. "43/64" or "In Progress (15/16)")
 extract_header_count() {
   local file="$1"
-  # Look for N/N pattern in the header table (first 20 lines)
-  head -20 "$file" | grep -oE '[0-9]+/[0-9]+' | head -1 || echo ""
+  # Look for N/N pattern in the header *table row* only. Anchoring to lines
+  # that start with `|` stops us picking up things like "CLAR-007/008" from
+  # a module header comment, which previously produced a false COUNT
+  # MISMATCH on the reparented QLODX module.
+  head -20 "$file" \
+    | grep -E '^\|' \
+    | grep -viE '^\| *(ID|Scope|Module) ' \
+    | grep -vE '^[[:space:]|:-]+$' \
+    | grep -oE '[0-9]+/[0-9]+' \
+    | head -1 || echo ""
 }
 
 # Extract status from module header table row (lines starting with |)

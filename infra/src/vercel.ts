@@ -50,6 +50,11 @@ export const api = new VercelApp('anvil-api', {
     DATABASE_URL: databaseUrl,
     RESEND_API_KEY: resendApiKey,
     ADMIN_KEY: getSecret('anvil-admin-key'),
+    // ADMINCLIH-002/004: per-operator admin keys. Keys are provisioned in
+    // `infra/src/admin-keys.ts` and validated via HMAC-SHA-256 with this
+    // pepper. Disable the feature by unsetting ADMIN_PER_OPERATOR_KEYS.
+    ADMIN_KEY_PEPPER: getSecret('admin-key-pepper'),
+    ADMIN_PER_OPERATOR_KEYS: '1',
     WAITLIST_RESEND_ADMIN_TOKEN: getSecret('waitlist-resend-admin-token'),
     ANVIL_CORS_ORIGINS:
       'https://eddacraft.ai,https://docs.eddacraft.ai,https://*.vercel.app,http://localhost:3000',

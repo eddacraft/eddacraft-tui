@@ -1,6 +1,7 @@
 pub mod debounce;
 pub mod events;
 pub mod filter;
+pub mod pattern;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, mpsc};
@@ -48,15 +49,62 @@ pub enum WatcherError {
     Recv(#[from] mpsc::RecvTimeoutError),
 }
 
+/// Diagnostics returned from [`watch_directories`] so callers can surface
+/// partial failure — e.g. when the OS-level watch limit
+/// (`fs.inotify.max_user_watches` on Linux) is reached partway through
+/// registration and only some directories end up being monitored.
+#[derive(Debug, Default, Clone)]
+pub struct WatchSetupDiagnostics {
+    /// Number of directories that registered a watch successfully.
+    pub registered: u64,
+    /// Number of directories that failed to register. A non-zero value
+    /// means file changes in those subtrees won't be observed.
+    pub failed: u64,
+    /// A sample of the error messages from failed registrations (first few).
+    pub sample_errors: Vec<String>,
+    /// Whether the root-level watch itself failed (catastrophic — no events
+    /// will flow at all).
+    pub root_failed: bool,
+    /// True if any error looked like an OS-level limit being hit (e.g.
+    /// inotify `max_user_watches`). Used to surface an actionable hint.
+    pub limit_exhausted: bool,
+}
+
 /// Walk directories under `root`, adding a non-recursive watch for each
 /// directory that isn't in the filter's ignore list. This avoids registering
 /// inotify watches on `node_modules`, `.git`, `target`, etc.
+///
+/// Failures on individual directories are counted and returned rather than
+/// propagated — partial coverage is better than no watcher at all, but the
+/// caller must surface a diagnostic so the user knows why changes in some
+/// directories are missing.
+///
+/// Testing note: the partial-failure paths (mid-walk `watcher.watch()`
+/// failure incrementing `diag.failed`, `MaxFilesWatch` setting
+/// `limit_exhausted`, and the "watch partially registered" error event
+/// emitted by `run_watch`) are not covered by automated tests because
+/// they require a failing `notify::Watcher::watch()` call, which in
+/// practice only happens when `fs.inotify.max_user_watches` is exhausted
+/// on the host. Adding a `#[cfg(test)]` trait-object seam just to fake
+/// this was judged not worth the indirection; these paths are exercised
+/// manually when the limit is actually hit.
 fn watch_directories(
     watcher: &mut RecommendedWatcher,
     root: &std::path::Path,
     filter: &FileFilter,
-) -> Result<(), WatcherError> {
-    watcher.watch(root, RecursiveMode::NonRecursive)?;
+) -> Result<WatchSetupDiagnostics, WatcherError> {
+    const MAX_SAMPLE_ERRORS: usize = 3;
+    let mut diag = WatchSetupDiagnostics::default();
+
+    match watcher.watch(root, RecursiveMode::NonRecursive) {
+        Ok(()) => diag.registered += 1,
+        Err(e) => {
+            // Root-level failure is catastrophic — no subtree can compensate.
+            // Propagate so the caller can fail fast with a clear error.
+            diag.root_failed = true;
+            return Err(WatcherError::from(e));
+        }
+    }
 
     let walker = walkdir::WalkDir::new(root)
         .min_depth(1)
@@ -72,10 +120,22 @@ fn watch_directories(
         // flatten() skips permission errors, broken symlinks, etc.
         // The filter already excludes node_modules/target/.git so most
         // walk errors are from edge cases that don't affect monitoring.
-        watcher.watch(entry.path(), RecursiveMode::NonRecursive)?;
+        match watcher.watch(entry.path(), RecursiveMode::NonRecursive) {
+            Ok(()) => diag.registered += 1,
+            Err(e) => {
+                diag.failed += 1;
+                if matches!(e.kind, notify::ErrorKind::MaxFilesWatch) {
+                    diag.limit_exhausted = true;
+                }
+                if diag.sample_errors.len() < MAX_SAMPLE_ERRORS {
+                    diag.sample_errors
+                        .push(format!("{}: {e}", entry.path().display()));
+                }
+            }
+        }
     }
 
-    Ok(())
+    Ok(diag)
 }
 
 /// Handle returned by [`start_watcher`] — keeps the OS watcher alive.
@@ -87,9 +147,23 @@ pub struct WatcherHandle {
 
 /// Starts watching the given directory and sends [`ChangeBatch`] events
 /// to the returned receiver. Runs until the [`WatcherHandle`] is dropped.
+///
+/// The returned [`WatchSetupDiagnostics`] records how many directories were
+/// successfully watched vs. failed. A non-zero `failed` count means file
+/// changes in those subtrees will not generate events — most commonly caused
+/// by hitting the OS-level watch limit (`fs.inotify.max_user_watches` on
+/// Linux). Callers should surface this to the user so they can raise the
+/// limit or close other watch-heavy processes.
 pub fn start_watcher(
     config: &WatcherConfig,
-) -> Result<(WatcherHandle, mpsc::Receiver<ChangeBatch>), WatcherError> {
+) -> Result<
+    (
+        WatcherHandle,
+        mpsc::Receiver<ChangeBatch>,
+        WatchSetupDiagnostics,
+    ),
+    WatcherError,
+> {
     let (raw_tx, raw_rx) = mpsc::channel::<notify::Result<Event>>();
     let (batch_tx, batch_rx) = mpsc::channel::<ChangeBatch>();
 
@@ -104,7 +178,7 @@ pub fn start_watcher(
     // `.git`, `target`, etc.) at the OS level to avoid exhausting inotify
     // limits.
     let filter = config.filter.clone().unwrap_or_default();
-    watch_directories(&mut watcher, &config.root, &filter)?;
+    let diagnostics = watch_directories(&mut watcher, &config.root, &filter)?;
 
     // Wrap watcher so the processing thread can register new directories.
     let watcher_arc = Arc::new(Mutex::new(watcher));
@@ -177,5 +251,5 @@ pub fn start_watcher(
         _watcher: watcher_arc,
     };
 
-    Ok((handle, batch_rx))
+    Ok((handle, batch_rx, diagnostics))
 }

@@ -1,50 +1,36 @@
 # Apps
 
-Deployable applications and their E2E test suites.
+Deployable applications and documentation surfaces in the Anvil monorepo.
 
 ## Structure
 
 ```
 apps/
-├── anvil-cli/      # @eddacraft/anvil-cli - CLI application
-├── anvil-api/      # REST/GraphQL API gateway (Hono + Vercel)
-├── anvil-ui/       # (future) Web UI for plans, runs, and audits
-├── website/        # Next.js marketing website (Vercel)
-├── docs-site/      # Docusaurus documentation hub (Vercel)
-└── e2e/            # E2E test suites
-    └── src/
-        ├── adapters/
-        ├── api/
-        ├── cli/
-        ├── contracts/
-        ├── core/
-        ├── helpers/
-        ├── mcp/
-        └── smoke/
+├── admin-cli/          # Operator CLI for beta/admin workflows
+├── anvil-api/          # REST API (Hono + Vercel)
+├── anvil-docs-private/ # Private Docusaurus docs app
+├── docs-public/        # Public Docusaurus docs app
+├── docs-shell/         # Next.js auth/proxy shell for docs.eddacraft.ai
+├── docs-site/          # Legacy docs app retained during cutover
+├── e2e/                # Vitest E2E harness across product surfaces
+└── website/            # Next.js marketing website
 ```
 
 ## Applications
 
-### anvil-cli (@eddacraft/anvil-cli)
+| App                  | Purpose                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `admin-cli`          | TypeScript operator CLI for beta-user and migration operations             |
+| `anvil-api`          | Beta auth, waitlist, admin, and session API                                |
+| `anvil-docs-private` | Private documentation app for gated/internal content                       |
+| `docs-public`        | Public Docusaurus documentation for APS, Kindling, and edda-stack          |
+| `docs-shell`         | Public entrypoint and auth proxy for docs.eddacraft.ai                     |
+| `docs-site`          | Legacy docs app kept during the docs-platform transition                   |
+| `e2e`                | Cross-package Vitest harness for CLI, API, contracts, MCP, and smoke tests |
+| `website`            | Marketing site and future dashboard surface                                |
 
-The Anvil command-line interface for development automation.
+## Notes
 
-```bash
-# Build and link globally
-pnpm link:cli
-
-# Run directly
-npx @eddacraft/anvil-cli --help
-anvil check
-anvil gate
-```
-
-## Migration Status
-
-| App       | Status   | Source                 |
-| --------- | -------- | ---------------------- |
-| anvil-cli | Complete | cli/ -> apps/anvil-cli |
-| anvil-api | Active   | apps/anvil-api         |
-| anvil-ui  | Future   | New                    |
-| website   | Active   | apps/website           |
-| docs-site | Active   | apps/docs-site         |
+- The shipped end-user CLI is the Rust binary in `crates/anvil-cli/`.
+- The TypeScript CLI now lives in `archive/anvil-cli-node/` and is retained for
+  history only.

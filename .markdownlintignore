@@ -32,3 +32,8 @@ plans/**
 
 # Ignore generated JSON schema
 core/src/schema/aps.schema.json
+
+# ACKNOWLEDGEMENTS.md has a hand-curated top section plus an auto-generated
+# attribution block from cargo-about. Ignore the whole file — the template
+# lives in about.hbs.
+ACKNOWLEDGEMENTS.md

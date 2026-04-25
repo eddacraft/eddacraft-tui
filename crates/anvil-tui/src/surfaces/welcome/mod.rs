@@ -27,11 +27,11 @@ impl QuickStartOption {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::RunGate => "Run quality gate",
-            Self::StartWatch => "Start watch mode",
-            Self::RunAudit => "Run project audit",
-            Self::RunDoctor => "Run diagnostics",
-            Self::RunTutorial => "Interactive tutorial",
+            Self::RunGate => "Review gate decision",
+            Self::StartWatch => "Watch checks live",
+            Self::RunAudit => "Explore project findings",
+            Self::RunDoctor => "Check setup health",
+            Self::RunTutorial => "Learn the Anvil model",
             Self::ViewDocs => "View documentation",
             Self::RestartOnboarding => "Restart onboarding",
         }
@@ -39,11 +39,11 @@ impl QuickStartOption {
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::RunGate => "Check code against all quality checks",
-            Self::StartWatch => "Monitor files for changes in real time",
-            Self::RunAudit => "Scan your project for security issues and anti-patterns",
-            Self::RunDoctor => "Check your environment and fix common issues",
-            Self::RunTutorial => "Learn Anvil with a guided walkthrough",
+            Self::RunGate => "See whether the current findings pass your workflow gate",
+            Self::StartWatch => "Run checks continuously and watch findings update on save",
+            Self::RunAudit => "Inspect the findings Anvil collects across your project",
+            Self::RunDoctor => "Verify your environment before relying on checks and gates",
+            Self::RunTutorial => "Start with scan -> checks -> findings -> gate, then pick a path",
             Self::ViewDocs => "Open the Anvil documentation in your browser",
             Self::RestartOnboarding => "Reset and re-run the first-time setup experience",
         }
@@ -186,5 +186,16 @@ mod tests {
         let mut state = WelcomeState::new();
         state.handle_key(Action::Quit);
         assert!(state.should_quit);
+    }
+
+    #[test]
+    fn quick_start_copy_uses_model_first_language() {
+        assert_eq!(QuickStartOption::RunGate.label(), "Review gate decision");
+        assert!(QuickStartOption::RunGate.description().contains("findings"));
+        assert!(
+            QuickStartOption::RunTutorial
+                .description()
+                .contains("scan -> checks -> findings -> gate")
+        );
     }
 }

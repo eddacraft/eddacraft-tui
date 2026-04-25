@@ -1,12 +1,16 @@
 mod auth;
+mod capacity;
 mod commands;
+mod feature_flags;
 mod output;
 mod services;
 mod tui;
 mod util;
 
+use std::io::IsTerminal;
 use std::process::ExitCode;
 
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 
 /// Exit codes for structured error reporting.
@@ -17,7 +21,7 @@ pub const EXIT_AUTH_REQUIRED: u8 = 3;
 pub const EXIT_CONFIG_ERROR: u8 = 4;
 
 /// Global arguments available to every subcommand.
-#[derive(Debug, Parser)]
+#[derive(Debug, Default, Parser)]
 pub struct GlobalArgs {
     /// Output results as JSON instead of human-readable text.
     #[arg(long, global = true)]
@@ -74,6 +78,8 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// Show Anvil's acknowledgements and third-party licence attribution.
+    Licenses(commands::licenses::LicensesArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
@@ -112,41 +118,56 @@ enum Commands {
     Whoami(commands::auth::WhoamiArgs),
 }
 
-/// Returns `true` for commands that require a valid auth session.
-fn requires_auth(cmd: &Commands) -> bool {
+/// Canonical stable name for a `Commands` variant.
+///
+/// Used to map dispatch-time variants onto the gated-command list carried
+/// as metadata on the `cli.licence-gate` flag. Kept separate from
+/// `clap`'s display names so that hidden aliases (`login`, `logout`,
+/// `whoami`) and their real subcommands (`auth login`, …) map onto
+/// distinct canonical identifiers where needed.
+fn command_canonical_name(cmd: &Commands) -> &'static str {
     use commands::auth::AuthCommand;
-
     match cmd {
-        // Auth-gated commands
-        Commands::Audit(_)
-        | Commands::Check(_)
-        | Commands::Drift(_)
-        | Commands::Status(_)
-        | Commands::Admin(_)
-        | Commands::Gate(_)
-        | Commands::GateConfig(_)
-        | Commands::Watch(_)
-        | Commands::Export(_)
-        | Commands::Architecture(_)
-        | Commands::Policy(_)
-        | Commands::Whoami(_) => true,
-
-        // Auth subcommands: only whoami needs credentials
-        Commands::Auth(args) => matches!(args.command, AuthCommand::Whoami),
-
-        // Bypass: onboarding, help, and auth flow commands
-        Commands::Doctor(_)
-        | Commands::Tutorial(_)
-        | Commands::Welcome(_)
-        | Commands::Init(_)
-        | Commands::New(_)
-        | Commands::Wizard(_)
-        | Commands::Hooks(_)
-        | Commands::Update(_)
-        | Commands::Validate(_)
-        | Commands::Login(_)
-        | Commands::Logout(_) => false,
+        Commands::Audit(_) => "audit",
+        Commands::Check(_) => "check",
+        Commands::Doctor(_) => "doctor",
+        Commands::Drift(_) => "drift",
+        Commands::Status(_) => "status",
+        Commands::Tutorial(_) => "tutorial",
+        Commands::Welcome(_) => "welcome",
+        Commands::Init(_) => "init",
+        Commands::Licenses(_) => "licenses",
+        Commands::New(_) => "new",
+        Commands::Wizard(_) => "wizard",
+        Commands::Admin(_) => "admin",
+        Commands::Gate(_) => "gate",
+        Commands::GateConfig(_) => "gate-config",
+        Commands::Watch(_) => "watch",
+        Commands::Export(_) => "export",
+        Commands::Hooks(_) => "hooks",
+        Commands::Architecture(_) => "architecture",
+        Commands::Policy(_) => "policy",
+        Commands::Update(_) => "update",
+        Commands::Validate(_) => "validate",
+        Commands::Login(_) => "login",
+        Commands::Logout(_) => "logout",
+        Commands::Whoami(_) => "whoami",
+        Commands::Auth(args) => match args.command {
+            AuthCommand::Login { .. } => "auth-login",
+            AuthCommand::Logout => "auth-logout",
+            AuthCommand::Whoami => "auth-whoami",
+        },
     }
+}
+
+/// Returns `true` for commands that require a valid auth session.
+///
+/// Delegates to the `cli.licence-gate` flag's gated-command metadata via
+/// [`feature_flags::command_needs_licence_gate`]. FLAGM-006 retired the
+/// legacy hard-coded match and its parity-test scaffolding; the flag is
+/// now the sole source of truth.
+fn requires_auth(cmd: &Commands) -> bool {
+    feature_flags::command_needs_licence_gate(command_canonical_name(cmd))
 }
 
 /// Evaluate a credential-load result and return the appropriate exit code.
@@ -187,23 +208,183 @@ fn evaluate_auth(
     }
 }
 
+/// Decide whether to offer an interactive login prompt instead of erroring
+/// out with `EXIT_AUTH_REQUIRED`. Pure so it can be unit-tested.
+///
+/// - `suppress_interactive`: caller has reason to skip prompting —
+///   `--json`/`--no-tui`, a CI/git-hook env signal, or a command like
+///   `whoami` that should report state rather than launch flows.
+/// - `tty_ok`: both stdin AND stderr are TTYs — required for prompting and
+///   displaying the device-flow code. `stdout` is deliberately not checked;
+///   the prompt goes to stderr so piping stdout (`anvil status | less`)
+///   must not suppress it.
+/// - `loaded`: the current credential-load result. Only missing/expired
+///   trigger a prompt; a load error is treated as a systemic fault the
+///   user needs to investigate, not re-prompt through.
+fn should_offer_interactive_login(
+    suppress_interactive: bool,
+    tty_ok: bool,
+    loaded: &anyhow::Result<Option<auth::credentials::Credentials>>,
+) -> bool {
+    if suppress_interactive || !tty_ok {
+        return false;
+    }
+    match loaded {
+        Ok(None) => true,
+        Ok(Some(creds)) => auth::credentials::is_expired(creds),
+        Err(_) => false,
+    }
+}
+
+/// Detect environments where launching an interactive prompt would hang or
+/// corrupt the host process:
+///
+/// - `ANVIL_NO_PROMPT` / `NONINTERACTIVE` — explicit opt-outs.
+/// - `CI=true`/`CI=1` — GitHub Actions, Buildkite, `CircleCI`, etc. Some of
+///   these allocate a PTY (`script -qfc`, `pty: true`) so TTY detection
+///   alone is not enough.
+/// - `GIT_DIR` / `GIT_INDEX_FILE` — reliably set by git when it invokes a
+///   hook. Prompting from a commit hook would hold git's index lock.
+fn is_non_interactive_env() -> bool {
+    // Presence-only: matches the common shell convention that
+    // `export FOO=` is still "set". Empty-string should count as opt-out.
+    let is_set = |k: &str| std::env::var_os(k).is_some();
+    if is_set("ANVIL_NO_PROMPT") || is_set("NONINTERACTIVE") {
+        return true;
+    }
+    if matches!(
+        std::env::var("CI").ok().as_deref(),
+        Some("true" | "1" | "TRUE" | "True")
+    ) {
+        return true;
+    }
+    if is_set("GIT_DIR") || is_set("GIT_INDEX_FILE") {
+        return true;
+    }
+    false
+}
+
+/// Returns `false` for commands that should never trigger an interactive
+/// login flow even when the user is missing credentials — e.g. `whoami`,
+/// whose job is to report identity state, not mutate it.
+fn allows_interactive_auth_prompt(cmd: &Commands) -> bool {
+    use commands::auth::AuthCommand;
+    match cmd {
+        Commands::Whoami(_) => false,
+        Commands::Auth(args) => !matches!(args.command, AuthCommand::Whoami),
+        _ => true,
+    }
+}
+
+/// Prompt for a yes/no answer on stderr, reading from stdin.
+///
+/// Returns `Ok(false)` on EOF (`read_line` returning 0 bytes) so a closed
+/// stdin fails closed rather than fail-open into launching device flow.
+fn prompt_yes_no(message: &str, default_yes: bool) -> std::io::Result<bool> {
+    use std::io::{BufRead, Write};
+    let mut stderr = std::io::stderr();
+    let hint = if default_yes { "[Y/n]" } else { "[y/N]" };
+    write!(stderr, "{message} {hint} ")?;
+    stderr.flush()?;
+
+    let mut line = String::new();
+    let stdin = std::io::stdin();
+    let mut locked = stdin.lock();
+    let n = locked.read_line(&mut line)?;
+    if n == 0 {
+        return Ok(false);
+    }
+    Ok(match line.trim().to_ascii_lowercase().as_str() {
+        "" => default_yes,
+        "y" | "yes" => true,
+        _ => false,
+    })
+}
+
+/// Run the device-code login flow on a fresh tokio runtime.
+///
+/// Uses a current-thread runtime since the device flow is pure I/O and
+/// doesn't benefit from a work-stealing thread pool.
+fn run_interactive_login() -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("creating tokio runtime for login")?;
+    rt.block_on(auth::device_flow::login_device_flow())
+}
+
 /// Validate that usable credentials exist.
 ///
 /// Returns `Ok(())` when valid credentials are found or when
 /// `ANVIL_DEV=1` is set (local dev bypass), or `Err(exit_code)` with
 /// `EXIT_AUTH_REQUIRED` otherwise.
-fn check_auth(verbose: bool) -> Result<(), u8> {
-    // Local dev bypass: ANVIL_DEV=1 skips auth entirely.
-    // Safe because:
+///
+/// When running interactively (TTY on stdin+stderr, not `--json`/`--no-tui`,
+/// no CI/git-hook env signals, command allows prompting) and the only
+/// problem is missing or expired credentials, offers to launch the
+/// device-code login flow inline so first-time users don't bounce off a
+/// terse "Run `anvil auth login`" error.
+fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
+    // Local dev bypass: ANVIL_DEV=1 resolves through the shared resolver's
+    // local-override precedence on `cli.licence-gate`. Routing via the
+    // resolver (rather than an inline env-var read) means override
+    // telemetry, reason codes, and future override sources all share one
+    // code path. Safety rationale is unchanged from the legacy bypass:
     //   - All API calls still require a real token server-side.
     //   - This only bypasses the local credential pre-check.
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
-    if std::env::var("ANVIL_DEV").as_deref() == Ok("1") {
-        eprintln!("[dev] ANVIL_DEV=1: skipping local auth check");
+    if let Some(details) = feature_flags::cli_dev_bypass_active() {
+        eprintln!(
+            "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
+            details.flag_key, details.variant, details.reason
+        );
         return Ok(());
     }
-    evaluate_auth(&auth::credentials::load(), verbose)
+
+    let loaded = auth::credentials::load();
+
+    let suppress_interactive =
+        global.json || global.no_tui || !allow_interactive || is_non_interactive_env();
+    let tty_ok = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
+
+    if should_offer_interactive_login(suppress_interactive, tty_ok, &loaded) {
+        let expired = matches!(&loaded, Ok(Some(c)) if auth::credentials::is_expired(c));
+        if expired {
+            eprintln!("Your Anvil session has expired.");
+        } else {
+            eprintln!("This command requires authentication with Anvil.");
+        }
+        match prompt_yes_no("Log in now?", true) {
+            Ok(true) => match run_interactive_login() {
+                Ok(()) => {
+                    // Re-validate freshly-written credentials before
+                    // handing off to the command — guards against clock
+                    // skew or partial writes that would otherwise silently
+                    // pass the local gate and fail server-side.
+                    return evaluate_auth(&auth::credentials::load(), global.verbose);
+                }
+                Err(err) => {
+                    eprintln!("Login failed: {err:#}");
+                    return Err(EXIT_AUTH_REQUIRED);
+                }
+            },
+            Ok(false) => {
+                eprintln!("Run `anvil auth login` when you're ready.");
+                return Err(EXIT_AUTH_REQUIRED);
+            }
+            Err(err) => {
+                // Fall through to the non-interactive error below.
+                if global.verbose {
+                    eprintln!("Could not read response: {err}");
+                } else {
+                    eprintln!("Could not read response.");
+                }
+            }
+        }
+    }
+
+    evaluate_auth(&loaded, global.verbose)
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -227,7 +408,7 @@ fn main() -> ExitCode {
     };
 
     if requires_auth(&cli.command)
-        && let Err(code) = check_auth(cli.global.verbose)
+        && let Err(code) = check_auth(&cli.global, allows_interactive_auth_prompt(&cli.command))
     {
         if cli.global.json {
             eprintln!(
@@ -279,6 +460,7 @@ fn main() -> ExitCode {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
@@ -301,6 +483,9 @@ fn main() -> ExitCode {
         Err(err) => {
             if err.is::<output::AlreadyReported>() {
                 return ExitCode::from(EXIT_ERROR);
+            }
+            if err.is::<output::AuthRequired>() {
+                return ExitCode::from(EXIT_AUTH_REQUIRED);
             }
             if cli.global.json {
                 eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
@@ -356,13 +541,6 @@ mod tests {
     }
 
     #[test]
-    fn requires_auth_admin() {
-        assert!(requires_auth(&parse_command(&[
-            "admin", "approve", "--batch", "1"
-        ])));
-    }
-
-    #[test]
     fn requires_auth_export() {
         assert!(requires_auth(&parse_command(&["export"])));
     }
@@ -415,6 +593,11 @@ mod tests {
     }
 
     #[test]
+    fn bypass_auth_licenses() {
+        assert!(!requires_auth(&parse_command(&["licenses"])));
+    }
+
+    #[test]
     fn bypass_auth_new() {
         assert!(!requires_auth(&parse_command(&["new"])));
     }
@@ -462,6 +645,16 @@ mod tests {
     #[test]
     fn bypass_auth_auth_logout() {
         assert!(!requires_auth(&parse_command(&["auth", "logout"])));
+    }
+
+    #[test]
+    fn bypass_auth_admin() {
+        // Admin authenticates via ANVIL_ADMIN_KEY, not personal credentials,
+        // so the pre-action auth check is skipped; admin::run checks the
+        // env var itself and exits with EXIT_AUTH_REQUIRED if missing.
+        assert!(!requires_auth(&parse_command(&[
+            "admin", "approve", "--batch", "1"
+        ])));
     }
 
     // ── evaluate_auth ────────────────────────────────────────────
@@ -532,7 +725,7 @@ mod tests {
         // Without credentials, auth normally fails — but not in dev mode.
         temp_env::with_var("ANVIL_DEV", Some("1"), || {
             assert!(
-                check_auth(false).is_ok(),
+                check_auth(&GlobalArgs::default(), true).is_ok(),
                 "ANVIL_DEV=1 should bypass auth check"
             );
         });
@@ -541,6 +734,8 @@ mod tests {
     #[test]
     fn check_auth_does_not_bypass_without_anvil_dev() {
         // Env var absent — auth still required without credentials.
+        // Tests run under cargo without a TTY on stdin, so the interactive
+        // prompt is suppressed and we fall straight through to the error.
         temp_env::with_vars(
             [
                 ("ANVIL_DEV", None),
@@ -548,8 +743,160 @@ mod tests {
                 ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
             ],
             || {
-                assert_eq!(check_auth(false), Err(EXIT_AUTH_REQUIRED));
+                assert_eq!(
+                    check_auth(&GlobalArgs::default(), true),
+                    Err(EXIT_AUTH_REQUIRED)
+                );
             },
         );
+    }
+
+    // ── should_offer_interactive_login ──────────────────────────────
+
+    #[test]
+    fn offer_login_true_when_missing_and_interactive() {
+        let loaded: anyhow::Result<Option<Credentials>> = Ok(None);
+        assert!(should_offer_interactive_login(
+            /* machine_output */ false, /* tty_ok */ true, &loaded,
+        ));
+    }
+
+    #[test]
+    fn offer_login_true_when_expired_and_interactive() {
+        let loaded: anyhow::Result<Option<Credentials>> = Ok(Some(expired_creds()));
+        assert!(should_offer_interactive_login(false, true, &loaded));
+    }
+
+    #[test]
+    fn offer_login_false_when_valid_creds() {
+        let loaded: anyhow::Result<Option<Credentials>> = Ok(Some(valid_creds()));
+        assert!(!should_offer_interactive_login(false, true, &loaded));
+    }
+
+    #[test]
+    fn offer_login_false_when_machine_output_requested() {
+        // covers both --json and --no-tui (caller OR's them).
+        let loaded: anyhow::Result<Option<Credentials>> = Ok(None);
+        assert!(!should_offer_interactive_login(true, true, &loaded));
+    }
+
+    #[test]
+    fn offer_login_false_when_not_a_tty() {
+        let loaded: anyhow::Result<Option<Credentials>> = Ok(None);
+        assert!(!should_offer_interactive_login(false, false, &loaded));
+    }
+
+    #[test]
+    fn offer_login_false_on_load_error() {
+        let loaded: anyhow::Result<Option<Credentials>> = Err(anyhow::anyhow!("disk fault"));
+        assert!(!should_offer_interactive_login(false, true, &loaded));
+    }
+
+    // ── is_non_interactive_env ──────────────────────────────────────
+
+    #[test]
+    fn non_interactive_env_detects_ci_true() {
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", None),
+                ("NONINTERACTIVE", None),
+                ("CI", Some("true")),
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(is_non_interactive_env()),
+        );
+    }
+
+    #[test]
+    fn non_interactive_env_detects_anvil_no_prompt() {
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", Some("1")),
+                ("CI", None),
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(is_non_interactive_env()),
+        );
+    }
+
+    #[test]
+    fn non_interactive_env_detects_git_hook_signals() {
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", None),
+                ("CI", None),
+                ("GIT_DIR", Some(".git")),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(is_non_interactive_env()),
+        );
+    }
+
+    #[test]
+    fn non_interactive_env_false_when_clean() {
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", None::<&str>),
+                ("NONINTERACTIVE", None),
+                ("CI", None),
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(!is_non_interactive_env()),
+        );
+    }
+
+    #[test]
+    fn non_interactive_env_detects_empty_string_opt_out() {
+        // `export ANVIL_NO_PROMPT=` should still count as opt-out —
+        // presence of the variable is the signal, not its value.
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", Some("")),
+                ("NONINTERACTIVE", None),
+                ("CI", None),
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(is_non_interactive_env()),
+        );
+    }
+
+    #[test]
+    fn non_interactive_env_ignores_ci_false() {
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_PROMPT", None),
+                ("NONINTERACTIVE", None),
+                ("CI", Some("false")),
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", None),
+            ],
+            || assert!(!is_non_interactive_env()),
+        );
+    }
+
+    // ── allows_interactive_auth_prompt ──────────────────────────────
+
+    #[test]
+    fn whoami_alias_does_not_allow_interactive_prompt() {
+        assert!(!allows_interactive_auth_prompt(&parse_command(&["whoami"])));
+    }
+
+    #[test]
+    fn auth_whoami_does_not_allow_interactive_prompt() {
+        assert!(!allows_interactive_auth_prompt(&parse_command(&[
+            "auth", "whoami"
+        ])));
+    }
+
+    #[test]
+    fn other_commands_allow_interactive_prompt() {
+        assert!(allows_interactive_auth_prompt(&parse_command(&[
+            "check", "--all"
+        ])));
+        assert!(allows_interactive_auth_prompt(&parse_command(&["status"])));
     }
 }

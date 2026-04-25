@@ -2,20 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command, Option } from 'commander';
 import {
   runSendMigrationCommand,
-  type AdminWriter,
   type DryRunResponse,
   type SendResponse,
   MIGRATION_SOURCES,
 } from '../commands/send-migration.js';
 import { parseBoundedInt } from '../parsers.js';
+import { AdminError, type AdminWriter } from '../client.js';
 
 const ENV_KEY = 'ANVIL_ADMIN_KEY';
 
-function makeClient(...results: unknown[]): AdminWriter & { post: ReturnType<typeof vi.fn> } {
+type Result = unknown | (() => unknown);
+
+function makeClient(...results: Result[]): AdminWriter & { post: ReturnType<typeof vi.fn> } {
   const queue = [...results];
   const post = vi.fn(async () => {
     if (queue.length === 0) throw new Error('unexpected extra call to post()');
-    return queue.shift();
+    const next = queue.shift();
+    if (typeof next === 'function') return (next as () => unknown)();
+    return next;
   }) as unknown as AdminWriter['post'] & ReturnType<typeof vi.fn>;
   return { post } as AdminWriter & { post: ReturnType<typeof vi.fn> };
 }
@@ -28,6 +32,8 @@ const previewResponse: DryRunResponse = {
     { email: 'alice@example.com', name: 'Alice' },
     { email: 'bob@example.com', name: null },
   ],
+  previewToken: 'snap-token-abc',
+  expiresAt: '2026-04-17T09:10:00Z',
 };
 
 const emptyPreviewResponse: DryRunResponse = {
@@ -35,6 +41,8 @@ const emptyPreviewResponse: DryRunResponse = {
   source: 'import',
   count: 0,
   recipients: [],
+  previewToken: 'snap-token-empty',
+  expiresAt: '2026-04-17T09:10:00Z',
 };
 
 const sendResponse: SendResponse = {
@@ -75,11 +83,15 @@ describe('runSendMigrationCommand', () => {
     const client = makeClient(previewResponse);
     await runSendMigrationCommand({}, { createClient: () => client, stdout: () => {} });
     expect(client.post).toHaveBeenCalledTimes(1);
-    expect(client.post).toHaveBeenCalledWith('/admin/send-migration', {
-      source: 'import',
-      dryRun: true,
-      limit: 20,
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: true,
+        limit: 20,
+      },
+      expect.anything()
+    );
   });
 
   it('renders the dry-run recipient table with count and source', async () => {
@@ -119,11 +131,15 @@ describe('runSendMigrationCommand', () => {
       { source: 'website', limit: 5 },
       { createClient: () => client, stdout: () => {} }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/send-migration', {
-      source: 'website',
-      dryRun: true,
-      limit: 5,
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/send-migration',
+      {
+        source: 'website',
+        dryRun: true,
+        limit: 5,
+      },
+      expect.anything()
+    );
   });
 
   it('rejects --limit out of range (exitCode 64)', async () => {
@@ -135,30 +151,60 @@ describe('runSendMigrationCommand', () => {
     ).rejects.toMatchObject({ name: 'AdminError', exitCode: 64 });
   });
 
-  it('with --yes and --no-dry-run, skips the preview and sends directly', async () => {
-    const client = makeClient(sendResponse);
+  it('with --yes and --no-dry-run, fetches a preview token then sends with it', async () => {
+    const client = makeClient(previewResponse, sendResponse);
     const writes: string[] = [];
     await runSendMigrationCommand(
       { dryRun: false, yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledTimes(1);
-    expect(client.post).toHaveBeenCalledWith('/admin/send-migration', {
-      source: 'import',
-      dryRun: false,
-      limit: 20,
-    });
+    expect(client.post).toHaveBeenCalledTimes(2);
+    expect(client.post).toHaveBeenNthCalledWith(
+      1,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: true,
+        limit: 20,
+      },
+      expect.anything()
+    );
+    expect(client.post).toHaveBeenNthCalledWith(
+      2,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: false,
+        limit: 20,
+        previewToken: 'snap-token-abc',
+      },
+      expect.anything()
+    );
     const out = writes.join('');
     expect(out).toContain('Sent 2/2 (failed: 0)');
     expect(out).toContain('alice@example.com');
     expect(out).toContain('bob@example.com');
   });
 
+  it('bails (nothing to send) when --yes preview returns zero recipients', async () => {
+    const client = makeClient(emptyPreviewResponse);
+    const outs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, yes: true },
+      { createClient: () => client, stdout: (s) => outs.push(s) }
+    );
+    expect(client.post).toHaveBeenCalledTimes(1);
+    expect(outs.join('')).toContain('Nothing to send');
+  });
+
   it('throws AdminError exitCode 1 when any recipient failed to send', async () => {
     await expect(
       runSendMigrationCommand(
         { dryRun: false, yes: true },
-        { createClient: () => makeClient(partialFailureResponse), stdout: () => {} }
+        {
+          createClient: () => makeClient(previewResponse, partialFailureResponse),
+          stdout: () => {},
+        }
       )
     ).rejects.toMatchObject({
       name: 'AdminError',
@@ -182,16 +228,27 @@ describe('runSendMigrationCommand', () => {
         isTTY: true,
       }
     );
-    expect(client.post).toHaveBeenNthCalledWith(1, '/admin/send-migration', {
-      source: 'import',
-      dryRun: true,
-      limit: 20,
-    });
-    expect(client.post).toHaveBeenNthCalledWith(2, '/admin/send-migration', {
-      source: 'import',
-      dryRun: false,
-      limit: 20,
-    });
+    expect(client.post).toHaveBeenNthCalledWith(
+      1,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: true,
+        limit: 20,
+      },
+      expect.anything()
+    );
+    expect(client.post).toHaveBeenNthCalledWith(
+      2,
+      '/admin/send-migration',
+      {
+        source: 'import',
+        dryRun: false,
+        limit: 20,
+        previewToken: 'snap-token-abc',
+      },
+      expect.anything()
+    );
     expect(errs.join('')).toContain('About to send migration email to 2 recipient(s)');
     expect(outs.join('')).toContain('Sent 2/2');
   });
@@ -247,15 +304,209 @@ describe('runSendMigrationCommand', () => {
     ).rejects.toMatchObject({ name: 'AdminError', exitCode: 4 });
   });
 
-  it('emits send JSON with --json (single API call, no preview)', async () => {
-    const client = makeClient(sendResponse);
+  it('emits send JSON with --json (preview fetched silently first)', async () => {
+    const client = makeClient(previewResponse, sendResponse);
     const writes: string[] = [];
     await runSendMigrationCommand(
       { dryRun: false, yes: true, json: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledTimes(1);
+    expect(client.post).toHaveBeenCalledTimes(2);
     expect(writes.join('')).toBe(JSON.stringify(sendResponse, null, 2) + '\n');
+  });
+
+  // #948: --json --no-dry-run without --yes previously wrote the ASCII
+  // recipient table to stderr and the send JSON to stdout. `2>&1 | jq`
+  // then choked on the table preamble. The contract is now: stdout is
+  // pure JSON; stderr carries a one-line preview hint and any abort/empty
+  // notice.
+  it('interactive --json send: stderr one-liner, stdout is pure send JSON', async () => {
+    const client = makeClient(previewResponse, sendResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+        prompt: async () => 'y',
+        isTTY: true,
+      }
+    );
+    expect(outs.join('')).toBe(JSON.stringify(sendResponse, null, 2) + '\n');
+    const err = errs.join('');
+    expect(err).toContain('preview: 2 recipient(s)');
+    expect(err).toContain('pass --yes to skip this prompt');
+    expect(err).not.toContain('alice@example.com'); // no ASCII table in --json
+  });
+
+  it('interactive --json send: abort routes to stderr, stdout stays empty', async () => {
+    const client = makeClient(previewResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+        prompt: async () => 'n',
+        isTTY: true,
+      }
+    );
+    expect(outs.join('')).toBe(''); // no stdout pollution
+    expect(errs.join('')).toContain('Aborted.');
+  });
+
+  it('--json --no-dry-run with zero recipients: "Nothing to send" goes to stderr', async () => {
+    const client = makeClient(emptyPreviewResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    await runSendMigrationCommand(
+      { dryRun: false, yes: true, json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+      }
+    );
+    expect(outs.join('')).toBe(''); // no stdout pollution
+    expect(errs.join('')).toContain('Nothing to send');
+  });
+
+  it('dry-run output surfaces the preview token and expiry hint', async () => {
+    const writes: string[] = [];
+    await runSendMigrationCommand(
+      {},
+      { createClient: () => makeClient(previewResponse), stdout: (s) => writes.push(s) }
+    );
+    const out = writes.join('');
+    expect(out).toContain('Preview token: snap-token-abc');
+    expect(out).toContain('expires 2026-04-17T09:10:00Z');
+    expect(out).toMatch(/Re-run without --dry-run within 10 minutes/i);
+  });
+
+  it('rewrites 409 cohort_drift into a message listing added/removed', async () => {
+    const driftBody = JSON.stringify({
+      code: 'cohort_drift',
+      error: 'recipient set changed since preview; re-run with --dry-run',
+      added: ['carol@example.com'],
+      removed: ['bob@example.com'],
+    });
+    const client = makeClient(previewResponse, () => {
+      throw new AdminError(
+        'recipient set changed since preview; re-run with --dry-run',
+        1,
+        409,
+        driftBody
+      );
+    });
+    await expect(
+      runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => client, stdout: () => {} }
+      )
+    ).rejects.toMatchObject({
+      name: 'AdminError',
+      exitCode: 1,
+      status: 409,
+      message: expect.stringMatching(/recipient set changed/),
+    });
+  });
+
+  it('cohort_drift message includes the diff details', async () => {
+    const driftBody = JSON.stringify({
+      code: 'cohort_drift',
+      error: 'x',
+      added: ['carol@example.com', 'dan@example.com'],
+      removed: ['bob@example.com'],
+    });
+    const client = makeClient(previewResponse, () => {
+      throw new AdminError('x', 1, 409, driftBody);
+    });
+    let caught: unknown;
+    try {
+      await runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => client, stdout: () => {} }
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(AdminError);
+    expect((caught as AdminError).message).toContain('added:   carol@example.com, dan@example.com');
+    expect((caught as AdminError).message).toContain('removed: bob@example.com');
+  });
+
+  it('rewrites 410 preview_token_expired with TTL recovery guidance', async () => {
+    const body = JSON.stringify({ code: 'preview_token_expired', error: 'expired' });
+    const client = makeClient(previewResponse, () => {
+      throw new AdminError('expired', 1, 410, body);
+    });
+    await expect(
+      runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => client, stdout: () => {} }
+      )
+    ).rejects.toMatchObject({
+      name: 'AdminError',
+      status: 410,
+      message: expect.stringMatching(/10-minute TTL/),
+    });
+  });
+
+  it('rewrites 410 preview_token_consumed with verify-before-retry guidance', async () => {
+    const body = JSON.stringify({ code: 'preview_token_consumed', error: 'consumed' });
+    const client = makeClient(previewResponse, () => {
+      throw new AdminError('consumed', 1, 410, body);
+    });
+    await expect(
+      runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => client, stdout: () => {} }
+      )
+    ).rejects.toMatchObject({
+      name: 'AdminError',
+      status: 410,
+      message: expect.stringMatching(/already used/),
+    });
+  });
+
+  it('rewrites 410 preview_token_missing with merged actor/regenerate guidance', async () => {
+    // Server intentionally merges the wrong-actor case into
+    // `preview_token_missing` to avoid confirming token existence to
+    // non-owners; the CLI message must surface both recovery paths.
+    const body = JSON.stringify({ code: 'preview_token_missing', error: 'missing' });
+    const client = makeClient(previewResponse, () => {
+      throw new AdminError('missing', 1, 410, body);
+    });
+    await expect(
+      runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => client, stdout: () => {} }
+      )
+    ).rejects.toMatchObject({
+      name: 'AdminError',
+      status: 410,
+      message: expect.stringMatching(/--actor|ANVIL_ADMIN_ACTOR/),
+    });
+  });
+
+  it('preserves non-coded errors unchanged', async () => {
+    const client = makeClient(previewResponse, () => {
+      throw new AdminError('server error 500: boom', 2, 500, 'boom');
+    });
+    await expect(
+      runSendMigrationCommand(
+        { dryRun: false, yes: true },
+        { createClient: () => client, stdout: () => {} }
+      )
+    ).rejects.toMatchObject({
+      name: 'AdminError',
+      exitCode: 2,
+      message: 'server error 500: boom',
+    });
   });
 
   it('throws MissingConfigError (exitCode 5) when no key is available', async () => {

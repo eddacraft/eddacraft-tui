@@ -11,6 +11,7 @@ import {
   incrementOtpAttemptsBatch,
   consumeOtpCode,
   insertRefreshToken,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
 import { signLicence } from '../lib/licence.js';
@@ -139,6 +140,13 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
     return c.json(INVALID_CODE_ERROR, 400);
   }
 
+  // Read scopes from the user's most recent active access_tokens row so a
+  // user invited with a graded scope (e.g. `preview`) keeps it through the
+  // OTP path. Defaults to `['beta']` for users with no prior access_tokens
+  // row. Same fix as auth-session/auth-device/auth-github landed in
+  // eae47b3d — auth-otp was missed in that round.
+  const scopes = await findActiveScopesForUser(sql, user.id);
+
   // Sign a 7-day JWT
   const claims: LicenceClaims = {
     sub: user.id,
@@ -146,7 +154,7 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
     identity: { provider: 'email', id: null },
     org: null,
     tier: 'pro',
-    scopes: ['beta'],
+    scopes,
     seats: 1,
   };
 

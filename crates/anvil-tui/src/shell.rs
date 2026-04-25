@@ -11,6 +11,41 @@ use unicode_width::UnicodeWidthStr;
 /// The binary's own version, from the workspace `Cargo.toml`.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Horizontal gutter between shell chrome and surface content, in cells.
+/// Surfaces use this via `inset_content` so they don't hug the left/right
+/// edges of the terminal.
+pub const OUTER_H_MARGIN: u16 = 2;
+/// Rows of breathing room above surface content under the shell header.
+pub const OUTER_TOP_MARGIN: u16 = 1;
+
+/// Carve a padded sub-rect out of the shell content area so a surface
+/// doesn't hug the top-left corner. Degrades gracefully on narrow/short
+/// terminals by dropping margins when there isn't room.
+///
+/// Every onboarding / tutorial surface should route its incoming `area`
+/// through this helper so the outer breathing room is consistent across
+/// the first-run flow.
+#[must_use]
+pub fn inset_content(area: Rect) -> Rect {
+    let h = if area.width > OUTER_H_MARGIN * 2 {
+        OUTER_H_MARGIN
+    } else {
+        0
+    };
+    let t = if area.height > OUTER_TOP_MARGIN {
+        OUTER_TOP_MARGIN
+    } else {
+        0
+    };
+    let inner = Layout::horizontal([
+        Constraint::Length(h),
+        Constraint::Min(0),
+        Constraint::Length(h),
+    ])
+    .split(area)[1];
+    Layout::vertical([Constraint::Length(t), Constraint::Min(0)]).split(inner)[1]
+}
+
 /// Render the Anvil-branded shell chrome around a surface content area.
 ///
 /// Returns the inner `Rect` that the surface should render into.
@@ -149,10 +184,20 @@ mod tests {
 
     #[test]
     fn version_matches_workspace() {
+        // Sanity check that the rendered watermark is still derived from
+        // the cargo workspace version rather than a hardcoded string. We
+        // assert shape (`v<digit>.…`) rather than a specific minor so the
+        // test does not have to be touched on every release.
         let watermark = format!("v{VERSION}");
         assert!(
-            watermark.starts_with("v0.3."),
-            "expected workspace version, got: {watermark}"
+            watermark.starts_with('v'),
+            "watermark should start with 'v': {watermark}"
+        );
+        let after_v = &watermark[1..];
+        let leading_digit = after_v.chars().next().is_some_and(|c| c.is_ascii_digit());
+        assert!(
+            leading_digit && after_v.contains('.'),
+            "expected `v<major>.<minor>…` shape, got: {watermark}"
         );
     }
 }

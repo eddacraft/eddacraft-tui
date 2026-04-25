@@ -93,18 +93,17 @@ fn print_plain_templates(templates: &[Template]) {
     println!();
 }
 
+/// Returns the list of gate-runner checks to enable for a given template.
+///
+/// Names must be resolvable to a dispatchable gate check via the catalog —
+/// they're written to `.anvilrc#checks` and used by `anvil gate` to filter
+/// which checks to run.
+/// Display labels (used in the wizard TUI) are kept separately in `anvil_tui`.
 fn checks_for_template(template_id: &str) -> Vec<&'static str> {
     match template_id {
-        "typescript-monorepo" => vec![
+        "typescript-monorepo" | "rust-workspace" => vec![
             "secret-detection",
             "import-boundaries",
-            "architecture",
-            "antipattern-scan",
-            "policy",
-        ],
-        "rust-workspace" => vec![
-            "secret-detection",
-            "architecture",
             "antipattern-scan",
             "policy",
         ],
@@ -241,7 +240,7 @@ mod tests {
             checks.len() > 1,
             "typescript-monorepo should have multiple checks"
         );
-        assert!(checks.contains(&serde_json::json!("architecture")));
+        assert!(checks.contains(&serde_json::json!("import-boundaries")));
     }
 
     #[test]
@@ -287,19 +286,40 @@ mod tests {
     #[test]
     fn checks_for_template_varies_by_template() {
         let ts = checks_for_template("typescript-monorepo");
-        assert!(ts.contains(&"architecture"));
         assert!(ts.contains(&"import-boundaries"));
 
         let rust = checks_for_template("rust-workspace");
-        assert!(rust.contains(&"architecture"));
-        assert!(!rust.contains(&"import-boundaries"));
+        assert!(rust.contains(&"import-boundaries"));
 
         let python = checks_for_template("python-package");
         assert!(python.contains(&"antipattern-scan"));
-        assert!(!python.contains(&"architecture"));
+        assert!(python.contains(&"import-boundaries"));
 
         let minimal = checks_for_template("minimal");
         assert_eq!(minimal, vec!["secret-detection"]);
+    }
+
+    // Regression guard for #1016: every check name the wizard writes to
+    // `.anvilrc#checks` must map to a dispatchable gate check via the
+    // catalog, otherwise `anvil gate` will silently ignore it.
+    #[test]
+    fn wizard_checks_are_registered_gate_names() {
+        use crate::commands::check_catalog::gate_internal_name;
+        let template_ids = [
+            "typescript-monorepo",
+            "rust-workspace",
+            "python-package",
+            "minimal",
+            "unknown-template",
+        ];
+        for id in template_ids {
+            for name in checks_for_template(id) {
+                assert!(
+                    gate_internal_name(name).is_some(),
+                    "wizard template '{id}' writes unregistered check '{name}'"
+                );
+            }
+        }
     }
 
     #[test]
@@ -323,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_rust_workspace_has_architecture_check() {
+    fn scaffold_rust_workspace_has_import_boundaries_check() {
         let dir = tempfile::tempdir().unwrap();
         let project_name = dir.path().join("rust-proj");
         let project_name_str = project_name.to_string_lossy().to_string();
@@ -340,7 +360,6 @@ mod tests {
         let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         let checks = parsed["checks"].as_array().unwrap();
-        assert!(checks.contains(&serde_json::json!("architecture")));
-        assert!(!checks.contains(&serde_json::json!("import-boundaries")));
+        assert!(checks.contains(&serde_json::json!("import-boundaries")));
     }
 }

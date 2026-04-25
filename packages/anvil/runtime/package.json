@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-runtime",
-  "version": "0.3.3-beta",
+  "version": "0.4.0-beta",
   "description": "Runtime orchestration layer for Anvil — gate runner, file watching, caching, exports",
   "license": "PROPRIETARY",
   "type": "module",
@@ -43,7 +43,7 @@
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-policy": "workspace:*",
     "chokidar": "^5.0.0",
-    "eslint": "^10.2.0",
+    "eslint": "^10.2.1",
     "glob": "^13.0.0",
     "minimatch": "^10.2.5",
     "shell-quote": "^1.8.3",
@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@types/shell-quote": "^1.7.5",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.5"
   },
   "files": [
     "dist",

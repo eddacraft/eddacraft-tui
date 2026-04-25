@@ -6,8 +6,11 @@ sidebar_position: 3
 
 # Architecture Boundaries
 
-anvil enforces module boundaries by analysing import graphs. This tutorial
-covers defining layers, writing an architecture file, and validating boundaries.
+anvil enforces module boundaries by analysing import graphs. In Anvil's quality
+model, architecture is one family of checks: the check reads your project graph,
+surfaces boundary findings, and contributes those findings to the gate result.
+This tutorial covers defining layers, writing an architecture file, and
+validating boundaries.
 
 ## Prerequisites
 
@@ -89,6 +92,9 @@ This prints the resolved layers, allowed/denied imports, and file counts.
 
 ## 5. Check Your Code Against Boundaries
 
+This command runs checks across your codebase. In this tutorial, the relevant
+findings come from the architecture check family.
+
 ```bash
 anvil check --all
 ```
@@ -102,6 +108,9 @@ Checking architecture...
 
 1 architecture violation found.
 ```
+
+In the sample output above, `Boundary violation` is an architecture finding. The
+gate can later use that finding when deciding whether the workflow passes.
 
 ## 6. Fix or Suppress
 

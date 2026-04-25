@@ -1,7 +1,13 @@
-import { AdminClient, AdminError } from '../client.js';
+import { InviteResponseSchema, type InviteResponse } from '@eddacraft/admin-contracts';
+import { AdminClient, AdminError, type AdminWriter } from '../client.js';
 import { resolveConfig, type AdminConfig, type ConfigFlags } from '../config.js';
 import { formatJson, formatSuccess } from '../format.js';
 
+export type { InviteResponse };
+
+// TODO(FLAGM-006): retire this inline constant once admin-cli consumes the
+// api.scope.* manifest through @eddacraft/admin-contracts. Until then, this
+// list MUST mirror API_SCOPE_NAMES in apps/anvil-api/src/lib/feature-flags.ts.
 export const ALLOWED_SCOPES = ['beta', 'preview', 'internal'] as const;
 export type InviteScope = (typeof ALLOWED_SCOPES)[number];
 
@@ -21,17 +27,6 @@ export interface InviteRequestBody {
   days?: number;
   scopes?: InviteScope[];
   tokenOnly?: boolean;
-}
-
-export interface InviteResponse {
-  user: { email: string; id: string };
-  scopes: InviteScope[];
-  token?: string;
-  expiresAt?: string;
-}
-
-export interface AdminWriter {
-  post<T>(path: string, body?: unknown): Promise<T>;
 }
 
 export interface InviteDeps {
@@ -74,7 +69,7 @@ export async function runInviteCommand(
   if (options.scope !== undefined && options.scope.length > 0) body.scopes = options.scope;
   if (options.tokenOnly) body.tokenOnly = true;
 
-  const result = await client.post<InviteResponse>('/admin/invite', body);
+  const result = await client.post('/admin/invite', body, InviteResponseSchema);
 
   if (options.json) {
     stdout(formatJson(result) + '\n');

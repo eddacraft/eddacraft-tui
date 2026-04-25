@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  runRevokeCommand,
-  CONFIRM_WORD,
-  type AdminWriter,
-  type RevokeResponse,
-} from '../commands/revoke.js';
+import { runRevokeCommand, CONFIRM_WORD, type RevokeResponse } from '../commands/revoke.js';
+import type { AdminWriter } from '../client.js';
 
 function makeClient(result: unknown): AdminWriter & { post: ReturnType<typeof vi.fn> } {
   const post = vi.fn(async () => result) as unknown as AdminWriter['post'] &
@@ -37,7 +33,11 @@ describe('runRevokeCommand', () => {
       { yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/revoke', { email: 'alice@example.com' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/revoke',
+      { email: 'alice@example.com' },
+      expect.anything()
+    );
     const out = writes.join('');
     expect(out).toContain('Revoked 3 token(s)');
     expect(out).toContain('alice@example.com');
@@ -51,7 +51,11 @@ describe('runRevokeCommand', () => {
       { token: 'raw-token-abc', yes: true },
       { createClient: () => client, stdout: (s) => writes.push(s) }
     );
-    expect(client.post).toHaveBeenCalledWith('/admin/revoke', { token: 'raw-token-abc' });
+    expect(client.post).toHaveBeenCalledWith(
+      '/admin/revoke',
+      { token: 'raw-token-abc' },
+      expect.anything()
+    );
     expect(writes.join('')).toContain('Revoked 1 token(s) for token');
   });
 
@@ -98,6 +102,28 @@ describe('runRevokeCommand', () => {
       { createClient: () => client, stdout: () => {}, stderr: () => {}, prompt, isTTY: true }
     );
     expect(client.post).not.toHaveBeenCalled();
+  });
+
+  // #948: with --json, a declined confirmation must not pollute stdout.
+  it('with --json, a declined confirmation routes "Aborted" to stderr', async () => {
+    const client = makeClient(emailResponse);
+    const outs: string[] = [];
+    const errs: string[] = [];
+    const prompt = vi.fn(async () => 'n');
+    await runRevokeCommand(
+      'alice@example.com',
+      { json: true },
+      {
+        createClient: () => client,
+        stdout: (s) => outs.push(s),
+        stderr: (s) => errs.push(s),
+        prompt,
+        isTTY: true,
+      }
+    );
+    expect(client.post).not.toHaveBeenCalled();
+    expect(outs.join('')).toBe(''); // stdout stays pure JSON-safe (empty)
+    expect(errs.join('')).toContain('Aborted.');
   });
 
   it('trims whitespace from the confirmation answer', async () => {

@@ -71,6 +71,33 @@ deadline live in
 | [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Visual identity, design system, deck templates, brand assets                  |
 | [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec)   | The APS planning format used throughout this repo                             |
 
+## Install
+
+Get the latest release from
+[**install.eddacraft.ai**](https://install.eddacraft.ai) — auto-detects your OS
+and highlights the recommended command.
+
+```bash
+# Linux / macOS
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+
+# macOS (Homebrew)
+brew install eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+
+# Windows (WinGet)
+winget install eddacraft.anvil
+
+# Windows (Scoop)
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
+```
+
 ---
 
 ## For contributors
@@ -136,14 +163,16 @@ and tooling.
 
 ### Apps
 
-| Directory         | Package                    | Description                                                                   | Deployment          |
-| ----------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
-| `apps/anvil-cli`  | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
-| `apps/docs-site`  | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
-| `apps/website`    | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
-| `apps/anvil-api`  | —                          | API service                                                                   | Vercel              |
-| `apps/docs-shell` | `@eddacraft/docs-shell`    | Documentation shell (Next.js, auth-gated)                                     | Vercel              |
-| `apps/e2e`        | —                          | End-to-end test suites (Playwright)                                           | —                   |
+| Directory                 | Package                         | Description                                                  | Deployment |
+| ------------------------- | ------------------------------- | ------------------------------------------------------------ | ---------- |
+| `apps/admin-cli`          | `@eddacraft/anvil-admin-cli`    | Operator CLI for beta/admin workflows                        | —          |
+| `apps/anvil-api`          | —                               | API service                                                  | Vercel     |
+| `apps/anvil-docs-private` | `@eddacraft/anvil-docs-private` | Private Docusaurus docs app                                  | Vercel     |
+| `apps/docs-public`        | `@eddacraft/docs-public`        | Public Docusaurus docs app                                   | Vercel     |
+| `apps/docs-shell`         | `@eddacraft/docs-shell`         | Documentation shell and auth/proxy entrypoint                | Vercel     |
+| `apps/docs-site`          | `@eddacraft/docs-site`          | Legacy docs app retained during the docs-platform transition | Vercel     |
+| `apps/e2e`                | —                               | End-to-end Vitest harness                                    | —          |
+| `apps/website`            | `@eddacraft/anvil-website`      | Marketing website (Next.js)                                  | Vercel     |
 
 ### Packages — anvil core
 
@@ -154,14 +183,6 @@ and tooling.
 | `packages/anvil/core`      | `@eddacraft/anvil-core`      | Pure domain logic depending on ports and contracts        |
 | `packages/anvil/runtime`   | `@eddacraft/anvil-runtime`   | Orchestration and I/O depending on core, ports, contracts |
 | `packages/anvil/policy`    | `@eddacraft/anvil-policy`    | OPA/Rego wrappers depending on contracts                  |
-
-### Packages — Platform
-
-| Directory                   | Package                             | Description                                  |
-| --------------------------- | ----------------------------------- | -------------------------------------------- |
-| `packages/platform/config`  | `@eddacraft/anvil-platform-config`  | Configuration loading and validation         |
-| `packages/platform/storage` | `@eddacraft/anvil-platform-storage` | File system and persistence abstractions     |
-| `packages/platform/crypto`  | `@eddacraft/anvil-platform-crypto`  | Hashing, signing, and verification utilities |
 
 ### Packages — Ecosystem
 
@@ -174,7 +195,8 @@ and tooling.
 | `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
 | `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
 | `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
-| `packages/json-render`          | `@eddacraft/json-render`                | JSON-driven dashboard renderer                    |
+| `packages/libs/render`          | `@eddacraft/render`                     | Shared render-layer utilities                     |
+| `packages/shared`               | —                                       | Shared cross-cutting utilities                    |
 | `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |
 
 ### Packages — Tooling
@@ -206,12 +228,13 @@ and tooling.
 
 ### Tools
 
-| Directory          | Description               |
-| ------------------ | ------------------------- |
-| `tools/scripts`    | Build and utility scripts |
-| `tools/generators` | NX code generators        |
-| `tools/codemods`   | Codemod transformations   |
-| `tools/test-utils` | Shared test utilities     |
+| Directory          | Description                          |
+| ------------------ | ------------------------------------ |
+| `tools/scripts`    | Build and utility scripts            |
+| `tools/generators` | NX code generators                   |
+| `tools/codemods`   | Codemod transformations              |
+| `tools/nx-rust`    | NX plugin for Rust crate integration |
+| `tools/test-utils` | Shared test utilities and fixtures   |
 
 ### Plans
 
@@ -225,11 +248,15 @@ and tooling.
 
 ### Prerequisites
 
-- **Node.js** >= 24
+- **Node.js** >= 22.13.0 (minimum per `package.json` engines); **Node 24** is
+  the recommended/pinned version for contributors — see `.nvmrc` /
+  `.node-version`
 - **pnpm** >= 10.20.0
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
 - **cargo-llvm-cov** (optional, for Rust coverage) —
   `cargo install cargo-llvm-cov`
+- **cargo-nextest** (optional, required by `pnpm test:coverage:rust`) —
+  `cargo install cargo-nextest --locked`
 
 ### Setup
 
@@ -262,80 +289,9 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-04-13 · commit `2b613407`. `eddacraft-tui` is now an
-> external git dependency and excluded from the Rust table. Run
-> `pnpm test:coverage` for current numbers across both stacks.
-
-Coverage reflects unit and integration tests only (v8 / llvm-cov providers). E2E
-tests run separately via `apps/e2e/` and do not contribute to line coverage.
-
-#### TypeScript
-
-| Project                                 |     Lines |    Branch | Test Files | Types             |
-| --------------------------------------- | --------: | --------: | ---------: | ----------------- |
-| `contracts`                             |      100% |      100% |          1 | Unit              |
-| `platform-config`                       |      100% |      100% |          2 | Unit              |
-| `@eddacraft/anvil-aps`                  |     96.8% |     85.7% |          8 | Unit              |
-| `platform-storage`                      |     95.0% |     87.5% |          1 | Unit              |
-| `@eddacraft/anvil-mcp-server`           |     88.7% |     75.4% |         12 | Unit              |
-| `@eddacraft/anvil-adapters`             |     87.0% |     76.4% |         13 | Unit              |
-| `core`                                  |     83.6% |     73.8% |         37 | Unit              |
-| `@eddacraft/anvil-edda-stack`           |     77.2% |     65.3% |         33 | Unit              |
-| `policy`                                |     75.9% |     67.5% |          5 | Unit              |
-| `runtime`                               |     71.2% |     63.1% |   27u + 2i | Unit, Integration |
-| `anvil-vscode`                          |     62.5% |     43.1% |          7 | Unit              |
-| `@eddacraft/anvil-api`                  |     62.0% |     54.6% |          6 | Unit              |
-| `json-render`                           |     44.8% |     20.8% |          2 | Unit              |
-| `@eddacraft/anvil-kindling-integration` |     19.9% |      6.4% |          1 | Unit              |
-| `eslint-plugin-anvil`                   |    --[^1] |    --[^1] |          3 | Unit              |
-| `infra`                                 |    --[^4] |    --[^4] |          3 | Unit              |
-| `ports`                                 |   N/A[^2] |   N/A[^2] |          0 | --                |
-| `platform-crypto`                       |    0%[^3] |    0%[^3] |          0 | --                |
-| `anvil-website`                         |    --[^5] |    --[^5] |          0 | --                |
-| `transactional`                         |    --[^5] |    --[^5] |          0 | --                |
-| `docs-site`                             |    --[^5] |    --[^5] |          0 | --                |
-| `anvil-generators`                      |    --[^5] |    --[^5] |          0 | --                |
-| `docs-shell`                            |    --[^6] |    --[^6] |          6 | Unit              |
-| **TS total**                            | **77.2%** | **67.0%** |    **164** |                   |
-
-#### Rust
-
-| Crate                |     Lines | Test Modules |
-| -------------------- | --------: | -----------: |
-| `anvil-kernel-types` |     99.4% |            5 |
-| `anvil-kernel`       |     94.7% |           23 |
-| `anvil-bench`        |     94.3% |            8 |
-| `anvil-architecture` |     93.4% |            5 |
-| `anvil-checks`       |     91.7% |           17 |
-| `anvil-tui`          |     90.0% |           29 |
-| `anvil-policy`       |     77.6% |            8 |
-| `anvil-cli`          |     54.5% |           22 |
-| `spike`              |      0.0% |            0 |
-| **Rust total**       | **79.8%** |      **117** |
-
-[^1]:
-    `eslint-plugin` tests run via NX project-level config, not the root vitest
-    config.
-
-[^2]: `ports` contains pure interface definitions — no executable code to cover.
-
-[^3]: `platform-crypto` has no tests yet.
-
-[^4]: Coverage not yet measured for this project.
-
-[^5]: No tests — not included in coverage totals.
-
-[^6]: Coverage not yet measured for this project (new addition).
-
-### Test type breakdown
-
-| Type            | Files | Description                                            |
-| --------------- | ----: | ------------------------------------------------------ |
-| TS Unit         |   162 | Co-located `*.test.ts` — mocked deps, fast             |
-| TS Integration  |     2 | `*-integration.test.ts` — multi-module, in-process     |
-| TS E2E          |    10 | `*.e2e.test.ts` in `apps/e2e/` — cross-package testing |
-| Rust Unit/Integ |   117 | `#[cfg(test)]` modules — inline and integration tests  |
-| Rust Benchmarks |     — | Criterion micro-benchmarks (`cargo bench`, see below)  |
+Coverage data changes frequently enough that the repository README should point
+to the commands and CI artefacts rather than freeze a per-project table that
+goes stale.
 
 ### Running coverage
 
@@ -343,17 +299,14 @@ tests run separately via `apps/e2e/` and do not contribute to line coverage.
 # Full monorepo (TypeScript + Rust)
 pnpm test:coverage
 
-# TypeScript only (via Nx — runs all project-level vitest configs)
+# TypeScript only (via Nx — runs project-level Vitest configs)
 pnpm test:coverage:ts
 
 # Rust only (cargo-llvm-cov → target/llvm-cov/html/)
 pnpm test:coverage:rust
 
-# Per TS project (via Nx)
-pnpm nx test <project-name> --coverage
-
-# Root vitest config only (excludes eslint-plugin-anvil — see ^1)
-pnpm vitest run --coverage
+# E2E harness (kept separate from coverage totals)
+pnpm test:e2e:harness
 ```
 
 Coverage output is written to the root `coverage/` directory (HTML, JSON, and
@@ -491,8 +444,11 @@ your own workflows.
 
 1. Fork and clone
 2. Create feature branch: `git checkout -b feature/my-feature`
-3. Make changes, run `pnpm test && pnpm typecheck && pnpm lint`
-4. Open PR
+3. Make changes, run
+   `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
+4. `git commit` will also run the Husky pre-commit hook, which applies
+   `lint-staged` fixes and re-checks staged `oxfmt`-managed files
+5. Open PR
 
 See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
@@ -501,7 +457,7 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 | Document                                                                | Description                                 |
 | ----------------------------------------------------------------------- | ------------------------------------------- |
 | [Quick Start](./docs/public/anvil/quickstart.md)                        | Get running in 5 minutes                    |
-| [CLI Reference](./apps/anvil-cli/README.md)                             | Complete command reference                  |
+| [CLI README](./crates/anvil-cli/README.md)                              | Native CLI binary overview                  |
 | [First Project](./docs/public/anvil/first-project.md)                   | Real-world setup example                    |
 | [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)    | Common issues and solutions                 |
 | [Configuration](./docs/public/anvil/operations/config.md)               | Configuration options                       |

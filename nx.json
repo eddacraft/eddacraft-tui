@@ -18,7 +18,18 @@
       "!{projectRoot}/src/test-setup.[jt]s",
       "!{projectRoot}/test-setup.[jt]s"
     ],
-    "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
+    "sharedGlobals": [
+      "{workspaceRoot}/.github/workflows/ci.yml",
+      "{workspaceRoot}/.github/workflows/rust.yml",
+      "{workspaceRoot}/.github/actions/setup-workspace/**",
+      "{workspaceRoot}/tools/nx-rust/**/*",
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/pnpm-lock.yaml",
+      "{workspaceRoot}/pnpm-workspace.yaml",
+      "{workspaceRoot}/Cargo.toml",
+      "{workspaceRoot}/Cargo.lock",
+      "{workspaceRoot}/rust-toolchain.toml"
+    ]
   },
   "generators": {
     "@eddacraft/anvil-generators": {
@@ -30,7 +41,7 @@
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["archive/**"],
+      "exclude": ["archive/**", "tools/nx-rust/**"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"
@@ -44,17 +55,20 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
-      "exclude": ["archive/**"],
+      "exclude": ["archive/**", "tools/nx-rust/**"],
       "options": {
         "targetName": "lint"
       }
     },
     {
       "plugin": "@nx/vite/plugin",
-      "exclude": ["archive/**"],
+      "exclude": ["archive/**", "tools/nx-rust/**"],
       "options": {
         "testTarget": "test"
       }
+    },
+    {
+      "plugin": "@eddacraft/nx-rust"
     }
   ],
   "targetDefaults": {

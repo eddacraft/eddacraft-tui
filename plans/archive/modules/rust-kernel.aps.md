@@ -488,50 +488,72 @@ Incrementalupdate at 10µs is 10,000x under the 100ms target.
 
 ---
 
-## Phase 5 — Daemon Mode (Deferred, architecture-ready)
+## Phase 5 — Daemon Mode (Superseded by INTD, 2026-04-24)
 
-### KERN-050: Unix domain socket transport
+> **Supersession note (ADR-030, 2026-04-24):** KERN-050, KERN-051, and
+> KERN-052 specified a long-lived kernel-owned Unix socket + JSON-RPC
+> + session fan-out surface, intended as the stable daemon transport
+> multiple clients would connect to. The intercept daemon
+> (`anvil-intercept`, APS module INTD) hosts the same Rust kernel in a
+> long-running process with exactly this surface — its IPC Listener
+> (INTD-002, NDJSON over UDS / named pipes), Session Registry
+> (INTD-003), and Telemetry Mirror (INTD-013) collectively absorb
+> KERN Phase 5. Cost of two parallel daemon surfaces over the kernel
+> is not justified; the three work items below are **Superseded**.
+> Files listed under each (e.g. `crates/anvil-kernel/src/transport/`)
+> are **not to be created** — daemon transport lives in
+> `crates/anvil-intercept/`.
 
-- **Status:** Draft
-- **Intent:** Add Unix domain socket transport for daemon mode, enabling
-  multi-client connections to a long-lived kernel process
-- **Expected Outcome:** Kernel accepts client connections over Unix socket
-- **Validation:** Multiple clients connect simultaneously, receive events
-- **Files:** `crates/anvil-kernel/src/transport/`
-- **Confidence:** medium
-- **Priority:** Low (deferred to post-H1)
-- **Dependencies:** KERN-041
+### KERN-050: Unix domain socket transport — **Superseded**
 
----
-
-### KERN-051: JSON-RPC request/response + notification protocol
-
-- **Status:** Draft
-- **Intent:** Wrap the kernel's public API with JSON-RPC 2.0 for daemon mode.
-  Request/response for queries (kernel/status, kernel/check, kernel/graph/query).
-  Notifications for streaming (kernel/violation, kernel/progress, kernel/snapshot).
-- **Expected Outcome:** Full JSON-RPC protocol implementation over Unix socket
-- **Validation:** JSON-RPC conformance tests, round-trip latency benchmarks
-- **Files:** `crates/anvil-kernel/src/transport/jsonrpc.rs`
-- **Confidence:** medium
-- **Priority:** Low (deferred to post-H1)
-- **Dependencies:** KERN-050
+- **Status:** Superseded by INTD-002 (IPC Listener)
+- **Original intent:** Add Unix domain socket transport for daemon
+  mode, enabling multi-client connections to a long-lived kernel
+  process.
+- **Replacement:** INTD-002 provides NDJSON over Unix domain socket
+  (Linux/macOS) and named pipe (Windows) against the intercept
+  daemon, which hosts the kernel in-process. Same transport outcome,
+  different owner crate.
 
 ---
 
-### KERN-052: Client session management + event fan-out
+### KERN-051: JSON-RPC request/response + notification protocol — **Superseded**
 
-- **Status:** Draft
-- **Intent:** Manage multiple client sessions with per-session event filtering
-  and fan-out. Each client subscribes to event types and receives only relevant
-  events.
-- **Expected Outcome:** Multiple clients with different subscriptions receive
-  correct event subsets
-- **Validation:** Multi-client test with different subscription filters
-- **Files:** `crates/anvil-kernel/src/transport/session.rs`
-- **Confidence:** medium
-- **Priority:** Low (deferred to post-H1)
-- **Dependencies:** KERN-051
+- **Status:** Superseded by INTD-002 + INTD-013
+- **Original intent:** Wrap the kernel's public API with JSON-RPC 2.0
+  for daemon mode; notifications for streaming
+  `kernel/violation` / `kernel/progress` / `kernel/snapshot`.
+- **Replacement:** The intercept daemon's IPC Listener carries the
+  JSON-RPC envelope; INTD-013 (Mirror Enforcement Decisions Onto
+  Notification Telemetry) is the canonical streaming emission point
+  subscribers consume. The method namespace moves from `kernel/...`
+  to the control-lane / telemetry-lane split defined in
+  `plans/specs/anvil-driver-framework/anvil-driver-framework-design-spec.md`.
+
+---
+
+### KERN-052: Client session management + event fan-out — **Superseded**
+
+- **Status:** Superseded by INTD-003 (Session Registry), INTD-007
+  (Fence Persistence), and INTD-015 (Daemon-Enforced Telemetry
+  Subscription Scoping)
+- **Original intent:** Manage multiple client sessions with
+  per-session event filtering and fan-out. The original work item
+  also implicitly covered state persistence across daemon restarts
+  (multi-client sessions must survive process restart with fences
+  intact).
+- **Replacement:** INTD-003 carries the session registry and the
+  single-session-per-worktree constraint. INTD-007 covers fence
+  state persisted to disk — the state-persistence concern this
+  item originally carried. INTD-015 (filed 2026-04-24 after the
+  council review flagged this as M5) provides the daemon-enforced
+  telemetry filter; earlier framing here treated per-session
+  filtering as a driver capability, which the security-analyst
+  reviewer correctly identified as delegation of an access-control
+  check to the subscriber. The filter belongs at the fan-out layer
+  on the daemon side, exactly where the original KERN-052 placed
+  it; INTD-015 restores that. Council review S5 (adversarial) added
+  the INTD-007 pointer; M5 (security) prompted the INTD-015 filing.
 
 ---
 

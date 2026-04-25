@@ -15,8 +15,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchDemoState, theme: &Edd
     let watch_state = WatchState::new(state.data.clone());
     crate::surfaces::watch::render::render(frame, area, &watch_state, theme);
 
-    // Render the overlay on top if active.
-    if state.overlay != OverlayPhase::Dismissed {
+    // Render the overlay while it has any visible reveal — this lets the
+    // intro animate in from 0 and the dismiss animate out to 0 instead of
+    // popping in/out the moment the phase changes.
+    if state.overlay_reveal() > f64::EPSILON {
         render_overlay(frame, area, state, theme);
     }
 }
@@ -27,8 +29,11 @@ fn render_overlay(frame: &mut Frame, area: Rect, state: &WatchDemoState, theme: 
         return;
     }
 
+    let reveal = state.overlay_reveal().clamp(0.0, 1.0);
+
     // Position the overlay at the bottom of the screen.
-    let overlay_height = 5u16.min(area.height.saturating_sub(2));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let overlay_height = ((3.0 + (2.0 * reveal)).round() as u16).min(area.height.saturating_sub(2));
     let chunks =
         Layout::vertical([Constraint::Min(0), Constraint::Length(overlay_height)]).split(area);
 

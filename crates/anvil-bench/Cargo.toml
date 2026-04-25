@@ -13,12 +13,18 @@ serde_json = { workspace = true }
 petgraph = { workspace = true }
 tempfile = "3"
 rand = "0.10"
+workspace-hack.workspace = true
 
 [dev-dependencies]
+anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
 
 [[bench]]
 name = "stress"
+harness = false
+
+[[bench]]
+name = "antipattern_scan"
 harness = false
 
 [lints]

@@ -3,6 +3,7 @@ name = "eddacraft-anvil-kernel-types"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "Shared types for the Anvil Rust kernel — events, graph nodes, trust levels"
 
 [lib]
@@ -10,6 +11,7 @@ name = "anvil_kernel_types"
 
 [dependencies]
 serde = { workspace = true }
+workspace-hack.workspace = true
 
 [dev-dependencies]
 serde_json = { workspace = true }

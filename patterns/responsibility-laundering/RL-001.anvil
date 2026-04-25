@@ -13,7 +13,7 @@ targets: [agent-output, pr-description]
 
 detection:
   type: regex
-  pattern: \bpre-existing\b(?!.*\b(run #|run id|also fails on|verified))
+  pattern: '\bpre-existing\b(?!.*\b(run #|run id|also fails on|verified))'
   flags: i
 
 related: [RL-003, RL-004]

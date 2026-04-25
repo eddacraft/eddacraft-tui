@@ -50,8 +50,9 @@ PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh [--skip-preview] <project-dir> [
 shift
 EXTRA_PATHS=("$@")
 
-# Shared paths that should trigger a rebuild for any project
-SHARED_PATHS="pnpm-lock.yaml package.json"
+# Shared paths that should trigger a rebuild for any project.
+# These affect dependency resolution, workspace discovery, or app build logic.
+SHARED_PATHS="package.json pnpm-lock.yaml pnpm-workspace.yaml nx.json tsconfig.base.json .npmrc tools/scripts/vercel-ignore-build.sh"
 
 # Ensure we work from the repo root regardless of where Vercel invokes us
 cd "$REPO_ROOT"

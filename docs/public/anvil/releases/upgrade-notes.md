@@ -9,7 +9,133 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.3.3-beta
+## Current Version: 0.4.0-beta
+
+## Upgrading to 0.4.0-beta
+
+Drop-in upgrade from `0.3.3-beta` for most users. Three behavioural changes
+require attention:
+
+- **`anvil watch --exclude` now takes glob patterns, not bare directory names.**
+  A previous `--exclude vendor` no longer excludes files under `vendor/`; use
+  `--exclude 'vendor/**'` instead. The CLI prints a warning when a
+  likely-bare-name pattern is detected.
+- **`anvil doctor --json` envelope changed** from a bare array to
+  `{ "checks": [...], "notifications": [...], "schema_version": "2.0.0" }`, and
+  every check now carries a structured `remediation` object
+  (`{ summary, command?, doc_url? }`). Consumers iterating the array must switch
+  to `data.checks`; consumers that schema-validated the prior shape must accept
+  the `remediation` field on every check and the new `schema_version` envelope
+  field. Branch on `schema_version` to gate compatibility — pass / skipped
+  checks emit `remediation: { summary: "" }`, fail / warn checks always populate
+  `summary` and at least one of `command` or `doc_url`.
+- **`anvil check`, `anvil gate`, `anvil audit` JSON outputs now include a
+  `notifications[]` field** alongside their existing payloads. Consumers pinned
+  to the prior shape will see an additional ignorable field; nothing is removed.
+  The notification envelope shape is shared with `anvil doctor`.
+
+### Operator-side: per-operator admin keys
+
+If you're running the `anvil-api` backend and want to enable the new
+per-operator admin key flow shipped in this release (replacing the single shared
+admin key), set:
+
+- `ADMIN_PER_OPERATOR_KEYS=1` — turns on per-operator key resolution
+- `ADMIN_KEY_PEPPER=<random-32-byte-hex>` — pepper for the peppered-hash lookup;
+  must be set before any per-operator keys can authenticate
+
+When `ADMIN_PER_OPERATOR_KEYS=1` is set without a non-empty `ADMIN_KEY_PEPPER`,
+the middleware falls back to the legacy shared-key auth and logs an error
+server-side. CLI requests will not see the misconfiguration directly. Provision
+both via your secret manager (Pulumi handles this for the EddaCraft-managed
+deployment) before rolling operators onto per-operator keys.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.4.0-beta
+
+- **`anvil watch --patterns / --exclude`** — user-supplied glob filter on the
+  watch loop. Previously the flags were declared but never read; watch silently
+  used a hardcoded scope.
+- **Post-init auto-analysis** — `anvil init` now runs an inline first scan and
+  surfaces a real signal (top warnings + counts) rather than pointing at
+  `anvil doctor`.
+- **Doctor structured remediation** — every `anvil doctor` check emits a
+  concrete remediation field (link, command, or auto-fix prompt); no check
+  terminates at "see README".
+- **`anvil watch` startup banner** — prints active include / exclude scope so
+  the active filter is visible at a glance.
+- **Workspace hardening** — cargo-hakari workspace-hack, cargo-deny policy,
+  third-party notices via cargo-about (RUSTNX).
+
+## Upgrading to 0.3.3-beta
+
+Drop-in upgrade from `0.3.2-beta`. No configuration migration is required.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.3.3-beta
+
+- **Windows distribution** — WinGet landed and Scoop became part of the
+  documented install/upgrade story.
+- **Admin operations** — the separate `anvil-admin` operator CLI gained
+  list/show/invite/audit/revoke and migration tooling.
+- **Windows UX fixes** — onboarding, discovery, and key handling improved.
+
+## Upgrading to 0.3.2-beta
+
+Drop-in upgrade from `0.3.1-beta`. No configuration migration is required.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
 
 ## Upgrading to 0.3.1-beta
 
@@ -23,7 +149,7 @@ curl -fsSL https://install.eddacraft.ai | sh
 brew upgrade eddacraft/tap/anvil
 
 # Or via the built-in updater
-anvil-update
+anvil update
 ```
 
 ### What's New in 0.3.1-beta
@@ -41,21 +167,20 @@ continue to work without modification.
 
 ## Upgrading to 0.3.0-beta
 
-**Major change:** anvil is now a native Rust binary. The Node.js package
-(`@eddacraft/anvil-cli`) is deprecated and will not receive further updates.
+`0.3.0-beta` was the release where anvil became a native Rust binary. Current
+docs assume a fresh install on the Rust CLI rather than a staged migration from
+the legacy Node.js package.
 
 ```bash
 # Install the native binary
 curl -fsSL https://install.eddacraft.ai | sh
-
-# Remove the old Node.js package (global)
-npm uninstall -g @eddacraft/anvil-cli
-# or if installed as a project dependency:
-# pnpm remove @eddacraft/anvil-cli
 ```
 
-Your `.anvilrc` and `.anvil/` directory work without changes. Authentication
-tokens are migrated automatically on first run.
+If an older npm-installed `anvil` is still earlier on your `PATH`, remove
+`@eddacraft/anvil-cli` and re-run `anvil --version` so you know the native
+binary is the command being executed.
+
+Your `.anvilrc` and `.anvil/` directory work without changes.
 
 For full details, see [The Switch to Rust](./rust-rewrite.md).
 
@@ -63,8 +188,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 - **Native binary** — 5–10x faster scanning, 80% less memory in watch mode, no
   Node.js dependency.
-- **Kernel engine** — persistent daemon with incremental parsing and real-time
-  semantic graph updates.
+- **Kernel engine** — foreground watch mode, incremental parsing, and real-time
+  semantic graph updates in the native Rust runtime.
 - **Ratatui TUI** — rebuilt interactive surfaces with the eddacraft Terminal
   Standard design system.
 - **Welcome & onboarding** — first-run interactive experience; run
@@ -77,8 +202,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 ### Breaking Changes
 
-- **Installation method** — `npm i -g @eddacraft/anvil-cli` no longer works. Use
-  the install script or Homebrew.
+- **Installation method** — install anvil as a native binary via the installer,
+  Homebrew, WinGet, or Scoop.
 - **CI workflows** — replace `pnpm anvil` / `npx anvil` with direct `anvil`
   calls. Remove Node.js setup steps if anvil was the only reason they existed.
 - **Docs access** — the `/anvil` documentation is now gated behind GitHub OAuth

@@ -27,6 +27,8 @@ export PATH="$HOME/.eddacraft/bin:$PATH"
 
 If you installed via Homebrew, run `brew link eddacraft/tap/anvil`.
 
+If you installed via Scoop, run `scoop reset anvil`.
+
 **Windows (PowerShell):**
 
 ```powershell
@@ -40,34 +42,34 @@ $env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
 Add-Content $PROFILE '$env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"'
 ```
 
-### Migrating from the Node.js package
+### Installer Completed but `anvil` Still Fails
 
-If you previously used `@eddacraft/anvil-cli` via npm/pnpm, remove it and
-install the native binary:
+If the installer finished successfully but `anvil` still does not run:
 
-**macOS / Linux:**
+- confirm `~/.eddacraft/bin` (macOS/Linux) or `%USERPROFILE%\.eddacraft\bin`
+  (Windows) is on your `PATH`
+- open a new terminal session after install
+- run `anvil --version` to confirm the binary resolves
+- if needed, re-run the installer to replace a partial or stale binary
+
+See [The Switch to Rust](/anvil/releases/rust-rewrite) for background on the
+Rust binary.
+
+### Updater Not Finding a New Release
+
+If `anvil update` reports that you are already current but you expect a newer
+beta:
 
 ```bash
-# Remove the old package
-pnpm remove @eddacraft/anvil-cli
-# or: npm uninstall @eddacraft/anvil-cli
-
-# Install the native binary
-curl -fsSL https://install.eddacraft.ai | sh
+anvil --version
+anvil update
 ```
 
-**Windows (PowerShell):**
+If the updater still cannot see the release:
 
-```powershell
-# Remove the old package
-npm uninstall -g @eddacraft/anvil-cli
-
-# Install the native binary
-irm https://install.eddacraft.ai/windows | iex
-```
-
-See [The Switch to Rust](/anvil/releases/rust-rewrite) for full migration
-details.
+- re-run the install script to pick up the latest published artefact
+- verify that the GitHub release exists for your platform
+- on Windows, try `winget upgrade eddacraft.anvil` or `scoop update anvil`
 
 ## Configuration Issues
 
@@ -122,22 +124,21 @@ Files changing but anvil not responding.
 
 **Solutions:**
 
-1. Check ignore patterns:
+1. Check the watch scope you started:
 
    ```bash
-   cat .anvilrc | grep ignore
+   anvil watch --source
+   anvil watch --plans
+   anvil watch --all
    ```
 
-2. Check file extensions:
-
-   ```json
-   { "watch": { "extensions": [".ts", ".tsx"] } }
-   ```
+2. If you passed `--exclude`, use glob patterns such as `dist/**` or
+   `node_modules/**`. Bare names only match the exact path.
 
 3. Increase debounce:
 
-   ```json
-   { "watch": { "debounceMs": 500 } }
+   ```bash
+   anvil watch --source --debounce 500
    ```
 
 4. Check file system events:
@@ -160,7 +161,8 @@ anvil consuming too much CPU.
 **Solutions:**
 
 1. Increase debounce time
-2. Add more patterns to ignore
+2. Narrow the watch scope with `--file`, or use `--exclude` for obvious
+   generated/build directories by name
 3. Disable `validateOnType` in VS Code
 4. Check for circular watch triggers
 
@@ -170,8 +172,9 @@ Out of memory errors.
 
 **Solutions:**
 
-- Reduce watch scope by adding patterns to `.anvilignore`
-- Exclude large generated directories (`node_modules`, `dist`, `.next`)
+- Reduce watch scope with `anvil watch --file <path>`
+- Exclude large generated directories by name with `--exclude` (for example
+  `node_modules,dist,.next`)
 - Check for very large files being scanned
 - Check `inotify` limits on Linux (see File Watching section above)
 - If RSS exceeds expected bounds (~30-50MB for a medium project), file a bug

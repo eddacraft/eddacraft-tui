@@ -13,7 +13,7 @@ all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (0.3.0-beta). The CLI is now a native Rust
+This is **pre-release software** (`0.3.x-beta`). The CLI is now a native Rust
 binary — no Node.js required. APIs and behaviour may change between releases.
 Your feedback directly shapes the product before public launch.
 
@@ -39,6 +39,12 @@ curl -fsSL https://install.eddacraft.ai | sh
 
 # Windows (PowerShell)
 irm https://install.eddacraft.ai/windows | iex
+
+# Or via Homebrew (macOS / Linux)
+brew install eddacraft/tap/anvil
+
+# Or via WinGet (Windows)
+winget install eddacraft.anvil
 ```
 
 Verify the installation:
@@ -72,14 +78,16 @@ For deeper dives into specific features, see the
 
 ## Step 2 -- Log In
 
-Authenticate with your access token (provided with your invite):
+Start the default device-code login flow:
 
 ```bash
-anvil login
+anvil auth login
 ```
 
-You will be prompted for your token. Once authenticated, all CLI commands are
-available.
+anvil prints a short code and a verification URL. Open the URL, enter the code,
+and the CLI will finish the login automatically.
+
+If your cohort uses email OTP instead, run `anvil auth login --otp`.
 
 ## Step 3 -- Initialise Your Project
 

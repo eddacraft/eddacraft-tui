@@ -1,5 +1,12 @@
 # Anvil v0.2.1-beta Release Test Report (Edda/Ember/Stack + Tutorial)
 
+> Historical release evidence for `v0.2.1-beta` only.
+>
+> This report documents a point-in-time release test run against the old
+> TypeScript CLI and its command surface. It is not current test guidance and
+> should not be used as the source of truth for today's CLI, release process, or
+> supported commands.
+
 Date: 2026-03-15 Release: `v0.2.1-beta — Project Memory & Pattern Detection`
 Source: https://github.com/eddacraft/anvil-001/releases/tag/v0.2.1-beta
 

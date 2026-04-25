@@ -10,7 +10,7 @@ TypeScript packages use **Vitest**; Rust crates use **cargo test** with
 # TypeScript
 pnpm test                    # Run all unit tests
 pnpm test:coverage           # With coverage reports
-pnpm test:e2e                # Playwright E2E tests
+pnpm test:e2e:harness        # Vitest E2E harness
 npx nx test core             # Test specific package
 npx nx test adapters --testNamePattern="BMAD"  # Run matching tests
 
@@ -345,13 +345,13 @@ it('should detect valid spec with high confidence', async () => {
 });
 ```
 
-### CLI (`apps/anvil-cli/` — legacy TypeScript)
+### CLI (`archive/anvil-cli-node/` — legacy TypeScript)
 
 - **Focus:** Command structure, argument parsing, user interaction
 - **Pattern:** Mock external deps (inquirer, ora, chalk), use test workspaces
 
 > **Note:** The primary CLI is now the Rust binary at `crates/anvil-cli/`. This
-> section covers the deprecated Node.js CLI.
+> section covers the archived Node.js CLI retained for historical reference.
 
 ```typescript
 // Testing CLI commands

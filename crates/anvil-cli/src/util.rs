@@ -50,6 +50,29 @@ pub fn workspace_root() -> Result<PathBuf> {
     })
 }
 
+/// Format an `anyhow::Error` for user-facing display with path-leakage guardrails.
+///
+/// - Default (`verbose = false`): prints only the outermost context (`{err}`).
+///   Relies on the outer context being a programmer-written, path-free string
+///   (e.g. `"starting engine watcher"`).
+/// - Verbose (`verbose = true`): prints the full anyhow chain (`{err:#}`),
+///   which may include absolute paths from `notify::Error`, `std::io::Error`,
+///   or similar filesystem-origin errors.
+///
+/// **Blind spot**: if a caller constructs context strings that embed paths
+/// (e.g. `.with_context(|| format!("reading {}", path.display()))`), those
+/// paths are part of the outermost message and WILL appear even at
+/// `verbose = false`. The convention in `docs/guides/cli-output-streams.md`
+/// forbids path-embedding context strings on error chains routed through
+/// this helper — this function does not redact them automatically.
+pub fn format_user_error(err: &anyhow::Error, verbose: bool) -> String {
+    if verbose {
+        format!("{err:#}")
+    } else {
+        format!("{err}")
+    }
+}
+
 /// Write `data` to `path` atomically by writing to a uniquely-named temporary
 /// file in the same directory and then renaming. This prevents partial/corrupt
 /// state files if the process crashes or is interrupted mid-write.
@@ -101,6 +124,40 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
 
     // On Windows, restrict the file to the current user only (matching Unix 0o600).
     // icacls is available on all modern Windows (Vista+).
+    #[cfg(windows)]
+    {
+        restrict_windows_permissions(path);
+    }
+
+    Ok(())
+}
+
+/// Create `path` exclusively and write `data`. Fails with `AlreadyExists` if
+/// the file is already present — use this instead of `atomic_write` when the
+/// caller has already decided "only create, do not overwrite", so the
+/// check-then-write window cannot be exploited by a concurrent writer.
+///
+/// On Unix the file is created with mode 0o600.
+pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut file = opts
+        .open(path)
+        .with_context(|| format!("creating {}", path.display()))?;
+    file.write_all(data)
+        .with_context(|| format!("writing {}", path.display()))?;
+    file.flush()
+        .with_context(|| format!("flushing {}", path.display()))?;
+
+    // On Windows, restrict the file to the current user only (matching the
+    // Unix 0o600 set at creation time). Best-effort; emits a warning rather
+    // than failing the write if icacls is unavailable.
     #[cfg(windows)]
     {
         restrict_windows_permissions(path);
@@ -214,6 +271,49 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
     }
 
+    #[test]
+    fn write_new_creates_file_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fresh.rc");
+
+        write_new(&path, b"hello").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello");
+    }
+
+    #[test]
+    fn write_new_errors_when_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("existing.rc");
+        std::fs::write(&path, "keep-me").unwrap();
+
+        let err = write_new(&path, b"overwrite").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("creating") || msg.contains("exists"),
+            "error message should mention creation failure: {msg}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "keep-me",
+            "write_new must not overwrite an existing file"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_new_sets_0600_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secret.rc");
+
+        write_new(&path, b"secret").unwrap();
+
+        let perms = std::fs::metadata(&path).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600);
+    }
+
     #[cfg(unix)]
     #[test]
     fn atomic_write_sets_0600_permissions() {
@@ -226,6 +326,58 @@ mod tests {
 
         let perms = std::fs::metadata(&path).unwrap().permissions();
         assert_eq!(perms.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn format_user_error_default_omits_chain() {
+        let inner = anyhow::anyhow!("inotify: /home/victim/secret-project");
+        let outer = inner.context("starting engine watcher");
+
+        let msg = format_user_error(&outer, false);
+
+        assert!(
+            msg.contains("starting engine watcher"),
+            "default mode should include the outer context: {msg}"
+        );
+        assert!(
+            !msg.contains("/home/victim/secret-project"),
+            "default mode must not leak wrapped root-cause paths: {msg}"
+        );
+    }
+
+    #[test]
+    fn format_user_error_verbose_includes_chain() {
+        let inner = anyhow::anyhow!("inotify: /home/victim/secret-project");
+        let outer = inner.context("starting engine watcher");
+
+        let msg = format_user_error(&outer, true);
+
+        assert!(msg.contains("starting engine watcher"), "verbose: {msg}");
+        assert!(
+            msg.contains("/home/victim/secret-project"),
+            "verbose must include the full chain for debugging: {msg}"
+        );
+    }
+
+    /// Documents the blind spot: paths embedded in the OUTER context string
+    /// itself (via `.with_context(|| format!("reading {}", p.display()))`)
+    /// are part of the outermost message and will leak even at
+    /// `verbose = false`. The convention in `cli-output-streams.md`
+    /// forbids this pattern on sites routed through `format_user_error`.
+    /// This test locks the behaviour in so a future change to the helper
+    /// that silently widened the contract would trip the assertion and
+    /// force an explicit convention update.
+    #[test]
+    fn format_user_error_does_not_redact_paths_in_outer_context() {
+        let err = anyhow::anyhow!("io error")
+            .context(format!("reading {}", "/home/victim/secret-project"));
+
+        let msg = format_user_error(&err, false);
+
+        assert!(
+            msg.contains("/home/victim/secret-project"),
+            "path in outer context is NOT redacted — callers must avoid this pattern: {msg}"
+        );
     }
 
     #[test]

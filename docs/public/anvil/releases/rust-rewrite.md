@@ -2,16 +2,16 @@
 id: rust-rewrite
 title: The Switch to Rust
 description:
-  Why we rewrote the anvil CLI in Rust, what changed, and how to migrate from
-  the Node.js package.
+  Why we rewrote the anvil CLI in Rust and what changed in the Rust-first
+  product.
 sidebar_position: 10
 ---
 
 # The Switch to Rust
 
-Starting with `0.3.0-beta`, the anvil CLI is a native binary written in Rust.
-The Node.js package (`@eddacraft/anvil-cli`) is deprecated and will not receive
-further updates.
+Starting with `0.3.0-beta`, anvil is a native binary written in Rust. This page
+explains why the product moved to Rust and what the current Rust-first shape of
+the tool looks like.
 
 ## Why Rust
 
@@ -61,6 +61,13 @@ irm https://install.eddacraft.ai/windows | iex
 
 # Or via Homebrew (macOS/Linux)
 brew install eddacraft/tap/anvil
+
+# Or via WinGet (Windows)
+winget install eddacraft.anvil
+
+# Or via Scoop (Windows)
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
 ```
 
 The install script detects your platform and architecture (x86_64, aarch64) and
@@ -145,7 +152,7 @@ is smoother, more responsive, and more consistent across terminal emulators.
 
 Features that were difficult or impractical in the Node.js version:
 
-- **Kernel engine** — a persistent daemon mode with incremental parsing and a
+- **Kernel engine** — foreground watch mode with incremental parsing and a
   semantic dependency graph that updates in real time as files change
 - **Policy evaluation** — policy configuration and rule loading are handled
   natively; OPA is still required for Rego evaluation
@@ -154,7 +161,11 @@ Features that were difficult or impractical in the Node.js version:
 - **Cross-platform auth** — device-flow authentication with secure credential
   storage via the OS keychain
 
-## Migration Guide
+## Fresh Start Guide
+
+This guide assumes a fresh start on the Rust CLI. If you still have the old
+`@eddacraft/anvil-cli` package installed and earlier on your `PATH`, remove it
+first so `anvil --version` resolves to the native binary.
 
 ### Step 1: Install the native binary
 
@@ -177,26 +188,27 @@ anvil --version
 # anvil 0.3.0-beta
 ```
 
-### Step 3: Remove the Node.js package
+If that still resolves to the deprecated npm-distributed CLI, uninstall
+`@eddacraft/anvil-cli` and verify again.
+
+### Step 3: Authenticate
 
 ```bash
-# If installed globally
-npm uninstall -g @eddacraft/anvil-cli
-
-# If installed as a project dependency
-pnpm remove @eddacraft/anvil-cli
-# or: npm uninstall @eddacraft/anvil-cli
+anvil auth login
 ```
 
-### Step 4: Authenticate
+`anvil login` still works as an alias, but `anvil auth login` is the canonical
+form. Add `--otp` if you need the email OTP flow instead of device code.
+
+### Step 4: Upgrade path
+
+Once installed, use the native updater:
 
 ```bash
-anvil login
+anvil update
 ```
 
-If you were previously authenticated with the Node.js CLI, your credentials
-migrate automatically on first run. Run `anvil login` only if prompted or if you
-see exit code 3 (auth required).
+If you want a clean reinstall, re-run the installer instead.
 
 ### Step 5: Update CI
 
@@ -213,10 +225,9 @@ Your `.anvilrc` and `.anvil/` directory work without changes.
 
 ## Reporting Issues
 
-The Rust CLI is in beta. If you find something that worked in the Node.js
-version but does not work in Rust, please
-[open an issue](https://github.com/eddacraft/anvil/issues) and mention
-`rust-migration` in the title or body.
+The Rust CLI is in beta. If you hit a bug or unclear behaviour, please
+[open an issue](https://github.com/eddacraft/anvil/issues) and include the
+details below.
 
 ### What to include
 

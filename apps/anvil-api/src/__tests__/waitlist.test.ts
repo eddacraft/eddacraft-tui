@@ -230,6 +230,31 @@ describe('waitlist routes', () => {
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual(expected);
     });
+
+    it('rejects emails longer than 254 characters without calling the DB', async () => {
+      const longLocal = 'a'.repeat(245);
+      const longEmail = `${longLocal}@example.com`; // 245 + 12 = 257 chars
+
+      const response = await request('/waitlist', JSON.stringify({ email: longEmail }), {
+        'Content-Type': 'application/json',
+      });
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'Invalid email format' });
+      expect(waitlistMocks.getClient).not.toHaveBeenCalled();
+    });
+
+    it('returns 503 when DATABASE_URL is not configured', async () => {
+      delete process.env['DATABASE_URL'];
+
+      const response = await request('/waitlist', JSON.stringify({ email: 'person@example.com' }), {
+        'Content-Type': 'application/json',
+      });
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: 'Service unavailable' });
+      expect(waitlistMocks.getClient).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /waitlist/resend', () => {
@@ -244,6 +269,49 @@ describe('waitlist routes', () => {
 
       expect(response.status).toBe(401);
       expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    });
+
+    it('rejects Bearer tokens that do not match the admin secret', async () => {
+      const response = await request(
+        '/waitlist/resend',
+        JSON.stringify({ email: 'person@example.com' }),
+        {
+          Authorization: 'Bearer wrong-secret',
+          'Content-Type': 'application/json',
+        }
+      );
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+      expect(waitlistMocks.sendWaitlistConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('rejects requests when WAITLIST_RESEND_ADMIN_TOKEN is unset', async () => {
+      delete process.env['WAITLIST_RESEND_ADMIN_TOKEN'];
+
+      const response = await request(
+        '/waitlist/resend',
+        JSON.stringify({ email: 'person@example.com' }),
+        {
+          Authorization: 'Bearer anything',
+          'Content-Type': 'application/json',
+        }
+      );
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+      expect(waitlistMocks.sendWaitlistConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('rejects resend requests missing the email field', async () => {
+      const response = await request('/waitlist/resend', JSON.stringify({}), {
+        Authorization: 'Bearer waitlist-secret',
+        'Content-Type': 'application/json',
+      });
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'Email is required' });
+      expect(waitlistMocks.sendWaitlistConfirmation).not.toHaveBeenCalled();
     });
 
     it('authorises Bearer token requests and sends the email', async () => {

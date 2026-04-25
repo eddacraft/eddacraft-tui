@@ -17,10 +17,11 @@ minutes.
 
 ## Install
 
-:::info Closed beta
+:::info Early access
 
-anvil is currently in early access. You need to
-[request access](https://eddacraft.ai/#waitlist) before you can install.
+anvil is still in early access. The install flow below is the fresh-start path
+for the current Rust CLI. If your team has gated beta access, use the GitHub
+account tied to that access when prompted by anvil or the docs site.
 
 :::
 
@@ -28,11 +29,18 @@ anvil is currently in early access. You need to
 # macOS / Linux
 curl -fsSL https://install.eddacraft.ai | sh
 
-# Windows
+# Windows (PowerShell)
 irm https://install.eddacraft.ai/windows | iex
 
 # Or via Homebrew (macOS / Linux)
 brew install eddacraft/tap/anvil
+
+# Or via WinGet (Windows)
+winget install eddacraft.anvil
+
+# Or via Scoop (Windows)
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
 ```
 
 anvil is a single native binary available for macOS, Linux, and Windows. Your
@@ -52,13 +60,20 @@ $env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
 
 ## Authenticate
 
-Log in with the access token from your invite email:
+Start the default device-code login flow:
 
 ```bash
-anvil login
+anvil auth login
 ```
 
-You will be prompted for your token. All CLI commands require authentication.
+anvil prints a short code and verification URL. Open the URL in your browser,
+enter the code, and the CLI will finish the login automatically.
+
+If you need email OTP instead, run:
+
+```bash
+anvil auth login --otp
+```
 
 ## Initialise
 
@@ -125,7 +140,7 @@ All gates passed.
 
 ## Turn On Watch Mode
 
-Start anvil in the background so it validates on every save:
+Start anvil so it validates on every save:
 
 ```bash
 anvil watch --source

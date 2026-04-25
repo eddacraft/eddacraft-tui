@@ -45,6 +45,10 @@ const AccessTokenSchema = z.object({
   created_at: DateStringSchema,
 });
 
+const AuthMethodSchema = z.enum(['shared', 'per_operator']);
+
+export type AuthMethod = z.infer<typeof AuthMethodSchema>;
+
 const AuditEntrySchema = z.object({
   id: IdSchema,
   action: z.string(),
@@ -52,6 +56,11 @@ const AuditEntrySchema = z.object({
   metadata: z
     .union([z.record(z.string(), z.unknown()), z.null(), z.undefined()])
     .transform((v) => v ?? {}),
+  // `auth_method` is added in migration 009. Old rows written before the
+  // migration defaulted to `'shared'`; new rows are written by
+  // admin-auth middleware. Optional here so tests with legacy fixtures
+  // don't need to backfill the column.
+  auth_method: z.union([AuthMethodSchema, z.null(), z.undefined()]).optional(),
   created_at: DateStringSchema,
 });
 
@@ -131,6 +140,52 @@ export async function findTokenByHash(
   return TokenWithUserSchema.parse(r[0]);
 }
 
+/**
+ * Look up the scopes a user is currently entitled to, returning the UNION of
+ * all `scopes` arrays across every non-revoked, non-expired `access_tokens`
+ * row for the user.
+ *
+ * Returning the union — not the most-recent row's scopes — is required for
+ * correctness. A user invited with `['preview', 'beta']` via `/admin/invite`
+ * who later receives any narrower-scoped token row (e.g. the legacy
+ * `/admin/approve` defaulting to `['beta']`, a re-invite, a CI service token)
+ * would otherwise have the broader scope silently shadowed by the
+ * later-inserted narrower one — re-introducing the same FLAGM-005 downgrade
+ * the route-level fix in eae47b3d intended to close.
+ *
+ * The JWT licence carries `scopes` claims, but those claims are issued at
+ * sign time — `/session/refresh` and the device/github/otp first-issuance
+ * paths read from this function so scope changes flow into the next licence.
+ *
+ * Returns `['beta']` as a conservative default when no active access_tokens
+ * row exists — that path covers self-signup users who have not yet been
+ * issued a graded scope.
+ */
+export async function findActiveScopesForUser(sql: NeonClient, userId: string): Promise<string[]> {
+  const r = rows(
+    await sql`
+    SELECT COALESCE(
+      ARRAY(
+        SELECT DISTINCT scope
+        FROM access_tokens, unnest(scopes) AS scope
+        WHERE user_id = ${userId}
+          AND revoked_at IS NULL
+          AND expires_at > now()
+      ),
+      ARRAY[]::text[]
+    ) AS scopes
+  `
+  );
+  if (!r[0]) {
+    return ['beta'];
+  }
+  const ScopeSchema = z.object({
+    scopes: z.array(z.string()).default(['beta']),
+  });
+  const parsed = ScopeSchema.parse(r[0]);
+  return parsed.scopes.length > 0 ? parsed.scopes : ['beta'];
+}
+
 export async function revokeTokensByEmail(sql: NeonClient, email: string): Promise<number> {
   const r = rows(
     await sql`
@@ -176,12 +231,13 @@ export async function insertAuditLog(
   sql: NeonClient,
   action: string,
   actor: string,
-  metadata: Record<string, unknown> = {}
+  metadata: Record<string, unknown> = {},
+  authMethod: AuthMethod = 'shared'
 ): Promise<AuditEntry> {
   const r = rows(
     await sql`
-    INSERT INTO audit_log (action, actor, metadata)
-    VALUES (${action}, ${actor}, ${JSON.stringify(metadata)})
+    INSERT INTO audit_log (action, actor, metadata, auth_method)
+    VALUES (${action}, ${actor}, ${JSON.stringify(metadata)}, ${authMethod})
     RETURNING *
   `
   );
@@ -664,6 +720,149 @@ export async function findWaitlistBySource(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// send-migration snapshots (ADMINCLIH-001)
+// ---------------------------------------------------------------------------
+
+export interface SnapshotRecipient {
+  email: string;
+  name: string | null;
+}
+
+export interface SendMigrationSnapshot {
+  token: string;
+  source: string;
+  recipients: SnapshotRecipient[];
+  created_by_actor: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+}
+
+const SnapshotRecipientsSchema = z.array(
+  z.object({ email: z.string(), name: z.union([z.string(), z.null()]) })
+);
+
+function parseSnapshotRow(row: Record<string, unknown>): SendMigrationSnapshot {
+  const recipientsRaw = row['recipients'];
+  // Neon returns JSONB as either an object or a string depending on driver
+  // version; normalise both to the array shape we wrote in.
+  const recipientsValue =
+    typeof recipientsRaw === 'string' ? JSON.parse(recipientsRaw) : recipientsRaw;
+  const recipients = SnapshotRecipientsSchema.parse(recipientsValue);
+  const createdAt = row['created_at'];
+  const expiresAt = row['expires_at'];
+  const consumedAt = row['consumed_at'];
+  return {
+    token: String(row['token']),
+    source: String(row['source']),
+    recipients,
+    created_by_actor: String(row['created_by_actor']),
+    created_at: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
+    expires_at: expiresAt instanceof Date ? expiresAt.toISOString() : String(expiresAt),
+    consumed_at:
+      consumedAt === null || consumedAt === undefined
+        ? null
+        : consumedAt instanceof Date
+          ? consumedAt.toISOString()
+          : String(consumedAt),
+  };
+}
+
+export async function insertSendMigrationSnapshot(
+  sql: NeonClient,
+  params: {
+    token: string;
+    source: string;
+    recipients: SnapshotRecipient[];
+    createdByActor: string;
+    ttlSeconds: number;
+  }
+): Promise<SendMigrationSnapshot> {
+  // Lazy reap: any snapshot past a day old is uninteresting and exists
+  // only to consume index space. Best-effort — a failure here must not
+  // block the primary insert.
+  try {
+    await sql`
+      DELETE FROM send_migration_snapshots
+      WHERE expires_at < now() - interval '1 day'
+    `;
+  } catch (err) {
+    // Swallow: reap is opportunistic. The row will get reaped by a
+    // later successful sweep.
+    console.warn('send_migration_snapshots reap failed', err);
+  }
+
+  const r = rows(
+    await sql`
+    INSERT INTO send_migration_snapshots
+      (token, source, recipients, created_by_actor, expires_at)
+    VALUES (
+      ${params.token},
+      ${params.source},
+      ${JSON.stringify(params.recipients)}::jsonb,
+      ${params.createdByActor},
+      now() + make_interval(secs => ${params.ttlSeconds})
+    )
+    RETURNING *
+  `
+  );
+  if (!r[0]) {
+    throw new Error('insertSendMigrationSnapshot: INSERT returned no row');
+  }
+  return parseSnapshotRow(r[0]);
+}
+
+/**
+ * Look up a snapshot by (token, actor) WITHOUT consuming it. Used to
+ * disambiguate expired vs consumed after an atomic-consume attempt
+ * fails. The actor filter is intentional: a caller with the wrong
+ * actor is indistinguishable from a caller with a wrong token, so
+ * the failure surface is uniform (`preview_token_missing`) and the
+ * server never confirms a token's existence to a non-owner.
+ */
+export async function findSendMigrationSnapshot(
+  sql: NeonClient,
+  params: { token: string; actor: string }
+): Promise<SendMigrationSnapshot | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM send_migration_snapshots
+    WHERE token = ${params.token}
+      AND created_by_actor = ${params.actor}
+    LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return parseSnapshotRow(r[0]);
+}
+
+/**
+ * Atomically consume a snapshot: set consumed_at iff the token exists,
+ * belongs to the caller, has not been consumed, and has not expired.
+ * Returns the snapshot row on success; returns null on any failure so
+ * the caller can refetch (see findSendMigrationSnapshot) to produce a
+ * specific error code.
+ */
+export async function consumeSendMigrationSnapshot(
+  sql: NeonClient,
+  params: { token: string; actor: string }
+): Promise<SendMigrationSnapshot | null> {
+  const r = rows(
+    await sql`
+    UPDATE send_migration_snapshots
+    SET consumed_at = now()
+    WHERE token = ${params.token}
+      AND created_by_actor = ${params.actor}
+      AND consumed_at IS NULL
+      AND expires_at > now()
+    RETURNING *
+  `
+  );
+  if (!r[0]) return null;
+  return parseSnapshotRow(r[0]);
+}
+
 export type WaitlistStatus = 'pending' | 'approved' | 'all';
 export type WaitlistSource = 'manual' | 'website' | 'import' | 'all';
 
@@ -862,4 +1061,38 @@ export async function cleanupExpiredRefreshTokens(sql: NeonClient): Promise<numb
   `
   );
   return r.length;
+}
+
+// ---------------------------------------------------------------------------
+// Admin keys (ADMINCLIH-002)
+// ---------------------------------------------------------------------------
+
+const AdminKeySchema = z.object({
+  id: IdSchema,
+  hashed_key: z.string(),
+  actor_email: z.string(),
+  note: z.union([z.string(), z.null()]),
+  created_at: DateStringSchema,
+  revoked_at: z.union([DateStringSchema, z.null()]),
+});
+
+export type AdminKey = z.infer<typeof AdminKeySchema>;
+
+/**
+ * Look up an admin key by its hashed form. The caller hashes the presented
+ * bearer (HMAC-SHA-256 keyed by the server pepper) and passes the result
+ * here. Returns the row regardless of revocation status so the middleware
+ * can distinguish "unknown" from "revoked" for the audit trail.
+ */
+export async function findAdminKeyByHash(
+  sql: NeonClient,
+  hashedKey: string
+): Promise<AdminKey | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM admin_keys WHERE hashed_key = ${hashedKey} LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return AdminKeySchema.parse(r[0]);
 }

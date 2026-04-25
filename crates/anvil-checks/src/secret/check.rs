@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::secret::git_scanner::scan_git_history;
+use crate::secret::patterns::compile_custom_patterns;
 use crate::secret::scanner::scan_content;
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding};
 
@@ -16,6 +17,7 @@ pub fn run_secret_check(
     workspace_root: Option<&str>,
 ) -> SecretCheckResult {
     let mut findings = Vec::new();
+    let (_, pattern_errors) = compile_custom_patterns(&config.custom_patterns);
 
     for file in files {
         if should_skip_file(file, config) {
@@ -36,8 +38,10 @@ pub fn run_secret_check(
 
     if config.scan_git_history {
         let root = workspace_root.unwrap_or(".");
-        if let Ok(history_findings) = scan_git_history(root, config) {
-            findings.extend(history_findings);
+        if let Ok(history) = scan_git_history(root, config) {
+            findings.extend(history.findings);
+            // history.pattern_errors are duplicates of the file-scan errors
+            // (same custom_patterns input compiled twice) — already captured.
         }
     }
 
@@ -76,6 +80,7 @@ pub fn run_secret_check(
         score,
         message,
         findings,
+        pattern_errors,
     }
 }
 

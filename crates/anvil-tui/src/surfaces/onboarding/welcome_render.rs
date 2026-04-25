@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use super::welcome::{OnboardingChoice, OnboardingWelcomeState};
+use crate::shell::inset_content;
 
 // Anvil brandmark — same logo used on the standard welcome screen.
 const LOGO_LINES: &[&str] = &[
@@ -30,6 +31,7 @@ pub fn render(
     state: &OnboardingWelcomeState,
     theme: &EddaCraftTheme,
 ) {
+    let area = inset_content(area);
     let item_count = OnboardingChoice::ALL.len();
 
     // Full mode: 2 lines per item + 1 blank between = item_count * 3 - 1

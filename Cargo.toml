@@ -6,14 +6,16 @@ members = [
   "crates/anvil-kernel",
   "crates/anvil-tui",
   "crates/anvil-checks",
+  "crates/anvil-checks-napi",
   "crates/anvil-bench",
   "crates/anvil-cli",
   "crates/anvil-policy",
   "crates/anvil-architecture",
+  "crates/workspace-hack",
 ]
 
 [workspace.package]
-version = "0.3.3-beta"
+version = "0.4.0-beta"
 edition = "2024"
 license = "LicenseRef-Proprietary"
 repository = "https://github.com/eddacraft/anvil-001"
@@ -41,6 +43,7 @@ serde_yaml = "0.9"
 toml = "1"
 
 # TUI
+animate = { version = "0.3", features = ["ratatui"] }
 eddacraft-tui = "0.1.0"
 ratatui = "0.30"
 crossterm = "0.29"
@@ -61,10 +64,14 @@ tokio = { version = "1", features = ["full"] }
 # File system
 walkdir = "2"
 regex = "1"
+globset = "0.4"
 
 # Testing
 insta = { version = "1", features = ["yaml"] }
 criterion = { version = "0.8", features = ["html_reports"] }
+
+# Internal workspace-hack (managed by cargo hakari)
+workspace-hack = { version = "0.1.0", path = "crates/workspace-hack" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -82,6 +89,16 @@ missing_panics_doc = "allow"
 lto = true
 codegen-units = 1
 panic = "abort"
+
+# Profile for the napi-rs binding crate. Inherits release, but overrides
+# panic=unwind so a panic in the scanner returns to the napi FFI boundary
+# (where catch_unwind maps it to a JS exception) instead of aborting the
+# host Node process. The CLI binary stays on the abort profile — abort is
+# correct there because the binary owns its own process and a panic is
+# acceptable to terminate it.
+[profile.release-napi]
+inherits = "release"
+panic = "unwind"
 
 # The profile that 'dist' will build with
 [profile.dist]

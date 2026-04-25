@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/shared-storage",
-  "version": "0.3.3-beta",
+  "version": "0.4.0-beta",
   "description": "File system and persistence abstractions",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.5"
   },
   "keywords": [
     "anvil",

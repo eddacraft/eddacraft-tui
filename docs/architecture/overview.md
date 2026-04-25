@@ -9,14 +9,15 @@ Document
 
 1. [System Overview](#system-overview)
 2. [Package Layering](#package-layering)
-3. [Check Pipeline](#check-pipeline)
-4. [Surface Architecture](#surface-architecture)
-5. [Hybrid Policy Engine](#hybrid-policy-engine)
-6. [State and Configuration](#state-and-configuration)
-7. [Memory Stack (Edda Stack)](#memory-stack-edda-stack)
-8. [Forge Pipeline](#forge-pipeline)
-9. [Technology Stack](#technology-stack)
-10. [Key Architectural Decisions](#key-architectural-decisions)
+3. [Quality Model](#quality-model)
+4. [Check Pipeline](#check-pipeline)
+5. [Surface Architecture](#surface-architecture)
+6. [Hybrid Policy Engine](#hybrid-policy-engine)
+7. [State and Configuration](#state-and-configuration)
+8. [Memory Stack (Edda Stack)](#memory-stack-edda-stack)
+9. [Forge Pipeline](#forge-pipeline)
+10. [Technology Stack](#technology-stack)
+11. [Key Architectural Decisions](#key-architectural-decisions)
 
 ---
 
@@ -85,13 +86,17 @@ contracts (zero deps)
 
 ### Apps
 
-| App                 | Purpose                                                 |
-| ------------------- | ------------------------------------------------------- |
-| `crates/anvil-cli/` | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
-| `apps/anvil-api/`   | REST API (Hono + Vercel + Neon Postgres).               |
-| `apps/website/`     | Marketing site + dashboard (Next.js).                   |
-| `apps/docs-site/`   | Documentation (Docusaurus).                             |
-| `apps/e2e/`         | Playwright E2E tests.                                   |
+| App                        | Purpose                                                 |
+| -------------------------- | ------------------------------------------------------- |
+| `crates/anvil-cli/`        | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
+| `apps/anvil-api/`          | REST API (Hono + Vercel + Neon Postgres).               |
+| `apps/admin-cli/`          | Operator CLI for admin/audit flows against the API.     |
+| `apps/website/`            | Marketing site + dashboard (Next.js).                   |
+| `apps/docs-public/`        | Public Docusaurus docs for APS, Kindling, edda-stack.   |
+| `apps/docs-shell/`         | Next.js docs entrypoint and auth proxy.                 |
+| `apps/anvil-docs-private/` | Gated internal Docusaurus docs.                         |
+| `apps/docs-site/`          | Legacy Docusaurus docs site (cutover to docs-public).   |
+| `apps/e2e/`                | Vitest E2E harness across CLI, API, and contracts.      |
 
 ### Dependency Diagram
 
@@ -150,79 +155,104 @@ graph TD
 
 ---
 
+## Quality Model
+
+Anvil's quality architecture is built around four concepts:
+
+1. **Checks** — the smallest user-facing evaluative unit
+2. **Findings** — the generic results emitted by checks
+3. **Gates** — workflow judgement over one or more checks
+4. **Surfaces** — commands and UIs that expose checks, findings, and gates for
+   different purposes
+
+This distinction matters because Anvil has several adjacent surfaces that would
+otherwise blur together: `check`, `gate`, `watch`, `audit`, `doctor`,
+`architecture`, and `policy`.
+
+### Surface Roles
+
+- `anvil check` — targeted or exploratory analysis; best when the goal is to
+  inspect files and surface findings
+- `anvil gate` — workflow judgement; best when the question is whether work
+  passes the required set of checks
+- `anvil watch` — continuous mode over checks and gates as files change
+- `anvil doctor` — setup and environment health checks; not a gate
+- `anvil audit` — broad repository review; may use `issue` in its own UX, but
+  still belongs to the same underlying quality model
+- `anvil architecture` — configuration and structure-definition surface
+- `anvil policy` — policy authoring, inspection, validation, and testing surface
+
+The canonical internal reference for this language is
+[`quality-model.md`](quality-model.md).
+
+### Relationship Diagram
+
+```mermaid
+flowchart TD
+    graph["Project graph / structure"]
+    checks["Checks\nsecret / boundaries / policy / anti-patterns / lint / test / coverage"]
+    findings["Findings\nwarning / violation / info"]
+    gate["Gate\nworkflow judgement"]
+    surfaces["Surfaces\ncheck / gate / watch / audit / doctor / tutorial"]
+
+    graph --> checks
+    checks --> findings
+    checks --> gate
+    findings --> gate
+    findings --> surfaces
+    gate --> surfaces
+```
+
+---
+
 ## Check Pipeline
 
-The core runtime flow -- how `anvil check` works from invocation to exit code.
+The core runtime flow -- how analysis and gate evaluation move from invocation
+to findings and workflow judgement.
 
 ### Pipeline Steps
 
-1. **CLI parses arguments**, loads configuration from
-   `.anvil/config.anvil.json`.
-2. **GateRunner** (runtime) orchestrates checks in parallel:
-   - **AntipatternCheck** -- regex-based pattern detection against known
-     anti-patterns (God classes, barrel re-exports, magic numbers, etc.).
-   - **ArchitectureCheck** -- dependency-cruiser static analysis + OPA hybrid
-     evaluation of layer violations, circular dependencies, orphaned modules.
-   - **PolicyCheck** -- OPA/Rego policy evaluation against structured input
-     (business rules, change scope, security review).
-   - **CommandSafetyCheck** -- dangerous shell command detection.
-   - **SecretCheck** -- hardcoded credentials and API keys.
-   - **DependencyCheck** -- licence compliance and vulnerability audit.
-   - **ESLintCheck** -- linting via project ESLint configuration.
-   - **CoverageCheck** -- test coverage threshold enforcement.
-3. **Suppressions applied** from `.anvil/suppressions.json` and inline
+1. **CLI parses arguments** and resolves project configuration.
+2. **Project context gathered** — files, graph/structure data, optional plan
+   scope, policy inputs, and runtime environment.
+3. **Checks execute** — different entry points may run different check sets.
+   Core check families include:
+   - anti-pattern scan
+   - import-boundary checks
+   - secret detection
+   - policy evaluation
+   - lint
+   - test
+   - coverage
+   - dependency scan
+4. **Findings collected** — each check emits findings, severity, and summary
+   information.
+5. **Suppressions applied** from `.anvil/suppressions.json` and inline
    `@anvil-ignore` annotations
-   ([D-004](../plans/decisions/004-suppression-syntax.md)).
-4. **AnalyseResult returned** containing `warnings[]` and `summary`.
-5. **Output formatted** as text, JSON, or interactive TUI.
-6. **Kindling events emitted** (session, gate, action) for operational memory.
-7. **Exit code**: `0` (pass), `1` (warnings), `2` (blocking errors).
+   ([D-004](../../plans/decisions/004-suppression-syntax.md)).
+6. **Gate evaluated** when the caller is a gate-style surface (`anvil gate`,
+   watch mode, CI workflow judgement).
+7. **Output formatted** as text, JSON, or interactive TUI.
+8. **Kindling events emitted** for operational memory where applicable.
+9. **Exit code chosen** according to the command surface and configured
+   threshold semantics.
 
 ### Pipeline Diagram
 
 ```mermaid
 flowchart TD
-    start(["anvil check"])
-    config["Load .anvil/config.anvil.json"]
-    gate["GateRunner<br/>parallel orchestration"]
+    start(["CLI surface"])
+    config["Resolve config and scope"]
+    context["Collect project context\nfiles / graph / policy input"]
+    checks["Run checks\nanti-patterns / boundaries / secrets / policy / lint / test / coverage / dependency"]
+    findings["Collect findings + summaries"]
+    suppress["Apply suppressions"]
+    gate["Evaluate gate\nwhen surface requires workflow judgement"]
+    format["Format output\ntext / JSON / TUI"]
+    kindling["Emit events"]
+    exit(["Return result / exit code"])
 
-    ap["AntipatternCheck"]
-    arch["ArchitectureCheck<br/>DC + OPA"]
-    pol["PolicyCheck<br/>OPA/Rego"]
-    cmd["CommandSafetyCheck"]
-    sec["SecretCheck"]
-    dep["DependencyCheck"]
-    lint["ESLintCheck"]
-    cov["CoverageCheck"]
-
-    merge["Merge results"]
-    suppress["Apply suppressions<br/>.anvil/suppressions.json<br/>@anvil-ignore inline"]
-    analyse["AnalyseResult<br/>warnings + summary"]
-    format["Format output<br/>text / JSON / TUI"]
-    kindling["Emit Kindling events"]
-    exit(["Exit code<br/>0 / 1 / 2"])
-
-    start --> config --> gate
-
-    gate --> ap
-    gate --> arch
-    gate --> pol
-    gate --> cmd
-    gate --> sec
-    gate --> dep
-    gate --> lint
-    gate --> cov
-
-    ap --> merge
-    arch --> merge
-    pol --> merge
-    cmd --> merge
-    sec --> merge
-    dep --> merge
-    lint --> merge
-    cov --> merge
-
-    merge --> suppress --> analyse --> format --> kindling --> exit
+    start --> config --> context --> checks --> findings --> suppress --> gate --> format --> kindling --> exit
 ```
 
 ---
@@ -534,25 +564,25 @@ sequenceDiagram
 
 ### TypeScript (Domain Packages + Services)
 
-| Category          | Technology              | Version  | Purpose                                            |
-| ----------------- | ----------------------- | -------- | -------------------------------------------------- |
-| Language          | TypeScript              | 5.9      | Domain packages, API, website (strict mode, ESM)   |
-| Runtime           | Node.js                 | >= 20    | TypeScript execution environment                   |
-| Package manager   | pnpm                    | >= 10.20 | Workspace management, strict isolation             |
-| Monorepo          | NX                      | 22.5     | Task orchestration, caching, dependency graph      |
-| HTTP framework    | Hono                    | --       | REST API (Vercel-deployable)                       |
-| Testing           | Vitest                  | 4.x      | Unit and integration tests                         |
-| E2E testing       | Playwright              | --       | End-to-end browser and CLI tests                   |
-| Schema validation | Zod                     | --       | Runtime type validation, source of truth for types |
-| Static analysis   | dependency-cruiser      | --       | Import graph analysis, layer violations            |
-| Policy engine     | OPA / Rego              | --       | Policy-as-code evaluation                          |
-| Linting           | ESLint                  | 9.x      | Code quality and style enforcement                 |
-| Formatting        | Prettier                | 3.x      | Code formatting                                    |
-| IaC               | Pulumi (TypeScript)     | --       | Vercel, GitHub, Azure DNS management               |
-| Database          | Neon Postgres           | --       | API persistence layer                              |
-| Deployment        | Vercel                  | --       | Website, docs-site, API hosting                    |
-| CI/CD             | GitHub Actions          | --       | Build, test, deploy                                |
-| Memory storage    | SQLite (better-sqlite3) | --       | Kindling operational memory                        |
+| Category          | Technology              | Version   | Purpose                                                                                              |
+| ----------------- | ----------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| Language          | TypeScript              | 6.0       | Domain packages, API, website (strict mode, ESM)                                                     |
+| Runtime           | Node.js                 | >= 22.13  | TypeScript execution environment                                                                     |
+| Package manager   | pnpm                    | >= 10.20  | Workspace management, strict isolation                                                               |
+| Monorepo          | NX                      | 22.x      | Task orchestration, caching, dependency graph                                                        |
+| HTTP framework    | Hono                    | --        | REST API (Vercel-deployable)                                                                         |
+| Testing           | Vitest                  | 4.x       | Unit and integration tests                                                                           |
+| E2E testing       | Vitest + Playwright     | 4.x / 1.x | `apps/e2e` Vitest harness (CLI/API/contracts); Playwright for browser flows (`playwright.config.ts`) |
+| Schema validation | Zod                     | --        | Runtime type validation, source of truth for types                                                   |
+| Static analysis   | dependency-cruiser      | --        | Import graph analysis, layer violations                                                              |
+| Policy engine     | OPA / Rego              | --        | Policy-as-code evaluation                                                                            |
+| Linting           | ESLint                  | 9.x       | Code quality and style enforcement                                                                   |
+| Formatting        | Prettier                | 3.x       | Code formatting                                                                                      |
+| IaC               | Pulumi (TypeScript)     | --        | Vercel, GitHub, Azure DNS management                                                                 |
+| Database          | Neon Postgres           | --        | API persistence layer                                                                                |
+| Deployment        | Vercel                  | --        | Website, docs apps, and API hosting                                                                  |
+| CI/CD             | GitHub Actions          | --        | Build, test, deploy                                                                                  |
+| Memory storage    | SQLite (better-sqlite3) | --        | Kindling operational memory                                                                          |
 
 ---
 

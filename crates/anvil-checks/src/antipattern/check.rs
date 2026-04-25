@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
+use rayon::prelude::*;
+
 use crate::antipattern::scanner::{ScanOptions, scan_file};
 use crate::antipattern::types::{
     AntipatternCheckConfig, AntipatternCheckResult, WarningResult, WarningSeverity,
@@ -104,24 +106,27 @@ pub fn run_antipattern_check(
         include_opt_in: config.include_opt_in,
     };
 
+    // Scan files concurrently on the rayon thread pool. `filter_map` drops
+    // non-scannable / unreadable files; `collect` materialises a Vec so we
+    // can fold into aggregate state deterministically below.
+    let per_file_results: Vec<_> = files
+        .par_iter()
+        .filter_map(|file_path| {
+            if !is_scannable_file(file_path, config) {
+                return None;
+            }
+            let content = fs::read_to_string(file_path).ok()?;
+            let relative_path = normalise_file_path(file_path, workspace_root);
+            Some(scan_file(&relative_path, &content, Some(&scan_options)))
+        })
+        .collect();
+
+    let files_scanned = per_file_results.len();
     let mut all_warnings = Vec::new();
     let mut all_patterns_checked = BTreeSet::new();
-    let mut files_scanned = 0;
-
-    for file_path in files {
-        if !is_scannable_file(file_path, config) {
-            continue;
-        }
-
-        let Ok(content) = fs::read_to_string(file_path) else {
-            continue;
-        };
-
-        let relative_path = normalise_file_path(file_path, workspace_root);
-        let result = scan_file(&relative_path, &content, Some(&scan_options));
+    for result in per_file_results {
         all_warnings.extend(result.warnings);
         all_patterns_checked.extend(result.patterns_checked);
-        files_scanned += 1;
     }
 
     let pattern_ids = all_patterns_checked.into_iter().collect::<Vec<_>>();
@@ -294,22 +299,17 @@ mod tests {
         ];
         let result = run_antipattern_check(&files, &config, None);
 
+        // .ts and .html are scannable extensions; .txt is not. HTML/CSS rules
+        // were retired in RSCAN-004 so only the .ts file produces warnings.
         assert_eq!(result.files_scanned, 2);
         assert!(result.patterns_checked.contains(&"AP-001".to_string()));
-        assert!(result.patterns_checked.contains(&"AP-013".to_string()));
+        assert!(result.patterns_checked.contains(&"AP-003".to_string()));
         assert!(
             result
                 .warnings
                 .warnings
                 .iter()
                 .any(|warning| warning.id == "AP-003")
-        );
-        assert!(
-            result
-                .warnings
-                .warnings
-                .iter()
-                .any(|warning| warning.id == "AP-008")
         );
 
         let _ = fs::remove_dir_all(temp_dir);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scanFile, scanFiles } from './scanner.js';
+import { scanArtifact, scanArtifacts, scanFile, scanFiles } from './scanner.js';
 
 describe('Scanner', () => {
   describe('scanFile', () => {
@@ -309,47 +309,18 @@ describe('Scanner', () => {
 
         expect(result.warnings[0].nudge).toContain('swallow');
       });
-
-      it('should include nudge for HTML patterns', () => {
-        const content = `<div style="color: red">Hello</div>`;
-        const result = scanFile('page.html', content, { patterns: ['AP-008'] });
-
-        expect(result.warnings[0].nudge).toContain('inline style');
-      });
-
-      it('should include nudge for CSS patterns', () => {
-        const content = `color: red !important;`;
-        const result = scanFile('style.css', content, { patterns: ['AP-012'] });
-
-        expect(result.warnings[0].nudge).toContain('!important');
-      });
     });
   });
 
-  describe('legacy pattern scoping to JS/TS files', () => {
-    it('should NOT detect JS/TS-only patterns on HTML files', () => {
-      // AP-003 (explicit any) has no fileExtensions set, so it defaults to JS/TS only
-      const content = `<div>const x: any = 1;</div>`;
-      const result = scanFile('page.html', content, { patterns: ['AP-003'] });
-
-      expect(result.warnings).toHaveLength(0);
-    });
-
-    it('should NOT detect JS/TS-only patterns on CSS files', () => {
-      const content = `/* eslint-disable */`;
-      const result = scanFile('style.css', content, { patterns: ['AP-001'] });
-
-      expect(result.warnings).toHaveLength(0);
-    });
-
-    it('should still detect JS/TS-only patterns on .ts files', () => {
+  describe('JS/TS file scoping', () => {
+    it('should detect JS/TS patterns on .ts files', () => {
       const content = `const x: any = 1;`;
       const result = scanFile('test.ts', content, { patterns: ['AP-003'] });
 
       expect(result.warnings).toHaveLength(1);
     });
 
-    it('should still detect JS/TS-only patterns on .jsx files', () => {
+    it('should detect JS/TS patterns on .jsx files', () => {
       const content = `const x: any = 1;`;
       const result = scanFile('component.jsx', content, { patterns: ['AP-003'] });
 
@@ -357,46 +328,110 @@ describe('Scanner', () => {
     });
   });
 
-  describe('fileExtensions filtering', () => {
-    it('should skip pattern when file extension does not match fileExtensions', () => {
-      // AP-008 (inline style) has fileExtensions: ['.html', '.htm']
-      // scanning a .ts file should skip it
-      const content = `const style = 'style="color:red"';`;
-      const result = scanFile('test.ts', content, { patterns: ['AP-008'] });
+  describe('scanArtifact', () => {
+    it('should mirror scanFile for source artifacts', () => {
+      const content = `const x: any = 1;`;
+      const fileResult = scanFile('src/a.ts', content);
+      const artifactResult = scanArtifact({ type: 'source', ref: 'src/a.ts', content });
 
-      expect(result.warnings).toHaveLength(0);
+      expect(artifactResult.warnings.map((w) => w.id)).toEqual(
+        fileResult.warnings.map((w) => w.id)
+      );
+      expect(artifactResult.file).toBe('src/a.ts');
+      expect(artifactResult.artifactType).toBe('source');
     });
 
-    it('should detect pattern when file extension matches fileExtensions', () => {
-      const content = `<div style="color: red">Hello</div>`;
-      const result = scanFile('page.html', content, { patterns: ['AP-008'] });
+    it('should skip legacy source-only rules for non-source artifacts', () => {
+      // AP-003 targets source only — scanning its detection content against
+      // a pr-description should produce no AP-003 warnings.
+      const prBody = `const x: any = 1;\n// @ts-ignore`;
+      const result = scanArtifact(
+        { type: 'pr-description', ref: 'pr/42', content: prBody },
+        { patterns: ['AP-003', 'AP-004'] }
+      );
+
+      expect(result.warnings).toEqual([]);
+      expect(result.artifactType).toBe('pr-description');
+      expect(result.file).toBe('pr/42');
+    });
+
+    it('should run compiled rules that target pr-description on PR bodies', () => {
+      // RL-001 targets [agent-output, pr-description] and matches "pre-existing"
+      // without a run link / verification.
+      const prBody = 'This failure is pre-existing and unrelated to my change.';
+      const result = scanArtifact(
+        { type: 'pr-description', ref: 'pr/42', content: prBody },
+        { patterns: ['RL-001'] }
+      );
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0].id).toBe('RL-001');
+      expect(result.warnings[0].location.file).toBe('pr/42');
+    });
+
+    it('should skip pr-description-only rules when scanning source files', () => {
+      const source = 'const note = "pre-existing issue"';
+      const result = scanArtifact(
+        { type: 'source', ref: 'src/a.ts', content: source },
+        { patterns: ['RL-001'] }
+      );
+
+      expect(result.warnings).toEqual([]);
+    });
+
+    it('should propagate artifactType onto the result', () => {
+      const result = scanArtifact({
+        type: 'commit-message',
+        ref: 'abc123',
+        content: 'fix stuff',
+      });
+
+      expect(result.artifactType).toBe('commit-message');
+      expect(result.file).toBe('abc123');
+    });
+
+    it('should honour pattern filtering via options', () => {
+      const content = `const x: any = 1;\n// @ts-ignore`;
+      const result = scanArtifact(
+        { type: 'source', ref: 'src/a.ts', content },
+        { patterns: ['AP-003'] }
+      );
+
+      expect(result.warnings.map((w) => w.id)).toEqual(['AP-003']);
+      expect(result.patternsChecked).toEqual(['AP-003']);
+    });
+  });
+
+  describe('scanArtifacts', () => {
+    it('should scan multiple artifacts of mixed types', () => {
+      const results = scanArtifacts([
+        { type: 'source', ref: 'src/a.ts', content: 'const x: any = 1;' },
+        {
+          type: 'pr-description',
+          ref: 'pr/42',
+          content: 'This is pre-existing unrelated to my change.',
+        },
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].artifactType).toBe('source');
+      expect(results[0].warnings.some((w) => w.id === 'AP-003')).toBe(true);
+      expect(results[1].artifactType).toBe('pr-description');
+      // RL-001 fires against the unverified "pre-existing" claim.
+      expect(results[1].warnings.some((w) => w.id === 'RL-001')).toBe(true);
+    });
+  });
+
+  describe('family provenance on warnings', () => {
+    it('should attach family, definition_ref, spectrum_position for compiled patterns', () => {
+      const content = '/* eslint-disable */';
+      const result = scanFile('src/a.ts', content, { patterns: ['AP-001'] });
 
       expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].id).toBe('AP-008');
-    });
-
-    it('should detect pattern when file has .htm extension', () => {
-      const content = `<div style="color: red">Hello</div>`;
-      const result = scanFile('page.htm', content, { patterns: ['AP-008'] });
-
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].id).toBe('AP-008');
-    });
-
-    it('should apply CSS pattern only to CSS files', () => {
-      const content = `color: red !important;`;
-      const resultCss = scanFile('style.css', content, { patterns: ['AP-012'] });
-      const resultTs = scanFile('style.ts', content, { patterns: ['AP-012'] });
-
-      expect(resultCss.warnings).toHaveLength(1);
-      expect(resultTs.warnings).toHaveLength(0);
-    });
-
-    it('should apply CSS pattern to SCSS files', () => {
-      const content = `color: red !important;`;
-      const result = scanFile('style.scss', content, { patterns: ['AP-012'] });
-
-      expect(result.warnings).toHaveLength(1);
+      const w = result.warnings[0];
+      expect(w.family).toBe('guardrail-suppression');
+      expect(w.definition_ref).toBe('patterns/guardrail-suppression/definition.anvil');
+      expect(w.spectrum_position).toBe(1);
     });
   });
 

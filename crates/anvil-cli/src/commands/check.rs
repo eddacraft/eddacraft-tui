@@ -1,15 +1,20 @@
 use std::collections::BTreeSet;
+use std::io::Read;
 use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+use anvil_kernel_types::{
+    Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
 use anyhow::{Result, bail};
 use clap::Args;
 use serde::Serialize;
 use walkdir::WalkDir;
 
 use anvil_checks::antipattern::{
-    AntipatternCheckConfig, Warning, WarningSeverity, WarningSummary, run_antipattern_check,
+    AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningSeverity,
+    WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
 };
 
 use crate::GlobalArgs;
@@ -17,6 +22,13 @@ use crate::output::{self, OutputMode};
 
 /// JSON output schema version — shared across all output paths.
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
+
+/// Hard cap on a single artifact's size for `anvil check --artifact`. PR
+/// descriptions and commit messages are kilobytes; agent outputs can grow
+/// but a multi-megabyte input is almost always an operator mistake (a
+/// build artefact piped by accident). Stops the artifact path from
+/// OOM-ing on `std::fs::read_to_string`.
+const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
 
 /// Default directories to ignore during file scanning.
 const IGNORE_DIRS: &[&str] = &[
@@ -31,8 +43,6 @@ const IGNORE_DIRS: &[&str] = &[
     ".nx",
     "coverage",
     "__pycache__",
-    ".turbo",
-    ".nx",
 ];
 
 // TODO(RCLI2): The following Node.js CLI flags are intentionally deferred:
@@ -74,6 +84,14 @@ pub struct CheckArgs {
     /// Include opt-in patterns.
     #[arg(long)]
     include_opt_in: bool,
+
+    /// Artifact kind: source, pr-description, commit-message, agent-output.
+    /// Non-source kinds read each file as the artifact content and route
+    /// through `scan_artifact` with the matching `ArtifactKind`. Non-source
+    /// kinds are incompatible with `--all`, `--changed`, `--staged`,
+    /// `--since`, and `--extensions`.
+    #[arg(long, default_value = "source")]
+    artifact: String,
 }
 
 /// Describes how files were selected, for user-facing messages.
@@ -101,8 +119,21 @@ struct CheckOutput {
     provenance_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+    notifications: Vec<Notification>,
     warnings: Vec<JsonWarning>,
     summary: WarningSummary,
+    /// SPG-002: rules whose regex failed to compile in the Rust scanner.
+    /// Operators can rely on this to distinguish "rule ran, no matches"
+    /// from "rule never ran". Empty on a clean registry.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    diagnostics: Vec<JsonDiagnostic>,
+}
+
+#[derive(Debug, Serialize)]
+struct JsonDiagnostic {
+    id: String,
+    title: String,
+    error: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -128,6 +159,11 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     // Validate mutually exclusive flags.
     if args.all && args.changed {
         bail!("Cannot use --all and --changed together. Choose one.");
+    }
+
+    let artifact_kind = parse_artifact_kind(&args.artifact)?;
+    if artifact_kind != ArtifactKind::Source {
+        return run_non_source_artifact(args, global, artifact_kind, start);
     }
 
     let severity_threshold = parse_severity(&args.severity)?;
@@ -237,6 +273,169 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         Err(output::AlreadyReported.into())
     } else {
         Ok(())
+    }
+}
+
+// ── Non-source artifacts (pr-description / commit-message / agent-output) ─
+
+fn parse_artifact_kind(input: &str) -> Result<ArtifactKind> {
+    ArtifactKind::from_wire(input).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Invalid --artifact \"{input}\". Allowed values: source, pr-description, commit-message, agent-output"
+        )
+    })
+}
+
+#[allow(clippy::too_many_lines)] // Each phase (validate, load, scan, render) is sequenced linearly.
+fn run_non_source_artifact(
+    args: &CheckArgs,
+    global: &GlobalArgs,
+    kind: ArtifactKind,
+    start: Instant,
+) -> Result<()> {
+    let mode = OutputMode::from_global(global);
+
+    if args.all || args.changed || args.staged || args.since.is_some() || args.extensions.is_some()
+    {
+        bail!(
+            "--artifact {} requires explicit file paths; --all, --changed, --staged, --since, and --extensions apply to source scans only",
+            kind.as_str()
+        );
+    }
+    if args.files.is_empty() {
+        bail!(
+            "--artifact {} requires at least one file path containing the artifact content",
+            kind.as_str()
+        );
+    }
+
+    let severity_threshold = parse_severity(&args.severity)?;
+
+    // Load each path as artifact content. `reference` is the path as given
+    // so operators can trace warnings back to their input (mirrors the TS
+    // scanner's behaviour for non-source artifacts).
+    //
+    // `MAX_ARTIFACT_BYTES` (module scope) is the hard cap on a single
+    // artifact's size. We enforce it via a bounded `take(MAX + 1)` reader,
+    // not via `std::fs::metadata().len()` followed by a separate read:
+    //   * `metadata` follows symlinks and reports `0` for FIFOs / named
+    //     pipes / sockets. A `read_to_string` on those then either blocks
+    //     indefinitely or streams unbounded into memory — exactly the OOM
+    //     failure mode the cap is supposed to prevent.
+    //   * Even on a regular file, the file may be replaced between the
+    //     stat and the read on a multi-tenant CI runner (TOCTOU).
+    // We additionally refuse anything that isn't a regular file so a
+    // symlinked /dev/zero or named pipe bails with a clear error rather
+    // than racing through.
+    let mut artifacts = Vec::with_capacity(args.files.len());
+    for path_str in &args.files {
+        let path = Path::new(path_str);
+        if !path.exists() {
+            bail!("File not found: {path_str}");
+        }
+        let metadata = std::fs::symlink_metadata(path)
+            .map_err(|e| anyhow::anyhow!("Failed to stat {path_str}: {e}"))?;
+        if metadata.file_type().is_symlink() {
+            bail!(
+                "{path_str} is a symlink; --artifact requires a regular file (resolve the symlink and pass the target directly)"
+            );
+        }
+        if metadata.is_dir() {
+            bail!("Expected a file, got a directory: {path_str}");
+        }
+        if !metadata.is_file() {
+            bail!(
+                "{path_str} is not a regular file (FIFO, socket, or special file); --artifact requires a regular file"
+            );
+        }
+        let mut file = std::fs::File::open(path)
+            .map_err(|e| anyhow::anyhow!("Failed to open {path_str}: {e}"))?;
+        // Read at most MAX + 1 bytes. If we drained MAX + 1, the input is
+        // over the cap; reject without OOM-ing on a 500 MB input.
+        let mut buf = String::with_capacity(8 * 1024);
+        file.by_ref()
+            .take(MAX_ARTIFACT_BYTES + 1)
+            .read_to_string(&mut buf)
+            .map_err(|e| anyhow::anyhow!("Failed to read {path_str}: {e}"))?;
+        if buf.len() as u64 > MAX_ARTIFACT_BYTES {
+            bail!(
+                "{path_str} exceeds the {} MB --artifact size cap; trim the artifact or split it before scanning.",
+                MAX_ARTIFACT_BYTES / (1024 * 1024)
+            );
+        }
+        artifacts.push(Artifact {
+            kind,
+            reference: path_str.clone(),
+            content: buf,
+        });
+    }
+
+    let scan_options = ScanOptions {
+        patterns: None,
+        include_opt_in: args.include_opt_in,
+    };
+    let results = scan_artifacts(&artifacts, Some(&scan_options));
+
+    let mut all_warnings = Vec::new();
+    let mut all_patterns = BTreeSet::new();
+    for result in results {
+        all_warnings.extend(result.warnings);
+        all_patterns.extend(result.patterns_checked);
+    }
+    let pattern_ids: Vec<String> = all_patterns.into_iter().collect();
+    let warning_result = create_warning_result(all_warnings, pattern_ids.clone());
+
+    let has_blocking = warning_result
+        .warnings
+        .iter()
+        .any(|w| w.suppressed.is_none() && severity_at_least(w.severity, severity_threshold));
+
+    let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let reference_files: Vec<String> = args.files.clone();
+
+    match mode {
+        OutputMode::Json => {
+            let json_output = build_json_output(
+                &reference_files,
+                &warning_result.warnings,
+                &warning_result.summary,
+                &pattern_ids,
+                has_blocking,
+                elapsed,
+            );
+            output::json::print(&json_output)?;
+        }
+        OutputMode::Plain | OutputMode::Tui => {
+            print_human(
+                &warning_result.warnings,
+                &warning_result.summary,
+                &reference_files,
+                global.verbose,
+                elapsed,
+                FileSource::Explicit,
+            );
+        }
+    }
+
+    if has_blocking {
+        if mode != OutputMode::Json {
+            output::plain::error("Blocking warnings found (severity meets threshold)");
+        }
+        Err(output::AlreadyReported.into())
+    } else {
+        Ok(())
+    }
+}
+
+fn severity_at_least(actual: WarningSeverity, threshold: WarningSeverity) -> bool {
+    severity_rank(actual) >= severity_rank(threshold)
+}
+
+const fn severity_rank(s: WarningSeverity) -> u8 {
+    match s {
+        WarningSeverity::Error => 3,
+        WarningSeverity::Warning => 2,
+        WarningSeverity::Info => 1,
     }
 }
 
@@ -474,6 +673,18 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
         checks_run: Vec::new(),
         provenance_id: None,
         message: Some(message.to_string()),
+        notifications: vec![
+            Notification::new(
+                NotificationClass::Info,
+                NotificationPriority::Low,
+                "Check status",
+                message,
+            )
+            .with_context(NotificationContext {
+                file: None,
+                source: Some("check".to_string()),
+            }),
+        ],
         warnings: Vec::new(),
         summary: WarningSummary {
             total: 0,
@@ -482,6 +693,14 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
             info: 0,
             suppressed: 0,
         },
+        diagnostics: anvil_checks::antipattern::registry_compile_diagnostics()
+            .into_iter()
+            .map(|d| JsonDiagnostic {
+                id: d.pattern_id,
+                title: d.pattern_title,
+                error: d.error,
+            })
+            .collect(),
     }
 }
 
@@ -498,6 +717,14 @@ fn category_str(c: anvil_checks::antipattern::WarningCategory) -> &'static str {
         anvil_checks::antipattern::WarningCategory::AntiPattern => "anti-pattern",
         anvil_checks::antipattern::WarningCategory::Boundary => "boundary",
         anvil_checks::antipattern::WarningCategory::Architecture => "architecture",
+    }
+}
+
+fn notification_priority_for_warning(severity: WarningSeverity) -> NotificationPriority {
+    match severity {
+        WarningSeverity::Error => NotificationPriority::High,
+        WarningSeverity::Warning => NotificationPriority::Normal,
+        WarningSeverity::Info => NotificationPriority::Low,
     }
 }
 
@@ -523,6 +750,30 @@ fn build_json_output(
             nudge: w.nudge.clone(),
         })
         .collect();
+    let notifications: Vec<Notification> = warnings
+        .iter()
+        .map(|w| {
+            Notification::new(
+                NotificationClass::Finding,
+                notification_priority_for_warning(w.severity),
+                format!("[{}] {}", w.id, w.title),
+                w.message.clone(),
+            )
+            .with_context(NotificationContext {
+                file: Some(w.location.file.clone()),
+                source: Some("check".to_string()),
+            })
+        })
+        .collect();
+
+    let diagnostics = anvil_checks::antipattern::registry_compile_diagnostics()
+        .into_iter()
+        .map(|d| JsonDiagnostic {
+            id: d.pattern_id,
+            title: d.pattern_title,
+            error: d.error,
+        })
+        .collect();
 
     CheckOutput {
         version: CHECK_OUTPUT_VERSION,
@@ -535,8 +786,10 @@ fn build_json_output(
         checks_run: vec!["architecture".to_string()],
         provenance_id: None, // TODO(RCLI2): wire up Kindling provenance when available
         message: None,
+        notifications,
         warnings: json_warnings,
         summary: summary.clone(),
+        diagnostics,
     }
 }
 
@@ -731,6 +984,8 @@ mod tests {
         assert!(!out.has_blocking_warnings);
         assert_eq!(out.execution_time_ms, 42);
         assert!(out.provenance_id.is_none());
+        assert_eq!(out.notifications.len(), 1);
+        assert_eq!(out.notifications[0].class, NotificationClass::Info);
     }
 
     #[test]
@@ -757,6 +1012,9 @@ mod tests {
             },
             pattern: Some("AP-003".to_string()),
             suppressed: None,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
         }];
         let summary = WarningSummary {
             total: 1,
@@ -785,6 +1043,16 @@ mod tests {
         assert_eq!(out.execution_time_ms, 42);
         assert!(!out.has_blocking_warnings);
         assert!(out.provenance_id.is_none());
+        assert_eq!(out.notifications.len(), 1);
+        assert_eq!(out.notifications[0].class, NotificationClass::Finding);
+        assert_eq!(out.notifications[0].priority, NotificationPriority::Normal);
+        assert_eq!(
+            out.notifications[0]
+                .context
+                .as_ref()
+                .and_then(|c| c.file.as_deref()),
+            Some("src/foo.ts")
+        );
     }
 
     #[test]
@@ -857,6 +1125,7 @@ mod tests {
             extensions: None,
             severity: "warning".to_string(),
             include_opt_in: false,
+            artifact: "source".to_string(),
         };
         let exts = resolve_extensions(None);
         let (files, source) = gather_files(&args, &exts).unwrap();
@@ -875,6 +1144,7 @@ mod tests {
             extensions: None,
             severity: "warning".to_string(),
             include_opt_in: false,
+            artifact: "source".to_string(),
         };
         let exts = resolve_extensions(None);
         assert!(gather_files(&args, &exts).is_err());
@@ -891,9 +1161,187 @@ mod tests {
             extensions: None,
             severity: "warning".to_string(),
             include_opt_in: false,
+            artifact: "source".to_string(),
         };
         let exts = resolve_extensions(None);
         let err = gather_files(&args, &exts).unwrap_err();
         assert!(err.to_string().contains("No files specified"));
+    }
+
+    // ── --artifact flag (RSCAN-006) ─────────────────────────────
+
+    #[test]
+    fn parse_artifact_kind_accepts_wire_values() {
+        assert_eq!(parse_artifact_kind("source").unwrap(), ArtifactKind::Source);
+        assert_eq!(
+            parse_artifact_kind("pr-description").unwrap(),
+            ArtifactKind::PrDescription
+        );
+        assert_eq!(
+            parse_artifact_kind("commit-message").unwrap(),
+            ArtifactKind::CommitMessage
+        );
+        assert_eq!(
+            parse_artifact_kind("agent-output").unwrap(),
+            ArtifactKind::AgentOutput
+        );
+    }
+
+    #[test]
+    fn parse_artifact_kind_rejects_unknown_value() {
+        let err = parse_artifact_kind("slack-message").unwrap_err();
+        assert!(err.to_string().contains("Invalid --artifact"));
+    }
+
+    #[test]
+    fn clap_accepts_artifact_with_files() {
+        use clap::Parser;
+        let result = crate::Cli::try_parse_from([
+            "anvil",
+            "check",
+            "--artifact",
+            "pr-description",
+            "pr-body.md",
+        ]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn clap_rejects_invalid_artifact_via_run_path() {
+        // clap itself accepts any string — validation happens in `run`.
+        let args = CheckArgs {
+            files: vec!["anything.md".to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "warning".to_string(),
+            include_opt_in: false,
+            artifact: "not-a-kind".to_string(),
+        };
+        assert!(parse_artifact_kind(&args.artifact).is_err());
+    }
+
+    #[test]
+    fn run_non_source_artifact_requires_explicit_files() {
+        let args = CheckArgs {
+            files: Vec::new(),
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "warning".to_string(),
+            include_opt_in: false,
+            artifact: "pr-description".to_string(),
+        };
+        let global = GlobalArgs::default();
+        let result =
+            run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("requires at least one file path"));
+    }
+
+    #[test]
+    fn run_non_source_artifact_rejects_all_flag() {
+        let args = CheckArgs {
+            files: vec!["ignored.md".to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: true,
+            extensions: None,
+            severity: "warning".to_string(),
+            include_opt_in: false,
+            artifact: "pr-description".to_string(),
+        };
+        let global = GlobalArgs::default();
+        let result =
+            run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("--all, --changed"));
+    }
+
+    #[test]
+    fn run_non_source_artifact_errors_on_missing_file() {
+        let args = CheckArgs {
+            files: vec!["__nonexistent_pr_body__.md".to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "warning".to_string(),
+            include_opt_in: false,
+            artifact: "pr-description".to_string(),
+        };
+        let global = GlobalArgs::default();
+        let result =
+            run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now());
+        assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[test]
+    fn run_non_source_artifact_scans_pr_description_and_triggers_rl_family() {
+        // RL-004 regex (`none\s+of\s+which\s+were\s+touched\b`) has no
+        // lookaround so it compiles cleanly in Rust regex. It targets
+        // pr-description + agent-output, which makes it a reliable witness
+        // that --artifact routed through scan_artifact (and not the
+        // source-only path).
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            tmp.path(),
+            "All CI failures are in dependencies, none of which were touched.",
+        )
+        .unwrap();
+        let path = tmp.path().to_string_lossy().to_string();
+
+        let args = CheckArgs {
+            files: vec![path.clone()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            // `error` threshold lets the RL-004 Warning fire without
+            // blocking — we're asserting the artifact was scanned, not
+            // asserting gate semantics.
+            severity: "error".to_string(),
+            include_opt_in: false,
+            artifact: "pr-description".to_string(),
+        };
+        let global = GlobalArgs::default();
+        let result =
+            run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now());
+        assert!(result.is_ok(), "scan should pass the default threshold");
+    }
+
+    #[test]
+    fn run_non_source_artifact_blocks_when_threshold_crossed() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            tmp.path(),
+            "All CI failures are in dependencies, none of which were touched.",
+        )
+        .unwrap();
+        let path = tmp.path().to_string_lossy().to_string();
+
+        let args = CheckArgs {
+            files: vec![path],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "warning".to_string(),
+            include_opt_in: false,
+            artifact: "pr-description".to_string(),
+        };
+        let global = GlobalArgs::default();
+        let err =
+            run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now())
+                .unwrap_err();
+        assert!(err.downcast_ref::<output::AlreadyReported>().is_some());
     }
 }

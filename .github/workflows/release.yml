@@ -290,6 +290,9 @@ jobs:
           rm -f artifacts/*-dist-manifest.json
           # Remove any subdirectories — gh release upload fails on directories
           find artifacts -mindepth 1 -type d -exec rm -rf {} +
+      - name: Include package-manager icon in release assets
+        run: |
+          cp .github/winget/anvil-icon-256.png artifacts/anvil-icon-256.png
       - name: Publish release to eddacraft/anvil-001 (private)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -375,6 +378,51 @@ jobs:
               --notes-file "$RUNNER_TEMP/notes.txt" \
               artifacts/*
           fi
+      - name: Publish ACKNOWLEDGEMENTS.md to eddacraft/anvil
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          # ACKNOWLEDGEMENTS.md lives in this (private) repo and contains
+          # both the hand-curated thanks section and the auto-generated
+          # third-party licence attribution. Push it to eddacraft/anvil
+          # (public) so the file is visible alongside each release, and
+          # attach it as a release asset for direct download.
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::secrets.ANVIL_RELEASES_TOKEN is required to publish ACKNOWLEDGEMENTS.md."
+            exit 1
+          fi
+
+          if [ ! -f ACKNOWLEDGEMENTS.md ]; then
+            echo "::warning title=Missing ACKNOWLEDGEMENTS.md::File not found at repo root; skipping publish."
+            exit 0
+          fi
+
+          # Upload as a release asset for per-release download link.
+          gh release upload "$RELEASE_TAG" \
+            --repo eddacraft/anvil \
+            --clobber \
+            ACKNOWLEDGEMENTS.md
+
+          # Commit to the public repo's main so it is visible in the GitHub
+          # file browser. Uses the contents API with the existing SHA (if any)
+          # so we update in place rather than creating a parallel file history.
+          CONTENT=$(base64 -w 0 ACKNOWLEDGEMENTS.md)
+          EXISTING_SHA=$(gh api repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --jq '.sha' 2>/dev/null || echo "")
+
+          SHA_ARG=""
+          if [ -n "$EXISTING_SHA" ]; then
+            SHA_ARG="-f sha=$EXISTING_SHA"
+          fi
+
+          gh api \
+            --method PUT \
+            repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md \
+            -f message="chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG" \
+            -f content="$CONTENT" \
+            $SHA_ARG
+
       - name: Promote public release to Latest
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
@@ -460,7 +508,6 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Generate WinGet manifest from templates
-        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -471,7 +518,8 @@ jobs:
 
           VERSION="${RELEASE_TAG#v}"
           REPO="eddacraft/anvil"
-          ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+          X64_ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+          ARM64_ASSET="eddacraft-anvil-aarch64-pc-windows-msvc.zip"
 
           # Validate version looks like semver
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
@@ -479,23 +527,50 @@ jobs:
             exit 1
           fi
 
-          # Fetch the SHA256 checksum published alongside the artifact
+          # Fetch the SHA256 checksum published alongside each architecture's
+          # zip. WinGet supports separate Installers entries per architecture
+          # so we ship both x64 and ARM64 in one manifest.
           X64_SHA256=$(gh release download "$RELEASE_TAG" \
             --repo "$REPO" \
-            --pattern "${ASSET}.sha256" \
+            --pattern "${X64_ASSET}.sha256" \
+            --output - | awk '{print toupper($1)}')
+          ARM64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${ARM64_ASSET}.sha256" \
             --output - | awk '{print toupper($1)}')
 
-          # Validate checksum is a 64-char uppercase hex string
-          if [[ ! "$X64_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
-            echo "::error::SHA256 '${X64_SHA256}' is not a valid 64-char hex digest"
+          # Validate both checksums are 64-char uppercase hex strings
+          for d in "$X64_SHA256" "$ARM64_SHA256"; do
+            if [[ ! "$d" =~ ^[A-F0-9]{64}$ ]]; then
+              echo "::error::SHA256 '${d}' is not a valid 64-char hex digest"
+              exit 1
+            fi
+          done
+
+          # Fetch the icon asset and compute its SHA256 (winget Icons entry
+          # requires a pinned digest; the icon is uploaded with every release).
+          ICON_ASSET="anvil-icon-256.png"
+          ICON_FILE="$RUNNER_TEMP/$ICON_ASSET"
+          gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "$ICON_ASSET" \
+            --output "$ICON_FILE"
+          ICON_SHA256=$(sha256sum "$ICON_FILE" | awk '{print toupper($1)}')
+
+          if [[ ! "$ICON_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
+            echo "::error::ICON_SHA256 '${ICON_SHA256}' is not a valid 64-char hex digest"
             exit 1
           fi
 
-          X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
+          X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${X64_ASSET}"
+          ARM64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ARM64_ASSET}"
 
-          echo "Version:  $VERSION"
-          echo "URL:      $X64_URL"
-          echo "SHA256:   $X64_SHA256"
+          echo "Version:       $VERSION"
+          echo "X64 URL:       $X64_URL"
+          echo "X64 SHA256:    $X64_SHA256"
+          echo "ARM64 URL:     $ARM64_URL"
+          echo "ARM64 SHA256:  $ARM64_SHA256"
+          echo "ICON_SHA256:   $ICON_SHA256"
 
           # Populate manifest templates
           MANIFEST_DIR="$RUNNER_TEMP/winget-manifest"
@@ -503,8 +578,12 @@ jobs:
           for tmpl in .github/winget/*.yaml; do
             sed \
               -e "s|\${VERSION}|${VERSION}|g" \
+              -e "s|\${RELEASE_TAG}|${RELEASE_TAG}|g" \
               -e "s|\${X64_URL}|${X64_URL}|g" \
               -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
+              -e "s|\${ARM64_URL}|${ARM64_URL}|g" \
+              -e "s|\${ARM64_SHA256}|${ARM64_SHA256}|g" \
+              -e "s|\${ICON_SHA256}|${ICON_SHA256}|g" \
               "$tmpl" > "$MANIFEST_DIR/$(basename "$tmpl")"
           done
 
@@ -581,24 +660,131 @@ jobs:
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #${EXISTING_PR} already exists for this branch — skipping creation"
           else
+            BODY_FILE="$RUNNER_TEMP/winget-pr-body.md"
+            {
+              echo "## Automated submission"
+              echo ""
+              echo "Package: \`${WINGET_ID}\`"
+              echo "Version: \`${VERSION}\`"
+              echo ""
+              echo "Submitted by the eddacraft/anvil-001 release pipeline."
+            } > "$BODY_FILE"
+
             gh pr create \
               --repo microsoft/winget-pkgs \
               --head "${FORK_USER}:${BRANCH}" \
               --base "$DEFAULT_BRANCH" \
               --title "New version: ${WINGET_ID} v${VERSION}" \
-              --body "## Automated submission
-
-          Package: \`${WINGET_ID}\`
-          Version: \`${VERSION}\`
-
-          Submitted by the eddacraft/anvil-001 release pipeline."
+              --body-file "$BODY_FILE"
           fi
+
+  # Publish a Scoop manifest to eddacraft/scoop-bucket so developer-audience
+  # Windows users can `scoop install eddacraft/anvil`. Scoop is the lighter-
+  # weight community alternative to WinGet — no review queue, we own the
+  # bucket, so updates are immediate.
+  scoop:
+    permissions:
+      contents: read
+    needs:
+      - plan
+      - host
+    if: ${{ always() && needs.host.result == 'success' && needs.plan.outputs.publishing == 'true' }}
+    runs-on: 'ubuntu-22.04'
+    env:
+      RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+      GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scoop
+          sparse-checkout-cone-mode: false
+
+      - name: Generate Scoop manifest from template
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::ANVIL_RELEASES_TOKEN secret is not set — cannot publish Scoop manifest"
+            exit 1
+          fi
+
+          VERSION="${RELEASE_TAG#v}"
+          REPO="eddacraft/anvil"
+          X64_ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+          ARM64_ASSET="eddacraft-anvil-aarch64-pc-windows-msvc.zip"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
+            echo "::error::VERSION '${VERSION}' does not match expected semver pattern"
+            exit 1
+          fi
+
+          X64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${X64_ASSET}.sha256" \
+            --output - | awk '{print tolower($1)}')
+          ARM64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${ARM64_ASSET}.sha256" \
+            --output - | awk '{print tolower($1)}')
+
+          # Scoop accepts lowercase hex digests
+          for d in "$X64_SHA256" "$ARM64_SHA256"; do
+            if [[ ! "$d" =~ ^[a-f0-9]{64}$ ]]; then
+              echo "::error::SHA256 '$d' is not a valid 64-char hex digest"
+              exit 1
+            fi
+          done
+
+          echo "Version:       $VERSION"
+          echo "X64_SHA256:    $X64_SHA256"
+          echo "ARM64_SHA256:  $ARM64_SHA256"
+
+          sed \
+            -e "s|\${VERSION}|${VERSION}|g" \
+            -e "s|\${RELEASE_TAG}|${RELEASE_TAG}|g" \
+            -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
+            -e "s|\${ARM64_SHA256}|${ARM64_SHA256}|g" \
+            .github/scoop/anvil.json > "$RUNNER_TEMP/anvil.json"
+
+          echo "--- Generated scoop manifest ---"
+          cat "$RUNNER_TEMP/anvil.json"
+
+          # Validate it's well-formed JSON
+          jq . "$RUNNER_TEMP/anvil.json" > /dev/null
+
+      - name: Push manifest to eddacraft/scoop-bucket
+        run: |
+          set -euo pipefail
+
+          BUCKET="eddacraft/scoop-bucket"
+          TARGET="bucket/anvil.json"
+
+          # Use the GitHub contents API so we don't need to clone/push.
+          # Fetch the current SHA (required for PUT update) — ignore if missing.
+          EXISTING_SHA=$(gh api "repos/${BUCKET}/contents/${TARGET}" --jq '.sha' 2>/dev/null || true)
+
+          CONTENT_B64=$(base64 -w 0 < "$RUNNER_TEMP/anvil.json")
+
+          if [ -n "$EXISTING_SHA" ]; then
+            gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
+              -f message="chore: bump anvil to ${RELEASE_TAG}" \
+              -f content="$CONTENT_B64" \
+              -f sha="$EXISTING_SHA"
+          else
+            gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
+              -f message="chore: add anvil ${RELEASE_TAG}" \
+              -f content="$CONTENT_B64"
+          fi
+
+          echo "Pushed ${TARGET} to ${BUCKET} for ${RELEASE_TAG}"
 
   announce:
     needs:
       - plan
       - host
       - winget
+      - scoop
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
@@ -606,8 +792,47 @@ jobs:
     runs-on: 'ubuntu-22.04'
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      WINGET_RESULT: ${{ needs.winget.result }}
+      SCOOP_RESULT: ${{ needs.scoop.result }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           submodules: recursive
+
+      # Surface a single line per release that operators can grep for in
+      # the workflow log, and hard-fail when a downstream publisher failed
+      # silently — previously this job exited 0 with no body whatsoever,
+      # masking winget/scoop push failures behind a green announce step.
+      - name: Summarise release outcome
+        run: |
+          set -euo pipefail
+          echo "::notice title=anvil release ${RELEASE_TAG}::host=success winget=${WINGET_RESULT} scoop=${SCOOP_RESULT}"
+          {
+            echo "## anvil release ${RELEASE_TAG}"
+            echo
+            echo "| job | result |"
+            echo "| --- | ------ |"
+            echo "| host (cargo-dist + GitHub Releases) | success |"
+            echo "| winget | ${WINGET_RESULT} |"
+            echo "| scoop  | ${SCOOP_RESULT} |"
+            echo
+            echo "Public release: https://github.com/EddaCraft/anvil/releases/tag/${RELEASE_TAG}"
+            echo "Install site: https://install.eddacraft.ai"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Hard-fail on anything that did not land cleanly. `success` is
+          # the only result we accept silently; `skipped` is allowed for
+          # prereleases (winget/scoop are gated on production tags).
+          # Cancellation, timeout, and infra failures all need to surface
+          # — previously the condition only caught "failure" and a
+          # cancelled job slid through with a green announce.
+          for result in "${WINGET_RESULT}" "${SCOOP_RESULT}"; do
+            case "${result}" in
+              success|skipped) ;;
+              *)
+                echo "::error::Downstream publisher did not land cleanly (winget=${WINGET_RESULT} scoop=${SCOOP_RESULT})"
+                exit 1
+                ;;
+            esac
+          done

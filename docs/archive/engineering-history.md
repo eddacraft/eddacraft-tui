@@ -1,5 +1,11 @@
 # Engineering History
 
+> Historical archive only.
+>
+> This file is retained for reference to an older release-history model and
+> should not be treated as current project state. The current engineering log now
+> lives in the repository root at `ENGINEERING-HISTORY.md`.
+
 This document records the complete technical history of changes for each
 release.
 
@@ -12,7 +18,7 @@ document implementation specifics, internal infrastructure topology, or security
 control details. Security changes are recorded at a level that acknowledges the
 work without disclosing exploit mechanics.
 
-## [Unreleased]
+## [Unreleased at Time of Archive]
 
 Product changelog: Rust CLI, beta auth, Ratatui TUI, Rust kernel, json-render
 package, kernel benchmarks, TypeScript 6.0 migration.
@@ -435,7 +441,6 @@ Initial pre-release.
 - API response validation strengthened
 - Subprocess execution hardened across the codebase
 
-[Unreleased]: https://github.com/eddacraft/anvil-001/compare/v0.2.1-beta...HEAD
 [0.2.1-beta]:
   https://github.com/eddacraft/anvil-001/compare/v0.1.3...v0.2.1-beta
 [0.1.3]: https://github.com/eddacraft/anvil-001/compare/v0.1.2-beta...v0.1.3

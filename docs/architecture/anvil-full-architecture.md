@@ -130,13 +130,14 @@
 | `packages/edda-stack`           | Three-layer memory: Kindling → Ember → Edda | **[CURRENT]** |
 | `packages/kindling-integration` | Kindling observation capture integration    | **[CURRENT]** |
 
-### Platform
+### Shared and Support Packages
 
-| Package                     | Purpose                            | Status        |
-| --------------------------- | ---------------------------------- | ------------- |
-| `packages/platform/config`  | Config file loading and resolution | **[CURRENT]** |
-| `packages/platform/storage` | File-system storage abstraction    | **[CURRENT]** |
-| `packages/platform/crypto`  | Cryptographic utilities            | **[CURRENT]** |
+| Package                            | Purpose                            | Status        |
+| ---------------------------------- | ---------------------------------- | ------------- |
+| `packages/shared/`                 | Shared cross-cutting utilities     | **[CURRENT]** |
+| `packages/shared/storage/`         | Shared storage helpers             | **[CURRENT]** |
+| `packages/shared/admin-contracts/` | Shared admin API schemas and types | **[CURRENT]** |
+| `packages/libs/render/`            | Shared render-layer utilities      | **[CURRENT]** |
 
 ### Tooling & Integration
 
@@ -181,16 +182,16 @@ checks against repository state and produces pass/fail/warn results.
 
 ### Gate Checks
 
-| Check                | What It Does                             | Engine     | Status              |
-| -------------------- | ---------------------------------------- | ---------- | ------------------- |
-| `SecretCheck`        | Entropy + pattern-based secret detection | Rust       | **Done** (RENG-001) |
-| `AntipatternCheck`   | Detects code anti-patterns (13 patterns) | Rust       | **Done** (RENG-002) |
-| `CommandSafetyCheck` | Validates shell commands (36 rules)      | Rust       | **Done** (RENG-003) |
-| `ArchitectureCheck`  | Layer violations via dependency analysis | Rust       | **Done** (RENG-004) |
-| `PolicyCheck`        | OPA Rego policy evaluation               | Rust       | **Done** (KERN-031) |
-| `DependencyCheck`    | New/changed dependency detection         | TypeScript | Current             |
-| `ESLintCheck`        | ESLint rule violations                   | TypeScript | Stays TS            |
-| `CoverageCheck`      | Test coverage thresholds                 | TypeScript | Stays TS            |
+| Check                | What It Does                                      | Engine     | Status                         |
+| -------------------- | ------------------------------------------------- | ---------- | ------------------------------ |
+| `SecretCheck`        | Entropy + pattern-based secret detection          | Rust       | **Done** (RENG-001)            |
+| `AntipatternCheck`   | Anti-patterns (18 registry rules, rayon-parallel) | Rust       | **Done** (RENG-002, RSCAN-008) |
+| `CommandSafetyCheck` | Validates shell commands (36 rules)               | Rust       | **Done** (RENG-003)            |
+| `ArchitectureCheck`  | Layer violations via dependency analysis          | Rust       | **Done** (RENG-004)            |
+| `PolicyCheck`        | OPA Rego policy evaluation                        | Rust       | **Done** (KERN-031)            |
+| `DependencyCheck`    | New/changed dependency detection                  | TypeScript | Current                        |
+| `ESLintCheck`        | ESLint rule violations                            | TypeScript | Stays TS                       |
+| `CoverageCheck`      | Test coverage thresholds                          | TypeScript | Stays TS                       |
 
 ### Gate Pipeline Flow
 
@@ -214,37 +215,32 @@ checks against repository state and produces pass/fail/warn results.
                           Record            (CLI/MCP)      Provider
 ```
 
-### Proposed Gate Pipeline (End State)
+### Current Gate Pipeline
 
 ```
-                              [PROPOSED]
                                  │
-  .anvil/gate.yaml ──► GateConfigManager ──► Engine Selector
+  .anvil/gate.yaml ──► GateConfigManager ──► Rust Engine / Kernel
                                                 │
-                              ┌─────────────────┴──────────────┐
-                              ▼                                ▼
-                      Legacy TS Engine                  Rust Kernel Engine
-                      (--engine legacy)                 (--engine rust)
-                              │                                │
-                              ▼                                ▼
-                       GateRunner (TS)              ┌──────────────────┐
-                       (as today)                   │ Watcher          │
-                                                    │ → Parser         │
-                                                    │ → Semantic Graph │
-                                                    │ → Policy Engine  │
-                                                    │ → Event Emission │
-                                                    └──────────────────┘
-                              │                                │
-                              ▼                                ▼
+                                                ▼
+                                       ┌──────────────────┐
+                                       │ Watcher          │
+                                       │ → Parser         │
+                                       │ → Semantic Graph │
+                                       │ → Policy Engine  │
+                                       │ → Event Emission │
+                                       └──────────────────┘
+                                                │
+                                                ▼
                     ┌────────────────────────────────────────────┐
                     │         Engine Event Protocol              │
                     │  Progress | Snapshot | Violation | Error   │
                     └────────────────────────────────────────────┘
                                        │
-                              ┌────────┼────────┐
-                              ▼        ▼        ▼
-                           CLI      Website   VS Code
-                           TUI     Dashboard  Extension
+                              ┌────────┼─────────────┐
+                              ▼        ▼             ▼
+                           CLI/TUI  Website     Driver clients
+                                                 (editor / MCP,
+                                                 planned via daemon)
 ```
 
 ---

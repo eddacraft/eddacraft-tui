@@ -1,6 +1,7 @@
 use std::io;
 use std::time::Duration;
 
+use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::audit::{
@@ -17,7 +18,7 @@ use anvil_tui::surfaces::status::{
 };
 use anvil_tui::surfaces::tutorial::TutorialState;
 use anvil_tui::surfaces::watch::{
-    QueuedChange, RunHistory, WatchData, WatchState, WatchStats, WatchStatus,
+    QueuedNotification, RunHistory, WatchData, WatchState, WatchStats, WatchStatus,
 };
 use anvil_tui::surfaces::welcome::WelcomeState;
 use anvil_tui::surfaces::wizard::{Template, WizardState};
@@ -122,6 +123,8 @@ struct DemoApp {
 // ---------------------------------------------------------------------------
 
 fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
+    use anvil_tui::surfaces::doctor::Remediation;
+
     vec![
         DiagnosticCheck {
             name: "Node.js runtime".into(),
@@ -130,6 +133,7 @@ fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
             message: "v22.4.0 detected".into(),
             details: Some("Path: /usr/local/bin/node".into()),
             auto_fixable: false,
+            remediation: Remediation::default(),
         },
         DiagnosticCheck {
             name: "Rust toolchain".into(),
@@ -138,22 +142,35 @@ fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
             message: "rustc 1.85.0 (stable)".into(),
             details: Some("Installed via rustup".into()),
             auto_fixable: false,
+            remediation: Remediation::default(),
         },
         DiagnosticCheck {
             name: "Anvil config file".into(),
             category: "Configuration".into(),
             status: CheckStatus::Fail,
             message: "No .anvil.yaml found in project root".into(),
-            details: Some("Run `anvil init` to create one".into()),
+            details: None,
             auto_fixable: true,
+            remediation: Remediation {
+                summary: "Create .anvil.yaml in the project root.".into(),
+                command: Some("anvil init".into()),
+                doc_url: None,
+            },
         },
         DiagnosticCheck {
             name: "ESLint configuration".into(),
             category: "Configuration".into(),
             status: CheckStatus::Warn,
             message: "Config found but uses deprecated format".into(),
-            details: Some("Migrate from .eslintrc to eslint.config.js".into()),
+            details: None,
             auto_fixable: false,
+            remediation: Remediation {
+                summary: "Migrate from .eslintrc to eslint.config.js".into(),
+                command: None,
+                doc_url: Some(
+                    "https://eslint.org/docs/latest/use/configure/migration-guide".into(),
+                ),
+            },
         },
         DiagnosticCheck {
             name: "Git hooks".into(),
@@ -162,6 +179,7 @@ fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
             message: "Hook installation skipped (no .husky dir)".into(),
             details: None,
             auto_fixable: true,
+            remediation: Remediation::default(),
         },
         DiagnosticCheck {
             name: "Secret scanner".into(),
@@ -170,6 +188,7 @@ fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
             message: "gitleaks v8.21 available".into(),
             details: None,
             auto_fixable: false,
+            remediation: Remediation::default(),
         },
     ]
 }
@@ -335,19 +354,31 @@ fn mock_watch_data() -> WatchData {
     WatchData {
         status: WatchStatus::Passing,
         queue: std::collections::VecDeque::from([
-            QueuedChange {
-                file: "src/lib.rs".into(),
-                kind: "modified".into(),
+            QueuedNotification {
+                notification: Notification::new(
+                    NotificationClass::Finding,
+                    NotificationPriority::High,
+                    "src/lib.rs",
+                    "modified",
+                ),
                 timestamp: "09:14:32".into(),
             },
-            QueuedChange {
-                file: "src/config.rs".into(),
-                kind: "modified".into(),
+            QueuedNotification {
+                notification: Notification::new(
+                    NotificationClass::Finding,
+                    NotificationPriority::High,
+                    "src/config.rs",
+                    "modified",
+                ),
                 timestamp: "09:14:35".into(),
             },
-            QueuedChange {
-                file: "tests/integration.rs".into(),
-                kind: "created".into(),
+            QueuedNotification {
+                notification: Notification::new(
+                    NotificationClass::Finding,
+                    NotificationPriority::High,
+                    "tests/integration.rs",
+                    "created",
+                ),
                 timestamp: "09:14:38".into(),
             },
         ]),

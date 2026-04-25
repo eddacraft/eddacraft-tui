@@ -126,23 +126,25 @@ project/
 
 ### Local Overrides
 
-Developers can override for their environment:
+Watch behaviour is controlled with CLI flags per session rather than repo
+config. For example:
 
-```json
-// .anvilrc.local
-{
-  "extends": "./.anvilrc",
-  "watch": {
-    "debounce_ms": 500
-  }
-}
+```bash
+anvil watch --source --debounce 500
+anvil watch --source --file src/payments/
+anvil watch --source --exclude "dist,node_modules"
 ```
 
-Add to `.gitignore`:
+If your team still uses local config overrides for non-watch settings, keep them
+out of git:
 
 ```
 .anvilrc.local
 ```
+
+Use `--file` and `--debounce` as the primary day-to-day tuning knobs.
+`--exclude` currently works best for obvious generated/build directories by
+name.
 
 ### Team-Wide Suppressions
 
