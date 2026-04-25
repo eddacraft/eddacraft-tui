@@ -110,8 +110,14 @@ Only update packages that changed in this release.
 
 - [ ] `docs/public/anvil/releases/changelog.md` — Rust performance or feature
       highlights for end users
+- [ ] `docs/public/anvil/overview.md` — current capability and install-surface
+      claims still match the release
+- [ ] `docs/public/anvil/beta-testing-guide.md` — current version, install,
+      upgrade, and test-focus text
 - [ ] `docs/public/anvil/quickstart.md` — if Rust CLI replaces or supplements
       Node CLI, update install commands
+- [ ] `docs/public/anvil/operations/config.md` — current watch flags and config
+      behaviour
 - [ ] `docs/public/anvil/operations/troubleshooting.md` — Rust-specific errors
 - [ ] `docs/public/anvil/integrations/vscode.md` — extension and diagnostics
       behaviour

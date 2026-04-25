@@ -329,8 +329,8 @@ anvil watch --source                     # Watch source files
 anvil watch --plans                      # Watch planning documents
 anvil watch --all                        # Watch everything
 anvil watch --debounce 500               # Custom debounce (ms, default: 300)
-anvil watch --exclude "vendor,tmp"       # Exclude extra directory names
-anvil watch --patterns "**/*.ts,**/*.rs" # Pattern flags are accepted for future watch filtering
+anvil watch --exclude "vendor/**,tmp/**" # Exclude matching glob paths
+anvil watch --patterns "**/*.ts,**/*.rs" # Limit the watch loop to matching globs
 anvil watch --file src/api/              # Scope to specific path
 anvil watch --action gate                # Run gate on each change
 ```
@@ -341,10 +341,13 @@ anvil watch --action gate                # Run gate on each change
 | `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)               |
 | `--all`      |       | —       | Watch all file types (source + plans)                                                           |
 | `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                                         |
-| `--exclude`  |       | —       | Comma-separated directory names to exclude in the watcher filter                                |
-| `--patterns` |       | —       | Comma-separated glob patterns carried on the watch config; full loop filtering is still limited |
+| `--exclude`  |       | —       | Comma-separated glob patterns to exclude from watch events                                      |
+| `--patterns` |       | —       | Comma-separated glob patterns to include in watch events                                        |
 | `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                                     |
 | `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                                      |
+
+Bare names match only that exact path. To exclude a directory's contents, use a
+glob such as `vendor/**` rather than `vendor`.
 
 ## CI Mode
 
@@ -408,7 +411,7 @@ not supported.
 | 0    | All checks pass | Continue          |
 | 1    | General error   | Investigate       |
 | 2    | Gate failure    | Block merge       |
-| 3    | Auth required   | Run `anvil login` |
+| 3    | Auth required   | Run `anvil auth login` |
 | 4    | Config error    | Fix `.anvilrc`    |
 
 ---
