@@ -7,9 +7,41 @@ See: plans/aps-rules.md
 
 # Config Intelligence
 
-| ID     | Owner | Status    |
-| ------ | ----- | --------- |
-| CFGINT | —     | Draft |
+| ID     | Owner | Status | Progress |
+| ------ | ----- | ------ | -------- |
+| CFGINT | —     | Draft  | 0/7      |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Tier B (queued). Earlier audit pass flagged
+> CFGINT as a possible archive on the basis that both declared dependencies
+> (`save-time-trust`, `architecture-safety`) are archived. That was a misread
+> — those *planning modules* are archived because their work-item lists
+> completed; the live home for architecture rule logic is the
+> `crates/anvil-architecture` crate, which is the natural consumer here.
+>
+> CFGINT is the **explicit handoff target** for config/dependency-graph
+> extraction across the 2026-04-08 Language & Coverage design:
+> - `lang-rust.aps.md` — "Cargo dependency-graph analysis lives in
+>   `config-intelligence`"
+> - `lang-python.aps.md` — Python config analysis delegated here
+> - `surface-env-files.aps.md` — out-of-scope handoff to CFGINT
+> - `plans/specs/2026-04-08-language-and-coverage-design.md:73,885` —
+>   names CFGINT as the canonical home
+>
+> Not blocking RTAI launch. Promotes to Ready when Language & Coverage
+> Phase 1 packs (PACKPUL, PACKLLM) need `package.json` parsing or RSTLAN
+> needs the Cargo.toml graph.
+>
+> **Rescope work pending** (tracked separately, see followup list):
+> 1. Retarget Interfaces: depends on `crates/anvil-architecture` (live);
+>    consumed by RSTLAN, PYLAN, SURFENV, PACKPUL, PACKLLM.
+> 2. Decide implementation home — new `crates/anvil-config` crate, or
+>    fold into `crates/anvil-architecture/src/config/`.
+> 3. Define the graph artefact shape (likely a typed export under
+>    `crates/anvil-kernel-types` per SCHEMA module).
+> 4. Confirm task list still matches the Phase 1 needs once RSTLAN /
+>    PACKPUL move toward Ready.
 
 ## Purpose
 
@@ -57,8 +89,17 @@ defines project references, `go.mod` exposes the dependency graph.
 
 **Depends on:**
 
-- `save-time-trust` — runner integration
-- `architecture-safety` — edge detector uses extracted dependency graph
+- `crates/anvil-architecture` — live consumer for layer/edge logic; would
+  consume the extracted dependency graph
+- `crates/anvil-cli` — runner integration surface
+
+**Consumed by (live planning modules):**
+
+- `lang-rust` (RSTLAN) — Cargo dependency-graph analysis
+- `lang-python` (PYLAN) — Python config analysis
+- `surface-env-files` (SURFENV) — `.env` file handoff
+- `pack-pulumi` (PACKPUL), `pack-llm-provider` (PACKLLM) — `package.json`
+  parsing for substrate detection
 
 **Exposes:**
 

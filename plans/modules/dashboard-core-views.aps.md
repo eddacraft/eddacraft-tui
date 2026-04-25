@@ -1,8 +1,10 @@
 # Dashboard Core Views
 
-| ID | Owner | Status |
-|----|-------|--------|
-| DASHCORE | @eddacraft | Ready |
+| ID       | Owner      | Status | Progress |
+| -------- | ---------- | ------ | -------- |
+| DASHCORE | @eddacraft | Ready  | 0/9      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -33,9 +35,9 @@ the minimum viable dashboard.
 
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   theme, deep linking
-- `contracts` — `WarningSchema`, `EvidenceEntrySchema`, `ProvenanceRecordSchema`
-- `drift-reporting` — Drift score for Overview metric card
-- `antipattern-library` — Pattern definitions for registry page
+- `contracts` — `WarningSchema`, `EvidenceEntrySchema`, `ProvenanceRecordSchema` (see `schema-contracts` module)
+- `drift-reporting` — Drift score for Overview metric card [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
+- `antipattern-library` — Pattern definitions for registry page [REVIEW: archived module — pattern definitions now live in `crates/anvil-checks/`; verify registry source]
 
 **Exposes:**
 

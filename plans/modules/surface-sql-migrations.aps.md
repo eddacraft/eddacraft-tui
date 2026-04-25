@@ -7,6 +7,8 @@
 | ------- | ----- | ------ |
 | SURFSQL | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring `.sql` migration files to **T2 (Policy)** per

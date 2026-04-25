@@ -7,6 +7,8 @@
 | ------- | ----- | -------- | ------ |
 | ARCHCFG | —     | high     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Ensure `.anvil/architecture.yaml` is unambiguous, consistent, and safe to apply.
@@ -32,8 +34,8 @@ undefined layers, and incomplete definitions before analysis runs.
 
 **Depends on:**
 
-- `opa-architecture-integration` — Architecture YAML schema and parser
-- `architecture-safety` — Layer definitions and baseline usage
+<!-- Audit 2026-04-26: opa-architecture-integration and architecture-safety archived; their work landed in crates/anvil-architecture and crates/anvil-policy. -->
+- `crates/anvil-architecture` — Architecture YAML schema, parser, layer definitions, and baseline
 - `crates/anvil-kernel` — kernel architecture config loading (KERN-030)
 - `crates/anvil-cli` — Rust CLI commands
 

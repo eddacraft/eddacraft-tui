@@ -11,6 +11,8 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SCHEMA | —     | Draft |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Govern schema evolution in `packages/anvil/contracts` and

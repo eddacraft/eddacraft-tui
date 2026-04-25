@@ -1,8 +1,12 @@
 # Council Gate Bridge
 
-| ID    | Owner  | Status   |
-|-------|--------|----------|
-| CGBDG | @aneki | Proposed |
+| ID    | Owner  | Status   | Progress |
+| ----- | ------ | -------- | -------- |
+| CGBDG | @aneki | Proposed | 0/6      |
+
+**Last reviewed:** 2026-04-26 — discovery-only module; attestation work still
+lives at `packages/anvil/core/src/provenance/`. If/when attestation moves to a
+Rust crate (e.g. `crates/anvil-checks`), update CGBDG-001 accordingly.
 
 ## Purpose
 

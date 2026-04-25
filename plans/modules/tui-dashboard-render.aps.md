@@ -1,8 +1,10 @@
 # TUI Dashboard Render
 
-| ID | Owner | Status |
-|----|-------|--------|
-| TUIDASH | — | Ready |
+| ID      | Owner | Status | Progress |
+| ------- | ----- | ------ | -------- |
+| TUIDASH | —     | Ready  | 0/12     |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -42,16 +44,22 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 **Depends on:**
 
-- RATS — `eddacraft-tui` widget library (theme, widgets, Surface trait)
+- RATS (complete) — Ratatui widget library now merged into `crates/anvil-tui/`
+  (theme, widgets, Surface trait). Note: post-migration, `eddacraft-tui` lives
+  in `archive/eddacraft-tui-local/` and the active widgets are in
+  `crates/anvil-tui/src/widgets/`.
 - DASHAI — component catalogue definition and JSON spec format
-- DASH-005 — `.anvil/` data layer (gate results, warnings, drift, etc.)
+- DASH-005 — `.anvil/` data layer (gate findings, drift, etc.)
 - `@json-render/core` — spec format documentation (consumed as JSON schema, not
-  as a Rust dependency)
+  as a Rust dependency). Note: as of 2026-04-26 there is no
+  `packages/json-render/` in this repo; the spec source/version pin is owned
+  by DASHAI and must be confirmed before TUIDASH-001 starts.
 
 **Exposes:**
 
-- `anvil-tui-render` crate — spec parser, registry, tree renderer
-- Dashboard surface in `anvil-tui` — renders saved dashboard specs
+- `anvil-tui-render` crate (new) — spec parser, registry, tree renderer
+- Dashboard surface in `anvil-tui` (new `crates/anvil-tui/src/surfaces/dashboard/`)
+  — renders saved dashboard specs
 - `anvil dashboard [name]` subcommand — launches TUI dashboard viewer
 
 ## Decisions
@@ -90,7 +98,8 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 - Spec format must match `@json-render/core` exactly — no Anvil-specific
   extensions to the spec structure (props, children, root, elements)
 - Must render at 80x24 minimum terminal size (components adapt via constraints)
-- Theme must use eddacraft palette from `eddacraft-tui` (no custom colours)
+- Theme must reuse the palette exposed by `crates/anvil-tui` (no custom
+  colours; the historic `eddacraft-tui` palette now lives there)
 - Rendering a spec must not panic — malformed specs produce error UI, not crashes
 - Data binding failures render as `—` (em dash), not errors
 
@@ -101,19 +110,23 @@ Change status to **Ready** when:
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
 - [x] Decisions resolved
-- [x] Catalogue schema known — `packages/json-render/src/catalog-registry.ts`
-  defines 12 components with Zod schemas (DASHAI-002 dependency satisfied)
-- [x] json-render spec format usable — `@json-render/core` v0.15.0 installed,
-  spec structure documented and tested
+- [ ] Catalogue schema known — historically referenced
+  `packages/json-render/src/catalog-registry.ts` defining 12 components with
+  Zod schemas (DASHAI-002 dependency). **Note (2026-04-26):**
+  `packages/json-render/` is not present in this repo; confirm where the
+  authoritative catalogue + JSON Schema lives before starting TUIDASH-001.
+- [ ] json-render spec format usable — `@json-render/core` (or replacement
+  source) version pin and schema documented
 - [x] At least one task defined
 - [x] Template dashboard specs authored (PR #701 — 3 specs: gate-summary,
   watch-session, architecture-health)
 
 ## Wave
 
-**Wave 3** — Unblocked. json-render spec format and catalogue schema already
-exist in `packages/json-render/`. DASHAI (web dashboard) is a parallel
-workstream, not a prerequisite. TUI can consume the same specs independently.
+**Wave 3** — Unblocked structurally (RATS, RCLI complete). DASHAI (web
+dashboard) is a parallel workstream, not a prerequisite. TUI can consume the
+same specs independently. **Note (2026-04-26):** Catalogue/spec source must
+be re-confirmed because `packages/json-render/` is no longer in tree.
 
 ---
 
@@ -131,9 +144,9 @@ workstream, not a prerequisite. TUI can consume the same specs independently.
   - `crates/anvil-tui-render/src/lib.rs`
   - `crates/anvil-tui-render/src/spec.rs`
   - `crates/anvil-tui-render/Cargo.toml`
-- **Validation:** Once `apps/website/data/dashboard-templates/` exists, parse
-  sample dashboard JSON specs from that directory and verify round-trip
-  fidelity
+- **Validation:** Once a sample dashboard-templates directory exists (target
+  path under `apps/website/data/dashboard-templates/`, owned by DASHAI),
+  parse the sample JSON specs and verify round-trip fidelity
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** Work item that introduces
@@ -254,7 +267,8 @@ workstream, not a prerequisite. TUI can consume the same specs independently.
   - `crates/anvil-tui-render/src/components/suppression.rs`
   - `crates/anvil-tui-render/src/components/evidence_entry.rs`
 - **Validation:** Each component renders with fixture data from
-  `packages/edda-stack/src/testing/fixtures/`
+  `packages/edda-stack/src/testing/fixtures/` (or a Rust-side fixture
+  module if/when edda-stack TS contracts are retired)
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** TUIDASH-005, TUIDASH-006

@@ -7,6 +7,8 @@
 | ------ | ----- | -------- | ------ |
 | EATEST | —     | High     | Ready  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Track all testing gaps identified during the v0.3.x release review councils.

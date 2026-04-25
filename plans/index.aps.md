@@ -3,6 +3,12 @@
 
 # Anvil — Save-time Trust
 
+> **🔒 Current release locked 2026-04-26:** A1 (RTAI Spike) + A2 (AIGUARD) +
+> A3 (Release Engineering) + A4 (Language Credibility Floor). See
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
+> and adversarial risks. See [`ROADMAP.md`](../ROADMAP.md) for thematic
+> context across horizons.
+
 ## Overview
 
 ## Contents
@@ -137,7 +143,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [rust-cli](./archive/modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
-| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
+| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Ready | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
 | [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 3/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
@@ -207,7 +213,7 @@ Browser-based interface for exploring Anvil data. Built into `apps/website/`
 
 | Module | Scope | Status | Progress | Wave | Dependencies |
 | ------ | ----- | ------ | -------- | ---- | ------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | 0/9 | 1 | apps/website, contracts |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | 1/9 | 1 | apps/website, contracts |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | 0/9 | 2 | dashboard-foundation |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
@@ -273,6 +279,7 @@ when specific work is identified.
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 11/22 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + final release-scope refresh; 10 remaining Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
+| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 0/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **Ready** |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | 11 | tools/generate-acknowledgements.sh (v1 shipped), cargo-about, deny.toml — **Ready** (owner: joshuaboys; CycloneDX intermediate; kit at tools/starters/acknowledgements/) |
 
@@ -288,7 +295,7 @@ TCOV/TINT/TEXT depend on it.
 | [test-infrastructure-fix](./archive/modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
 | [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25 (Phase 1+2 complete: 13/13; Phase 3: 1/8; Phase 4: 4 blocked — scope refresh needed) | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
-| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
+| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/14 | TFIX |
 
 ### Language & Coverage (Draft)
 
@@ -482,7 +489,7 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
   - Net: module now has 16 tasks; index reconciled to 0/16.
 -->
 
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/8 | INTD-002/-003/-005/-013/-015, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-006/-007/-008 added 2026-04-24 per council review C2/M5-M7/M10-M11 |
 

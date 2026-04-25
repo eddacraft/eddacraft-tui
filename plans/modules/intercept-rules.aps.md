@@ -1,8 +1,10 @@
 # Intercept Rules
 
-| ID | Owner | Status |
-|----|-------|--------|
-| INTR | @aneki | Draft |
+| ID   | Owner  | Status | Progress |
+| ---- | ------ | ------ | -------- |
+| INTR | @aneki | Draft  | 0/7      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 

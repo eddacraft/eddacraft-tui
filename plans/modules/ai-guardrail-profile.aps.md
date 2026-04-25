@@ -3,9 +3,43 @@
 
 # AI Guardrail Profile
 
-| Scope   | Owner | Priority | Status |
-| ------- | ----- | -------- | ------ |
-| AIGUARD | —     | high     | Draft  |
+| Scope   | Owner | Priority | Status | Progress |
+| ------- | ----- | -------- | ------ | -------- |
+| AIGUARD | —     | high     | Draft  | 0/4      |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Tier A — current-release candidate. Council C
+> recommended archival on the basis that AIGUARD is "one CLI flag, not a
+> module" — that was too dismissive. AIGUARD-002 (stable JSON diagnostic
+> schema in `crates/anvil-kernel-types/src/diagnostics.rs`) is the
+> strategic piece: it defines what AI tools consume when they invoke
+> `anvil gate --profile ai`. That is launch-aligned with RTAI's
+> "trust-in-AI-generated-code" thesis — RTAI fires the validation, AI
+> tool reads gate-result JSON in the **same envelope shape**.
+>
+> Earlier audit pass framed the archived dependency planning modules
+> (`architecture-safety`, `antipattern-library`,
+> `opa-architecture-integration`, `policy-pack-validation`,
+> `architecture-config-validation`, `llms-txt-export`) as evidence of
+> staleness — that was a misread. Those *planning modules* are archived
+> because their work-item lists completed; the equivalent Rust capability
+> is **live** in `crates/anvil-kernel` (architecture invariants,
+> secret/anti-pattern checks, command safety) and `crates/anvil-policy`
+> (policy validation). All 4 task scopes already target Rust crates with
+> `cargo test` validations — no rescope work needed.
+>
+> **Cross-coordination required:** AIGUARD-002 diagnostic envelope must
+> share a single schema with RTAI-007 (notification mirror) and INTD-013
+> (telemetry control envelope). Whichever module lands first publishes
+> the canonical shape; the others reference it. Coordinate before
+> implementation.
+>
+> **Followup work** (tracked separately):
+> 1. Update Interfaces "Depends on" block to remove the archived planning
+>    modules and rely on the live Rust crate references already present.
+> 2. Add cross-reference to RTAI-007 / INTD-013 envelope coordination.
+> 3. Confirm `--profile ai` is the right surface name (vs. `--ai`).
 
 ## Purpose
 

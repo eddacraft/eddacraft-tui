@@ -9,9 +9,17 @@ Scopes: WEAVE (weave crate, eddacraft/weave-rs), AHARNESS (anvil-weave crate)
 
 # weave — Agent Runtime
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| WEAVE | —     | Draft  |
+| ID    | Owner | Status | Progress |
+| ----- | ----- | ------ | -------- |
+| WEAVE | —     | Draft  | 0/21     |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Greenfield confirmed — no `weave` or
+> `anvil-weave` crate exists in `crates/` yet. The standalone repo at
+> `~/Projects/src/weave-rs` (`eddacraft/weave-rs`) is the correct upstream and
+> is in place. ADR-024 reference and dependency on `anvil-kernel` /
+> `anvil-kernel-types` crates verified against the current workspace.
 
 Priority: medium.
 

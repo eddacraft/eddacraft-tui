@@ -11,9 +11,11 @@ See: plans/aps-rules.md
 
 # Real-time AI-Output Validation
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| RTAI | —     | Proposed |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| RTAI | —     | Proposed | 0/9      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 

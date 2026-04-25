@@ -3,9 +3,13 @@
 
 # Feature Flag Catalogue
 
-| Scope    | Owner | Priority | Status |
-| -------- | ----- | -------- | ------ |
-| FLAGCAT  | —     | medium   | Draft  |
+| Scope   | Owner | Priority | Status | Progress |
+| ------- | ----- | -------- | ------ | -------- |
+| FLAGCAT | —     | medium   | Draft  | 0/6      |
+
+**Last reviewed:** 2026-04-26 — FLAGS and FLAGM are archived as Complete; the
+five flag definitions and per-surface modules referenced below are still the
+current state on `dev`.
 
 ## Purpose
 

@@ -7,6 +7,8 @@
 | ----- | ----- | -------- | ------ |
 | EAMIG | —     | Medium   | Ready  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Track all outstanding and deferred council findings, design improvements, and

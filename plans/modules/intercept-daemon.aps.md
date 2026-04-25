@@ -1,8 +1,10 @@
 # Intercept Daemon
 
-| ID | Owner | Status |
-|----|-------|--------|
-| INTD | @aneki | Draft |
+| ID   | Owner  | Status | Progress |
+| ---- | ------ | ------ | -------- |
+| INTD | @aneki | Draft  | 0/16     |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 

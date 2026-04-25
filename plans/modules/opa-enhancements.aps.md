@@ -4,6 +4,18 @@
 | ----- | ----- | -------- | ------ |
 | OPAE  | —     | high     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> NOTE(post-rust): Rust mapping documented in `plans/index.aps.md` (search
+> "REVIEW(post-rust)"). Task file paths below were authored against the
+> retired TS tree (`core/src/`, `cli/src/`); when each task moves to Ready
+> the implementation lands in Rust crates: `crates/anvil-kernel`,
+> `crates/anvil-policy`, `crates/anvil-cli`, `crates/anvil-architecture`,
+> Ratatui surfaces in `crates/anvil-tui/src/surfaces/`. Several listed
+> dependency modules (`opa-architecture-integration`, `architecture-safety`,
+> `tui`) are now archived under `plans/archive/modules/` — capability is
+> covered by the Rust kernel/policy crates.
+
 ## Purpose
 
 Transform Anvil's OPA functionality from useful to truly impressive by:
@@ -49,6 +61,8 @@ Transform Anvil's OPA functionality from useful to truly impressive by:
 
 - Full OPA runtime replacement (we wrap OPA, not replace it)
 - Non-TypeScript/JavaScript language support (future)
+  <!-- NOTE(post-rust): scope assumption is now invalid — Anvil is Rust-first
+       per ADR-026; revisit language scope when OPAE moves to Ready. -->
 - Real-time Rego evaluation on every keystroke (performance)
 - Enterprise SSO for remote bundles (Phase 2)
 

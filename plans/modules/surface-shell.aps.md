@@ -7,6 +7,12 @@
 | ------ | ----- | ------ |
 | SURFSH | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> Note (2026-04-26): the existing `command_safety` runtime check lives at
+> `crates/anvil-checks/src/command_safety/`. Coordinate rule sharing with that
+> crate (one source-of-truth catalogue, two consumers).
+
 ## Purpose
 
 Bring `.sh` scripts to **T1 (Scanned)** per

@@ -1,8 +1,10 @@
 # Dashboard Operations Views
 
-| ID | Owner | Status |
-|----|-------|--------|
-| DASHOPS | @eddacraft | Ready |
+| ID      | Owner      | Status | Progress |
+| ------- | ---------- | ------ | -------- |
+| DASHOPS | @eddacraft | Ready  | 0/7      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -34,10 +36,10 @@ the developer-focused core pages.
 **Depends on:**
 
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks
-- `contracts` — `ProvenanceRecordSchema`, `APSPlanSchema`
-- `save-time-trust` — Provenance record format
-- `drift-reporting` — Plan/gate provenance data
-- `suppressions` — Suppression expiry for notifications
+- `contracts` — `ProvenanceRecordSchema`, `APSPlanSchema` (see `schema-contracts` module)
+- `save-time-trust` — Provenance record format [REVIEW: archived module — provenance now emitted by Rust kernel/CLI; verify schema source]
+- `drift-reporting` — Plan/gate provenance data [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
+- `suppressions` — Suppression expiry for notifications [REVIEW: archived module — suppression parser is now Rust per ADR-029; verify schema source]
 
 **Exposes:**
 

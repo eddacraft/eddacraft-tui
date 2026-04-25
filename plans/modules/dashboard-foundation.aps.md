@@ -1,8 +1,10 @@
 # Dashboard Foundation
 
-| ID | Owner | Status |
-|----|-------|--------|
-| DASH | @eddacraft | Ready |
+| ID   | Owner      | Status | Progress |
+| ---- | ---------- | ------ | -------- |
+| DASH | @eddacraft | Ready  | 1/9      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -37,11 +39,11 @@ This is the foundation that makes all page modules possible.
 **Depends on:**
 
 - `apps/website/` — Existing Next.js 16 + Tailwind 4 + shadcn/ui application
-- `contracts` — Zod schemas for all domain types (warnings, gates, plans, drift)
-- `@eddacraft/anvil-core` — Domain logic imported by API routes
-- `drift-reporting` — Snapshot and comparison schemas
-- `architecture-safety` — Boundary and layer schemas
-- `suppressions` — Suppression record schemas
+- `contracts` — Zod schemas for all domain types (warnings, gates, plans, drift); see `schema-contracts` module
+- `.anvil/` artefacts produced by the Rust CLI (`crates/anvil-cli/`) — API routes read JSON files; no TS core import needed [REVIEW: original plan referenced `@eddacraft/anvil-core`, retired per ADR-026 / anvil-ts-scanner-retirement]
+- `drift-reporting` — Snapshot and comparison schemas [REVIEW: archived module — schemas now live with Rust kernel/contracts; verify availability before starting]
+- `architecture-safety` — Boundary and layer schemas [REVIEW: archived module — boundary/layer logic now in `crates/anvil-architecture/`; verify schema source]
+- `suppressions` — Suppression record schemas [REVIEW: archived module — suppression parser is now Rust per ADR-029; verify schema source]
 
 **Exposes:**
 
@@ -57,11 +59,12 @@ This is the foundation that makes all page modules possible.
 **D-DASH-001:** API approach
 
 - **Options:** (a) Standalone `anvil-api` Hono server, (b) Next.js API routes
-  importing `@eddacraft/anvil-core`, (c) Embedded Vite plugin
+  reading `.anvil/` artefacts, (c) Embedded Vite plugin
 - **Resolution:** Option (b) — Next.js API routes. Dashboard reads local
-  `.anvil/` files; co-located API routes avoid a separate server process. The
-  dashboard is primarily a local dev tool (`nx dev website`), not a hosted SaaS.
-  `apps/anvil-api/` continues to serve cloud user/auth data from Neon Postgres.
+  `.anvil/` files (produced by the Rust CLI in `crates/anvil-cli/`); co-located
+  API routes avoid a separate server process. The dashboard is primarily a
+  local dev tool (`nx dev website`), not a hosted SaaS. `apps/anvil-api/`
+  continues to serve cloud user/auth data from Neon Postgres.
 - **Status:** Resolved
 
 **D-DASH-002:** Component library
@@ -255,3 +258,4 @@ Change status to **Ready** when:
 - **Dependencies:** DASH-001
 - **Validation:** `apps/anvil-ui/` no longer exists; no broken references remain
 - **Confidence:** high
+- **Status:** Complete

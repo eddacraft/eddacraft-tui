@@ -10,9 +10,9 @@ See: plans/aps-rules.md
 
 # Launch Flow Readiness
 
-| ID     | Owner | Status      |
-| ------ | ----- | ----------- |
-| LAUNCH | —     | In Progress |
+| ID     | Owner | Status      | Progress |
+| ------ | ----- | ----------- | -------- |
+| LAUNCH | —     | In Progress | 3/6      |
 
 ## Purpose
 
@@ -145,9 +145,8 @@ new primitive, this module follows three rules:
 
 ## Tasks
 
-> Status: Draft. Tasks are listed for review. Module is **not yet
-> Ready** — see open questions and confidence notes below before
-> promoting.
+> Status: In Progress. LAUNCH-001, LAUNCH-004, and LAUNCH-005 are
+> complete; remaining work stays Todo until picked up.
 
 ### LAUNCH-001: Implement user-facing glob filter for watch loop
 

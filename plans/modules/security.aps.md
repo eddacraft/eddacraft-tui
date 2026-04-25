@@ -11,6 +11,8 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | Draft |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Maintain ongoing security posture beyond the initial 0.1.x hardening.
@@ -38,14 +40,16 @@ security concerns.
 
 - Penetration testing (external)
 - SOC 2 compliance preparation (covered by compliance-reporting)
-- Secret detection in code (covered by secret.check.ts gate)
+- Secret detection in code (covered by the Rust secret scanner in
+  `crates/anvil-checks/src/secret/` — per ADR-026 the TS `secret.check.ts`
+  gate is retired)
 
 ## Interfaces
 
 **Depends on:**
 
 - CI pipeline — automated security scanning
-- dependency.check.ts — gate check for vulnerabilities
+- `crates/anvil-checks` — Rust gate checks (secret, dependency, command-safety)
 - Pulumi — secret management via ESC
 - API governance — rate limiting, security headers
 

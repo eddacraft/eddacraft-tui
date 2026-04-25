@@ -11,6 +11,9 @@ See: plans/aps-rules.md
 | ------ | ----- | -------- |
 | TEST   | —     | Signpost |
 
+**Last reviewed:** 2026-04-26 — TFIX archived complete; TCOV in progress; TINT
+and TEXT are the active executable peers.
+
 **Status note:** This module is a **signpost**, not an executable plan. It
 captures the cross-cutting policy that TFIX (done), TCOV, TINT, and TEXT
 implement. The six TEST-00X bullets below are intents that must land inside

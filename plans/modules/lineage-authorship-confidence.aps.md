@@ -4,6 +4,25 @@
 |----|-------|--------|
 | LAC | @aneki | Ready |
 
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Premise still plausible (lines blame +
+> confidence is a legitimate enrichment for compliance reporting), but every
+> validation command in LAC-001..006 targets the retired TS Nx project
+> (`pnpm nx test contracts ...`, `pnpm nx test anvil-cli ...`). The `anvil-cli`
+> in this repo is now the Rust crate `crates/anvil-cli`, invoked via
+> `cargo test -p anvil-cli`, not Nx.
+>
+> The `rust-kernel` dependency below was archived in favour of the
+> `anvil-kernel` crate (`plans/archive/modules/rust-kernel.aps.md`).
+> `opa-agent-orchestration` and `compliance-evidence-workspace` modules
+> still exist.
+>
+> Recommend rescoping all validation lines to `cargo test ...` and
+> retargeting any TS contract package work to a concrete crate (likely
+> a new `anvil-attribution` crate or extension of `anvil-cli`) before
+> moving past Draft. Without that rework the module is not executable.
+
 ## Purpose
 
 Provide deterministic, auditable attribution for code changes at file/line granularity so Anvil can answer who authored each line (human, AI, mixed, unknown), what model was involved when known, and how confident that attribution is.
@@ -26,7 +45,8 @@ Provide deterministic, auditable attribution for code changes at file/line granu
 ## Interfaces
 
 **Depends on:**
-- `rust-kernel` — optional performance acceleration path
+- `anvil-kernel` (Rust crate; supersedes the archived `rust-kernel` module)
+  — optional performance acceleration path
 - `opa-agent-orchestration` — policy-linked use of attribution outcomes
 - `compliance-evidence-workspace` — evidence mapping and reporting paths
 

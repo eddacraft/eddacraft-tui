@@ -7,6 +7,8 @@
 | ------ | ----- | -------- | ------ |
 | POLVAL | —     | high     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Ensure policy packs produced by humans or AI are complete, tested, and safe to
@@ -34,9 +36,9 @@ before gate evaluation so policies do not fail silently.
 
 **Depends on:**
 
-- `opa-architecture-integration` — Policy loading and OPA execution
-- `core/src/config/` — Configuration loading
-- `core/src/gate/policy/` — Policy storage and execution
+<!-- Audit 2026-04-26: TS core paths superseded by Rust crates per ADR-026; opa-architecture-integration archived. -->
+- `crates/anvil-policy/` — Policy loading, storage, and OPA execution
+- `crates/anvil-kernel/` — Configuration loading
 
 **Exposes:**
 
@@ -60,64 +62,60 @@ before gate evaluation so policies do not fail silently.
 
 - **Intent:** Define required metadata fields for each policy and pack
 - **Expected Outcome:** Schema validates metadata and provides clear errors
-- **Scope:** `core/src/gate/policy/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Policy execution logic
 - **Files:**
-  - `core/src/gate/policy/policy-metadata.ts`
-  - `core/src/gate/policy/policy-metadata.test.ts`
+  - `crates/anvil-policy/src/library.rs` (or new `metadata.rs`, including `#[cfg(test)]` unit tests)
 - **Dependencies:** —
-- **Validation:** `nx test core --testNamePattern="PolicyMetadata"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_metadata`
 - **Confidence:** high
 
 ### POLVAL-002: Policy pack manifest loader
 
 - **Intent:** Standardise policy pack manifests and load them consistently
 - **Expected Outcome:** Pack metadata is parsed and attached to policy sets
-- **Scope:** `core/src/gate/policy/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Validation rules
 - **Files:**
-  - `core/src/gate/policy/policy-pack-manifest.ts`
-  - `core/src/gate/policy/policy-pack-manifest.test.ts`
+  - `crates/anvil-policy/src/loader.rs` (extends manifest loader, including `#[cfg(test)]` unit tests)
 - **Dependencies:** POLVAL-001
-- **Validation:** `nx test core --testNamePattern="PolicyPackManifest"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_pack_manifest`
 - **Confidence:** high
 
 ### POLVAL-003: Policy pack validator
 
 - **Intent:** Validate pack structure, metadata completeness, and uniqueness
 - **Expected Outcome:** Validator returns issues with severity and guidance
-- **Scope:** `core/src/gate/policy/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** OPA execution
 - **Files:**
-  - `core/src/gate/policy/policy-pack-validator.ts`
-  - `core/src/gate/policy/policy-pack-validator.test.ts`
+  - `crates/anvil-policy/src/validator.rs` (new file, including `#[cfg(test)]` unit tests)
 - **Dependencies:** POLVAL-002
-- **Validation:** `nx test core --testNamePattern="PolicyPackValidator"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_pack_validator`
 - **Confidence:** high
 
 ### POLVAL-004: Policy test enforcement
 
 - **Intent:** Require policy packs to include tests and pass validation
 - **Expected Outcome:** Missing or failing tests block pack validation
-- **Scope:** `core/src/gate/policy/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Test authoring guidance
 - **Files:**
-  - `core/src/gate/policy/policy-test-runner.ts`
-  - `core/src/gate/policy/policy-test-runner.test.ts`
+  - `crates/anvil-policy/src/test_runner.rs` (new file, including `#[cfg(test)]` unit tests)
 - **Dependencies:** POLVAL-003
-- **Validation:** `nx test core --testNamePattern="PolicyTestRunner"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_test_runner`
 - **Confidence:** high
 
 ### POLVAL-005: CLI and gate integration
 
 - **Intent:** Make validation available to users and CI
 - **Expected Outcome:** `anvil policy validate` runs and gate can preflight
-- **Scope:** `cli/src/commands/`, `core/src/gate/`
+- **Scope:** `crates/anvil-cli/src/commands/`, `crates/anvil-policy/src/`
 - **Non-scope:** IDE integration
 - **Files:**
-  - `cli/src/commands/policy-validate.ts`
-  - `core/src/gate/checks/policy-pack-validation.check.ts`
+  - `crates/anvil-cli/src/commands/policy.rs` (validate subcommand, including colocated tests)
+  - `crates/anvil-policy/src/validator.rs` (gate preflight hooks)
   - `docs/guides/policy-validation.md`
 - **Dependencies:** POLVAL-004
-- **Validation:** `nx test cli --testNamePattern="policy validate"`
+- **Validation:** `cargo test -p eddacraft-anvil -- policy_validate`
 - **Confidence:** medium

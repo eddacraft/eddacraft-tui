@@ -1,8 +1,10 @@
 # Dashboard Architecture Views
 
-| ID | Owner | Status |
-|----|-------|--------|
-| DASHARCH | @eddacraft | Ready |
+| ID       | Owner      | Status | Progress |
+| -------- | ---------- | ------ | -------- |
+| DASHARCH | @eddacraft | Ready  | 0/8      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -24,7 +26,7 @@ making exceptions?"
 ## Out of Scope
 
 - Architecture definition editing (managed via `.anvil/architecture.yml` in code)
-- OPA policy authoring (see opa-architecture-integration module)
+- OPA policy authoring [REVIEW: original ref was `opa-architecture-integration` (archived); replacement owner TBD — possibly `opa-enhancements` or `opa-agent-orchestration`]
 - Suppression creation or renewal through the UI — deferred to write API phase
 - Overview page metrics (see DASHCORE)
 
@@ -33,10 +35,10 @@ making exceptions?"
 **Depends on:**
 
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks
-- `architecture-safety` — Boundary rules, layer definitions, violation schemas
-- `opa-architecture-integration` — Architecture YAML schema, template definitions
-- `drift-reporting` — Snapshot schema, comparison logic, trend calculation
-- `suppressions` — Suppression record format, scope types, expiry rules
+- `architecture-safety` — Boundary rules, layer definitions, violation schemas [REVIEW: archived module — logic now in `crates/anvil-architecture/`; verify schemas/artefact format]
+- `opa-architecture-integration` — Architecture YAML schema, template definitions [REVIEW: archived module — OPA hybrid covered by ADR-006; current ownership unclear]
+- `drift-reporting` — Snapshot schema, comparison logic, trend calculation [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
+- `suppressions` — Suppression record format, scope types, expiry rules [REVIEW: archived module — suppression parser is now Rust per ADR-029; verify schema source]
 
 **Exposes:**
 

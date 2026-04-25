@@ -7,6 +7,14 @@
 | ----- | ----- | ------ |
 | OPSUP | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> Note (2026-04-26): the spec-level reference to a hardcoded `AVAILABLE_CHECKS`
+> in `gate.rs` is conceptual — the actual gate runner lives at
+> `crates/anvil-cli/src/commands/gate.rs`, and `SCHEMA_VERSION` constants
+> currently live in `crates/anvil-cli/src/commands/drift.rs` (and `init.rs`,
+> `doctor.rs`). The check-registry slice will need to migrate all three.
+
 ## Purpose
 
 Single home for the cross-cutting operational concerns surfaced by the
@@ -82,8 +90,9 @@ Specifically owns:
 
 - Existing `AVAILABLE_CHECKS` in `gate.rs` (migrates from).
 - Existing `SCHEMA_VERSION` in `drift.rs` (migrates from).
-- Existing feature-flag system per [`feature-flagging`](./feature-flagging.aps.md)
-  and [`feature-flag-migration`](./feature-flag-migration.aps.md).
+- Existing feature-flag system per
+  [`feature-flag-catalogue`](./feature-flag-catalogue.aps.md) (FLAGS and FLAGM
+  are archived; FLAGCAT is the live catalogue module).
 - Kindling pipeline (likely host for FP telemetry).
 
 **Exposes:**

@@ -4,6 +4,35 @@
 |------|--------|--------|
 | PFGW | @aneki | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Module remains Draft, Tier C (parking lot,
+> post-launch). Earlier audit pass mistakenly flagged this for archival on
+> the basis that `kindling-integration`, `ember`, and `edda-stack-integration`
+> are in `plans/archive/modules/`. That was a misread — those *planning
+> modules* are archived because their work-item lists completed; the
+> underlying components are live code in `packages/edda-stack/src/edda/`,
+> `packages/edda-stack/src/ember/`, and `packages/kindling-integration/`.
+>
+> **Relationship to DRVR/INTD:** PFGW operates at the agent-task
+> orchestration layer (capsule lifecycle, memory I/O routing, scope and
+> attribution across many actions in a task). The intercept daemon (INTD)
+> with surface drivers (DRVR) operates at the file-write enforcement layer
+> (per-action mechanical policy enforcement). They are complementary, not
+> substitutes. The daemon is opt-in (Anvil is planless-first, local-first);
+> a memory/capsule API that operates whether or not the daemon is running
+> still has standing.
+>
+> Not launch-blocker. Defer until RTAI ships, then revisit whether agent
+> orchestration is needed in Rust (`crates/anvil-orchestrator`?) or whether
+> the existing TS edda-stack surface is sufficient.
+>
+> **Substrate option:** PocketFlow has a Rust port upstream (PocketFlow-RS).
+> A future Rust orchestrator crate could build on it directly rather than
+> depending on the TS-vendored primitives in
+> `packages/kindling-adapter-pocketflow/vendor/pocketflow/`. This removes
+> "TS substrate dependency" as an objection if/when this module promotes.
+
 ## Purpose
 
 Build PocketFlow as the runtime orchestration gateway for the eddacraft system. PocketFlow sits between agents/tools/humans and all four downstream components (Kindling, Ember, Edda, Anvil). It mediates all memory I/O, manages capsule lifecycle, enforces scope and attribution, and mechanically applies policy — without interpreting, ranking, or remembering.

@@ -7,6 +7,8 @@
 | ------- | ----- | ------ |
 | SURFENV | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring `.env` files to **T1 (Scanned)** per

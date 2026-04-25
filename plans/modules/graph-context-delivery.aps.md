@@ -4,6 +4,17 @@
 | ---- | ----- | ------ |
 | GCTX | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Module premise is sound post-migration — it
+> builds on the Rust `anvil-kernel` graph and proposes a new `anvil-graph-store`
+> crate. References to `packages/mcp-server/src/tools/` remain valid (the TS
+> MCP server package still exists). GCTX-000 dual-config references
+> (`packages/edda-stack/src/config.ts` and `packages/anvil/core/src/config/`)
+> are now superseded by the unified config direction in the UCFG module —
+> when scheduling, align with `crates/anvil-config/` (per UCFG) instead of
+> the dual TS schemas.
+
 ## Purpose
 
 Expose Anvil's kernel symbol graph to AI coding assistants via MCP, so they

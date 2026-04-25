@@ -7,6 +7,8 @@
 | ------ | ----- | ------ |
 | LANGTS | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Audit TypeScript's current tier and produce the **T3 acceptance checklist**
@@ -54,7 +56,7 @@ module starts execution.
 **Depends on:**
 
 - Existing kernel parser (`crates/anvil-kernel/src/parser/`).
-- Existing architecture analysis (`core/src/architecture/`).
+- Existing architecture analysis (`crates/anvil-architecture/`).
 - Existing OPA policy pipeline.
 - Existing drift-baseline mechanism.
 

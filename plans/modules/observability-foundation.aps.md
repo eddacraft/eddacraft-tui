@@ -3,9 +3,18 @@
 
 # Observability Foundation
 
-| ID  | Owner      | Status |
-| --- | ---------- | ------ |
-| OBS | @eddacraft | Draft  |
+| ID  | Owner      | Status | Progress |
+| --- | ---------- | ------ | -------- |
+| OBS | @eddacraft | Draft  | 0/5      |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Several upstream dependencies named below
+> (`kindling-integration`, `edda-stack-integration`, `cli-hardening`) now live
+> in `plans/archive/modules/`. They predate the TS→Rust migration and are not
+> part of active scope. Re-derive concrete observability requirements from
+> the live Rust crates (`anvil-cli`, `anvil-kernel`, `anvil-tui`) and the
+> `dashboard-ops-views` module before promoting OBS to Ready.
 
 ## Purpose
 
@@ -30,10 +39,13 @@ Unify Anvil observability into one executable foundation so incidents can be det
 
 **Depends on:**
 
-- `kindling-integration` — event/observation baseline and provenance links
-- `dashboard-ops-views` — operational UI surfaces
-- `edda-stack-integration` — telemetry and stack-level metrics requirements
-- `cli-hardening` — API/DB resilience and health endpoint expectations
+- `dashboard-ops-views` — operational UI surfaces (active module)
+- ~~`kindling-integration`~~ — archived; provenance/event baseline assumptions
+  must be re-sourced from active modules before OBS goes Ready
+- ~~`edda-stack-integration`~~ — archived; replace with concrete telemetry
+  contract scoped to anvil-cli / anvil-kernel
+- ~~`cli-hardening`~~ — archived; API/DB resilience expectations must be
+  redocumented against current Rust CLI surfaces
 
 **Exposes:**
 
@@ -85,4 +97,10 @@ Change status to **Ready** when:
 
 ## Execution
 
-Steps: [../execution/OBS.steps.md](../execution/OBS.steps.md)
+Steps: [../execution/OBS.steps.md](../execution/OBS.steps.md) *(file not yet
+created — produce when module reaches Ready)*
+
+> **Audit note (2026-04-26):** validation commands above reference
+> `docs/guides/runbooks/*.md` and `docs/public/anvil/operations/realtime-feed-contract.md`,
+> neither of which exist yet. Treat the validation rg/test invocations as
+> placeholders the work items must produce, not as already-passing checks.
