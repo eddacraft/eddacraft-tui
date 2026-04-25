@@ -17,7 +17,10 @@ const RECOMMENDED_MAX_WATCHES: u64 = 524_288;
 const RECOMMENDED_MAX_INSTANCES: u64 = 512;
 
 /// Top consumers we show when surfacing pressure — keep it small to stay
-/// actionable rather than dumping a `ps`-style table.
+/// actionable rather than dumping a `ps`-style table. Only consumed by the
+/// Linux collect path; on macOS / Windows the collector is a no-op stub
+/// and this would otherwise show as dead code on the cross builds.
+#[cfg(target_os = "linux")]
 const TOP_CONSUMERS_SHOWN: usize = 3;
 
 /// Snapshot of the host's inotify state plus an estimate of how many
@@ -179,6 +182,8 @@ fn count_inotify_watches_for_pid(pid_dir: &Path) -> u64 {
 
 /// Count directories anvil's default watcher filter would register. Uses
 /// the same filter so the estimate matches what `watch` will actually do.
+/// Linux-only — only the Linux collect path consults inotify headroom.
+#[cfg(target_os = "linux")]
 fn count_project_dirs(root: &Path) -> u64 {
     let filter = anvil_kernel::watcher::filter::FileFilter::default();
     let mut count = 0u64;
@@ -301,6 +306,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn count_project_dirs_skips_ignored_subtrees() {
         let tmp = tempfile::tempdir().unwrap();

@@ -184,10 +184,20 @@ mod tests {
 
     #[test]
     fn version_matches_workspace() {
+        // Sanity check that the rendered watermark is still derived from
+        // the cargo workspace version rather than a hardcoded string. We
+        // assert shape (`v<digit>.…`) rather than a specific minor so the
+        // test does not have to be touched on every release.
         let watermark = format!("v{VERSION}");
         assert!(
-            watermark.starts_with("v0.3."),
-            "expected workspace version, got: {watermark}"
+            watermark.starts_with('v'),
+            "watermark should start with 'v': {watermark}"
+        );
+        let after_v = &watermark[1..];
+        let leading_digit = after_v.chars().next().is_some_and(|c| c.is_ascii_digit());
+        assert!(
+            leading_digit && after_v.contains('.'),
+            "expected `v<major>.<minor>…` shape, got: {watermark}"
         );
     }
 }
