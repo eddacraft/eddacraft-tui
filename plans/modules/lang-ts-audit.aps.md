@@ -3,9 +3,9 @@
 
 # TypeScript Audit & T3 Calibration (Track 1 anchor zero)
 
-| ID     | Owner | Status |
-| ------ | ----- | ------ |
-| LANGTS | —     | Draft  |
+| ID     | Owner | Status      | Done |
+| ------ | ----- | ----------- | ---- |
+| LANGTS | —     | In Progress | 2/5  |
 
 **Last reviewed:** 2026-04-26
 
@@ -35,14 +35,19 @@ module starts execution.
   entry-point detection, layer/boundary enforcement, policy hook integration,
   drift baseline, `architecture-validate` inclusion) per spec §7.3.
 - Identify and close TS-specific gaps surfaced during the audit.
-- Publish a **T3 acceptance checklist** as a checked-in artefact (location
-  TBD — likely `docs/architecture/anvil-t3-acceptance.md`).
+- Publish a **T3 acceptance checklist** as a checked-in artefact (companion
+  spec at
+  [2026-04-26-t3-acceptance-checklist.md](../specs/2026-04-26-t3-acceptance-checklist.md);
+  audit-derived bar referenced from RSTLAN, PYLAN, every Track 4 pack module,
+  and the pack registry per [ADR-027](../decisions/027-pack-architecture.md)).
 - Add Zod-creep rules to TS T2 catalogue.
 - Optional: split into a sub-module for the kernel prerequisite work
   identified by council §16.5 #3 (extractor refactor, grammar version in
   cache key, parser thread-safety, panic removal, grammar maturity audit) —
   this becomes Track 1 item 0.5 if the work is large enough to justify a
-  module boundary.
+  module boundary. Audit recommendation (audit §7 OQ2): keep K1..K4 inside
+  LANGTS-005 if the trait can land alongside K2..K4 within one sprint;
+  split into `lang-ts-prereq.aps.md` if scope grows.
 
 ## Out of Scope
 
@@ -62,11 +67,22 @@ module starts execution.
 
 **Exposes:**
 
-- T3 acceptance checklist (load-bearing for Track 1 items 1 and 2 plus all
-  Track 4 packs).
-- Updated TS extraction layer if gaps identified.
-- Updated TS T2 anti-pattern catalogue including Zod-creep rules.
-- (Possibly) extractor trait refactor underpinning subsequent anchors.
+- [LANGTS audit report](../specs/2026-04-26-langts-audit-report.md) —
+  point-in-time evidence; current TS implementation state, named TS gaps
+  (TS-G1..G7), named kernel-prereq gaps (K1..K5), and the recommended ADRs
+  the audit believes are missing.
+- [T3 acceptance checklist (v1)](../specs/2026-04-26-t3-acceptance-checklist.md)
+  — the durable, re-usable bar every Track 4 pack module and future anchor
+  (RSTLAN, PYLAN) references. Load-bearing for Track 1 items 1 and 2 plus
+  all Track 4 packs.
+- Updated TS extraction layer (LANGTS-002 — closes audit gaps TS-G1..G6 to
+  the extent decided per audit §7 OQ1).
+- Updated TS T2 anti-pattern catalogue including Zod-creep rules (LANGTS-004
+  — closes audit gap TS-G5).
+- Extractor trait refactor + cache-key fix + parser thread-safety strategy
+  + panic removal underpinning subsequent anchors (LANGTS-005 — closes
+  kernel-prereq gaps K1..K4; K5 is recurring governance referenced from
+  the T3 checklist §1).
 
 ## Prerequisites
 
@@ -76,43 +92,76 @@ None — this is anchor item zero.
 
 Change status to **Ready** when:
 
-- [ ] Audit owner named (single accountable owner for the T3 checklist).
+- [x] Audit owner named (single accountable owner for the T3 checklist)
+      — *audit produced 2026-04-26, see audit report header.*
 - [ ] Re-scoring gate run per
       [docs/guides/anchor-rescoring-process.md](../../docs/guides/anchor-rescoring-process.md);
       session owner named for this invocation.
 - [ ] Decision recorded on whether kernel prerequisite work (council §16.5 #3)
-      is in-scope here or split into LANGTS-prereq submodule.
-- [ ] Decision recorded on T3 checklist artefact location.
+      is in-scope here or split into LANGTS-prereq submodule. *Audit
+      recommendation: keep inside LANGTS-005 if K1..K4 fit one sprint; split
+      otherwise.*
+- [x] Decision recorded on T3 checklist artefact location — *companion
+      spec at `plans/specs/2026-04-26-t3-acceptance-checklist.md`. Re-home
+      to `docs/architecture/anvil-t3-acceptance.md` is a follow-up if the
+      checklist is referenced from user-facing docs; the spec location
+      keeps it next to the audit evidence for now.*
 
 ## Tasks
 
-Tasks will be defined when this module moves to Ready. Anticipated shape (each
-to be authored as a proper task with Intent + Validation when promoted):
+Tasks below are anticipated shape; promote each to a proper task with Intent
++ Validation when the module moves to Ready. Two of the five anticipated
+tasks have evidence completed by the audit (LANGTS-001 audit pass and
+LANGTS-003 publication of the checklist artefact).
 
-- LANGTS-001: Enumerate current TS capability state across the seven T3
-  dimensions.
-- LANGTS-002: Close identified TS gaps (extraction completeness, layer
-  enforcement reach, policy hook reachability, drift baseline default).
-- LANGTS-003: Publish T3 acceptance checklist artefact.
+- **LANGTS-001** (audit pass complete 2026-04-26): Enumerate current TS
+  capability state across the seven T3 dimensions. *Evidence:
+  [audit report §3](../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).*
+- LANGTS-002: Close identified TS gaps (TS-G1..G7 per
+  [audit report §4](../specs/2026-04-26-langts-audit-report.md#4-ts-specific-gaps-langts-work-items)).
+  Default scope per audit §7 OQ1: TS-G1 (interfaces / type aliases / enums)
+  + TS-G2 (methods); defer TS-G3 / TS-G4 / TS-G6 with explicit follow-up
+  notes; TS-G7 lives in checklist documentation only.
+- **LANGTS-003** (publication complete 2026-04-26): Publish T3 acceptance
+  checklist artefact. *Evidence:
+  [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../specs/2026-04-26-t3-acceptance-checklist.md).*
 - LANGTS-004: Add Zod-creep rules (`z.any()`, `z.unknown()`,
-  `.passthrough()`) to TS T2 anti-pattern catalogue.
-- LANGTS-005: Kernel prerequisite work — extractor trait, grammar version in
-  AST cache key, parser thread-safety strategy, panic removal in
-  `Parser::get_parser()`, grammar maturity audit (or split into
-  LANGTS-prereq-* if scope justifies).
+  `.passthrough()`) to TS T2 anti-pattern catalogue. Closes audit gap
+  TS-G5; rules ship in `patterns/compiled/registry.json` with
+  `definition_ref` to a new family entry.
+- LANGTS-005: Kernel prerequisite work — extractor trait (K1), grammar
+  version in AST cache key (K2), parser thread-safety strategy (K3), panic
+  removal in `Parser::get_parser()` (K4), grammar maturity audit (K5)
+  surfaced as a rubric in the T3 checklist. Or split into
+  LANGTS-prereq-* if scope justifies (audit §7 OQ2). See
+  [audit report §5](../specs/2026-04-26-langts-audit-report.md#5-kernel-prereq-gaps-council-165-3-work).
 
 ## Risks
 
 | Risk | Impact | Mitigation |
 | ---- | ------ | ---------- |
-| Audit reveals months of TS gaps; pack ROI argument collapses (council C-007) | High | Re-score whole spec before committing to Track 4; surface gap depth inside this module before opening pack modules |
-| Kernel prerequisite work entangles anchor zero indefinitely | Medium | Split into LANGTS-prereq submodule the moment scope grows beyond a sprint |
-| T3 checklist becomes a moving target as Rust/Python uncover edge cases | Medium | Version the checklist; treat changes as ADR-level decisions |
+| Audit reveals months of TS gaps; pack ROI argument collapses (council C-007) | High | Re-score whole spec before committing to Track 4; surface gap depth inside this module before opening pack modules. **Audit complete 2026-04-26 — surfaced TS-G1..G7 (bounded, none individually blocking) and kernel-prereq K1..K5 (load-bearing, named in §5 of audit report).** |
+| Kernel prerequisite work entangles anchor zero indefinitely | Medium | Split into LANGTS-prereq submodule the moment scope grows beyond a sprint. Audit recommends keep-or-split decision at LANGTS Ready-flip. |
+| T3 checklist becomes a moving target as Rust/Python uncover edge cases | Medium | Version the checklist (v1 published 2026-04-26); treat changes as ADR-level decisions per checklist §10. |
 
 ## Open Questions
 
 - [ ] Is LANGTS a single module or LANGTS + LANGTS-prereq? Decide before
-      moving to Ready.
-- [ ] Where does the T3 acceptance checklist live in the docs tree?
+      moving to Ready. *Audit recommendation: keep inside LANGTS-005 if
+      K1..K4 fit one sprint; split otherwise.*
+- [x] Where does the T3 acceptance checklist live in the docs tree?
+      Resolved: companion spec at
+      `plans/specs/2026-04-26-t3-acceptance-checklist.md`. Re-home to
+      `docs/architecture/` is a follow-up if user-facing reference needs
+      it.
 - [ ] Should the Zod-creep rules ship in a separate task, or fold into
-      LANGTS-002 gap-close?
+      LANGTS-002 gap-close? *Audit recommendation: keep LANGTS-004 separate
+      — registry edit + family doc page is naturally distinct from the
+      extractor changes in LANGTS-002.*
+- [ ] **New (audit §8):** Does the extractor trait shape (K1) need a
+      dedicated ADR, or can it land inside LANGTS-005 with a section in
+      ADR-026? Audit recommends a dedicated ADR before RSTLAN moves to
+      Ready.
+- [ ] **New (audit §8):** Should the grammar maturity rubric (K5) be
+      lifted from a checklist section into its own ADR before the LANGTAIL
+      tail wave kicks off? Audit recommends yes.
