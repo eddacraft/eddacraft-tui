@@ -7,6 +7,163 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
+## [0.4.0-beta]
+
+### Native Rust Scanner Becomes Authoritative
+
+- **`.anvil` format parser and compiler** landed in `anvil-core` (`ANVFMT` Phase
+  1); the registry-backed pattern catalogue replaces the legacy TS-side HTML/CSS
+  catalogues entirely (`ANVFMT-014`, `ANVFMT-015`). Pattern reference docs in
+  `docs/anvil` now describe the authoritative format (`ANVFMT-016`)
+- **Rust scanner module (`RSCAN-001..008`)** — registry loader, artefact model +
+  `scan_artifact` API, family provenance on `AntiPattern` and `Warning`,
+  registry-backed pattern catalogue, rayon parallelisation, `--artifact` flag
+  for non-source scanning, and a cross-engine fixture suite that runs identical
+  inputs through the Rust and legacy TS scanners. Trust-boundary docs added;
+  module closed via ADR-026
+- **Scanner parity gaps closed (`SPG-001..006`)** — every shipped registry rule
+  has a fixture, the antipattern scan has a Criterion bench, custom pattern
+  compile errors surface at every secret-scan call site, and `flags:"i"` is
+  honoured. Trust-boundary documentation added
+- **napi-rs prebuild bridge for the legacy TS engine** (`TSRET-001`,
+  `TSRET-002`) — full prebuild matrix across darwin x86/arm, linux x86/arm,
+  windows x86/arm. ADR-030 supersedes the rest of TSRET (cutover from napi to
+  surface drivers); pattern-registry getters added for the eventual driver
+  bridge (`TSRET-003` prep)
+
+### Workspace Hardening (RUSTNX)
+
+- **`cargo-hakari` workspace-hack** generated and applied to every member crate
+  to flatten transitive dependency feature unification (`RUSTNX-008`); internal
+  crates marked `publish = false`
+- **`cargo-deny` policy** added for licences, security advisories, and banned
+  crates; CI gate runs the policy on every Rust PR (`RUSTNX-009`)
+- **`cargo-about`** generates `ACKNOWLEDGEMENTS.md` with licence text for every
+  transitive dependency; the new `anvil licenses` command surfaces it at runtime
+- **`cargo-nextest`** adopted for CI test runs with per-target rust-cache keying
+  (`RUSTNX-001`, `RUSTNX-002`)
+- **Parallelised clippy + test jobs** in Rust CI (`RUSTNX-003`); test coverage
+  cache pinned on `cargo-llvm-cov` version
+- **Rust CI scope tightening** — affected-crate detection uses the PR base ref;
+  vercel deployments gated by app-specific changes; nx-rust inferred targets pin
+  the cargo package so vitest flags don't leak
+- **Repository cleanup** — unused workspace dependencies dropped; APS module
+  hygiene reconciled
+
+### Notification Framework (NOTIFY)
+
+- **Discovery and architecture phase** (`NOTIFY-001..005`) — inventory of
+  current notification streams, taxonomy and priorities defined in
+  `docs/anvil/quality/notifications`, delivery architecture and execution slices
+  specified
+- **Shared `Notification` envelope** (`NOTIFY-006..009`) — `check`, `gate`,
+  `audit`, doctor, watch, tutorial, and onboarding/hooks all emit one envelope
+  shape; subscriber filter contract documented; class and priority versioning
+  surfaces in JSON outputs. `NotificationSource` trait in `anvil-tui` exposes
+  current notices for future telemetry subscribers
+
+### Feature-Flag Plumbing (FLAGM)
+
+- **`cli.licence-gate`** drives `requires_auth` and the `ANVIL_DEV=1` local
+  override; bypass details (flag key, variant, reason) surface in verbose logs
+  (`FLAGM-001..003`)
+- **Admin invite path** moved from inline scope arrays to the shared flag
+  resolver (`FLAGM-004`)
+- **`anvil-api`** scope gates routed through `api.scope.*` flags (`FLAGM-005`);
+  `/anvil` docs gate uses the same resolver
+- **Dual-evaluation shims retired** (`FLAGM-006`); FLAGM module closed
+
+### Admin / API / Operations
+
+- **Per-operator admin keys** (`ADMINCLIH-001..004`) — peppered-hash lookup in
+  `anvil-api`; per-operator key provisioning automated via Pulumi;
+  send-migration uses a snapshot-token flow for atomicity; `--json` warning
+  handling, AdminWriter hoist, stdout/stderr hygiene tightened
+- **Anvil-API route coverage** — route-level tests for `/session/refresh`
+  rotation (#777), auth-device flow (#665, #777), auth-otp flow (#672),
+  auth-github callback (#787), waitlist + send-migration coverage gaps
+- **Admin contracts** — ISO-8601 offset enforced on `IsoTimestamp`; missing
+  README dropped from files manifest; zod schemas validate API responses
+- **Email correction follow-on** — admin endpoint for email-mismatch repair
+- **Watcher cwd redaction** (#1017) — error chains no longer leak working
+  directory paths
+
+### CLI / TUI Polish
+
+- **Watch reliability** — partial setup survival, per-change panic isolation,
+  SIGINT forwarding, redacted error chains
+- **Watch animation** — animated stats and demo overlay; animations driven by an
+  event loop instead of busy-spin
+- **Onboarding** — post-init landing screen, shared default checks across
+  welcome and init, ASCII fallback, title fit, TOCTOU fix on `.anvilrc`
+  detection, `ANVIL_NO_PROMPT` / `NONINTERACTIVE` empty-string handling, login
+  prompt for gated commands lacking credentials
+- **Tutorial** — verify-step `husky` flow, scan truncation visibility,
+  watcher-failure cause in static-mode notice, language model aligned with TUI
+  surfaces
+- **`.anvilrc` gate-check vocabulary** reconciled with the runner; legacy check
+  names mapped during transition (#1016, #1041)
+
+### Distribution (DIST-011)
+
+- **Scoop bucket** published with PR-based update flow
+- **WinGet icon** shipped; `IconSha256` template placeholder quoted; PR body
+  written to file with `set -e` to fail on errors
+- **README install section** covers every supported package manager
+- **ADR-025** records the package-manager distribution strategy
+
+### Test Infrastructure
+
+- **OPA policy hardening (`TCOV-009..013`, `TFIX`)** — pinned `cargo-llvm-cov`
+  with version-keyed cache; real-binary OPA integration tests; hermetic OPA via
+  PATH-isolated tests; `rego.v1` import for OPA 0.60 compatibility;
+  cross-platform OPA binary lookup
+- **Tests covering 7 GH issues** closed during the cycle (#558, #672, #665,
+  #777, #787, #723, #1052)
+- **Transactional smoke tests** for email render templates
+- **API neon SQL** fragment composition pinned for admin list queries
+
+### Tooling & DX
+
+- **Agent-driven release** (`RELMGMT` Phase 3) — `/release` skill drives version
+  pick, branch strategy, tag, workflow, artefact verification, comms, and
+  cleanup; reads live `git`/`gh` state each turn
+- **In-house nx-rust plugin** vendored at `tools/nx-rust/` (ADR-026); inferred
+  targets via `cargo metadata`; per-crate `project.json` no longer needed
+- **Husky pre-commit** enforces `oxfmt` on markdown and TOML so format drift
+  surfaces locally rather than in CI
+- **`scripts/release.sh`** preflight runs Rust + TS fmt/lint/typecheck/test as
+  one bundled gate; supports `ANVIL_RELEASE_STEP_TIMEOUT` for repos where the
+  parallel nx test run exceeds 600 s
+
+### Plan Hygiene & Documentation
+
+- **9+ completed APS modules archived** (POLISH, RCLI, MAINT, ADMINCLI,
+  ADMINCLIH, anvil-scanner-parity-gaps, NXRUST, DBCON, DIST, TUTOR); counts
+  reconciled across `plans/index.aps.md`
+- **WEAVE module renamed from LCORE** for the standalone weave-rs strategy;
+  ADR-024 amended; design spec and implementation plan published
+- **ATTRIB v3 attribution pipeline module** authored (Ready); `deny.toml`
+  references aligned
+- **`next-steps.md`** added as session-continuity artefact for cold restart
+- **ADR-030 surface drivers supersede napi cutover** — TSRET-003/-004 superseded
+  by DRVR; X5 sequencing decision closed
+- **Quality model and follow-on plans** documented in `docs/anvil/quality/`
+- **Public docs refresh** — release pages, historical release pages, pattern
+  reference, install section, runbooks (`DOCSYNC`)
+
+### Dependencies & Security
+
+- **TypeScript bumped to `~6.0.3`** across all workspaces
+- **Production-deps group bump** (10 updates) and **development-deps group
+  bump** (16 updates)
+- **Pre-release security sweep** — `EAMIG-003`, `EAMIG-046` security overrides
+  applied
+- **CI dependencies** — `pnpm/action-setup` 6.0.0 → 6.0.3, `setup-node` 6.3.0 →
+  6.4.0, `trufflehog` 3.94.3 → 3.95.2, `trivy-action` 0.35.0 → 0.36.0,
+  `setup-regal` 1.0.0 → 2.0.0
+- **`cargo-deny`** version pinned at 0.19.4
+
 ## [0.3.3-beta]
 
 ### Distribution & Release Engineering
