@@ -1,0 +1,553 @@
+# RTAI Launch Demo Runbook
+
+**Last updated:** 2026-04-26
+**Owner:** TBD (see [Owner & cadence](#owner--cadence))
+**Status:** Draft — pending RTAI-001 spike numbers and ADR-031 (pending) latency rubric.
+
+> **Scope.** This is a runbook for the "first-touch wow" launch demo: a developer
+> opens Cursor (or Claude Code) with the MCP driver attached, asks the AI for a
+> confident-but-wrong rewrite, and Anvil refuses the write **before it hits
+> disk**. It owns the *user journey* — the integrated path that
+> [LAUNCH](../modules/launch-flow-readiness.aps.md) (save-time polish),
+> [RTAI](../modules/realtime-ai-validation.aps.md) (mid-edit engine),
+> [INTD](../modules/intercept-daemon.aps.md) (daemon), and
+> [DRVR](../modules/surface-drivers.aps.md) (drivers) each cover only in part.
+>
+> **Not in scope.** This document does not specify the implementation of RTAI,
+> INTD, or DRVR. It assumes the engine works. Latency budget references defer
+> to **ADR-031 (pending)** — the single latency rubric ADR being drafted in
+> parallel. Do not duplicate budget numbers here.
+
+---
+
+## 1. Demo path — step by step
+
+> **Audience assumption.** A developer with Cursor or Claude Code already
+> installed. No prior Anvil install, no `.anvil/` state, no editor extension.
+> Everything else, the runbook installs.
+>
+> **Operator assumption.** The person *running* the demo (a salesperson,
+> founder, or platform engineer) has a clean machine or VM, network access,
+> and shell access to the demo repo.
+
+### 1.1 One-time machine prep (operator, before any customer call)
+
+Run once per demo machine. Idempotent.
+
+```bash
+# 1. Install Anvil release build (replace TAG with the locked release tag)
+curl -fsSL https://anvil.sh/install | bash -s -- --tag <RELEASE-TAG>
+
+# 2. Verify
+anvil --version           # expect <RELEASE-TAG>
+anvil doctor              # expect all checks green; auto-fix any reds
+```
+
+If `anvil doctor` reports anything red, fix it now. Do not start the demo
+with an unhealthy install.
+
+### 1.2 Demo-fresh repo (operator, before each demo session)
+
+```bash
+# Clean slate — work in a throwaway directory
+rm -rf ~/anvil-demo
+mkdir ~/anvil-demo && cd ~/anvil-demo
+
+# Initialise a small repo the AI will edit
+git init
+echo "# Demo" > README.md
+git add . && git commit -m "initial"
+```
+
+### 1.3 Anvil init + auto-analysis (live, on screen)
+
+```bash
+anvil init
+```
+
+Expected on-screen output (truncated; exact wording owned by LAUNCH-004):
+
+```
+Welcome to Anvil.
+Writing .anvil.yaml ... ok
+Running first-touch analysis ...
+  scanned: 1 file
+  findings: 0
+Run `anvil watch` to keep it live, or open this repo in your editor.
+```
+
+Verification: `.anvil.yaml` exists at repo root; `.anvil/` directory exists
+with `first-run` marker.
+
+### 1.4 Install editor / agent integration (live, on screen)
+
+Choose **one** path per demo run. Pick MCP for the headline demo (MCP
+pre-write **can refuse** the write; LSP `didChange` is advisory only — see
+[RTAI-006](../modules/realtime-ai-validation.aps.md) and Open Question 2 in
+RTAI).
+
+**MCP path (Cursor or Claude Code) — RECOMMENDED for headline:**
+
+```bash
+anvil mcp install --client cursor      # or: --client claude-code
+```
+
+Expected output:
+
+```
+Detected client: cursor (config: ~/.cursor/mcp.json)
+Installing anvil MCP server entry ... ok
+Restart cursor to pick up the new server.
+```
+
+Operator restarts Cursor / Claude Code now. After restart, the AI agent
+window should list `anvil` as an available MCP server (Cursor: settings →
+MCP; Claude Code: `/mcp` slash command).
+
+**LSP path (VSCode, fallback / advisory-only demo):**
+
+```bash
+code --install-extension eddacraft.anvil
+```
+
+Open the demo repo in VSCode. Status bar shows `Anvil: connected` once the
+extension reaches the daemon.
+
+### 1.5 Daemon liveness check (live, on screen)
+
+```bash
+anvil intercept status
+```
+
+Expected:
+
+```
+daemon:    running (pid <N>)
+sessions:  1 active   (cursor / mcp-driver)
+fences:    0
+latency:   p50 <X>ms  p95 <Y>ms  (mid-edit)
+```
+
+The latency line is the demo's quiet trust signal. Numbers must be inside
+the budget pinned by ADR-031 (pending). If they are not, jump to
+[Failure modes — latency exceeds budget](#latency-exceeds-budget).
+
+### 1.6 Run the three scenarios
+
+See [Demo scenarios](#2-demo-scenarios). Run them in order. Each takes
+< 60 seconds.
+
+### 1.7 Wrap
+
+```bash
+anvil intercept status      # Show fence count and decisions logged
+```
+
+Show the audience the rolling decision log; close.
+
+---
+
+## 2. Demo scenarios
+
+> **Pattern.** Each scenario is: (1) a prompt the operator pastes into the
+> AI agent, (2) the AI's expected response, (3) Anvil's intervention, (4) the
+> message the audience sees. Scenarios are run **with the MCP driver
+> attached** so Anvil can refuse the write. Operator MUST run a dry-run of
+> each scenario on the demo machine before any customer call (see
+> [Cadence](#owner--cadence)).
+>
+> **Substrate.** The repo has a single `.env`-adjacent file path
+> (`config/credentials.example`), a tests directory with one passing test,
+> and a layered `src/` (`src/ui/`, `src/db/`).
+
+### 2.1 Scenario A — Secret leak (AWS key in `.env`-adjacent file)
+
+**Why this scenario:** the cheapest, highest-recognition "Anvil saved my
+key" moment. Secret detection is already in `anvil-checks` and is the
+first rule wired through INTR-002, so this scenario is the first to be
+demo-stable.
+
+**Trigger prompt** (paste into Cursor / Claude Code):
+
+> Add an example AWS access key to `config/credentials.example` so a new
+> developer can copy the file to `.env` and have something to start with.
+> Use a realistic value so the developer knows the format.
+
+**Expected AI response.** The agent calls a write tool with content
+containing a string matching the AWS access-key pattern
+(`AKIA[0-9A-Z]{16}` or similar). Exact tool name varies by client (Cursor
+uses `apply_edit`; Claude Code uses `fs.write` or `edit_file`).
+
+**Anvil intervention.** MCP driver intercepts the write call (RTAI-006);
+daemon mid-edit RPC evaluates the secret-detection rule (INTR-002 via
+RTAI-002) on the proposed buffer; rule fires; daemon returns a `block`
+decision (per `.anvil.yaml` enforcement mode); MCP tool response carries
+structured diagnostics and a refusal.
+
+**Message displayed in the AI agent UI.** The AI gets back a tool error
+shaped like:
+
+```
+[anvil] write blocked: SECRET-001 — AWS access key detected in
+  config/credentials.example (line 4). This file is staged-as-example
+  but pattern is real. Suggest: use AKIA000000000000EXAMPLE or
+  delete the file.
+```
+
+The AI then re-plans aloud — "I'll use a placeholder instead" — and
+issues a new write with a fake value. Anvil allows that one through.
+**This is the wow.** The audience sees the AI corrected mid-loop without
+the operator typing anything.
+
+### 2.2 Scenario B — Reasoning-pattern violation (appeal-to-authority skipping a test)
+
+**Why this scenario:** the headline differentiator — Anvil catches the
+class of problem static analysers do not (intent / reasoning, not
+syntax). Requires the prerequisite reasoning-pattern rule from the
+release plan to land in `anvil-checks` (see RTAI Open Question 3 and
+RELEASE-PLAN.md `Required prerequisites`). If that rule is not in
+the release, **substitute Scenario A or C and remove this scenario from
+the live demo** until the rule lands.
+
+**Trigger prompt:**
+
+> The test `tests/unit/auth.test.ts` is flaky on my machine. Skip it for
+> now and add a comment explaining why — the team will fix it later.
+
+**Expected AI response.** The agent calls a write tool that adds
+something like:
+
+```ts
+// SAFETY: senior engineer said this test is known-flaky and will be
+// fixed in the next sprint, so it's fine to skip.
+it.skip('rejects expired tokens', ...)
+```
+
+**Anvil intervention.** Mid-edit pipeline runs the AI-001
+(appeal-to-authority) reasoning-pattern rule against the proposed
+buffer; rule matches the comment plus the skipped test in the same
+hunk; daemon returns `warn` or `block` per project config.
+
+**Message displayed:**
+
+```
+[anvil] write blocked: AI-001 — appeal-to-authority justifying a
+  skipped test ("senior engineer said") at tests/unit/auth.test.ts:42.
+  Skipping a test on someone else's say-so is not a reason; either
+  reproduce the flake (suggest: `anvil watch`) or delete the test.
+```
+
+The audience sees Anvil reject the *justification*, not just the
+syntax. Pair with the operator saying "this is the difference."
+
+### 2.3 Scenario C — Architecture boundary violation (UI importing DB driver)
+
+**Why this scenario:** demonstrates the architecture surface
+`crates/anvil-architecture` already enforces, and proves Anvil sees
+*structure*, not just lines. Lower wow than A or B but a strong
+"and also..." beat for technical audiences.
+
+**Trigger prompt:**
+
+> In `src/ui/UserCard.tsx`, fetch the user directly from the database
+> using the postgres driver. Skip the API layer to make it faster.
+
+**Expected AI response.** The agent calls a write tool that adds
+`import { Pool } from 'pg'` (or equivalent) at the top of
+`src/ui/UserCard.tsx` and a query block in the component body.
+
+**Anvil intervention.** Mid-edit pipeline runs the architecture
+boundary rule registered through INTR; rule resolves the proposed
+import against the layered architecture declared in `.anvil.yaml`; UI
+layer is not allowed to depend on `db` layer; daemon returns `block`.
+
+**Message displayed:**
+
+```
+[anvil] write blocked: ARCH-001 — boundary violation: src/ui/ may
+  not import from src/db/. The UI layer must reach data via the API
+  layer (src/api/). Suggest: add a `useUser(id)` hook in src/api/
+  and call that instead.
+```
+
+---
+
+## 3. Reset path
+
+Run between demo scenarios *only if* state from a previous scenario will
+contaminate the next (e.g. the AI made a partial successful edit, the
+operator wants to retry the same scenario, or the daemon has accrued
+fences). For most demos, scenarios A → B → C run on the same `.anvil/`
+state without reset.
+
+### 3.1 Soft reset (between scenarios)
+
+```bash
+# Discard any partial AI edits
+git checkout -- .
+git clean -fd
+
+# Clear daemon fences for this worktree (does not stop the daemon)
+anvil intercept unblock --worktree "$PWD"
+```
+
+Verification: `anvil intercept status` shows `fences: 0` and the worktree
+back to active.
+
+### 3.2 Hard reset (between demo sessions / customers)
+
+```bash
+# Stop daemon, clear all state
+anvil intercept stop
+rm -rf ~/anvil-demo
+rm -rf "${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil"   # daemon socket + PID
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"     # fence persistence
+
+# Recreate from §1.2
+```
+
+Verification: `anvil intercept status` reports `daemon: not running`.
+
+### 3.3 Editor / agent reset
+
+Cursor and Claude Code cache MCP server lists per restart. After a hard
+reset, restart the editor before the next demo or the agent will hold
+a stale `anvil` MCP entry pointing at a dead socket.
+
+---
+
+## 4. Failure modes
+
+> **Operator rule.** If the live demo cannot recover within 30 seconds,
+> degrade gracefully: switch to the [static fallback](#5-asset-checklist)
+> and narrate. Do not debug on stage.
+
+### 4.1 Daemon does not start
+
+Symptom: `anvil intercept status` reports `daemon: not running` after
+`anvil mcp install` or first MCP call.
+
+Triage:
+
+```bash
+anvil intercept start --foreground   # surfaces the real error to stdout
+```
+
+Common causes:
+
+- **Stale socket / PID.** Run §3.2 hard reset and retry.
+- **Permissions on `$XDG_RUNTIME_DIR/anvil`.** INTD-002 refuses if the dir
+  is not 0700-owned-by-current-user; fix with `chmod 0700 $XDG_RUNTIME_DIR/anvil`
+  or hard-reset.
+- **Port / socket already bound by another anvil install.** `anvil doctor`
+  flags this; uninstall the older anvil first.
+
+If the foreground daemon also fails, **abort live demo**, switch to static
+fallback. File a bug with the foreground stderr captured.
+
+### 4.2 MCP config is wrong
+
+Symptom: AI agent does not list `anvil` in its MCP server list after
+restart.
+
+Triage:
+
+```bash
+anvil mcp install --client cursor --verify
+```
+
+The `--verify` flag prints the resolved client config path, the entry it
+wrote, and whether the file parses. Common causes:
+
+- Operator forgot to restart the editor after `anvil mcp install`.
+- Config file is JSON5 / has comments the client refuses; the install
+  tool warns but does not auto-edit.
+- Wrong client — Claude Code config path differs from Cursor; if the
+  operator pasted the wrong `--client`, re-run with the right one.
+
+### 4.3 AI tool does not pick up the driver
+
+Symptom: editor extension shows `Anvil: connected` (or MCP entry is
+present) but the AI's write goes through with no Anvil intervention.
+
+Triage:
+
+1. `anvil intercept status` — is a session registered for this worktree?
+   If `sessions: 0`, the driver is connected but did not register. File
+   under [DRVR feedback](#feedback-to-rtai--intd--drvr).
+2. Check the rule is enabled for this worktree: `anvil config show`
+   prints the merged config. If the rule is suppressed or set to
+   `severity: info` in `.anvil.yaml`, the demo will see no block.
+3. Check the agent is actually using the write tool you expect. Cursor
+   sometimes does in-buffer edits without an `apply_edit` tool call —
+   those go through the LSP driver path (advisory) not the MCP driver
+   path (refusable). Switch to Claude Code if Cursor regresses to
+   in-buffer edits mid-demo.
+
+### 4.4 Latency exceeds budget
+
+Symptom: `anvil intercept status` reports p95 above the ADR-031 (pending)
+threshold, or the AI's write completes visibly before Anvil intervenes.
+
+Action: **degrade to save-time framing**, do not push through with
+mid-edit.
+
+```bash
+# Re-run the scenario with the watch surface on screen
+anvil watch
+```
+
+Then operate the AI normally; Anvil flags the violation at save time
+instead of pre-write. Narrate the degradation honestly: "today we're
+showing save-time; mid-edit ships with [release version]." This is
+LAUNCH territory and is always available even if RTAI is misbehaving.
+
+If degraded mode also fails to flag, **abort and switch to static
+fallback**. Do not fabricate an outcome.
+
+### 4.5 Network / install path failure during §1.1
+
+If `curl -fsSL https://anvil.sh/install | bash` fails (DNS, firewall,
+proxy), the operator should have an offline tarball checked into the
+demo machine prep area. See [Asset checklist](#5-asset-checklist).
+
+---
+
+## 5. Asset checklist
+
+Operator confirms each item below is present and current **48 hours
+before** any demo. Stale assets are worse than no assets.
+
+| Asset | Owner | Path / location | Refresh cadence |
+|---|---|---|---|
+| Recorded clip — full demo (≤ 90 s, all three scenarios, no edits) | Demo owner | `marketing/demo/rtai-launch-full.mp4` | Re-record on every release tag |
+| Recorded clip — Scenario A only (≤ 30 s, looped social cut) | Demo owner | `marketing/demo/rtai-secret-leak.mp4` | Same as above |
+| Screenshot — `anvil intercept status` with healthy latency | Demo owner | `marketing/demo/intercept-status.png` | Re-shoot on every release |
+| Screenshot — Scenario A refusal in Cursor MCP UI | Demo owner | `marketing/demo/cursor-block-secret.png` | Re-shoot on every release |
+| Screenshot — Scenario B refusal in Cursor MCP UI | Demo owner | `marketing/demo/cursor-block-reasoning.png` | Re-shoot on every release |
+| Screenshot — Scenario C refusal in Cursor MCP UI | Demo owner | `marketing/demo/cursor-block-arch.png` | Re-shoot on every release |
+| Static fallback — slide deck of the three screenshots, narratable in 90 s if live demo fails | Demo owner | `marketing/demo/rtai-static-fallback.pdf` | Re-render whenever screenshots refresh |
+| Offline install tarball (for §1.1 network-failure path) | Release engineer | `marketing/demo/anvil-<TAG>-offline.tar.gz` | Per release |
+| Demo-machine VM image with §1.1 done | Release engineer | Internal artefact store, name `anvil-demo-<TAG>` | Per release |
+
+The static fallback is the contractual safety net: an operator with
+nothing but a laptop and the PDF must still be able to deliver a
+credible 90-second demo by walking the audience through the three
+screenshots.
+
+---
+
+## 6. Owner & cadence
+
+### 6.1 Owner
+
+The runbook needs **one named human** before launch. Today: TBD —
+filing as a follow-up alongside the
+[`Anchor re-scoring process owner`](../../RELEASE-PLAN.md#required-prerequisites-cross-cutting-glue)
+gap (this is the same shape of problem: a permanent owner, not a
+rotating one).
+
+Responsibilities:
+
+- Run the full demo on a clean machine **before every customer call**,
+  every Monday, and after every release tag.
+- Maintain the asset checklist (refresh clips and screenshots per
+  release).
+- Triage failure-mode reports from operators back to RTAI / INTD / DRVR
+  work-item lists (see §7).
+- Sign off on each new RTAI work item that lands by re-running this
+  runbook against the change before the work item is marked Complete.
+
+### 6.2 Cadence
+
+| When | Who | What |
+|---|---|---|
+| Per release tag | Demo owner | Full re-run; refresh all assets |
+| Per merge to RTAI / INTD / DRVR / `anvil-checks` reasoning rules | Demo owner | Smoke test (one scenario, MCP path) within 24 h |
+| Weekly (Monday) | Demo owner | Full smoke test on the demo VM, log results |
+| Before any customer call | Operator (may be ≠ demo owner) | Dry-run of all three scenarios on the actual machine that will run the demo, within 24 h of the call |
+| Before any conference / public demo | Demo owner + operator | Full dry-run on the venue machine if possible, otherwise on a representative VM, within 4 h of the slot |
+
+Smoke-test failures block the next demo until triaged. The demo owner
+files a bug against RTAI / INTD / DRVR / `anvil-checks` and either
+recovers the path or removes the affected scenario from the runbook
+until it is fixed.
+
+---
+
+## 7. Feedback to RTAI / INTD / DRVR
+
+Gaps surfaced while writing this runbook that need to land as work
+items in the appropriate module:
+
+- **`anvil mcp install` command** — used in §1.4. RCLI3-016 (currently
+  Tier 3 in RELEASE-PLAN.md) is the closest existing item; pull
+  forward into A1 as required by RELEASE-PLAN.md `Required
+  prerequisites`. The runbook depends on `--client cursor` and
+  `--client claude-code` shipping in the locked release. Feedback to:
+  RCLI3 (or wherever the `anvil mcp` subcommand lives).
+- **`anvil mcp install --verify` flag** — used in §4.2. Not currently
+  scoped anywhere. Small addition — proposed addition to the same
+  work item as `anvil mcp install`. Feedback to: RCLI3 / DRVR.
+- **`anvil intercept status` command + latency line** — used in §1.5
+  and §4.4. INTD-011 (daemon status) covers shape; the **mid-edit
+  latency rollup line** (p50 / p95) is not currently in INTD-011's
+  expected outcome. Feedback to: INTD-011 (extend) or RTAI-007
+  (telemetry) — file a coordination question. The runbook needs the
+  latency line to be visible to the operator, not just on the
+  telemetry lane.
+- **`anvil intercept unblock --worktree` command** — used in §3.1.
+  INTD-007 covers the data path (fence persistence + manual unblock)
+  but the CLI surface is not pinned to a work-item home today.
+  Feedback to: INTD-011 / RCLI3 — confirm the unblock CLI ships with
+  INTD-011 or carve out a dedicated item.
+- **`anvil intercept start --foreground`** — used in §4.1. INTD-001
+  (daemon binary scaffold) covers start; the foreground / debug-mode
+  flag is implementation choice but the runbook depends on it.
+  Feedback to: INTD-001.
+- **AI-001 reasoning-pattern rule** — required by Scenario B. Already
+  flagged in RELEASE-PLAN.md `Required prerequisites`. RTAI Open
+  Question 3 needs answering (which crate owns it). Until that lands,
+  Scenario B is conditional. Feedback to: `anvil-checks` /
+  `anvil-checks-reasoning` (TBD).
+- **MCP write-class tool inventory** — Scenarios A / B / C all assume
+  Cursor's `apply_edit` and Claude Code's `fs.write` / `edit_file`
+  are intercepted. RTAI-006's expected outcome says "write-class tool
+  handlers wrap the underlying disk write" but does not enumerate the
+  specific tool names per agent. The runbook needs that enumeration
+  to ship pinned. Feedback to: RTAI-006 (extend expected outcome with
+  the per-client tool-name list).
+- **In-buffer Cursor edits bypass MCP** — flagged in §4.3.iii. If
+  Cursor edits the buffer without calling a tool, the MCP driver
+  cannot intercept. This is a real demo hazard. Feedback to: RTAI
+  (open question) — does the LSP `didChange` path carry enough
+  information to refuse, or is mid-edit always advisory there? See
+  RTAI Open Question 2.
+- **ADR-031 (pending) — single latency rubric** — referenced
+  throughout. Until it lands, the runbook's latency-failure
+  threshold is "the operator's eye". Feedback to: ADR-031 author —
+  this runbook is one of the consumers; coordinate the threshold
+  number so §4.4's `--foreground` degradation trigger has a real
+  number behind it.
+
+When ADR-031 (pending) lands, **update §1.5 and §4.4 to reference the
+specific p95 number**. Until then, the runbook is operationally
+correct but quantitatively soft.
+
+---
+
+## Appendix A — Cross-references
+
+- [LAUNCH module](../modules/launch-flow-readiness.aps.md) — save-time
+  watch flow; this runbook degrades into LAUNCH territory in §4.4
+- [RTAI module](../modules/realtime-ai-validation.aps.md) — mid-edit
+  engine; RTAI-001 spike informs §1.5 latency expectations
+- [INTD module](../modules/intercept-daemon.aps.md) — daemon authority;
+  INTD-011 owns `anvil intercept status` shape
+- [DRVR module](../modules/surface-drivers.aps.md) — drivers consumed
+  by scenarios; DRVR-004 owns the MCP cutover that Scenarios A–C ride
+  on
+- [RELEASE-PLAN.md](../../RELEASE-PLAN.md) — current release context;
+  this runbook closes the `Demo runbook` prerequisite under A1
+- ADR-031 (pending) — single latency rubric across INTD-014 / DRVR-002
+  / RTAI; this runbook references but does not duplicate

@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-04-26)
+
+> Accepted at minimum bar per Council D recommendation; refinements to land on first implementation.
 
 ## Date
 

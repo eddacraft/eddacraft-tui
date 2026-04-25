@@ -423,9 +423,11 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ---
 
-### RCLI3-016: mcp-config command
+### RCLI3-016: mcp-config command 🔒 PULLED FORWARD TO A1 (current release)
 
-- **Status:** Proposed
+- **Status:** Ready (pulled forward 2026-04-26 — required by A1 RTAI Spike
+  Slice; without it the demo runbook has no install step. See
+  [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) prerequisites.)
 - **Intent:** Port `anvil mcp-config`. Generate MCP server configuration for
   AI editors (claude-code, cursor, windsurf, vscode). Supports `--target`,
   `--transport` (stdio/http), `--port`, `--write`. Handles symlink-safe path
@@ -438,8 +440,9 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Files:** `crates/anvil-cli/src/commands/mcp_config.rs`
 - **Confidence:** high (176 LOC in historical Node.js; template generation with path
   safety)
-- **Priority:** Low
-- **Dependencies:** RCLI (foundation)
+- **Priority:** **High** (was Low — promoted with pull-forward)
+- **Dependencies:** RCLI (foundation), DRVR-002 (driver protocol — so the
+  generated config points at a working daemon endpoint)
 
 ---
 
