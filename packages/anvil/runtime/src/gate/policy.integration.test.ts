@@ -90,7 +90,15 @@ function policyOnlyConfig(): GateConfig {
   };
 }
 
-describe.skipIf(!opaPath)('Gate pipeline + real OPA (TCOV-012)', () => {
+// Skip on Windows: same Linux-fixture-shape issue as
+// `packages/anvil/policy/src/opa-real.integration.test.ts` — the
+// gate-pipeline test loads the same `policies/fixtures/` rego, so the
+// same path-separator / temp-dir mismatch produces empty violation sets
+// on `windows-latest`. Mirrors the Rust-side skip in
+// `crates/anvil-policy/tests/opa_real_binary.rs` and the policy crate's
+// integration test above.
+const WINDOWS_OPA_SKIPPED = process.platform === 'win32';
+describe.skipIf(!opaPath || WINDOWS_OPA_SKIPPED)('Gate pipeline + real OPA (TCOV-012)', () => {
   let workspace: string;
   let copiedFixtures: string[];
 
