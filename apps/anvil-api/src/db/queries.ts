@@ -141,15 +141,21 @@ export async function findTokenByHash(
 }
 
 /**
- * Look up the scopes a user is currently entitled to, using the most recent
- * non-revoked, non-expired `access_tokens` row.
+ * Look up the scopes a user is currently entitled to, returning the UNION of
+ * all `scopes` arrays across every non-revoked, non-expired `access_tokens`
+ * row for the user.
+ *
+ * Returning the union — not the most-recent row's scopes — is required for
+ * correctness. A user invited with `['preview', 'beta']` via `/admin/invite`
+ * who later receives any narrower-scoped token row (e.g. the legacy
+ * `/admin/approve` defaulting to `['beta']`, a re-invite, a CI service token)
+ * would otherwise have the broader scope silently shadowed by the
+ * later-inserted narrower one — re-introducing the same FLAGM-005 downgrade
+ * the route-level fix in eae47b3d intended to close.
  *
  * The JWT licence carries `scopes` claims, but those claims are issued at
- * sign time — `/session/refresh` and the device/github first-issuance paths
- * need a server-of-truth read so that scope changes (e.g. an admin promoting
- * a user from `beta` to `preview` via `admin invite`) actually flow into
- * the next licence the user gets. Without this query, those paths silently
- * downgrade everyone to `['beta']` regardless of what the database says.
+ * sign time — `/session/refresh` and the device/github/otp first-issuance
+ * paths read from this function so scope changes flow into the next licence.
  *
  * Returns `['beta']` as a conservative default when no active access_tokens
  * row exists — that path covers self-signup users who have not yet been
@@ -158,13 +164,16 @@ export async function findTokenByHash(
 export async function findActiveScopesForUser(sql: NeonClient, userId: string): Promise<string[]> {
   const r = rows(
     await sql`
-    SELECT scopes
-    FROM access_tokens
-    WHERE user_id = ${userId}
-      AND revoked_at IS NULL
-      AND expires_at > now()
-    ORDER BY created_at DESC
-    LIMIT 1
+    SELECT COALESCE(
+      ARRAY(
+        SELECT DISTINCT scope
+        FROM access_tokens, unnest(scopes) AS scope
+        WHERE user_id = ${userId}
+          AND revoked_at IS NULL
+          AND expires_at > now()
+      ),
+      ARRAY[]::text[]
+    ) AS scopes
   `
   );
   if (!r[0]) {

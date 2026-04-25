@@ -477,11 +477,15 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
     use anvil_kernel_types::{EventPayload, EventType};
 
+    // ASCII-only labels so per-event watch output renders cleanly on
+    // Windows terminals and CI log captures that lack full Unicode. The
+    // banner and bare-exclude warning were previously fixed; this is the
+    // hot path during a demo and was missed in that round.
     let prefix = match event.event_type {
-        EventType::Progress => "\u{25b6}",
-        EventType::Snapshot => "\u{1f4f8}",
-        EventType::Violation => "\u{26a0}",
-        EventType::Error => "\u{2717}",
+        EventType::Progress => "[progress]",
+        EventType::Snapshot => "[snapshot]",
+        EventType::Violation => "[violation]",
+        EventType::Error => "[error]",
     };
 
     match &event.payload {

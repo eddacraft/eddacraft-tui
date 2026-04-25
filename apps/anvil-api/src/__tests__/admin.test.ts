@@ -44,6 +44,7 @@ vi.mock('../db/queries.js', () => ({
   findSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
   consumeSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
   findAdminKeyByHash: vi.fn().mockResolvedValue(null),
+  findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
 }));
 
 // Mock token utilities

@@ -355,6 +355,14 @@ fn process_change(
     match change.kind {
         ChangeKind::Removed => {
             let delta = crate::graph::remove_file(&mut state.graph, &rel_str);
+            // Always drop the tracked-files entry on a Removed event, even if
+            // remove_file reported no symbols (the file may have been tracked
+            // earlier and parsed empty since). Without this, a delete-then-
+            // recreate sequence (rename-on-save editors, atomic-write patterns,
+            // git checkout swaps) keeps the file marked as "tracked", so the
+            // next Created event hits the `was_tracked` branch and never
+            // re-increments file_count.
+            state.tracked_files.remove(&rel_str);
             if !delta.removed_symbols.is_empty() {
                 // Only decrement file_count if we actually removed tracked symbols
                 state.file_count = state.file_count.saturating_sub(1);
@@ -376,6 +384,11 @@ fn process_change(
                     // path, clean them up (rename-style modify where
                     // the old path is gone).
                     let removed = crate::graph::remove_file(&mut state.graph, &rel_str);
+                    // Drop the tracked-files entry on the same rename-style
+                    // path; otherwise a subsequent Created event for a
+                    // re-instated file at the same path would skip the
+                    // file_count increment.
+                    state.tracked_files.remove(&rel_str);
                     if !removed.removed_symbols.is_empty() {
                         state.file_count = state.file_count.saturating_sub(1);
                         state.all_imports.retain(|i| i.from_file != rel_str);

@@ -15,6 +15,7 @@ vi.mock('../db/queries.js', () => ({
   incrementOtpAttemptsBatch: vi.fn(),
   consumeOtpCode: vi.fn(),
   insertRefreshToken: vi.fn(),
+  findActiveScopesForUser: vi.fn(),
 }));
 
 vi.mock('../lib/email.js', () => ({
@@ -37,6 +38,7 @@ import {
   incrementOtpAttemptsBatch,
   insertOtpCode,
   insertRefreshToken,
+  findActiveScopesForUser,
   type OtpCode,
 } from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
@@ -97,6 +99,7 @@ beforeEach(() => {
   vi.mocked(incrementOtpAttemptsBatch).mockResolvedValue(undefined);
   vi.mocked(consumeOtpCode).mockResolvedValue(true);
   vi.mocked(insertRefreshToken).mockResolvedValue(makeRefreshTokenRow());
+  vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
   vi.mocked(sendOtpCode).mockResolvedValue({ sent: true });
 });
 
