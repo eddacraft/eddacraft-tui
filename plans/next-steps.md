@@ -13,8 +13,8 @@ merge that changes strategic shape.
 
 # Anvil — Next Steps
 
-> **Last refreshed:** 2026-04-24 (orchestrated cherry-pick sweep
-> following the LAUNCH + RTAI plan landings).
+> **Last refreshed:** 2026-04-26 (v0.4.0-beta release prep — three
+> council rounds, V041F module captures the deferred hardening items).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
@@ -505,6 +505,37 @@ not need to be made in advance.
 
 > Append-only. Newest entry first. A future session reads this to
 > see what has moved since the last refresh.
+
+### 2026-04-26 (v0.4.0-beta release prep)
+
+- Branch `release/v0.4.0-beta` cut from `dev` for the H1 hype-builder
+  tag. Stabilisation strategy. CHANGELOG and ENGINEERING-HISTORY
+  rewritten in the 0.3.3-beta user-centric style covering the full
+  390-commit window (LAUNCH, NOTIFY, RSCAN/ANVFMT/SPG, RUSTNX,
+  ADMINCLIH, FLAGM, TSRET, DIST-011, plus a 7-issue GH sweep).
+- Workspace + 14 bundled `package.json` manifests + `crates/anvil-checks-napi/package.json`
+  bumped to `0.4.0-beta`. Cargo.lock regenerated. `cargo-hakari` clean.
+- Three rounds of council ran against the release branch, plus an
+  external Codex CLI review each round. ~25 findings surfaced
+  in total; 18 fixed in-flight across rounds 1–3 (commits
+  `eae47b3d`, `f9961b28`, `6f16b059`, `907af5f2` plus the bench
+  refresh and CI-unblock commits). 10 hardening items consciously
+  deferred to V041F (see new module).
+- V041F module created
+  ([`plans/modules/v041-release-followups.aps.md`](./modules/v041-release-followups.aps.md))
+  with 10 work items, status Ready. Captures the 10 deferred items
+  so the deferral does not silently rot:
+  cargo-dist installer pin (V041F-001), per-operator audit attribution
+  (V041F-002), family-theft cascade revoke (V041F-003), `/admin/approve`
+  flag-gate (V041F-004), graded-scope regression tests (V041F-005),
+  allowlist regex compile cache (V041F-006), eager rayon pool init
+  (V041F-007), CI-class bench baseline (V041F-008), `release/*` push
+  filter (V041F-009), `WAITLIST_PAUSED` runbook (V041F-010).
+- Bench baselines refreshed on `release/v0.4.0-beta`:
+  `antipattern_scan` ≈ 11.2 ms (~28.6 K artefacts/s), 23% faster than
+  the 2026-04-22 pre-RUSTNX-008 baseline. Kernel hot-path rewrite
+  (monotonic `next_id` counter + `HashSet<String>` of tracked files)
+  validated by the new measurement.
 
 ### 2026-04-24 (this session)
 
