@@ -270,7 +270,7 @@ when specific work is identified.
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, cargo audit, pnpm audit |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e, Rust test suites |
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 10/21 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + topology refresh; 10 remaining Future/Scanner items Draft) |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 11/22 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + final release-scope refresh; 10 remaining Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | 11 | tools/generate-acknowledgements.sh (v1 shipped), cargo-about, deny.toml — **Ready** (owner: joshuaboys; CycloneDX intermediate; kit at tools/starters/acknowledgements/) |

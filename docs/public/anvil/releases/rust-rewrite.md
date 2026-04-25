@@ -208,6 +208,8 @@ Once installed, use the native updater:
 anvil update
 ```
 
+If you want a clean reinstall, re-run the installer instead.
+
 ### Step 5: Update CI
 
 Replace any `pnpm anvil` or `npx anvil` invocations with direct `anvil` calls.

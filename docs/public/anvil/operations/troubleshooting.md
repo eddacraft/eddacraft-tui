@@ -132,8 +132,8 @@ Files changing but anvil not responding.
    anvil watch --all
    ```
 
-2. If you passed `--exclude`, simplify it to obvious directory names such as
-   `dist` or `node_modules` and retry.
+2. If you passed `--exclude`, use glob patterns such as `dist/**` or
+   `node_modules/**`. Bare names only match the exact path.
 
 3. Increase debounce:
 
