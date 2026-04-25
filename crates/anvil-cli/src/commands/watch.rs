@@ -261,10 +261,14 @@ fn build_action_command(
 /// Run the specified action when a file change is detected.
 /// Uses inherited stdio for real-time output streaming (C-007).
 fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, no_tui: bool) {
+    // ASCII-only labels match the rest of the watch surface (the banner,
+    // the bare-exclude warning, and per-event print_event_plain) so a
+    // legacy-codepage Windows terminal or a CI log capture doesn't mojibake
+    // on the --action error path.
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("\u{2717} Cannot resolve current executable: {e}");
+            eprintln!("[error] Cannot resolve current executable: {e}");
             return;
         }
     };
@@ -274,13 +278,13 @@ fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, n
         Ok(status) => {
             if !status.success() {
                 eprintln!(
-                    "\u{26a0} Action '{action}' exited with code {}",
+                    "[warn] Action '{action}' exited with code {}",
                     status.code().unwrap_or(-1)
                 );
             }
         }
         Err(e) => {
-            eprintln!("\u{2717} Failed to run action '{action}': {e}");
+            eprintln!("[error] Failed to run action '{action}': {e}");
         }
     }
 }
