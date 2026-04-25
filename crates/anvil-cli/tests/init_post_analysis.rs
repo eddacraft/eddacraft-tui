@@ -46,10 +46,11 @@ fn init_force_prints_post_init_analysis_section() {
 }
 
 #[test]
-fn init_force_post_analysis_silent_for_empty_tree() {
-    // No source files in the temp dir — analysis should produce no
-    // section rather than printing "0 files" noise. The init command
-    // itself must still succeed.
+fn init_force_post_analysis_shows_empty_tree_hint() {
+    // No source files in the temp dir — analysis should land on a
+    // discoverable next-step hint ("anvil tutorial" / "anvil watch") so
+    // a brand-new project does not look like the tool failed. The init
+    // command itself must still succeed.
     let dir = tempfile::tempdir().unwrap();
 
     let output = Command::new(ANVIL_BIN)
@@ -65,8 +66,23 @@ fn init_force_post_analysis_silent_for_empty_tree() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        !stdout.contains("First scan"),
-        "expected no analysis section for an empty tree, got:\n{stdout}",
+        stdout.contains("First scan"),
+        "expected 'First scan' header in empty-tree hint, got:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("No source files yet"),
+        "expected empty-tree hint copy in stdout, got:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("anvil tutorial"),
+        "expected next-step hint pointing at `anvil tutorial`, got:\n{stdout}",
+    );
+    // The "0 files scanned" noise that LAUNCH-004 originally wanted to
+    // suppress must still NOT appear — the hint replaces it, not adds
+    // to it.
+    assert!(
+        !stdout.contains("Scanned 0 file"),
+        "empty-tree hint must not show '0 files' counter, got:\n{stdout}",
     );
 }
 
