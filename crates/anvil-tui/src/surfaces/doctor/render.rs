@@ -12,8 +12,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
     // Grow the detail panel when expanded so the remediation block has
     // room (summary + optional command + optional doc_url + fix hint
     // can run to ~5 lines on top of the technical details line).
+    // Bound by the available area so the check list always keeps at
+    // least 4 rows on tiny terminals.
     let detail_height = if state.expanded {
-        detail_panel_height(state)
+        detail_panel_height(state, area)
     } else {
         0
     };
@@ -147,8 +149,18 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
 
 /// Height needed for the detail panel: 1 line for `details`, optional
 /// lines for `summary` / `command` / `doc_url` / fix hint, plus the
-/// 2-line border. Capped so it never dominates the surface.
-fn detail_panel_height(state: &DoctorState) -> u16 {
+/// 2-line border. Bounded by the available area so the check list
+/// always keeps at least 4 rows even on small terminals.
+///
+/// Note: this counts *logical* lines per field, not wrapped visual
+/// lines. A long `summary` will wrap at 80 columns and the surplus
+/// rows are silently truncated by ratatui's Paragraph widget — there
+/// is no scroll. Per-check remediations in `commands/doctor.rs` aim
+/// to fit one visual line at ~80 columns, but a few (notably the
+/// `config-valid` parse-error path) exceed that. Authors should treat
+/// any summary over ~78 characters as "may overflow at narrow widths"
+/// and accept that the fix hint may be the line that gets clipped.
+fn detail_panel_height(state: &DoctorState, area: Rect) -> u16 {
     let Some(check) = state.checks.get(state.selected) else {
         return 4;
     };
@@ -166,8 +178,10 @@ fn detail_panel_height(state: &DoctorState) -> u16 {
     if check.auto_fixable {
         content_lines += 1;
     }
-    // 2 border lines + content. Cap at 10 so the check list remains usable.
-    (content_lines + 2).clamp(4, 10)
+    // 2 border lines + content. Cap so the list above keeps at least
+    // 4 rows: 3 (header) + 4 (list min) = 7 reserved.
+    let area_cap = area.height.saturating_sub(7).max(4);
+    (content_lines + 2).clamp(4, area_cap.min(10))
 }
 
 #[cfg(test)]
@@ -213,7 +227,7 @@ mod tests {
                 auto_fixable: true,
                 remediation: Remediation {
                     summary: "Install pre-commit hooks".to_string(),
-                    command: Some("npx husky install".to_string()),
+                    command: Some("npx husky init".to_string()),
                     doc_url: None,
                 },
             },
@@ -271,6 +285,38 @@ mod tests {
                     frame.area(),
                     "Doctor",
                     "j/k navigate  enter expand  q quit",
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// LAUNCH-005: snapshot the expanded state with the cursor on a
+    /// Fail check so the new remediation rendering path (summary +
+    /// `run:` + fix hint) is pixel-locked. The pre-existing
+    /// `snapshot_expanded` selects the first check (Pass / empty
+    /// remediation), so it does not exercise the new code.
+    #[test]
+    fn snapshot_expanded_with_remediation() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        // Index 1 = ESLint config = Fail with command + auto_fixable.
+        state.selected = 1;
+        state.expanded = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Doctor",
+                    "j/k navigate  enter expand  f fix  q quit",
                     &theme,
                 );
                 render(frame, content, &state, &theme);

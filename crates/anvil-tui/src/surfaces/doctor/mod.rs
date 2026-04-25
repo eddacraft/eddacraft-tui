@@ -27,17 +27,22 @@ impl CheckStatus {
 /// Concrete next action for a check. Pass / Skipped checks may carry
 /// the default `Remediation` (empty summary, no command, no doc URL).
 /// For Fail / Warn checks, `summary` must be non-empty — see
-/// `crate::surfaces::doctor::tests::warn_or_fail_checks_have_remediation`
-/// for the invariant. The optional fields `command` and `doc_url` give
-/// the renderer a structured place to surface a runnable command vs a
-/// documentation link without re-parsing prose.
+/// `eddacraft_anvil::commands::doctor::tests::every_check_fail_or_warn_branch_carries_remediation`
+/// in the CLI crate for the invariant test that exercises every
+/// `check_*` function.
+///
+/// The optional fields `command` and `doc_url` give the renderer a
+/// structured place to surface a runnable command vs a documentation
+/// link without re-parsing prose. They may both be set on the same
+/// remediation (e.g. a setup command alongside a "read more" doc).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Remediation {
     /// Human-readable summary of what the user should do.
     pub summary: String,
     /// A specific shell command the user can run, if any.
     pub command: Option<String>,
-    /// A documentation URL, if no concrete command applies.
+    /// An optional documentation URL for further reading; may be set
+    /// alongside `command`.
     pub doc_url: Option<String>,
 }
 
@@ -241,7 +246,7 @@ mod tests {
                 auto_fixable: true,
                 remediation: Remediation {
                     summary: "Install pre-commit hooks".to_string(),
-                    command: Some("npx husky install".to_string()),
+                    command: Some("npx husky init".to_string()),
                     doc_url: None,
                 },
             },
