@@ -335,16 +335,16 @@ anvil watch --file src/api/              # Scope to specific path
 anvil watch --action gate                # Run gate on each change
 ```
 
-| Flag         | Short | Default | Description                                                                                     |
-| ------------ | ----- | ------- | ----------------------------------------------------------------------------------------------- |
-| `--source`   |       | —       | Watch source files (`src/**/*.ts`, `src/**/*.tsx`, `lib/**/*.ts`, `crates/**/*.rs`)             |
-| `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)               |
-| `--all`      |       | —       | Watch all file types (source + plans)                                                           |
-| `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                                         |
-| `--exclude`  |       | —       | Comma-separated glob patterns to exclude from watch events                                      |
-| `--patterns` |       | —       | Comma-separated glob patterns to include in watch events                                        |
-| `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                                     |
-| `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                                      |
+| Flag         | Short | Default | Description                                                                         |
+| ------------ | ----- | ------- | ----------------------------------------------------------------------------------- |
+| `--source`   |       | —       | Watch source files (`src/**/*.ts`, `src/**/*.tsx`, `lib/**/*.ts`, `crates/**/*.rs`) |
+| `--plans`    |       | —       | Watch plan files (`**/*.md`, `**/*.aps.md`, `**/prd.*`, `**/plan.*`, `**/spec.*`)   |
+| `--all`      |       | —       | Watch all file types (source + plans)                                               |
+| `--debounce` |       | `300`   | Milliseconds to wait before re-checking                                             |
+| `--exclude`  |       | —       | Comma-separated glob patterns to exclude from watch events                          |
+| `--patterns` |       | —       | Comma-separated glob patterns to include in watch events                            |
+| `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                         |
+| `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                          |
 
 Bare names match only that exact path. To exclude a directory's contents, use a
 glob such as `vendor/**` rather than `vendor`.
@@ -406,13 +406,13 @@ not supported.
 
 ## Exit Codes
 
-| Code | Meaning         | Typical action    |
-| ---- | --------------- | ----------------- |
-| 0    | All checks pass | Continue          |
-| 1    | General error   | Investigate       |
-| 2    | Gate failure    | Block merge       |
+| Code | Meaning         | Typical action         |
+| ---- | --------------- | ---------------------- |
+| 0    | All checks pass | Continue               |
+| 1    | General error   | Investigate            |
+| 2    | Gate failure    | Block merge            |
 | 3    | Auth required   | Run `anvil auth login` |
-| 4    | Config error    | Fix `.anvilrc`    |
+| 4    | Config error    | Fix `.anvilrc`         |
 
 ---
 
