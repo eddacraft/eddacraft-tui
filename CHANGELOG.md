@@ -15,21 +15,22 @@ engineering maintenance are recorded in the
   Consumers that iterated the array must switch to `data.checks`. The new
   `notifications[]` field aligns doctor with the notification taxonomy used by
   `check`, `gate`, and `audit` (`NOTIFY-006`).
-- **`anvil doctor --json` schema v2.0.0** — every check now carries a
-  structured `remediation` object (`{ summary, command?, doc_url? }`) and the
-  root payload includes `schema_version: "2.0.0"`. Consumers that schema-
-  validated the prior shape must accept the new field on every check
-  (Pass / Skipped checks emit `remediation: { summary: "" }`; Fail / Warn
-  checks always populate `summary` and at least one of `command` / `doc_url`).
-  Branch on `schema_version` to gate compatibility (`LAUNCH-005`).
+- **`anvil doctor --json` schema v2.0.0** — every check now carries a structured
+  `remediation` object (`{ summary, command?, doc_url? }`) and the root payload
+  includes `schema_version: "2.0.0"`. Consumers that schema- validated the prior
+  shape must accept the new field on every check (Pass / Skipped checks emit
+  `remediation: { summary: "" }`; Fail / Warn checks always populate `summary`
+  and at least one of `command` / `doc_url`). Branch on `schema_version` to gate
+  compatibility (`LAUNCH-005`).
 
 ### Added
 
-- **`anvil doctor` remediation** — every doctor check now emits a concrete
-  next action (a runnable command, a doc link, or an auto-fix prompt) instead
-  of free-text deflection. Plain mode prints `→ summary / run: cmd / docs:
-  url / fix: anvil doctor --fix` per non-passing check; the TUI detail panel
-  renders the same lines when expanded (`LAUNCH-005`).
+- **`anvil doctor` remediation** — every doctor check now emits a concrete next
+  action (a runnable command, a doc link, or an auto-fix prompt) instead of
+  free-text deflection. Plain mode prints
+  `→ summary / run: cmd / docs: url / fix: anvil doctor --fix` per non-passing
+  check; the TUI detail panel renders the same lines when expanded
+  (`LAUNCH-005`).
 
 - **`anvil audit --json` notifications** — audit gained a `notifications[]`
   field alongside the existing `issues[]`/`next_steps[]` payload, mapping each

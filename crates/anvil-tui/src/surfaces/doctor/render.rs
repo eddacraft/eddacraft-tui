@@ -147,22 +147,40 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
     }
 }
 
+/// Maximum lines we will allocate to the detail panel before yielding
+/// space back to the check list. 10 is enough for the worst-case
+/// remediation (1 details + `summary` + `command` + `doc_url` + fix
+/// hint = 5 content lines + 2 borders + 3 headroom for chrome).
+const MAX_DETAIL_PANEL_HEIGHT: u16 = 10;
+
+/// Lines reserved above the detail panel so the check list never
+/// collapses: 3 for the summary header + 4 minimum list height.
+const DETAIL_PANEL_RESERVED_ROWS: u16 = 7;
+
+/// Minimum height we will allocate to the detail panel (matches the
+/// pre-LAUNCH-005 hard-coded value so existing snapshots stay valid).
+const MIN_DETAIL_PANEL_HEIGHT: u16 = 4;
+
 /// Height needed for the detail panel: 1 line for `details`, optional
 /// lines for `summary` / `command` / `doc_url` / fix hint, plus the
 /// 2-line border. Bounded by the available area so the check list
-/// always keeps at least 4 rows even on small terminals.
+/// always keeps at least `DETAIL_PANEL_RESERVED_ROWS` rows even on
+/// small terminals.
 ///
-/// Note: this counts *logical* lines per field, not wrapped visual
-/// lines. A long `summary` will wrap at 80 columns and the surplus
-/// rows are silently truncated by ratatui's Paragraph widget — there
-/// is no scroll. Per-check remediations in `commands/doctor.rs` aim
-/// to fit one visual line at ~80 columns, but a few (notably the
-/// `config-valid` parse-error path) exceed that. Authors should treat
-/// any summary over ~78 characters as "may overflow at narrow widths"
-/// and accept that the fix hint may be the line that gets clipped.
+/// Note: ratatui's `Paragraph` is constructed without `.wrap(...)` in
+/// this surface, so each rendered line is **truncated horizontally**
+/// at the panel's right edge — there is no vertical line wrapping and
+/// no scroll. A `summary` longer than `area.width - 2` (the panel's
+/// inner width) will be cut off, but it will not push subsequent
+/// lines (command, doc_url, fix hint) off-screen. Per-check
+/// remediations in `commands/doctor.rs` aim to fit one visual line at
+/// typical widths (~78 chars at 80 columns); the `config-valid`
+/// parse-error path is the known exception and accepts horizontal
+/// truncation on narrow terminals.
+#[allow(clippy::doc_markdown)] // "command, doc_url, fix hint" reads as prose, not symbols.
 fn detail_panel_height(state: &DoctorState, area: Rect) -> u16 {
     let Some(check) = state.checks.get(state.selected) else {
-        return 4;
+        return MIN_DETAIL_PANEL_HEIGHT;
     };
     let mut content_lines: u16 = 1; // details line is always rendered
     let r = &check.remediation;
@@ -178,10 +196,14 @@ fn detail_panel_height(state: &DoctorState, area: Rect) -> u16 {
     if check.auto_fixable {
         content_lines += 1;
     }
-    // 2 border lines + content. Cap so the list above keeps at least
-    // 4 rows: 3 (header) + 4 (list min) = 7 reserved.
-    let area_cap = area.height.saturating_sub(7).max(4);
-    (content_lines + 2).clamp(4, area_cap.min(10))
+    let area_cap = area
+        .height
+        .saturating_sub(DETAIL_PANEL_RESERVED_ROWS)
+        .max(MIN_DETAIL_PANEL_HEIGHT);
+    (content_lines + 2).clamp(
+        MIN_DETAIL_PANEL_HEIGHT,
+        area_cap.min(MAX_DETAIL_PANEL_HEIGHT),
+    )
 }
 
 #[cfg(test)]

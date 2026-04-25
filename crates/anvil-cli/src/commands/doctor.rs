@@ -671,10 +671,12 @@ struct JsonCheck {
     remediation: JsonRemediation,
 }
 
-/// Always-present remediation block in the JSON schema. Empty fields are
-/// emitted as null / empty so consumers can rely on the shape; per
-/// LAUNCH-005 every check carries a remediation object, with `summary`
-/// non-empty for any non-Pass / non-Skipped check.
+/// Always-present remediation block in the JSON schema. Per
+/// LAUNCH-005 every check carries a remediation object. `summary` is
+/// always emitted (empty string for Pass / Skipped checks; non-empty
+/// for any Fail / Warn check). `command` and `doc_url` are *omitted
+/// from the JSON entirely* when `None` — consumers should treat a
+/// missing key as "no concrete command / no doc link", not as null.
 #[derive(Serialize)]
 struct JsonRemediation {
     summary: String,
