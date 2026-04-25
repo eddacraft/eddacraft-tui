@@ -8,70 +8,154 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-## [0.4.0-beta] — First-Touch Polish
+## [0.4.0-beta] — First-Touch Polish & Notification Framework
 
 ### Changed (breaking)
 
-- **`anvil watch --exclude` is now a glob filter, not a directory-name list.**
-  Previous `--exclude vendor` matched only a path equal to "vendor"; to exclude
-  its contents pass `--exclude 'vendor/**'`. The CLI prints a warning when a
+- **`anvil watch --exclude` takes globs, not directory names** — previous
+  `--exclude vendor` matched only a path literally named "vendor"; to exclude
+  its contents pass `--exclude 'vendor/**'`. The CLI now prints a warning when a
   likely-bare-name pattern is detected so existing scripts surface the needed
-  change rather than silently watching paths they used to skip (`LAUNCH-001`).
-- **`anvil doctor --json` output shape** — the root changed from a bare JSON
-  array of check objects to `{ "checks": [...], "notifications": [...] }`.
-  Consumers that iterated the array must switch to `data.checks`. The new
-  `notifications[]` field aligns doctor with the notification taxonomy used by
-  `check`, `gate`, and `audit` (`NOTIFY-006`).
-- **`anvil doctor --json` schema v2.0.0** — every check now carries a structured
-  `remediation` object (`{ summary, command?, doc_url? }`) and the root payload
-  includes `schema_version: "2.0.0"`. Consumers that schema- validated the prior
-  shape must accept the new field on every check (Pass / Skipped checks emit
-  `remediation: { summary: "" }`; Fail / Warn checks always populate `summary`
-  and at least one of `command` / `doc_url`). Branch on `schema_version` to gate
-  compatibility (`LAUNCH-005`).
+  change rather than silently watching paths they used to skip (`LAUNCH-001`)
+- **`anvil doctor --json` envelope** — the root changed from a bare array of
+  checks to
+  `{ "checks": [...], "notifications": [...], "schema_version": "2.0.0" }`;
+  every check now carries a structured `remediation` object
+  (`{ summary, command?, doc_url? }`). Consumers that iterated the old array
+  must switch to `data.checks` and accept the `remediation` field on every check
+  (`NOTIFY-006`, `LAUNCH-005`)
+- **`anvil check`, `anvil gate`, `anvil audit` JSON outputs gain a
+  `notifications[]` field** alongside their existing payloads, mapping each
+  finding to a canonical notification envelope with taxonomy-aligned class and
+  priority metadata (`NOTIFY-006..009`)
 
 ### Added
 
-- **`anvil watch --patterns` and `--exclude`** — user-supplied glob filter on
-  the watch loop. The flags were previously declared but never consumed,
-  silently restricting watch to a hardcoded scope. `--patterns '**/*.rs'`,
+- **`anvil watch --patterns` / `--exclude`** — user-supplied glob filter on the
+  watch loop. The flags were previously declared but never consumed, silently
+  restricting watch to a hardcoded scope; `--patterns '**/*.rs'`,
   `--patterns 'src/**/*.py'`, and similar non-JS scopes now work end-to-end
-  (`LAUNCH-001`).
+  (`LAUNCH-001`)
+- **`anvil watch` startup banner** — prints the active include and exclude scope
+  at startup in plain mode so the configured filter is visible at a glance
 - **Post-init first scan** — `anvil init` now runs an inline sample analysis on
-  completion and surfaces real findings (top warnings, counts, file:line
-  pointers) rather than ending on "now run `anvil doctor`". Empty repos receive
-  a discoverable next-step hint instead of silence (`LAUNCH-004`).
-- **`anvil doctor` remediation** — every doctor check now emits a concrete next
-  action (a runnable command, a doc link, or an auto-fix prompt) instead of
-  free-text deflection. Plain mode prints
+  completion and surfaces real findings (top warnings, counts, `file:line`
+  pointers) instead of ending on "now run `anvil doctor`". Empty repos receive a
+  discoverable next-step hint pointing at `anvil tutorial` / `anvil watch`
+  rather than silence (`LAUNCH-004`)
+- **Doctor structured remediation** — every `anvil doctor` check now emits a
+  concrete next action (a runnable command, a doc link, or an auto-fix prompt)
+  rather than free-text deflection. Plain mode prints
   `→ summary / run: cmd / docs: url / fix: anvil doctor --fix` per non-passing
   check; the TUI detail panel renders the same lines when expanded
-  (`LAUNCH-005`).
-- **`anvil watch` startup banner** — prints the active include / exclude scope
-  so the configured filter is visible at a glance in plain mode.
-- **`anvil audit --json` notifications** — audit gained a `notifications[]`
-  field alongside the existing `issues[]`/`next_steps[]` payload, mapping each
-  finding to a canonical notification envelope with taxonomy-aligned class and
-  priority metadata (`NOTIFY-006`). Per-issue notifications are capped to keep
-  output bounded on large repos; overflow is reported via a single truncation
-  notification.
-- **Shared TUI notification model** — `NotificationSource` trait in `anvil-tui`
-  lets `watch`, `tutorial`, and `onboarding/hooks` expose their current notices
-  through the canonical `Notification` envelope so future telemetry subscribers
-  see one shape across surfaces (`NOTIFY-007`).
+  (`LAUNCH-005`)
+- **`anvil licenses` subcommand** — prints the bundled `ACKNOWLEDGEMENTS.md`
+  with full third-party attribution generated by `cargo-about` (`RUSTNX-009`)
+- **`anvil check --artifact`** — non-source scanning mode that treats input
+  paths as opaque artefacts (build outputs, generated files) rather than
+  pattern-restricted source (`RSCAN-006`)
+- **Native Rust scanner is the authoritative engine** — registry-backed pattern
+  catalogue, family provenance on every warning, parallel scan, cross-engine
+  fixture suite, every shipped rule has a fixture (`RSCAN-001..008`,
+  `ANVFMT-014..016`, `SPG-001..006`)
+- **Tutorial polish** — discovery surfaces scan truncation reasons, the
+  watcher-failure cause now appears in the static-mode notice, and a post-init
+  landing screen sits between init and the tutorial
+- **Inotify headroom warning at init** — tight inotify limits surface as a
+  one-line hint (`to fix run: …`) rather than failing later in `anvil watch`
+- **Welcome and init share default checks** — the onboarding flow no longer
+  diverges from `anvil init` on which checks land in a fresh `.anvilrc`
+- **Welcome hub menu navigation** — arrow keys navigate panel rows; list panels
+  scroll; unfocused panels freeze scroll
+- **Scoop + WinGet distribution** — Scoop bucket published, WinGet icon shipped,
+  install instructions in README cover all package managers (`DIST-011`)
+- **Per-operator admin keys** — `anvil admin` commands authenticate with
+  per-operator keys provisioned via Pulumi (peppered-hash lookup, snapshot-
+  token send-migration flow), replacing the single shared admin key
+  (`ADMINCLIH-001..004`)
+- **Anvil-API entitlement flags** — `ALLOWED_SCOPES` migrated to `api.scope.*`
+  flags so scope grants flow through the shared resolver (`FLAGM-005`)
 
 ### Fixed
 
-- **`anvil doctor --fix` for `config-exists`** now writes a valid default
-  `.anvilrc` (yaml schema, three default checks) instead of a bare `{}` stub
-  that the next `check_config_valid` immediately rejected.
-- **`anvil doctor --fix` for `git-repo`** refuses to auto-run `git init` in
-  directories that have no project markers (`.anvilrc`, `package.json`,
-  `Cargo.toml`, `pyproject.toml`, `go.mod`, …), surfacing guidance rather than
-  silently creating a `.git/` directory in `$HOME`.
-- **Post-init analysis subprocess timeout** — the git-history sample step now
-  bounds its git subprocess at 3 s so `anvil init` no longer hangs on NFS,
-  network filesystems, or stalled remotes.
+- **`anvil watch` survives partial setup** — watcher continues when an
+  individual file change handler panics (panic isolation per change), and
+  partial setup failures no longer abort the whole loop
+- **`anvil watch` SIGINT** — Ctrl-C now forwards into the watch TUI loop and
+  exits cleanly instead of hanging on inner loop state
+- **`anvil watch` error chains redact `cwd`** — error messages no longer leak
+  the full working directory path (closes #1017)
+- **`anvil doctor --fix` for `config-exists`** — now writes a valid default
+  `.anvilrc` (YAML, three default checks) rather than a bare `{}` stub that the
+  next `check_config_valid` immediately rejected, ending the fix→fail loop
+- **`anvil doctor --fix` for `git-repo`** — refuses to auto-run `git init` in
+  directories with no project markers (`.anvilrc`, `package.json`, `Cargo.toml`,
+  `pyproject.toml`, `go.mod`, …) so running doctor in `$HOME` cannot silently
+  create a `.git/`
+- **`anvil init` git subprocess timeout** — the post-init git-history sample
+  step bounds its git call at 3 seconds and kills the child on timeout, so init
+  no longer hangs on NFS, network filesystems, or stalled remotes
+- **`.anvilrc` gate-check filtering** — config-driven check selection now uses
+  the same canonical names the gate runner does (closes #1016, #1041)
+- **`ANVIL_NO_PROMPT` / `NONINTERACTIVE` empty-string** — empty values now count
+  as opt-out rather than triggering interactive prompts
+- **Auth-route test coverage** — `/session/refresh` rotation, auth-device flow,
+  auth-otp flow, auth-github callback, waitlist/send-migration paths now have
+  route-level tests (closes #777, #665, #672, #787, #558, #723)
+- **Admin CLI** — empty-body responses now fail when a schema is expected,
+  ISO-8601 offsets enforced on timestamps, EOF on prompts handled, JSON previews
+  stay parseable, stdout stays pure JSON in `--json` mode
+- **Tutorial verify-step** — `husky` flag handling and tutorial exit codes
+  corrected; legacy progress labels preserved across the language-model refresh
+- **TUI** — ASCII fallback, title-bar fit on narrow terminals, TOCTOU race on
+  `.anvilrc` detection, scroll behaviour on long discovery lists
+
+### Improved
+
+- **Onboarding language model** — tutorial copy aligned across surfaces;
+  scan-truncation and watcher-failure causes surfaced where the user can act on
+  them
+- **Public docs refresh** — release docs and historical release pages rewritten;
+  quality model documented; pattern reference for `.anvil` format brought up to
+  date (`ANVFMT-016`); install section in README covers every package manager
+- **`scripts/release.sh` preflight** — runs Rust + TypeScript fmt, lint,
+  typecheck, and tests as one bundled gate; supports
+  `ANVIL_RELEASE_STEP_TIMEOUT` for repos where the parallel nx test run needs
+  more than 600 s
+
+### Developer
+
+- **Workspace hardening** — `cargo-hakari` workspace-hack on every member crate,
+  `cargo-deny` policy for licences/advisories/bans, third-party notices via
+  `cargo-about`, `cargo-nextest` in CI, `rust-cache` and parallelised clippy +
+  test jobs (`RUSTNX-001..009`)
+- **Feature-flag plumbing migration** — `cli.licence-gate` drives
+  `requires_auth` and the `ANVIL_DEV=1` bypass; admin invite path routes through
+  the shared resolver; dual-evaluation shims retired (`FLAGM-001..006`)
+- **napi-rs prebuild bridge** — full prebuild matrix (darwin x86/arm, linux
+  x86/arm, windows x86/arm) for the legacy TS engine (`TSRET-001`, `TSRET-002`);
+  ADR-030 supersedes the rest of TSRET with surface drivers
+- **Agent-driven release management** — `RELMGMT` phase 3 ships; the `/release`
+  Claude skill drives version pick → branch strategy → tag → workflow →
+  verification → comms → cleanup against live state each turn
+- **In-house nx-rust plugin** — vendored at `tools/nx-rust/`; `cargo metadata`
+  inference replaces per-crate `project.json`; ADR-026 records the reasoning
+  (`NXRUST-001..008`)
+- **Notification framework** — `Notification` envelope, taxonomy and priorities
+  defined in `docs/anvil/quality/notifications`; `watch`, `check`, `gate`,
+  `audit`, and the doctor TUI all emit one shape (`NOTIFY-001..009`)
+- **OPA policy hardening** — pinned cargo-llvm-cov, real-binary OPA integration
+  tests, hermetic OPA via PATH-isolated tests, `rego.v1` import for OPA 0.60
+  compatibility (`TCOV-009..013`, `TFIX`)
+- **APS hygiene** — 9+ completed modules archived (POLISH, RCLI, MAINT,
+  ADMINCLI, ADMINCLIH, anvil-scanner-parity-gaps, NXRUST, DBCON, DIST, TUTOR),
+  counts reconciled across the index
+- **ADRs** — ADR-024 amended for weave-rs standalone strategy, ADR-025
+  package-manager distribution, ADR-026 in-house nx-rust plugin, ADR-030 surface
+  drivers supersede napi cutover (X5 sequencing closed)
+- **TypeScript** — bumped to `~6.0.3` across all workspaces
+- **Husky pre-commit oxfmt enforcement** — markdown / TOML formatting now
+  enforced at commit time
 
 ## [0.3.3-beta] — WinGet Distribution & Windows UX
 

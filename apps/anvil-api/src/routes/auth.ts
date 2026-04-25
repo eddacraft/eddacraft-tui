@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getClient } from '../db/client.js';
-import { findTokenByHash } from '../db/queries.js';
+import { findTokenByHash, findActiveScopesForUser } from '../db/queries.js';
 import { hashToken, isValidTokenFormat } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
 import { signLicence } from '../lib/licence.js';
@@ -57,16 +57,26 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   }
 
   debug('token verified successfully');
+  // Read live scopes via findActiveScopesForUser so the licence claim
+  // matches what /session/refresh, /auth/device, /auth/github, and
+  // /auth/otp issue. Using the single record.scopes was a stale-read
+  // path: a user invited with `['preview', 'beta']` who later got an
+  // additional `['beta']` token would have only one row's scopes
+  // returned here, while the union endpoints return both.
+  // identity.provider is 'email' to match the other token-issuance
+  // surfaces — a token-verify request has no provider context (it is
+  // not an OAuth callback), and 'github' was a copy-paste artefact.
+  const scopes = await findActiveScopesForUser(sql, record.user_id);
   let licence: string;
   try {
     licence = await signLicence(
       {
         sub: record.user_id,
         email: record.email,
-        identity: { provider: 'github', id: null },
+        identity: { provider: 'email', id: null },
         org: null,
         tier: 'pro',
-        scopes: record.scopes,
+        scopes,
         seats: 1,
       },
       record.expires_at
@@ -79,7 +89,7 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   return c.json({
     valid: true,
     user: { email: record.email },
-    scopes: record.scopes,
+    scopes,
     expiresAt: record.expires_at,
     license: licence,
   });
@@ -105,16 +115,18 @@ auth.post('/license/refresh', zValidator('json', verifySchema), async (c) => {
     return c.json({ valid: false, reason: 'expired' });
   }
 
+  // Same scope-union + identity-provider fix as /auth/verify above.
+  const scopes = await findActiveScopesForUser(sql, record.user_id);
   let licence: string;
   try {
     licence = await signLicence(
       {
         sub: record.user_id,
         email: record.email,
-        identity: { provider: 'github', id: null },
+        identity: { provider: 'email', id: null },
         org: null,
         tier: 'pro',
-        scopes: record.scopes,
+        scopes,
         seats: 1,
       },
       record.expires_at

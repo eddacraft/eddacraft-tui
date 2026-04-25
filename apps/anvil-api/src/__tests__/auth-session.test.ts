@@ -13,6 +13,7 @@ vi.mock('../db/queries.js', () => ({
   revokeRefreshTokenFamily: vi.fn(),
   insertRefreshToken: vi.fn(),
   findUserById: vi.fn(),
+  findActiveScopesForUser: vi.fn(),
 }));
 
 vi.mock('../lib/token.js', async (importOriginal) => {
@@ -29,6 +30,7 @@ import {
   findUserById,
   insertRefreshToken,
   revokeRefreshTokenFamily,
+  findActiveScopesForUser,
   type RefreshToken,
 } from '../db/queries.js';
 
@@ -53,6 +55,10 @@ beforeEach(() => {
   vi.mocked(consumeRefreshToken).mockResolvedValue(true);
   vi.mocked(revokeRefreshTokenFamily).mockResolvedValue(0);
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
+  // Default to the conservative `['beta']` fallback so existing tests
+  // don't have to know about the new scope-lookup call. Tests that care
+  // about graded scopes set this explicitly.
+  vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
 });
 
 afterEach(() => {
@@ -140,6 +146,27 @@ describe('POST /auth/session/refresh', () => {
       expect.anything(),
       'hash:some-random-token'
     );
+  });
+
+  it("carries the user's current scopes into the refreshed licence", async () => {
+    // Regression: previously `scopes` was hardcoded to `['beta']` in the
+    // refresh path, which silently downgraded any user invited with a
+    // graded scope (e.g. `preview` via FLAGM-005 `admin invite`) on their
+    // first token rotation.
+    vi.mocked(findRefreshTokenByHash).mockResolvedValue(makeToken());
+    vi.mocked(findUserById).mockResolvedValue(activeUser());
+    vi.mocked(findActiveScopesForUser).mockResolvedValue(['preview', 'beta']);
+
+    const res = await post({ refreshToken: 'raw-token' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // The signed licence is opaque without verification, but `decodeJwt`
+    // exposes the claims directly — and the scopes claim is the contract
+    // the kernel client relies on for entitlement gating.
+    const { decodeJwt } = await import('jose');
+    const claims = decodeJwt(body.license) as { scopes?: string[] };
+    expect(claims.scopes).toEqual(['preview', 'beta']);
+    expect(vi.mocked(findActiveScopesForUser)).toHaveBeenCalledWith(expect.anything(), 'user-1');
   });
 
   it('returns 401 when the refresh token is unknown', async () => {

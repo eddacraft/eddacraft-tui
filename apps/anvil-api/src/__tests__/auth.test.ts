@@ -11,6 +11,7 @@ vi.mock('../db/client.js', () => ({
 // Mock queries
 vi.mock('../db/queries.js', () => ({
   findTokenByHash: vi.fn(),
+  findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
 }));
 
 // Mock token utilities (keep real implementations for format validation)

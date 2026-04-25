@@ -104,7 +104,26 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
         maxBuffer: 10 * 1024 * 1024,
       },
       (error, stdout, stderr) => {
-        const exitCode = error && 'code' in error ? ((error.code as number) ?? 1) : 0;
+        // `execFile` errors carry `code` as a numeric process exit code on
+        // a normal non-zero exit, but as a string sentinel (e.g. `'ENOENT'`,
+        // `'ETIMEDOUT'`) when the OS rejects the spawn or the process is
+        // killed before it could exit. Casting a string to `number` yields
+        // `NaN`, which then leaks into `CliResult.exitCode` and breaks
+        // assertions. Branch on the runtime type instead so:
+        //   - numeric `code` → use it
+        //   - string `code`  → 127 for ENOENT-class spawn failures, 1 otherwise
+        //   - no `code`      → 0 (the success path)
+        let exitCode = 0;
+        if (error && 'code' in error) {
+          const code = (error as { code?: unknown }).code;
+          if (typeof code === 'number') {
+            exitCode = code;
+          } else if (typeof code === 'string') {
+            exitCode = code === 'ENOENT' ? 127 : 1;
+          } else {
+            exitCode = 1;
+          }
+        }
         resolve({
           exitCode,
           stdout: stdout?.toString() ?? '',

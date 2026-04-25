@@ -18,6 +18,7 @@ import {
   insertSendMigrationSnapshot,
   consumeSendMigrationSnapshot,
   findSendMigrationSnapshot,
+  findActiveScopesForUser,
   type AuthMethod,
   type SnapshotRecipient,
 } from '../db/queries.js';
@@ -284,6 +285,23 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       throw new Error(`not_found:${normalizedEmail}`);
     }
 
+    // Preserve any graded scopes the user already has from a prior
+    // /admin/invite. Without this, approve always wrote the
+    // DEFAULT_APPROVAL_SCOPES (`['beta']`) row and — when scope reads were
+    // "most-recent-row" semantics — that newer row would silently shadow a
+    // preview/internal grant. The /session/refresh fix in eae47b3d closed
+    // the read side; this closes the write side. The query is best-effort:
+    // if the user has no existing user row yet, we use the default scopes.
+    const existingUser = await findUserByEmail(sql, normalizedEmail);
+    const grantedScopes: string[] = existingUser
+      ? Array.from(
+          new Set([
+            ...(await findActiveScopesForUser(sql, existingUser.id)),
+            ...DEFAULT_APPROVAL_SCOPES,
+          ])
+        )
+      : [...DEFAULT_APPROVAL_SCOPES];
+
     // Generate access token (90-day expiry)
     const rawToken = generateToken();
     const hash = hashToken(rawToken);
@@ -304,7 +322,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
         sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
             VALUES (
               (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-              ${hash}, ${[...DEFAULT_APPROVAL_SCOPES]}, ${tokenExpiry.toISOString()}
+              ${hash}, ${grantedScopes}, ${tokenExpiry.toISOString()}
             )
             RETURNING *`,
         sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)

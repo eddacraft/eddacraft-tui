@@ -8,6 +8,7 @@ import {
   insertPendingUser,
   insertAuditLog,
   insertRefreshToken,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 import { signLicence } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
@@ -200,6 +201,12 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
     return c.json({ error: 'Account pending approval' }, 403);
   }
 
+  // Read scopes from the user's most recent active access_tokens row so a
+  // user invited with a graded scope (e.g. `preview`) keeps it through the
+  // GitHub OAuth flow. Defaults to `['beta']` for users with no prior
+  // access_tokens row (typical first-time GitHub sign-up path).
+  const scopes = await findActiveScopesForUser(sql, user.id);
+
   // Sign a 7-day JWT
   const claims: LicenceClaims = {
     sub: user.id,
@@ -207,7 +214,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
     identity: { provider: 'github', id: String(ghUser.id) },
     org: null,
     tier: 'pro',
-    scopes: ['beta'],
+    scopes,
     seats: 1,
   };
 

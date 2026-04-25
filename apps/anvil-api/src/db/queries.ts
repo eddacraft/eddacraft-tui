@@ -140,6 +140,52 @@ export async function findTokenByHash(
   return TokenWithUserSchema.parse(r[0]);
 }
 
+/**
+ * Look up the scopes a user is currently entitled to, returning the UNION of
+ * all `scopes` arrays across every non-revoked, non-expired `access_tokens`
+ * row for the user.
+ *
+ * Returning the union — not the most-recent row's scopes — is required for
+ * correctness. A user invited with `['preview', 'beta']` via `/admin/invite`
+ * who later receives any narrower-scoped token row (e.g. the legacy
+ * `/admin/approve` defaulting to `['beta']`, a re-invite, a CI service token)
+ * would otherwise have the broader scope silently shadowed by the
+ * later-inserted narrower one — re-introducing the same FLAGM-005 downgrade
+ * the route-level fix in eae47b3d intended to close.
+ *
+ * The JWT licence carries `scopes` claims, but those claims are issued at
+ * sign time — `/session/refresh` and the device/github/otp first-issuance
+ * paths read from this function so scope changes flow into the next licence.
+ *
+ * Returns `['beta']` as a conservative default when no active access_tokens
+ * row exists — that path covers self-signup users who have not yet been
+ * issued a graded scope.
+ */
+export async function findActiveScopesForUser(sql: NeonClient, userId: string): Promise<string[]> {
+  const r = rows(
+    await sql`
+    SELECT COALESCE(
+      ARRAY(
+        SELECT DISTINCT scope
+        FROM access_tokens, unnest(scopes) AS scope
+        WHERE user_id = ${userId}
+          AND revoked_at IS NULL
+          AND expires_at > now()
+      ),
+      ARRAY[]::text[]
+    ) AS scopes
+  `
+  );
+  if (!r[0]) {
+    return ['beta'];
+  }
+  const ScopeSchema = z.object({
+    scopes: z.array(z.string()).default(['beta']),
+  });
+  const parsed = ScopeSchema.parse(r[0]);
+  return parsed.scopes.length > 0 ? parsed.scopes : ['beta'];
+}
+
 export async function revokeTokensByEmail(sql: NeonClient, email: string): Promise<number> {
   const r = rows(
     await sql`

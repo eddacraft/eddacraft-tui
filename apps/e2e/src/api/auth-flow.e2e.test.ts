@@ -20,6 +20,10 @@ vi.mock('../../../anvil-api/src/db/client.js', () => ({
 
 vi.mock('../../../anvil-api/src/db/queries.js', () => ({
   findTokenByHash: vi.fn(),
+  // /auth/verify and /auth/license/refresh now read live scopes via
+  // findActiveScopesForUser (commit 907af5f2). Default to ['beta'] so
+  // existing happy-path tests don't have to know about the lookup.
+  findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
 }));
 
 vi.mock('../../../anvil-api/src/lib/token.js', async (importOriginal) => {

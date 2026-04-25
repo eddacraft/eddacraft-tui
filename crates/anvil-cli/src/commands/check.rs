@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::io::Read;
 use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
@@ -22,6 +23,13 @@ use crate::output::{self, OutputMode};
 /// JSON output schema version — shared across all output paths.
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 
+/// Hard cap on a single artifact's size for `anvil check --artifact`. PR
+/// descriptions and commit messages are kilobytes; agent outputs can grow
+/// but a multi-megabyte input is almost always an operator mistake (a
+/// build artefact piped by accident). Stops the artifact path from
+/// OOM-ing on `std::fs::read_to_string`.
+const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
+
 /// Default directories to ignore during file scanning.
 const IGNORE_DIRS: &[&str] = &[
     "node_modules",
@@ -35,8 +43,6 @@ const IGNORE_DIRS: &[&str] = &[
     ".nx",
     "coverage",
     "__pycache__",
-    ".turbo",
-    ".nx",
 ];
 
 // TODO(RCLI2): The following Node.js CLI flags are intentionally deferred:
@@ -280,6 +286,7 @@ fn parse_artifact_kind(input: &str) -> Result<ArtifactKind> {
     })
 }
 
+#[allow(clippy::too_many_lines)] // Each phase (validate, load, scan, render) is sequenced linearly.
 fn run_non_source_artifact(
     args: &CheckArgs,
     global: &GlobalArgs,
@@ -307,21 +314,59 @@ fn run_non_source_artifact(
     // Load each path as artifact content. `reference` is the path as given
     // so operators can trace warnings back to their input (mirrors the TS
     // scanner's behaviour for non-source artifacts).
+    //
+    // `MAX_ARTIFACT_BYTES` (module scope) is the hard cap on a single
+    // artifact's size. We enforce it via a bounded `take(MAX + 1)` reader,
+    // not via `std::fs::metadata().len()` followed by a separate read:
+    //   * `metadata` follows symlinks and reports `0` for FIFOs / named
+    //     pipes / sockets. A `read_to_string` on those then either blocks
+    //     indefinitely or streams unbounded into memory — exactly the OOM
+    //     failure mode the cap is supposed to prevent.
+    //   * Even on a regular file, the file may be replaced between the
+    //     stat and the read on a multi-tenant CI runner (TOCTOU).
+    // We additionally refuse anything that isn't a regular file so a
+    // symlinked /dev/zero or named pipe bails with a clear error rather
+    // than racing through.
     let mut artifacts = Vec::with_capacity(args.files.len());
     for path_str in &args.files {
         let path = Path::new(path_str);
         if !path.exists() {
             bail!("File not found: {path_str}");
         }
-        if path.is_dir() {
+        let metadata = std::fs::symlink_metadata(path)
+            .map_err(|e| anyhow::anyhow!("Failed to stat {path_str}: {e}"))?;
+        if metadata.file_type().is_symlink() {
+            bail!(
+                "{path_str} is a symlink; --artifact requires a regular file (resolve the symlink and pass the target directly)"
+            );
+        }
+        if metadata.is_dir() {
             bail!("Expected a file, got a directory: {path_str}");
         }
-        let content = std::fs::read_to_string(path)
+        if !metadata.is_file() {
+            bail!(
+                "{path_str} is not a regular file (FIFO, socket, or special file); --artifact requires a regular file"
+            );
+        }
+        let mut file = std::fs::File::open(path)
+            .map_err(|e| anyhow::anyhow!("Failed to open {path_str}: {e}"))?;
+        // Read at most MAX + 1 bytes. If we drained MAX + 1, the input is
+        // over the cap; reject without OOM-ing on a 500 MB input.
+        let mut buf = String::with_capacity(8 * 1024);
+        file.by_ref()
+            .take(MAX_ARTIFACT_BYTES + 1)
+            .read_to_string(&mut buf)
             .map_err(|e| anyhow::anyhow!("Failed to read {path_str}: {e}"))?;
+        if buf.len() as u64 > MAX_ARTIFACT_BYTES {
+            bail!(
+                "{path_str} exceeds the {} MB --artifact size cap; trim the artifact or split it before scanning.",
+                MAX_ARTIFACT_BYTES / (1024 * 1024)
+            );
+        }
         artifacts.push(Artifact {
             kind,
             reference: path_str.clone(),
-            content,
+            content: buf,
         });
     }
 

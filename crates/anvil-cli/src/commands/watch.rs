@@ -172,9 +172,12 @@ fn build_filter(user_supplied_patterns: bool) -> anvil_kernel::watcher::filter::
 fn warn_on_bare_exclude_patterns(patterns: &[String], json_mode: bool) {
     for pattern in patterns {
         if is_likely_bare_directory_name(pattern) {
+            // ASCII-only so it renders cleanly on Windows terminals that
+            // are not configured for full Unicode (cmd.exe with a legacy
+            // code page, log capture pipelines, dumb TERM environments).
             let line = format!(
-                "\u{26a0} `--exclude {pattern}` matches only a path named exactly \"{pattern}\"; \
-                 to exclude its contents use `--exclude {pattern}/**`."
+                "[warn] --exclude {pattern} matches only a path named exactly \"{pattern}\"; \
+                 to exclude its contents use --exclude {pattern}/**"
             );
             if json_mode {
                 eprintln!("{line}");
@@ -207,13 +210,17 @@ fn print_active_scope(include: &[String], exclude: &[String], global: &GlobalArg
     if in_tui {
         return;
     }
+    // ASCII-only so it renders cleanly on Windows terminals without full
+    // Unicode support; the watch banner is the first thing a piped or
+    // recorded session captures and emoji mojibake at that exact moment
+    // is the kind of papercut a hype-builder demo can't afford.
     if include.is_empty() {
-        println!("\u{1f441} watching: everything (denylist still applies)");
+        println!("[watching] everything (denylist still applies)");
     } else {
-        println!("\u{1f441} watching: {}", include.join(", "));
+        println!("[watching] {}", include.join(", "));
     }
     if !exclude.is_empty() {
-        println!("\u{1f6ab} excluding: {}", exclude.join(", "));
+        println!("[excluding] {}", exclude.join(", "));
     }
 }
 
@@ -254,10 +261,14 @@ fn build_action_command(
 /// Run the specified action when a file change is detected.
 /// Uses inherited stdio for real-time output streaming (C-007).
 fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, no_tui: bool) {
+    // ASCII-only labels match the rest of the watch surface (the banner,
+    // the bare-exclude warning, and per-event print_event_plain) so a
+    // legacy-codepage Windows terminal or a CI log capture doesn't mojibake
+    // on the --action error path.
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("\u{2717} Cannot resolve current executable: {e}");
+            eprintln!("[error] Cannot resolve current executable: {e}");
             return;
         }
     };
@@ -267,13 +278,13 @@ fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, n
         Ok(status) => {
             if !status.success() {
                 eprintln!(
-                    "\u{26a0} Action '{action}' exited with code {}",
+                    "[warn] Action '{action}' exited with code {}",
                     status.code().unwrap_or(-1)
                 );
             }
         }
         Err(e) => {
-            eprintln!("\u{2717} Failed to run action '{action}': {e}");
+            eprintln!("[error] Failed to run action '{action}': {e}");
         }
     }
 }
@@ -470,11 +481,15 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
     use anvil_kernel_types::{EventPayload, EventType};
 
+    // ASCII-only labels so per-event watch output renders cleanly on
+    // Windows terminals and CI log captures that lack full Unicode. The
+    // banner and bare-exclude warning were previously fixed; this is the
+    // hot path during a demo and was missed in that round.
     let prefix = match event.event_type {
-        EventType::Progress => "\u{25b6}",
-        EventType::Snapshot => "\u{1f4f8}",
-        EventType::Violation => "\u{26a0}",
-        EventType::Error => "\u{2717}",
+        EventType::Progress => "[progress]",
+        EventType::Snapshot => "[snapshot]",
+        EventType::Violation => "[violation]",
+        EventType::Error => "[error]",
     };
 
     match &event.payload {

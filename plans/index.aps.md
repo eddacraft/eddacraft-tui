@@ -104,6 +104,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
 | [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md) | RUSTNX | Complete | 9/9 |
+| [v041-release-followups](./modules/v041-release-followups.aps.md) | V041F | Ready | 0/14 (14 hardening items: 10 from the council rounds, 1 from the copilot PR review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner; non-blocking for the H1 tag, slot into v0.4.1) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 

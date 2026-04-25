@@ -518,7 +518,8 @@ jobs:
 
           VERSION="${RELEASE_TAG#v}"
           REPO="eddacraft/anvil"
-          ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+          X64_ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
+          ARM64_ASSET="eddacraft-anvil-aarch64-pc-windows-msvc.zip"
 
           # Validate version looks like semver
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
@@ -526,17 +527,25 @@ jobs:
             exit 1
           fi
 
-          # Fetch the SHA256 checksum published alongside the artifact
+          # Fetch the SHA256 checksum published alongside each architecture's
+          # zip. WinGet supports separate Installers entries per architecture
+          # so we ship both x64 and ARM64 in one manifest.
           X64_SHA256=$(gh release download "$RELEASE_TAG" \
             --repo "$REPO" \
-            --pattern "${ASSET}.sha256" \
+            --pattern "${X64_ASSET}.sha256" \
+            --output - | awk '{print toupper($1)}')
+          ARM64_SHA256=$(gh release download "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --pattern "${ARM64_ASSET}.sha256" \
             --output - | awk '{print toupper($1)}')
 
-          # Validate checksum is a 64-char uppercase hex string
-          if [[ ! "$X64_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
-            echo "::error::SHA256 '${X64_SHA256}' is not a valid 64-char hex digest"
-            exit 1
-          fi
+          # Validate both checksums are 64-char uppercase hex strings
+          for d in "$X64_SHA256" "$ARM64_SHA256"; do
+            if [[ ! "$d" =~ ^[A-F0-9]{64}$ ]]; then
+              echo "::error::SHA256 '${d}' is not a valid 64-char hex digest"
+              exit 1
+            fi
+          done
 
           # Fetch the icon asset and compute its SHA256 (winget Icons entry
           # requires a pinned digest; the icon is uploaded with every release).
@@ -553,12 +562,15 @@ jobs:
             exit 1
           fi
 
-          X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET}"
+          X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${X64_ASSET}"
+          ARM64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ARM64_ASSET}"
 
-          echo "Version:     $VERSION"
-          echo "URL:         $X64_URL"
-          echo "SHA256:      $X64_SHA256"
-          echo "ICON_SHA256: $ICON_SHA256"
+          echo "Version:       $VERSION"
+          echo "X64 URL:       $X64_URL"
+          echo "X64 SHA256:    $X64_SHA256"
+          echo "ARM64 URL:     $ARM64_URL"
+          echo "ARM64 SHA256:  $ARM64_SHA256"
+          echo "ICON_SHA256:   $ICON_SHA256"
 
           # Populate manifest templates
           MANIFEST_DIR="$RUNNER_TEMP/winget-manifest"
@@ -569,6 +581,8 @@ jobs:
               -e "s|\${RELEASE_TAG}|${RELEASE_TAG}|g" \
               -e "s|\${X64_URL}|${X64_URL}|g" \
               -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
+              -e "s|\${ARM64_URL}|${ARM64_URL}|g" \
+              -e "s|\${ARM64_SHA256}|${ARM64_SHA256}|g" \
               -e "s|\${ICON_SHA256}|${ICON_SHA256}|g" \
               "$tmpl" > "$MANIFEST_DIR/$(basename "$tmpl")"
           done
@@ -807,7 +821,18 @@ jobs:
             echo "Public release: https://github.com/EddaCraft/anvil/releases/tag/${RELEASE_TAG}"
             echo "Install site: https://install.eddacraft.ai"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "${WINGET_RESULT}" = "failure" ] || [ "${SCOOP_RESULT}" = "failure" ]; then
-            echo "::error::Downstream publisher failed (winget=${WINGET_RESULT} scoop=${SCOOP_RESULT})"
-            exit 1
-          fi
+          # Hard-fail on anything that did not land cleanly. `success` is
+          # the only result we accept silently; `skipped` is allowed for
+          # prereleases (winget/scoop are gated on production tags).
+          # Cancellation, timeout, and infra failures all need to surface
+          # — previously the condition only caught "failure" and a
+          # cancelled job slid through with a green announce.
+          for result in "${WINGET_RESULT}" "${SCOOP_RESULT}"; do
+            case "${result}" in
+              success|skipped) ;;
+              *)
+                echo "::error::Downstream publisher did not land cleanly (winget=${WINGET_RESULT} scoop=${SCOOP_RESULT})"
+                exit 1
+                ;;
+            esac
+          done

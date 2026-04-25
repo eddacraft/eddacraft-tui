@@ -13,16 +13,42 @@ Guides for upgrading between anvil versions.
 
 ## Upgrading to 0.4.0-beta
 
-Drop-in upgrade from `0.3.3-beta` for most users. Two behavioural changes
+Drop-in upgrade from `0.3.3-beta` for most users. Three behavioural changes
 require attention:
 
 - **`anvil watch --exclude` now takes glob patterns, not bare directory names.**
   A previous `--exclude vendor` no longer excludes files under `vendor/`; use
   `--exclude 'vendor/**'` instead. The CLI prints a warning when a
   likely-bare-name pattern is detected.
-- **`anvil doctor --json` output shape changed** from a bare array to
-  `{ "checks": [...], "notifications": [...] }`. Consumers iterating the array
-  must switch to `data.checks`.
+- **`anvil doctor --json` envelope changed** from a bare array to
+  `{ "checks": [...], "notifications": [...], "schema_version": "2.0.0" }`, and
+  every check now carries a structured `remediation` object
+  (`{ summary, command?, doc_url? }`). Consumers iterating the array must switch
+  to `data.checks`; consumers that schema-validated the prior shape must accept
+  the `remediation` field on every check and the new `schema_version` envelope
+  field. Branch on `schema_version` to gate compatibility — pass / skipped
+  checks emit `remediation: { summary: "" }`, fail / warn checks always populate
+  `summary` and at least one of `command` or `doc_url`.
+- **`anvil check`, `anvil gate`, `anvil audit` JSON outputs now include a
+  `notifications[]` field** alongside their existing payloads. Consumers pinned
+  to the prior shape will see an additional ignorable field; nothing is removed.
+  The notification envelope shape is shared with `anvil doctor`.
+
+### Operator-side: per-operator admin keys
+
+If you're running the `anvil-api` backend and want to enable the new
+per-operator admin key flow shipped in this release (replacing the single shared
+admin key), set:
+
+- `ADMIN_PER_OPERATOR_KEYS=1` — turns on per-operator key resolution
+- `ADMIN_KEY_PEPPER=<random-32-byte-hex>` — pepper for the peppered-hash lookup;
+  must be set before any per-operator keys can authenticate
+
+When `ADMIN_PER_OPERATOR_KEYS=1` is set without a non-empty `ADMIN_KEY_PEPPER`,
+the middleware falls back to the legacy shared-key auth and logs an error
+server-side. CLI requests will not see the misconfiguration directly. Provision
+both via your secret manager (Pulumi handles this for the EddaCraft-managed
+deployment) before rolling operators onto per-operator keys.
 
 ```bash
 # Upgrade via the installer
