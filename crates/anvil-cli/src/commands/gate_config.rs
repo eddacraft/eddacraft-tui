@@ -218,9 +218,9 @@ mod tests {
     // ── Default config ──────────────────────────────────────────
 
     #[test]
-    fn default_config_has_seven_checks() {
+    fn default_config_has_nine_checks() {
         // Eight gate checks pre-AIGUARD-003 plus `command-safety` wired
-        // in by AIGUARD-003 = 9. Name retained for git-blame stability.
+        // in by AIGUARD-003.
         let config = default_config();
         assert_eq!(config.checks.len(), 9);
         assert_eq!(config.version, 1);

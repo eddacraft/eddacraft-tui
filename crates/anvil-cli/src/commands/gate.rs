@@ -1163,13 +1163,32 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     result
 }
 
-/// Detect the canonical "no config found, skipping" signal emitted by
-/// architecture, policy, and command-safety checks. Used by the AI
-/// guardrail's strict-config flag to convert the soft skip into a
-/// blocking diagnostic.
+/// Detect the canonical "no project config found, skipping" signal
+/// emitted by architecture, policy, and command-safety checks. Used by
+/// the AI guardrail's strict-config flag to convert the soft skip into
+/// a blocking diagnostic.
+///
+/// This intentionally distinguishes **missing project config** (which
+/// strict mode should block on) from **missing host tooling** like a
+/// missing OPA binary (which is an environment problem, not a project
+/// posture problem). The two were previously conflated via a substring
+/// match on "Skipping", with the result that any developer or CI runner
+/// without OPA in PATH would get a blocked AI-guardrail run.
 fn is_skipped_for_missing_config(name: &str, message: &str) -> bool {
     match name {
-        "architecture" | "policy" | "command-safety" => message.contains("Skipping"),
+        "architecture" => message.contains("Skipping"),
+        "policy" => {
+            // OPA-not-installed is host tooling, not project config — do
+            // not elevate it to a blocking diagnostic under strict mode.
+            message.contains("Skipping") && !message.contains("OPA not installed")
+        }
+        "command-safety" => {
+            // Two project-config gaps map to a strict-mode block:
+            //   * "Skipping" — the check is disabled via config.
+            //   * "No commands to analyse" — the gate ran without a plan
+            //     file at all, so the command-safety guarantee is empty.
+            message.contains("Skipping") || message.contains("No commands to analyse")
+        }
         _ => false,
     }
 }
@@ -1186,18 +1205,34 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
         types::{ScriptChange, ScriptChangeType, ScriptPlan},
     };
 
-    let plan = plan_path.and_then(|raw| {
-        let path = Path::new(raw);
-        std::fs::read_to_string(path)
-            .ok()
-            .map(|content| ScriptPlan {
-                proposed_changes: vec![ScriptChange {
-                    change_type: ScriptChangeType::ScriptExecute,
-                    description: Some(content),
-                    path: Some(raw.to_string()),
-                }],
-            })
-    });
+    let plan = match plan_path {
+        Some(raw) => {
+            let path = Path::new(raw);
+            match std::fs::read_to_string(path) {
+                Ok(content) => Some(ScriptPlan {
+                    proposed_changes: vec![ScriptChange {
+                        change_type: ScriptChangeType::ScriptExecute,
+                        description: Some(content),
+                        path: Some(raw.to_string()),
+                    }],
+                }),
+                Err(e) => {
+                    // Treat unreadable plans as a check failure rather than
+                    // silently passing as "no commands to analyse" — under
+                    // --profile ai (strict mode) this would otherwise mask
+                    // permission errors and CI-only IO failures behind a
+                    // green gate.
+                    return CheckResult {
+                        name: name.to_string(),
+                        passed: false,
+                        score: 0.0,
+                        message: format!("failed to read plan file '{}': {e}", path.display()),
+                    };
+                }
+            }
+        }
+        None => None,
+    };
 
     let context = CommandSafetyCheckContext {
         plan,
@@ -1308,10 +1343,29 @@ fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::Hash
 /// `secret-detection` or internal names like `secret`. Routing them
 /// through [`gate_internal_name`] guarantees `--profile <name>` and
 /// `--skip-checks <name>` use the same vocabulary downstream.
+///
+/// Any entry that does not resolve through the catalog is treated as a
+/// hard error rather than silently dropped — a typo in `PROFILES` (or
+/// any future profile definition) used to fail open, letting the
+/// supposedly-skipped check run anyway.
 fn resolve_profile_skip_set(
     profile: Option<&str>,
 ) -> Result<std::collections::HashSet<&'static str>> {
     let raw = resolve_profile_skips(profile)?;
+    let invalid: Vec<&str> = raw
+        .iter()
+        .copied()
+        .filter(|name| gate_internal_name(name).is_none())
+        .collect();
+    if !invalid.is_empty() {
+        let mut sorted = invalid;
+        sorted.sort_unstable();
+        bail!(
+            "profile '{}' references unknown check name(s): {}",
+            profile.unwrap_or("<none>"),
+            sorted.join(", ")
+        );
+    }
     Ok(raw.iter().filter_map(|n| gate_internal_name(n)).collect())
 }
 
@@ -1797,6 +1851,7 @@ fn check_name_to_category(name: &str) -> Category {
         "secret-detection" => Category::Secret,
         "antipattern-scan" => Category::Antipattern,
         "import-boundaries" => Category::Boundary,
+        "architecture" => Category::Architecture,
         "policy" => Category::Policy,
         "command-safety" => Category::CommandSafety,
         _ => Category::Other,
@@ -2133,10 +2188,57 @@ mod tests {
             "command-safety",
             "Command-safety check disabled. Skipping."
         ));
+        // Command-safety with no plan supplied — also a project-config gap.
+        assert!(is_skipped_for_missing_config(
+            "command-safety",
+            "No commands to analyse"
+        ));
+        // OPA-not-installed is a host-tooling gap, not a project-config
+        // gap; strict mode must NOT block on it.
+        assert!(!is_skipped_for_missing_config(
+            "policy",
+            "OPA not installed. Skipping policy evaluation."
+        ));
         // Secret detection skipping is content-driven, not config-driven —
         // strict_config must not elevate it to a blocking diagnostic.
         assert!(!is_skipped_for_missing_config("secret", "Skipping."));
         assert!(!is_skipped_for_missing_config("architecture", "All good"));
+    }
+
+    #[test]
+    fn check_name_to_category_covers_every_ai_guardrail_check() {
+        // Every check listed in AI_GUARDRAIL_CHECKS must map to a
+        // dedicated Category — Other is a routing failure that hides the
+        // signal from `summary.by_category` in the AI envelope.
+        for canonical in [
+            "secret-detection",
+            "antipattern-scan",
+            "import-boundaries",
+            "architecture",
+            "policy",
+            "command-safety",
+        ] {
+            let cat = check_name_to_category(canonical);
+            assert!(
+                !matches!(cat, Category::Other),
+                "{canonical} must map to a non-Other category"
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_profile_skip_set_rejects_unknown_check_names() {
+        // Mock a profile whose skip list contains a typo. Currently
+        // PROFILES are static so we can only assert the present-day
+        // contents always resolve. This guard prevents future profile
+        // edits from silently failing open.
+        for (name, _, skips) in PROFILES {
+            let result = resolve_profile_skip_set(Some(*name));
+            assert!(
+                result.is_ok(),
+                "profile '{name}' has unresolvable skip entries: {skips:?}"
+            );
+        }
     }
 
     // ── Coverage check tests ──────────────────────────────────────────

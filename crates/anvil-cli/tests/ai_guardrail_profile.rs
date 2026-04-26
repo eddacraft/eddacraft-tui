@@ -17,11 +17,14 @@ const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
     let dir = tempfile::tempdir().unwrap();
 
-    // Empty workspace — architecture, policy, and command-safety all
-    // hit their "no config" path. Under `--profile ai` strict_config
-    // converts that into blocking diagnostics, which is exactly what
-    // we want to assert: the envelope is well-formed even (especially)
-    // when checks fail.
+    // Empty workspace — the curated AI guardrail set runs:
+    // secret-detection, import-boundaries, antipattern-scan, policy,
+    // command-safety. Under `--profile ai`, strict_config converts the
+    // "no project config" skip on policy and command-safety (no plan
+    // supplied) into blocking diagnostics; import-boundaries fails
+    // because the workspace has no `anvil.config.json` declaring
+    // boundaries. OPA-not-installed is a host tooling gap and is
+    // intentionally not elevated to a block under strict mode.
     let output = Command::new(ANVIL_BIN)
         .arg("gate")
         .arg("--profile")
@@ -46,8 +49,9 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
     assert!(parsed["diagnostics"].is_array());
 
     // Strict-config default elevates the missing-config skip into a
-    // blocking diagnostic for at least one check; verify diagnostics
-    // carry the inner-shape fields and the gate mode discriminator.
+    // blocking diagnostic; verify both that at least one fires and that
+    // the routing categories survive the conversion (a regression here
+    // would silently drop signal from `summary.by_category`).
     let diagnostics = parsed["diagnostics"].as_array().unwrap();
     assert!(
         !diagnostics.is_empty(),
@@ -63,6 +67,23 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
     assert!(first["source"]["rule_id"].is_string());
     assert!(first["source"]["source_module"].is_string());
     assert!(first["location"]["file"].is_string());
+
+    // Every AI-guardrail check must route to a dedicated Category — a
+    // diagnostic landing in `other` means `summary.by_category` lost
+    // signal (the routing match has no arm for that check name). This
+    // is the regression guard for the AI envelope contract.
+    let categories: Vec<String> = diagnostics
+        .iter()
+        .filter_map(|d| d["category"].as_str().map(str::to_string))
+        .collect();
+    assert!(
+        categories.iter().any(|c| c == "command-safety"),
+        "expected a command-safety-category diagnostic (no plan = config gap), saw: {categories:?}"
+    );
+    assert!(
+        !categories.iter().any(|c| c == "other"),
+        "no AI-guardrail diagnostic should route to `other`; saw: {categories:?}"
+    );
 }
 
 #[test]

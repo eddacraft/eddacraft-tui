@@ -54,10 +54,18 @@ pin.
 
 ## Strict Configuration
 
-Under `--profile ai`, missing or invalid configuration is **blocking**, not a
-soft skip. A repository with no `.anvil/architecture.yaml` will fail the
+Under `--profile ai`, missing or invalid project configuration is **blocking**,
+not a soft skip. A repository with no `.anvil/architecture.yaml` will fail the
 architecture check rather than pass it with a "no config, skipping" message. The
-same applies to the policy bundle and command-safety configuration.
+same applies to the policy bundle. `command-safety` analyses fenced shell-script
+blocks from a supplied plan file; running the gate without a plan, or with the
+check disabled, is also treated as a config gap and blocks under `--profile ai`.
+
+**Host-tooling gaps are not config gaps.** Missing OPA on the runner is not
+elevated under strict mode — it is reported as a host environment issue rather
+than a project posture failure. Install OPA (`anvil doctor` will tell you how)
+to actually run the policy check, but the absence of a binary will not by
+itself fail an AI-guardrail run.
 
 Why: an AI tool that asked anvil "is this codebase governed?" needs a truthful
 answer. Silently passing because no config exists makes the guardrail look
