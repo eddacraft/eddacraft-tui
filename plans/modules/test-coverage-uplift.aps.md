@@ -1,8 +1,8 @@
 # Test Coverage Uplift
 
-| ID   | Owner      | Status      |
-| ---- | ---------- | ----------- |
-| TCOV | @eddacraft | In Progress |
+| ID   | Owner      | Status      | Progress |
+| ---- | ---------- | ----------- | -------- |
+| TCOV | @eddacraft | In Progress | 14/25    |
 
 ## Progress (as of 2026-04-21)
 

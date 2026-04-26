@@ -1,8 +1,10 @@
 # Intercept Daemon
 
-| ID | Owner | Status |
-|----|-------|--------|
-| INTD | @aneki | Draft |
+| ID   | Owner  | Status | Progress |
+| ---- | ------ | ------ | -------- |
+| INTD | @aneki | Draft  | 0/16     |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -91,9 +93,24 @@ a new lane.
   PID file, handles SIGTERM/SIGINT, and exits cleanly on all three platforms;
   an `anvil-intercept-proto` library module (or sibling crate) is created first
   containing NDJSON message types, session model structs, and IPC command enum
-  shared by both daemon and launcher
+  shared by both daemon and launcher. `anvil intercept start --foreground`
+  runs the daemon in the current process for dev / demo / triage use — no
+  double-fork, no PID-file handoff, logs stream to stdout/stderr, SIGINT in
+  the controlling terminal stops it cleanly. This is the path the demo
+  runbook §4.1 falls back to when the backgrounded daemon fails to start
+  and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
 - **Status:** Draft
+- **Trigger flag (parser concurrency ADR):** The LANGTS audit
+  (`plans/specs/2026-04-26-langts-audit-report.md` §5.3, K3) deferred
+  the parser thread-locality ADR conditionally. **At INTD-001 review,
+  decide the daemon's parser concurrency model.** If the choice is
+  obvious (likely `thread_local!` per option (1) in the audit) and no
+  disagreement surfaces, capture the decision inline in this task's
+  Notes — no ADR needed. If the choice is contentious, or multi-process
+  daemon scenarios materialise, **author the parser thread-locality ADR
+  before INTD-001 lands**. The audit's evaluation of the four options
+  is the starting point for this discussion.
 
 ### INTD-002: IPC Listener
 
@@ -224,8 +241,18 @@ a new lane.
   debugging and operational visibility
 - **Expected Outcome:** IPC commands for session list, worktree status, fence
   list, and daemon health; output suitable for consumption by the launcher and
-  future CLI status commands
+  future CLI status commands. `anvil intercept status` MUST include an
+  operator-visible **mid-edit p50/p95 latency rollup line** sourced from the
+  daemon-side telemetry (e.g. `latency: p50 <X>ms p95 <Y>ms (mid-edit)`), so
+  the demo runbook §1.5 trust-signal line is real and not estimated. The
+  rollup is computed over a sliding window (default last 100 mid-edit calls
+  or last 60 seconds, whichever is shorter) and the threshold of acceptable
+  numbers is owned by ADR-031 (single latency rubric — pending). Cross-ref
+  ADR-031 for the budget the operator is comparing against.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib status`
+  plus an assertion that the status payload carries `latency.midEdit.p50`
+  and `latency.midEdit.p95` fields (or their textual rollup) when the
+  daemon has observed at least one mid-edit call.
 - **Status:** Draft
 
 ### INTD-012: Windows CI Matrix

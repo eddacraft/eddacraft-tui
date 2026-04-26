@@ -13,6 +13,8 @@ Scopes: UCFG (main)
 | ---- | ----- | -------- | -------- |
 | UCFG | —     | Proposed | 0/18     |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Consolidate Anvil's three configuration files (`.anvilrc`,

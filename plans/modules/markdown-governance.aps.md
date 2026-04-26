@@ -7,6 +7,8 @@
 | ----- | ----- | ------ |
 | MDGOV | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Per [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
@@ -127,6 +129,9 @@ Tasks will be defined when this module moves to Ready. Anticipated:
 
 ## Open Questions
 
+<!-- 2026-04-26 audit: crate-location question is resolved by ADR-028
+     (standalone `crates/anvil-markdown-governance/`). Left here for
+     historical context; remove on next scope revision. -->
 - [ ] Crate location: standalone Rust crate, TS layer, or new tooling
       package?
 - [ ] Should APS wellformedness rules be derived from a single schema

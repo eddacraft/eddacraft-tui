@@ -11,6 +11,8 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | APGOV  | —     | Draft |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Govern the `anvil-api` (Hono REST API on Vercel) as a first-class architectural

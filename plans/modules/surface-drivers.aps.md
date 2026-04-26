@@ -7,9 +7,11 @@ superseding TSRET-003/-004. Per ADR-030. See: plans/aps-rules.md
 
 # Surface Drivers
 
-| ID   | Owner | Status |
-| ---- | ----- | ------ |
-| DRVR | —     | Draft  |
+| ID   | Owner | Status | Progress |
+| ---- | ----- | ------ | -------- |
+| DRVR | —     | Draft  | 0/8      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 

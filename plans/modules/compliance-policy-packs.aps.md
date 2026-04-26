@@ -7,6 +7,21 @@
 | ------ | ----- | -------- | ------ |
 | CPACKS | —     | high     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> NOTE(post-rust): All task `Scope`/`Files` paths target the retired TS tree
+> (`packages/anvil/runtime/src/gate/__fixtures__/policies/...`). The Rego
+> policies themselves are language-agnostic and can be reused, but when
+> CPACKS moves to Ready they must land under
+> `crates/anvil-policy/policies/compliance/<pack>/` (or the equivalent
+> bundled-resource location chosen by `crates/anvil-policy`), with
+> `cargo test -p eddacraft-anvil-policy` integration tests replacing the
+> `nx test runtime` validations. Dependencies POLVAL-001..005 reference the
+> archived `policy-pack-validation` module — re-confirm those contracts
+> against the current `crates/anvil-policy::bundle` / `loader` modules.
+> AGOV-001/006/007 dependencies still target the retired TS tree (see
+> `agent-governance-patterns.aps.md`).
+
 ## Purpose
 
 Ship production-ready, installable compliance policy packs for the regulatory
@@ -64,7 +79,8 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - POLVAL-004 — Policy test runner (test enforcement)
 - POLVAL-005 — CLI `anvil policy validate` with `--pack` mode
 - OPAE-006 — Policy library infrastructure (discovery and loading)
-- `packages/anvil/policy` — OPA executor (existing infrastructure, not a planned task)
+- `crates/anvil-policy` — OPA executor and bundle/loader infrastructure
+  (replaces retired `packages/anvil/policy`)
 - AGOV-002 — `anvil policy install --pack <name>` CLI entry point
 - AGOV-001/006/007 — AI-governance signal producers (trust scores, capability
   manifests, audit-chain state) required by AI-specific packs. An OPA input
@@ -669,14 +685,14 @@ D-CPACKS-002: Shared common directory over policy duplication
 - **Trade-offs:** Introduces a dependency between packs; but the alternative
   is worse (divergent implementations of the same check).
 
-D-CPACKS-003: Policies as Rego, not TypeScript checks
+D-CPACKS-003: Policies as Rego, not native checks
 
 - **Rationale:** OPA/Rego is the policy engine adopted in OPAE. Compliance
   policies should use the same engine for consistency, composability, and
-  portability. TypeScript gate checks are for structural concerns; Rego is
-  for policy logic.
-- **Alternatives:** Implement as native TypeScript gate checks
-- **Trade-offs:** Requires OPA runtime; `packages/anvil/policy` already provides this.
+  portability. Native gate checks (in `crates/anvil-checks`) are for
+  structural concerns; Rego is for policy logic.
+- **Alternatives:** Implement as native Rust gate checks in `crates/anvil-checks`
+- **Trade-offs:** Requires OPA runtime; `crates/anvil-policy` already provides this.
 
 D-CPACKS-004: AI packs reference AGOV trust scoring and capability model
 

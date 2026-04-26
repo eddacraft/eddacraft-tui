@@ -1,6 +1,11 @@
 # BMAD v4 Backward Compatibility
 
-**Scope:** BMAD4 **Owner:** @team **Priority:** low **Status:** Proposed
+| ID    | Owner | Priority | Status   | Progress |
+| ----- | ----- | -------- | -------- | -------- |
+| BMAD4 | @team | low      | Proposed | 0/8      |
+
+**Last reviewed:** 2026-04-26 — adapter remains in TS (`packages/adapters/`); no
+Rust port planned for the BMAD format adapter.
 
 ## Purpose
 

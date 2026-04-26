@@ -14,8 +14,10 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "postbuild": "node scripts/check-runtime-cjs.cjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
+    "check:runtime-cjs": "node scripts/check-runtime-cjs.cjs",
     "dev": "npx wrangler dev src/index.ts"
   },
   "repository": {

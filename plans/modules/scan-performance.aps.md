@@ -4,6 +4,8 @@
 | ---- | ----- | -------- | -------- |
 | SCAN | @team | Proposed | 0/5      |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Extend the parallel-scan pattern landed in `perf/discovery-scan-parallel`

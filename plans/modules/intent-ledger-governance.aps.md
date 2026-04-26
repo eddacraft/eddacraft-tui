@@ -1,8 +1,43 @@
 # Intent Ledger Governance (Anvil)
 
-| ID    | Owner  | Status |
-| ----- | ------ | ------ |
-| ILGOV | @aneki | Ready  |
+| ID    | Owner  | Status | Progress |
+| ----- | ------ | ------ | -------- |
+| ILGOV | @aneki | Draft  | 0/6      |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Status demoted Ready → Draft pending rescope.
+> Retained — the thesis (intent-vs-effect provenance) was the **original
+> Anvil use case**: all Anvil was going to be a system for proving the
+> plan was followed. The current version is more powerful — Anvil uses
+> the symbol/architecture graph (`crates/anvil-architecture`,
+> `crates/anvil-kernel`) to **predict effect** of a change and compare
+> against captured **intent**, rather than relying on after-the-fact
+> diffing alone.
+>
+> Earlier audit pass framed the archived prerequisites
+> (`edda-stack-integration`, `kindling-integration`,
+> `lineage-authorship-confidence`) as evidence of staleness — that was
+> a misread. Those *planning modules* are archived because their work
+> items completed; the components are live code in
+> `packages/kindling-integration/` and `packages/edda-stack/`. The
+> archived LAC module retains the attribution overlay concept and is
+> separately rescoped.
+>
+> **Rescope work pending** (tracked separately, see followup list):
+> 1. Retarget all ILGOV-00x validations from `pnpm nx test anvil-cli` to
+>    `cargo test -p eddacraft-anvil-policy` (or a new `crates/anvil-intent-ledger`
+>    if the schema warrants its own crate).
+> 2. Replace TS-shaped `IntentLedgerRecord` interface with a Rust
+>    canonical (likely in `crates/anvil-kernel-types` per SCHEMA module).
+> 3. Update Interfaces section to add: graph-derived effect prediction
+>    (e.g. "the symbol graph indicates this change touches scopes outside
+>    the declared `scope_in`") as a first-class policy predicate.
+> 4. Rewire dependency block to live components, not archived modules.
+>
+> Tier C parking lot post-launch — not competing with RTAI for current
+> release attention. Promote to Ready only after a product decision on
+> whether intent-aware gating ships in the v0.5–v0.7 window.
 
 ## Purpose
 

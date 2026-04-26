@@ -41,6 +41,7 @@ overrides:
   '@nx/js>verdaccio': '-'
   fast-xml-parser@>=4.0.0-beta.3 <5.7.0: '>=5.7.0'
   uuid@<14.0.0: '>=14.0.0'
+  svix>uuid: ^10.0.0
   flatted@<=3.4.1: '>=3.4.2'
   socket.io-parser@>=4.0.0 <4.2.6: '>=4.2.6'
   picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
@@ -12500,6 +12501,10 @@ packages:
   utils-merge@1.0.1:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
+
+  uuid@10.0.0:
+    resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    hasBin: true
 
   uuid@14.0.0:
     resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
@@ -25985,7 +25990,7 @@ snapshots:
   svix@1.90.0:
     dependencies:
       standardwebhooks: 1.0.0
-      uuid: 14.0.0
+      uuid: 10.0.0
 
   swc-loader@0.2.7(@swc/core@1.15.30(@swc/helpers@0.5.21))(webpack@5.106.0(@swc/core@1.15.30(@swc/helpers@0.5.21))(esbuild@0.28.0)):
     dependencies:
@@ -26407,6 +26412,8 @@ snapshots:
   utility-types@3.11.0: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@10.0.0: {}
 
   uuid@14.0.0: {}
 

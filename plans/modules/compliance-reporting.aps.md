@@ -7,6 +7,20 @@
 | ------ | ----- | -------- | ------ |
 | COMPLY | —     | medium   | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> NOTE(post-rust): Task scopes/files reference the retired TS tree
+> (`packages/anvil/policy/src/`, `packages/anvil/runtime/src/`,
+> `apps/anvil-cli/src/commands/`). When this module moves to Ready, retarget
+> to Rust crates: registry/mapper/scoring/reporter live in
+> `crates/anvil-policy/src/`; evidence aggregation and posture history live
+> in `crates/anvil-policy/src/` (or `crates/anvil-kernel/src/policy/` for
+> drift-derived inputs); CLI commands land in
+> `crates/anvil-cli/src/commands/compliance.rs`. Dependency modules
+> `opa-architecture-integration`, `drift-reporting`, `suppressions`, and
+> `policy-lifecycle` are all archived — capability is now in
+> `crates/anvil-policy` (drift, exceptions) and the kernel.
+
 ## Purpose
 
 Produce audit-ready compliance evidence from policy evaluation results.

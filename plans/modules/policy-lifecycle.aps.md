@@ -7,6 +7,8 @@
 | ----- | ----- | -------- | ------ |
 | POLLC | —     | medium   | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Give organisations control over the full lifecycle of a policy — from draft
@@ -36,7 +38,8 @@ that rule changes never surprise developers.
 
 **Depends on:**
 
-- `opa-architecture-integration` — Policy loading and evaluation
+<!-- Audit 2026-04-26: opa-architecture-integration archived; policy now lives in crates/anvil-policy. -->
+- `crates/anvil-policy` — Policy loading and evaluation
 - `policy-pack-validation` — Validate packs before promotion
 - `org-policy-hierarchy` — Lifecycle applies per tier
 
@@ -75,67 +78,67 @@ that rule changes never surprise developers.
 
 - **Intent:** Define version metadata for policy artefacts
 - **Expected Outcome:** Schema supports semver, author, timestamp, and changelog entry
-- **Scope:** `packages/anvil/contracts/src/types/`
+- **Scope:** `crates/anvil-kernel-types/src/`
 - **Non-scope:** Storage backend
-- **Validation:** `nx test contracts --testNamePattern="policy-version"`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- policy_version`
 - **Confidence:** high
 
 ### POLLC-002: Lifecycle state machine
 
 - **Intent:** Enforce valid lifecycle transitions with guard conditions
 - **Expected Outcome:** State machine prevents invalid transitions and logs each change
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** UI rendering
 - **Dependencies:** POLLC-001
-- **Validation:** `nx test policy --testNamePattern="lifecycle-state"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- lifecycle_state`
 - **Confidence:** high
 
 ### POLLC-003: Canary rollout selector
 
 - **Intent:** Target a subset of repositories for gradual policy activation
 - **Expected Outcome:** Canary selector matches repos by glob, tag, or percentage
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Notification delivery
 - **Dependencies:** POLLC-002
-- **Validation:** `nx test policy --testNamePattern="canary-selector"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- canary_selector`
 - **Confidence:** medium
 
 ### POLLC-004: Grace period enforcer
 
 - **Intent:** Convert policy errors to warnings during a defined transition window
 - **Expected Outcome:** Violations downgraded to warnings until grace period expires
-- **Scope:** `packages/anvil/runtime/src/gate/`
+- **Scope:** `crates/anvil-policy/src/` (gate hooks via `crates/anvil-cli/src/commands/gate.rs`)
 - **Non-scope:** Policy evaluation logic
 - **Dependencies:** POLLC-002
-- **Validation:** `nx test runtime --testNamePattern="grace-period"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- grace_period`
 - **Confidence:** high
 
 ### POLLC-005: Policy changelog generator
 
 - **Intent:** Produce human-readable changelogs from version diffs
 - **Expected Outcome:** Changelog includes added, removed, and modified rules per version
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Notification delivery
 - **Dependencies:** POLLC-001
-- **Validation:** `nx test policy --testNamePattern="changelog-generator"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- changelog_generator`
 - **Confidence:** high
 
 ### POLLC-006: CLI lifecycle commands
 
 - **Intent:** Expose lifecycle management through the CLI
 - **Expected Outcome:** `promote`, `deprecate`, and `rollback` commands function correctly
-- **Scope:** `apps/anvil-cli/src/commands/`
+- **Scope:** `crates/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation
 - **Dependencies:** POLLC-002, POLLC-003, POLLC-004
-- **Validation:** `nx test cli --testNamePattern="policy lifecycle"`
+- **Validation:** `cargo test -p eddacraft-anvil -- policy_lifecycle`
 - **Confidence:** high
 
 ### POLLC-007: Gate runner lifecycle integration
 
 - **Intent:** Gate evaluation respects lifecycle state and grace periods
 - **Expected Outcome:** Only active and canary policies are evaluated; grace periods applied
-- **Scope:** `packages/anvil/runtime/src/gate/`
+- **Scope:** `crates/anvil-policy/src/` (gate hooks via `crates/anvil-cli/src/commands/gate.rs`)
 - **Non-scope:** Hierarchy resolution
 - **Dependencies:** POLLC-002, POLLC-004
-- **Validation:** `nx test runtime --testNamePattern="lifecycle-gate"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- lifecycle_gate`
 - **Confidence:** medium

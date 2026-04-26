@@ -3,6 +3,12 @@
 
 # Anvil — Save-time Trust
 
+> **🔒 Current release locked 2026-04-26:** A1 (RTAI Spike) + A2 (AIGUARD) +
+> A3 (Release Engineering) + A4 (Language Credibility Floor). See
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
+> and adversarial risks. See [`ROADMAP.md`](../ROADMAP.md) for thematic
+> context across horizons.
+
 ## Overview
 
 ## Contents
@@ -104,7 +110,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | 0/5 |
 | [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
 | [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md) | RUSTNX | Complete | 9/9 |
-| [v041-release-followups](./modules/v041-release-followups.aps.md) | V041F | Ready | 0/14 (14 hardening items: 10 from the council rounds, 1 from the copilot PR review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner; non-blocking for the H1 tag, slot into v0.4.1) |
+| [v041-release-followups](./modules/v041-release-followups.aps.md) | V041F | Ready | 0/15 (15 hardening items: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — and 1 from the copilot PR #1090 review tracking the svix>uuid override exception; non-blocking for the H1 tag, slot into v0.4.1) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -137,7 +143,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [rust-cli](./archive/modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
-| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
+| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
 | [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 3/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | In Progress | 4/8 | RCLI; RCLI2-001..-004 shipped per 2026-04-26 freshness audit (commits 1e44ef2d / c5679432 / a2297dca / 06d764d4); -005..-008 still Proposed (gated on OPAE) |
@@ -207,7 +213,7 @@ Browser-based interface for exploring Anvil data. Built into `apps/website/`
 
 | Module | Scope | Status | Progress | Wave | Dependencies |
 | ------ | ----- | ------ | -------- | ---- | ------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | 0/9 | 1 | apps/website, contracts |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | 1/9 | 1 | apps/website, contracts |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | 0/9 | 2 | dashboard-foundation |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
@@ -238,7 +244,7 @@ implementation targets.
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation, crates/anvil-kernel |
 | [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
 | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
-| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | compliance-reporting, policy-lifecycle, eval-harness-integration |
+| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Draft | compliance-reporting, policy-lifecycle, eval-harness-integration |
 | [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | opa-enhancements, opa-agent-orchestration |
 | [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | opa-enhancements, opa-agent-orchestration |
 | [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Ready | opa-agent-orchestration, mcp-server |
@@ -273,6 +279,7 @@ when specific work is identified.
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 11/22 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + final release-scope refresh; 10 remaining Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
+| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 0/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **Ready** |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | 11 | tools/generate-acknowledgements.sh (v1 shipped), cargo-about, deny.toml — **Ready** (owner: joshuaboys; CycloneDX intermediate; kit at tools/starters/acknowledgements/) |
 
@@ -288,7 +295,7 @@ TCOV/TINT/TEXT depend on it.
 | [test-infrastructure-fix](./archive/modules/test-infrastructure-fix.aps.md) | TFIX | Complete | 11/11 | — |
 | [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25 (Phase 1+2 complete: 13/13; Phase 3: 1/8; Phase 4: 4 blocked — scope refresh needed) | TFIX |
 | [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
-| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
+| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/14 | TFIX |
 
 ### Language & Coverage (Draft)
 
@@ -319,7 +326,7 @@ Python must hit. Spec §7, §8.1.
 
 | Module | Scope | Status | Phase | Spec ref |
 | ------ | ----- | ------ | ----- | -------- |
-| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Draft | 1 | §7.3, §8.1 |
+| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Ready | 1 | §7.3, §8.1 — 2/5; promoted to Ready 2026-04-26 after anchor re-scoring gate (TS still anchor zero; Rust catching up — flagged for separate RSTLAN re-eval) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Draft | 2 | §8.1 |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Draft | 2 | §8.1 |
 
@@ -482,7 +489,7 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
   - Net: module now has 16 tasks; index reconciled to 0/16.
 -->
 
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/8 | INTD-002/-003/-005/-013/-015, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-006/-007/-008 added 2026-04-24 per council review C2/M5-M7/M10-M11 |
 
@@ -1051,7 +1058,7 @@ Authoritative source: [2026-04-08 Language and Coverage Design](./specs/2026-04-
 
 | Scope ID | Module | Status | Phase | Notes |
 | -------- | ------ | ------ | ----- | ----- |
-| LANGTS   | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | Draft | 1 | Anchor item zero — produces T3 acceptance checklist |
+| LANGTS   | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | Ready (2/5) | 1 | Anchor item zero — audit + T3 checklist landed 2026-04-26; promoted to Ready after anchor re-scoring gate ([report](./specs/2026-04-26-langts-audit-report.md), [checklist](./specs/2026-04-26-t3-acceptance-checklist.md)) |
 | RSTLAN   | [lang-rust](./modules/lang-rust.aps.md) | Draft | 2 | Rewritten for T3 target; gated on LANGTS + Rust T3 enforcement ADR |
 | PYLAN    | [lang-python](./modules/lang-python.aps.md) | Draft | 2 | Rewritten for T3 target; gated on LANGTS + RSTLAN |
 

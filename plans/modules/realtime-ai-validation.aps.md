@@ -11,9 +11,11 @@ See: plans/aps-rules.md
 
 # Real-time AI-Output Validation
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| RTAI | —     | Proposed |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| RTAI | —     | Proposed | 0/9      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -81,8 +83,8 @@ shape of the problem:
   conform to it. The reasoning-pattern checks RTVS catalogued (AI-001
   appeal-to-authority, AI-002 unjustified precision, etc.) are
   net-new rule implementations on the same trait — they belong in
-  `anvil-checks` (or a new `anvil-checks-reasoning` crate), not in
-  this module.
+  `crates/anvil-checks/src/reasoning/` (decided 2026-04-26, see
+  Open Question 3), not in this module.
 - `INTD-014` measures save-time RPC latency. RTAI needs a separate
   mid-edit latency measurement because the budget is tighter and
   the call rate is higher.
@@ -166,7 +168,8 @@ convention" section). Concretely:
 - The validation engine internals (which rule fires, how
   reasoning-pattern detectors are written, false-positive tuning,
   the AI-001..AI-007 catalogue). Owned by **anvil-checks**
-  (and/or a new `anvil-checks-reasoning` crate). RTAI consumes
+  (specifically `crates/anvil-checks/src/reasoning/` per the
+  2026-04-26 decision; see Open Question 3). RTAI consumes
   whatever rules are registered in INTR.
 - Save-time watch-flow polish — owned by **LAUNCH**.
 - The save-time gate itself, the editor diagnostics-on-save
@@ -213,10 +216,11 @@ convention" section). Concretely:
   (save-time watch flow) — RTAI is the in-flight sibling. The two
   must produce diagnostics that look the same on the wire so
   consumers don't branch.
-- **Coordinates with:** anvil-checks / a new
-  `anvil-checks-reasoning` crate (rule implementations the daemon
-  evaluates). The reasoning-pattern catalogue from the archived
-  RTVS module belongs there, not here.
+- **Coordinates with:** `crates/anvil-checks` — the
+  `reasoning/` submodule (per the 2026-04-26 decision; see Open
+  Question 3) holds rule implementations the daemon evaluates. The
+  reasoning-pattern catalogue from the archived RTVS module belongs
+  there, not here.
 - **Coordinates with:** [INTR](./intercept-rules.aps.md) — rules
   registered in INTR are what the mid-edit pipeline evaluates.
 - **References:** [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
@@ -380,6 +384,14 @@ convention" section). Concretely:
   warns and proceeds, or proceeds with diagnostics attached.
   The choice between block / warn / proceed is governed by the
   same `.anvil.yaml` enforcement block INTD-008 already loads.
+  The MCP driver enumerates and wraps per-client write tools:
+  `apply_edit` (Cursor), `fs.write` and `edit_file` (Claude
+  Code), and performs tool-registration discovery for unknown
+  clients (logs the discovered write-class tool names so the
+  inventory is not silently incomplete when a new client is
+  attached). The enumeration is data, not code: the per-client
+  tool-name list lives alongside the driver and is updated
+  when a new client lands, not when a new release ships.
 - **Blocks on:** RTAI-004, DRVR-002, DRVR-004 (MCP driver
   must exist before its pre-write path can be wired).
 - **Coordinates with:** DRVR-006 (MCP daemon-RPC translation
@@ -502,6 +514,22 @@ convention" section). Concretely:
   surfaces around them differ. RTAI-005 and RTAI-006 must each
   spell out their consumer contract; conflating them in
   prose-only docs has burned this module's predecessors.
+- **Bypass asymmetry between LSP advisory and MCP refusable.**
+  Cursor in-buffer edits that skip the MCP tool call route
+  through LSP `didChange` (advisory only) — the daemon cannot
+  refuse the write because there is no pending tool call to
+  refuse. The same physical keystroke can be demo-stable
+  (when Cursor routes via `apply_edit` through the MCP driver)
+  or demo-fragile (when Cursor edits the buffer directly and
+  only fires `didChange`). RTAI-002's protocol must document
+  this asymmetry explicitly so demo operators understand which
+  scenarios are demo-stable (MCP-routed) vs. demo-fragile
+  (in-buffer); the runbook §4.3.iii is the operator-facing
+  surface of the same problem. Mitigation: prefer MCP for the
+  headline demo path; surface the degraded-mode indicator
+  loudly on the editor-driver path so an operator can see
+  in real time when a Cursor edit went in-buffer and dodged
+  the refusable surface.
 
 ## Open questions
 
@@ -516,12 +544,21 @@ convention" section). Concretely:
    the user their own keystrokes). If the answer is "MCP can
    block, editor cannot", that asymmetry needs to be in the
    protocol from RTAI-002 — not bolted on later.
-3. **Where do reasoning-pattern rules live?** The RTVS catalogue
-   (AI-001..AI-007) is owned by neither `anvil-checks` nor
-   `anvil-checks-reasoning` (the latter does not exist).
-   Decide before RTAI-003 lands: add to existing
-   `anvil-checks` antipattern crate, or carve out a new crate?
-   The latter is cleaner; the former is faster.
+3. **AI-001 reasoning-pattern rule home: DECIDED 2026-04-26 — Option (a).**
+   Extend `crates/anvil-checks` with a new `reasoning/` submodule
+   alongside `secret/`, `antipattern/`, and `command_safety/`.
+   AI-001 (appeal-to-authority) lands at
+   `crates/anvil-checks/src/reasoning/appeal_to_authority.rs` and
+   registers through the existing rule registry. Rationale:
+   first rule has no infrastructure needs that justify a separate
+   crate; reasoning-as-category lives next to other check categories
+   in the envelope `category` enum (per the diagnostic envelope
+   coordination spec at
+   `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`).
+   If the reasoning corpus later grows infrastructure-heavy
+   (NLP helpers, classifier deps), extract on real evidence —
+   `cargo new` + module move is a small reverse op. Premature
+   crate split was rejected. Tracked as task #24.
 4. **Confidence scoping is uniformly medium.** All RTAI-002
    onwards tasks are marked `Confidence: medium` against a
    stack (INTD + DRVR) that does not yet exist. RTAI-001 will

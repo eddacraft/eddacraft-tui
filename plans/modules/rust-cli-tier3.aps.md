@@ -9,23 +9,35 @@ Scopes: RCLI3 (main)
 
 # Rust CLI — Tier 3
 
-| ID    | Owner | Status   |
-| ----- | ----- | -------- |
-| RCLI3 | —     | Proposed |
+| ID    | Owner | Status   | Progress |
+| ----- | ----- | -------- | -------- |
+| RCLI3 | —     | Proposed | 0/20     |
+
+**Last reviewed:** 2026-04-26
+
+> **Post-migration note (2026-04-26):** RCLI Tier 1 is complete (64/64) and
+> the Node.js CLI at `apps/anvil-cli/` has been retired (RCLI-023 archival
+> already happened for the core surface). References to the Node.js CLI in
+> this module describe the historical contract we are reaching parity with,
+> not a still-present runtime. The original `edda.aps.md`, `ember.aps.md`,
+> `explain-command.aps.md` and `release-management.aps.md` modules are now in
+> `plans/archive/modules/` — RCLI3 is the surviving Rust port of those
+> command surfaces.
 
 ## Purpose
 
-Port Tier 3 subsystem and specialised commands from the Node.js CLI
-(`apps/anvil-cli/`) to the Rust binary (`crates/anvil-cli/`). These commands
-expose the Edda Stack (memory/proposals), APS planning, agent governance,
-and operational utilities. Completing Tier 3 enables full Node.js CLI archival
-(RCLI-023) and single-binary distribution (RCLI-024).
+Port Tier 3 subsystem and specialised commands from the historical Node.js
+CLI (`apps/anvil-cli/`, retired) to the Rust binary (`crates/anvil-cli/`).
+These commands expose the Edda Stack (memory/proposals), APS planning, agent
+governance, and operational utilities. Completing Tier 3 closes the remaining
+parity gap from the historical Node.js CLI and unblocks single-binary
+distribution (RCLI-024).
 
 **Why:** Tier 3 contains the domain subsystem commands (Edda, Ember, Plan,
 Agent) that power day-to-day governance workflows. Without them the Rust CLI
-cannot replace the Node.js CLI for users who interact with canonical memories,
-proposals, or APS plans. The cutover milestone (RCLI-023) is blocked until
-all three tiers reach parity.
+does not yet match the historical Node.js CLI for users who interact with
+canonical memories, proposals, or APS plans. Distribution (RCLI-024) is
+blocked until all three tiers reach parity.
 
 **ADR:** [012-rust-cli-replacement](../decisions/012-rust-cli-replacement.md)
 **Spec:** [2026-03-18-rust-cli-design](../specs/2026-03-18-rust-cli-design.md) §6 Tier 3
@@ -70,25 +82,29 @@ not less. Follow the canonical model in
   auth middleware
 - RCLI2 — Tier 2 must be complete (or in progress) before cutover
 - `packages/edda-stack/` — Domain contracts (MemoryType, ProposalStatus,
-  confidence levels, provenance schema). These TypeScript contracts define
-  the storage format; the Rust port must read/write the same structures
+  confidence levels, provenance schema). These TypeScript contracts still
+  exist in-tree as of 2026-04-26 and define the storage format; the Rust
+  port must read/write the same structures. If edda-stack is retired before
+  RCLI3 lands, the Rust port becomes the canonical contract.
 - `packages/aps/` — APS plan loading, filtering, task locking interfaces
+  (TypeScript; still in-tree as of 2026-04-26)
 
 **Exposes:**
 
 - 10 additional subcommands (with ~25 total sub-subcommands) on the `anvil`
   binary
-- Once all three tiers are complete, unblocks RCLI-023 (archival) and
-  RCLI-024 (distribution)
+- Once all three tiers are complete, unblocks RCLI-024 (distribution).
+  RCLI-023 (Node.js archival) already executed for the core surface; Tier 3
+  parity is what closes the remaining historical gap.
 
 ## Constraints
 
 - Storage format parity: Rust commands must read `.anvil/edda/` YAML,
   `.anvil/ember.db` SQLite, `.anvil/agents/`, and `.anvil/executions/`
-  identically to Node.js
-- Edda YAML files include provenance metadata — Rust YAML serialiser must
+  identically to the historical Node.js CLI
+- Edda YAML files include provenance metadata — the Rust YAML serialiser must
   preserve field ordering and comments where possible
-- Ember SQLite access via `rusqlite`; schema must match the Node.js
+- Ember SQLite access via `rusqlite`; schema must match the historical
   `better-sqlite3` schema exactly
 - Agent state files use JSON; no special handling needed
 - Same error handling conventions as RCLI: `anyhow` + `thiserror`
@@ -125,10 +141,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Expected Outcome:** `anvil edda list --status active --min-confidence
   medium` shows filtered memories with ID, type, confidence, age, and
   truncated statement. JSON mode returns full memory objects
-- **Validation:** Row count and content match Node.js CLI for same store
+- **Validation:** Row count and content match the historical Node.js CLI contract for same store
   state; time-ago formatting consistent
 - **Files:** `crates/anvil-cli/src/commands/edda.rs`
-- **Confidence:** medium (263 LOC in Node.js; YAML parsing + multi-filter
+- **Confidence:** medium (263 LOC in historical Node.js; YAML parsing + multi-filter
   logic)
 - **Priority:** High
 - **Dependencies:** RCLI (foundation)
@@ -147,7 +163,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** Output includes all fields present in Node.js CLI; provenance
   chain is correctly resolved
 - **Files:** `crates/anvil-cli/src/commands/edda.rs`
-- **Confidence:** high (121 LOC in Node.js; display-only)
+- **Confidence:** high (121 LOC in historical Node.js; display-only)
 - **Priority:** High
 - **Dependencies:** RCLI3-001 (shared YAML loading)
 
@@ -166,7 +182,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** Created YAML matches schema; Ember proposal status updated
   to promoted; provenance chain intact
 - **Files:** `crates/anvil-cli/src/commands/edda.rs`
-- **Confidence:** medium (168 LOC in Node.js; cross-store write:
+- **Confidence:** medium (168 LOC in historical Node.js; cross-store write:
   Edda YAML + Ember SQLite)
 - **Priority:** High
 - **Dependencies:** RCLI3-001, RCLI3-005 (Ember store access)
@@ -202,10 +218,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Expected Outcome:** `anvil ember list --status active` shows proposals
   with ID, type, summary, confidence, expiry, observation count. JSON mode
   returns full proposal objects
-- **Validation:** Row count and content match Node.js CLI; expiry time
+- **Validation:** Row count and content match the historical Node.js CLI contract; expiry time
   formatting consistent
 - **Files:** `crates/anvil-cli/src/commands/ember.rs`
-- **Confidence:** medium (198 LOC in Node.js; SQLite via rusqlite)
+- **Confidence:** medium (198 LOC in historical Node.js; SQLite via rusqlite)
 - **Priority:** High
 - **Dependencies:** RCLI (foundation)
 
@@ -219,9 +235,9 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   timestamps, metadata
 - **Expected Outcome:** `anvil ember show emb-xyz` renders formatted proposal
   with all sections
-- **Validation:** Output fields match Node.js CLI
+- **Validation:** Output fields match the historical Node.js CLI contract
 - **Files:** `crates/anvil-cli/src/commands/ember.rs`
-- **Confidence:** high (116 LOC in Node.js; display-only)
+- **Confidence:** high (116 LOC in historical Node.js; display-only)
 - **Priority:** High
 - **Dependencies:** RCLI3-005 (shared SQLite access)
 
@@ -238,7 +254,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** Status transition persists in SQLite; re-promoting a
   non-active proposal returns error
 - **Files:** `crates/anvil-cli/src/commands/ember.rs`
-- **Confidence:** high (104 LOC in Node.js; single UPDATE)
+- **Confidence:** high (104 LOC in historical Node.js; single UPDATE)
 - **Priority:** Medium
 - **Dependencies:** RCLI3-005
 
@@ -259,7 +275,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   broken references)
 - **Validation:** Issue list matches Node.js CLI for same plan file
 - **Files:** `crates/anvil-cli/src/commands/plan.rs`
-- **Confidence:** medium (105 LOC in Node.js; needs APS parser in Rust)
+- **Confidence:** medium (105 LOC in historical Node.js; needs APS parser in Rust)
 - **Priority:** High
 - **Dependencies:** RCLI (foundation)
 
@@ -277,9 +293,9 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Expected Outcome:** `anvil plan load --scope RCLI --priority high` filters
   and displays matching work items. `anvil plan status --task RCLI-001` shows
   single task detail
-- **Validation:** Filter results and task state counts match Node.js CLI
+- **Validation:** Filter results and task state counts match the historical Node.js CLI contract
 - **Files:** `crates/anvil-cli/src/commands/plan.rs`
-- **Confidence:** medium (465 LOC combined in Node.js; complex filter logic)
+- **Confidence:** medium (465 LOC combined in historical Node.js; complex filter logic)
 - **Priority:** High
 - **Dependencies:** RCLI3-008 (shared APS parser)
 
@@ -296,7 +312,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** Lock file format matches Node.js CLI; double-lock returns
   error; unlock of unlocked task returns error
 - **Files:** `crates/anvil-cli/src/commands/plan.rs`
-- **Confidence:** high (95 LOC in Node.js; filesystem operations)
+- **Confidence:** high (95 LOC in historical Node.js; filesystem operations)
 - **Priority:** Medium
 - **Dependencies:** RCLI3-008
 
@@ -317,7 +333,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   issues
 - **Validation:** Status output matches Node.js CLI for same store state
 - **Files:** `crates/anvil-cli/src/commands/stack.rs`
-- **Confidence:** high (33 LOC in Node.js; delegates to services)
+- **Confidence:** high (33 LOC in historical Node.js; delegates to services)
 - **Priority:** Low
 - **Dependencies:** RCLI3-001 (Edda store), RCLI3-005 (Ember store)
 
@@ -340,7 +356,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** Agent list matches Node.js CLI; time-ago colour coding
   (green <5m, yellow <1h, red ≥1d) preserved
 - **Files:** `crates/anvil-cli/src/commands/agent.rs`
-- **Confidence:** medium (296 LOC combined in Node.js; state file parsing)
+- **Confidence:** medium (296 LOC combined in historical Node.js; state file parsing)
 - **Priority:** Medium
 - **Dependencies:** RCLI (foundation)
 
@@ -354,10 +370,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   entries. Dry-run mode shows what would be cleaned without modifying state
 - **Expected Outcome:** `anvil agent cleanup --dry-run` lists stale agents
   and expired locks. Without `--dry-run`, removes them and reports counts
-- **Validation:** Cleanup results match Node.js CLI; dry-run produces no
+- **Validation:** Cleanup results match the historical Node.js CLI contract; dry-run produces no
   side effects
 - **Files:** `crates/anvil-cli/src/commands/agent.rs`
-- **Confidence:** high (140 LOC in Node.js; JSON file operations)
+- **Confidence:** high (140 LOC in historical Node.js; JSON file operations)
 - **Priority:** Low
 - **Dependencies:** RCLI3-012
 
@@ -373,10 +389,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   notes format
 - **Expected Outcome:** `anvil authorship stats HEAD~10..HEAD` shows AI
   contribution percentage, tools breakdown, and line statistics
-- **Validation:** Coverage % and tool counts match Node.js CLI for same
+- **Validation:** Coverage % and tool counts match the historical Node.js CLI contract for same
   git history
 - **Files:** `crates/anvil-cli/src/commands/authorship.rs`
-- **Confidence:** medium (234 LOC in Node.js; git notes parsing via
+- **Confidence:** medium (234 LOC in historical Node.js; git notes parsing via
   `git2` or shell)
 - **Priority:** Low
 - **Dependencies:** RCLI (foundation)
@@ -400,30 +416,70 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** Explanation content matches Node.js CLI; rule grouping
   (AP/ARCH/BOUND prefixes) is identical
 - **Files:** `crates/anvil-cli/src/commands/explain.rs`
-- **Confidence:** medium (230 LOC in Node.js; requires explanation catalogue
+- **Confidence:** medium (230 LOC in historical Node.js; requires explanation catalogue
   ported or embedded)
 - **Priority:** Medium
 - **Dependencies:** RCLI (foundation)
 
 ---
 
-### RCLI3-016: mcp-config command
+### RCLI3-016: mcp-config command 🔒 PULLED FORWARD TO A1 (current release)
 
-- **Status:** Proposed
+- **Status:** Ready (pulled forward 2026-04-26 — required by A1 RTAI Spike
+  Slice; without it the demo runbook has no install step. See
+  [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) prerequisites.)
 - **Intent:** Port `anvil mcp-config`. Generate MCP server configuration for
   AI editors (claude-code, cursor, windsurf, vscode). Supports `--target`,
   `--transport` (stdio/http), `--port`, `--write`. Handles symlink-safe path
   resolution and escape detection (confirms if writing outside workspace)
 - **Expected Outcome:** `anvil mcp-config --target claude-code --write`
   creates `.claude/mcp.json` with correct server entry. Each target generates
-  its editor-specific config format
+  its editor-specific config format. `anvil mcp-config --target claude-code
+  --verify` confirms current installation state without writing — prints the
+  resolved client config path, the entry already present (if any), and whether
+  the file parses cleanly; exits non-zero if the entry is missing or malformed
 - **Validation:** Generated configs are valid for each editor; VSCode format
   (type field) differs from others (command/args) — both correct
 - **Files:** `crates/anvil-cli/src/commands/mcp_config.rs`
-- **Confidence:** high (176 LOC in Node.js; template generation with path
+- **Confidence:** high (176 LOC in historical Node.js; template generation with path
   safety)
-- **Priority:** Low
-- **Dependencies:** RCLI (foundation)
+- **Priority:** **High** (was Low — promoted with pull-forward)
+- **Dependencies:** RCLI (foundation), DRVR-002 (driver protocol — so the
+  generated config points at a working daemon endpoint)
+
+---
+
+### RCLI3-016b: mcp install wrapper command 🔒 PULLED FORWARD TO A1 (current release)
+
+- **Status:** Ready (pulled forward 2026-04-26 — required by A1 RTAI Spike
+  Slice demo runbook prerequisites; the runbook's §1.4 install step calls
+  `anvil mcp install --client cursor|claude-code` directly, so this wrapper
+  must ship in the locked release alongside RCLI3-016.)
+- **Intent:** Provide a single-command MCP install / wire-up wrapper around
+  `anvil mcp-config`. `anvil mcp install --client <cursor|claude-code>`
+  detects the client config path, generates the correct config entry, writes
+  it, and prints the next-step "restart your editor" hint. Idempotent on
+  re-run. Mirrors the runbook's "one command, then restart" UX promise.
+- **Expected Outcome:** `anvil mcp install --client cursor` resolves
+  `~/.cursor/mcp.json` (or platform equivalent), writes the `anvil` MCP server
+  entry, and prints the operator-visible "Detected client / Installing /
+  Restart" lines the demo runbook §1.4 expects. `anvil mcp install --client
+  claude-code` does the same against Claude Code's config path. Re-running is
+  a no-op if the entry already matches; re-running with a drifted entry
+  rewrites and warns. Exits non-zero only on hard failure (no client config
+  path resolvable, write refused, etc.)
+- **Validation:** Generated config matches RCLI3-016 output for the same
+  `--target`; `anvil mcp install --client cursor && anvil mcp-config --target
+  cursor --verify` exits zero on a fresh install; idempotent re-run leaves
+  the file byte-identical
+- **Files:** `crates/anvil-cli/src/commands/mcp.rs` (new),
+  `crates/anvil-cli/src/commands/mcp_config.rs` (shared resolver)
+- **Confidence:** high (thin wrapper over RCLI3-016 — config resolution and
+  write are already implemented there)
+- **Priority:** **High** (A1 demo runbook prerequisite)
+- **Dependencies:** RCLI3-016 (provides the underlying config writer and
+  client-path resolution), DRVR-002 (driver protocol — generated entry must
+  point at a working daemon endpoint)
 
 ---
 
@@ -436,13 +492,48 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   `--skip-preflight`
 - **Expected Outcome:** `anvil release --profile beta --execute` runs the
   beta release pipeline (version bump, changelog, tag, publish)
-- **Validation:** Release artefacts match Node.js CLI workflow; state
+- **Validation:** Release artefacts match the historical Node.js CLI contract workflow; state
   resumption works after interruption
 - **Files:** `crates/anvil-cli/src/commands/release.rs`
 - **Confidence:** medium (41 LOC wrapper + ~400 LOC service; release runner
   logic needs porting)
 - **Priority:** Low
 - **Dependencies:** RCLI (foundation)
+
+---
+
+### RCLI3-017b: intercept unblock CLI surface
+
+- **Status:** Ready (carved out 2026-04-26 — INTD-007 covers fence
+  persistence and the data-path unblock primitive, but the operator-visible
+  CLI surface had no work-item home until now. The demo runbook's §3.1
+  soft-reset path calls `anvil intercept unblock --worktree "$PWD"`
+  directly.)
+- **Intent:** Port `anvil intercept unblock --worktree <path>`. CLI surface
+  for removing a fenced worktree from the daemon's persistence file, so an
+  operator can clear demo / test fences without restarting the daemon.
+  Wraps the IPC command INTD-007 / INTD-011 expose.
+- **Expected Outcome:** `anvil intercept unblock --worktree "$PWD"` sends
+  the unblock IPC command for the resolved worktree path, removes the
+  matching entry from the disk-persisted fence file, and prints a
+  confirmation line. `anvil intercept status` immediately reflects the
+  cleared fence (`fences: 0` for that worktree). Unblocking a worktree that
+  is not currently fenced is a no-op and exits zero (idempotent), with an
+  informational note. Optional `--all` flag clears every fence in one call;
+  `--dry-run` lists what would be cleared without modifying state.
+- **Validation:** Integration test against a daemon with a seeded fence
+  asserts the fence is removed from both in-memory state and disk
+  persistence; idempotent re-run leaves the persistence file byte-identical;
+  `--dry-run` produces no side effects
+- **Files:** `crates/anvil-cli/src/commands/intercept.rs` (extend existing
+  surface)
+- **Confidence:** high (thin CLI wrapper over the IPC command INTD-007
+  already persists; daemon side does the work)
+- **Priority:** **Medium** (A1 demo runbook §3.1 prerequisite, but the
+  hard-reset path in §3.2 also clears fences so the demo is recoverable
+  without this CLI in the worst case)
+- **Dependencies:** INTD-007 (fence persistence + unblock primitive),
+  INTD-011 (daemon status / IPC surface for fence query)
 
 ---
 
@@ -459,7 +550,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Validation:** API calls succeed against staging; email validation via
   regex; token shown only once
 - **Files:** `crates/anvil-cli/src/commands/beta.rs`
-- **Confidence:** high (80 LOC in Node.js; HTTP calls via reqwest)
+- **Confidence:** high (80 LOC in historical Node.js; HTTP calls via reqwest)
 - **Priority:** Low
 - **Dependencies:** RCLI-015 (auth/HTTP infrastructure)
 
@@ -469,8 +560,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 | Risk | Likelihood | Impact | Mitigation |
 | ---- | ---------- | ------ | ---------- |
-| Edda YAML format divergence (Rust serde_yaml vs Node.js yaml) | Medium | High | Write format round-trip tests; validate field ordering preservation |
-| Ember SQLite schema mismatch (rusqlite vs better-sqlite3) | Low | High | Dump Node.js schema with `.schema`; create migration test fixture |
+| Edda YAML format divergence (Rust serde_yaml vs historical Node.js yaml) | Medium | High | Write format round-trip tests against historical fixtures; validate field ordering preservation |
+| Ember SQLite schema mismatch (rusqlite vs historical better-sqlite3) | Low | High | Use the captured `.schema` dump from the retired Node.js CLI; create migration test fixture |
 | APS parser complexity (markdown → structured plan) | Medium | Medium | Consider reusing @eddacraft/anvil-aps via napi-rs, or port the core parser |
 | Git notes parsing for authorship | Low | Low | Use `git2` crate or shell out to `git notes`; well-defined format |
 | Release runner service size (~400 LOC) | Medium | Low | Lowest priority; defer if cutover can proceed without it |
@@ -478,9 +569,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ## Sequencing Note
 
-RCLI-023 (Node.js archival) and RCLI-024 (distribution) are blocked on all
-three tiers reaching parity. The recommended sequencing (updated 2026-03-24
-after parity audit):
+RCLI-024 (distribution) is blocked on all three tiers reaching parity.
+RCLI-023 (Node.js archival) executed for the core surface ahead of full
+Tier 3 parity. The recommended sequencing (updated 2026-03-24 after parity
+audit; reviewed 2026-04-26):
 
 1. **RCLI Phase 7 rework** — fix gate checks, watch args, auth migration,
    command registration, hook enforcement, export formatters. These are
@@ -502,5 +594,5 @@ after parity audit):
 | 1 — Edda & Ember | 7 | Proposed |
 | 2 — Plan & Stack | 4 | Proposed |
 | 3 — Agent & Authorship | 3 | Proposed |
-| 4 — Utility Commands | 4 | Proposed |
-| **Total** | **18** | — |
+| 4 — Utility Commands | 6 | Proposed |
+| **Total** | **20** | — |

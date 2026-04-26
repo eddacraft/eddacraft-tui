@@ -1,8 +1,12 @@
 # Test External Services
 
-| ID   | Owner      | Status |
-| ---- | ---------- | ------ |
-| TEXT | @eddacraft | Draft  |
+| ID   | Owner      | Status | Progress |
+| ---- | ---------- | ------ | -------- |
+| TEXT | @eddacraft | Draft  | 0/14     |
+
+**Last reviewed:** 2026-04-26 — TFIX archived Complete (CI infrastructure
+foundation in place). All `apps/anvil-api` and `infra/` paths still current on
+`dev`.
 
 ## Purpose
 

@@ -1,8 +1,10 @@
 # Dashboard AI Builder
 
-| ID | Owner | Status |
-|----|-------|--------|
-| DASHAI | @eddacraft | Draft |
+| ID     | Owner      | Status | Progress |
+| ------ | ---------- | ------ | -------- |
+| DASHAI | @eddacraft | Draft  | 0/6      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 
@@ -36,6 +38,9 @@ renders progressively. The structured pages (DASHCORE, DASHARCH, DASHOPS) cover
 - `dashboard-foundation` — Component catalogue, data hooks, theme, routing
 - `@json-render/react` — json-render library for constrained AI rendering
 - External LLM API — For generating dashboard JSON from prompts
+- Coordinates with `tui-dashboard-render` (TUIDASH) — the Rust/Ratatui json-render
+  spec interpreter; both modules consume the same dashboard JSON schema where
+  feasible (per ADR-011 Ratatui is the TUI surface)
 
 **Exposes:**
 

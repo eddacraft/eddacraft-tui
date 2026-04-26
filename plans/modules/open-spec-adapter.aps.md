@@ -2,6 +2,14 @@
 
 **Scope:** OPENSPEC **Owner:** @team **Priority:** medium **Status:** Draft
 
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Module premise still holds — `packages/adapters/`
+> remains a TypeScript package owning planning-format adapters (BMAD, SpecKit,
+> APS markdown). Open-spec parsing belongs in the same TS adapters layer rather
+> than in any Rust crate. References to `@eddacraft/anvil-core` and
+> `../base/types.js` are TS-package-internal and remain valid post-migration.
+
 ## Purpose
 
 Add support for [open-spec](https://github.com/open-spec/open-spec) format as a

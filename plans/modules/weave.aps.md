@@ -9,9 +9,18 @@ Scopes: WEAVE (weave crate, eddacraft/weave-rs), AHARNESS (anvil-weave crate)
 
 # weave — Agent Runtime
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| WEAVE | —     | Draft  |
+| ID    | Owner | Status | Progress |
+| ----- | ----- | ------ | -------- |
+| WEAVE | —     | Draft  | 0/21     |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Greenfield confirmed — no `weave` or
+> `anvil-weave` crate exists in `crates/` yet. The standalone upstream at
+> [`eddacraft/weave-rs`](https://github.com/eddacraft/weave-rs) is the
+> source-of-truth for the runtime layer and is in place. ADR-024 reference
+> and dependency on `anvil-kernel` / `anvil-kernel-types` crates verified
+> against the current workspace.
 
 Priority: medium.
 
@@ -348,7 +357,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
   "what are the transitive callers", "what layer does this belong to"
 - **Expected Outcome:** Agent can reason about codebase structure by querying
   the live graph rather than parsing text
-- **Validation:** `cargo test -p anvil-weave graph_query`
+- **Validation:** `cargo test -p eddacraft-anvil-weave graph_query`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** AHARNESS-030, KERN Phase 2 (semantic graph)
@@ -361,7 +370,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
   current graph state and returns violations with context
 - **Expected Outcome:** Agent can check "would this change violate any policy"
   or "what policies guard this boundary" programmatically
-- **Validation:** `cargo test -p anvil-weave policy_eval`
+- **Validation:** `cargo test -p eddacraft-anvil-weave policy_eval`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** AHARNESS-030, KERN Phase 3 (policy engine)
@@ -374,7 +383,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
   anvil-weave, with sandboxing appropriate for a governance context
 - **Expected Outcome:** Agent can read files, propose edits, and execute
   commands within constrained scope
-- **Validation:** `cargo test -p anvil-weave standard_tools`
+- **Validation:** `cargo test -p eddacraft-anvil-weave standard_tools`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** AHARNESS-030
@@ -388,7 +397,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
   automatically
 - **Expected Outcome:** When the kernel emits a violation event, anvil-weave
   receives it and can initiate an agent turn with the violation as context
-- **Validation:** `cargo test -p anvil-weave triggers`
+- **Validation:** `cargo test -p eddacraft-anvil-weave triggers`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** AHARNESS-031, AHARNESS-032
@@ -402,7 +411,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
   ready-to-use harness
 - **Expected Outcome:** `AnvilHarness::new(kernel, config)` returns a
   fully-configured agent that can reason about the codebase
-- **Validation:** `cargo test -p anvil-weave harness`
+- **Validation:** `cargo test -p eddacraft-anvil-weave harness`
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** AHARNESS-031, AHARNESS-032, AHARNESS-033, AHARNESS-034
@@ -443,7 +452,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
   trigger → agent queries graph → agent proposes remediation
 - **Expected Outcome:** The full pipeline from detection to suggestion works
   with a mock provider
-- **Validation:** `cargo test -p anvil-weave remediation_e2e`
+- **Validation:** `cargo test -p eddacraft-anvil-weave remediation_e2e`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** AHARNESS-034, AHARNESS-035

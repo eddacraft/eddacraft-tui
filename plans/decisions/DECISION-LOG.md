@@ -56,6 +56,7 @@ These define how Anvil behaves by default. All features must align.
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [015](015-intercept-loop-enforcement.md) | Rust daemon detects file changes from AI agents, evaluates policy, interrupts sessions | Proposed |
+| [031](031-validation-latency-rubric.md) | Single latency rubric for save-time and mid-edit validation; p50/p95/p99 budgets, component boundaries, versioned fixture corpus; INTD-014 / DRVR-002 / RTAI-002 / RTAI-006 cite instead of inventing | Proposed |
 
 ## Policy and Governance
 
@@ -82,9 +83,9 @@ Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Proposed |
-| [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Proposed |
-| [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Proposed |
+| [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Accepted |
+| [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Accepted |
+| [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Accepted |
 | [030](030-surface-drivers-supersede-napi-cutover.md) | Surface drivers (editor + MCP) on the intercept daemon supersede TSRET-003/-004; TSRET-005 retargeted; napi publication no longer required | Proposed |
 
 ## Superseded

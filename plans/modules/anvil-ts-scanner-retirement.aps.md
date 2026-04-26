@@ -10,9 +10,9 @@ See: plans/aps-rules.md
 
 # Anvil TS Scanner Retirement
 
-| ID    | Owner | Status      |
-| ----- | ----- | ----------- |
-| TSRET | —     | In Progress |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| TSRET | —     | In Progress | 2/6      |
 
 > **Plan change (2026-04-23, ADR-030):** TSRET-003 and TSRET-004 are
 > superseded by the `surface-drivers` module (**DRVR**). Both consumers

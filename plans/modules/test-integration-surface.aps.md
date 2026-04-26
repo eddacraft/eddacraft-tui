@@ -1,8 +1,13 @@
 # Test Integration Surface
 
-| ID   | Owner      | Status |
-| ---- | ---------- | ------ |
-| TINT | @eddacraft | Draft  |
+| ID   | Owner      | Status | Progress |
+| ---- | ---------- | ------ | -------- |
+| TINT | @eddacraft | Draft  | 0/15     |
+
+**Last reviewed:** 2026-04-26 — TFIX, RCLI, KERN are all archived as Complete;
+the prerequisite blockers in the Ready Checklist are effectively cleared. TS↔Rust
+subprocess testing still applies because the TS API and `apps/e2e` harness invoke
+the Rust binary as a subprocess (per ADR-030).
 
 ## Purpose
 
@@ -44,9 +49,9 @@ daemon itself is built.
 
 **Depends on:**
 
-- TFIX — E2E harness enabled, OPA in CI
-- RCLI — Rust CLI commands must exist to be tested
-- KERN — kernel watcher must be wired for watch E2E
+- TFIX (archived, Complete) — E2E harness enabled, OPA in CI
+- RCLI (archived, Complete) — Rust CLI commands available for testing
+- KERN (archived, Complete) — kernel watcher wired
 - `apps/e2e/` — existing E2E harness and CLI runner
 
 **Exposes:**
@@ -70,9 +75,9 @@ Change status to **Ready** when:
 
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
-- [ ] TFIX Phase 1 complete (E2E harness, OPA in CI)
-- [ ] RCLI gate and watch commands functional
-- [ ] KERN watcher event output stabilised
+- [x] TFIX Phase 1 complete (E2E harness, OPA in CI) — archived 2026-04
+- [x] RCLI gate and watch commands functional — archived
+- [x] KERN watcher event output stabilised — archived
 
 ## Tasks
 

@@ -7,6 +7,8 @@
 | ------ | ---------- | ------ |
 | ATTRIB | joshuaboys | Ready  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Evolve the third-party-attribution pipeline that currently lives in

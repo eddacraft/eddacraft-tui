@@ -7,6 +7,8 @@
 | ------ | ----- | ------ |
 | RSTLAN | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring Rust to **T3 (Governed)** per
