@@ -340,6 +340,30 @@ run (rayon-parallel parser, release build, Criterion 100 samples):
 Full benchmark report and marketing-ready angles:
 [`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
 
+### Scan throughput across releases
+
+`anvil-bench` measures end-to-end scanner throughput on a 320-artifact mixed
+corpus (60% source, 20% docs, 10% commit messages, 10% agent output) on a fixed
+dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool) so
+cross-release numbers stay honest.
+
+| Release         | Date       | Per-pass time | Throughput              | Notes                                                                  |
+| --------------- | ---------- | ------------- | ----------------------- | ---------------------------------------------------------------------- |
+| pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                         |
+| **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
+
+```mermaid
+xychart-beta
+    title "antipattern_scan throughput (artifacts/sec, higher is better)"
+    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)"]
+    y-axis "artifacts / sec" 0 --> 32000
+    bar [21900, 28600]
+    line [21900, 28600]
+```
+
+Each release adds a row so scan-path drift is visible over time. Per-run detail
+lives in [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md).
+
 ### Benchmark Groups
 
 | Group                       | What it measures                                   | Scale                                |
