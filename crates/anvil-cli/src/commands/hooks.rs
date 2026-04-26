@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use anvil_kernel_types::hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::Serialize;
@@ -63,13 +64,10 @@ const HOOK_COMPAT_DOC: &str = "docs/guides/git-hook-compatibility.md";
 
 /// Pre-commit command body installed via `git config --add hook.pre-commit.command`.
 /// The leading `ANVIL_HOOK=1 anvil gate` segment doubles as the ownership marker
-/// for uninstall — matched by [`ANVIL_CONFIG_HOOK_PATTERN`].
+/// for uninstall — matched by `ANVIL_CONFIG_HOOK_PATTERN` (re-exported from
+/// `anvil_kernel_types::hooks`).
 const PRE_COMMIT_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate --progress";
 const PRE_PUSH_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate";
-
-/// Regex used with `git config --unset-all` to remove only Anvil-managed
-/// config-hook entries, leaving any user-authored commands intact.
-const ANVIL_CONFIG_HOOK_PATTERN: &str = "^ANVIL_HOOK=1 anvil gate";
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
@@ -325,18 +323,6 @@ fn ensure_config_hook_support() -> Result<()> {
     bail!("{}", config_hook_support_error(version));
 }
 
-/// Predicate used by both install (skip-when-already-managed) and
-/// uninstall (count-managed-entries-before-removing) so the two
-/// agree about which entries are Anvil's. Keeps a future change to
-/// the install command shape from desynchronising the two paths.
-fn is_anvil_managed_command(cmd: &str) -> bool {
-    static MANAGED_PATTERN: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(ANVIL_CONFIG_HOOK_PATTERN)
-            .expect("static ANVIL_CONFIG_HOOK_PATTERN must compile")
-    });
-    MANAGED_PATTERN.is_match(cmd)
-}
-
 /// Run `git config <args>` inside `workspace_root` and return the captured
 /// stdout. Non-zero exits surface the recorded stderr.
 fn git_config(workspace_root: &Path, args: &[&str]) -> Result<String> {
@@ -356,7 +342,11 @@ fn git_config(workspace_root: &Path, args: &[&str]) -> Result<String> {
 
 /// `git config --get-all hook.<event>.command`. Treats exit code 1 (no key
 /// set) as an empty result instead of an error.
-fn list_config_hook_commands(workspace_root: &Path, event: &str) -> Result<Vec<String>> {
+///
+/// Exposed at `pub(crate)` so other commands (`status`, `doctor`) can detect
+/// config-mode hooks without re-implementing the `git config` invocation or
+/// duplicating the "exit 1 means empty" handling.
+pub(crate) fn list_config_hook_commands(workspace_root: &Path, event: &str) -> Result<Vec<String>> {
     let key = format!("hook.{event}.command");
     let output = std::process::Command::new("git")
         .arg("-C")
