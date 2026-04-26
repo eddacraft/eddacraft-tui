@@ -5,7 +5,7 @@
 # Module: plans/modules/attribution-pipeline-v3.aps.md
 
 [project]
-target_path   = "ACKNOWLEDGEMENTS.md"
+target_path = "ACKNOWLEDGEMENTS.md"
 fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
 
 [rust]
@@ -15,4 +15,4 @@ fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
 # from attribution.
 manifest_path = "crates/anvil-cli/Cargo.toml"
 template_path = "about.hbs"
-config_path   = "about.toml"
+config_path = "about.toml"
