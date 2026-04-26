@@ -126,18 +126,26 @@ fn check_git_repo() -> DiagnosticCheck {
         .output()
         .is_ok_and(|o| o.status.success());
 
+    // Missing git repo is a Warn rather than Fail (issue #1108): a fresh
+    // user running `anvil doctor` in a brand-new directory before
+    // `git init` should see a guiding next-step, not a hard failure.
+    // Plan history and the watch loop's `--changed` selector still need
+    // git, but those features fail loudly on their own when invoked
+    // outside a repo — doctor's job here is to surface the gap, not to
+    // gate the rest of the run.
     DiagnosticCheck {
         name: "git-repo".to_string(),
         category: "System".to_string(),
         status: if is_repo {
             CheckStatus::Pass
         } else {
-            CheckStatus::Fail
+            CheckStatus::Warn
         },
         message: if is_repo {
             "git repository detected".to_string()
         } else {
-            "not a git repository".to_string()
+            "not a git repository — run `git init` to enable plan history and `--changed`"
+                .to_string()
         },
         details: None,
         auto_fixable: !is_repo,
@@ -145,7 +153,9 @@ fn check_git_repo() -> DiagnosticCheck {
             Remediation::default()
         } else {
             Remediation {
-                summary: "Initialise a git repository in the current directory.".to_string(),
+                summary: "Initialise a git repository in the current directory so Anvil can \
+                          track plan history and scope `anvil watch --changed` to your edits."
+                    .to_string(),
                 command: Some("git init".to_string()),
                 doc_url: None,
             }
@@ -1128,11 +1138,34 @@ mod tests {
         let check = check_git_repo();
         assert_eq!(check.name, "git-repo");
         assert_eq!(check.category, "System");
-        // Status depends on whether .git exists in cwd
+        // Status depends on whether .git exists in cwd. Per issue #1108 the
+        // missing-repo branch is a Warn, not a Fail, so a fresh user before
+        // `git init` is guided rather than blocked.
         assert!(matches!(
             check.status,
-            CheckStatus::Pass | CheckStatus::Fail
+            CheckStatus::Pass | CheckStatus::Warn
         ));
+    }
+
+    /// Issue #1108: when run in a directory with no git repo, `git-repo`
+    /// must Warn (not Fail) and surface a `git init` remediation. Doctor
+    /// must therefore exit 0 in that case, since `bail!` only fires on
+    /// Fail.
+    #[test]
+    fn git_repo_warns_outside_repo_with_actionable_remediation() {
+        with_tempdir_as_cwd(|_| {
+            let check = check_git_repo();
+            assert_eq!(check.name, "git-repo");
+            assert_eq!(check.status, CheckStatus::Warn);
+            assert!(
+                check.message.contains("git init"),
+                "missing-repo message should point at `git init`, got: {}",
+                check.message,
+            );
+            assert_eq!(check.remediation.command.as_deref(), Some("git init"));
+            assert!(!check.remediation.summary.is_empty());
+            assert!(check.auto_fixable);
+        });
     }
 
     #[test]
