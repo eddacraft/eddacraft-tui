@@ -383,7 +383,7 @@ that would have caught bugs found during council review.
 - **Confidence:** High
 - **Intent:** Render LogPanel with empty entries slice, assert 'No log
   entries' message appears and no panic.
-- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs` [crate renamed to `anvil-tui`; `widgets/log_panel.rs` not present in current layout — re-scope EATEST-034..-038 to the actual `anvil-tui` widget set (`results_dashboard.rs`, `quick_wins_panel.rs`) before working]
 
 ### EATEST-035 — LogPanel next_match with active search filter
 
@@ -392,7 +392,7 @@ that would have caught bugs found during council review.
 - **Confidence:** High
 - **Intent:** Populate entries, set search matching 2 entries, call next_match
   twice, assert selected_index lands on correct filtered position.
-- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs` [crate renamed to `anvil-tui`; `widgets/log_panel.rs` not present in current layout]
 
 ### EATEST-036 — TextInput multi-byte Unicode delete
 
@@ -401,7 +401,7 @@ that would have caught bugs found during council review.
 - **Confidence:** High
 - **Intent:** Insert a 3-byte Unicode char, move cursor to position 0, call
   delete, assert value and cursor correct.
-- **Files:** `crates/eddacraft-tui/src/widgets/text_input.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/text_input.rs` [crate renamed to `anvil-tui`; `widgets/text_input.rs` not present in current layout]
 
 ### EATEST-037 — ParallelProgress show_overall=false show_eta=true
 
@@ -410,7 +410,7 @@ that would have caught bugs found during council review.
 - **Confidence:** High
 - **Intent:** Render with show_overall=false, show_eta=true, assert no panic
   and ETA line appears.
-- **Files:** `crates/eddacraft-tui/src/widgets/parallel_progress.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/parallel_progress.rs` [crate renamed to `anvil-tui`; `widgets/parallel_progress.rs` not present in current layout]
 
 ### EATEST-038 — StatusBar render test
 
@@ -419,4 +419,4 @@ that would have caught bugs found during council review.
 - **Confidence:** High
 - **Intent:** Create StatusBar with left and right items, render to 40x1
   buffer, assert left at col 0 and right at col >= 20.
-- **Files:** `crates/eddacraft-tui/src/widgets/status_bar.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/status_bar.rs` [crate renamed to `anvil-tui`; `widgets/status_bar.rs` not present in current layout]

@@ -439,7 +439,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Intent:** `next_match`/`prev_match` treat `selected_index` as a match-list
   index while render treats it as a filtered-entries index. These diverge when
   the match set is a strict subset of filtered entries.
-- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs` [crate renamed to `anvil-tui`; `widgets/log_panel.rs` not present in current layout — re-target before working this item]
 
 ### EAMIG-040 — Remove render-time filter.search overwrite in LogPanel
 
@@ -449,7 +449,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Intent:** `LogPanel::render` overwrites `filter.search` with
   `search_input` every frame, making external writes to `filter.search`
   ineffective.
-- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs` [crate renamed to `anvil-tui`; `widgets/log_panel.rs` not present in current layout]
 
 ---
 
