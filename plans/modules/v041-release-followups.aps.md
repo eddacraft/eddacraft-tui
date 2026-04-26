@@ -65,9 +65,17 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** medium — depends on whether cargo-dist upstream
   publishes a SHA256 for the installer (per pragmatic-lead's R3
   comment, they may not).
-- **Status:** Todo
-
-### V041F-002: Audit attribution stamp for rejected per-operator bearer attempts
+- **Resolution:** Vendored a pinned SHA256 for `cargo-dist-installer.sh`
+  v0.31.0 (`e79d87e418b9d2cbe992d014985457c28a5a7c553add3da4ed1047e161c928f4`)
+  alongside `DIST_VERSION` in the workflow's step env. The step now
+  downloads the installer to `$RUNNER_TEMP`, verifies the SHA256 via
+  `sha256sum --check`, then runs it. Mismatch emits a `::error::`
+  annotation with both expected and actual hashes and halts the job.
+  Comment block above the step documents the bump procedure (compute
+  `sha256sum` of the new version's installer, update both env vars
+  together). Removed the previous `TODO(security)` since the gap is
+  closed.
+- **Status:** Done
 
 - **Surface:** `apps/anvil-api/src/middleware/admin-auth.ts:181-182`
 - **Flagged by:** security-analyst (round 2), pragmatic-lead (round 3
