@@ -1012,6 +1012,7 @@ name = "eddacraft-anvil-checks"
 version = "0.4.0-beta"
 dependencies = [
  "criterion",
+ "eddacraft-anvil-kernel-types",
  "rayon",
  "regex",
  "serde",
@@ -4705,6 +4706,7 @@ dependencies = [
  "cc",
  "clap",
  "clap_builder",
+ "crossbeam-utils",
  "eddacraft-tui",
  "either",
  "errno",
