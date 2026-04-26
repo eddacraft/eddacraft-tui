@@ -1,7 +1,8 @@
+// @ts-nocheck — fixture file scanned as plain text by the AI-001 rule; LSP not relevant.
 // Fixture: representative TS service whose reviewer-style comments
 // stand in for prose an AI tool might mirror back. The unsuppressed
-// comments on lines 9, 20, and 26 each trip a different AI-001
-// heuristic; the suppressed comment on line 15 must NOT be flagged.
+// comments on lines 10, 21, and 27 each trip a different AI-001
+// heuristic; the suppressed comment on line 16 must NOT be flagged.
 
 import { Logger } from './logger';
 

@@ -34,7 +34,7 @@ fn fixture_flags_three_appeals_and_honours_suppression() {
 
     assert_eq!(
         lines,
-        vec![9, 20, 26],
+        vec![10, 21, 27],
         "expected AI-001 to fire on the three unsuppressed appeal lines",
     );
     assert!(
