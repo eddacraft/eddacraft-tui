@@ -4,6 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 
 use crate::surface::Surface;
+use crate::surfaces::fix_request::FixRequest;
 
 use super::TutorialPath;
 use super::discovery_render;
@@ -61,6 +62,23 @@ pub struct Finding {
     pub title: String,
     pub message: String,
     pub suggestion: String,
+    pub warning_id: Option<String>,
+}
+
+impl Finding {
+    #[must_use]
+    pub fn fix_request(&self) -> Option<FixRequest> {
+        let line = self.line?;
+        let warning_id = self.warning_id.as_deref()?;
+        match warning_id {
+            "AP-001" | "AP-003" | "AP-004" => Some(FixRequest::AntiPatternWarning {
+                file: self.file.clone(),
+                line,
+                warning_id: warning_id.to_string(),
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// Aggregated scan results from all sources, filtered and sorted.
@@ -338,6 +356,7 @@ mod tests {
             title: title.to_string(),
             message: "test message".to_string(),
             suggestion: "fix it".to_string(),
+            warning_id: None,
         }
     }
 
@@ -354,6 +373,7 @@ mod tests {
             title: title.to_string(),
             message: "test message".to_string(),
             suggestion: "fix it".to_string(),
+            warning_id: None,
         }
     }
 

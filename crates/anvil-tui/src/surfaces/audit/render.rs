@@ -142,7 +142,11 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
         } else {
             Style::default().fg(theme.fg())
         };
-        let fixable_marker = if issue.fixable { " [fix]" } else { "" };
+        let fixable_marker = if issue.fix_request().is_some() {
+            " [fix]"
+        } else {
+            ""
+        };
 
         lines.push(Line::from(vec![
             Span::styled(indicator, name_style),
@@ -171,7 +175,7 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
                 Span::styled("    Severity: ", Style::default().fg(theme.muted())),
                 Span::styled(issue.severity.label_full(), Style::default().fg(sev_colour)),
             ]));
-            if issue.fixable {
+            if issue.fix_request().is_some() {
                 lines.push(Line::from(Span::styled(
                     "    Auto-fixable: press 'f' to fix",
                     Style::default().fg(theme.accent()),
@@ -335,8 +339,8 @@ mod tests {
                 },
                 super::super::AuditIssue {
                     severity: IssueSeverity::Medium,
-                    category: "Architecture".to_string(),
-                    message: "Cross-boundary import".to_string(),
+                    category: "Quality".to_string(),
+                    message: "console statement found".to_string(),
                     file: "src/utils/db.ts".to_string(),
                     line: 3,
                     fixable: true,
@@ -349,7 +353,7 @@ mod tests {
             }],
             next_steps: vec![
                 "Fix critical security issue".to_string(),
-                "Review boundary violations".to_string(),
+                "Remove console statements".to_string(),
             ],
         }
     }
@@ -480,7 +484,11 @@ mod tests {
                     IssueSeverity::Low
                 },
                 category: "Test".to_string(),
-                message: format!("Issue {i}"),
+                message: if i % 3 == 0 {
+                    "console statement found".to_string()
+                } else {
+                    format!("Issue {i}")
+                },
                 file: format!("src/file{i}.ts"),
                 line: i + 1,
                 fixable: i % 3 == 0,

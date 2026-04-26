@@ -12,7 +12,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 3/6      |
+| LAUNCH | —     | In Progress | 4/7      |
 
 ## Purpose
 
@@ -170,7 +170,7 @@ new primitive, this module follows three rules:
 - **Confidence:** low — the working scope is a feature build, not a
   wire-up; total cost depends on the glob engine choice and how the
   user-pattern path interacts with the existing internal denylist.
-- **Status:** Complete
+- **Status:** Committed
 
 ---
 
@@ -270,6 +270,24 @@ new primitive, this module follows three rules:
   flag advances the marker and starts the watch loop.
 - **Confidence:** high
 - **Status:** Todo
+
+---
+
+### LAUNCH-007: Unify interactive fix handling across start-flow surfaces
+
+- **Intent:** `f` means the same thing everywhere Anvil offers an
+  interactive fix in the welcome / tutorial / audit / doctor flows.
+- **Expected Outcome:** Start-flow surfaces emit one shared fix request
+  shape and route it through one shared CLI-side handler. Surfaces only
+  advertise `f` when the selected item has a deterministic fix behind
+  that handler; dead prompts are removed. `doctor`, tutorial scan
+  findings, and any fixable audit items all use the same dispatch path
+  instead of each surface carrying bespoke `wants_fix` wiring.
+- **Validation:** Targeted Rust tests prove the shared handler applies
+  supported fixes and that each participating surface only exposes `f`
+  when a request can actually be serviced.
+- **Confidence:** medium
+- **Status:** Complete
 
 ## Risks
 

@@ -2,6 +2,8 @@ pub mod render;
 
 use eddacraft_tui::keyboard::Action;
 
+use super::fix_request::FixRequest;
+
 /// Which panel is focused in the audit view.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuditPanel {
@@ -76,6 +78,22 @@ pub struct AuditIssue {
     pub fixable: bool,
 }
 
+impl AuditIssue {
+    #[must_use]
+    pub fn fix_request(&self) -> Option<FixRequest> {
+        if !self.fixable || self.line == 0 {
+            return None;
+        }
+        if self.message == "console statement found" {
+            return Some(FixRequest::AuditConsoleStatement {
+                file: self.file.clone(),
+                line: self.line,
+            });
+        }
+        None
+    }
+}
+
 /// A historical audit score entry.
 #[derive(Debug, Clone)]
 pub struct HistoricalScore {
@@ -111,6 +129,7 @@ pub struct AuditState {
     pub expanded: bool,
     pub should_quit: bool,
     pub wants_back: bool,
+    pub pending_fix: Option<FixRequest>,
 }
 
 impl AuditState {
@@ -122,7 +141,18 @@ impl AuditState {
             expanded: false,
             should_quit: false,
             wants_back: false,
+            pending_fix: None,
         }
+    }
+
+    fn selected_issue_fix_request(&self) -> Option<FixRequest> {
+        if self.focused_panel != AuditPanel::Issues {
+            return None;
+        }
+        self.data
+            .issues
+            .get(self.selected_item)
+            .and_then(AuditIssue::fix_request)
     }
 
     fn max_items_in_panel(&self) -> usize {
@@ -164,6 +194,11 @@ impl AuditState {
                     self.expanded = !self.expanded;
                 }
             }
+            Action::Character('f') => {
+                if let Some(request) = self.selected_issue_fix_request() {
+                    self.pending_fix = Some(request);
+                }
+            }
             Action::Back => {
                 if self.expanded {
                     self.expanded = false;
@@ -186,9 +221,17 @@ impl crate::surface::Surface for AuditState {
 
     fn help_text(&self) -> &'static str {
         if self.expanded {
-            "j/k navigate  h/l switch panel  esc collapse  q quit"
+            if self.selected_issue_fix_request().is_some() {
+                "j/k navigate  h/l switch panel  f fix  esc collapse  q quit"
+            } else {
+                "j/k navigate  h/l switch panel  esc collapse  q quit"
+            }
         } else {
-            "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+            if self.selected_issue_fix_request().is_some() {
+                "j/k navigate  h/l switch panel  enter expand  f fix  esc back  q quit"
+            } else {
+                "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+            }
         }
     }
 
@@ -197,7 +240,7 @@ impl crate::surface::Surface for AuditState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.pending_fix.is_some()
     }
 
     fn should_back(&self) -> bool {
@@ -207,6 +250,7 @@ impl crate::surface::Surface for AuditState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.pending_fix = None;
     }
 
     fn render(
@@ -238,16 +282,16 @@ mod tests {
                 },
                 AuditIssue {
                     severity: IssueSeverity::Medium,
-                    category: "Architecture".to_string(),
-                    message: "Cross-boundary import".to_string(),
+                    category: "Quality".to_string(),
+                    message: "console statement found".to_string(),
                     file: "src/utils/db.ts".to_string(),
                     line: 3,
                     fixable: true,
                 },
                 AuditIssue {
                     severity: IssueSeverity::Low,
-                    category: "Style".to_string(),
-                    message: "Unused import".to_string(),
+                    category: "Quality".to_string(),
+                    message: "console statement found".to_string(),
                     file: "src/index.ts".to_string(),
                     line: 1,
                     fixable: true,
@@ -267,8 +311,8 @@ mod tests {
             ],
             next_steps: vec![
                 "Fix critical security issue in src/config.ts".to_string(),
-                "Review architecture boundary violations".to_string(),
-                "Run auto-fix for style issues".to_string(),
+                "Remove console statements from source files".to_string(),
+                "Run auto-fix for fixable issues".to_string(),
             ],
         }
     }
@@ -401,5 +445,37 @@ mod tests {
         state.focused_panel = AuditPanel::Issues;
         state.handle_key(Action::Select);
         assert!(!state.expanded);
+    }
+
+    #[test]
+    fn help_text_only_advertises_fix_for_fixable_issue() {
+        let mut state = AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        assert_eq!(
+            <AuditState as crate::surface::Surface>::help_text(&state),
+            "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+        );
+
+        state.selected_item = 1;
+        assert_eq!(
+            <AuditState as crate::surface::Surface>::help_text(&state),
+            "j/k navigate  h/l switch panel  enter expand  f fix  esc back  q quit"
+        );
+    }
+
+    #[test]
+    fn f_key_sets_pending_fix_for_fixable_issue() {
+        let mut state = AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        state.selected_item = 1;
+
+        state.handle_key(Action::Character('f'));
+        assert_eq!(
+            state.pending_fix,
+            Some(FixRequest::AuditConsoleStatement {
+                file: "src/utils/db.ts".to_string(),
+                line: 3,
+            })
+        );
     }
 }

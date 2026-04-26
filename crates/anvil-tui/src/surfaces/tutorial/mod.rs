@@ -15,6 +15,7 @@ use discovery::ScanResults;
 use eddacraft_tui::keyboard::Action;
 use verify::{Verify, VerifyResult};
 
+use crate::surfaces::fix_request::FixRequest;
 use crate::surfaces::notifications::{NotificationSource, surface_notification};
 
 /// Notice rendered when the file watcher can't be started and the tutorial
@@ -139,9 +140,8 @@ pub struct TutorialState {
     /// Set to true when the tutorial wants to launch the watch mode demo.
     /// The TUI loop exits and the CLI command handles the transition.
     pub wants_watch_demo: bool,
-    /// Set to true when the user presses 'f' to fix the top finding.
-    /// The orchestrator creates a `FixState` and runs it as a sub-surface.
-    pub wants_fix: bool,
+    /// Pending fix request emitted when the user presses `f`.
+    pub pending_fix: Option<FixRequest>,
 }
 
 impl TutorialState {
@@ -167,7 +167,7 @@ impl TutorialState {
             completed_paths: Vec::new(),
             resuming_notice: None,
             wants_watch_demo: false,
-            wants_fix: false,
+            pending_fix: None,
         }
     }
 
@@ -219,6 +219,14 @@ impl TutorialState {
 
     pub fn set_scan_results(&mut self, results: ScanResults) {
         self.scan_results = Some(results);
+    }
+
+    fn next_fix_request(&self) -> Option<FixRequest> {
+        self.domain_findings
+            .as_ref()?
+            .sorted_findings()
+            .into_iter()
+            .find_map(|finding| finding.fix_request())
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
@@ -450,13 +458,8 @@ impl TutorialState {
                 }
             }
             Action::Character('f') => {
-                // 'f' — open fix surface for the top domain finding.
-                if self
-                    .domain_findings
-                    .as_ref()
-                    .is_some_and(|d| !d.findings.is_empty())
-                {
-                    self.wants_fix = true;
+                if let Some(request) = self.next_fix_request() {
+                    self.pending_fix = Some(request);
                 }
             }
             Action::Back => self.wants_back = true,
@@ -494,11 +497,7 @@ impl crate::surface::Surface for TutorialState {
                     "enter next  esc back  q quit"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
-                } else if self
-                    .domain_findings
-                    .as_ref()
-                    .is_some_and(|d| !d.findings.is_empty())
-                {
+                } else if self.next_fix_request().is_some() {
                     "enter run/next  space next  f fix  esc back  q quit"
                 } else {
                     "enter run/next  space next  esc back  q quit"
@@ -513,7 +512,7 @@ impl crate::surface::Surface for TutorialState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit || self.wants_fix
+        self.should_quit || self.pending_fix.is_some()
     }
 
     fn should_back(&self) -> bool {
@@ -523,7 +522,7 @@ impl crate::surface::Surface for TutorialState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
-        self.wants_fix = false;
+        self.pending_fix = None;
         self.phase = TutorialPhase::PathSelect;
         self.path_selected = 0;
         self.steps.clear();
@@ -963,6 +962,7 @@ mod tests {
                     title: "anti-pattern".to_string(),
                     message: "test".to_string(),
                     suggestion: "fix".to_string(),
+                    warning_id: Some("AP-003".to_string()),
                 },
                 Finding {
                     file: "src/lib.rs".to_string(),
@@ -972,6 +972,7 @@ mod tests {
                     title: "boundary".to_string(),
                     message: "test".to_string(),
                     suggestion: "fix".to_string(),
+                    warning_id: None,
                 },
             ],
             files_scanned: 100,
@@ -1505,7 +1506,7 @@ mod tests {
     // --- Fix key tests ---
 
     #[test]
-    fn f_key_sets_wants_fix_when_domain_findings_present() {
+    fn f_key_sets_pending_fix_when_fixable_domain_finding_present() {
         let mut state = TutorialState::new();
         state.set_scan_results(make_scan_results());
         state.handle_key(Action::Select); // choose Policy path
@@ -1513,7 +1514,14 @@ mod tests {
         assert!(!state.domain_findings.as_ref().unwrap().findings.is_empty());
 
         state.handle_key(Action::Character('f'));
-        assert!(state.wants_fix);
+        assert_eq!(
+            state.pending_fix,
+            Some(FixRequest::AntiPatternWarning {
+                file: "src/main.rs".to_string(),
+                line: 10,
+                warning_id: "AP-003".to_string(),
+            })
+        );
     }
 
     #[test]
@@ -1523,11 +1531,11 @@ mod tests {
         assert!(state.domain_findings.is_none());
 
         state.handle_key(Action::Character('f'));
-        assert!(!state.wants_fix);
+        assert!(state.pending_fix.is_none());
     }
 
     #[test]
-    fn wants_fix_causes_should_quit_true() {
+    fn pending_fix_causes_should_quit_true() {
         let mut state = TutorialState::new();
         state.set_scan_results(make_scan_results());
         state.handle_key(Action::Select);
@@ -1538,11 +1546,15 @@ mod tests {
     }
 
     #[test]
-    fn reset_clears_wants_fix() {
+    fn reset_clears_pending_fix() {
         let mut state = TutorialState::new();
-        state.wants_fix = true;
+        state.pending_fix = Some(FixRequest::AntiPatternWarning {
+            file: "src/main.rs".to_string(),
+            line: 10,
+            warning_id: "AP-003".to_string(),
+        });
         <TutorialState as crate::surface::Surface>::reset(&mut state);
-        assert!(!state.wants_fix);
+        assert!(state.pending_fix.is_none());
     }
 
     // --- NotificationSource impl ---

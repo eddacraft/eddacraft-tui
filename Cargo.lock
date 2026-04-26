@@ -4705,6 +4705,7 @@ dependencies = [
  "cc",
  "clap",
  "clap_builder",
+ "crossbeam-utils",
  "eddacraft-tui",
  "either",
  "errno",
