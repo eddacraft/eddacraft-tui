@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GHOOK | —     | In Progress | 1/6 |
+| GHOOK | —     | In Progress | 2/6 |
 
 **Last reviewed:** 2026-04-26
 
@@ -100,7 +100,7 @@ configuration.
 
 ### GHOOK-002: `anvil hooks` config-mode install and uninstall
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Let Anvil install and remove native config-based hooks without relying on shell files in `.husky/` or `.git/hooks/`.
 - **Expected Outcome:** `anvil hooks` can manage config-backed pre-commit and pre-push entries.
 - **Files:**
@@ -168,16 +168,16 @@ configuration.
 | Phase | Total | Done | In Progress | Todo |
 | ----- | ----- | ---- | ----------- | ---- |
 | Policy and compatibility | 2 | 1 | 0 | 1 |
-| Product support | 2 | 0 | 0 | 2 |
+| Product support | 2 | 1 | 0 | 1 |
 | Repo and docs rollout | 2 | 0 | 0 | 2 |
-| **Total** | 6 | 1 | 0 | 5 |
+| **Total** | 6 | 2 | 0 | 4 |
 
 ### Item Detail
 
 | ID | Status | Notes |
 | -- | ------ | ----- |
 | GHOOK-001 | Complete | Compatibility doc + baseline pinned in `package.json` engines.git |
-| GHOOK-002 | Todo | Adds native config-hook install and uninstall mode |
+| GHOOK-002 | Done | Native config-hook install and uninstall via `--config`, with Git 2.54 refusal guard |
 | GHOOK-003 | Todo | Makes status, doctor, and onboarding detect config hooks |
 | GHOOK-004 | Todo | Defines safe coexistence with Husky, file hooks, and other managers |
 | GHOOK-005 | Todo | Decides whether this repo should migrate off Husky |
