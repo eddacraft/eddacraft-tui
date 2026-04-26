@@ -226,11 +226,25 @@ fn create_warning_from_match(
 }
 
 static SUPPRESSION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?://|/\*|#|<!--|--)\s*@anvil-ignore\s+(AP-\d{3})(?:\s*--\s*(.+))?")
+    // Per ADR-029 the Rust parser is the authoritative suppression parser
+    // for all new surfaces (SURFENV, SURFSQL, SURFCI, …). The ID capture is
+    // therefore broad enough to admit any `<PREFIX>-<TAIL>` shape — `AP-003`,
+    // `SURFENV-001`, `SURFSQL-002` — rather than the legacy `AP-\d{3}` form.
+    // Downstream callers compare the captured ID to the rule they're
+    // checking, so widening here cannot suppress an unrelated rule.
+    Regex::new(r"(?://|/\*|#|<!--|--)\s*@anvil-ignore\s+([A-Z][A-Z0-9]*-[A-Z0-9]+)(?:\s*--\s*(.+))?")
         .expect("static suppression regex must compile")
 });
 
-fn parse_suppression(line: &str) -> Option<(String, String)> {
+/// Parse an `@anvil-ignore <ID> -- <reason>` directive from a line.
+///
+/// Authoritative entry point per
+/// [ADR-029](../../../plans/decisions/029-suppression-parser-authority.md):
+/// every new Track 3 surface module reuses this parser rather than rolling
+/// its own. Callers are expected to gate the result on `id == pattern_id`
+/// — this function only extracts the directive.
+#[must_use]
+pub fn parse_suppression(line: &str) -> Option<(String, String)> {
     let captures = SUPPRESSION_REGEX.captures(line)?;
     let id = captures.get(1).map_or("", |capture| capture.as_str());
     let reason = captures
