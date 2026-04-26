@@ -62,14 +62,26 @@ fn config_get_all(dir: &std::path::Path, key: &str) -> Vec<String> {
         .args(["config", "--get-all", key])
         .output()
         .expect("invoking git config --get-all");
-    if !out.status.success() {
-        // Exit 1 = key absent, treat as empty.
-        return Vec::new();
+    if out.status.success() {
+        return String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(ToString::to_string)
+            .collect();
     }
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(ToString::to_string)
-        .collect()
+    // `git config --get-all` exits 1 specifically when the key is not
+    // set. Any other exit code is a real error (bad repo, invalid key,
+    // permission issue, etc.) and must fail the test loudly rather
+    // than silently hand back an empty vec — that would let an
+    // uninstall-path assertion pass for the wrong reason.
+    match out.status.code() {
+        Some(1) => Vec::new(),
+        other => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            panic!(
+                "git config --get-all {key} failed unexpectedly: exit={other:?} stderr={stderr}"
+            );
+        }
+    }
 }
 
 #[test]

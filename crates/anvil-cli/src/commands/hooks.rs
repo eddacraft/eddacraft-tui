@@ -299,18 +299,42 @@ fn detect_git_version() -> Result<(u32, u32, u32)> {
     parse_git_version(&raw).with_context(|| format!("parsing git version output: {}", raw.trim()))
 }
 
+/// Build the refusal message used when `anvil hooks install --config` is
+/// invoked on a Git older than the 2.54 floor. Extracted so the test
+/// suite can pin the wording without depending on the local `git
+/// --version` (and so [`ensure_config_hook_support`] has a single
+/// formatter, not an inlined string).
+fn config_hook_support_error(detected: (u32, u32, u32)) -> String {
+    let (major, minor, patch) = detected;
+    format!(
+        "anvil hooks --config requires Git >= {MIN_CONFIG_HOOK_GIT_MAJOR}.{MIN_CONFIG_HOOK_GIT_MINOR} \
+         (detected {major}.{minor}.{patch}). See {HOOK_COMPAT_DOC} for the rollout policy."
+    )
+}
+
 /// Refuse `--config` mode when the local Git is older than 2.54, surfacing
-/// the policy doc so the user knows where to read more.
+/// the policy doc so the user knows where to read more. Only `install
+/// --config` enforces this — `uninstall --config` only manipulates
+/// `git config` keys, which works on any modern Git, so users who
+/// downgrade Git after install can still clean up.
 fn ensure_config_hook_support() -> Result<()> {
     let version = detect_git_version()?;
     if supports_config_hooks(version) {
         return Ok(());
     }
-    let (major, minor, patch) = version;
-    bail!(
-        "anvil hooks --config requires Git >= {MIN_CONFIG_HOOK_GIT_MAJOR}.{MIN_CONFIG_HOOK_GIT_MINOR} \
-         (detected {major}.{minor}.{patch}). See {HOOK_COMPAT_DOC} for the rollout policy."
-    );
+    bail!("{}", config_hook_support_error(version));
+}
+
+/// Predicate used by both install (skip-when-already-managed) and
+/// uninstall (count-managed-entries-before-removing) so the two
+/// agree about which entries are Anvil's. Keeps a future change to
+/// the install command shape from desynchronising the two paths.
+fn is_anvil_managed_command(cmd: &str) -> bool {
+    static MANAGED_PATTERN: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(ANVIL_CONFIG_HOOK_PATTERN)
+            .expect("static ANVIL_CONFIG_HOOK_PATTERN must compile")
+    });
+    MANAGED_PATTERN.is_match(cmd)
 }
 
 /// Run `git config <args>` inside `workspace_root` and return the captured
@@ -363,7 +387,7 @@ fn install_config_hook(
     force: bool,
 ) -> Result<HookResult> {
     let existing = list_config_hook_commands(workspace_root, event)?;
-    let already_managed = existing.iter().any(|c| c.starts_with("ANVIL_HOOK=1"));
+    let already_managed = existing.iter().any(|c| is_anvil_managed_command(c));
 
     if already_managed && !force {
         return Ok(HookResult {
@@ -409,7 +433,7 @@ fn uninstall_config_hook(workspace_root: &Path, event: &str) -> Result<HookResul
     let existing = list_config_hook_commands(workspace_root, event)?;
     let managed_count = existing
         .iter()
-        .filter(|c| c.starts_with("ANVIL_HOOK=1"))
+        .filter(|c| is_anvil_managed_command(c))
         .count();
 
     if managed_count == 0 {
@@ -420,21 +444,14 @@ fn uninstall_config_hook(workspace_root: &Path, event: &str) -> Result<HookResul
         });
     }
 
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(workspace_root)
-        .args([
-            "config",
+    git_config(
+        workspace_root,
+        &[
             "--unset-all",
             &format!("hook.{event}.command"),
             ANVIL_CONFIG_HOOK_PATTERN,
-        ])
-        .output()
-        .context("running git config --unset-all")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        bail!("git config --unset-all hook.{event}.command failed: {stderr}");
-    }
+        ],
+    )?;
 
     Ok(HookResult {
         hook: event.to_string(),
@@ -591,8 +608,13 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
             config,
         } => {
             if *config {
-                ensure_config_hook_support()?;
-
+                // Intentionally do NOT call `ensure_config_hook_support()`
+                // here. Removing entries is just `git config --unset-all`,
+                // which works on any modern Git regardless of whether the
+                // 2.54 hook-execution machinery is present. A user who
+                // downgraded Git after install (or moved a repo to an
+                // older machine) must still be able to clean up — that
+                // is a strictly safer state than refusing.
                 let mut results = Vec::new();
                 if !*pre_push_only {
                     results.push(uninstall_config_hook(&workspace_root, "pre-commit")?);
@@ -1009,18 +1031,14 @@ mod tests {
     }
 
     /// The version-refusal error wording is part of the public CLI contract:
-    /// users land on the policy doc and see the 2.54 floor explicitly. This
-    /// test pins both, matching the GHOOK-002 spec acceptance criteria.
+    /// users land on the policy doc and see the 2.54 floor explicitly. The
+    /// test exercises the canonical formatter `config_hook_support_error`
+    /// directly so a wording change in `ensure_config_hook_support` cannot
+    /// silently pass — `ensure_config_hook_support` itself just calls the
+    /// formatter and `bail!`s with its result.
     #[test]
-    fn ensure_config_hook_support_error_text_mentions_2_54_and_doc() {
-        // Build the same error string the helper would produce for an
-        // older Git, without depending on the local `git --version`.
-        let detected = (2, 51, 0);
-        let err = format!(
-            "anvil hooks --config requires Git >= {MIN_CONFIG_HOOK_GIT_MAJOR}.{MIN_CONFIG_HOOK_GIT_MINOR} \
-             (detected {}.{}.{}). See {HOOK_COMPAT_DOC} for the rollout policy.",
-            detected.0, detected.1, detected.2,
-        );
+    fn config_hook_support_error_mentions_2_54_doc_and_flag() {
+        let err = config_hook_support_error((2, 51, 0));
         assert!(
             err.contains("2.54"),
             "error should mention the 2.54 floor: {err}"
@@ -1033,6 +1051,22 @@ mod tests {
             err.contains("--config"),
             "error should reference the offending flag: {err}",
         );
+        assert!(
+            err.contains("2.51.0"),
+            "error should report the detected version: {err}",
+        );
+    }
+
+    #[test]
+    fn is_anvil_managed_command_recognises_only_anvil_lines() {
+        // Re-using the same predicate for install + uninstall keeps the
+        // two paths in sync. This guards the predicate's behaviour.
+        assert!(is_anvil_managed_command(PRE_COMMIT_CONFIG_COMMAND));
+        assert!(is_anvil_managed_command(PRE_PUSH_CONFIG_COMMAND));
+        // A user-authored command that happens to set ANVIL_HOOK=1 but
+        // does not invoke `anvil gate` must not be claimed as ours.
+        assert!(!is_anvil_managed_command("ANVIL_HOOK=1 npm run my-gate"));
+        assert!(!is_anvil_managed_command("npm run lint-staged"));
     }
 
     #[test]
