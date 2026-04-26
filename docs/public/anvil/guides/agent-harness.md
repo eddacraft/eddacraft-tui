@@ -144,9 +144,10 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-On Git 2.54 or newer, you can install the same gate as a native config-based
-hook instead of a file. See the
-[Git hook setup](/anvil/operations/git-hooks) page for which mode to choose.
+On Git 2.54 or newer, native config-based hooks are planned as a future option,
+but `anvil hooks install` writes a file-based hook today. Native config-mode
+install is gated on `GHOOK-002`. See the
+[Git hook setup](/anvil/operations/git-hooks) page for the rollout shape.
 
 ## Telemetry and Learning
 

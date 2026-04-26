@@ -42,11 +42,10 @@ anvil check --changed --staged
 This blocks commits that introduce violations. The `--changed --staged` flags
 restrict analysis to staged files only, so it stays fast.
 
-Anvil also supports Git 2.54's native config-based hooks for setups that need
-multiple commands per hook event. See
-[Git hook setup](/anvil/operations/git-hooks) and the
-[compatibility policy](/anvil/operations/git-hooks#compatibility-baseline) for
-which mode applies to your Git version.
+Native config-based hooks for newer Git versions are planned work (`GHOOK-002`
+onwards) — `anvil hooks install` ships file-mode hooks today. See
+[Git hook setup](/anvil/operations/git-hooks) for the rollout shape and which
+mode will apply when config mode lands.
 
 ## Layer 3: CI-Time (Pipeline)
 
