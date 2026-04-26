@@ -18,6 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "check:runtime-cjs": "node scripts/check-runtime-cjs.cjs",
+    "migrate": "node scripts/migrate.mjs",
+    "migrate:dry-run": "node scripts/migrate.mjs --dry-run",
     "dev": "npx wrangler dev src/index.ts"
   },
   "repository": {

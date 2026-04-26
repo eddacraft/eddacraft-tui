@@ -269,19 +269,19 @@ require a coordinated bundle — pick them off in any order.
   fork+commit+pr flow against a stub repo), assert URL casing on the
   generated manifest before push.
 - **Confidence:** medium — root cause not yet diagnosed
-- **Resolution (in flight):** Defensive workflow rewrite. Replaces the
-  `gh repo fork ... --clone=false 2>/dev/null || true` pattern (which
-  swallowed the cobra diagnostic) with an explicit "do I already have a
-  fork?" check via `gh api repos/$FORK_USER/winget-pkgs --silent`, so
-  the fork command only runs on the first tag for the account and any
-  failure surfaces directly. Switches `$SHA_ARG` from a string to a
-  bash array (`SHA_ARGS=()` / `"${SHA_ARGS[@]}"`) so the empty-sha case
-  cannot leak word-split tokens into `gh api`. Adds `gh --version` log
-  for repro and an explicit lowercase assertion on `REPO` before any
-  URL substitution. Definitive root cause stays unproven without a
-  matching-version local repro; landing the defensive form first is
-  the higher-leverage move.
-- **Status:** In Progress (PR pending)
+- **Resolution:** Defensive workflow rewrite landed in PR #1098.
+  Replaces the `gh repo fork ... --clone=false 2>/dev/null || true`
+  pattern (which swallowed the cobra diagnostic) with an explicit
+  fork-existence check that branches on `HTTP 404` (create the fork)
+  vs any other stderr (auth/rate-limit/network — halt loudly).
+  Switches `$SHA_ARG` from a string to a bash array (`SHA_ARGS=()` /
+  `"${SHA_ARGS[@]}"`) to avoid word-split / globbing hazards when
+  conditionally building flag strings. Adds `gh --version` log line
+  for future repro and an explicit lowercase assertion on `REPO`
+  before any URL substitution. Root cause stays unproven without a
+  matching-version local repro; the defensive form is sufficient
+  to unblock the next tag.
+- **Status:** Done
 
 ### V041F-014: Wire a database-migration runner into the deploy pipeline
 
@@ -318,7 +318,19 @@ require a coordinated bundle — pick them off in any order.
   ship a minimal first-party runner. Per-migration transaction +
   `_migrations` tracking are the non-negotiable parts.
 - **Action plan:** [`plans/execution/V041F-014.steps.md`](../execution/V041F-014.steps.md)
-- **Status:** Ready
+- **Resolution (in flight):** First-party runner. Drizzle Kit is wired
+  to its own metadata format and does not naturally consume the
+  filename-ordered SQL files we already ship; `node-pg-migrate` adds
+  a third-party dep when the actual runner is ~150 lines of SQL +
+  sha tracking. Lib lives at `apps/anvil-api/src/db/migrate.ts`
+  (testable, 13 unit tests via vitest); CLI entry at
+  `apps/anvil-api/scripts/migrate.mjs` connects via `Pool` from
+  `@neondatabase/serverless` (already a runtime dep). Operator
+  runbook at `docs/runbooks/db-migrations.md`. Remaining work to
+  close the item: wire the migrate step into `release.yml` between
+  `host` and Pulumi Up, and backfill `_migrations` on prod (one-off
+  operator action, runbook §"Backfilling").
+- **Status:** In Progress
 
 ### V041F-015: Remove `svix>uuid` override exception once dependency chain ships ESM-aware uuid
 
