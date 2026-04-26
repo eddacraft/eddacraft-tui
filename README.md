@@ -343,9 +343,9 @@ Full benchmark report and marketing-ready angles:
 ### Scan throughput across releases
 
 `anvil-bench` measures end-to-end scanner throughput on a 320-artifact mixed
-corpus (60% source, 20% docs, 10% commit messages, 10% agent output) on a fixed
-dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool) so
-cross-release numbers stay honest.
+corpus (60% source, 20% PR descriptions, 10% commit messages, 10% agent output)
+on a fixed dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool)
+so cross-release numbers stay honest.
 
 | Release         | Date       | Per-pass time | Throughput              | Notes                                                                       |
 | --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
