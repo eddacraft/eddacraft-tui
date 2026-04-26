@@ -82,12 +82,48 @@ fn redacted_line_does_not_leak_the_match() {
         &config_no_entropy(),
     );
 
+    // Build a list of the actual fixture secret values so we can assert
+    // none of them survive into the redacted line. The earlier version
+    // checked for the substring `AKIAEXAMPLE`, which never appears in
+    // the fixture and so passed vacuously without verifying anything.
+    let fixture_secrets: Vec<&str> = content
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                return None;
+            }
+            // Take the value side of `KEY=VALUE`, stripping surrounding
+            // quotes so the comparison matches what the parser hands the
+            // scanner.
+            let eq = trimmed.find('=')?;
+            let raw = trimmed[eq + 1..].trim();
+            let unquoted = raw
+                .strip_prefix('"')
+                .and_then(|r| r.strip_suffix('"'))
+                .or_else(|| raw.strip_prefix('\'').and_then(|r| r.strip_suffix('\'')))
+                .unwrap_or(raw);
+            // Only keep values long enough to be a credible secret —
+            // skip short config bits like `production` or `eu-west-2`
+            // which would create noisy false-leak failures.
+            (unquoted.len() >= 16).then_some(unquoted)
+        })
+        .collect();
+
+    assert!(
+        !fixture_secrets.is_empty(),
+        "test bug: fixture must contain at least one secret-shaped value"
+    );
+
     for finding in &findings {
-        assert!(
-            !finding.finding.redacted_line.contains("AKIAEXAMPLE"),
-            "AWS key fragment leaked through redaction: {}",
-            finding.finding.redacted_line
-        );
+        for secret in &fixture_secrets {
+            assert!(
+                !finding.finding.redacted_line.contains(secret),
+                "secret material leaked through redaction: {} appears in {}",
+                secret,
+                finding.finding.redacted_line
+            );
+        }
     }
 }
 

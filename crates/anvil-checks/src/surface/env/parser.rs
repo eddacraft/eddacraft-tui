@@ -13,8 +13,9 @@
 //! `plans/modules/surface-env-files.aps.md`): multi-line values,
 //! `${VAR}` interpolation, `.env.vault`-style encrypted formats.
 //!
-//! The parser is intentionally permissive — a malformed line yields a
-//! `ParseWarning` rather than aborting the whole file, so a single typo
+//! The parser is intentionally permissive — a malformed line yields an
+//! `EnvParseError` (returned alongside successful entries from
+//! `parse_env`) rather than aborting the whole file, so a single typo
 //! does not silently disable secret scanning for the rest of the values.
 
 use std::ops::Range;
@@ -22,9 +23,11 @@ use std::ops::Range;
 /// One key/value pair extracted from a `.env` file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvEntry {
-    /// The variable name (left of `=`). Empty string if the line did not
-    /// declare one (a parse error has been emitted in `parse_env`'s second
-    /// return value).
+    /// The variable name (left of `=`). `parse_env` skips lines that
+    /// do not declare a key (recording an `EnvParseError` in the second
+    /// return value), so this field is never empty on entries returned
+    /// from `parse_env` — the documentation reflects the contract for
+    /// callers.
     pub key: String,
     /// The decoded value (right of `=`, with quotes stripped and escapes
     /// resolved for double-quoted strings).
@@ -105,8 +108,7 @@ pub fn parse_env(content: &str) -> (Vec<EnvEntry>, Vec<EnvParseError>) {
 
         match decode_value(value_in_body) {
             Ok((value, quoted, consumed)) => {
-                let value_span =
-                    value_offset_in_line..(value_offset_in_line + consumed);
+                let value_span = value_offset_in_line..(value_offset_in_line + consumed);
                 entries.push(EnvEntry {
                     key,
                     value,
@@ -236,7 +238,7 @@ fn char_len_at(bytes: &[u8], i: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_env, EnvParseError};
+    use super::{EnvParseError, parse_env};
 
     #[test]
     fn parses_basic_key_value() {

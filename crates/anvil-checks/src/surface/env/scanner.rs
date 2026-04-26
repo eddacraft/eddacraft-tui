@@ -14,8 +14,8 @@ use std::path::Path;
 
 use crate::antipattern::parse_suppression;
 use crate::secret::patterns::{DEFAULT_COMPILED_PATTERNS, PatternMatcher};
-use crate::secret::{SecretCheckConfig, SecretFinding};
 use crate::secret::types::FindingType;
+use crate::secret::{SecretCheckConfig, SecretFinding};
 use crate::surface::env::parser::{EnvEntry, parse_env};
 
 /// Rule ID for the SURFENV-001 secret-detected-in-`.env`-file check.
@@ -69,9 +69,13 @@ pub fn is_env_file(path: &Path) -> bool {
 /// Scan a `.env` file's content for secrets in values.
 ///
 /// Returns one `EnvFinding` per `(entry, secret pattern)` match, sorted
-/// by source line. Values are run through the same `PatternMatcher`
-/// allowlist + `looks_like_code` filters as the standalone secret
-/// scanner so findings are consistent across surfaces.
+/// by source line. Values are checked with the existing secret patterns
+/// and `PatternMatcher` allowlist, but this scanner intentionally does
+/// **not** apply the standalone secret scanner's `looks_like_code`
+/// filter — see the inline note in the scan loop for the rationale
+/// (a parsed `.env` value position is exactly where AWS-shaped keys
+/// belong; the all-caps heuristic that drops them in source-line
+/// scanning hides real findings here).
 #[must_use]
 pub fn scan_env_file(
     file_path: &str,
@@ -102,14 +106,30 @@ pub fn scan_env_file(
             // Skip the filter here — the parser already isolated the
             // value, so we don't need a second-line "is this code?" guard.
 
-            let (suppressed, reason) =
-                resolve_suppression(&lines, entry, SURFENV_001_RULE_ID);
+            let (suppressed, reason) = resolve_suppression(&lines, entry, SURFENV_001_RULE_ID);
 
-            // Compute the column inside the *source* line so consumers can
-            // highlight the exact match position. Falls back to the value
-            // span start if the line is shorter than expected.
-            let line_text = lines.get(entry.line.saturating_sub(1)).copied().unwrap_or("");
-            let column = entry.value_span.start + matched_range.start();
+            // Compute the redaction range against the *raw source line*,
+            // not the decoded value. `matched_range` indexes into
+            // `entry.value` (post-decode: quotes stripped, `\\n`-style
+            // escapes resolved); adding it to `entry.value_span.start`
+            // would misalign with the raw line for any quoted value or
+            // any escape sequence. Searching for the matched substring
+            // inside the raw value span keeps the column accurate, and
+            // we fall back to redacting the whole value span if the
+            // matched value isn't found verbatim (e.g. the match crosses
+            // an escape boundary in a double-quoted value).
+            let line_text = lines
+                .get(entry.line.saturating_sub(1))
+                .copied()
+                .unwrap_or("");
+            let raw_value = line_text.get(entry.value_span.clone()).unwrap_or("");
+            let (redact_start, redact_end) = match raw_value.find(matched_value) {
+                Some(offset) => {
+                    let start = entry.value_span.start + offset;
+                    (start, start + matched_value.len())
+                }
+                None => (entry.value_span.start, entry.value_span.end),
+            };
 
             let secret = SecretFinding {
                 file: file_path.to_string(),
@@ -117,11 +137,7 @@ pub fn scan_env_file(
                 finding_type: FindingType::Pattern,
                 pattern_name: pattern.name.clone(),
                 redacted_match: matcher.redact_secret(matched_value),
-                redacted_line: matcher.redact_range_in_line(
-                    line_text,
-                    column,
-                    column + matched_range.len(),
-                ),
+                redacted_line: matcher.redact_range_in_line(line_text, redact_start, redact_end),
             };
 
             findings.push(EnvFinding {
@@ -136,11 +152,7 @@ pub fn scan_env_file(
     findings
 }
 
-fn resolve_suppression(
-    lines: &[&str],
-    entry: &EnvEntry,
-    rule_id: &str,
-) -> (bool, Option<String>) {
+fn resolve_suppression(lines: &[&str], entry: &EnvEntry, rule_id: &str) -> (bool, Option<String>) {
     if entry.line <= 1 {
         return (false, None);
     }
@@ -158,9 +170,7 @@ fn resolve_suppression(
 mod tests {
     use std::path::Path;
 
-    use super::{
-        is_env_file, scan_env_file, SecretCheckConfig, SURFENV_001_RULE_ID,
-    };
+    use super::{SURFENV_001_RULE_ID, SecretCheckConfig, is_env_file, scan_env_file};
 
     fn config_no_entropy() -> SecretCheckConfig {
         SecretCheckConfig {
@@ -264,7 +274,10 @@ AWS_ACCESS_KEY_ID=AKIAABCDEFGHIJKLMNOP
         let findings = scan_env_file(".env", content, &config_no_entropy());
         assert_eq!(findings.len(), 1);
         let redacted = &findings[0].finding.redacted_line;
-        assert!(redacted.contains("[REDACTED]"), "expected [REDACTED] in {redacted}");
+        assert!(
+            redacted.contains("[REDACTED]"),
+            "expected [REDACTED] in {redacted}"
+        );
         assert!(!redacted.contains("AKIAABCDEFGHIJKLMNOP"));
     }
 }
