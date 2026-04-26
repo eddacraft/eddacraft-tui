@@ -144,6 +144,10 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+On Git 2.54 or newer, you can install the same gate as a native config-based
+hook instead of a file. See the
+[Git hook setup](/anvil/operations/git-hooks) page for which mode to choose.
+
 ## Telemetry and Learning
 
 Track agent behaviour over time by reviewing validation results:

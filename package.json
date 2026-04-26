@@ -3,7 +3,8 @@
   "version": "0.4.0-beta",
   "engines": {
     "node": ">=22.13.0",
-    "pnpm": ">=10.20.0"
+    "pnpm": ">=10.20.0",
+    "git": ">=2.54.0"
   },
   "scripts": {
     "prepare": "husky",

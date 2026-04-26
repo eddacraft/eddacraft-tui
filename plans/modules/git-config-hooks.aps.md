@@ -7,9 +7,9 @@ See: plans/aps-rules.md
 
 # Git Config Hooks
 
-| ID    | Owner | Status | Progress |
-| ----- | ----- | ------ | -------- |
-| GHOOK | —     | Ready  | 0/6 |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| GHOOK | —     | In Progress | 1/6 |
 
 **Last reviewed:** 2026-04-26
 
@@ -84,12 +84,15 @@ configuration.
 
 ### GHOOK-001: Git 2.54 baseline and rollout policy
 
-- **Status:** Todo
+- **Status:** Complete
 - **Intent:** Decide the minimum Git version and fallback policy needed before repo or product flows depend on config-based hooks.
 - **Expected Outcome:** A documented compatibility position covering repo contributors, CI, and Anvil users.
 - **Files:**
-  - `docs/guides/`
-  - `docs/public/anvil/`
+  - `docs/guides/git-hook-compatibility.md`
+  - `docs/public/anvil/operations/git-hooks.md`
+  - `docs/public/anvil/tutorials/ci.md`
+  - `docs/public/anvil/guides/agent-harness.md`
+  - `docs/guides/README.md`
   - `package.json`
 - **Dependencies:** —
 - **Validation:** Compatibility policy is documented and referenced from hook guidance.
@@ -164,16 +167,16 @@ configuration.
 
 | Phase | Total | Done | In Progress | Todo |
 | ----- | ----- | ---- | ----------- | ---- |
-| Policy and compatibility | 2 | 0 | 0 | 2 |
+| Policy and compatibility | 2 | 1 | 0 | 1 |
 | Product support | 2 | 0 | 0 | 2 |
 | Repo and docs rollout | 2 | 0 | 0 | 2 |
-| **Total** | 6 | 0 | 0 | 6 |
+| **Total** | 6 | 1 | 0 | 5 |
 
 ### Item Detail
 
 | ID | Status | Notes |
 | -- | ------ | ----- |
-| GHOOK-001 | Todo | Establishes minimum Git version and fallback policy |
+| GHOOK-001 | Complete | Compatibility doc + baseline pinned in `package.json` engines.git |
 | GHOOK-002 | Todo | Adds native config-hook install and uninstall mode |
 | GHOOK-003 | Todo | Makes status, doctor, and onboarding detect config hooks |
 | GHOOK-004 | Todo | Defines safe coexistence with Husky, file hooks, and other managers |

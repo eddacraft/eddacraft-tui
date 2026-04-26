@@ -33,6 +33,8 @@ How-to guides for developers working on Anvil.
 - [Branching Strategy](branching-strategy.md) — Git branching model
 - [Worktree Policy](worktree-policy.md) — How to manage permanent and disposable
   worktrees
+- [Git Hook Compatibility Policy](git-hook-compatibility.md) — Baseline and
+  rollout policy for file-based and Git 2.54 native config-based hooks
 
 ### CLI
 
