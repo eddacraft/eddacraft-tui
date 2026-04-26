@@ -6,7 +6,6 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::{Deserialize, Serialize};
-use walkdir::WalkDir;
 
 use anvil_architecture::load_baseline;
 use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
@@ -752,34 +751,41 @@ fn collect_antipatterns(
     (antipatterns, suppressions, ap_result)
 }
 
+// SCAN-001: drift discovery uses `ignore::WalkBuilder` to share the
+// gitignore-aware walk shape with the welcome flow. Per-file scans are
+// already parallelised inside `run_antipattern_check`
+// (`files.par_iter()` in `anvil-checks::antipattern::check`), so we
+// don't need a second rayon fan-out here — only the discovery layer
+// needed swapping. Files are sorted post-collect for deterministic
+// snapshot ordering.
 fn get_source_files(workspace: &Path) -> Result<Vec<String>> {
     let extensions = AntipatternCheckConfig::default().extensions;
-    let mut files = Vec::new();
 
-    for entry in WalkDir::new(workspace)
+    let walker = ignore::WalkBuilder::new(workspace)
         .follow_links(false)
-        .into_iter()
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
-            if e.file_type().is_dir() {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 let name = e.file_name().to_string_lossy();
                 !IGNORE_DIRS.contains(&name.as_ref())
             } else {
                 true
             }
         })
-    {
-        let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path_str = entry.path().to_string_lossy().to_string();
-        if extensions
-            .iter()
-            .any(|ext| path_str.ends_with(ext.as_str()))
-        {
-            files.push(path_str);
-        }
-    }
+        .build();
+
+    let mut files: Vec<String> = walker
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
+        .filter_map(|e| {
+            let path_str = e.path().to_string_lossy().to_string();
+            extensions
+                .iter()
+                .any(|ext| path_str.ends_with(ext.as_str()))
+                .then_some(path_str)
+        })
+        .collect();
 
     files.sort();
     Ok(files)

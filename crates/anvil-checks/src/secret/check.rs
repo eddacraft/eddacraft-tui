@@ -1,9 +1,13 @@
 use std::fs;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use rayon::prelude::*;
 
 use crate::secret::git_scanner::scan_git_history;
 use crate::secret::patterns::compile_custom_patterns;
-use crate::secret::scanner::scan_content;
+use crate::secret::scanner::scan_content_with_stats;
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding};
 
 /// Maximum file size to scan (1 MiB). Files of this size or larger are
@@ -16,25 +20,44 @@ pub fn run_secret_check(
     config: &SecretCheckConfig,
     workspace_root: Option<&str>,
 ) -> SecretCheckResult {
-    let mut findings = Vec::new();
     let (_, pattern_errors) = compile_custom_patterns(&config.custom_patterns);
 
-    for file in files {
-        if should_skip_file(file, config) {
-            continue;
-        }
+    // SCAN-001: read + scan each candidate file in parallel on the rayon
+    // pool, mirroring the welcome-screen discovery shape. Per-file panics
+    // are contained via `catch_unwind`; read failures and skipped files
+    // simply drop out of the collected findings stream. Deterministic
+    // ordering is restored downstream via `deduplicate_findings` (sorts
+    // on a stable BTreeSet key).
+    let lines_skipped_atomic = AtomicUsize::new(0);
+    let per_file: Vec<Vec<SecretFinding>> = files
+        .par_iter()
+        .filter_map(|file| {
+            if should_skip_file(file, config) {
+                return None;
+            }
+            if file_exceeds_size_limit(file) {
+                return None;
+            }
+            let content = fs::read_to_string(file).ok()?;
+            let display_path = normalise_file_path(file, workspace_root);
+            // SCAN-001: contain panics from custom user regexes so a
+            // single bad pattern can't tear down the whole secret scan.
+            let scan_result = catch_unwind(AssertUnwindSafe(|| {
+                scan_content_with_stats(&content, &display_path, config)
+            }));
+            match scan_result {
+                Ok((file_findings, stats)) => {
+                    lines_skipped_atomic
+                        .fetch_add(stats.lines_skipped_oversize, Ordering::Relaxed);
+                    Some(file_findings)
+                }
+                Err(_) => None,
+            }
+        })
+        .collect();
 
-        if file_exceeds_size_limit(file) {
-            continue;
-        }
-
-        let Ok(content) = fs::read_to_string(file) else {
-            continue;
-        };
-        let display_path = normalise_file_path(file, workspace_root);
-        let file_findings = scan_content(&content, &display_path, config);
-        findings.extend(file_findings);
-    }
+    let mut findings: Vec<SecretFinding> = per_file.into_iter().flatten().collect();
+    let lines_skipped_oversize = lines_skipped_atomic.load(Ordering::Relaxed);
 
     if config.scan_git_history {
         let root = workspace_root.unwrap_or(".");
@@ -81,6 +104,7 @@ pub fn run_secret_check(
         message,
         findings,
         pattern_errors,
+        lines_skipped_oversize,
     }
 }
 

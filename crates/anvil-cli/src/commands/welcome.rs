@@ -342,6 +342,74 @@ fn run_discovery(
 const SCAN_MAX_FILES: usize = 500;
 const SCAN_MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
 
+// SCAN-003 — first-run rayon pool cap.
+//
+// The default rayon global pool is sized to `num_cpus::get()`. On 16-core
+// dev boxes the welcome-screen scan can pin every core, fighting the TUI
+// render thread and any background LSP / indexer for CPU. Cap the
+// pool at `min(num_cpus::get(), DEFAULT_FIRST_RUN_THREAD_CAP)` so the
+// terminal stays responsive while the scan completes.
+//
+// Env var contract — `ANVIL_SCAN_THREADS`
+// ---------------------------------------
+// Operators (and the future RTAI debounced-scan surface) may override the
+// cap via `ANVIL_SCAN_THREADS=<positive integer>`. This is the canonical
+// env-var name for the scan-pool cap and is shared with the upcoming
+// real-time AI validation (RTAI) first-run UX work — see
+// `plans/modules/realtime-ai-validation.aps.md`. Locking in the name now,
+// before RTAI ships, prevents the user-visible split-knob problem the
+// spec calls out.
+//
+// `ANVIL_RAYON_THREADS` was the alternative considered. We picked
+// `ANVIL_SCAN_THREADS` because:
+//   - It scopes to scanning (the actual concern) rather than naming an
+//     internal dependency (rayon) that may get swapped out.
+//   - It composes cleanly with the existing `ANVIL_SCAN_ALL` toggle the
+//     welcome screen already honours.
+//   - "rayon threads" leaks an implementation detail that operators
+//     should not need to know.
+//
+// Invalid / non-positive values fall back to the cap; this is a hint, not
+// a hard contract — we never want a malformed env var to abort the scan.
+const ANVIL_SCAN_THREADS_ENV: &str = "ANVIL_SCAN_THREADS";
+const DEFAULT_FIRST_RUN_THREAD_CAP: usize = 4;
+
+/// SCAN-003: resolve the desired thread count for the first-run scan.
+///
+/// Precedence:
+///   1. `ANVIL_SCAN_THREADS` (positive integer) — honoured verbatim,
+///      still clamped at `num_cpus::get()` so an over-large value cannot
+///      schedule more workers than the host has cores.
+///   2. Otherwise: `min(num_cpus::get(), DEFAULT_FIRST_RUN_THREAD_CAP)`.
+///
+/// Returns `None` when the input arguments cannot produce a positive
+/// thread count (which would mean the caller should fall back to the
+/// global pool — currently unreachable, but kept explicit for callers).
+fn resolve_first_run_thread_count(env_value: Option<&str>, available_cpus: usize) -> Option<usize> {
+    let cpus = available_cpus.max(1);
+    let from_env = env_value
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .map(|n| n.min(cpus));
+    let resolved = from_env.unwrap_or_else(|| cpus.min(DEFAULT_FIRST_RUN_THREAD_CAP));
+    (resolved > 0).then_some(resolved)
+}
+
+/// SCAN-003: build a scoped rayon pool sized for the first-run scan.
+///
+/// Returns the pool when construction succeeds; on failure the caller
+/// should fall back to the global rayon pool — failure here is a
+/// best-effort fallback, never fatal to the scan.
+fn build_first_run_pool() -> Option<rayon::ThreadPool> {
+    let env = std::env::var(ANVIL_SCAN_THREADS_ENV).ok();
+    let threads = resolve_first_run_thread_count(env.as_deref(), num_cpus::get())?;
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .thread_name(|idx| format!("anvil-scan-{idx}"))
+        .build()
+        .ok()
+}
+
 /// Decide whether a single `ignore::DirEntry` should be scanned. Used by both
 /// the gitignore-aware primary walker and the always-scan allowlist walker so
 /// filtering stays consistent between the two passes.
@@ -538,28 +606,42 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     // Phase 2: read + scan files in parallel. Each worker runs inside
     // catch_unwind so a panic in one scanner doesn't propagate through the
     // rayon collect and tear down the TUI terminal state.
+    //
+    // SCAN-003: the parallel collect runs inside a scoped rayon pool capped
+    // at `min(num_cpus, DEFAULT_FIRST_RUN_THREAD_CAP)` (override via
+    // `ANVIL_SCAN_THREADS`). Falling back to the global pool when the
+    // builder fails preserves the legacy behaviour rather than aborting
+    // discovery.
     let panics = AtomicUsize::new(0);
     let read_failures = AtomicUsize::new(0);
 
-    let all_findings: Vec<Vec<Finding>> = candidates
-        .par_iter()
-        .map(|(path, rel_path)| {
-            let result = catch_unwind(AssertUnwindSafe(|| {
-                scan_one(path, rel_path, &secret_config)
-            }));
-            match result {
-                Ok(Some(v)) => v,
-                Ok(None) => {
-                    read_failures.fetch_add(1, Ordering::Relaxed);
-                    Vec::new()
+    let scan_closure = || -> Vec<Vec<Finding>> {
+        candidates
+            .par_iter()
+            .map(|(path, rel_path)| {
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    scan_one(path, rel_path, &secret_config)
+                }));
+                match result {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        read_failures.fetch_add(1, Ordering::Relaxed);
+                        Vec::new()
+                    }
+                    Err(_) => {
+                        panics.fetch_add(1, Ordering::Relaxed);
+                        Vec::new()
+                    }
                 }
-                Err(_) => {
-                    panics.fetch_add(1, Ordering::Relaxed);
-                    Vec::new()
-                }
-            }
-        })
-        .collect();
+            })
+            .collect()
+    };
+
+    let all_findings: Vec<Vec<Finding>> = if let Some(pool) = build_first_run_pool() {
+        pool.install(scan_closure)
+    } else {
+        scan_closure()
+    };
 
     // files_scanned counts files that were successfully read + scanned, not
     // raw candidates: panics and read/TOCTOU failures drop out.
@@ -1089,6 +1171,76 @@ mod tests {
     fn open_docs_message_does_not_panic() {
         let msg = open_docs_message();
         assert!(!msg.is_empty());
+    }
+
+    // ── SCAN-003: first-run rayon pool tests ────────────────────────
+    //
+    // Grouped under `welcome::pool::*` so the steps-file validate
+    // command (`cargo test -p eddacraft-anvil welcome::pool`) hits
+    // them precisely.
+
+    mod pool {
+        use super::super::{
+            DEFAULT_FIRST_RUN_THREAD_CAP, build_first_run_pool, resolve_first_run_thread_count,
+        };
+
+        #[test]
+        fn defaults_to_min_of_cpus_and_cap_when_env_unset() {
+            let resolved = resolve_first_run_thread_count(None, 16).unwrap();
+            assert_eq!(resolved, DEFAULT_FIRST_RUN_THREAD_CAP);
+        }
+
+        #[test]
+        fn caps_to_cpu_count_when_cpus_below_default() {
+            let resolved = resolve_first_run_thread_count(None, 2).unwrap();
+            assert_eq!(resolved, 2);
+        }
+
+        #[test]
+        fn env_override_is_honoured_within_cpu_bound() {
+            // 6 < 16 cores → return 6 verbatim.
+            let resolved = resolve_first_run_thread_count(Some("6"), 16).unwrap();
+            assert_eq!(resolved, 6);
+        }
+
+        #[test]
+        fn env_override_clamps_to_available_cpus() {
+            // Asking for 32 on a 4-core box must not over-schedule.
+            let resolved = resolve_first_run_thread_count(Some("32"), 4).unwrap();
+            assert_eq!(resolved, 4);
+        }
+
+        #[test]
+        fn invalid_env_value_falls_back_to_default() {
+            let resolved = resolve_first_run_thread_count(Some("not-a-number"), 8).unwrap();
+            assert_eq!(resolved, DEFAULT_FIRST_RUN_THREAD_CAP);
+        }
+
+        #[test]
+        fn zero_env_value_falls_back_to_default() {
+            // `0` is a malformed override (you can't run 0 threads); fall
+            // back to the default cap rather than refusing to scan.
+            let resolved = resolve_first_run_thread_count(Some("0"), 8).unwrap();
+            assert_eq!(resolved, DEFAULT_FIRST_RUN_THREAD_CAP);
+        }
+
+        #[test]
+        fn whitespace_env_value_is_trimmed() {
+            let resolved = resolve_first_run_thread_count(Some("  3  "), 8).unwrap();
+            assert_eq!(resolved, 3);
+        }
+
+        #[test]
+        fn pool_builder_honours_env_override() {
+            // Drive `build_first_run_pool` end-to-end with a fixed env
+            // override so we exercise the same code path scan_project
+            // calls. `temp_env::with_var` keeps the env mutation scoped
+            // to this test.
+            temp_env::with_var("ANVIL_SCAN_THREADS", Some("2"), || {
+                let pool = build_first_run_pool().expect("scoped pool builds");
+                assert_eq!(pool.current_num_threads(), 2);
+            });
+        }
     }
 
     #[test]

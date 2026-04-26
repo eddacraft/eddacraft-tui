@@ -1,8 +1,8 @@
 # Scan Performance & Safety
 
-| ID   | Owner | Status   | Progress |
-| ---- | ----- | -------- | -------- |
-| SCAN | @team | Proposed | 0/5      |
+| ID   | Owner | Status      | Progress |
+| ---- | ----- | ----------- | -------- |
+| SCAN | @team | In Progress | 3/5      |
 
 **Last reviewed:** 2026-04-26
 
@@ -75,7 +75,7 @@ reference the council finding IDs where relevant.
   - `crates/anvil-kernel/src/watch.rs` (discovery around :113)
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** Complete (landed 2026-04-26 — parallel rollout reaches all listed call-sites; secret-scan benchmark on a 3 k-file synthetic surface shows 7.39× wall-time reduction (3.71 s serial → 0.50 s parallel), well above the >3× acceptance threshold)
 
 ---
 
@@ -98,7 +98,7 @@ reference the council finding IDs where relevant.
   - `crates/anvil-checks/src/secret/types.rs` (config field)
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Proposed
+- **Status:** Complete (landed 2026-04-26 — `max_line_bytes` default = 4096 (4 KB) chosen as a generous bound: short enough to neutralise pathological exponential regex blast radius, long enough that real source code never hits it; skipped lines surfaced via `ScanStats::lines_skipped_oversize` and aggregated through `SecretCheckResult.lines_skipped_oversize`; secret bench shows no regression beyond noise band)
 - **Origin:** Council `security-analyst` SEC-004 (finding #2)
 
 ---
@@ -120,7 +120,7 @@ reference the council finding IDs where relevant.
   - Workspace `Cargo.toml` (add `num_cpus` if not already present)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Proposed
+- **Status:** Complete (landed 2026-04-26 — `ANVIL_SCAN_THREADS` is the canonical env-var name for the first-run rayon pool cap, shared with the upcoming RTAI first-run UX; default `min(num_cpus, 4)`; rationale recorded inline in `crates/anvil-cli/src/commands/welcome.rs` against `DEFAULT_FIRST_RUN_THREAD_CAP`. Alternative `ANVIL_RAYON_THREADS` was considered and rejected because it leaks the rayon implementation detail; "scan threads" composes cleanly with the existing `ANVIL_SCAN_ALL` toggle and matches the user-facing concern.)
 - **Origin:** Council `security-analyst` SEC-004 (finding #3),
   `pragmatic-lead` (resource-contention concern)
 

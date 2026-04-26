@@ -39,6 +39,7 @@ tempfile = "3"
 walkdir = { workspace = true }
 ignore = "0.4"
 rayon = { workspace = true }
+num_cpus = { workspace = true }
 regex = { workspace = true }
 sha2 = "0.11"
 hex = "0.4"

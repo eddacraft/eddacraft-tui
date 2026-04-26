@@ -395,20 +395,28 @@ fn run_check_secret(
 ) -> CheckResult {
     let mut files_to_scan: Vec<String> = Vec::new();
 
-    let mut walker = walkdir::WalkDir::new(root).follow_links(false);
-    // Only cap depth for full-codebase scans; plan-scoped runs must reach
-    // explicitly referenced files regardless of nesting depth.
-    if plan_files.is_empty() {
-        walker = walker.max_depth(SECRET_SCAN_MAX_DEPTH);
-    }
-    for entry in walker
-        .into_iter()
+    // SCAN-001: gate-secret discovery uses `ignore::WalkBuilder`. Per-file
+    // scans run on the rayon pool inside `run_secret_check` (rolled out as
+    // part of this slice). The depth cap is preserved for full-codebase
+    // scans only; plan-scoped runs must reach explicitly referenced files
+    // regardless of nesting depth.
+    let mut walker_builder = ignore::WalkBuilder::new(root);
+    walker_builder
+        .follow_links(false)
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             !SECRET_SCAN_IGNORE.iter().any(|&ig| name == ig)
-        })
+        });
+    if plan_files.is_empty() {
+        walker_builder.max_depth(Some(SECRET_SCAN_MAX_DEPTH));
+    }
+    let walker = walker_builder.build();
+
+    for entry in walker
         .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
     {
         let path = entry.path();
 
@@ -801,21 +809,27 @@ fn extract_import_edges(
 ///
 /// When `extensions` is non-empty, only files with a matching extension are
 /// included. When empty, all files are collected.
+///
+/// SCAN-001: discovery routed through `ignore::WalkBuilder` to share the
+/// welcome-screen walker shape. The per-file boundary scan downstream
+/// already parallelises on rayon.
 fn walk_source_files(project_root: &Path, extensions: &[&str]) -> Vec<String> {
-    let walker = walkdir::WalkDir::new(project_root)
+    let walker = ignore::WalkBuilder::new(project_root)
         .follow_links(false)
-        .into_iter()
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
-            if e.file_type().is_dir() {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 return !WALK_IGNORE_DIRS.contains(&name.as_ref());
             }
             true
-        });
+        })
+        .build();
 
     let mut files = Vec::new();
-    for entry in walker.flatten() {
-        if !entry.file_type().is_file() {
+    for entry in walker.filter_map(std::result::Result::ok) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
         let path = entry.path();

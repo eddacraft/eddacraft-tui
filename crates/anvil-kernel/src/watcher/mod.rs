@@ -106,17 +106,25 @@ fn watch_directories(
         }
     }
 
-    let walker = walkdir::WalkDir::new(root)
-        .min_depth(1)
-        .into_iter()
-        .filter_entry(|e| {
-            if !e.file_type().is_dir() {
+    // SCAN-001: gitignore-aware directory walk for inotify registration
+    // (same shape as the welcome-screen / audit / drift discovery
+    // surfaces). Watch registration itself stays serial because
+    // `notify::Watcher::watch` mutates internal kernel-watch state on
+    // each call; parallelising it has no reliable wall-time win.
+    let filter_for_walker = filter.clone();
+    let walker = ignore::WalkBuilder::new(root)
+        .standard_filters(false)
+        .hidden(false)
+        .follow_links(false)
+        .filter_entry(move |e| {
+            if !e.file_type().is_some_and(|ft| ft.is_dir()) {
                 return false;
             }
-            !filter.should_ignore(e.path())
-        });
+            !filter_for_walker.should_ignore(e.path())
+        })
+        .build();
 
-    for entry in walker.flatten() {
+    for entry in walker.filter_map(Result::ok).filter(|e| e.depth() >= 1) {
         // flatten() skips permission errors, broken symlinks, etc.
         // The filter already excludes node_modules/target/.git so most
         // walk errors are from edge cases that don't affect monitoring.
