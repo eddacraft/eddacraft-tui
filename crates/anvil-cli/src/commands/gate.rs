@@ -20,7 +20,7 @@ pub struct GateArgs {
     /// Plan file to run gates against (omit for full codebase scan)
     plan: Option<String>,
 
-    /// Gate profile: dev, ci, production
+    /// Gate profile: dev, ci, production, ai
     #[arg(long, short)]
     profile: Option<String>,
 
@@ -72,9 +72,17 @@ const PROFILES: &[(&str, &str, &[&str])] = &[
 /// into a single coherent set so external AI tools have a predictable
 /// safety harness.
 ///
-/// CLI flag wiring (`anvil gate --profile ai`) and the structured
-/// diagnostic schema arrive in AIGUARD-002 and AIGUARD-003. This struct
-/// is the foundation those work items build on.
+/// `--profile ai` is already selectable via the existing `--profile`
+/// flag and the `PROFILES` registration above, so the basic skip-list
+/// behaviour is in effect today. What still arrives in later work items:
+/// AIGUARD-002 publishes the canonical `Diagnostic` JSON schema in
+/// `crates/anvil-kernel-types`; AIGUARD-003 wires the strict-config /
+/// JSON-output-default behaviour from `AiGuardrailProfile` (the
+/// `strict_config` and `json_output_default` fields below) into the
+/// gate runner, normalises the profile skip list through
+/// `gate_internal_name` for canonical-name parity with `--skip-checks`,
+/// and registers a `command-safety` dispatcher in
+/// `check_catalog`/`GATE_INTERNAL_CHECKS`.
 #[allow(dead_code)] // Wired up by AIGUARD-003.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AiGuardrailProfile {
@@ -1142,7 +1150,7 @@ fn list_profiles() {
         }
         println!();
     }
-    println!("Usage: anvil gate [plan] --profile dev");
+    println!("Usage: anvil gate [plan] --profile <name>");
 }
 
 fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::HashSet<&str>> {
