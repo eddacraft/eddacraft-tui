@@ -53,7 +53,8 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 - RATS (complete) — Ratatui widget library now merged into `crates/anvil-tui/`
   (theme, widgets, Surface trait). Note: post-migration, `eddacraft-tui` lives
   in `archive/eddacraft-tui-local/` and the active widgets are in
-  `crates/anvil-tui/src/widgets/`.
+  `crates/anvil-tui/src/widgets/`. Crate was renamed from `eddacraft-tui` to
+  `anvil-tui` (verified by 2026-04-26 freshness audit).
 - DASHAI — component catalogue definition and JSON spec format
 - DASH-005 — `.anvil/` data layer (gate findings, drift, etc.)
 - `@json-render/core` — spec format documentation (consumed as JSON schema, not

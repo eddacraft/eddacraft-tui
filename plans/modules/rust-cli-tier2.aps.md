@@ -9,19 +9,25 @@ Scopes: RCLI2 (main)
 
 # Rust CLI — Tier 2
 
-| ID    | Owner | Status   | Progress |
-| ----- | ----- | -------- | -------- |
-| RCLI2 | —     | Proposed | 0/8      |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| RCLI2 | —     | In Progress | 4/8      |
 
 **Last reviewed:** 2026-04-26
 
+> **Status correction 2026-04-26 (freshness audit):** Module flipped from
+> `Proposed` to `In Progress`. RCLI2-001..-004 (`check`, `validate`, `drift`,
+> `gate-config`) all shipped to `crates/anvil-cli/src/commands/` —
+> see commits `1e44ef2d` (RCLI2-001), `c5679432` (RCLI2-002),
+> `a2297dca` (RCLI2-003), `06d764d4` (RCLI2-004). Plan was never
+> updated when the work landed. Index says `0/8 Proposed`; actual
+> state is `4/8 In Progress`. RCLI2-005..-008 remain `Proposed`
+> (still gated on OPAE).
+>
 > **Post-migration note (2026-04-26):** RCLI Tier 1 is complete (64/64) and
 > the Node.js CLI at `apps/anvil-cli/` has been retired. References to the
 > Node.js CLI in this module are historical — they describe the source we are
-> reaching parity with, not a still-present runtime. Several commands listed
-> here (`check`, `validate`, `drift`, `gate_config`) already exist in
-> `crates/anvil-cli/src/commands/`; before starting work, confirm which RCLI2
-> items are still genuinely outstanding versus already covered by RCLI.
+> reaching parity with, not a still-present runtime.
 
 ## Purpose
 
@@ -121,7 +127,7 @@ Change status to **Ready** when:
 #### Phase 1 — Check & Validate
 ### RCLI2-001: check command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `1e44ef2d`; file present at `crates/anvil-cli/src/commands/check.rs`, ~1347 LOC)
 - **Intent:** Port `anvil check` (planless file analysis). Supports file
   selection modes: explicit paths, `--all`, `--changed`, `--staged`,
   `--since <ref>`. Runs GateRunner in planless mode. Supports interactive
@@ -146,7 +152,7 @@ Change status to **Ready** when:
 
 ### RCLI2-002: validate command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `c5679432`; file present at `crates/anvil-cli/src/commands/validate.rs`, ~890 LOC)
 - **Intent:** Port `anvil validate <plan>`. Auto-detects plan format (APS,
   SpecKit, BMAD), validates structure, verifies content hash integrity.
   Supports `--format` override and `--no-validate-hash`
@@ -167,7 +173,7 @@ Change status to **Ready** when:
 
 ### RCLI2-003: drift command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `a2297dca`; file present at `crates/anvil-cli/src/commands/drift.rs`, ~1059 LOC)
 - **Intent:** Port `anvil drift` with four subcommands: `snapshot` (capture
   baseline), `compare` (diff two snapshots), `report` (longitudinal analysis),
   `list` (enumerate snapshots). Reads/writes `.anvil/snapshots/` directory.
@@ -192,7 +198,7 @@ Change status to **Ready** when:
 
 ### RCLI2-004: gate-config command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `06d764d4`; file present at `crates/anvil-cli/src/commands/gate_config.rs`, ~432 LOC)
 - **Intent:** Port `anvil gate-config`. List, enable, disable, and
   interactively configure gate checks and thresholds. Reads/writes
   `.anvil/gate-config.json`
