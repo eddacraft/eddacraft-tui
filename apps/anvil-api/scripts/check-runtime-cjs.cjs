@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports --
+ * The whole point of this script is to exercise the CommonJS require()
+ * path that Vercel's Node runtime hits at cold start. ESM imports would
+ * not reproduce the failure mode this guard is meant to catch.
+ */
 // Vercel's Node runtime loads the compiled API as ESM, but transitive
 // CommonJS deps (notably svix, pulled by resend) still resolve uuid via
 // require(). uuid v14 is ESM-only, so a global `uuid` override that
