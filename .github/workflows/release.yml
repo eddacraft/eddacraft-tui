@@ -516,10 +516,23 @@ jobs:
             exit 1
           fi
 
+          # Surface the runner's gh version so any future "accepts N arg(s)"
+          # cobra failure can be reproduced locally with the matching version.
+          gh --version
+
           VERSION="${RELEASE_TAG#v}"
           REPO="eddacraft/anvil"
           X64_ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
           ARM64_ASSET="eddacraft-anvil-aarch64-pc-windows-msvc.zip"
+
+          # WinGet validator rejects manifests whose InstallerUrl casing
+          # diverges from the actual GitHub release URL casing — the v0.4.0-beta
+          # manual recovery hit this. Anvil's repo is lowercase; assert the
+          # workflow stays that way before any URL substitution happens.
+          if [[ "$REPO" =~ [A-Z] ]]; then
+            echo "::error::REPO '${REPO}' must be lowercase for WinGet manifest URL casing"
+            exit 1
+          fi
 
           # Validate version looks like semver
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
@@ -594,11 +607,20 @@ jobs:
             echo ""
           done
 
-          # Fork winget-pkgs if not already forked
-          gh repo fork microsoft/winget-pkgs --clone=false 2>/dev/null || true
-
-          # Determine the fork owner from the token
+          # Determine the fork owner from the token first, so the fork-or-skip
+          # check below can ask "do I already have a fork?" without depending
+          # on `gh repo fork`'s own quirky exit-code behaviour across versions.
           FORK_USER=$(gh api user --jq '.login')
+
+          # Fork winget-pkgs only if the authenticated user does not already
+          # have one. The previous `gh repo fork --clone=false || true` form
+          # crashed under the runner's gh CLI with "accepts 1 arg(s),
+          # received 2" — likely a parser change around the boolean flag —
+          # and the `2>/dev/null || true` swallowed the diagnostic, leaving
+          # FORK_USER unset on the first tag. Check explicitly instead.
+          if ! gh api "repos/${FORK_USER}/winget-pkgs" --silent 2>/dev/null; then
+            gh repo fork microsoft/winget-pkgs --clone=false
+          fi
 
           # Use run ID in branch name for idempotency on retries
           BRANCH="eddacraft-anvil-${VERSION}-${GITHUB_RUN_ID}"
@@ -637,16 +659,19 @@ jobs:
             CONTENT=$(base64 -w 0 "$f")
             EXISTING_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}?ref=${BRANCH}" --jq '.sha' 2>/dev/null || true)
 
-            SHA_ARG=""
+            # Use a bash array so the empty-sha case adds no trailing tokens
+            # to the gh invocation. The previous `$SHA_ARG` unquoted form
+            # was fine on most paths but is fragile under set -u.
+            SHA_ARGS=()
             if [ -n "$EXISTING_SHA" ]; then
-              SHA_ARG="-f sha=$EXISTING_SHA"
+              SHA_ARGS=(-f "sha=${EXISTING_SHA}")
             fi
 
             gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}" -X PUT \
               -f message="New version: ${WINGET_ID} v${VERSION}" \
               -f content="$CONTENT" \
               -f branch="$BRANCH" \
-              $SHA_ARG
+              "${SHA_ARGS[@]}"
           done
 
           # Check for existing open PR before creating a new one

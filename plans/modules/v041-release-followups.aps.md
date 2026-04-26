@@ -269,7 +269,19 @@ require a coordinated bundle — pick them off in any order.
   fork+commit+pr flow against a stub repo), assert URL casing on the
   generated manifest before push.
 - **Confidence:** medium — root cause not yet diagnosed
-- **Status:** Todo
+- **Resolution (in flight):** Defensive workflow rewrite. Replaces the
+  `gh repo fork ... --clone=false 2>/dev/null || true` pattern (which
+  swallowed the cobra diagnostic) with an explicit "do I already have a
+  fork?" check via `gh api repos/$FORK_USER/winget-pkgs --silent`, so
+  the fork command only runs on the first tag for the account and any
+  failure surfaces directly. Switches `$SHA_ARG` from a string to a
+  bash array (`SHA_ARGS=()` / `"${SHA_ARGS[@]}"`) so the empty-sha case
+  cannot leak word-split tokens into `gh api`. Adds `gh --version` log
+  for repro and an explicit lowercase assertion on `REPO` before any
+  URL substitution. Definitive root cause stays unproven without a
+  matching-version local repro; landing the defensive form first is
+  the higher-leverage move.
+- **Status:** In Progress (PR pending)
 
 ### V041F-014: Wire a database-migration runner into the deploy pipeline
 
