@@ -72,6 +72,11 @@ export class VercelApp extends pulumi.ComponentResource {
 
     if (args.envVars) {
       for (const [key, value] of Object.entries(args.envVars)) {
+        // NEXT_PUBLIC_* is read by Next.js at build time and inlined into the
+        // client bundle. Vercel does not expose sensitive env vars to the
+        // build environment, so marking them sensitive silently breaks the
+        // build (the value becomes undefined and any fallback in code wins).
+        const sensitive = !key.startsWith('NEXT_PUBLIC_');
         new vercel.ProjectEnvironmentVariable(
           `${name}-${key.toLowerCase().replace(/_/g, '-')}`,
           {
@@ -79,7 +84,7 @@ export class VercelApp extends pulumi.ComponentResource {
             key,
             value,
             targets: ['production', 'preview'],
-            sensitive: true,
+            sensitive,
           },
           { parent: this }
         );
