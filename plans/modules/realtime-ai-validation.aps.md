@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| RTAI | —     | Proposed | 0/9      |
+| RTAI | —     | In Progress | 1/9      |
 
 **Last reviewed:** 2026-04-26
 
@@ -261,7 +261,15 @@ convention" section). Concretely:
   decisions written up; module promotion from Proposed → Ready
   is gated on this task closing.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Done — landed on `rtai-001-spike` (commit pending PR
+  merge). Spike measured p95 1.4 ms round-trip on the in-process
+  loop fixture (vs ADR-031 mid-edit p95 budget of 80 ms), with one
+  diagnostic per round-trip on `secret-detection`. Decisions
+  recorded in
+  [`plans/specs/2026-04-26-rtai-001-spike-report.md`](../specs/2026-04-26-rtai-001-spike-report.md):
+  (a) single `scan_buffer` RPC method discriminated by `Mode`, not
+  per-mode methods; (b) `DriverClient` owns the debouncer, drivers
+  parameterise the window. Spike binary: `crates/spike/src/rtai_mid_edit.rs`.
 
 ---
 

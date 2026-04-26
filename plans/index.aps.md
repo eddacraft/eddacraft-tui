@@ -145,7 +145,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
 | [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 3/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
-| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
+| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress | 1/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF — RTAI-001 phase-0 spike landed 2026-04-26 ([report](./specs/2026-04-26-rtai-001-spike-report.md)) |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | In Progress | 4/8 | RCLI; RCLI2-001..-004 shipped per 2026-04-26 freshness audit (commits 1e44ef2d / c5679432 / a2297dca / 06d764d4); -005..-008 still Proposed (gated on OPAE) |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | In Progress | 1/20 | RCLI |
 | [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
