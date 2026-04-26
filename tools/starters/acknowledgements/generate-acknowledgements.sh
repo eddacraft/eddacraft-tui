@@ -177,10 +177,17 @@ marker_end="$(read_toml_value project marker_end)"
 marker_begin="${marker_begin:-<!-- BEGIN AUTO-GENERATED -->}"
 marker_end="${marker_end:-<!-- END AUTO-GENERATED -->}"
 
+# `splice_input` is the file with the BEGIN/END markers we splice into.
+# It must already exist (the kit's bootstrap produces it from
+# ACKNOWLEDGEMENTS.md.template). `output_path` is where the spliced
+# result is written — when --output is not given, output_path == splice_input
+# (overwrite-in-place). When --output IS given, output_path differs from
+# splice_input and need not pre-exist.
+splice_input="$target_default"
 if [ -z "$target_override" ]; then
-  target="$target_default"
+  output_path="$target_default"
 else
-  target="$target_override"
+  output_path="$target_override"
 fi
 
 # --- Preflight ----------------------------------------------------------------
@@ -191,7 +198,7 @@ if ! command -v cargo-about >/dev/null 2>&1; then
   exit 1
 fi
 
-for f in "$manifest_path" "$template_path" "$config_path_about" "$target"; do
+for f in "$manifest_path" "$template_path" "$config_path_about" "$splice_input"; do
   if [ ! -f "$f" ]; then
     echo "error: required file does not exist: $f" >&2
     exit 1
@@ -201,10 +208,10 @@ done
 # Marker-count gate. Bare `grep -c` greps the entire literal string, so we
 # can compare against exactly 1 BEGIN and 1 END marker without having to
 # escape regex metacharacters in the configured marker.
-begin_count=$(grep -cF "$marker_begin" "$target" || true)
-end_count=$(grep -cF "$marker_end" "$target" || true)
+begin_count=$(grep -cF "$marker_begin" "$splice_input" || true)
+end_count=$(grep -cF "$marker_end" "$splice_input" || true)
 if [ "$begin_count" != "1" ] || [ "$end_count" != "1" ]; then
-  echo "error: $target must contain exactly one BEGIN and one END marker." >&2
+  echo "error: $splice_input must contain exactly one BEGIN and one END marker." >&2
   echo "  '$marker_begin' count: $begin_count (expected 1)" >&2
   echo "  '$marker_end' count: $end_count (expected 1)" >&2
   exit 1
@@ -216,7 +223,13 @@ tmp_generated=""
 tmp_output=""
 trap 'rm -f "${tmp_generated:-}" "${tmp_output:-}"' EXIT
 tmp_generated="$(mktemp)"
-tmp_output="$(mktemp)"
+# Create the splice-output temp file in the same directory as the final
+# output_path so the closing `mv` is a same-filesystem rename (atomic).
+# `mktemp` would otherwise default to $TMPDIR (often /tmp), which can be
+# on a different filesystem and silently degrade `mv` to copy+delete —
+# breaking the atomic-write guarantee documented in the kit README.
+output_dir="$(cd "$(dirname "$output_path")" && pwd)"
+tmp_output="$(mktemp "$output_dir/.generate-acknowledgements.tmp.XXXXXX")"
 
 # Run cargo-about from the directory containing about.toml so it picks up
 # the config without an explicit flag (cargo-about looks beside the cwd by
@@ -230,7 +243,7 @@ about_dir="$(cd "$(dirname "$config_path_about")" && pwd)"
 )
 
 if [ ! -s "$tmp_generated" ]; then
-  echo "error: cargo-about produced an empty file; refusing to clobber $target" >&2
+  echo "error: cargo-about produced an empty file; refusing to clobber $output_path" >&2
   exit 1
 fi
 
@@ -248,18 +261,18 @@ awk -v gen="$tmp_generated" -v begin="$marker_begin" -v end="$marker_end" '
     next
   }
   !in_block { print }
-' "$target" > "$tmp_output"
+' "$splice_input" > "$tmp_output"
 
 if [ "$mode" = "check" ]; then
-  if ! diff -u "$target" "$tmp_output"; then
+  if ! diff -u "$splice_input" "$tmp_output"; then
     echo "" >&2
-    echo "$target is out of date." >&2
+    echo "$splice_input is out of date." >&2
     echo "Run: $fixit_command" >&2
     exit 1
   fi
 else
-  mv "$tmp_output" "$target"
+  mv "$tmp_output" "$output_path"
   # Disable trap removal of $tmp_output since it's been moved.
   trap 'rm -f "${tmp_generated:-}"' EXIT
-  echo "Updated $target"
+  echo "Updated $output_path"
 fi

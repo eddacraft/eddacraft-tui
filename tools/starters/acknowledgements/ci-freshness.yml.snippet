@@ -2,15 +2,22 @@
 # to fail CI when ACKNOWLEDGEMENTS.md drifts from `Cargo.lock`. Pin the
 # cargo-about version via an env var or repo-level workflow variable so
 # regenerations are reproducible.
+#
+# SECURITY: The action references below use floating tags (@v6, @v1, @v2)
+# for readability. Before using this snippet in a real workflow, replace
+# every `@<tag>` with the corresponding full commit SHA so the action
+# tree is supply-chain-safe (matches anvil's own convention; see e.g.
+# .github/workflows/rust.yml). Floating tags can be silently moved by
+# the action publisher and are not safe for production CI.
 
 acknowledgements-diff:
   name: Acknowledgements freshness
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v6
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions/checkout@v6 # pin to commit SHA before merging
+    - uses: actions-rust-lang/setup-rust-toolchain@v1 # pin to commit SHA before merging
     - name: Install cargo-about
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@v2 # pin to commit SHA before merging
       with:
         tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
     - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
