@@ -104,7 +104,12 @@ pub fn recommendation_lines(status: &InotifyStatus) -> Vec<String> {
         "  watches in use:        {} / {}",
         status.in_use_watches, status.max_watches
     ));
-    out.push(format!("  instances limit:       {}", status.max_instances));
+    // `is_tight` checks watch headroom only — the instances limit is
+    // shown for context but is not part of the trigger.
+    out.push(format!(
+        "  instances limit:       {} (informational)",
+        status.max_instances
+    ));
     out.push(format!("  this project's dirs:   ~{}", status.project_dirs));
     out.push(format!(
         "  processes holding fds: {}",
@@ -122,10 +127,9 @@ pub fn recommendation_lines(status: &InotifyStatus) -> Vec<String> {
     // processes is the lever a CLI user actually has without root.
     // Issue #1109: don't prescribe sudo / sysctl from the anvil binary.
     out.push(
-        "Tip: closing watch-heavy processes (language servers, nx daemon, dev servers)"
+        "Tip: closing watch-heavy processes (language servers, nx daemon, dev servers) frees up watches for `anvil watch`."
             .to_string(),
     );
-    out.push("     frees up watches for `anvil watch`.".to_string());
     out
 }
 
