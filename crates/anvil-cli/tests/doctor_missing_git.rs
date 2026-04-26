@@ -106,5 +106,8 @@ fn doctor_json_in_dir_without_git_repo_reports_warn_with_remediation() {
         .filter(|c| c.get("status").and_then(|s| s.as_str()) == Some("fail"))
         .filter(|c| c.get("name").and_then(|n| n.as_str()) == Some("git-repo"))
         .count();
-    assert_eq!(failed_count, 0, "git-repo must never be `fail` outside a repo");
+    assert_eq!(
+        failed_count, 0,
+        "git-repo must never be `fail` outside a repo"
+    );
 }
