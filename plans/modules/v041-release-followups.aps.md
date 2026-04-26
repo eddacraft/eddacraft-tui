@@ -18,7 +18,7 @@ See: plans/aps-rules.md
 | ----- | ----- | ------ |
 | V041F | —     | Ready  |
 
-14 work items. Items 001–010 captured from the three council rounds +
+15 work items. Items 001–010 captured from the three council rounds +
 Codex CLI external review during release prep; V041F-011 added 2026-04-26
 from the copilot review on PR #1081 (`scan_content` recompile / silent-
 error); V041F-012 + V041F-013 + V041F-014 added from the v0.4.0-beta
@@ -28,6 +28,10 @@ absence of a migration runner. All three v0.4.0-beta surface gaps were
 closed manually (scoop bucket commit `4f3becf6`, winget PR
 microsoft/winget-pkgs#365186, prod migrations applied by hand);
 CI / deploy pipelines must be repaired before the next tag.
+V041F-015 added 2026-04-26 from the copilot review on PR #1090 — track
+the `svix>uuid` override exception so the global `uuid >=14.0.0`
+security floor is restored uniformly when the upstream dependency
+chain ships ESM-aware uuid.
 
 ## Purpose
 
@@ -303,6 +307,32 @@ require a coordinated bundle — pick them off in any order.
   `_migrations` tracking are the non-negotiable parts.
 - **Action plan:** [`plans/execution/V041F-014.steps.md`](../execution/V041F-014.steps.md)
 - **Status:** Ready
+
+### V041F-015: Remove `svix>uuid` override exception once dependency chain ships ESM-aware uuid
+
+- **Surface:** `package.json` (`overrides.svix.uuid` and
+  `pnpm.overrides["svix>uuid"]`), introduced in PR #1090
+- **Flagged by:** copilot reviewer on PR #1090, 2026-04-26
+- **Intent:** PR #1090 reintroduces `uuid@10` into the svix subtree to
+  unblock prod (svix is CJS, uuid v14 is ESM-only, ERR_REQUIRE_ESM
+  crashed every cold start). The global `uuid: >=14.0.0` floor that
+  closed advisory `GHSA-w5hq-g745-h8pq` (added in `a0fe63de`) is
+  preserved for every other consumer; svix is the only exception.
+  The exception should not become permanent — it exists because
+  `resend@6.x → svix@1.90.0` is CJS and uuid v14 dropped CJS support.
+  When the chain ships an ESM-aware uuid (either svix bumps uuid to a
+  dual-mode version, or resend ships a major that drops svix, or
+  uuid republishes a CJS-compatible v14+), this override should come
+  out so the security floor applies uniformly.
+- **Expected outcome:** Override exception removed; `pnpm-lock.yaml`
+  has no `uuid@<14` entry; `apps/anvil-api/scripts/check-runtime-cjs.cjs`
+  still passes (svix loads under CJS).
+- **How to detect readiness:** Watch `resend` and `svix` releases for
+  ESM/dual-mode announcements; alternately, run a periodic dry-run that
+  removes the override and runs the postbuild smoke check — if it
+  passes, the exception is no longer needed.
+- **Confidence:** medium — depends on upstream cadence
+- **Status:** Todo
 
 ### V041F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
 
