@@ -1,3 +1,4 @@
+use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
 use eddacraft_tui::keyboard::Action;
 
@@ -33,6 +34,11 @@ pub enum HookManager {
     Husky,
     Lefthook,
     PreCommit,
+    /// Git 2.54 native `hook.<event>.command` config-mode entries
+    /// (introduced by GHOOK-002). Detected as a peer to Husky — neither
+    /// is preferred over the other; whichever the user already set up wins
+    /// the precedence check.
+    ConfigHooks,
 }
 
 impl HookManager {
@@ -42,6 +48,7 @@ impl HookManager {
             Self::Husky => "Husky",
             Self::Lefthook => "Lefthook",
             Self::PreCommit => "pre-commit framework",
+            Self::ConfigHooks => "Git config hooks",
         }
     }
 
@@ -51,23 +58,80 @@ impl HookManager {
             Self::Husky => Some("Anvil will add entries to your existing Husky hooks"),
             Self::Lefthook => Some("Anvil will add a run entry to your lefthook.yml"),
             Self::PreCommit => Some("Anvil will add a hook entry to your .pre-commit-config.yaml"),
+            Self::ConfigHooks => Some("Anvil will manage your Git config-mode hooks (Git 2.54+)"),
         }
     }
 }
 
 /// Detect which hook manager (if any) is present under `project_dir`.
+///
+/// Precedence: `Husky` and `ConfigHooks` are peers — whichever is detected
+/// first by the on-disk markers wins. We probe Husky first because the
+/// `.husky/` directory is the historic default for projects that arrived
+/// via `npx husky init` (the most common path today). Config-mode hooks
+/// are checked via `git config --get-all hook.pre-commit.command`; any
+/// output (Anvil-managed or user-authored) flips the detector. Falls
+/// through to `Lefthook` and `pre-commit framework` for parity with the
+/// pre-GHOOK-003 behaviour.
 pub fn detect_hook_manager(project_dir: &std::path::Path) -> HookManager {
     if project_dir.join(".husky").exists() {
-        HookManager::Husky
-    } else if project_dir.join(".lefthook.yml").exists()
-        || project_dir.join("lefthook.yml").exists()
-    {
+        return HookManager::Husky;
+    }
+    if has_config_mode_hook(project_dir, "pre-commit") {
+        return HookManager::ConfigHooks;
+    }
+    if project_dir.join(".lefthook.yml").exists() || project_dir.join("lefthook.yml").exists() {
         HookManager::Lefthook
     } else if project_dir.join(".pre-commit-config.yaml").exists() {
         HookManager::PreCommit
     } else {
         HookManager::None
     }
+}
+
+/// True when at least one `hook.<event>.command` config-mode entry exists
+/// for `event` in the repo at `project_dir`.
+///
+/// Best-effort: a missing or non-zero `git` invocation yields `false` so
+/// onboarding never fails because of an environment without `git` on PATH.
+/// Reuses [`is_anvil_managed_command`] from `anvil_kernel_types` only for
+/// callers that need to distinguish Anvil-owned entries from user-authored
+/// ones — the bare detection here returns `true` for either flavour, which
+/// matches the precedence contract: any config-mode entry is treated as a
+/// hook source.
+fn has_config_mode_hook(project_dir: &std::path::Path, event: &str) -> bool {
+    !list_config_mode_hook_commands(project_dir, event).is_empty()
+}
+
+/// Read every `hook.<event>.command` entry for `event` in the repo at
+/// `project_dir`. Returns an empty vector when `git` is missing or the
+/// invocation fails for any reason. Does not propagate errors — onboarding
+/// is meant to be deterministic and read-only.
+fn list_config_mode_hook_commands(project_dir: &std::path::Path, event: &str) -> Vec<String> {
+    let key = format!("hook.{event}.command");
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(project_dir)
+        .args(["config", "--get-all", &key])
+        .output();
+    match output {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(ToString::to_string)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// True when the repo at `project_dir` has at least one Anvil-managed
+/// `hook.pre-commit.command` entry. Convenience accessor used by callers
+/// (and tests) that want to distinguish Anvil-installed config hooks from
+/// user-authored ones.
+#[must_use]
+pub fn has_anvil_config_hook(project_dir: &std::path::Path) -> bool {
+    list_config_mode_hook_commands(project_dir, "pre-commit")
+        .iter()
+        .any(|cmd| is_anvil_managed_command(cmd))
 }
 
 /// Phases of the hooks installation surface.
@@ -691,6 +755,7 @@ mod tests {
         assert_eq!(HookManager::Husky.label(), "Husky");
         assert_eq!(HookManager::Lefthook.label(), "Lefthook");
         assert_eq!(HookManager::PreCommit.label(), "pre-commit framework");
+        assert_eq!(HookManager::ConfigHooks.label(), "Git config hooks");
     }
 
     #[test]
@@ -699,6 +764,7 @@ mod tests {
         assert!(HookManager::Husky.adapter_note().is_some());
         assert!(HookManager::Lefthook.adapter_note().is_some());
         assert!(HookManager::PreCommit.adapter_note().is_some());
+        assert!(HookManager::ConfigHooks.adapter_note().is_some());
     }
 
     // ---------- available_hooks ----------
@@ -805,6 +871,142 @@ mod tests {
                 .any(|n| n.title == "No hook manager detected"),
             "warning must be suppressed after successful install",
         );
+        cleanup(&dir);
+    }
+
+    // ---------- GHOOK-003: config-mode hook detection ----------
+
+    /// Initialise a real git repo at `dir`. Returns whether init succeeded
+    /// — tests skip when `git` is missing rather than failing, since
+    /// onboarding detection is not exercisable without a real `.git/config`.
+    fn try_git_init(dir: &std::path::Path) -> bool {
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(dir)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    fn add_config_hook(dir: &std::path::Path, event: &str, command: &str) {
+        let key = format!("hook.{event}.command");
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["config", "--add", &key, command])
+            .status()
+            .expect("git config --add");
+        assert!(status.success(), "failed to seed config-mode hook in tests");
+    }
+
+    #[test]
+    fn detect_config_hooks_when_present() {
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert_eq!(detect_hook_manager(&dir), HookManager::ConfigHooks);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn detect_config_hooks_with_user_authored_entry() {
+        // Any `hook.pre-commit.command` entry — even a non-Anvil one —
+        // counts as a hook source for precedence purposes. Anvil should
+        // not pretend the repo has no hook just because it did not install
+        // the entry itself.
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        add_config_hook(&dir, "pre-commit", "npm run my-gate");
+
+        assert_eq!(detect_hook_manager(&dir), HookManager::ConfigHooks);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn husky_takes_precedence_over_config_hooks() {
+        // Husky and ConfigHooks are peers, but on-disk Husky wins the
+        // first-match check — preserves the existing precedence contract
+        // for repos that have both.
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert_eq!(detect_hook_manager(&dir), HookManager::Husky);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn config_hooks_take_precedence_over_lefthook() {
+        // Without Husky in the mix, a config-mode entry must win over a
+        // lefthook.yml stub — we promote config-mode to a peer of Husky
+        // rather than a tail-end fallback.
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::write(dir.join("lefthook.yml"), "").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert_eq!(detect_hook_manager(&dir), HookManager::ConfigHooks);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn has_anvil_config_hook_distinguishes_owners() {
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+
+        assert!(
+            !has_anvil_config_hook(&dir),
+            "fresh repo must report no Anvil-managed config hook",
+        );
+
+        add_config_hook(&dir, "pre-commit", "npm run my-gate");
+        assert!(
+            !has_anvil_config_hook(&dir),
+            "user-authored entries must not be reported as Anvil-managed",
+        );
+
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+        assert!(
+            has_anvil_config_hook(&dir),
+            "Anvil-managed entry must be detected once installed",
+        );
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn has_anvil_config_hook_returns_false_outside_git_repo() {
+        // No `.git` → `git config --get-all` fails → empty result. The
+        // detector must not panic or propagate the error; onboarding is
+        // read-only and best-effort.
+        let dir = empty_dir();
+        assert!(!has_anvil_config_hook(&dir));
         cleanup(&dir);
     }
 }
