@@ -72,7 +72,19 @@ describe('Vercel resources', () => {
   it('creates ProjectDomain resources only for apps with domains', () => {
     const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
 
-    expect(domains.length).toBe(3);
+    expect(domains.length).toBe(4);
+  });
+
+  it('assigns both apex and www domains to the website', () => {
+    const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
+
+    const apex = domains.find((d) => d.inputs.domain === 'eddacraft.ai');
+    const www = domains.find((d) => d.inputs.domain === 'www.eddacraft.ai');
+
+    expect(apex).toBeDefined();
+    expect(apex!.name).toBe('website-eddacraft-ai');
+    expect(www).toBeDefined();
+    expect(www!.name).toBe('website-www-eddacraft-ai');
   });
 
   it('assigns docs.eddacraft.ai to docs-shell, not docs-site', () => {
@@ -104,5 +116,17 @@ describe('Vercel resources', () => {
 
     const flag = envVars.find((e) => e.inputs.key === 'ADMIN_PER_OPERATOR_KEYS');
     expect(flag).toBeDefined();
+  });
+
+  it('allows both live website origins in anvil-api CORS', async () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    const cors = envVars.find((e) => e.inputs.key === 'ANVIL_CORS_ORIGINS');
+    const { API_CORS_ORIGINS } = await import('../../src/vercel.js');
+
+    expect(cors).toBeDefined();
+    expect(API_CORS_ORIGINS).toContain('https://eddacraft.ai');
+    expect(API_CORS_ORIGINS).toContain('https://www.eddacraft.ai');
   });
 });

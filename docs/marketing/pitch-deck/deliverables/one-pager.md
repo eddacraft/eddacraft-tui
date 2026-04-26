@@ -1,6 +1,6 @@
 # Anvil -- Investor One-Pager
 
-**AI Governance for Developers** | eddacraft | anvil.eddacraft.ai
+**AI Governance for Developers** | eddacraft | eddacraft.ai
 
 ---
 
