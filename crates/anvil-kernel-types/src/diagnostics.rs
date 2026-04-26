@@ -51,30 +51,72 @@ pub enum Category {
     Other,
 }
 
-/// Mode discriminator. Identifies which path produced the diagnostic
-/// and the consumer expectation. See the envelope spec's "Mode
-/// Discriminator Semantics" table for the per-mode contract.
+/// Known mode values. Spec-defined producers emit one of these; the
+/// outer [`Mode`] type is what travels on the wire so a consumer
+/// running an older spec can still surface a diagnostic produced by a
+/// newer producer that introduces an additional mode value (e.g. a
+/// future `remote-edit`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum Mode {
+pub enum KnownMode {
     SaveTime,
     MidEdit,
     Gate,
     Watch,
 }
 
-/// File anchor for a diagnostic. `line`/`column` are 1-based;
-/// `end_line`/`end_column` are optional and span the end of the
-/// flagged region when present.
+/// Mode discriminator. Identifies which path produced the diagnostic
+/// and the consumer expectation. See the envelope spec's "Mode
+/// Discriminator Semantics" table for the per-mode contract.
+///
+/// Per the envelope spec ("a consumer that doesn't recognise a mode
+/// value MUST surface the diagnostic anyway"), this enum accepts
+/// unknown mode strings on deserialisation and round-trips them.
+/// Consumers branch on `Known(_)` for known values and treat
+/// `Unknown(_)` as informational per the spec's forward-compat rule.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Mode {
+    Known(KnownMode),
+    Unknown(String),
+}
+
+impl Mode {
+    /// Convenience for the common case of constructing from a known
+    /// variant.
+    #[must_use]
+    pub const fn known(value: KnownMode) -> Self {
+        Self::Known(value)
+    }
+}
+
+impl From<KnownMode> for Mode {
+    fn from(value: KnownMode) -> Self {
+        Self::Known(value)
+    }
+}
+
+/// File anchor for a diagnostic. `line`/`column` are 1-based when
+/// present; path-only rules and deleted-file diagnostics omit them
+/// per the envelope spec ("`line` may be `null`"). `end_line` /
+/// `end_column` are optional and span the end of the flagged region
+/// when present.
+///
+/// Integer fields use `u32` rather than `usize` so the wire schema is
+/// stable across 32-bit and 64-bit producers and across language
+/// bindings — `usize` JSON-serialises as different things depending
+/// on platform.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Location {
     pub file: String,
-    pub line: usize,
-    pub column: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<usize>,
+    pub line: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end_column: Option<usize>,
+    pub column: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_column: Option<u32>,
 }
 
 /// Provenance for a diagnostic. `rule_id` uniquely identifies the rule
@@ -148,8 +190,8 @@ mod tests {
     fn sample_location() -> Location {
         Location {
             file: "src/api/client.ts".into(),
-            line: 42,
-            column: 18,
+            line: Some(42),
+            column: Some(18),
             end_line: Some(42),
             end_column: Some(47),
         }
@@ -170,7 +212,7 @@ mod tests {
             sample_location(),
             Category::Secret,
             sample_source(),
-            Mode::SaveTime,
+            Mode::known(KnownMode::SaveTime),
         )
         .with_remediation_hint("Move to environment variable; see docs/guides/secrets.md")
     }
@@ -251,20 +293,35 @@ mod tests {
     #[test]
     fn diagnostic_schema_mode_variants_serialise_kebab_case() {
         let cases = [
-            (Mode::SaveTime, "save-time"),
-            (Mode::MidEdit, "mid-edit"),
-            (Mode::Gate, "gate"),
-            (Mode::Watch, "watch"),
+            (KnownMode::SaveTime, "save-time"),
+            (KnownMode::MidEdit, "mid-edit"),
+            (KnownMode::Gate, "gate"),
+            (KnownMode::Watch, "watch"),
         ];
         for (variant, expected) in cases {
-            let json = serde_json::to_value(variant).expect("serialise");
+            let mode = Mode::known(variant);
+            let json = serde_json::to_value(&mode).expect("serialise");
             assert_eq!(
                 json, expected,
                 "variant {variant:?} must serialise to {expected}"
             );
             let back: Mode = serde_json::from_value(json).expect("deserialise");
-            assert_eq!(back, variant);
+            assert_eq!(back, mode);
         }
+    }
+
+    #[test]
+    fn diagnostic_schema_unknown_mode_value_round_trips_as_unknown() {
+        // Per envelope spec: "a consumer that doesn't recognise a mode
+        // value MUST surface the diagnostic anyway". Closed-enum
+        // deserialisation would drop the diagnostic; we accept the
+        // unknown string and let the consumer apply its forward-compat
+        // policy (treat as informational).
+        let payload = json!("remote-edit");
+        let mode: Mode = serde_json::from_value(payload).expect("deserialise");
+        assert_eq!(mode, Mode::Unknown("remote-edit".to_string()));
+        let back = serde_json::to_value(&mode).expect("serialise");
+        assert_eq!(back, "remote-edit");
     }
 
     #[test]
@@ -276,7 +333,7 @@ mod tests {
             sample_location(),
             Category::Antipattern,
             sample_source(),
-            Mode::Gate,
+            Mode::known(KnownMode::Gate),
         );
         let value: Value = serde_json::to_value(&diag).expect("to_value");
         assert!(
@@ -293,18 +350,47 @@ mod tests {
             "Path-only finding",
             Location {
                 file: "README.md".into(),
-                line: 1,
-                column: 1,
+                line: Some(1),
+                column: Some(1),
                 end_line: None,
                 end_column: None,
             },
             Category::Other,
             sample_source(),
-            Mode::Watch,
+            Mode::known(KnownMode::Watch),
         );
         let value: Value = serde_json::to_value(&diag).expect("to_value");
         assert!(value["location"].get("end_line").is_none());
         assert!(value["location"].get("end_column").is_none());
+    }
+
+    #[test]
+    fn diagnostic_schema_location_omits_line_and_column_when_none() {
+        // Spec: "for deleted-file or path-only rules, `line` may be
+        // `null`". Mirror that — both line and column are optional.
+        let diag = Diagnostic::new(
+            "diag_01HW8K6Q4P0X7N9TJ4YA3S0VPATH",
+            Severity::Info,
+            "Path-only finding",
+            Location {
+                file: "README.md".into(),
+                line: None,
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            Category::Other,
+            sample_source(),
+            Mode::known(KnownMode::Watch),
+        );
+        let value: Value = serde_json::to_value(&diag).expect("to_value");
+        assert_eq!(value["location"]["file"], "README.md");
+        assert!(value["location"].get("line").is_none());
+        assert!(value["location"].get("column").is_none());
+
+        // Round-trip a path-only location.
+        let back: Diagnostic = serde_json::from_value(value).expect("deserialise");
+        assert_eq!(back, diag);
     }
 
     #[test]
@@ -331,7 +417,7 @@ mod tests {
         let diag: Diagnostic = serde_json::from_value(payload).expect("deserialise");
         assert_eq!(diag.severity, Severity::Info);
         assert_eq!(diag.category, Category::Other);
-        assert_eq!(diag.mode, Mode::MidEdit);
+        assert_eq!(diag.mode, Mode::known(KnownMode::MidEdit));
         assert!(diag.remediation_hint.is_none());
         assert!(diag.location.end_line.is_none());
         assert!(diag.location.end_column.is_none());
