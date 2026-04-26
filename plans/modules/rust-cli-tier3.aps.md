@@ -9,9 +9,9 @@ Scopes: RCLI3 (main)
 
 # Rust CLI — Tier 3
 
-| ID    | Owner | Status   | Progress |
-| ----- | ----- | -------- | -------- |
-| RCLI3 | —     | Proposed | 0/20     |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| RCLI3 | —     | In Progress | 1/20     |
 
 **Last reviewed:** 2026-04-26
 
@@ -425,8 +425,9 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-016: mcp-config command 🔒 PULLED FORWARD TO A1 (current release)
 
-- **Status:** Ready (pulled forward 2026-04-26 — required by A1 RTAI Spike
-  Slice; without it the demo runbook has no install step. See
+- **Status:** Complete (2026-04-26 — landed in
+  `crates/anvil-cli/src/commands/mcp_config.rs`; pulled forward because A1
+  RTAI Spike Slice runbook needs the install step. See
   [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) prerequisites.)
 - **Intent:** Port `anvil mcp-config`. Generate MCP server configuration for
   AI editors (claude-code, cursor, windsurf, vscode). Supports `--target`,
