@@ -758,6 +758,12 @@ fn collect_antipatterns(
 // don't need a second rayon fan-out here — only the discovery layer
 // needed swapping. Files are sorted post-collect for deterministic
 // snapshot ordering.
+//
+// `Result` return is retained even though the body cannot currently fail —
+// callers expect the signature, and future fallible discovery (e.g.
+// permission errors surfacing through `ignore::WalkBuilder` once we stop
+// silently swallowing them) will use it.
+#[allow(clippy::unnecessary_wraps)]
 fn get_source_files(workspace: &Path) -> Result<Vec<String>> {
     let extensions = AntipatternCheckConfig::default().extensions;
 

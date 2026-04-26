@@ -19,6 +19,7 @@ aho-corasick = { version = "1" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 clap = { version = "4", features = ["derive"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "help", "std", "suggestions", "usage"] }
+crossbeam-utils = { version = "0.8" }
 eddacraft-tui = { version = "0.1", default-features = false, features = ["test-utils"] }
 either = { version = "1", default-features = false, features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["sink"] }

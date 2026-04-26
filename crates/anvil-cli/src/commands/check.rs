@@ -583,6 +583,12 @@ fn get_changed_files(
 // (`ignore::WalkBuilder`). Per-file regex work is already on the rayon
 // pool inside `scan_artifacts` / `run_antipattern_check`, so swapping the
 // walker is the only change needed here.
+//
+// `Result` return is retained even though the body cannot currently fail —
+// callers expect the signature, and future fallible discovery (e.g.
+// permission errors surfacing through `ignore::WalkBuilder` once we stop
+// silently swallowing them) will use it.
+#[allow(clippy::unnecessary_wraps)]
 fn get_all_source_files(extensions: &[String]) -> Result<Vec<String>> {
     // Scan from git toplevel so --all covers the full repo even from a subdirectory.
     let root = git_toplevel().unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());

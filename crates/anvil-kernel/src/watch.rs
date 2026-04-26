@@ -143,12 +143,7 @@ fn initial_scan(
                 }
             }
             Err(e) => {
-                emitter.error(
-                    ErrorCode::Internal,
-                    None,
-                    &format!("walk error: {e}"),
-                    true,
-                );
+                emitter.error(ErrorCode::Internal, None, &format!("walk error: {e}"), true);
                 None
             }
         })

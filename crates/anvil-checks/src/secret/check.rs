@@ -47,8 +47,7 @@ pub fn run_secret_check(
             }));
             match scan_result {
                 Ok((file_findings, stats)) => {
-                    lines_skipped_atomic
-                        .fetch_add(stats.lines_skipped_oversize, Ordering::Relaxed);
+                    lines_skipped_atomic.fetch_add(stats.lines_skipped_oversize, Ordering::Relaxed);
                     Some(file_findings)
                 }
                 Err(_) => None,
