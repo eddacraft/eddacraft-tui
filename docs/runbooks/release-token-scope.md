@@ -63,32 +63,45 @@ is more limited — try re-authorising SSO instead:
 ## Verify the fix
 
 After edit-in-place or re-auth, confirm the token can reach the resources before
-relying on the next real release:
+relying on the next real release.
+
+> **Don't paste the PAT inline on the command line.**
+> `GH_TOKEN='<value>' gh ...` ends up in shell history and is visible to other
+> processes via `ps` / environment inspection. Read it once into a shell-local
+> variable and let it fall out of scope when the verification subshell exits:
 
 ```bash
-GH_TOKEN='<existing ANVIL_RELEASES_TOKEN>' gh api repos/eddacraft/scoop-bucket --silent \
-  && echo "scoop read ok"
-GH_TOKEN='<existing ANVIL_RELEASES_TOKEN>' gh api repos/eddacraft/anvil-001 --silent \
-  && echo "anvil read ok"
+( read -rs -p "ANVIL_RELEASES_TOKEN: " GH_TOKEN && export GH_TOKEN
+  gh api repos/eddacraft/scoop-bucket --silent && echo "scoop read ok"
+  gh api repos/eddacraft/anvil-001    --silent && echo "anvil read ok"
+)
 ```
 
-Both should print `ok`. If `scoop read` still 403s, re-check that the bucket is
-in the token's repo list and that `Contents: Read and write` applied — the
-GitHub UI sometimes silently keeps an outdated permission set on save.
+You should see `scoop read ok` and `anvil read ok` on stdout. If `scoop read`
+still 403s, re-check that the bucket is in the token's repo list and that
+`Contents: Read and write` applied — the GitHub UI sometimes silently keeps an
+outdated permission set on save.
 
-For a write probe (produces a real but no-op commit on the bucket):
+(If you use a secret manager, e.g. `op run --env-file=.env -- bash -c '...'` or
+`gh auth login --with-token < <(secret-cli get …)`, that's preferred over typing
+the PAT in.)
+
+For a write probe (produces a real but no-op commit on the bucket — keep it
+inside the same subshell so the token doesn't leak into the parent):
 
 ```bash
-# Read current sha + base64 content. The Contents API returns
-# .content already base64-encoded — DO NOT re-encode, that would
-# corrupt the manifest. Write it back verbatim.
-META=$(GH_TOKEN='<existing ANVIL_RELEASES_TOKEN>' gh api repos/eddacraft/scoop-bucket/contents/bucket/anvil.json)
-SHA=$(printf '%s' "$META" | jq -r '.sha')
-CONTENT=$(printf '%s' "$META" | jq -r '.content' | tr -d '\n')
-GH_TOKEN='<existing ANVIL_RELEASES_TOKEN>' gh api repos/eddacraft/scoop-bucket/contents/bucket/anvil.json -X PUT \
-  -f message='chore: scope verification (no-op)' \
-  -f content="$CONTENT" \
-  -f sha="$SHA"
+( read -rs -p "ANVIL_RELEASES_TOKEN: " GH_TOKEN && export GH_TOKEN
+  # Read current sha + base64 content. The Contents API returns
+  # .content already base64-encoded — DO NOT re-encode, that would
+  # corrupt the manifest. Write it back verbatim.
+  META=$(gh api repos/eddacraft/scoop-bucket/contents/bucket/anvil.json)
+  SHA=$(printf '%s' "$META" | jq -r '.sha')
+  CONTENT=$(printf '%s' "$META" | jq -r '.content' | tr -d '\n')
+  gh api repos/eddacraft/scoop-bucket/contents/bucket/anvil.json -X PUT \
+    -f message='chore: scope verification (no-op)' \
+    -f content="$CONTENT" \
+    -f sha="$SHA"
+)
 ```
 
 If the next real release's `scoop` job runs without a 403, you're done — no

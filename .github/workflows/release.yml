@@ -819,7 +819,7 @@ jobs:
           # PAT (no rotation), and the runbook walks both paths.
           PREFLIGHT_ERR=$(mktemp)
           if ! gh api "repos/${BUCKET}" --silent 2>"$PREFLIGHT_ERR"; then
-            echo "::error title=Scoop bucket pre-flight failed::ANVIL_RELEASES_TOKEN cannot access ${BUCKET}. See docs/runbooks/release-token-scope.md — usually the existing PAT just needs contents:write on eddacraft/scoop-bucket added via edit-in-place (no rotation needed)."
+            echo "::error title=Scoop bucket pre-flight failed::ANVIL_RELEASES_TOKEN cannot READ ${BUCKET}. This is usually a scope issue — the bucket is missing from the fine-grained PAT's selected-repos list, the token lost SSO authorisation, or the token was revoked. See docs/runbooks/release-token-scope.md for the edit-in-place fix (add the repo + verify Metadata: Read). The PUT below additionally needs Contents: Read and write."
             cat "$PREFLIGHT_ERR" >&2
             rm -f "$PREFLIGHT_ERR"
             exit 1
