@@ -12,9 +12,10 @@
 //   0  success — pending applied or nothing to do
 //   1  drift detected, missing DATABASE_URL, or SQL error
 //
-// CI wiring lives in .github/workflows/release.yml between the `host`
-// job (artefacts published) and the existing Pulumi Up step. Manual
-// invocation is documented in docs/runbooks/db-migrations.md.
+// CI wiring is planned for .github/workflows/release.yml between the
+// `host` job (artefacts published) and the existing Pulumi Up step —
+// follow-up slice of V041F-014. Until that lands, manual invocation
+// is the only path; see docs/runbooks/db-migrations.md.
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -54,10 +55,13 @@ try {
   } else if (!dryRun) {
     console.log('no pending migrations.');
   }
-  process.exit(0);
+  process.exitCode = 0;
 } catch (err) {
   console.error(`\nmigration failed: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
+  // process.exit() inside the try/catch would skip this; using
+  // process.exitCode lets the finally run so the pool closes cleanly
+  // and Node exits with the right code once all handles are released.
   await pool.end();
 }

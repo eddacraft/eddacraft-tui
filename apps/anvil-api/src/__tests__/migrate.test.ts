@@ -202,4 +202,28 @@ describe('runMigrations', () => {
     expect(texts).not.toContain('BEGIN');
     expect(texts).not.toContain('COMMIT');
   });
+
+  it('acquires and releases the advisory lock around the run', async () => {
+    const runner = makeRunner();
+    await runMigrations(runner, { dir });
+    const texts = runner.calls.map((c) => c.text.trim());
+    const lockIdx = texts.indexOf('SELECT pg_advisory_lock($1, $2)');
+    const unlockIdx = texts.indexOf('SELECT pg_advisory_unlock($1, $2)');
+    expect(lockIdx).toBeGreaterThanOrEqual(0);
+    expect(unlockIdx).toBeGreaterThan(lockIdx);
+    expect(lockIdx).toBeLessThan(texts.indexOf('BEGIN'));
+  });
+
+  it('releases the advisory lock even when drift detection throws', async () => {
+    const runner = makeRunner();
+    await runMigrations(runner, { dir });
+
+    writeFileSync(join(dir, '001-first.sql'), '-- mutated');
+
+    await expect(runMigrations(runner, { dir })).rejects.toThrow(/Migration drift detected/);
+    const texts = runner.calls.map((c) => c.text.trim());
+    expect(texts.filter((t) => t === 'SELECT pg_advisory_unlock($1, $2)').length).toBeGreaterThan(
+      0
+    );
+  });
 });

@@ -31,6 +31,24 @@ const TRACKING_TABLE_DDL = `
   );
 `;
 
+// Advisory lock keys derived from a stable name so two concurrent
+// runners (e.g. CI + an operator running by hand, or a retried deploy)
+// serialise instead of racing on the same DDL. Postgres advisory locks
+// take two int4 keys; we hash the name and split.
+const LOCK_NAME = 'apps/anvil-api:db:migrations';
+const LOCK_KEYS = (() => {
+  const digest = createHash('sha256').update(LOCK_NAME).digest();
+  return [digest.readInt32BE(0), digest.readInt32BE(4)] as const;
+})();
+
+async function acquireLock(runner: QueryRunner): Promise<void> {
+  await runner.query('SELECT pg_advisory_lock($1, $2)', [LOCK_KEYS[0], LOCK_KEYS[1]]);
+}
+
+async function releaseLock(runner: QueryRunner): Promise<void> {
+  await runner.query('SELECT pg_advisory_unlock($1, $2)', [LOCK_KEYS[0], LOCK_KEYS[1]]);
+}
+
 export function discoverMigrations(dir: string): MigrationFile[] {
   const entries = readdirSync(dir)
     .filter((name) => name.endsWith('.sql'))
@@ -116,56 +134,61 @@ export async function runMigrations(
 ): Promise<ApplyResult> {
   const log = options.log ?? (() => {});
 
-  await ensureTrackingTable(runner);
+  await acquireLock(runner);
+  try {
+    await ensureTrackingTable(runner);
 
-  const onDisk = discoverMigrations(options.dir);
-  const applied = await fetchAppliedMigrations(runner);
-  const drift = detectDrift(onDisk, applied);
+    const onDisk = discoverMigrations(options.dir);
+    const applied = await fetchAppliedMigrations(runner);
+    const drift = detectDrift(onDisk, applied);
 
-  if (drift.length > 0) {
-    const lines = drift.map(
-      (d) =>
-        `  ${d.filename}: recorded sha=${d.recordedSha.slice(0, 12)} on-disk sha=${
-          typeof d.onDiskSha === 'string' && d.onDiskSha.startsWith('<')
-            ? d.onDiskSha
-            : d.onDiskSha.slice(0, 12)
-        }`
-    );
-    throw new Error(
-      `Migration drift detected — applied migrations have changed on disk:\n${lines.join(
-        '\n'
-      )}\nRefusing to apply. Investigate the diff or revert the file before re-running.`
-    );
-  }
-
-  const pending = selectPending(onDisk, applied);
-
-  log(
-    `Discovered ${onDisk.length} migration files. ${applied.length} applied, ${pending.length} pending.`
-  );
-
-  if (pending.length === 0) {
-    return { applied: [], skipped: applied.map((r) => r.filename), driftDetected: [] };
-  }
-
-  if (options.dryRun) {
-    log('--dry-run: would apply:');
-    for (const m of pending) {
-      log(`  + ${m.filename}`);
+    if (drift.length > 0) {
+      const lines = drift.map(
+        (d) =>
+          `  ${d.filename}: recorded sha=${d.recordedSha.slice(0, 12)} on-disk sha=${
+            typeof d.onDiskSha === 'string' && d.onDiskSha.startsWith('<')
+              ? d.onDiskSha
+              : d.onDiskSha.slice(0, 12)
+          }`
+      );
+      throw new Error(
+        `Migration drift detected — applied migrations have changed on disk:\n${lines.join(
+          '\n'
+        )}\nRefusing to apply. Investigate the diff or revert the file before re-running.`
+      );
     }
-    return { applied: [], skipped: applied.map((r) => r.filename), driftDetected: [] };
-  }
 
-  const appliedThisRun: string[] = [];
-  for (const migration of pending) {
-    log(`applying ${migration.filename} (sha256=${migration.sha256.slice(0, 12)})`);
-    await applyMigration(runner, migration);
-    appliedThisRun.push(migration.filename);
-  }
+    const pending = selectPending(onDisk, applied);
 
-  return {
-    applied: appliedThisRun,
-    skipped: applied.map((r) => r.filename),
-    driftDetected: [],
-  };
+    log(
+      `Discovered ${onDisk.length} migration files. ${applied.length} applied, ${pending.length} pending.`
+    );
+
+    if (pending.length === 0) {
+      return { applied: [], skipped: applied.map((r) => r.filename), driftDetected: [] };
+    }
+
+    if (options.dryRun) {
+      log('--dry-run: would apply:');
+      for (const m of pending) {
+        log(`  + ${m.filename}`);
+      }
+      return { applied: [], skipped: applied.map((r) => r.filename), driftDetected: [] };
+    }
+
+    const appliedThisRun: string[] = [];
+    for (const migration of pending) {
+      log(`applying ${migration.filename} (sha256=${migration.sha256.slice(0, 12)})`);
+      await applyMigration(runner, migration);
+      appliedThisRun.push(migration.filename);
+    }
+
+    return {
+      applied: appliedThisRun,
+      skipped: applied.map((r) => r.filename),
+      driftDetected: [],
+    };
+  } finally {
+    await releaseLock(runner);
+  }
 }
