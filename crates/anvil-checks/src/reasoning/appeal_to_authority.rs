@@ -52,7 +52,7 @@ pub const SOURCE_MODULE: &str = "anvil-checks::reasoning";
 ///
 /// Patterns are intentionally narrow at launch:
 ///
-/// - role-as-source: `<senior|lead|architect|principal|cto|vp> (said|told|wants|insists|approved)`
+/// - role-as-source: `<senior|lead|architect|principal engineer|cto|vp> (said|told|wants|insists|approved)`
 /// - "as discussed with …": shifts the justification onto another party
 /// - boss/manager/stakeholder/product wants/asked/requires
 /// - "trust me" / "just use it" / "just do it"
@@ -61,11 +61,18 @@ pub const SOURCE_MODULE: &str = "anvil-checks::reasoning";
 ///
 /// Whole patterns are wrapped in `(?i)` for case-insensitive matching;
 /// `\b` boundaries keep matches anchored to whole words.
+///
+/// `principal` is only matched when followed by `engineer`/`architect` —
+/// the bare adjective ("the principal reason …") is a common technical
+/// phrase, not an authority appeal. `as discussed in …` is excluded so
+/// references like `as decided in ADR-029` don't fire.
 const APPEAL_TO_AUTHORITY_PATTERNS: &[&str] = &[
-    // role-as-source
-    r"(?i)\b(senior|lead|architect|principal|cto|vp|tech\s+lead|staff\s+engineer)\b[^.\n]{0,80}\b(said|told|wants?|insists?|approved|asked|requested|signed\s*off)\b",
-    // "as discussed with …"
-    r"(?i)\bas\s+(discussed|agreed|decided)\s+(with|by|in)\b",
+    // role-as-source — `principal` requires an engineer/architect suffix
+    // to avoid the "the principal reason" adjective form.
+    r"(?i)\b(senior|lead|architect|principal\s+(?:engineer|architect)|cto|vp|tech\s+lead|staff\s+engineer)\b[^.\n]{0,80}\b(said|told|wants?|insists?|approved|asked|requested|signed\s*off)\b",
+    // "as discussed with …" / "as agreed with …" — only `with` qualifies
+    // to keep ADR/RFC references like "as decided in ADR-029" clean.
+    r"(?i)\bas\s+(discussed|agreed|decided)\s+with\b",
     // "boss/manager/stakeholder/product wants/asked/requires"
     r"(?i)\b(boss|manager|stakeholder|product(\s+owner)?|business)\b[^.\n]{0,40}\b(asked|wants?|requires?|needs?|insists?)\b",
     // "trust me" / "just <verb> it"
@@ -83,23 +90,6 @@ static COMPILED_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
         .iter()
         .map(|src| Regex::new(src).expect("static AI-001 regex must compile"))
         .collect()
-});
-
-/// Regex used to extract comment regions from a single line.
-///
-/// Captures (in order):
-/// 1. `//` line comment trailing text
-/// 2. `/* … */` block-comment body (single-line block comments only — true
-///    multi-line block comments are tracked stateully by the line scanner)
-/// 3. `#` line comment trailing text (excludes `#!` shebang, `#include`,
-///    `#define`, `#if`, etc — handled by leading-only `#` plus a space or
-///    end-of-line)
-/// 4. `<!-- … -->` HTML / Markdown comment body
-static COMMENT_LINE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?P<slash>//[^\n]*)|(?P<block>/\*[^\n]*?\*/)|(?P<hash>(?:^|\s)#(?:\s[^\n]*|$))|(?P<html><!--[^\n]*?-->)",
-    )
-    .expect("static comment-region regex must compile")
 });
 
 /// Per-line scan state — block comments span lines, so the entry point
@@ -206,90 +196,126 @@ fn collect_comment_text(line: &str, state: &mut ScanState) -> String {
     buf
 }
 
+/// Walk `line` left-to-right, skipping string literals and emitting any
+/// comment-region text into the returned buffer. Recognises `//`, `/* */`,
+/// `#`, and `<!-- -->` openers but only when they appear outside `"…"`,
+/// `'…'`, or `` `…` `` strings (with `\` escapes honoured). When an
+/// unterminated `/*` is hit, sets `state.in_block_comment` so the caller
+/// continues consuming the next line as comment text.
+///
+/// The string-aware scan is what guarantees the documented invariant:
+/// `// …`, `/* … */`, and `<!-- … -->` content inside a string literal
+/// (e.g. a URL like `"https://…"`) is data, not narrative, and must not
+/// match. It also stops `// description /*` from accidentally opening a
+/// multi-line block comment, which would corrupt scan state on later
+/// lines.
 fn collect_single_line_comments(line: &str, state: &mut ScanState) -> String {
     let mut buf = String::new();
-
-    for capture in COMMENT_LINE_REGEX.captures_iter(line) {
-        if let Some(matched) = capture.name("slash") {
-            buf.push(' ');
-            buf.push_str(&matched.as_str()[2..]);
-        } else if let Some(matched) = capture.name("block") {
-            // Single-line `/* … */` — strip the markers.
-            let inner = matched.as_str();
-            let stripped = inner
-                .strip_prefix("/*")
-                .and_then(|s| s.strip_suffix("*/"))
-                .unwrap_or(inner);
-            buf.push(' ');
-            buf.push_str(stripped);
-        } else if let Some(matched) = capture.name("hash") {
-            // Trim the leading whitespace + `#` marker; keep the prose.
-            let raw = matched.as_str().trim_start();
-            let stripped = raw.strip_prefix('#').unwrap_or(raw);
-            buf.push(' ');
-            buf.push_str(stripped.trim_start());
-        } else if let Some(matched) = capture.name("html") {
-            let inner = matched.as_str();
-            let stripped = inner
-                .strip_prefix("<!--")
-                .and_then(|s| s.strip_suffix("-->"))
-                .unwrap_or(inner);
-            buf.push(' ');
-            buf.push_str(stripped);
-        }
-    }
-
-    // Detect an unterminated `/*` that opens a multi-line block comment.
-    // We only care about openers that appear *outside* a string. The
-    // narrow heuristic below skips strings by checking whether the opener
-    // sits inside a balanced pair of double / single quotes on the same
-    // line — good enough for AI-001's launch precision target.
-    if let Some(open_pos) = find_unbalanced_block_open(line) {
-        // Take everything after the opener as comment text — the closer
-        // (if any) lives on a future line.
-        let tail = &line[open_pos + 2..];
-        buf.push(' ');
-        buf.push_str(tail);
-        state.in_block_comment = true;
-    }
-
-    buf
-}
-
-/// Find the byte index of a `/*` opener that is not paired with a `*/`
-/// closer on the same line and is not enclosed in matching quotes.
-/// Returns `None` when no such opener exists.
-fn find_unbalanced_block_open(line: &str) -> Option<usize> {
     let bytes = line.as_bytes();
     let mut idx = 0;
     let mut in_double = false;
     let mut in_single = false;
+    let mut in_backtick = false;
 
-    while idx + 1 < bytes.len() {
+    while idx < bytes.len() {
         let byte = bytes[idx];
-        let next = bytes[idx + 1];
-        match byte {
-            b'\\' if in_double || in_single => {
+        let next = bytes.get(idx + 1).copied().unwrap_or(0);
+
+        // Inside any string literal, only watch for the matching closer
+        // and honour `\` escapes. Comment markers inside strings are data.
+        if in_double || in_single || in_backtick {
+            if byte == b'\\' && idx + 1 < bytes.len() {
                 idx += 2;
                 continue;
             }
-            b'"' if !in_single => in_double = !in_double,
-            b'\'' if !in_double => in_single = !in_single,
-            b'/' if next == b'*' && !in_double && !in_single => {
-                // Found an opener. Is there a matching closer further on?
-                if line[idx + 2..].contains("*/") {
-                    // Balanced single-line block comment — already handled.
-                    idx += 2;
+            if (in_double && byte == b'"')
+                || (in_single && byte == b'\'')
+                || (in_backtick && byte == b'`')
+            {
+                in_double = false;
+                in_single = false;
+                in_backtick = false;
+            }
+            idx += 1;
+            continue;
+        }
+
+        // Outside strings: detect string openers and comment markers.
+        match (byte, next) {
+            (b'"', _) => {
+                in_double = true;
+                idx += 1;
+            }
+            (b'\'', _) => {
+                in_single = true;
+                idx += 1;
+            }
+            (b'`', _) => {
+                in_backtick = true;
+                idx += 1;
+            }
+            // `//` line comment — consumes the rest of the line.
+            (b'/', b'/') => {
+                buf.push(' ');
+                buf.push_str(&line[idx + 2..]);
+                return buf;
+            }
+            // `/* … */` block. If terminated on this line, strip markers
+            // and continue scanning. Otherwise, take the rest as comment
+            // text and flag the multi-line block opener.
+            (b'/', b'*') => {
+                let body_start = idx + 2;
+                if let Some(rel_close) = line[body_start..].find("*/") {
+                    let body_end = body_start + rel_close;
+                    buf.push(' ');
+                    buf.push_str(&line[body_start..body_end]);
+                    idx = body_end + 2;
                     continue;
                 }
-                return Some(idx);
+                buf.push(' ');
+                buf.push_str(&line[body_start..]);
+                state.in_block_comment = true;
+                return buf;
             }
-            _ => {}
+            // `#` line comment — only when preceded by whitespace or BOL,
+            // and followed by a space or EOL. This filters out `#!`
+            // shebangs, `#include`, `#define`, `#if`, etc.
+            (b'#', _) => {
+                let leading_ok = idx == 0 || bytes[idx - 1].is_ascii_whitespace();
+                let next_is_space = next == b' ' || next == b'\t';
+                let next_is_eol = idx + 1 == bytes.len();
+                if leading_ok && (next_is_space || next_is_eol) {
+                    buf.push(' ');
+                    buf.push_str(line[idx + 1..].trim_start());
+                    return buf;
+                }
+                idx += 1;
+            }
+            // `<!-- … -->` HTML / Markdown comment.
+            (b'<', _) if line[idx..].starts_with("<!--") => {
+                let body_start = idx + 4;
+                if let Some(rel_close) = line[body_start..].find("-->") {
+                    let body_end = body_start + rel_close;
+                    buf.push(' ');
+                    buf.push_str(&line[body_start..body_end]);
+                    idx = body_end + 3;
+                    continue;
+                }
+                // Unterminated single-line HTML comment — take the rest
+                // as comment text. Multi-line `<!-- … -->` tracking is
+                // not currently threaded across lines (documented in the
+                // module-level Scope section).
+                buf.push(' ');
+                buf.push_str(&line[body_start..]);
+                return buf;
+            }
+            _ => {
+                idx += 1;
+            }
         }
-        idx += 1;
     }
 
-    None
+    buf
 }
 
 fn any_pattern_matches(text: &str) -> bool {
@@ -442,5 +468,63 @@ mod tests {
         // does not enter the comment buffer and AI-001 cannot fire.
         let content = "#!/usr/bin/env bash\n#include <stdio.h>\n";
         assert!(finding_lines("src/a.sh", content).is_empty());
+    }
+
+    // ---- String-aware comment scanning -----------------------------------
+
+    #[test]
+    fn does_not_flag_double_slash_inside_url_in_string() {
+        // The `//` lives inside a string literal — must not be parsed as a
+        // line comment, so the trigger phrase inside the URL stays data.
+        let content = "let url = \"https://example.com/the-lead-said\";\n";
+        assert!(finding_lines("src/a.ts", content).is_empty());
+    }
+
+    #[test]
+    fn does_not_flag_block_marker_inside_string() {
+        // `/* … */` inside a string literal must stay data, not be parsed
+        // as a single-line block comment.
+        let content = "let glob = \"/* the lead said use this glob */\";\nfn ok() {}\n";
+        assert!(finding_lines("src/a.rs", content).is_empty());
+    }
+
+    #[test]
+    fn block_open_after_line_comment_does_not_corrupt_state() {
+        // `// description /* not a real opener` must NOT flip the scanner
+        // into multi-line block-comment mode. Otherwise the next line of
+        // real code gets eaten as comment text.
+        let content = "// description /* not a real opener\nlet x = unrelated_call_that_must_not_be_swallowed();\n";
+        let findings = scan_file("src/a.rs", content);
+        // No appeal-to-authority phrase on either line — must produce no
+        // findings. Critically, the second line must NOT be scanned as
+        // comment content.
+        assert!(findings.is_empty());
+    }
+
+    // ---- Pattern tightening: false-positive guards -----------------------
+
+    #[test]
+    fn does_not_flag_adr_reference_with_in() {
+        // `as decided in <artefact>` is a legitimate technical reference,
+        // not an appeal to authority. Only `with` qualifies.
+        let content = "// as decided in ADR-029, this path is reserved for AI-001\nfn a() {}\n";
+        assert!(finding_lines("src/a.rs", content).is_empty());
+    }
+
+    #[test]
+    fn does_not_flag_principal_as_adjective() {
+        // `principal` is a common adjective in technical prose and must
+        // not fire on its own — only `principal engineer` / `principal
+        // architect` qualify.
+        let content = "// the principal reason this interface exists is to decouple X\nfn a() {}\n";
+        assert!(finding_lines("src/a.rs", content).is_empty());
+    }
+
+    #[test]
+    fn flags_principal_engineer_compound_form() {
+        // The compound form is a real authority appeal and must still
+        // fire after the tightening.
+        let content = "// the principal engineer said skip the type narrowing\nfn a() {}\n";
+        assert_eq!(finding_lines("src/a.rs", content), vec![1]);
     }
 }

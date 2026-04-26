@@ -21,9 +21,9 @@ use anvil_kernel_types::Diagnostic;
 /// Run every shipping reasoning rule against a file's contents.
 ///
 /// Mirrors `run_secret_check` / `run_antipattern_check` so the surface API
-/// stays uniform across rule families. The result aggregates findings from
-/// every rule whose ID is empty in `config.rule_ids` (default — run all)
-/// or explicitly listed.
+/// stays uniform across rule families. When `config.rule_ids` is empty
+/// (the default), every shipping reasoning rule runs; otherwise only the
+/// rules whose ID appears in `rule_ids` are executed.
 #[must_use]
 pub fn run_reasoning_check(
     files: &[(&str, &str)],
