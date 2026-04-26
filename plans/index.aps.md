@@ -326,7 +326,7 @@ Python must hit. Spec §7, §8.1.
 
 | Module | Scope | Status | Phase | Spec ref |
 | ------ | ----- | ------ | ----- | -------- |
-| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | In Progress | 1 | §7.3, §8.1 — 2/5 (audit + checklist landed 2026-04-26) |
+| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Ready | 1 | §7.3, §8.1 — 2/5; promoted to Ready 2026-04-26 after anchor re-scoring gate (TS still anchor zero; Rust catching up — flagged for separate RSTLAN re-eval) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Draft | 2 | §8.1 |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Draft | 2 | §8.1 |
 
@@ -1058,7 +1058,7 @@ Authoritative source: [2026-04-08 Language and Coverage Design](./specs/2026-04-
 
 | Scope ID | Module | Status | Phase | Notes |
 | -------- | ------ | ------ | ----- | ----- |
-| LANGTS   | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | In Progress (2/5) | 1 | Anchor item zero — audit + T3 checklist landed 2026-04-26 ([report](./specs/2026-04-26-langts-audit-report.md), [checklist](./specs/2026-04-26-t3-acceptance-checklist.md)) |
+| LANGTS   | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | Ready (2/5) | 1 | Anchor item zero — audit + T3 checklist landed 2026-04-26; promoted to Ready after anchor re-scoring gate ([report](./specs/2026-04-26-langts-audit-report.md), [checklist](./specs/2026-04-26-t3-acceptance-checklist.md)) |
 | RSTLAN   | [lang-rust](./modules/lang-rust.aps.md) | Draft | 2 | Rewritten for T3 target; gated on LANGTS + Rust T3 enforcement ADR |
 | PYLAN    | [lang-python](./modules/lang-python.aps.md) | Draft | 2 | Rewritten for T3 target; gated on LANGTS + RSTLAN |
 

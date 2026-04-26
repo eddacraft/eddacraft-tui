@@ -101,6 +101,16 @@ a new lane.
   and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
 - **Status:** Draft
+- **Trigger flag (parser concurrency ADR):** The LANGTS audit
+  (`plans/specs/2026-04-26-langts-audit-report.md` §5.3, K3) deferred
+  the parser thread-locality ADR conditionally. **At INTD-001 review,
+  decide the daemon's parser concurrency model.** If the choice is
+  obvious (likely `thread_local!` per option (1) in the audit) and no
+  disagreement surfaces, capture the decision inline in this task's
+  Notes — no ADR needed. If the choice is contentious, or multi-process
+  daemon scenarios materialise, **author the parser thread-locality ADR
+  before INTD-001 lands**. The audit's evaluation of the four options
+  is the starting point for this discussion.
 
 ### INTD-002: IPC Listener
 

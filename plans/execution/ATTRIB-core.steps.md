@@ -45,10 +45,16 @@ attribution pipeline into a portable v3 starter kit.
 
 ### 6. Wire the repo to consume the vendored kit
 
+> **Decision 2026-04-26:** v1 entry points retired outright (Option A). Solo
+> repo, no external contributors — single source of truth wins; no shim drift
+> risk. Delete `tools/generate-acknowledgements.sh` and remove
+> `licenses:generate` from `package.json` rather than thin-shimming. Quick
+> grep before cutover to fix any internal references.
+
 - **Purpose:** Prove the kit works against its first consumer (anvil itself) without bypass paths.
-- **Produces:** Top-level `tools/generate-acknowledgements.sh` and `pnpm run licenses:generate` either thinly delegate to the starter copy or are retired in favour of the vendored entry point.
-- **Checkpoint:** Anvil regenerates `ACKNOWLEDGEMENTS.md` solely via the kit.
-- **Validate:** `tools/starters/acknowledgements/generate-acknowledgements.sh --check`
+- **Produces:** Top-level `tools/generate-acknowledgements.sh` and `pnpm run licenses:generate` are **retired** (deleted). Anvil consumes the vendored entry point at `tools/starters/acknowledgements/generate-acknowledgements.sh` directly. Any internal references (CI workflows, docs, runbooks) updated in this step.
+- **Checkpoint:** v1 entry points absent; anvil regenerates `ACKNOWLEDGEMENTS.md` solely via the kit; no broken references remain.
+- **Validate:** `tools/starters/acknowledgements/generate-acknowledgements.sh --check && ! test -f tools/generate-acknowledgements.sh && ! grep -q '"licenses:generate"' package.json`
 
 ### 7. Verify clean adoption from a scratch tree
 

@@ -83,8 +83,8 @@ shape of the problem:
   conform to it. The reasoning-pattern checks RTVS catalogued (AI-001
   appeal-to-authority, AI-002 unjustified precision, etc.) are
   net-new rule implementations on the same trait — they belong in
-  `anvil-checks` (or a new `anvil-checks-reasoning` crate), not in
-  this module.
+  `crates/anvil-checks/src/reasoning/` (decided 2026-04-26, see
+  Open Question 3), not in this module.
 - `INTD-014` measures save-time RPC latency. RTAI needs a separate
   mid-edit latency measurement because the budget is tighter and
   the call rate is higher.
@@ -168,7 +168,8 @@ convention" section). Concretely:
 - The validation engine internals (which rule fires, how
   reasoning-pattern detectors are written, false-positive tuning,
   the AI-001..AI-007 catalogue). Owned by **anvil-checks**
-  (and/or a new `anvil-checks-reasoning` crate). RTAI consumes
+  (specifically `crates/anvil-checks/src/reasoning/` per the
+  2026-04-26 decision; see Open Question 3). RTAI consumes
   whatever rules are registered in INTR.
 - Save-time watch-flow polish — owned by **LAUNCH**.
 - The save-time gate itself, the editor diagnostics-on-save
@@ -215,10 +216,11 @@ convention" section). Concretely:
   (save-time watch flow) — RTAI is the in-flight sibling. The two
   must produce diagnostics that look the same on the wire so
   consumers don't branch.
-- **Coordinates with:** anvil-checks / a new
-  `anvil-checks-reasoning` crate (rule implementations the daemon
-  evaluates). The reasoning-pattern catalogue from the archived
-  RTVS module belongs there, not here.
+- **Coordinates with:** `crates/anvil-checks` — the
+  `reasoning/` submodule (per the 2026-04-26 decision; see Open
+  Question 3) holds rule implementations the daemon evaluates. The
+  reasoning-pattern catalogue from the archived RTVS module belongs
+  there, not here.
 - **Coordinates with:** [INTR](./intercept-rules.aps.md) — rules
   registered in INTR are what the mid-edit pipeline evaluates.
 - **References:** [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
@@ -542,24 +544,21 @@ convention" section). Concretely:
    the user their own keystrokes). If the answer is "MCP can
    block, editor cannot", that asymmetry needs to be in the
    protocol from RTAI-002 — not bolted on later.
-3. **AI-001 reasoning-pattern rule home: TBD before A1 starts.**
-   The RTVS catalogue (AI-001..AI-007) is owned by neither
-   `anvil-checks` nor `anvil-checks-reasoning` (the latter does
-   not exist). Options:
-   - **(a)** Extend `crates/anvil-checks` with a new `reasoning`
-     module — faster to land, keeps the rule registry single,
-     but mixes intent-detection with the existing
-     antipattern/secret/path-deny vocabulary.
-   - **(b)** New `crates/anvil-checks-reasoning` crate — cleaner
-     separation, more honest about the different shape of the
-     analysis (reasoning patterns are not antipatterns), but
-     adds a crate boundary and a registration step in INTR.
-   Decision required **before Scenario B in the demo runbook is
-   demo-stable** — until the AI-001 rule lands somewhere
-   reachable from the rule registry, the demo runbook §2.2
-   substitutes Scenarios A or C (per the runbook's own fallback
-   note). Tracked as task #24 in the followup list (see
-   `RELEASE-PLAN.md` Required prerequisites).
+3. **AI-001 reasoning-pattern rule home: DECIDED 2026-04-26 — Option (a).**
+   Extend `crates/anvil-checks` with a new `reasoning/` submodule
+   alongside `secret/`, `antipattern/`, and `command_safety/`.
+   AI-001 (appeal-to-authority) lands at
+   `crates/anvil-checks/src/reasoning/appeal_to_authority.rs` and
+   registers through the existing rule registry. Rationale:
+   first rule has no infrastructure needs that justify a separate
+   crate; reasoning-as-category lives next to other check categories
+   in the envelope `category` enum (per the diagnostic envelope
+   coordination spec at
+   `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`).
+   If the reasoning corpus later grows infrastructure-heavy
+   (NLP helpers, classifier deps), extract on real evidence —
+   `cargo new` + module move is a small reverse op. Premature
+   crate split was rejected. Tracked as task #24.
 4. **Confidence scoping is uniformly medium.** All RTAI-002
    onwards tasks are marked `Confidence: medium` against a
    stack (INTD + DRVR) that does not yet exist. RTAI-001 will

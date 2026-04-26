@@ -3,11 +3,31 @@
 
 # TypeScript Audit & T3 Calibration (Track 1 anchor zero)
 
-| ID     | Owner | Status      | Done |
-| ------ | ----- | ----------- | ---- |
-| LANGTS | —     | In Progress | 2/5  |
+| ID     | Owner | Status | Done |
+| ------ | ----- | ------ | ---- |
+| LANGTS | —     | Ready  | 2/5  |
 
 **Last reviewed:** 2026-04-26
+
+> **Anchor re-scoring gate run 2026-04-26 (solo, self-review):**
+> - **TS still anchor zero** — confirmed. Demand profile unchanged since
+>   2026-04-08 spec; Anvil itself is the heaviest TS consumer; Track 4
+>   packs (PACKPUL, PACKLLM, PACKDRZ, PACKNXT, PACKHON) all gate on TS
+>   T3 substrate.
+> - **Rust is catching up faster than the spec assumed** — observed
+>   signal. Where the 2026-04-08 design parked RSTLAN at Tier B / Phase 2
+>   behind LANGTS + Track 4 packs, the dogfood case for Rust → T3 has
+>   strengthened: Anvil's own crates are Rust-substrate-heavy, the
+>   intercept daemon is Rust-only, and post-rust-migration coverage gaps
+>   on Anvil itself are accumulating. Implication: RSTLAN may warrant
+>   earlier promotion than its current Tier B parking suggests.
+>   **Action:** flagged for re-evaluation — see followup task. Does not
+>   change LANGTS sequencing; LANGTS is still the Phase-1 prerequisite.
+> - **Spec bar still applies** — T3 acceptance checklist (just landed at
+>   `plans/specs/2026-04-26-t3-acceptance-checklist.md`) is the canonical
+>   bar for any anchor; nothing in the gate run suggests loosening.
+>
+> Status promoted Draft → In Progress → **Ready** 2026-04-26.
 
 ## Purpose
 

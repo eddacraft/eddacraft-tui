@@ -495,11 +495,25 @@ they reference the checklist, not this report.
 | --- | --- | --- |
 | **ADR for extractor trait shape** | K1 reshapes the kernel-side language abstraction. ADR-026 declares Rust scanner authoritative but says nothing about how the extractor is split per language. RSTLAN and PYLAN both depend on the trait surface; pinning it in an ADR keeps the surface stable across anchor work. | C-003 / K1 |
 | **ADR for grammar maturity gate** | K5 is recurring governance, not one-off. An ADR ("a tree-sitter grammar enters the kernel only if it passes the maturity rubric") would let the LANGTAIL wave move to Ready without re-arguing the criteria each time. Could live as an extension of ADR-026 or stand alone. | C-005 / K5 |
-| **ADR for parser thread-locality strategy** *(optional, can wait)* | K3 is bounded enough that a single-line code comment + checklist entry may suffice. Promote to ADR if the implementation choice diverges from option (1) or if multi-process daemon scenarios materialise. | C-026 / K3 |
+| **ADR for parser thread-locality strategy** *(conditional — see below)* | K3 is bounded enough that a single-line code comment + checklist entry may suffice. Promote to ADR if the implementation choice diverges from option (1) or if multi-process daemon scenarios materialise. | C-026 / K3 |
 
-The first two are recommended *before* RSTLAN moves to Ready. The
-third can land as a section in an existing ADR (likely ADR-026 or a
-new operational ADR) if the implementation chooses option (1) cleanly.
+**Decision 2026-04-26 (the three flagged ADRs):**
+
+- **Extractor trait shape** — defer until RSTLAN starts. Author at the
+  point RSTLAN's first work item surfaces real shape requirements;
+  premature locking risks the wrong abstraction.
+- **Grammar maturity gate** — fold into `operational-supplement`
+  (OPSUP). Maturity rubrics are operational-supplement-shaped (per-track
+  flags, FP reporting, cross-track governance). No standalone ADR;
+  capture as an OPSUP slice when LANGTAIL admission becomes a real ask.
+- **Parser thread-locality** — **conditional defer.** Trigger to author
+  the ADR: INTD-001 review surfaces a parser-concurrency question. If
+  the daemon's first concurrency model picks option (1) `thread_local!`
+  cleanly with no disagreement, no ADR needed — capture inline in
+  INTD-001's spec instead. If the choice proves contentious, or
+  multi-process daemon scenarios appear, then write the ADR. INTD-001
+  carries a forward-reference (see `plans/modules/intercept-daemon.aps.md`
+  INTD-001 task) so the trigger is not lost.
 
 ---
 
