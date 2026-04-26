@@ -802,22 +802,59 @@ jobs:
           BUCKET="eddacraft/scoop-bucket"
           TARGET="bucket/anvil.json"
 
+          # Surface the runner's gh version so any future cobra failure
+          # can be reproduced with the matching CLI.
+          gh --version
+
+          # Pre-flight: verify the token can READ the bucket repo. The
+          # actual PUT below also needs `contents:write` — but if even
+          # the read fails, the PUT will fail too and we want a clearer
+          # error than `HTTP 403` ten lines deeper in the script.
+          # v0.4.0-beta tag 403'd here because the PAT lacked
+          # contents:write on eddacraft/scoop-bucket; the manifest was
+          # pushed manually via the same gh api call from a dev machine
+          # (commit eddacraft/scoop-bucket@4f3becf6). See
+          # docs/runbooks/release-token-rotation.md for the required
+          # scope and the rotation procedure.
+          PREFLIGHT_ERR=$(mktemp)
+          if ! gh api "repos/${BUCKET}" --silent 2>"$PREFLIGHT_ERR"; then
+            echo "::error title=Scoop bucket pre-flight failed::ANVIL_RELEASES_TOKEN cannot access ${BUCKET}. See docs/runbooks/release-token-rotation.md for the required PAT scope (contents:write on eddacraft/scoop-bucket) and the rotation procedure."
+            cat "$PREFLIGHT_ERR" >&2
+            rm -f "$PREFLIGHT_ERR"
+            exit 1
+          fi
+          rm -f "$PREFLIGHT_ERR"
+
           # Use the GitHub contents API so we don't need to clone/push.
           # Fetch the current SHA (required for PUT update) — ignore if missing.
           EXISTING_SHA=$(gh api "repos/${BUCKET}/contents/${TARGET}" --jq '.sha' 2>/dev/null || true)
 
           CONTENT_B64=$(base64 -w 0 < "$RUNNER_TEMP/anvil.json")
 
+          PUT_ERR=$(mktemp)
+          PUT_OK=1
           if [ -n "$EXISTING_SHA" ]; then
             gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
               -f message="chore: bump anvil to ${RELEASE_TAG}" \
               -f content="$CONTENT_B64" \
-              -f sha="$EXISTING_SHA"
+              -f sha="$EXISTING_SHA" 2>"$PUT_ERR" || PUT_OK=0
           else
             gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
               -f message="chore: add anvil ${RELEASE_TAG}" \
-              -f content="$CONTENT_B64"
+              -f content="$CONTENT_B64" 2>"$PUT_ERR" || PUT_OK=0
           fi
+
+          if [ "$PUT_OK" = "0" ]; then
+            if grep -qiE 'HTTP 403|not accessible' "$PUT_ERR"; then
+              echo "::error title=Scoop bucket write denied::ANVIL_RELEASES_TOKEN passed the read pre-flight but cannot write to ${BUCKET}. The PAT needs contents:write on eddacraft/scoop-bucket. See docs/runbooks/release-token-rotation.md."
+            else
+              echo "::error title=Scoop manifest push failed::Unexpected error pushing ${TARGET} to ${BUCKET}."
+            fi
+            cat "$PUT_ERR" >&2
+            rm -f "$PUT_ERR"
+            exit 1
+          fi
+          rm -f "$PUT_ERR"
 
           echo "Pushed ${TARGET} to ${BUCKET} for ${RELEASE_TAG}"
 
