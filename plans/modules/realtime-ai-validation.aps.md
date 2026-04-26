@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| RTAI | —     | In Progress | 1/9      |
+| RTAI | —     | Ready    | 1/9      |
 
 **Last reviewed:** 2026-04-26
 

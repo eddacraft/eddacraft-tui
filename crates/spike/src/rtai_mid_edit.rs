@@ -109,7 +109,10 @@ fn main() {
     }
 
     drop(req_tx); // close the channel so the worker thread can exit.
-    let _ = worker.join();
+    // Surface a worker-thread panic — silently swallowing the join
+    // result would let the harness print "PASS" alongside a crashed
+    // worker (e.g. if a future refactor breaks the rule pipeline).
+    worker.join().expect("worker thread panicked");
 
     samples.sort_unstable();
     let p50 = samples[samples.len() / 2];
@@ -165,7 +168,9 @@ fn round_trip(
     req_tx.send((req, reply_tx)).expect("worker alive");
     let reply = reply_rx.recv().expect("worker replied");
     let elapsed = start.elapsed();
-    debug_assert_eq!(reply.version, version, "version round-trip");
+    // Real assert (not debug_assert!) because the spike is normally run
+    // in --release where debug asserts are compiled out.
+    assert_eq!(reply.version, version, "version round-trip");
     (elapsed, reply.diagnostics.len())
 }
 
@@ -177,14 +182,24 @@ fn findings_to_diagnostics(path: &str, findings: &[SecretFinding]) -> Vec<Diagno
     findings
         .iter()
         .map(|f| {
-            let line_u32 = u32::try_from(f.line).unwrap_or(u32::MAX);
+            // Per AIGUARD-002 the diagnostic `id` is per-finding-instance
+            // and distinct from `source.rule_id`. `path:line:pattern`
+            // gives a stable, deterministic id without pulling a UUID
+            // dependency into the spike.
+            let id = format!("diag_midedit_{}:{}:{}", path, f.line, f.pattern_name);
+            // `Location.line` is optional. If a usize line number does
+            // not fit in u32 the file is too large to be source code on
+            // any sensible workflow; emit `None` rather than the
+            // sentinel `u32::MAX` so consumers cannot mistake it for a
+            // real line.
+            let location_line = u32::try_from(f.line).ok();
             Diagnostic::new(
-                "secret-detection",
+                id,
                 Severity::Error,
                 format!("Potential secret detected ({})", f.pattern_name),
                 Location {
                     file: path.to_string(),
-                    line: Some(line_u32),
+                    line: location_line,
                     column: None,
                     end_line: None,
                     end_column: None,

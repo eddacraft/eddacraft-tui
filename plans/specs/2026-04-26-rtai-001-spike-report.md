@@ -3,8 +3,11 @@
 **Date:** 2026-04-26
 **Branch:** `rtai-001-spike`
 **Spike binary:** `crates/spike/src/rtai_mid_edit.rs` (`spike-rtai-mid-edit`)
-**Status:** Spike closed; RTAI module promotion from Proposed → Ready unblocked
-pending review of this report.
+**Status:** Spike closed; RTAI module promoted from Proposed → Ready per the
+RTAI-001 task gate. The remaining eight items stay at their existing statuses
+(most are Proposed pending INTD/DRVR dependencies); the module-level state
+captures "decided to do, deps real, value clear" rather than "actively in
+flight."
 
 ## What this is
 
