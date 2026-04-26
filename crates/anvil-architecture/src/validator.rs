@@ -349,7 +349,7 @@ pub fn collect_source_files(
     let mut files = Vec::new();
 
     // SCAN-001: validator discovery uses `ignore::WalkBuilder` so it
-    // shares the gitignore-aware walker shape with the rest of the
+    // shares the noise-pruning walker (skips target/, node_modules/, etc; not .gitignore) shape with the rest of the
     // scan-fanout sites. The downstream boundary check is single-pass
     // string-pattern matching (not regex on file content), so we don't
     // add a rayon stage here — the walker swap is the win that matters

@@ -121,7 +121,7 @@ fn initial_scan(
 ) {
     let mut scanned_files: Vec<PathBuf> = Vec::new();
 
-    // SCAN-001: gitignore-aware discovery (same shape as the welcome
+    // SCAN-001: noise-pruning discovery (skips target/, node_modules/, etc; .gitignore is intentionally not applied so security scans see every file) (same shape as the welcome
     // walker). Per-file parsing below already runs on rayon, so the only
     // change here is the walker primitive.
     let walker = ignore::WalkBuilder::new(root)
@@ -143,7 +143,21 @@ fn initial_scan(
                 }
             }
             Err(e) => {
-                emitter.error(ErrorCode::Internal, None, &format!("walk error: {e}"), true);
+                // `ignore::Error::WithPath` carries the offending path
+                // (permission errors, broken symlinks, oversize repos) —
+                // surface it on the emitter so operators can diagnose
+                // without re-running with verbose logging. Other Error
+                // variants don't have a path attached and pass None.
+                let walk_path = match &e {
+                    ignore::Error::WithPath { path, .. } => path.to_str(),
+                    _ => None,
+                };
+                emitter.error(
+                    ErrorCode::Internal,
+                    walk_path,
+                    &format!("walk error: {e}"),
+                    true,
+                );
                 None
             }
         })

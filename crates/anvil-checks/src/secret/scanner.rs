@@ -39,9 +39,9 @@ pub fn scan_content_with_stats(
 
     // Tracks lines that were skipped by the length guard. The entropy pass
     // below honours the same set so a pathological line cannot route around
-    // the guard via the entropy scanner.
-    let mut oversize_line_indices: std::collections::HashSet<usize> =
-        std::collections::HashSet::new();
+    // the guard via the entropy scanner. Lazily allocated — the common case
+    // is no oversize lines, and a missing set means "no skipped lines".
+    let mut oversize_line_indices: Option<std::collections::HashSet<usize>> = None;
 
     for (index, line) in content.lines().enumerate() {
         // SCAN-002: skip lines that exceed the configured byte cap. We use
@@ -51,7 +51,9 @@ pub fn scan_content_with_stats(
         // measure, and it is also O(1).
         if line.len() > config.max_line_bytes {
             stats.lines_skipped_oversize += 1;
-            oversize_line_indices.insert(index);
+            oversize_line_indices
+                .get_or_insert_with(std::collections::HashSet::new)
+                .insert(index);
             continue;
         }
 
@@ -97,7 +99,10 @@ pub fn scan_content_with_stats(
                 // scanning over the original content already touches every
                 // line, but we must not surface findings on lines the
                 // pattern pass refused to inspect.
-                if oversize_line_indices.contains(&line_index) {
+                if oversize_line_indices
+                    .as_ref()
+                    .is_some_and(|set| set.contains(&line_index))
+                {
                     return false;
                 }
                 lines.get(line_index).is_some_and(|line| {

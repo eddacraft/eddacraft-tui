@@ -50,8 +50,12 @@ pub fn collect_audit_data() -> AuditData {
 
 /// Scan the repository at `root` and return audit data.
 ///
-/// SCAN-001: file discovery uses `ignore::WalkBuilder` (gitignore-aware)
-/// and per-file scans run on the rayon thread pool with `catch_unwind`
+/// SCAN-001: file discovery uses `ignore::WalkBuilder` configured with
+/// `.standard_filters(false)` plus an explicit `SKIP_DIRS` prune list.
+/// `.gitignore` is intentionally NOT applied — a security scan must see
+/// every file regardless of VCS state — but `target/`, `node_modules/`,
+/// and similar noise dirs are skipped via the explicit prune.
+/// Per-file scans run on the rayon thread pool with `catch_unwind`
 /// panic containment. Findings are then sorted into the deterministic
 /// `(severity, file, line)` order so concurrent collection cannot leak
 /// scheduling into user-visible output.
@@ -65,7 +69,7 @@ pub fn run_audit(root: &Path) -> AuditData {
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "unknown".to_string());
 
-    // Phase 1: discover candidate files via the gitignore-aware walker.
+    // Phase 1: discover candidate files via the noise-pruning walker (skips target/, node_modules/, etc; not .gitignore).
     // `standard_filters(true)` honours `.gitignore`; we still prune
     // SKIP_DIRS explicitly to keep behaviour identical to the legacy
     // serial walk (audit had its own ignore set independent of gitignore).

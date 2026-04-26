@@ -19,8 +19,10 @@
 //!
 //! The acceptance threshold for SCAN-001 is `parallel_rollout`
 //! delivering >3× wall-time reduction over `serial_baseline` on this
-//! corpus. Run via `cargo bench -p eddacraft-anvil-bench -- scan` and
-//! capture the numbers in the commit body.
+//! corpus. Run via `cargo bench -p anvil-bench -- scan` (the bench
+//! crate's package name is `anvil-bench`, not the `eddacraft-` prefix
+//! used by the other workspace crates) and capture the numbers in
+//! the commit body.
 
 use std::time::Duration;
 

@@ -106,7 +106,7 @@ fn watch_directories(
         }
     }
 
-    // SCAN-001: gitignore-aware directory walk for inotify registration
+    // SCAN-001: noise-pruning directory walk (skips target/, node_modules/, etc; .gitignore is intentionally not applied so security scans see every file) for inotify registration
     // (same shape as the welcome-screen / audit / drift discovery
     // surfaces). Watch registration itself stays serial because
     // `notify::Watcher::watch` mutates internal kernel-watch state on
@@ -125,9 +125,13 @@ fn watch_directories(
         .build();
 
     for entry in walker.filter_map(Result::ok).filter(|e| e.depth() >= 1) {
-        // flatten() skips permission errors, broken symlinks, etc.
-        // The filter already excludes node_modules/target/.git so most
-        // walk errors are from edge cases that don't affect monitoring.
+        // `filter_map(Result::ok)` skips permission errors, broken
+        // symlinks, and other walk-level errors. The SKIP_DIRS filter
+        // already excludes node_modules/target/.git so most remaining
+        // walk errors are edge cases that don't affect monitoring; we
+        // accept the silent skip here because the watcher loop's job
+        // is to keep registration moving. Per-file watch errors are
+        // reported via diag below.
         match watcher.watch(entry.path(), RecursiveMode::NonRecursive) {
             Ok(()) => diag.registered += 1,
             Err(e) => {

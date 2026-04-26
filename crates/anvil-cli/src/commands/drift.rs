@@ -752,7 +752,10 @@ fn collect_antipatterns(
 }
 
 // SCAN-001: drift discovery uses `ignore::WalkBuilder` to share the
-// gitignore-aware walk shape with the welcome flow. Per-file scans are
+// noise-pruning walk shape (skips target/, node_modules/, etc) with the
+// welcome flow. `.gitignore` is intentionally NOT honoured — drift
+// snapshots must see every file regardless of VCS state — and the
+// `.standard_filters(false)` setting reflects that. Per-file scans are
 // already parallelised inside `run_antipattern_check`
 // (`files.par_iter()` in `anvil-checks::antipattern::check`), so we
 // don't need a second rayon fan-out here — only the discovery layer
