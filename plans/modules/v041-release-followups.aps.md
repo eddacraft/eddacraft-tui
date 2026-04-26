@@ -244,21 +244,19 @@ require a coordinated bundle — pick them off in any order.
   scoop push to a GitHub App / fine-grained token that scopes correctly.
   Verify with a dry-run on a test tag before the next real release.
 - **Confidence:** high
-- **Resolution (workflow side):** Scoop job rewritten with a token
+- **Resolution:** Scoop job rewritten in PR #1106 with a token
   pre-flight that reads `repos/${BUCKET}` before the PUT and bails with
-  a clear `::error::` annotation pointing at the rotation runbook when
-  the token cannot reach the bucket. The PUT itself now captures
-  stderr and emits a distinct error for `HTTP 403` (write denied,
-  matches v0.4.0-beta failure shape) vs other failures. Operator-side
-  PAT rotation procedure documented in
-  [`docs/runbooks/release-token-rotation.md`](../../docs/runbooks/release-token-rotation.md)
-  including required scopes (fine-grained: `contents:write` on
-  `eddacraft/scoop-bucket` + `eddacraft/anvil-001` +
-  `${FORK_USER}/winget-pkgs`), pre-install verification commands, and
-  the smoke-test path. Workflow change is sufficient to make the next
-  failure diagnose itself; PAT rotation is the operator action that
-  closes the loop.
-- **Status:** In Progress (workflow done; awaits PAT rotation)
+  a clear `::error::` annotation when the token cannot reach the
+  bucket. The PUT itself captures stderr and emits a distinct error
+  for `HTTP 403` (write denied, matches v0.4.0-beta failure shape)
+  vs other failures. Token-scope runbook lives at
+  [`docs/runbooks/release-token-scope.md`](../../docs/runbooks/release-token-scope.md);
+  it leads with the in-place edit path (the actual fix) and keeps
+  full mint+install+revoke as a fallback for true rotation cases.
+  Operator added `contents:write` on `eddacraft/scoop-bucket` to the
+  existing PAT 2026-04-26 — no rotation, no Secret value change. Next
+  release tag will exercise the full path.
+- **Status:** Done
 
 ### V041F-013: Fix CI winget publisher `gh` arg-count regression
 
