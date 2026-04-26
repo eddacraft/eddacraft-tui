@@ -20,7 +20,7 @@ pub struct GateArgs {
     /// Plan file to run gates against (omit for full codebase scan)
     plan: Option<String>,
 
-    /// Gate profile: dev, ci, production
+    /// Gate profile: dev, ci, production, ai
     #[arg(long, short)]
     profile: Option<String>,
 
@@ -57,7 +57,82 @@ const PROFILES: &[(&str, &str, &[&str])] = &[
         "Production mode \u{2014} runs all checks with strict thresholds",
         &[],
     ),
+    (
+        "ai",
+        "AI guardrail mode \u{2014} curated checks for AI-generated code",
+        &["lint", "test", "coverage", "dependency"],
+    ),
 ];
+
+/// AI guardrail profile (AIGUARD-001).
+///
+/// Declares the curated rule set that the AI guardrail runs to validate
+/// AI-generated changes. The profile bundles structural-governance checks
+/// (architecture, policy, antipattern, secret detection, command safety)
+/// into a single coherent set so external AI tools have a predictable
+/// safety harness.
+///
+/// `--profile ai` is already selectable via the existing `--profile`
+/// flag and the `PROFILES` registration above, so the basic skip-list
+/// behaviour is in effect today. What still arrives in later work items:
+/// AIGUARD-002 publishes the canonical `Diagnostic` JSON schema in
+/// `crates/anvil-kernel-types`; AIGUARD-003 wires the strict-config /
+/// JSON-output-default behaviour from `AiGuardrailProfile` (the
+/// `strict_config` and `json_output_default` fields below) into the
+/// gate runner, normalises the profile skip list through
+/// `gate_internal_name` for canonical-name parity with `--skip-checks`,
+/// and registers a `command-safety` dispatcher in
+/// `check_catalog`/`GATE_INTERNAL_CHECKS`.
+#[allow(dead_code)] // Wired up by AIGUARD-003.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AiGuardrailProfile {
+    /// Canonical check names included in the profile.
+    pub checks: &'static [&'static str],
+    /// When true, missing or invalid configuration is treated as a
+    /// blocking diagnostic rather than a soft warning.
+    pub strict_config: bool,
+    /// When true, output defaults to structured JSON for AI consumption.
+    pub json_output_default: bool,
+}
+
+/// Canonical check names included in the AI guardrail profile.
+///
+/// Selection rationale: every check here flags a structural concern that
+/// AI-generated changes regularly trip over — secret leakage, antipatterns,
+/// import-boundary violations, OPA policy breaches, and (once wired into
+/// the gate runner) command-safety rules. Lint/test/coverage/dependency
+/// are intentionally excluded: they're language-toolchain concerns the
+/// host project already enforces and they slow the profile below the 5s
+/// budget set out in the AIGUARD acceptance criteria.
+#[allow(dead_code)] // Wired up by AIGUARD-003.
+pub(crate) const AI_GUARDRAIL_CHECKS: &[&str] = &[
+    "secret-detection",
+    "import-boundaries",
+    "antipattern-scan",
+    "policy",
+    "command-safety",
+];
+
+#[allow(dead_code)] // Wired up by AIGUARD-003.
+impl AiGuardrailProfile {
+    /// Default AI guardrail profile.
+    pub(crate) const DEFAULT: Self = Self {
+        checks: AI_GUARDRAIL_CHECKS,
+        strict_config: true,
+        json_output_default: true,
+    };
+
+    /// Profile name as used on the CLI (`--profile ai`).
+    pub(crate) const NAME: &'static str = "ai";
+}
+
+/// Return the canonical check names that make up the AI guardrail
+/// profile. Used by AIGUARD-003 to filter the gate runner's check list
+/// when `--profile ai` is selected.
+#[allow(dead_code)] // Wired up by AIGUARD-003.
+pub(crate) fn ai_guardrail_profile_checks() -> &'static [&'static str] {
+    AiGuardrailProfile::DEFAULT.checks
+}
 
 #[derive(Debug, Serialize)]
 struct GateResult {
@@ -1075,7 +1150,7 @@ fn list_profiles() {
         }
         println!();
     }
-    println!("Usage: anvil gate [plan] --profile dev");
+    println!("Usage: anvil gate [plan] --profile <name>");
 }
 
 fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::HashSet<&str>> {
@@ -1568,6 +1643,90 @@ mod tests {
     fn resolve_profile_none_returns_empty() {
         let skips = resolve_profile_skips(None).unwrap();
         assert!(skips.is_empty());
+    }
+
+    // ── AI guardrail profile (AIGUARD-001) ────────────────────────────
+
+    #[test]
+    fn ai_guardrail_profile_is_registered() {
+        // The "ai" profile must be discoverable via --list-profiles so users
+        // (and AI tools reading the help output) can find it.
+        let names: Vec<&str> = PROFILES.iter().map(|(n, _, _)| *n).collect();
+        assert!(
+            names.contains(&AiGuardrailProfile::NAME),
+            "ai profile missing from PROFILES table: {names:?}"
+        );
+    }
+
+    #[test]
+    fn ai_guardrail_profile_bundles_expected_rule_set() {
+        // The profile must declare the structural-governance rule families
+        // documented in plans/modules/ai-guardrail-profile.aps.md.
+        let checks = ai_guardrail_profile_checks();
+        assert!(checks.contains(&"secret-detection"));
+        assert!(checks.contains(&"import-boundaries"));
+        assert!(checks.contains(&"antipattern-scan"));
+        assert!(checks.contains(&"policy"));
+        assert!(checks.contains(&"command-safety"));
+    }
+
+    #[test]
+    fn ai_guardrail_profile_excludes_toolchain_checks() {
+        // Lint/test/coverage/dependency are project-toolchain concerns
+        // outside the AI guardrail's structural focus and would push the
+        // profile past its <5s budget. Guard against accidental inclusion.
+        let checks = ai_guardrail_profile_checks();
+        for excluded in ["lint", "test", "coverage", "dependency"] {
+            assert!(
+                !checks.contains(&excluded),
+                "ai profile must not include {excluded}: got {checks:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ai_guardrail_profile_defaults_are_strict() {
+        // Per AIGUARD acceptance criteria: missing/invalid config blocks,
+        // and JSON output is the documented default for AI consumers.
+        let profile = AiGuardrailProfile::DEFAULT;
+        assert!(profile.strict_config);
+        assert!(profile.json_output_default);
+    }
+
+    #[test]
+    fn ai_guardrail_profile_skips_match_inverse_of_rule_set() {
+        // The PROFILES skip list and AI_GUARDRAIL_CHECKS allow list must
+        // stay in sync — every gate-supported check is either in the
+        // profile's rule set or in its skip list (modulo command-safety,
+        // which is wired in by AIGUARD-003).
+        let skips = resolve_profile_skips(Some(AiGuardrailProfile::NAME)).unwrap();
+        assert!(skips.contains("lint"));
+        assert!(skips.contains("test"));
+        assert!(skips.contains("coverage"));
+        assert!(skips.contains("dependency"));
+
+        // Checks that should run under the profile must NOT appear in skips.
+        assert!(!skips.contains("antipattern-scan"));
+        assert!(!skips.contains("secret"));
+        assert!(!skips.contains("architecture"));
+        assert!(!skips.contains("policy"));
+    }
+
+    #[test]
+    fn ai_guardrail_profile_check_names_are_canonical() {
+        // The profile exposes canonical names so it composes with the
+        // public check catalog (and the upcoming --profile ai flag in
+        // AIGUARD-003). Each entry must round-trip through the catalog,
+        // except command-safety which is added by AIGUARD-003.
+        for name in ai_guardrail_profile_checks() {
+            if *name == "command-safety" {
+                continue;
+            }
+            assert!(
+                canonical_check_name(name).is_some(),
+                "ai profile references unknown check: {name}"
+            );
+        }
     }
 
     // ── Coverage check tests ──────────────────────────────────────────
