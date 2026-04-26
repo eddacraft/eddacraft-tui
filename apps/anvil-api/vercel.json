@@ -1,5 +1,4 @@
 {
-  "framework": null,
   "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/anvil-api packages/transactional",
   "buildCommand": "cd ../.. && npx pnpm --filter '@eddacraft/anvil-api^...' build && cd apps/anvil-api && npx tsc",
   "rewrites": [{ "source": "/api/v1/:path*", "destination": "/api" }],
