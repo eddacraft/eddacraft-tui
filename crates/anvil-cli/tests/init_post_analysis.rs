@@ -43,6 +43,13 @@ fn init_force_prints_post_init_analysis_section() {
         stdout.contains("Scanned"),
         "expected 'Scanned N file(s)' line in stdout, got:\n{stdout}",
     );
+    // Issue #1107: the analysis result also surfaces `anvil auth login`
+    // so a new user knows how to authenticate before hitting the gate
+    // path's "Session expired" / "Authentication required".
+    assert!(
+        stdout.contains("anvil auth login"),
+        "expected post-analysis hint pointing at `anvil auth login`, got:\n{stdout}",
+    );
 }
 
 #[test]
@@ -76,6 +83,14 @@ fn init_force_post_analysis_shows_empty_tree_hint() {
     assert!(
         stdout.contains("anvil tutorial"),
         "expected next-step hint pointing at `anvil tutorial`, got:\n{stdout}",
+    );
+    // Issue #1107: the empty-tree hint surfaces `anvil auth login` as a
+    // next step so a brand-new user sees how to authenticate before
+    // they hit "Session expired" / "Authentication required" on a
+    // gate-evaluated check.
+    assert!(
+        stdout.contains("anvil auth login"),
+        "expected next-step hint pointing at `anvil auth login`, got:\n{stdout}",
     );
     // The "0 files scanned" noise that LAUNCH-004 originally wanted to
     // suppress must still NOT appear — the hint replaces it, not adds
