@@ -232,8 +232,10 @@ static SUPPRESSION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     // `SURFENV-001`, `SURFSQL-002` — rather than the legacy `AP-\d{3}` form.
     // Downstream callers compare the captured ID to the rule they're
     // checking, so widening here cannot suppress an unrelated rule.
-    Regex::new(r"(?://|/\*|#|<!--|--)\s*@anvil-ignore\s+([A-Z][A-Z0-9]*-[A-Z0-9]+)(?:\s*--\s*(.+))?")
-        .expect("static suppression regex must compile")
+    Regex::new(
+        r"(?://|/\*|#|<!--|--)\s*@anvil-ignore\s+([A-Z][A-Z0-9]*-[A-Z0-9]+)(?:\s*--\s*(.+))?",
+    )
+    .expect("static suppression regex must compile")
 });
 
 /// Parse an `@anvil-ignore <ID> -- <reason>` directive from a line.
