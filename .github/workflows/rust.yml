@@ -356,8 +356,8 @@ jobs:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
-          if ! tools/generate-acknowledgements.sh --check; then
-            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'pnpm run licenses:generate' locally and commit."
+          if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
+            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'tools/starters/acknowledgements/generate-acknowledgements.sh' locally and commit."
             exit 1
           fi
 

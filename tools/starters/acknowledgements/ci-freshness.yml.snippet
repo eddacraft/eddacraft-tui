@@ -1,0 +1,21 @@
+# Drop this job into a GitHub Actions workflow (e.g. .github/workflows/rust.yml)
+# to fail CI when ACKNOWLEDGEMENTS.md drifts from `Cargo.lock`. Pin the
+# cargo-about version via an env var or repo-level workflow variable so
+# regenerations are reproducible.
+
+acknowledgements-diff:
+  name: Acknowledgements freshness
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v6
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - name: Install cargo-about
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+    - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
+      run: |
+        if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
+          echo "::error::ACKNOWLEDGEMENTS.md is stale. Re-run the generator locally and commit."
+          exit 1
+        fi

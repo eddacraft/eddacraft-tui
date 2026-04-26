@@ -3,9 +3,9 @@
 
 # Attribution Pipeline v3
 
-| ID     | Owner      | Status |
-| ------ | ---------- | ------ |
-| ATTRIB | joshuaboys | Ready  |
+| ID     | Owner      | Status      |
+| ------ | ---------- | ----------- |
+| ATTRIB | joshuaboys | In Progress |
 
 **Last reviewed:** 2026-04-26
 
@@ -219,21 +219,21 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-001: Document the marker-splice contract
 
-- **Status:** Pending
+- **Status:** Complete
 - **Intent:** Stable reference that downstream consumers read before adopting the kit.
 - **Expected Outcome:** README in `tools/starters/acknowledgements/` covers marker syntax, idempotency invariants, `--check` exit-code semantics, atomic-write / empty-output / marker-count guarantees.
 - **Validation:** README exists; `markdownlint` clean; cross-references resolve.
 
 ### ATTRIB-002: Parameterise the generator via a config file
 
-- **Status:** Pending
+- **Status:** Complete
 - **Intent:** Eliminate hard-coded `crates/anvil-cli/Cargo.toml` and `pnpm run licenses:generate` strings from the bash.
 - **Expected Outcome:** Generator reads `attribution.toml` (per-ecosystem manifests + project metadata) instead of baked-in paths. Anvil's existing config lives at repo root.
 - **Validation:** `tools/generate-acknowledgements.sh --check` passes against unchanged anvil graph after the refactor; no project-specific strings remain in the script.
 
 ### ATTRIB-003: Extract starter kit to `tools/starters/acknowledgements/`
 
-- **Status:** Pending
+- **Status:** Complete
 - **Intent:** Vendor the kit at its agreed canonical location so downstream repos can `git subtree pull` without copy-paste rot.
 - **Expected Outcome:** Directory contains the parameterised script, `attribution.toml.example`, template files, `ACKNOWLEDGEMENTS.md.template`, README, and the GitHub Actions snippet. Self-contained: no imports from the rest of the repo.
 - **Validation:** `tar -czf` of the directory extracts cleanly; a fresh repo can adopt by copy + `attribution.toml` edit only.

@@ -1,0 +1,186 @@
+# Acknowledgements starter kit
+
+A drop-in third-party-attribution pipeline. Wraps
+[`cargo-about`](https://github.com/EmbarkStudios/cargo-about) and splices
+its output between BEGIN/END marker comments in a target markdown file
+(typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above and below
+the markers is preserved verbatim.
+
+The kit is the canonical home of the generator. To adopt it in another
+repo, copy this directory wholesale and edit one file
+(`attribution.toml`) — no script edits required.
+
+## What ships in this kit
+
+| File                                | Purpose                                              |
+| ----------------------------------- | ---------------------------------------------------- |
+| `generate-acknowledgements.sh`      | The parameterised generator                          |
+| `attribution.toml.example`          | Annotated template for the consumer-side config      |
+| `about.toml.template`               | cargo-about config template (licence allow-list etc) |
+| `about.hbs.template`                | cargo-about handlebars render template               |
+| `ACKNOWLEDGEMENTS.md.template`      | Bootstrap target file with markers in place          |
+| `ci-freshness.yml.snippet`          | GitHub Actions freshness-gate job                    |
+| `README.md`                         | This file (the marker-splice contract)               |
+
+## Adoption checklist (downstream consumer)
+
+1. Copy the kit:
+
+   ```bash
+   git subtree add --prefix tools/starters/acknowledgements \
+     <upstream> main --squash
+   ```
+
+   Or just `cp -r` the directory in if you don't want subtree tracking.
+
+2. Bootstrap the consumer-side files (one-off, then commit):
+
+   ```bash
+   cp tools/starters/acknowledgements/attribution.toml.example attribution.toml
+   cp tools/starters/acknowledgements/about.toml.template about.toml
+   cp tools/starters/acknowledgements/about.hbs.template about.hbs
+   cp tools/starters/acknowledgements/ACKNOWLEDGEMENTS.md.template ACKNOWLEDGEMENTS.md
+   ```
+
+3. Edit `attribution.toml` so `[rust].manifest_path` points at the Cargo
+   manifest you ship (usually `crates/your-cli/Cargo.toml` rather than
+   the workspace root, so dev-only deps stay out of the attribution).
+
+4. Tune `about.toml`'s `accepted` list and `targets` to match your
+   licence policy and the platforms you build for.
+
+5. Generate:
+
+   ```bash
+   tools/starters/acknowledgements/generate-acknowledgements.sh
+   ```
+
+6. Wire CI: drop `ci-freshness.yml.snippet` into your existing workflow.
+
+## The marker-splice contract
+
+This section is the canonical reference for the kit's invariants. The
+generator and any downstream consumer of the output rely on every rule
+below.
+
+### Marker syntax
+
+The target markdown file must contain **exactly one** BEGIN marker and
+**exactly one** END marker, on lines of their own:
+
+```markdown
+<!-- BEGIN AUTO-GENERATED -->
+<!-- END AUTO-GENERATED -->
+```
+
+The default markers are HTML comments so the file remains valid markdown
+and the markers don't render in viewers. Marker text is overridable per
+project via `[project].marker_begin` / `[project].marker_end` in
+`attribution.toml` (e.g. for projects that grow multi-block markers
+under ATTRIB-008).
+
+The generator matches markers via literal substring containment, not
+regex, so the marker text need not be regex-safe.
+
+### Idempotency
+
+Running the generator twice in a row against an unchanged
+`Cargo.lock` produces a byte-identical file the second time. The
+freshness gate (`--check`) relies on this: it regenerates into a
+temporary file and `diff`s against the on-disk copy.
+
+Idempotency requires:
+
+- `cargo-about`'s render output is deterministic for a given
+  `Cargo.lock` + template + config. Pin the `cargo-about` version in
+  CI to keep this true across machines.
+- Hand-edited content above the BEGIN marker and below the END marker
+  is never rewritten. The splice loop emits those regions verbatim.
+
+### Atomic write
+
+The generator never writes the target file in place. It:
+
+1. Generates `cargo-about`'s output to `mktemp` file A.
+2. Splices A between the markers in the target, writing to `mktemp`
+   file B.
+3. `mv`s B over the target only after both prior steps succeed.
+
+A failure mid-run leaves the target untouched. Combined with the empty-
+output guard (next), this prevents a partial generation from silently
+clobbering content.
+
+### Empty-output guard
+
+If `cargo about generate` produces a zero-byte file (e.g. because
+the template path is wrong, the manifest doesn't resolve, or
+cargo-about itself crashes silently), the generator aborts with a
+non-zero exit before the `mv` step. The target is never overwritten
+with an empty block.
+
+### Marker-count gate
+
+Before generation runs, the generator counts BEGIN and END marker
+occurrences in the target. If either count is not exactly 1, it
+exits with a non-zero status and an actionable error. This catches:
+
+- A target file that's missing the marker block entirely.
+- A merge conflict that duplicated the markers.
+- A typo introduced when adding a new block.
+
+Without this gate, the splice loop would no-op silently and `--check`
+would falsely report "all good" while regeneration never happened.
+
+### `--check` exit-code semantics
+
+| Exit | Meaning                                                     |
+| ---- | ----------------------------------------------------------- |
+| 0    | Success / no drift. Safe to merge.                          |
+| 1    | Drift detected, missing markers, empty output, missing tool, missing config, or other recoverable failure. CI should fail. |
+| 2    | CLI argument error (mutually exclusive flags, missing argument value). Indicates an invocation bug; rerun with corrected args. |
+
+`--check` is the freshness gate: it does the full generate-and-splice
+into a temporary file, then `diff -u`s against the on-disk target.
+Drift is reported as a unified diff so the CI log makes the missing
+update obvious; the trailing message points contributors at the
+`fixit_command` configured in `attribution.toml`.
+
+### Hand-curated content
+
+Everything above the BEGIN marker and below the END marker is
+permanent, hand-curated content. The kit explicitly does not police
+its shape — projects use this region for `## Thanks` lists, intro
+paragraphs, link references, etc. The generator treats those bytes as
+opaque.
+
+## Configuration reference
+
+`attribution.toml` (consumer-side, repo root) drives every
+project-specific value. The generator carries no hard-coded paths,
+markers, or fix-it strings.
+
+```toml
+[project]
+target_path   = "ACKNOWLEDGEMENTS.md"        # required
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"  # required
+# marker_begin = "<!-- BEGIN AUTO-GENERATED -->"  # optional; default shown
+# marker_end   = "<!-- END AUTO-GENERATED -->"    # optional; default shown
+
+[rust]
+manifest_path = "crates/your-cli/Cargo.toml" # required
+template_path = "about.hbs"                  # required
+config_path   = "about.toml"                 # required
+```
+
+All paths are resolved relative to the directory containing
+`attribution.toml`. Absolute paths are also accepted.
+
+## Future evolution
+
+The kit currently covers a single Rust block. The roadmap (see
+`plans/modules/attribution-pipeline-v3.aps.md` in this repo) plans
+multi-block markers (ATTRIB-008) for additional ecosystems
+(`<!-- BEGIN AUTO-GENERATED rust -->`,
+`<!-- BEGIN AUTO-GENERATED binaries -->`, ...). The marker-count gate
+is per-marker-text, so adding new blocks is additive — existing
+single-block consumers don't need to change anything.
