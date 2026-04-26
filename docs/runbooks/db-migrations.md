@@ -11,12 +11,15 @@ are applied in lexical filename order by the runner at
 
 ## When to use
 
-- Every release that changes `apps/anvil-api/src/db/migrations/`. Manual
-  invocation today; CI wiring is planned for a follow-up slice of V041F-014 (job
-  between `host` and Pulumi Up in `release.yml`). Until that lands, an operator
-  runs the runner by hand after each release that adds migrations.
-- Recovery after a failed deploy where migrations did not apply.
-- Local development against a staging database.
+- CI applies migrations automatically. The Infrastructure workflow's `up`
+  job runs the runner against prod between Azure Login and Pulumi Up,
+  on push to `main` whenever `apps/anvil-api/src/db/migrations/**`,
+  `apps/anvil-api/src/db/migrate.ts`,
+  `apps/anvil-api/scripts/migrate.mjs`, `infra/**`, `pnpm-lock.yaml`,
+  or `.github/workflows/infra.yml` changes.
+- Manual invocation is for: recovery after a failed deploy where the
+  CI migrate step did not run, ad-hoc apply against a staging database,
+  or local development. The procedure below covers those paths.
 
 ## Required env vars
 

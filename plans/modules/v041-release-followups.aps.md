@@ -318,19 +318,17 @@ require a coordinated bundle — pick them off in any order.
   ship a minimal first-party runner. Per-migration transaction +
   `_migrations` tracking are the non-negotiable parts.
 - **Action plan:** [`plans/execution/V041F-014.steps.md`](../execution/V041F-014.steps.md)
-- **Resolution (in flight):** First-party runner. Drizzle Kit is wired
-  to its own metadata format and does not naturally consume the
-  filename-ordered SQL files we already ship; `node-pg-migrate` adds
-  a third-party dep when the actual runner is ~150 lines of SQL +
-  sha tracking. Lib lives at `apps/anvil-api/src/db/migrate.ts`
-  (testable, 13 unit tests via vitest); CLI entry at
-  `apps/anvil-api/scripts/migrate.mjs` connects via `Pool` from
-  `@neondatabase/serverless` (already a runtime dep). Operator
-  runbook at `docs/runbooks/db-migrations.md`. Remaining work to
-  close the item: wire the migrate step into `release.yml` between
-  `host` and Pulumi Up, and backfill `_migrations` on prod (one-off
-  operator action, runbook §"Backfilling").
-- **Status:** In Progress
+- **Resolution:** First-party runner shipped in PR #1099. Lib at
+  `apps/anvil-api/src/db/migrate.ts`, CLI at
+  `apps/anvil-api/scripts/migrate.mjs`, runbook at
+  `docs/runbooks/db-migrations.md`. CI wiring landed in
+  `.github/workflows/infra.yml` `up` job — DATABASE_URL fetched from
+  Key Vault, runner invoked between Azure Login and Pulumi Up so the
+  schema is current before infra apply. Path filter expanded so
+  migration-only changes also trigger Infrastructure. Prod
+  `_migrations` backfilled 2026-04-26 — 10/10 rows recorded, runner
+  dry-run reports `0 pending`.
+- **Status:** Done
 
 ### V041F-015: Remove `svix>uuid` override exception once dependency chain ships ESM-aware uuid
 
