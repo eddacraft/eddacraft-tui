@@ -25,18 +25,18 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 ### IORISK-001: Define IO risk taxonomy
 - **Intent:** Standardize categories, severity, and confidence for IO risk findings.
 - **Expected Outcome:** A consistent taxonomy is used across scanners and policy outputs.
-- **Validation:** `cargo test -p anvil-kernel-types -- io_risk_taxonomy`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- io_risk_taxonomy`
 
 ### IORISK-002: Implement scanner pipeline
 - **Intent:** Add scanner execution pipeline for pre/post model checks.
 - **Expected Outcome:** Input/output streams are evaluated through pluggable scanner chain.
-- **Validation:** `cargo test -p anvil-policy -- io_scanner_pipeline`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- io_scanner_pipeline`
 - **Dependencies:** IORISK-001
 
 ### IORISK-003: Integrate risk findings with policy outputs
 - **Intent:** Map IO findings to policy outcomes and remediation actions.
 - **Expected Outcome:** Findings appear in unified guidance and CI summaries.
-- **Validation:** `cargo test -p anvil-policy -- io_risk_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- io_risk_guidance`
 - **Dependencies:** IORISK-002
 
 ## Execution

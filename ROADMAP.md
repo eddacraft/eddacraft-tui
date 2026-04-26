@@ -189,9 +189,10 @@ What changed instead:
 - [ADR-011: Ratatui replaces Ink](./plans/decisions/011-ink-vs-ratatui-watch-mode-performance.md)
 - [ADR-015: Intercept Loop Enforcement](./plans/decisions/015-intercept-loop-enforcement.md)
 - [ADR-026: Rust scanner is authoritative](./plans/decisions/026-rust-scanner-authoritative.md)
-- [ADR-027: Pack Architecture (Proposed)](./plans/decisions/027-pack-architecture.md)
-- [ADR-028: Markdown Governance Crate (Proposed)](./plans/decisions/028-markdown-governance-crate.md)
-- [ADR-029: Suppression Parser Authority (Proposed)](./plans/decisions/029-suppression-parser-authority.md)
+- [ADR-027: Pack Architecture](./plans/decisions/027-pack-architecture.md)
+- [ADR-028: Markdown Governance Crate](./plans/decisions/028-markdown-governance-crate.md)
+- [ADR-029: Suppression Parser Authority](./plans/decisions/029-suppression-parser-authority.md)
+- [ADR-031: Validation Latency Rubric](./plans/decisions/031-validation-latency-rubric.md)
 - [ADR-030: Surface Drivers Supersede napi Cutover](./plans/decisions/030-surface-drivers-supersede-napi-cutover.md)
 
 ## What this roadmap is NOT

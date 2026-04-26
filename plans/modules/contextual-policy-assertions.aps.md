@@ -24,18 +24,18 @@ Add contextual assertion rules that evaluate agent and workflow actions with ric
 ### CPOL-001: Define assertion schema
 - **Intent:** Create a schema for contextual policy assertions.
 - **Expected Outcome:** Assertions support scoped conditions and outcomes.
-- **Validation:** `cargo test -p anvil-policy -- assertion_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_schema`
 
 ### CPOL-002: Implement context adapters
 - **Intent:** Populate assertions with workflow and runtime context.
 - **Expected Outcome:** Assertions evaluate with deterministic context payloads.
-- **Validation:** `cargo test -p anvil-policy -- assertion_context`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_context`
 - **Dependencies:** CPOL-001
 
 ### CPOL-003: Add assertion guidance outputs
 - **Intent:** Provide actionable failure explanations and fix guidance.
 - **Expected Outcome:** Assertion failures map to remediation-first outputs.
-- **Validation:** `cargo test -p anvil-policy -- assertion_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_guidance`
 - **Dependencies:** CPOL-002
 
 ## Execution

@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-26
 **Owner:** TBD (see [Owner & cadence](#owner--cadence))
-**Status:** Draft — pending RTAI-001 spike numbers and ADR-031 (pending) latency rubric.
+**Status:** Draft — pending RTAI-001 spike numbers (latency rubric pinned in [ADR-031](../decisions/031-validation-latency-rubric.md)).
 
 > **Scope.** This is a runbook for the "first-touch wow" launch demo: a developer
 > opens Cursor (or Claude Code) with the MCP driver attached, asks the AI for a
@@ -15,7 +15,7 @@
 >
 > **Not in scope.** This document does not specify the implementation of RTAI,
 > INTD, or DRVR. It assumes the engine works. Latency budget references defer
-> to **ADR-031 (pending)** — the single latency rubric ADR being drafted in
+> to **ADR-031** — the single latency rubric ADR being drafted in
 > parallel. Do not duplicate budget numbers here.
 
 ---
@@ -129,7 +129,7 @@ latency:   p50 <X>ms  p95 <Y>ms  (mid-edit)
 ```
 
 The latency line is the demo's quiet trust signal. Numbers must be inside
-the budget pinned by ADR-031 (pending). If they are not, jump to
+the budget pinned by ADR-031. If they are not, jump to
 [Failure modes — latency exceeds budget](#latency-exceeds-budget).
 
 ### 1.6 Run the three scenarios
@@ -386,7 +386,7 @@ Triage:
 
 ### 4.4 Latency exceeds budget
 
-Symptom: `anvil intercept status` reports p95 above the ADR-031 (pending)
+Symptom: `anvil intercept status` reports p95 above the ADR-031
 threshold, or the AI's write completes visibly before Anvil intervenes.
 
 Action: **degrade to save-time framing**, do not push through with
@@ -523,14 +523,14 @@ items in the appropriate module:
   (open question) — does the LSP `didChange` path carry enough
   information to refuse, or is mid-edit always advisory there? See
   RTAI Open Question 2.
-- **ADR-031 (pending) — single latency rubric** — referenced
+- **ADR-031 — single latency rubric** — referenced
   throughout. Until it lands, the runbook's latency-failure
   threshold is "the operator's eye". Feedback to: ADR-031 author —
   this runbook is one of the consumers; coordinate the threshold
   number so §4.4's `--foreground` degradation trigger has a real
   number behind it.
 
-When ADR-031 (pending) lands, **update §1.5 and §4.4 to reference the
+When ADR-031 lands, **update §1.5 and §4.4 to reference the
 specific p95 number**. Until then, the runbook is operationally
 correct but quantitatively soft.
 
@@ -549,5 +549,5 @@ correct but quantitatively soft.
   on
 - [RELEASE-PLAN.md](../../RELEASE-PLAN.md) — current release context;
   this runbook closes the `Demo runbook` prerequisite under A1
-- ADR-031 (pending) — single latency rubric across INTD-014 / DRVR-002
+- ADR-031 — single latency rubric across INTD-014 / DRVR-002
   / RTAI; this runbook references but does not duplicate

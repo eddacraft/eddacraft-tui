@@ -42,7 +42,7 @@
 >    central repo: directory layout, manifest format).
 > 3. Coordinate POLFED-006 ↔ OPAE-035 version-resolution semantics
 >    (subscriber pin vs publisher version).
-> 4. Retarget validations to `cargo test -p anvil-policy` once OPAE
+> 4. Retarget validations to `cargo test -p eddacraft-anvil-policy` once OPAE
 >    bundle primitives land in `crates/anvil-policy`.
 > 5. Confirm POLFED-007 (cross-repo fleet) and COMPLY-007 (single-repo
 >    historical) stay distinct — they shouldn't merge.

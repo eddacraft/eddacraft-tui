@@ -15,7 +15,7 @@
 > CPACKS moves to Ready they must land under
 > `crates/anvil-policy/policies/compliance/<pack>/` (or the equivalent
 > bundled-resource location chosen by `crates/anvil-policy`), with
-> `cargo test -p anvil-policy` integration tests replacing the
+> `cargo test -p eddacraft-anvil-policy` integration tests replacing the
 > `nx test runtime` validations. Dependencies POLVAL-001..005 reference the
 > archived `policy-pack-validation` module — re-confirm those contracts
 > against the current `crates/anvil-policy::bundle` / `loader` modules.

@@ -51,30 +51,30 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 ### EVAL-001: Define EvalHarnessPort
 - **Intent:** Define a stable adapter contract for harness execution and result retrieval.
 - **Expected Outcome:** Core domain depends on contract only.
-- **Validation:** `cargo test -p anvil-policy -- eval_harness_port`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_harness_port`
 
 ### EVAL-002: Implement framework adapter
 - **Intent:** Add a concrete adapter for harness suite execution.
 - **Expected Outcome:** Harness suites run via adapter with normalized outputs.
-- **Validation:** `cargo test -p anvil-policy -- eval_harness_adapter`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_harness_adapter`
 - **Dependencies:** EVAL-001
 
 ### EVAL-003: Add CI regression command
 - **Intent:** Make trust regressions part of standard CI checks.
 - **Expected Outcome:** CI command emits pass/fail and delta summary.
-- **Validation:** `cargo test -p anvil-cli -- eval_regression_command`
+- **Validation:** `cargo test -p eddacraft-anvil -- eval_regression_command`
 - **Dependencies:** EVAL-002
 
 ### EVAL-004: Persist canonical eval results
 - **Intent:** Store evaluation outcomes in Anvil schema for trends and evidence use.
 - **Expected Outcome:** Historical run data is queryable independent of framework format.
-- **Validation:** `cargo test -p anvil-policy -- eval_result_persistence`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_result_persistence`
 - **Dependencies:** EVAL-002
 
 ### EVAL-005: Link eval failures to policy guidance
 - **Intent:** Connect eval regressions to remediation-oriented policy messages.
 - **Expected Outcome:** Failures include policy context and recommended next actions.
-- **Validation:** `cargo test -p anvil-policy -- eval_policy_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_policy_guidance`
 - **Dependencies:** EVAL-003, EVAL-004
 
 ## Execution

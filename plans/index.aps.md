@@ -143,11 +143,11 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [rust-cli](./archive/modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
-| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Ready | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
+| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
 | [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 3/6 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | 0/8 | RCLI |
-| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/18 | RCLI |
+| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/20 | RCLI |
 | [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
 | [restore-welcome-screen](./archive/modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
 | [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
@@ -244,7 +244,7 @@ implementation targets.
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation, crates/anvil-kernel |
 | [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
 | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
-| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | compliance-reporting, policy-lifecycle, eval-harness-integration |
+| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Draft | compliance-reporting, policy-lifecycle, eval-harness-integration |
 | [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | opa-enhancements, opa-agent-orchestration |
 | [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | opa-enhancements, opa-agent-orchestration |
 | [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Ready | opa-agent-orchestration, mcp-server |

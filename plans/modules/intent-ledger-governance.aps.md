@@ -26,7 +26,7 @@
 >
 > **Rescope work pending** (tracked separately, see followup list):
 > 1. Retarget all ILGOV-00x validations from `pnpm nx test anvil-cli` to
->    `cargo test -p anvil-policy` (or a new `crates/anvil-intent-ledger`
+>    `cargo test -p eddacraft-anvil-policy` (or a new `crates/anvil-intent-ledger`
 >    if the schema warrants its own crate).
 > 2. Replace TS-shaped `IntentLedgerRecord` interface with a Rust
 >    canonical (likely in `crates/anvil-kernel-types` per SCHEMA module).

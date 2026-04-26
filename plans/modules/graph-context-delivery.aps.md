@@ -235,7 +235,7 @@ Change status to **Ready** when:
   `GraphStore::open(path)`, `save(&SymbolGraph)`, `load() -> SymbolGraph`,
   with an `InMemoryStore` for tests; `RkyvStore` uses atomic rename for
   crash safety
-- **Validation:** `cargo test -p anvil-graph-store`
+- **Validation:** `cargo test -p eddacraft-anvil-graph-store`
 - **Files:** `crates/anvil-graph-store/src/lib.rs`,
   `crates/anvil-graph-store/src/rkyv_store.rs`,
   `crates/anvil-graph-store/Cargo.toml`
@@ -485,7 +485,7 @@ Change status to **Ready** when:
   for each language without interference
 - **Expected Outcome:** New `tests/polyglot_graph.rs` integration test
   covering all four languages
-- **Validation:** `cargo test -p anvil-kernel --test polyglot_graph`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel --test polyglot_graph`
 - **Files:** `crates/anvil-kernel/tests/polyglot_graph.rs`,
   `crates/anvil-kernel/tests/fixtures/polyglot/`
 - **Confidence:** high

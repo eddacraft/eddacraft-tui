@@ -11,7 +11,7 @@
 > validation command in LAC-001..006 targets the retired TS Nx project
 > (`pnpm nx test contracts ...`, `pnpm nx test anvil-cli ...`). The `anvil-cli`
 > in this repo is now the Rust crate `crates/anvil-cli`, invoked via
-> `cargo test -p anvil-cli`, not Nx.
+> `cargo test -p eddacraft-anvil`, not Nx.
 >
 > The `rust-kernel` dependency below was archived in favour of the
 > `anvil-kernel` crate (`plans/archive/modules/rust-kernel.aps.md`).

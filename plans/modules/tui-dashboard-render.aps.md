@@ -2,9 +2,15 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | Ready  | 0/12     |
+| TUIDASH | —     | Draft  | 0/12     |
 
 **Last reviewed:** 2026-04-26
+
+> **Status correction 2026-04-26:** Demoted Ready → Draft per Council A
+> finding. Two Ready-checklist items are unchecked (catalogue source —
+> `packages/json-render/` doesn't exist in tree — and spec format pin).
+> Promote back to Ready when DASHAI catalogue resolution lands and the
+> json-render spec source is reconfirmed.
 
 ## Purpose
 
