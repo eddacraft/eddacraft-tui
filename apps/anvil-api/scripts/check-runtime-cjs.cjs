@@ -28,7 +28,7 @@ for (const id of cjsModulesToProbe) {
       console.error(
         'Hint: a transitive ESM-only dep was pulled in by an override. ' +
           'Check pnpm.overrides for a uuid (or similar) floor that needs a ' +
-          'parent-scoped exception (e.g. "svix>uuid": "^10.0.0").',
+          'parent-scoped exception (e.g. "svix>uuid": "^10.0.0").'
       );
     }
   }
