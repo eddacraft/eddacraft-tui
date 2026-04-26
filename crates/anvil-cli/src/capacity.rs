@@ -12,8 +12,12 @@
 
 use std::path::Path;
 
-/// Recommended limits for a modern monorepo dev box.
+/// Reference limits used by tests as "comfortable headroom" sentinel
+/// values for a modern monorepo dev box. Not consulted at runtime —
+/// `is_tight` only checks actual headroom against the project's needs.
+#[cfg(test)]
 const RECOMMENDED_MAX_WATCHES: u64 = 524_288;
+#[cfg(test)]
 const RECOMMENDED_MAX_INSTANCES: u64 = 512;
 
 /// Top consumers we show when surfacing pressure — keep it small to stay
@@ -41,18 +45,15 @@ pub struct InotifyStatus {
 
 impl InotifyStatus {
     /// Returns `true` when the user's session is close enough to the
-    /// configured limit that `anvil watch` is at real risk of missing
-    /// changes in this project.
+    /// configured limit that `anvil watch` is at real risk of having
+    /// degraded performance for this project.
+    ///
+    /// Only fires on a genuine headroom shortfall — a "below-recommended"
+    /// kernel limit alone is not enough. A user on a default Ubuntu box
+    /// (`max_user_watches = 65_536`) running `anvil init` against a small
+    /// project should not see the warning when their actual headroom is
+    /// fine. See issue #1109.
     pub fn is_tight(&self) -> bool {
-        // Treat the limit itself being below the recommended value as
-        // tight — most modern monorepos pay for it eventually even if
-        // usage looks OK at this moment.
-        if self.max_watches < RECOMMENDED_MAX_WATCHES {
-            return true;
-        }
-        if self.max_instances < RECOMMENDED_MAX_INSTANCES {
-            return true;
-        }
         // Remaining headroom can't absorb this project plus a little
         // slack for the watcher's own metadata.
         let headroom = self.max_watches.saturating_sub(self.in_use_watches);
@@ -95,15 +96,15 @@ pub fn recommendation_lines(status: &InotifyStatus) -> Vec<String> {
 
     let mut out = Vec::new();
     out.push(String::new());
-    out.push("Inotify headroom is tight — `anvil watch` may miss file changes.".to_string());
+    out.push(
+        "Inotify headroom is tight — watch performance may be degraded on this machine."
+            .to_string(),
+    );
     out.push(format!(
         "  watches in use:        {} / {}",
         status.in_use_watches, status.max_watches
     ));
-    out.push(format!(
-        "  instances limit:       {} (recommended: {})",
-        status.max_instances, RECOMMENDED_MAX_INSTANCES
-    ));
+    out.push(format!("  instances limit:       {}", status.max_instances));
     out.push(format!("  this project's dirs:   ~{}", status.project_dirs));
     out.push(format!(
         "  processes holding fds: {}",
@@ -117,11 +118,14 @@ pub fn recommendation_lines(status: &InotifyStatus) -> Vec<String> {
             .collect();
         out.push(format!("  top consumers:         {}", consumers.join(", ")));
     }
-    // Single `sudo sh -c` so the user is only prompted for a password
-    // once — the write and the reload share the same elevation.
-    out.push(format!(
-        "to fix run: sudo sh -c 'printf \"fs.inotify.max_user_watches={RECOMMENDED_MAX_WATCHES}\\nfs.inotify.max_user_instances={RECOMMENDED_MAX_INSTANCES}\\n\" > /etc/sysctl.d/99-inotify.conf && sysctl --system'"
-    ));
+    // Stay in app-side / user-action territory — closing watch-heavy
+    // processes is the lever a CLI user actually has without root.
+    // Issue #1109: don't prescribe sudo / sysctl from the anvil binary.
+    out.push(
+        "Tip: closing watch-heavy processes (language servers, nx daemon, dev servers)"
+            .to_string(),
+    );
+    out.push("     frees up watches for `anvil watch`.".to_string());
     out
 }
 
@@ -241,17 +245,36 @@ mod tests {
     }
 
     #[test]
-    fn below_recommended_watch_limit_is_tight() {
-        // Default Ubuntu limit of 65_536 is below recommended — flag it
-        // even if current usage is fine.
+    fn below_recommended_watch_limit_with_room_is_not_tight() {
+        // Issue #1109: default Ubuntu limit of 65_536 is below the
+        // recommended value, but a fresh-install user with a small
+        // project has plenty of actual headroom — don't warn them just
+        // because the kernel limit is low.
         let s = status(65_536, RECOMMENDED_MAX_INSTANCES, 1_000, 500);
-        assert!(s.is_tight());
+        assert!(!s.is_tight());
     }
 
     #[test]
-    fn below_recommended_instance_limit_is_tight() {
+    fn below_recommended_instance_limit_with_room_is_not_tight() {
+        // Same shape as above for `max_user_instances`. The instance
+        // ceiling alone doesn't predict per-watch exhaustion, so don't
+        // warn unless the watch headroom genuinely can't fit the project.
         let s = status(RECOMMENDED_MAX_WATCHES, 128, 10_000, 500);
-        assert!(s.is_tight());
+        assert!(!s.is_tight());
+    }
+
+    #[test]
+    fn fresh_install_default_ubuntu_does_not_warn() {
+        // Issue #1109 regression: `anvil init` on a stock Ubuntu box
+        // (max_user_watches = 8_192 historically, 65_536 today) with a
+        // small project that fits comfortably in headroom must NOT
+        // surface the inotify recommendation block.
+        let s = status(8_192, 128, 200, 300);
+        assert!(!s.is_tight(), "fresh-install default should be silent");
+        assert!(
+            recommendation_lines(&s).is_empty(),
+            "fresh-install default should produce no recommendation lines"
+        );
     }
 
     #[test]
@@ -278,32 +301,57 @@ mod tests {
     }
 
     #[test]
-    fn recommendation_lines_mentions_sysctl_when_tight() {
-        let s = status(65_536, 128, 40_000, 8_000);
+    fn recommendation_lines_show_user_actionable_tip_when_tight() {
+        // Headroom = 65_536 - 60_000 = 5_536; needed = 8_000 + 800 = 8_800.
+        // Headroom < needed → genuinely tight, recommendation should fire.
+        let s = status(65_536, 128, 60_000, 8_000);
         let lines = recommendation_lines(&s);
         assert!(!lines.is_empty());
         let joined = lines.join("\n");
-        assert!(joined.contains("max_user_watches=524288"));
-        assert!(joined.contains("max_user_instances=512"));
-        assert!(joined.contains("sysctl --system"));
-        assert!(joined.contains("sudo sh -c"));
-        assert!(joined.contains("tsserver x20000"));
+        // Tip targets the lever the user actually has without root —
+        // closing watch-heavy processes — and surfaces the top consumers
+        // so they know what to close.
         assert!(
-            joined.contains("to fix run:"),
-            "recommendation should include a `to fix run:` line, got:\n{joined}"
+            joined.contains("closing watch-heavy processes"),
+            "expected non-sudo tip, got:\n{joined}"
+        );
+        assert!(joined.contains("tsserver x20000"));
+    }
+
+    #[test]
+    fn recommendation_lead_uses_soft_language() {
+        // Issue #1109: the lead message must not claim `anvil watch`
+        // "may miss file changes" — the user feedback was that this
+        // overstates the impact and reads as alarming. Use the softer
+        // "watch performance may be degraded on this machine" wording.
+        let s = status(65_536, 128, 60_000, 8_000);
+        let lines = recommendation_lines(&s);
+        let joined = lines.join("\n");
+        assert!(
+            joined.contains("watch performance may be degraded on this machine"),
+            "expected softened lead language, got:\n{joined}"
+        );
+        assert!(
+            !joined.contains("may miss file changes"),
+            "old alarming wording must not return, got:\n{joined}"
         );
     }
 
     #[test]
-    fn recommendation_fix_is_a_single_line() {
-        let s = status(65_536, 128, 40_000, 8_000);
+    fn recommendation_does_not_prescribe_sudo_or_sysctl() {
+        // Issue #1109: the anvil binary must not tell the user to run
+        // `sudo`, edit `/etc/sysctl.d/`, or call `sysctl` — that's a
+        // host-management concern outside the CLI's remit. The tip
+        // should stay in user-actionable territory.
+        let s = status(65_536, 128, 60_000, 8_000);
         let lines = recommendation_lines(&s);
-        let fix_lines: Vec<&String> = lines.iter().filter(|l| l.contains("to fix run:")).collect();
-        assert_eq!(
-            fix_lines.len(),
-            1,
-            "should be exactly one `to fix run:` line"
-        );
+        let joined = lines.join("\n");
+        for forbidden in ["sudo", "sysctl", "/etc/sysctl", "max_user_watches="] {
+            assert!(
+                !joined.contains(forbidden),
+                "recommendation must not mention `{forbidden}`, got:\n{joined}"
+            );
+        }
     }
 
     #[cfg(target_os = "linux")]
