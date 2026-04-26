@@ -154,18 +154,21 @@ jobs:
       # applied. The runner is idempotent and refuses to apply if any
       # recorded migration has been edited on disk (drift guard).
       - name: Build anvil-api
-        run: pnpm --filter @eddacraft/anvil-api... run build
+        # tsc --build already follows the project references composite
+        # graph, so `--filter @eddacraft/anvil-api` (without `...`) is
+        # enough — `--filter ...` would re-build deps once via pnpm
+        # then again via tsc --build.
+        run: pnpm --filter @eddacraft/anvil-api run build
 
-      - name: Fetch DATABASE_URL from Key Vault
+      - name: Apply pending DB migrations
+        # Fetch DATABASE_URL inline rather than persisting to GITHUB_ENV
+        # so the prod credential is scoped to this single step and is
+        # never visible to the Pulumi Up action below or any other
+        # third-party action.
         run: |
           DATABASE_URL=$(az keyvault secret show --vault-name kv-iac-anvil --name anvil-api-database-url --query value -o tsv)
           echo "::add-mask::$DATABASE_URL"
-          echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
-
-      - name: Apply pending DB migrations
-        run: node apps/anvil-api/scripts/migrate.mjs
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          DATABASE_URL="$DATABASE_URL" node apps/anvil-api/scripts/migrate.mjs
 
       - name: Apply infrastructure changes
         uses: pulumi/actions@8582a9e8cc630786854029b4e09281acd6794b58 # v6

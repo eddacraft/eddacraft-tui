@@ -286,7 +286,11 @@ require a coordinated bundle — pick them off in any order.
 ### V041F-014: Wire a database-migration runner into the deploy pipeline
 
 - **Surface:** `apps/anvil-api/src/db/migrations/`,
-  `.github/workflows/release.yml` (Pulumi Up step),
+  `apps/anvil-api/src/db/migrate.ts`,
+  `apps/anvil-api/scripts/migrate.mjs`,
+  `.github/workflows/infra.yml` (`up` job — Pulumi Up actually lives
+  here, not in `release.yml`),
+  `docs/runbooks/db-migrations.md`,
   `docs/runbooks/post-deploy-smoke-check.md`
 - **Flagged by:** v0.4.0-beta post-tag prod deploy (workflow run
   24937001778, Pulumi Up failure on missing `admin_keys` table); also
@@ -307,10 +311,11 @@ require a coordinated bundle — pick them off in any order.
      in a single transaction per file.
   3. Refuses to apply a migration whose recorded sha differs from the
      on-disk sha (catches retroactive edits to applied migrations).
-  4. Runs as a workflow step in `release.yml` between the `host` job
-     (artefacts published, public release Latest) and the Pulumi Up
-     step. Migrations apply BEFORE infra so Pulumi can rely on the
-     schema being current.
+  4. Runs as a workflow step in `infra.yml`'s `up` job before the
+     Pulumi Up step. Migrations apply BEFORE infra so Pulumi can rely
+     on the schema being current. (The original spec said `release.yml`
+     between `host` and Pulumi Up; Pulumi Up actually lives in
+     `infra.yml` not `release.yml` — corrected during implementation.)
   5. Has a manual operator runbook entry for ad-hoc apply (recovery,
      staging tests).
 - **Confidence:** medium — needs a small design pass on whether to
