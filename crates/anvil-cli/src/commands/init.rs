@@ -202,7 +202,7 @@ fn render_analysis(outcome: &AnalysisOutcome) {
     if s.total == 0 {
         plain::success("No warnings found in this sample.");
         plain::dim("Run `anvil check --all` to scan the whole project.");
-        plain::dim("Run `anvil auth login` to unlock gate-evaluated checks.");
+        plain::dim("Run `anvil auth login` to enable additional checks.");
         plain::blank();
         return;
     }
