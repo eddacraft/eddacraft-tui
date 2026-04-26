@@ -2,8 +2,8 @@
 id: beta-testing-guide
 title: Beta Testing Guide
 description:
-  Everything you need to get started testing anvil during early access, including
-  setup, what to test, and how to report useful feedback.
+  Everything you need to get started testing anvil during early access,
+  including setup, what to test, and how to report useful feedback.
 sidebar_position: 6
 ---
 
@@ -41,8 +41,9 @@ The most useful feedback answers these questions:
 - Did any command fail, hang, produce noisy output, or ask for unclear input?
 - What would stop you from using this on every save?
 
-Use a project you know well. A small production app, internal tool, or active side
-project is better than a toy repo because you can judge whether findings are real.
+Use a project you know well. A small production app, internal tool, or active
+side project is better than a toy repo because you can judge whether findings
+are real.
 
 ## Before You Start
 
@@ -57,8 +58,8 @@ You will need:
 
 :::tip Use a disposable branch
 
-`anvil init` creates `.anvilrc` and `.anvil/` in your project. Run it on a branch
-you can discard if you only want to test the setup flow.
+`anvil init` creates `.anvilrc` and `.anvil/` in your project. Run it on a
+branch you can discard if you only want to test the setup flow.
 
 :::
 
@@ -104,8 +105,8 @@ anvil update
 anvil --version
 ```
 
-If you installed with Homebrew, WinGet, or Scoop, use that package manager instead
-when the built-in updater tells you to.
+If you installed with Homebrew, WinGet, or Scoop, use that package manager
+instead when the built-in updater tells you to.
 
 ```bash
 brew upgrade eddacraft/tap/anvil
@@ -161,13 +162,13 @@ cd your-project
 anvil init
 ```
 
-The setup flow creates `.anvilrc`, creates `.anvil/`, and now runs a first sample
-analysis so you see useful signal immediately.
+The setup flow creates `.anvilrc`, creates `.anvil/`, and now runs a first
+sample analysis so you see useful signal immediately.
 
 Record:
 
-- Whether project type, package manager, Git state, and TypeScript detection were
-  correct.
+- Whether project type, package manager, Git state, and TypeScript detection
+  were correct.
 - Whether the generated `.anvilrc` makes sense for your project.
 - Whether the first scan found useful warnings or produced noise.
 
@@ -264,8 +265,8 @@ anvil architecture show
 anvil check --all
 ```
 
-Useful feedback includes whether layer names, glob patterns, and violation output
-map to how you think about the project.
+Useful feedback includes whether layer names, glob patterns, and violation
+output map to how you think about the project.
 
 For a walkthrough, see [First Project](./first-project.md).
 
@@ -279,14 +280,16 @@ anvil drift list
 anvil drift report
 ```
 
-If you capture two snapshots, compare them:
+After making a small change or finishing a test task, capture a second snapshot
+and compare them:
 
 ```bash
+anvil drift snapshot --name after-test
 anvil drift compare before-test after-test
 ```
 
-Useful feedback includes whether the report helps you understand how architecture
-changes over time.
+Useful feedback includes whether the report helps you understand how
+architecture changes over time.
 
 ### Policies
 
@@ -385,10 +388,10 @@ One sentence describing what happened.
   project tools are missing locally, `anvil gate` may skip or fail those checks.
 - **Architecture checks need an architecture definition.** Use
   `.anvil/architecture.yaml` when you want boundary enforcement.
-- **Some legacy or unconventional projects may be noisy.** False-positive reports
-  are especially useful when you can explain why the code is valid.
-- **Windows ARM is available but less exercised.** Please report install and PATH
-  issues if you test on Windows ARM hardware.
+- **Some legacy or unconventional projects may be noisy.** False-positive
+  reports are especially useful when you can explain why the code is valid.
+- **Windows ARM is available but less exercised.** Please report install and
+  PATH issues if you test on Windows ARM hardware.
 
 ## FAQ
 
@@ -412,5 +415,5 @@ releases are frequent and often include fixes from tester reports.
 
 ---
 
-**Next:** [Set up your first project ->](/anvil/first-project) | **See also:**
+**Next:** [Set up your first project →](/anvil/first-project) | **See also:**
 [Quickstart](/anvil/quickstart), [Changelog](/anvil/releases/changelog)

@@ -2,8 +2,8 @@
 
 Internal facilitator guide for running 45-60 minute beta sessions with one or
 two external users. Send testers the public
-[Beta Testing Guide](../public/anvil/beta-testing-guide.md); use this document to
-keep sessions consistent and to capture comparable feedback.
+[Beta Testing Guide](../public/anvil/beta-testing-guide.md); use this document
+to keep sessions consistent and to capture comparable feedback.
 
 ## Session Goals
 
@@ -19,8 +19,8 @@ keep sessions consistent and to capture comparable feedback.
 ## Participant Profile
 
 Choose testers who can bring a real TypeScript or JavaScript project they know.
-The ideal project is an active application or package with Git history, a package
-manager, and at least a few source directories.
+The ideal project is an active application or package with Git history, a
+package manager, and at least a few source directories.
 
 Ask each tester to prepare:
 
@@ -51,7 +51,7 @@ you to pause at a few points so I can capture what happened.
 
 ## Capture Template
 
-```markdown
+```text
 # Beta Session Notes
 
 Tester:
@@ -74,9 +74,9 @@ anvil version:
 
 ## Findings
 
-| ID | Severity | Area | Observation | Evidence | Follow-up |
-| -- | -------- | ---- | ----------- | -------- | --------- |
-| 1  |          |      |             |          |           |
+| ID  | Severity | Area | Observation | Evidence | Follow-up |
+| --- | -------- | ---- | ----------- | -------- | --------- |
+| 1   |          |      |             |          |           |
 
 ## Tester Quotes
 
@@ -158,8 +158,8 @@ Capture:
 
 ## Scenario 3: Tutorial First Impression
 
-Purpose: check whether the tutorial explains the product before the tester uses a
-real project.
+Purpose: check whether the tutorial explains the product before the tester uses
+a real project.
 
 Steps for the tester:
 
@@ -202,7 +202,8 @@ Expected result:
 - `.anvilrc` exists.
 - `.anvil/` exists.
 - The command reports detected project details.
-- The command runs a first sample analysis or explains why no files were scanned.
+- The command runs a first sample analysis or explains why no files were
+  scanned.
 
 Facilitator prompts:
 
@@ -263,8 +264,8 @@ Steps for the tester:
 5. Run `anvil watch --patterns "src/**/*.ts,src/**/*.tsx"`.
 6. Stop watch mode again.
 7. Run `anvil watch --exclude "dist/**,coverage/**"`.
-8. Optionally try a bare exclude such as `anvil watch --exclude dist` and observe
-   whether the warning is clear.
+8. Optionally try a bare exclude such as `anvil watch --exclude dist` and
+   observe whether the warning is clear.
 
 Expected result:
 
@@ -297,7 +298,8 @@ Steps for the tester:
 2. Run `anvil status`.
 3. Run `anvil gate --profile dev`.
 4. If local project tooling is available, run `anvil gate --profile ci`.
-5. If a command fails, ask the tester to interpret the remediation before helping.
+5. If a command fails, ask the tester to interpret the remediation before
+   helping.
 
 Expected result:
 
@@ -319,8 +321,8 @@ Capture:
 
 ## Scenario 8: Optional Architecture and Drift
 
-Purpose: test higher-value features only when the project has clear boundaries or
-the tester is interested in architecture governance.
+Purpose: test higher-value features only when the project has clear boundaries
+or the tester is interested in architecture governance.
 
 Steps for the tester:
 
@@ -393,12 +395,12 @@ Ask these before ending:
 
 Use this to classify notes after the session.
 
-| Severity | Meaning | Examples |
-| -------- | ------- | -------- |
-| Critical | Blocks install, auth, or running the first scan | Binary unavailable, login loop, panic on init |
-| Major | Tester can proceed but core value is damaged | Watch misses saves, false positives dominate, remediation unusable |
-| Minor | Friction or confusion with workaround | Wording unclear, output order odd, missing link |
-| Note | Product insight without immediate defect | Desired integration, workflow preference, packaging request |
+| Severity | Meaning                                         | Examples                                                           |
+| -------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| Critical | Blocks install, auth, or running the first scan | Binary unavailable, login loop, panic on init                      |
+| Major    | Tester can proceed but core value is damaged    | Watch misses saves, false positives dominate, remediation unusable |
+| Minor    | Friction or confusion with workaround           | Wording unclear, output order odd, missing link                    |
+| Note     | Product insight without immediate defect        | Desired integration, workflow preference, packaging request        |
 
 ## Follow-Up Checklist
 
