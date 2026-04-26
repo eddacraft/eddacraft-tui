@@ -14,6 +14,8 @@ use clap::{Args, ValueEnum};
 use serde_json::{Map, Value, json};
 
 use crate::GlobalArgs;
+use crate::output::AlreadyReported;
+use crate::util::atomic_write;
 
 /// Default HTTP port advertised when the user picks `--transport http` but
 /// does not pin a port. Matches the daemon default chosen by INTD.
@@ -103,19 +105,20 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
     );
     let entry_json = serde_json::to_string_pretty(&value)?;
 
+    let config_path = workspace.join(relative_path_for(args.target));
+
     if !args.write {
         if global.json {
             println!("{entry_json}");
         } else {
             println!("# Preview — pass --write to install at the target path.");
             println!("# Target: {}", target_label(args.target));
-            println!("# Path  : {}", relative_path_for(args.target).display());
+            println!("# Path  : {}", config_path.display());
             println!("{entry_json}");
         }
         return Ok(());
     }
 
-    let config_path = workspace.join(relative_path_for(args.target));
     ensure_path_safe(&workspace, &config_path, args.yes, global)?;
 
     if let Some(parent) = config_path.parent() {
@@ -124,7 +127,10 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
     }
 
     let merged = merge_into_existing(args.target, &config_path, &value)?;
-    fs::write(&config_path, format!("{merged}\n"))
+    // atomic_write replaces the destination via rename, which avoids the
+    // TOCTOU window that fs::write opens between the path-safety check and
+    // the actual write (a symlink could be swapped in mid-call).
+    atomic_write(&config_path, format!("{merged}\n").as_bytes())
         .with_context(|| format!("writing {}", config_path.display()))?;
 
     if global.json {
@@ -166,7 +172,9 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
                 config_path.display()
             );
         }
-        bail!("config not found");
+        // The structured/human-readable message is already on stderr;
+        // signal main to exit non-zero without printing again.
+        return Err(AlreadyReported.into());
     }
 
     let raw = fs::read_to_string(&config_path)
@@ -191,7 +199,7 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
                 config_path.display()
             );
         }
-        bail!("anvil entry missing");
+        return Err(AlreadyReported.into());
     };
 
     if global.json {
@@ -216,8 +224,10 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
 /// Build the editor-specific JSON value that goes on disk.
 ///
 /// Note the `VSCode` shape diverges: it nests the entry under `mcp.servers`
-/// with a `type` field (`stdio`/`sse`) per the `VSCode` MCP convention. The
-/// other targets share a `mcpServers` map keyed by server name with
+/// with a `type` field (`stdio`/`streamable-http`) per the `VSCode` MCP
+/// convention. `streamable-http` superseded the legacy `sse` type from VS
+/// Code 1.99 onwards; older builds still parse it via the same code path.
+/// The other targets share a `mcpServers` map keyed by server name with
 /// `command` / `args` (for stdio) or `url` (for http).
 pub(crate) fn build_config(
     target: Target,
@@ -255,7 +265,7 @@ fn build_entry(target: Target, transport: Transport, port: u16, command: &str) -
             "args": ["mcp", "serve", "--stdio"],
         }),
         (Target::Vscode, Transport::Http) => json!({
-            "type": "sse",
+            "type": "streamable-http",
             "url": format!("http://127.0.0.1:{port}/mcp"),
         }),
         (_, Transport::Stdio) => json!({
@@ -287,15 +297,26 @@ fn extract_entry(target: Target, root: &Value) -> Option<Value> {
 }
 
 /// Merge the freshly-built entry into any existing config file at
-/// `config_path`. If the file is missing or unparseable, we start from the
-/// freshly-built shape so corrupt files do not block the install. We never
-/// rewrite unrelated keys — only the `mcpServers.anvil` (or `VSCode`
+/// `config_path`. If the file is missing or empty, we start from the
+/// freshly-built shape. If the file exists but cannot be parsed as JSON,
+/// we refuse — silently overwriting would clobber the user's other MCP
+/// servers and unrelated editor settings. We never rewrite unrelated keys
+/// when the merge succeeds — only the `mcpServers.anvil` (or `VSCode`
 /// equivalent) leaf.
 fn merge_into_existing(target: Target, config_path: &Path, fresh: &Value) -> Result<String> {
     let existing: Option<Value> = match fs::read_to_string(config_path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            return Err(anyhow::Error::from(e))
+                .with_context(|| format!("reading existing config at {}", config_path.display()));
+        }
         Ok(raw) if raw.trim().is_empty() => None,
-        Ok(raw) => serde_json::from_str(&raw).ok(),
-        Err(_) => None,
+        Ok(raw) => Some(serde_json::from_str(&raw).with_context(|| {
+            format!(
+                "existing config at {} is not valid JSON; refusing to overwrite (resolve or remove the file and re-run)",
+                config_path.display()
+            )
+        })?),
     };
 
     let merged = match existing {
@@ -524,13 +545,32 @@ mod tests {
     }
 
     #[test]
-    fn vscode_http_uses_sse_type() {
+    fn vscode_http_uses_streamable_http_type() {
+        // VS Code 1.99+ uses `streamable-http`; the legacy `sse` type was
+        // deprecated. Older builds still accept the new name.
         let v = build_config(Target::Vscode, Transport::Http, 7616, None);
         let entry = extract_entry(Target::Vscode, &v).unwrap();
-        assert_eq!(entry["type"], "sse");
+        assert_eq!(entry["type"], "streamable-http");
         assert!(
             entry["url"].as_str().unwrap().contains("7616"),
             "url should embed the chosen port",
+        );
+    }
+
+    #[test]
+    fn merge_into_existing_refuses_when_existing_is_invalid_json() {
+        // Silently overwriting a malformed JSON file would clobber the
+        // user's other MCP servers and editor settings. The safer default
+        // is to fail loudly so the user can resolve before re-running.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mcp.json");
+        fs::write(&path, "{ not valid json,,, }").unwrap();
+        let fresh = build_config(Target::Cursor, Transport::Stdio, 0, None);
+        let err = merge_into_existing(Target::Cursor, &path, &fresh)
+            .expect_err("invalid JSON must error, not overwrite");
+        assert!(
+            err.to_string().contains("refusing to overwrite"),
+            "error must explain why we refuse: {err}"
         );
     }
 

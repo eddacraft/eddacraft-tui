@@ -109,7 +109,9 @@ fn preview_without_write_prints_parseable_json() {
 #[test]
 fn write_is_idempotent_and_preserves_unrelated_keys() {
     // Pre-seed an existing cursor config with a foreign server. The anvil
-    // install must add its own entry without clobbering the existing one.
+    // install must add its own entry without clobbering the existing one,
+    // and a second --write must produce byte-identical output (no
+    // re-ordering, no stray whitespace, no growth).
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".cursor").join("mcp.json");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -120,11 +122,40 @@ fn write_is_idempotent_and_preserves_unrelated_keys() {
     });
     fs::write(&path, serde_json::to_string_pretty(&seeded).unwrap()).unwrap();
 
-    let out = run(dir.path(), &["--target", "cursor", "--write"]);
-    assert!(out.status.success());
-
-    let raw = fs::read_to_string(&path).unwrap();
-    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    let first = run(dir.path(), &["--target", "cursor", "--write"]);
+    assert!(first.status.success());
+    let after_first = fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&after_first).unwrap();
     assert!(parsed["mcpServers"]["other"].is_object());
     assert!(parsed["mcpServers"]["anvil"].is_object());
+
+    let second = run(dir.path(), &["--target", "cursor", "--write"]);
+    assert!(second.status.success());
+    let after_second = fs::read_to_string(&path).unwrap();
+    assert_eq!(
+        after_first, after_second,
+        "second --write must produce byte-identical output"
+    );
+}
+
+#[test]
+fn write_refuses_when_existing_config_is_invalid_json() {
+    // A malformed config (e.g. JSONC with comments, hand-edited typo)
+    // must not be silently overwritten — that would clobber the user's
+    // other MCP servers and editor settings.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".cursor").join("mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "{ /* a comment that breaks JSON */ }").unwrap();
+
+    let out = run(dir.path(), &["--target", "cursor", "--write"]);
+    assert!(!out.status.success(), "must exit non-zero on invalid JSON");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("refusing to overwrite") || stderr.contains("not valid JSON"),
+        "stderr must explain refusal: {stderr}"
+    );
+    // Original content must be preserved.
+    let after = fs::read_to_string(&path).unwrap();
+    assert!(after.contains("a comment"), "original file untouched");
 }
