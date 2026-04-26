@@ -616,11 +616,25 @@ jobs:
           # have one. The previous `gh repo fork --clone=false || true` form
           # crashed under the runner's gh CLI with "accepts 1 arg(s),
           # received 2" — likely a parser change around the boolean flag —
-          # and the `2>/dev/null || true` swallowed the diagnostic, leaving
-          # FORK_USER unset on the first tag. Check explicitly instead.
-          if ! gh api "repos/${FORK_USER}/winget-pkgs" --silent 2>/dev/null; then
+          # and the `2>/dev/null || true` swallowed the diagnostic, making
+          # the real failure hard to understand. Check explicitly instead,
+          # and only swallow the expected 404 (no fork yet) — auth, rate
+          # limit, and network errors must surface so the job fails loudly
+          # instead of forking unnecessarily and getting confusing errors
+          # downstream.
+          FORK_CHECK_ERR=$(mktemp)
+          if gh api "repos/${FORK_USER}/winget-pkgs" --silent 2>"$FORK_CHECK_ERR"; then
+            echo "Fork ${FORK_USER}/winget-pkgs already exists — skipping fork step"
+          elif grep -qiE 'HTTP 404|not found' "$FORK_CHECK_ERR"; then
+            echo "Fork ${FORK_USER}/winget-pkgs does not exist yet — creating it"
             gh repo fork microsoft/winget-pkgs --clone=false
+          else
+            echo "::error::Unexpected error checking fork existence:"
+            cat "$FORK_CHECK_ERR" >&2
+            rm -f "$FORK_CHECK_ERR"
+            exit 1
           fi
+          rm -f "$FORK_CHECK_ERR"
 
           # Use run ID in branch name for idempotency on retries
           BRANCH="eddacraft-anvil-${VERSION}-${GITHUB_RUN_ID}"
@@ -660,8 +674,11 @@ jobs:
             EXISTING_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}?ref=${BRANCH}" --jq '.sha' 2>/dev/null || true)
 
             # Use a bash array so the empty-sha case adds no trailing tokens
-            # to the gh invocation. The previous `$SHA_ARG` unquoted form
-            # was fine on most paths but is fragile under set -u.
+            # to the gh invocation. Avoids word-splitting / globbing hazards
+            # of conditionally building flag strings — the previous
+            # `$SHA_ARG` form happened to be safe on the values we pass but
+            # the array idiom keeps it that way without future maintainer
+            # care.
             SHA_ARGS=()
             if [ -n "$EXISTING_SHA" ]; then
               SHA_ARGS=(-f "sha=${EXISTING_SHA}")
