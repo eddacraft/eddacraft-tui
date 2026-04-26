@@ -50,11 +50,20 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 **Depends on:**
 
-- RATS (complete) — Ratatui widget library now merged into `crates/anvil-tui/`
-  (theme, widgets, Surface trait). Note: post-migration, `eddacraft-tui` lives
-  in `archive/eddacraft-tui-local/` and the active widgets are in
-  `crates/anvil-tui/src/widgets/`. Crate was renamed from `eddacraft-tui` to
-  `anvil-tui` (verified by 2026-04-26 freshness audit).
+- RATS (complete) — provides the Ratatui surface layer in two parts:
+  - `eddacraft-tui` (published workspace dep, `eddacraft-tui = "0.1.0"`) —
+    shared widget library + theme + Surface trait. Pre-extraction local
+    copy of these sources lives in `archive/eddacraft-tui-local/` for
+    historical reference (e.g. early-access work items still cite the
+    archived widget files where the published version's source path is
+    not directly addressable).
+  - `crates/anvil-tui/` (lib name `anvil_tui`, package
+    `eddacraft-anvil-tui`) — Anvil-specific surfaces built on top of
+    `eddacraft-tui`. Currently exposes Anvil-specific widgets only
+    (`results_dashboard.rs`, `quick_wins_panel.rs`); the shared widget
+    set continues to live in `eddacraft-tui`.
+  TUIDASH should consume the json-render spec via `crates/anvil-tui/`
+  surfaces, which in turn render through `eddacraft-tui` widgets.
 - DASHAI — component catalogue definition and JSON spec format
 - DASH-005 — `.anvil/` data layer (gate findings, drift, etc.)
 - `@json-render/core` — spec format documentation (consumed as JSON schema, not

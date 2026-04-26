@@ -20,8 +20,9 @@ Scopes: RCLI2 (main)
 > `gate-config`) all shipped to `crates/anvil-cli/src/commands/` —
 > see commits `1e44ef2d` (RCLI2-001), `c5679432` (RCLI2-002),
 > `a2297dca` (RCLI2-003), `06d764d4` (RCLI2-004). Plan was never
-> updated when the work landed. Index says `0/8 Proposed`; actual
-> state is `4/8 In Progress`. RCLI2-005..-008 remain `Proposed`
+> updated when the work landed. Index previously said `0/8 Proposed`;
+> actual state was `4/8 In Progress` and the index has been corrected
+> in this same change. RCLI2-005..-008 remain `Proposed`
 > (still gated on OPAE).
 >
 > **Post-migration note (2026-04-26):** RCLI Tier 1 is complete (64/64) and
