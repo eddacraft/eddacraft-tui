@@ -1,9 +1,13 @@
+pub mod diagnostics;
 mod events;
 pub mod feature_flags;
 mod graph;
 mod notifications;
 mod trust;
 
+pub use diagnostics::{
+    Category, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location, Mode, Severity,
+};
 pub use events::{EngineEvent, ErrorCode, ErrorPayload, EventPayload, EventType};
 pub use feature_flags::{
     AudienceContext, Channel, ConditionValue, EnvironmentContext, EnvironmentName,
