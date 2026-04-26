@@ -301,7 +301,8 @@ require a coordinated bundle — pick them off in any order.
   reuse Drizzle Kit (already in the workspace), `node-pg-migrate`, or
   ship a minimal first-party runner. Per-migration transaction +
   `_migrations` tracking are the non-negotiable parts.
-- **Status:** Todo
+- **Action plan:** [`plans/execution/V041F-014.steps.md`](../execution/V041F-014.steps.md)
+- **Status:** Ready
 
 ### V041F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
 
