@@ -64,8 +64,8 @@ check disabled, is also treated as a config gap and blocks under `--profile ai`.
 **Host-tooling gaps are not config gaps.** Missing OPA on the runner is not
 elevated under strict mode — it is reported as a host environment issue rather
 than a project posture failure. Install OPA (`anvil doctor` will tell you how)
-to actually run the policy check, but the absence of a binary will not by
-itself fail an AI-guardrail run.
+to actually run the policy check, but the absence of a binary will not by itself
+fail an AI-guardrail run.
 
 Why: an AI tool that asked anvil "is this codebase governed?" needs a truthful
 answer. Silently passing because no config exists makes the guardrail look
