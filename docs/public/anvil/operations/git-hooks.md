@@ -69,8 +69,8 @@ warning-first.
 | `core.hooksPath` is set                           | Resolves file-mode hooks from that path; `.git/hooks/` ignored. |
 | `core.hooksPath` set AND a config-mode entry      | Runs the configured `hooksPath` script AND the config entry.    |
 
-`core.hooksPath` only redirects file-mode lookup. It does not disable config-mode
-entries — those are independent.
+`core.hooksPath` only redirects file-mode lookup. It does not disable
+config-mode entries — those are independent.
 
 ### What Anvil does on coexistence
 

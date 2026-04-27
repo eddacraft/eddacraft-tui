@@ -518,8 +518,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
         active_file_mode_path
             .as_ref()
             .and_then(|p| std::fs::metadata(p).ok())
-            .map(|m| m.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false)
+            .is_some_and(|m| m.permissions().mode() & 0o111 != 0)
     };
 
     #[cfg(not(unix))]
