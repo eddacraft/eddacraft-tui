@@ -279,7 +279,7 @@ when specific work is identified.
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 11/22 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + final release-scope refresh; 10 remaining Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
-| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 4/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **In Progress** (GHOOK-001 baseline + rollout policy; GHOOK-002 `--config` install/uninstall landed; GHOOK-003 status/doctor/onboarding/tutorial detect config-mode entries; GHOOK-006 public docs sweep landed) |
+| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 5/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **In Progress** (GHOOK-001 baseline + rollout policy; GHOOK-002 `--config` install/uninstall landed; GHOOK-003 status/doctor/onboarding/tutorial detect config-mode entries; GHOOK-004 coexistence detection + duplicate-execution warnings; GHOOK-006 public docs sweep landed) |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | 3/11 | tools/starters/acknowledgements/ (kit + parameterised generator), cargo-about, deny.toml — **In Progress** (owner: joshuaboys; ATTRIB-001/002/003 landed; v1 entry points retired) |
 

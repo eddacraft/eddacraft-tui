@@ -167,6 +167,111 @@ pub fn has_anvil_config_hook(project_dir: &std::path::Path) -> bool {
             .any(|cmd| is_anvil_managed_command(cmd))
 }
 
+/// True when the repo has BOTH a file-mode hook source (Husky / Lefthook /
+/// pre-commit framework / raw `.git/hooks/pre-commit`) AND a config-mode
+/// `hook.pre-commit.command` entry. Git 2.54 runs both, so onboarding
+/// surfaces this as a duplicate-execution warning.
+///
+/// GHOOK-004: the CLI side has the same probe in `detect_coexistence`;
+/// this is the TUI-side equivalent that the onboarding surface uses to
+/// drive its warning panel without taking on the full CLI dependency.
+/// Inherits dev's `hook.<event>.enabled` handling via `has_config_mode_hook` —
+/// a disabled config-mode entry no longer triggers the duplicate-execution
+/// warning, since Git won't run it.
+#[must_use]
+pub fn has_duplicate_execution_risk(project_dir: &std::path::Path) -> bool {
+    let has_config_entry = has_config_mode_hook(project_dir, "pre-commit");
+    if !has_config_entry {
+        return false;
+    }
+    has_file_mode_hook(project_dir, "pre-commit")
+}
+
+/// True when any file-mode hook source exists for `event` in `project_dir`.
+///
+/// Checked sources:
+///
+/// - `.husky/<event>` — Husky's file layout
+/// - `.git/hooks/<event>` — raw Git file mode
+/// - `.lefthook.yml` / `lefthook.yml` — lefthook owns the event when
+///   present (we cannot tell from the YAML alone whether `<event>` is
+///   wired without parsing it, so any lefthook config counts)
+/// - `.pre-commit-config.yaml` — pre-commit framework, same caveat
+///
+/// File-mode hook resolution mirrors Git's actual lookup rules so the
+/// duplicate-execution detector cannot under-report. Specifically:
+/// - `.git` may be a file pointing at the real git-dir (worktrees,
+///   submodules) — resolve via the gitdir reference rather than
+///   assuming `<project>/.git/hooks/<event>`.
+/// - `core.hooksPath`, when set, replaces `.git/hooks/`; we honour it.
+fn has_file_mode_hook(project_dir: &std::path::Path, event: &str) -> bool {
+    if project_dir.join(".husky").join(event).exists() {
+        return true;
+    }
+    if let Some(path) = resolve_git_hook_dir(project_dir)
+        && path.join(event).exists()
+    {
+        return true;
+    }
+    if project_dir.join(".lefthook.yml").exists() || project_dir.join("lefthook.yml").exists() {
+        return true;
+    }
+    if project_dir.join(".pre-commit-config.yaml").exists() {
+        return true;
+    }
+    false
+}
+
+/// Resolve the directory Git actually consults for file-mode hooks.
+/// Honours `core.hooksPath` first; otherwise resolves `.git`-as-file via
+/// the `gitdir:` reference. Returns `None` when the repo is not a git
+/// repository or `git` is unreachable.
+fn resolve_git_hook_dir(project_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    if let Some(custom) = git_config_value(project_dir, "core.hooksPath") {
+        let custom_path = std::path::Path::new(&custom);
+        return Some(if custom_path.is_absolute() {
+            custom_path.to_path_buf()
+        } else {
+            project_dir.join(custom_path)
+        });
+    }
+    let git_path = project_dir.join(".git");
+    if git_path.is_dir() {
+        return Some(git_path.join("hooks"));
+    }
+    if git_path.is_file() {
+        // `.git` file (worktree / submodule) — read the `gitdir:` line.
+        let raw = std::fs::read_to_string(&git_path).ok()?;
+        let gitdir = raw.lines().find_map(|l| {
+            l.trim()
+                .strip_prefix("gitdir:")
+                .map(|p| p.trim().to_string())
+        })?;
+        let resolved = std::path::Path::new(&gitdir);
+        let abs = if resolved.is_absolute() {
+            resolved.to_path_buf()
+        } else {
+            project_dir.join(resolved)
+        };
+        return Some(abs.join("hooks"));
+    }
+    None
+}
+
+fn git_config_value(project_dir: &std::path::Path, key: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(project_dir)
+        .args(["config", "--get", key])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
+}
+
 /// Phases of the hooks installation surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HooksPhase {
@@ -184,6 +289,12 @@ pub struct HooksState {
     pub phase: HooksPhase,
     pub hooks: Vec<HookDef>,
     pub hook_manager: HookManager,
+    /// True when the repo has BOTH a file-mode hook source (Husky /
+    /// Lefthook / pre-commit framework / `.git/hooks/<event>`) AND a
+    /// config-mode `hook.pre-commit.command` entry. Surfaced as a
+    /// notification so the user knows Git 2.54 will run both.
+    /// Captured at construction time so onboarding renders deterministically.
+    pub duplicate_execution_risk: bool,
     /// One toggle per hook in `hooks`, in the same order.
     pub selected_hooks: Vec<bool>,
     pub cursor: usize,
@@ -201,10 +312,12 @@ impl HooksState {
         let hooks = available_hooks();
         let count = hooks.len();
         let hook_manager = detect_hook_manager(project_dir);
+        let duplicate_execution_risk = has_duplicate_execution_risk(project_dir);
         Self {
             phase: HooksPhase::Overview,
             hooks,
             hook_manager,
+            duplicate_execution_risk,
             selected_hooks: vec![true; count],
             cursor: 0,
             installed: false,
@@ -348,6 +461,20 @@ impl NotificationSource for HooksState {
             ));
         }
 
+        // GHOOK-004: duplicate-execution risk between a file-mode hook
+        // source (Husky / Lefthook / pre-commit / .git/hooks) and a
+        // config-mode entry. Git 2.54 runs both, so users should know.
+        if self.duplicate_execution_risk {
+            out.push(surface_notification(
+                "onboarding-hooks",
+                NotificationClass::Warning,
+                NotificationPriority::High,
+                "Duplicate-execution risk",
+                "Both a file-mode hook and a config-mode hook entry are present. \
+                 Git 2.54 will run both. See the coexistence guide.",
+            ));
+        }
+
         out
     }
 }
@@ -388,6 +515,10 @@ impl crate::surface::Surface for HooksState {
         self.should_quit = false;
         self.wants_back = false;
         self.wants_install = false;
+        // `duplicate_execution_risk` reflects on-disk state, not transient
+        // surface state, so we deliberately do not clear it here. The
+        // value only changes when `HooksState::new` is called against a
+        // (potentially) updated workspace.
     }
 
     fn render(
@@ -1040,6 +1171,166 @@ mod tests {
         // read-only and best-effort.
         let dir = empty_dir();
         assert!(!has_anvil_config_hook(&dir));
+        cleanup(&dir);
+    }
+
+    // ---------- GHOOK-004: duplicate-execution detection ----------
+
+    #[test]
+    fn duplicate_risk_false_when_only_husky_present() {
+        let dir = empty_dir();
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        std::fs::write(dir.join(".husky").join("pre-commit"), "#!/bin/sh\n").unwrap();
+        // No config-mode entry → no duplicate risk regardless of file mode.
+        assert!(!has_duplicate_execution_risk(&dir));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn duplicate_risk_false_when_only_config_mode_present() {
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+        // No file-mode source → no duplicate risk.
+        assert!(!has_duplicate_execution_risk(&dir));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn duplicate_risk_true_when_husky_and_config_mode_both_present() {
+        // (a) The headline GHOOK-004 case: Husky file hook + config-mode
+        // entry → Git 2.54 runs both. Onboarding must surface a warning.
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        std::fs::write(dir.join(".husky").join("pre-commit"), "#!/bin/sh\n").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert!(has_duplicate_execution_risk(&dir));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn duplicate_risk_true_when_lefthook_and_config_mode_both_present() {
+        // Lefthook YAML implies it owns the event. Combined with a
+        // config-mode entry, Git still runs the config-mode line — and
+        // lefthook may invoke its own hooks via its own mechanism. Either
+        // way, the warning is the same: two hook sources for one event.
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::write(dir.join("lefthook.yml"), "pre-commit:\n  commands: {}\n").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert!(has_duplicate_execution_risk(&dir));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn duplicate_risk_true_when_pre_commit_framework_and_config_mode_present() {
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::write(dir.join(".pre-commit-config.yaml"), "repos: []\n").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert!(has_duplicate_execution_risk(&dir));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn duplicate_risk_true_when_raw_git_hook_and_config_mode_present() {
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        let hooks_dir = dir.join(".git").join("hooks");
+        std::fs::create_dir_all(&hooks_dir).unwrap();
+        std::fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\n").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        assert!(has_duplicate_execution_risk(&dir));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn hooks_state_captures_duplicate_execution_risk_at_construction() {
+        // The state struct is constructed once per surface entry; capture
+        // here so renders are deterministic. Mutating the workspace after
+        // construction does NOT change the captured value — `reset()`
+        // intentionally preserves it.
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        std::fs::write(dir.join(".husky").join("pre-commit"), "#!/bin/sh\n").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        let state = HooksState::new(&dir);
+        assert!(state.duplicate_execution_risk);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn hooks_state_emits_duplicate_execution_warning_notification() {
+        let dir = empty_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        std::fs::write(dir.join(".husky").join("pre-commit"), "#!/bin/sh\n").unwrap();
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        let state = HooksState::new(&dir);
+        let notifications = state.notifications();
+        assert!(
+            notifications
+                .iter()
+                .any(|n| n.title == "Duplicate-execution risk"
+                    && n.class == NotificationClass::Warning
+                    && n.priority == NotificationPriority::High),
+            "expected high-priority duplicate-execution warning, got: {:?}",
+            notifications.iter().map(|n| &n.title).collect::<Vec<_>>(),
+        );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn hooks_state_no_duplicate_warning_when_only_one_source_present() {
+        let dir = empty_dir();
+        // Husky alone, no config-mode entry → no duplicate warning.
+        std::fs::create_dir_all(dir.join(".husky")).unwrap();
+        std::fs::write(dir.join(".husky").join("pre-commit"), "#!/bin/sh\n").unwrap();
+
+        let state = HooksState::new(&dir);
+        let notifications = state.notifications();
+        assert!(
+            !notifications
+                .iter()
+                .any(|n| n.title == "Duplicate-execution risk"),
+            "must not warn when only one hook source is present",
+        );
         cleanup(&dir);
     }
 }

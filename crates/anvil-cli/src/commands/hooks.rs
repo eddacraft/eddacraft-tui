@@ -238,6 +238,11 @@ struct HookStatusInfo {
 struct HooksStatusData {
     hooks: Vec<HookStatusInfo>,
     husky_detected: bool,
+    /// Per-event coexistence report. GHOOK-004 makes this first-class so
+    /// `anvil hooks status --json` can be consumed by automation that
+    /// needs to know about duplicate-execution risk, third-party hook
+    /// managers, foreign config-mode entries, and `core.hooksPath`.
+    coexistence: Vec<CoexistenceReport>,
 }
 
 fn find_repo_root() -> Result<PathBuf> {
@@ -485,20 +490,288 @@ fn uninstall_config_hook(workspace_root: &Path, event: &str) -> Result<HookResul
     })
 }
 
-/// Warn (not block) when a file-mode hook for `event` already exists in
-/// either `.git/hooks/` or `.husky/`. Matches the `warnings over blocks`
-/// rule from `docs/vision/anvil-scope-guard.md` so we do not silently
-/// double-install hook execution. Formal coexistence handling lands in
-/// GHOOK-004.
-fn warn_on_file_mode_collision(workspace_root: &Path, git_dir: &Path, event: &str) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    for dir in [git_dir.join("hooks"), workspace_root.join(".husky")] {
-        let path = dir.join(event);
-        if path.exists() {
-            found.push(path);
+/// Third-party hook manager detected alongside Anvil's own install. We never
+/// edit, refuse, or remove these — only surface them so the user knows
+/// another tool may be wiring the same events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum ThirdPartyManager {
+    /// `.husky/<event>` files (file-mode), Husky-owned.
+    Husky,
+    /// `.lefthook.yml` or `lefthook.yml`.
+    Lefthook,
+    /// `.pre-commit-config.yaml` (the python pre-commit framework).
+    PreCommit,
+}
+
+impl ThirdPartyManager {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Husky => "Husky",
+            Self::Lefthook => "Lefthook",
+            Self::PreCommit => "pre-commit framework",
         }
     }
-    found
+
+    fn config_path(self) -> &'static str {
+        match self {
+            Self::Husky => ".husky/",
+            Self::Lefthook => ".lefthook.yml | lefthook.yml",
+            Self::PreCommit => ".pre-commit-config.yaml",
+        }
+    }
+}
+
+/// Structured coexistence report for a single hook event.
+///
+/// This is the formal GHOOK-004 generalisation of the earlier
+/// `warn_on_file_mode_collision` stub. It collects every signal Anvil knows
+/// about so callers can decide whether to surface a warning, populate a
+/// status panel, or drop the data straight into JSON. Detection is strictly
+/// non-destructive: nothing in this module ever writes, edits, or removes
+/// the entries it discovers — that is the Anvil scope-guard "warnings over
+/// blocks" rule applied to hook coexistence.
+#[derive(Debug, Clone, Default, Serialize)]
+pub(crate) struct CoexistenceReport {
+    /// Hook event this report describes (e.g. `pre-commit`).
+    pub event: String,
+    /// File-mode hook scripts found at `.git/hooks/<event>` or
+    /// `.husky/<event>`. When this list is non-empty AND any config-mode
+    /// entry is present, Git 2.54 will run **both** sources.
+    pub file_mode_paths: Vec<PathBuf>,
+    /// Third-party hook managers detected in the workspace (Husky / Lefthook
+    /// / pre-commit framework). Repo-wide, not event-specific — these
+    /// markers imply non-Anvil ownership across all events.
+    pub third_party_managers: Vec<ThirdPartyManager>,
+    /// Number of `hook.<event>.command` entries that do NOT match the
+    /// Anvil-managed prefix. Anvil never touches these. `None` when the
+    /// `git config --get-all` probe could not be run (no `git`, repo
+    /// transient state, etc) so callers can distinguish "zero foreign
+    /// entries" from "could not determine".
+    pub foreign_config_entries: Option<usize>,
+    /// Value of `git config core.hooksPath` if set — when present, Git
+    /// bypasses `.git/hooks/` entirely and resolves file-mode hooks
+    /// against this directory instead. Anvil does not override this.
+    pub core_hooks_path: Option<String>,
+}
+
+impl CoexistenceReport {
+    /// True when at least one signal was found that warrants surfacing.
+    pub(crate) fn has_findings(&self) -> bool {
+        !self.file_mode_paths.is_empty()
+            || !self.third_party_managers.is_empty()
+            || self.foreign_config_entries.unwrap_or(0) > 0
+            || self.core_hooks_path.is_some()
+    }
+
+    /// True when both a file-mode hook AND any config-mode entry exist for
+    /// this event — Git 2.54 will run both, so the user should know.
+    /// Only the caller that owns the config-mode-entry-count knows the
+    /// full picture, so this just reports the file-mode side; the
+    /// config-mode entry count is a separate parameter to the printer.
+    pub(crate) fn has_file_mode_collision(&self) -> bool {
+        !self.file_mode_paths.is_empty()
+    }
+}
+
+/// Probe the workspace for every coexistence signal Anvil knows about. The
+/// returned report is purely informational — callers decide whether to
+/// warn, render, or drop it. Used by `install --config`, `uninstall
+/// --config`, and `status` so all three surfaces speak the same language.
+///
+/// Generalises and replaces the GHOOK-002 `warn_on_file_mode_collision`
+/// stub. The four signals it captures map directly to the GHOOK-004
+/// behaviour rules:
+///
+/// 1. **Duplicate-execution risk** — `file_mode_paths` listing both
+///    `.git/hooks/<event>` and `.husky/<event>` so the caller can pair
+///    that against the live `hook.<event>.command` count.
+/// 2. **Third-party manager presence** — `.husky/`, lefthook YAML, or
+///    `.pre-commit-config.yaml` mark non-Anvil hook ownership.
+/// 3. **Foreign config-mode entries** — count of `hook.<event>.command`
+///    values that do NOT match the Anvil-managed prefix; Anvil never
+///    edits these.
+/// 4. **`core.hooksPath` override** — when set, file-mode hooks resolve
+///    against this directory and `.git/hooks/` is bypassed. Documented
+///    in the public guide; we never override it.
+pub(crate) fn detect_coexistence(
+    workspace_root: &Path,
+    _git_dir: &Path,
+    event: &str,
+) -> CoexistenceReport {
+    let mut report = CoexistenceReport {
+        event: event.to_string(),
+        ..CoexistenceReport::default()
+    };
+
+    // (1) File-mode hook scripts on disk for this event. Use the shared
+    // resolver so detection mirrors Git's actual lookup rules:
+    // - `core.hooksPath`, when set, replaces `.git/hooks/`
+    // - `.git`-as-file (worktrees / submodules) resolves through
+    //   `resolve_git_dir`, not naive `<workspace>/.git/hooks/`
+    // The previous shape (hard-coded `git_dir.join("hooks")` plus
+    // `.husky`) missed both cases and produced false-negatives in
+    // worktrees and false-positives when `core.hooksPath` was set.
+    for path in resolve_file_mode_hook_paths(workspace_root, event) {
+        if path.exists() {
+            report.file_mode_paths.push(path);
+        }
+    }
+
+    // (2) Third-party hook managers — repo-wide, event-agnostic.
+    if workspace_root.join(".husky").is_dir() {
+        report.third_party_managers.push(ThirdPartyManager::Husky);
+    }
+    if workspace_root.join(".lefthook.yml").exists() || workspace_root.join("lefthook.yml").exists()
+    {
+        report
+            .third_party_managers
+            .push(ThirdPartyManager::Lefthook);
+    }
+    if workspace_root.join(".pre-commit-config.yaml").exists() {
+        report
+            .third_party_managers
+            .push(ThirdPartyManager::PreCommit);
+    }
+
+    // (3) Foreign `hook.<event>.command` entries. Best-effort: when the
+    // probe fails (no `git`, transient config error, …) we leave the field
+    // as `None` so callers can render "(unknown)" rather than "0".
+    report.foreign_config_entries = match list_config_hook_commands(workspace_root, event) {
+        Ok(entries) => Some(
+            entries
+                .iter()
+                .filter(|c| !is_anvil_managed_command(c))
+                .count(),
+        ),
+        Err(_) => None,
+    };
+
+    // (4) `core.hooksPath` override.
+    report.core_hooks_path = read_core_hooks_path(workspace_root);
+
+    report
+}
+
+/// Read `git config core.hooksPath`. Returns `None` when the key is not set
+/// (exit 1) or when `git` is unreachable. Trims trailing newline so the
+/// raw value is suitable for direct rendering.
+pub(crate) fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(workspace_root)
+        .args(["config", "--get", "core.hooksPath"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
+}
+
+/// Resolve the file-mode hook paths Git would actually consult for `event`
+/// at this repo. Mirrors Git's resolution rules so detection in `status`,
+/// `doctor`, `install --config`, and onboarding all agree:
+///
+/// - When `core.hooksPath` is set, that directory is the only file-mode
+///   location Git looks at (`<hooksPath>/<event>`); `.git/hooks/` is
+///   bypassed entirely.
+/// - Otherwise: `<resolved git-dir>/hooks/<event>` (handles the
+///   `.git`-as-file case for worktrees / submodules) plus the
+///   `.husky/<event>` Husky entry point if present.
+///
+/// Returns paths regardless of whether they exist on disk; callers test
+/// `.exists()` on each. Best-effort: a missing `git` falls back to the
+/// `<workspace_root>/.git/hooks/<event>` plus `.husky/<event>` pair so
+/// detection still works in environments without git on PATH.
+pub(crate) fn resolve_file_mode_hook_paths(workspace_root: &Path, event: &str) -> Vec<PathBuf> {
+    if let Some(custom) = read_core_hooks_path(workspace_root) {
+        let custom_path = Path::new(&custom);
+        let resolved = if custom_path.is_absolute() {
+            custom_path.to_path_buf()
+        } else {
+            workspace_root.join(custom_path)
+        };
+        return vec![resolved.join(event)];
+    }
+    let git_dir = resolve_git_dir(workspace_root).unwrap_or_else(|_| workspace_root.join(".git"));
+    let mut paths = vec![git_dir.join("hooks").join(event)];
+    let husky = workspace_root.join(".husky").join(event);
+    if husky != paths[0] {
+        paths.push(husky);
+    }
+    paths
+}
+
+/// Render a human-readable coexistence block to stdout. Used by `install
+/// --config`, `uninstall --config`, and `status`. Caller passes the live
+/// count of Anvil-managed config entries for the event so the duplicate-
+/// execution warning can include both sides of the picture.
+fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_entries: usize) {
+    if !report.has_findings() {
+        return;
+    }
+    crate::output::plain::blank();
+    let any_config_present =
+        anvil_managed_config_entries > 0 || report.foreign_config_entries.unwrap_or(0) > 0;
+    if report.has_file_mode_collision() && any_config_present {
+        crate::output::plain::warn(&format!(
+            "Duplicate-execution risk for `{}`: both a file-mode hook and a \
+             config-mode entry are present. Git 2.54 runs both.",
+            report.event,
+        ));
+        for path in &report.file_mode_paths {
+            println!("    file mode  - {}", path.display());
+        }
+        if anvil_managed_config_entries > 0 {
+            println!(
+                "    config mode - hook.{}.command (Anvil-managed) x{}",
+                report.event, anvil_managed_config_entries,
+            );
+        }
+        if let Some(n) = report.foreign_config_entries
+            && n > 0
+        {
+            println!(
+                "    config mode - hook.{}.command (foreign) x{}",
+                report.event, n,
+            );
+        }
+    } else if report.has_file_mode_collision() {
+        crate::output::plain::warn(&format!(
+            "File-mode hook(s) detected for `{}`:",
+            report.event,
+        ));
+        for path in &report.file_mode_paths {
+            println!("    - {}", path.display());
+        }
+    }
+
+    if !report.third_party_managers.is_empty() {
+        crate::output::plain::warn("Other hook managers detected:");
+        for mgr in &report.third_party_managers {
+            println!("    - {} ({})", mgr.label(), mgr.config_path());
+        }
+    }
+
+    if let Some(n) = report.foreign_config_entries
+        && n > 0
+    {
+        crate::output::plain::warn(&format!(
+            "{n} foreign hook.{}.command entr{} present (left untouched).",
+            report.event,
+            if n == 1 { "y" } else { "ies" },
+        ));
+    }
+
+    if let Some(path) = report.core_hooks_path.as_ref() {
+        crate::output::plain::info(&format!(
+            "core.hooksPath is set to `{path}` — file-mode hooks resolve there, not .git/hooks/.",
+        ));
+    }
+
+    println!("    See {HOOK_COMPAT_DOC} for the coexistence policy.");
 }
 
 #[allow(clippy::too_many_lines)]
@@ -518,13 +791,9 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 ensure_config_hook_support()?;
 
                 let mut results = Vec::new();
-                let mut collisions: Vec<PathBuf> = Vec::new();
+                let mut reports: Vec<CoexistenceReport> = Vec::new();
                 if !*pre_push_only {
-                    collisions.extend(warn_on_file_mode_collision(
-                        &workspace_root,
-                        &git_dir,
-                        "pre-commit",
-                    ));
+                    reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-commit"));
                     results.push(install_config_hook(
                         &workspace_root,
                         "pre-commit",
@@ -533,11 +802,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     )?);
                 }
                 if !*pre_commit_only {
-                    collisions.extend(warn_on_file_mode_collision(
-                        &workspace_root,
-                        &git_dir,
-                        "pre-push",
-                    ));
+                    reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-push"));
                     results.push(install_config_hook(
                         &workspace_root,
                         "pre-push",
@@ -547,7 +812,15 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 }
 
                 if global.json {
-                    crate::output::json::print(&results)?;
+                    #[derive(Serialize)]
+                    struct InstallConfigOutput<'a> {
+                        results: &'a [HookResult],
+                        coexistence: &'a [CoexistenceReport],
+                    }
+                    crate::output::json::print(&InstallConfigOutput {
+                        results: &results,
+                        coexistence: &reports,
+                    })?;
                 } else {
                     crate::output::plain::blank();
                     for r in &results {
@@ -558,16 +831,26 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                             _ => println!("  {}", r.message),
                         }
                     }
-                    if !collisions.is_empty() {
-                        crate::output::plain::blank();
-                        crate::output::plain::warn(
-                            "File-mode hook(s) detected alongside config-mode install — \
-                             both may run on the same event:",
-                        );
-                        for path in &collisions {
-                            println!("    - {}", path.display());
-                        }
-                        println!("    See {HOOK_COMPAT_DOC} for coexistence guidance.");
+                    for report in &reports {
+                        // Read the live anvil-managed count from the repo
+                        // rather than assuming 1. After a `skipped` action
+                        // the count is whatever existed before; a repo
+                        // could also legitimately have multiple managed
+                        // entries from historical force-installs that
+                        // GHOOK-002 has since collapsed but residual rows
+                        // are still possible. Read once per event so the
+                        // duplicate-risk maths in `print_coexistence_report`
+                        // matches reality.
+                        let managed_count =
+                            list_config_hook_commands(&workspace_root, &report.event)
+                                .map(|entries| {
+                                    entries
+                                        .iter()
+                                        .filter(|c| is_anvil_managed_command(c))
+                                        .count()
+                                })
+                                .unwrap_or(0);
+                        print_coexistence_report(report, managed_count);
                     }
                     crate::output::plain::blank();
                     println!("  pre-commit: Runs quality gates ({PRE_COMMIT_CONFIG_COMMAND})");
@@ -641,15 +924,26 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 // older machine) must still be able to clean up — that
                 // is a strictly safer state than refusing.
                 let mut results = Vec::new();
+                let mut reports: Vec<CoexistenceReport> = Vec::new();
                 if !*pre_push_only {
                     results.push(uninstall_config_hook(&workspace_root, "pre-commit")?);
+                    reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-commit"));
                 }
                 if !*pre_commit_only {
                     results.push(uninstall_config_hook(&workspace_root, "pre-push")?);
+                    reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-push"));
                 }
 
                 if global.json {
-                    crate::output::json::print(&results)?;
+                    #[derive(Serialize)]
+                    struct UninstallConfigOutput<'a> {
+                        results: &'a [HookResult],
+                        coexistence: &'a [CoexistenceReport],
+                    }
+                    crate::output::json::print(&UninstallConfigOutput {
+                        results: &results,
+                        coexistence: &reports,
+                    })?;
                 } else {
                     crate::output::plain::blank();
                     for r in &results {
@@ -658,6 +952,13 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                             "skipped" => crate::output::plain::warn(&r.message),
                             _ => println!("  {}", r.message),
                         }
+                    }
+                    // Post-uninstall: Anvil-managed entries are gone, so
+                    // any duplicate-execution risk that remains is between
+                    // file-mode hooks and foreign config-mode entries the
+                    // user owns. Pass anvil-managed count = 0.
+                    for report in &reports {
+                        print_coexistence_report(report, 0);
                     }
                 }
                 return Ok(());
@@ -713,9 +1014,27 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 }
             }
 
+            // Build a coexistence report per event the status surface
+            // covers. Live anvil-managed config entries are also counted
+            // here so the structured output shows the duplicate-execution
+            // risk without the caller needing to reach back into
+            // `git config`.
+            let mut coexistence: Vec<CoexistenceReport> = Vec::new();
+            let mut anvil_managed_per_event: Vec<(String, usize)> = Vec::new();
+            for event in ["pre-commit", "pre-push"] {
+                coexistence.push(detect_coexistence(&workspace_root, &git_dir, event));
+                let managed = list_config_hook_commands(&workspace_root, event)
+                    .unwrap_or_default()
+                    .iter()
+                    .filter(|c| is_anvil_managed_command(c))
+                    .count();
+                anvil_managed_per_event.push((event.to_string(), managed));
+            }
+
             let data = HooksStatusData {
                 hooks: hooks.clone(),
                 husky_detected,
+                coexistence: coexistence.clone(),
             };
 
             if global.json {
@@ -733,9 +1052,22 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     };
                     println!("  {}/{}: {indicator}", status.location, status.hook);
                 }
-                if husky_detected {
+                for (report, (_event, managed)) in
+                    coexistence.iter().zip(anvil_managed_per_event.iter())
+                {
+                    print_coexistence_report(report, *managed);
+                }
+                if husky_detected
+                    && !coexistence
+                        .iter()
+                        .any(|r| r.third_party_managers.contains(&ThirdPartyManager::Husky))
+                {
+                    // Husky detected via package.json devDependency only —
+                    // no `.husky/` dir on disk yet. Surface as a hint so the
+                    // user knows the dependency is present but no hooks
+                    // have been wired through it.
                     crate::output::plain::blank();
-                    println!("  Husky detected in this project");
+                    println!("  Husky listed in package.json but no .husky/ directory yet");
                 }
             }
         }
@@ -1222,6 +1554,373 @@ mod tests {
 
         let remaining = list_config_hook_commands(dir.path(), "pre-commit").unwrap();
         assert_eq!(remaining, vec!["npm run my-thing".to_string()]);
+    }
+
+    // ----------------- GHOOK-004 (coexistence) -----------------
+
+    /// Helper: skip when host Git is older than 2.54. GHOOK-004 detection
+    /// reads `git config` like the install path, so a host without a
+    /// usable Git binary cannot exercise the report.
+    fn require_config_hook_support() -> bool {
+        match detect_git_version() {
+            Ok(v) if supports_config_hooks(v) => true,
+            Ok(v) => {
+                eprintln!("skipping: host git is {}.{}.{} (< 2.54)", v.0, v.1, v.2);
+                false
+            }
+            Err(_) => {
+                eprintln!("skipping: git --version unavailable");
+                false
+            }
+        }
+    }
+
+    fn init_repo(dir: &Path) {
+        let status = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(dir)
+            .status()
+            .expect("git init");
+        assert!(status.success(), "git init must succeed");
+    }
+
+    /// Sanity check: an empty repo with no markers produces an empty
+    /// report. `has_findings` returns `false` so callers know not to
+    /// bother rendering anything.
+    #[test]
+    fn coexistence_empty_repo_has_no_findings() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        let git_dir = dir.path().join(".git");
+
+        let report = detect_coexistence(dir.path(), &git_dir, "pre-commit");
+        assert!(report.file_mode_paths.is_empty());
+        assert!(report.third_party_managers.is_empty());
+        assert_eq!(report.foreign_config_entries, Some(0));
+        assert!(!report.has_findings());
+        assert!(!report.has_file_mode_collision());
+    }
+
+    /// (a) `install --config` in a repo with `.husky/pre-commit` warns
+    /// naming both: the file-mode path is captured AND the third-party
+    /// manager is named.
+    #[test]
+    fn coexistence_detects_husky_file_mode_collision() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        let husky_dir = dir.path().join(".husky");
+        std::fs::create_dir_all(&husky_dir).unwrap();
+        std::fs::write(
+            husky_dir.join("pre-commit"),
+            "#!/bin/sh\nnpm run lint-staged\n",
+        )
+        .unwrap();
+
+        let git_dir = dir.path().join(".git");
+        let report = detect_coexistence(dir.path(), &git_dir, "pre-commit");
+
+        assert!(report.has_file_mode_collision());
+        assert!(
+            report
+                .file_mode_paths
+                .iter()
+                .any(|p| p == &husky_dir.join("pre-commit"))
+        );
+        assert!(
+            report
+                .third_party_managers
+                .contains(&ThirdPartyManager::Husky),
+            "report should name Husky alongside the file-mode path: {report:?}",
+        );
+    }
+
+    /// (c) `install --config` in a repo with `.lefthook.yml` flags the
+    /// lefthook manager. No file-mode `pre-commit` script is created;
+    /// the YAML alone is the signal.
+    #[test]
+    fn coexistence_detects_lefthook_manager() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        std::fs::write(
+            dir.path().join(".lefthook.yml"),
+            "pre-commit:\n  commands: {}\n",
+        )
+        .unwrap();
+
+        let git_dir = dir.path().join(".git");
+        let report = detect_coexistence(dir.path(), &git_dir, "pre-commit");
+
+        assert!(
+            report
+                .third_party_managers
+                .contains(&ThirdPartyManager::Lefthook),
+            "lefthook YAML must surface as a third-party manager: {report:?}",
+        );
+        assert!(report.has_findings());
+    }
+
+    /// `pre-commit-config.yaml` flags the pre-commit framework manager.
+    #[test]
+    fn coexistence_detects_pre_commit_framework() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        std::fs::write(dir.path().join(".pre-commit-config.yaml"), "repos: []\n").unwrap();
+
+        let git_dir = dir.path().join(".git");
+        let report = detect_coexistence(dir.path(), &git_dir, "pre-commit");
+
+        assert!(
+            report
+                .third_party_managers
+                .contains(&ThirdPartyManager::PreCommit),
+            "pre-commit framework must surface as a third-party manager: {report:?}",
+        );
+    }
+
+    /// (d) `install --config` preserves a foreign `hook.pre-commit.command`
+    /// entry. After install, `git config --get-all` returns BOTH lines:
+    /// the user's foreign entry AND Anvil's managed entry.
+    #[test]
+    fn install_config_preserves_foreign_entry() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        // Seed a foreign entry first.
+        git_config(
+            dir.path(),
+            &[
+                "--add",
+                "hook.pre-commit.command",
+                "npm run my-foreign-gate",
+            ],
+        )
+        .unwrap();
+
+        // Install the Anvil-managed entry alongside it.
+        let result =
+            install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false)
+                .unwrap();
+        assert_eq!(result.action, "created");
+
+        // git config --get-all must now return BOTH lines, in install order.
+        let entries = list_config_hook_commands(dir.path(), "pre-commit").unwrap();
+        assert_eq!(
+            entries,
+            vec![
+                "npm run my-foreign-gate".to_string(),
+                PRE_COMMIT_CONFIG_COMMAND.to_string(),
+            ],
+            "foreign entry must survive install --config alongside the Anvil entry",
+        );
+
+        // Coexistence report should count exactly 1 foreign entry.
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert_eq!(report.foreign_config_entries, Some(1));
+    }
+
+    /// (e) `uninstall --config` with a foreign entry leaves it alone.
+    /// Same expectation as the GHOOK-002 round-trip test, but driven
+    /// through the coexistence report so the GHOOK-004 contract is
+    /// pinned: foreign entries are NEVER touched.
+    #[test]
+    fn uninstall_config_leaves_foreign_entry_alone() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        // Seed both an Anvil-managed and a foreign entry.
+        install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
+        git_config(
+            dir.path(),
+            &[
+                "--add",
+                "hook.pre-commit.command",
+                "npm run my-foreign-gate",
+            ],
+        )
+        .unwrap();
+
+        // Uninstall removes only the Anvil entry.
+        let removed = uninstall_config_hook(dir.path(), "pre-commit").unwrap();
+        assert_eq!(removed.action, "removed");
+
+        let remaining = list_config_hook_commands(dir.path(), "pre-commit").unwrap();
+        assert_eq!(remaining, vec!["npm run my-foreign-gate".to_string()]);
+
+        // Post-uninstall, the report should list 1 foreign entry left
+        // behind — the user still owns it, Anvil does not touch it.
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert_eq!(report.foreign_config_entries, Some(1));
+    }
+
+    /// (b) Status in a repo with both file and config entries reports the
+    /// duplicate-execution risk in the structured output. The status
+    /// surface owns the printer; here we verify the underlying report
+    /// carries both signals so the printer can pair them.
+    #[test]
+    fn status_reports_duplicate_execution_risk_when_both_modes_present() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        // File-mode hook in `.git/hooks/pre-commit`.
+        let git_hooks = dir.path().join(".git").join("hooks");
+        std::fs::create_dir_all(&git_hooks).unwrap();
+        std::fs::write(git_hooks.join("pre-commit"), "#!/bin/sh\necho legacy\n").unwrap();
+
+        // Config-mode entry installed via Anvil.
+        install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
+
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert!(
+            report.has_file_mode_collision(),
+            "file-mode path must be captured for the duplicate-execution check",
+        );
+        assert_eq!(
+            report.foreign_config_entries,
+            Some(0),
+            "Anvil's own entry must not count as foreign",
+        );
+
+        // Confirm the live anvil-managed count is 1 — the printer pairs
+        // this with the file-mode path to render the duplicate-execution
+        // warning. The CLI status arm does the same join.
+        let managed = list_config_hook_commands(dir.path(), "pre-commit")
+            .unwrap()
+            .iter()
+            .filter(|c| is_anvil_managed_command(c))
+            .count();
+        assert_eq!(managed, 1);
+    }
+
+    /// `core.hooksPath` is captured when set so the public docs can point
+    /// users at the precedence behaviour Git itself enforces.
+    #[test]
+    fn coexistence_reports_core_hooks_path_when_set() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        let custom_dir = dir.path().join("custom-hooks");
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        git_config(
+            dir.path(),
+            &["core.hooksPath", custom_dir.to_str().unwrap()],
+        )
+        .unwrap();
+
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert_eq!(
+            report.core_hooks_path.as_deref(),
+            Some(custom_dir.to_str().unwrap()),
+            "core.hooksPath should be reported verbatim when set: {report:?}",
+        );
+    }
+
+    /// Regression: a hook script under `core.hooksPath` must register as a
+    /// file-mode hook in the coexistence report. Previously the resolver
+    /// only looked at `<git_dir>/hooks/<event>` plus `.husky/<event>` and
+    /// missed `core.hooksPath`-based installs entirely.
+    #[test]
+    fn coexistence_detects_file_mode_hook_under_core_hooks_path() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        let custom_dir = dir.path().join("custom-hooks");
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        git_config(
+            dir.path(),
+            &["core.hooksPath", custom_dir.to_str().unwrap()],
+        )
+        .unwrap();
+        let hook_path = custom_dir.join("pre-commit");
+        std::fs::write(&hook_path, "#!/bin/sh\nexit 0\n").unwrap();
+
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert!(
+            report.file_mode_paths.iter().any(|p| p == &hook_path),
+            "expected core.hooksPath/pre-commit to surface as a file-mode hook: {report:?}"
+        );
+    }
+
+    /// Regression: when `core.hooksPath` is set, a stale `.git/hooks/<event>`
+    /// must NOT register as a file-mode hook — Git will not run it.
+    /// Previously the resolver always checked `<git_dir>/hooks/<event>`
+    /// regardless of `core.hooksPath` and produced a false-positive
+    /// duplicate-execution warning.
+    #[test]
+    fn coexistence_ignores_stale_dot_git_hook_when_core_hooks_path_overrides() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        // Stale hook under `.git/hooks/` — Git would not run this once
+        // core.hooksPath is set.
+        let stale = dir.path().join(".git").join("hooks").join("pre-commit");
+        std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+        std::fs::write(&stale, "#!/bin/sh\nexit 0\n").unwrap();
+
+        let custom_dir = dir.path().join("custom-hooks");
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        git_config(
+            dir.path(),
+            &["core.hooksPath", custom_dir.to_str().unwrap()],
+        )
+        .unwrap();
+
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert!(
+            !report.file_mode_paths.iter().any(|p| p == &stale),
+            "stale .git/hooks/pre-commit must not register when core.hooksPath overrides: {report:?}"
+        );
+    }
+
+    /// The serialised `coexistence` field has stable shape — the GHOOK-003
+    /// status JSON contract extends to GHOOK-004 without breaking existing
+    /// consumers. Deliberately encoded as a snapshot so wording changes
+    /// trip a review.
+    #[test]
+    fn coexistence_report_serialises_to_expected_shape() {
+        let report = CoexistenceReport {
+            event: "pre-commit".to_string(),
+            file_mode_paths: vec![PathBuf::from(".husky/pre-commit")],
+            third_party_managers: vec![ThirdPartyManager::Husky, ThirdPartyManager::Lefthook],
+            foreign_config_entries: Some(2),
+            core_hooks_path: Some(".my-hooks".to_string()),
+        };
+        let json = serde_json::to_value(&report).unwrap();
+        assert_eq!(json["event"], "pre-commit");
+        assert_eq!(json["file_mode_paths"][0], ".husky/pre-commit");
+        assert_eq!(json["third_party_managers"][0], "husky");
+        assert_eq!(json["third_party_managers"][1], "lefthook");
+        assert_eq!(json["foreign_config_entries"], 2);
+        assert_eq!(json["core_hooks_path"], ".my-hooks");
     }
 
     /// `hook.<event>.enabled` semantics: Git's default when the key is
