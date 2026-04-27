@@ -67,8 +67,8 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install dist
-        # V041F-001: pin the installer script by SHA256 before piping it
-        # to sh. Without this, a compromise of the upstream script
+        # V041F-001: pin the downloaded installer script by SHA256 before
+        # executing it with sh. Without this, a compromise of the upstream script
         # backdoors every Anvil binary the release pipeline produces
         # (Homebrew tap, WinGet, Scoop bucket all originate here). Bump
         # both DIST_VERSION and DIST_INSTALLER_SHA256 together when
