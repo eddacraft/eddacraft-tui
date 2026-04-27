@@ -24,6 +24,7 @@ pub fn showcase_findings() -> Vec<Finding> {
             suggestion: "Move the value to an environment variable or a secrets \
                          manager and reference it at runtime."
                 .to_string(),
+            warning_id: None,
         },
         Finding {
             file: "src/handlers/api.rs".to_string(),
@@ -38,6 +39,7 @@ pub fn showcase_findings() -> Vec<Finding> {
             suggestion: "Resolve the TODO or convert it to a tracked issue \
                          before merging."
                 .to_string(),
+            warning_id: None,
         },
         Finding {
             file: "src/db/queries.rs".to_string(),
@@ -53,6 +55,7 @@ pub fn showcase_findings() -> Vec<Finding> {
             suggestion: "Route the dependency through the service layer or \
                          extract a shared contract."
                 .to_string(),
+            warning_id: None,
         },
         Finding {
             file: "src/models/user.rs".to_string(),
@@ -65,6 +68,7 @@ pub fn showcase_findings() -> Vec<Finding> {
                       code harder to navigate."
                 .to_string(),
             suggestion: "Rename to `user_id` to match the project convention.".to_string(),
+            warning_id: None,
         },
     ]
 }

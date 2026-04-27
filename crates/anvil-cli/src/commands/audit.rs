@@ -11,6 +11,9 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::services::interactive_fix::{
+    FixOutcome, apply_fix_request, is_auto_fixable_console_statement,
+};
 
 #[derive(Debug, Args)]
 pub struct AuditArgs {}
@@ -21,8 +24,23 @@ pub fn run(_args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.json {
         print_json(&data)?;
     } else if !global.no_tui && std::io::stdout().is_terminal() {
-        let state = AuditState::new(data);
-        crate::tui::run_surface(state)?;
+        let mut state = AuditState::new(data);
+        loop {
+            state = crate::tui::run_surface(state)?;
+            if let Some(request) = state.pending_fix.take() {
+                let selected = state.selected_item;
+                if matches!(
+                    apply_fix_request(&request, None),
+                    FixOutcome::Applied { .. }
+                ) {
+                    state.data = collect_audit_data();
+                    state.selected_item = selected.min(state.data.issues.len().saturating_sub(1));
+                    state.expanded = false;
+                }
+                continue;
+            }
+            break;
+        }
     } else {
         print_plain(&data);
     }
@@ -216,13 +234,14 @@ fn scan_line(ext: &str, trimmed: &str, line_num: usize, rel: &str, issues: &mut 
     if (ext == "ts" || ext == "js")
         && (trimmed.contains("console.log") || trimmed.contains("console.error"))
     {
+        let fixable = is_auto_fixable_console_statement(trimmed);
         issues.push(AuditIssue {
             severity: IssueSeverity::Low,
             category: "Quality".to_string(),
             message: "console statement found".to_string(),
             file: rel.to_string(),
             line: line_num,
-            fixable: true,
+            fixable,
         });
     }
 
