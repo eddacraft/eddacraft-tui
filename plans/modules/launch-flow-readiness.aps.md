@@ -287,7 +287,7 @@ new primitive, this module follows three rules:
   supported fixes and that each participating surface only exposes `f`
   when a request can actually be serviced.
 - **Confidence:** medium
-- **Status:** Complete
+- **Status:** Committed
 
 ## Risks
 

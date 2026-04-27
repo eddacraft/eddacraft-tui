@@ -1,8 +1,17 @@
 use std::path::Path;
+use std::sync::LazyLock;
 
 use anvil_tui::surfaces::doctor::DiagnosticCheck;
 use anvil_tui::surfaces::fix_request::FixRequest;
 use regex::Regex;
+
+static CONSOLE_STATEMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*console\.(log|error)\s*\(.*\)\s*;?\s*$")
+        .expect("console statement regex compiles")
+});
+
+static ANY_ANNOTATION_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(:\s*)any\b").expect("annotation regex compiles"));
 
 /// Outcome of a shared interactive fix request.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +32,11 @@ pub fn apply_fix_request(
                     reason: "doctor fix requested without doctor check state".to_string(),
                 };
             };
+            if *index >= checks.len() {
+                return FixOutcome::Refused {
+                    reason: format!("Doctor check index {index} is out of range"),
+                };
+            }
             crate::commands::doctor::apply_fix_at(checks, *index);
             FixOutcome::Applied {
                 summary: "Applied doctor auto-fix".to_string(),
@@ -50,9 +64,7 @@ pub fn apply_fix_request(
 }
 
 pub fn is_auto_fixable_console_statement(line: &str) -> bool {
-    Regex::new(r"^\s*console\.(log|error)\s*\(.*\)\s*;?\s*$")
-        .expect("console statement regex compiles")
-        .is_match(line)
+    CONSOLE_STATEMENT_RE.is_match(line)
 }
 
 fn apply_line_transform(
@@ -156,8 +168,8 @@ fn replace_any_annotation(source: &str) -> Option<String> {
     if trimmed.starts_with("//") || trimmed.starts_with("* ") {
         return None;
     }
-    let any_annotation = Regex::new(r"^(:\s*)any\b").expect("annotation regex compiles");
-    if !any_annotation.is_match(source) && !source.contains(": any") && !source.contains(":any") {
+    if !ANY_ANNOTATION_RE.is_match(source) && !source.contains(": any") && !source.contains(":any")
+    {
         return None;
     }
 
@@ -217,7 +229,7 @@ fn replace_any_annotation(source: &str) -> Option<String> {
 
         if ch == ':' {
             let rest = &source[idx..];
-            if let Some(captures) = any_annotation.captures(rest) {
+            if let Some(captures) = ANY_ANNOTATION_RE.captures(rest) {
                 let matched = captures.get(0).expect("whole match exists");
                 let prefix = captures.get(1).expect("prefix exists").as_str();
                 result.push_str(prefix);
@@ -312,6 +324,16 @@ mod tests {
                 line: 1,
             },
             None,
+        );
+        assert!(matches!(outcome, FixOutcome::Refused { .. }));
+    }
+
+    #[test]
+    fn refuses_out_of_range_doctor_check() {
+        let mut checks = Vec::new();
+        let outcome = apply_fix_request(
+            &FixRequest::DoctorCheck { index: 0 },
+            Some(checks.as_mut_slice()),
         );
         assert!(matches!(outcome, FixOutcome::Refused { .. }));
     }

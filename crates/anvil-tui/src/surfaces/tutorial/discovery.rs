@@ -69,6 +69,9 @@ impl Finding {
     #[must_use]
     pub fn fix_request(&self) -> Option<FixRequest> {
         let line = self.line?;
+        if line == 0 {
+            return None;
+        }
         let warning_id = self.warning_id.as_deref()?;
         match warning_id {
             "AP-001" | "AP-003" | "AP-004" => Some(FixRequest::AntiPatternWarning {
@@ -385,6 +388,22 @@ mod tests {
             duration_ms: 500,
             truncated: false,
         }
+    }
+
+    #[test]
+    fn fix_request_rejects_zero_line_findings() {
+        let finding = Finding {
+            file: "src/app.ts".to_string(),
+            line: Some(0),
+            severity: FindingSeverity::Warning,
+            source: FindingSource::AntiPattern,
+            title: "Avoid escape hatch".to_string(),
+            message: "eslint disable".to_string(),
+            suggestion: "Use a scoped disable".to_string(),
+            warning_id: Some("AP-001".to_string()),
+        };
+
+        assert_eq!(finding.fix_request(), None);
     }
 
     // ── FindingSeverity ordering ─────────────────────────────────────────

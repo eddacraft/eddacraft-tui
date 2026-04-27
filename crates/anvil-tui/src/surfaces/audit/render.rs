@@ -142,11 +142,8 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
         } else {
             Style::default().fg(theme.fg())
         };
-        let fixable_marker = if issue.fix_request().is_some() {
-            " [fix]"
-        } else {
-            ""
-        };
+        let has_fix = issue.is_fixable();
+        let fixable_marker = if has_fix { " [fix]" } else { "" };
 
         lines.push(Line::from(vec![
             Span::styled(indicator, name_style),
@@ -175,7 +172,7 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
                 Span::styled("    Severity: ", Style::default().fg(theme.muted())),
                 Span::styled(issue.severity.label_full(), Style::default().fg(sev_colour)),
             ]));
-            if issue.fix_request().is_some() {
+            if has_fix {
                 lines.push(Line::from(Span::styled(
                     "    Auto-fixable: press 'f' to fix",
                     Style::default().fg(theme.accent()),

@@ -67,6 +67,12 @@ impl IssueSeverity {
     }
 }
 
+/// Deterministic audit fix handled by the shared CLI fix dispatcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuditFixKind {
+    ConsoleStatement,
+}
+
 /// A single audit issue.
 #[derive(Debug, Clone)]
 pub struct AuditIssue {
@@ -75,22 +81,29 @@ pub struct AuditIssue {
     pub message: String,
     pub file: String,
     pub line: usize,
+    /// Non-user-facing discriminator for deterministic audit fixes.
+    /// Today the audit surface only exposes console-statement removal.
     pub fixable: bool,
 }
 
 impl AuditIssue {
+    fn fix_kind(&self) -> Option<AuditFixKind> {
+        (self.fixable && self.line != 0).then_some(AuditFixKind::ConsoleStatement)
+    }
+
+    #[must_use]
+    pub fn is_fixable(&self) -> bool {
+        self.fix_kind().is_some()
+    }
+
     #[must_use]
     pub fn fix_request(&self) -> Option<FixRequest> {
-        if !self.fixable || self.line == 0 {
-            return None;
-        }
-        if self.message == "console statement found" {
-            return Some(FixRequest::AuditConsoleStatement {
+        match self.fix_kind()? {
+            AuditFixKind::ConsoleStatement => Some(FixRequest::AuditConsoleStatement {
                 file: self.file.clone(),
                 line: self.line,
-            });
+            }),
         }
-        None
     }
 }
 
@@ -153,6 +166,16 @@ impl AuditState {
             .issues
             .get(self.selected_item)
             .and_then(AuditIssue::fix_request)
+    }
+
+    fn selected_issue_is_fixable(&self) -> bool {
+        if self.focused_panel != AuditPanel::Issues {
+            return false;
+        }
+        self.data
+            .issues
+            .get(self.selected_item)
+            .is_some_and(AuditIssue::is_fixable)
     }
 
     fn max_items_in_panel(&self) -> usize {
@@ -221,13 +244,13 @@ impl crate::surface::Surface for AuditState {
 
     fn help_text(&self) -> &'static str {
         if self.expanded {
-            if self.selected_issue_fix_request().is_some() {
+            if self.selected_issue_is_fixable() {
                 "j/k navigate  h/l switch panel  f fix  esc collapse  q quit"
             } else {
                 "j/k navigate  h/l switch panel  esc collapse  q quit"
             }
         } else {
-            if self.selected_issue_fix_request().is_some() {
+            if self.selected_issue_is_fixable() {
                 "j/k navigate  h/l switch panel  enter expand  f fix  esc back  q quit"
             } else {
                 "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
@@ -475,6 +498,26 @@ mod tests {
             Some(FixRequest::AuditConsoleStatement {
                 file: "src/utils/db.ts".to_string(),
                 line: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn fix_request_uses_fixable_discriminator_not_message_copy() {
+        let issue = AuditIssue {
+            severity: IssueSeverity::Low,
+            category: "Quality".to_string(),
+            message: "copy can change without breaking fix dispatch".to_string(),
+            file: "src/index.ts".to_string(),
+            line: 7,
+            fixable: true,
+        };
+
+        assert_eq!(
+            issue.fix_request(),
+            Some(FixRequest::AuditConsoleStatement {
+                file: "src/index.ts".to_string(),
+                line: 7,
             })
         );
     }

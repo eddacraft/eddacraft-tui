@@ -11,7 +11,7 @@ pub mod watch_demo;
 pub mod watch_demo_render;
 
 use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
-use discovery::{Finding, ScanResults};
+use discovery::{FindingSeverity, ScanResults};
 use eddacraft_tui::keyboard::Action;
 use verify::{Verify, VerifyResult};
 
@@ -222,11 +222,19 @@ impl TutorialState {
     }
 
     fn next_fix_request(&self) -> Option<FixRequest> {
-        self.domain_findings
-            .as_ref()?
-            .sorted_findings()
-            .into_iter()
-            .find_map(Finding::fix_request)
+        let mut best: Option<(FindingSeverity, FixRequest)> = None;
+        for finding in &self.domain_findings.as_ref()?.findings {
+            let Some(request) = finding.fix_request() else {
+                continue;
+            };
+            if best
+                .as_ref()
+                .is_none_or(|(severity, _)| finding.severity > *severity)
+            {
+                best = Some((finding.severity, request));
+            }
+        }
+        best.map(|(_, request)| request)
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
