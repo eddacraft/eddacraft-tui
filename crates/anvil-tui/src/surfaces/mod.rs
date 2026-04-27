@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod browser;
 pub mod doctor;
+pub mod fix_request;
 pub mod gate;
 pub mod init;
 pub mod notifications;

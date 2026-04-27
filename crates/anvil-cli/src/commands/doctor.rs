@@ -13,6 +13,7 @@ use crate::GlobalArgs;
 use crate::commands::hooks::{
     config_hooks_enabled, list_config_hook_commands, resolve_file_mode_hook_paths,
 };
+use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
 
 /// JSON output schema version. Bumped to 2.0.0 in LAUNCH-005 because
 /// every check now carries a structured `remediation` object — a
@@ -42,15 +43,16 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let mut state = DoctorState::new(checks.clone());
         loop {
             state = crate::tui::run_surface(state)?;
-            if state.wants_fix {
-                if let Some(idx) = state.fix_index {
-                    apply_fix_at(&mut state.checks, idx);
+            if let Some(request) = state.pending_fix.take() {
+                let selected = state.selected;
+                if matches!(
+                    apply_fix_request(&request, Some(&mut state.checks)),
+                    FixOutcome::Applied { .. }
+                ) {
                     let fresh = collect_checks();
                     state.checks = fresh;
-                    state.selected = idx.min(state.checks.len().saturating_sub(1));
+                    state.selected = selected.min(state.checks.len().saturating_sub(1));
                 }
-                state.wants_fix = false;
-                state.fix_index = None;
                 continue;
             }
             break;

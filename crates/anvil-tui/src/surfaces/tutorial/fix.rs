@@ -328,6 +328,7 @@ mod tests {
             title: "hardcoded secret".to_string(),
             message: "API key found in source".to_string(),
             suggestion: "Move the secret to an environment variable".to_string(),
+            warning_id: None,
         }
     }
 
@@ -518,6 +519,7 @@ mod tests {
             title: "test".to_string(),
             message: "test".to_string(),
             suggestion: "test".to_string(),
+            warning_id: None,
         });
         state.set_context(vec!["line1".to_string(), "line2".to_string()], 1);
         state.open_editor();
@@ -952,6 +954,7 @@ mod tests {
             title: "boundary violation".to_string(),
             message: "cross-module import".to_string(),
             suggestion: "use the public API".to_string(),
+            warning_id: None,
         });
         state.set_context(make_context_lines(), 1);
         state.open_editor();
