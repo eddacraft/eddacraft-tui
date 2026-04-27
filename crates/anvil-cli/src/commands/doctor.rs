@@ -10,7 +10,9 @@ use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState, Rem
 use serde::Serialize;
 
 use crate::GlobalArgs;
-use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
+use crate::commands::hooks::{
+    config_hooks_enabled, list_config_hook_commands, resolve_file_mode_hook_paths,
+};
 use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
 
 /// JSON output schema version. Bumped to 2.0.0 in LAUNCH-005 because
@@ -427,8 +429,16 @@ fn check_plans_dir() -> DiagnosticCheck {
 }
 
 fn check_hooks_installed() -> DiagnosticCheck {
-    let hook_path = Path::new(".husky/pre-commit");
-    let file_mode_present = hook_path.exists();
+    // GHOOK-004 review: detect file-mode hooks at every location Git
+    // would actually consult — `core.hooksPath` override, the resolved
+    // git-dir under worktrees / submodules, and Husky. Previously we
+    // only checked `.husky/pre-commit`, which would miss raw
+    // `.git/hooks/pre-commit` installs and `core.hooksPath`-based setups
+    // and produce false "hooks not installed" warnings.
+    let cwd = Path::new(".");
+    let file_mode_paths = resolve_file_mode_hook_paths(cwd, "pre-commit");
+    let active_file_mode_path = file_mode_paths.iter().find(|p| p.exists()).cloned();
+    let file_mode_present = active_file_mode_path.is_some();
 
     // GHOOK-003: native config-mode hooks (`git config hook.pre-commit.command`)
     // count as a valid hook source. We list every entry so a user-authored
@@ -440,7 +450,6 @@ fn check_hooks_installed() -> DiagnosticCheck {
     // as a valid hook source — they will not run, and surfacing them
     // as "installed" would mislead the user. Default-when-unset is
     // enabled (Git's default), preserved by `config_hooks_enabled`.
-    let cwd = Path::new(".");
     let config_entries = list_config_hook_commands(cwd, "pre-commit").unwrap_or_default();
     let config_mode_enabled = config_hooks_enabled(cwd, "pre-commit");
     let config_mode_present = !config_entries.is_empty() && config_mode_enabled;
@@ -503,13 +512,15 @@ fn check_hooks_installed() -> DiagnosticCheck {
 
     // File-mode hook is present (with or without an additional config-mode
     // entry). Keep the existing executable-bit Pass/Warn split so a stale
-    // `.husky/pre-commit` that lost +x is still caught.
+    // hook script that lost +x is still caught — but check the path that
+    // actually exists, not a hard-coded `.husky/pre-commit`.
     #[cfg(unix)]
     let executable = {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::metadata(hook_path)
-            .map(|m| m.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false)
+        active_file_mode_path
+            .as_ref()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .is_some_and(|m| m.permissions().mode() & 0o111 != 0)
     };
 
     #[cfg(not(unix))]
