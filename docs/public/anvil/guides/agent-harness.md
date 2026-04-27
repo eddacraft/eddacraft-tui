@@ -145,10 +145,11 @@ fi
 ```
 
 Config-mode alternative on Git 2.54 or newer: `anvil hooks install --config`
-manages the same entry point through native `[hook.<name>]` blocks instead of a
-file. File mode remains the default; see
-[Git hook setup](/anvil/operations/git-hooks) for both modes and coexistence
-rules.
+manages the same Git pre-commit hook entry point through native `[hook.<name>]`
+blocks instead of a file, but it installs Anvil's managed `anvil gate` hook
+rather than the exact `anvil check --changed --staged` script shown above. File
+mode remains the default; see [Git hook setup](/anvil/operations/git-hooks) for
+both modes and coexistence rules.
 
 ## Telemetry and Learning
 
