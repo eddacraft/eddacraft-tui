@@ -2,41 +2,78 @@
 id: beta-testing-guide
 title: Beta Testing Guide
 description:
-  Everything you need to get started testing anvil during the early access,
-  including setup, what to test, and how to report issues.
+  Everything you need to get started testing anvil during early access,
+  including setup, what to test, and how to report useful feedback.
 sidebar_position: 6
 ---
 
 # Beta Testing Guide
 
-Welcome to the anvil early access. Thank you for helping us shape the tool —
-your feedback directly influences what we build next.
+Welcome to the anvil beta. Thank you for putting real projects through the tool:
+the best feedback comes from normal development work, not from perfect demo
+repos.
 
 **Current version:** 0.4.0-beta
 
-anvil is a developer tool that analyses your codebase for architectural drift,
-anti-patterns, and convention violations, then helps you maintain consistency as
-your project evolves.
+anvil is a native CLI that analyses your codebase for architectural drift,
+AI-generated anti-patterns, and project convention violations. It is designed to
+catch issues at save time, before they reach review or CI.
 
 :::info Native binary
 
-As of 0.3.0-beta, anvil is a native Rust binary. The Node.js package
-(`@eddacraft/anvil-cli`) is deprecated. See
+As of 0.3.0-beta, anvil is a native Rust binary. The deprecated Node.js package
+(`@eddacraft/anvil-cli`) is no longer the recommended path. See
 [The Switch to Rust](./releases/rust-rewrite.md) for details.
 
 :::
 
-## Getting Started
+## What We Need From You
 
-### Install
+Run anvil on a real TypeScript or JavaScript project and tell us where it helps,
+where it gets in the way, and where the output is unclear.
 
-**macOS / Linux:**
+The most useful feedback answers these questions:
+
+- Did install, login, and project setup work without help?
+- Did the first scan find anything useful?
+- Were warnings accurate, actionable, and easy to triage?
+- Did watch mode feel fast enough to leave running while coding?
+- Did any command fail, hang, produce noisy output, or ask for unclear input?
+- What would stop you from using this on every save?
+
+Use a project you know well. A small production app, internal tool, or active
+side project is better than a toy repo because you can judge whether findings
+are real.
+
+## Before You Start
+
+You will need:
+
+- A macOS, Linux, or Windows machine.
+- A TypeScript or JavaScript project you are comfortable testing against.
+- Git installed, ideally with a clean working tree or a disposable branch.
+- Beta access tied to the email or GitHub account we invited.
+- Node.js and your project package manager if you want gate checks to run your
+  existing lint or test commands. anvil itself does not require Node.js.
+
+:::tip Use a disposable branch
+
+`anvil init` creates `.anvilrc` and `.anvil/` in your project. Run it on a
+branch you can discard if you only want to test the setup flow.
+
+:::
+
+## Install or Upgrade
+
+If anvil is not installed yet, use one of these install methods.
+
+**macOS / Linux installer:**
 
 ```bash
 curl -fsSL https://install.eddacraft.ai | sh
 ```
 
-**Windows:**
+**Windows PowerShell installer:**
 
 ```powershell
 irm https://install.eddacraft.ai/windows | iex
@@ -54,226 +91,327 @@ brew install eddacraft/tap/anvil
 winget install eddacraft.anvil
 ```
 
-No Node.js or npm required. The installer downloads a single static binary for
-your platform.
-
-### Authenticate
-
-```bash
-anvil auth login
-```
-
-The default flow is device-code login in your browser. If you need email OTP,
-run `anvil auth login --otp`.
-
-### Set up a project
-
-```bash
-cd your-project
-anvil init
-```
-
-The init wizard will detect your project type and suggest a default
-configuration.
-
-For a full walkthrough, see the [Quickstart](./quickstart.md).
-
-## How to Upgrade
-
-**macOS / Linux:**
-
-```bash
-curl -fsSL https://install.eddacraft.ai | sh
-```
-
-**Windows (PowerShell):**
+**Scoop (Windows):**
 
 ```powershell
-irm https://install.eddacraft.ai/windows | iex
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
 ```
 
-**Homebrew (macOS / Linux):**
+If you already have anvil installed, upgrade before each beta test session.
+
+```bash
+anvil update
+anvil --version
+```
+
+If you installed with Homebrew, WinGet, or Scoop, use that package manager
+instead when the built-in updater tells you to.
 
 ```bash
 brew upgrade eddacraft/tap/anvil
 ```
-
-**Built-in updater:**
-
-```bash
-anvil update
-```
-
-**WinGet / Scoop (Windows):**
 
 ```powershell
 winget upgrade eddacraft.anvil
 scoop update anvil
 ```
 
-Verify your version:
+For 0.4.0-beta upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
+
+## Sign In
+
+Start the default device-code login flow:
 
 ```bash
-anvil --version
+anvil auth login
 ```
 
-We recommend upgrading before each testing session to ensure you have the latest
-fixes and features. For testing, assume a fresh Rust CLI install rather than a
-legacy Node.js migration path.
+anvil prints a short code and a verification URL. Open the URL, enter the code,
+and return to the terminal.
 
-## What to Test
-
-The following areas are organised by feature rather than release. For each area,
-we have listed the key commands to try and the kind of feedback that is most
-useful.
-
-### Core Scanning
-
-anvil's primary function: analysing your codebase for issues.
-
-**Commands to try:**
+If you need email OTP instead, run:
 
 ```bash
-anvil check --all        # Scan for anti-patterns and violations
-anvil watch              # Watch mode — re-scans on file changes
+anvil auth login --otp
 ```
 
-**What we are looking for:**
-
-- False positives (findings that are not real issues)
-- Missed patterns (real issues that anvil should have caught)
-- Performance on large projects (scan time, memory usage)
-- Accuracy of architecture detection and anti-pattern identification
-
-### Project Setup
-
-The initial configuration experience.
-
-**Commands to try:**
+Check the stored identity:
 
 ```bash
-anvil init               # Interactive setup wizard
+anvil auth whoami
 ```
 
-**What we are looking for:**
+## Run a 30-Minute Test Pass
 
-- Edge cases with different project structures (nested packages, non-standard
-  layouts)
-- Package manager detection issues (npm, pnpm, yarn, bun)
-- Monorepo handling
-- Whether the generated `.anvilrc` makes sense for your project
+This is the recommended beta path if you only have one short session.
 
-### Interactive Tutorial
-
-A guided introduction to anvil's features.
-
-**Commands to try:**
+### 1. Try the Tutorial
 
 ```bash
 anvil tutorial
 ```
 
-**What we are looking for:**
+Record whether the tutorial explains the product clearly and whether any step is
+confusing, too slow, or broken in your terminal.
 
-- Clarity of explanations
-- Pacing (too fast, too slow, about right)
-- Anything confusing or unclear
-- Steps that do not work as described
-
-### Architecture Tools
-
-Tools for understanding and enforcing your project's architecture.
-
-**Commands to try:**
+### 2. Initialise a Real Project
 
 ```bash
-anvil architecture show          # View current architecture boundaries
-anvil architecture validate      # Validate architecture definition
-anvil drift snapshot --name v1   # Capture a dependency snapshot
-anvil drift list                 # List available snapshots
-anvil drift compare v1 v2        # Compare two snapshots
-anvil drift report               # Generate a drift report
+cd your-project
+anvil init
 ```
 
-**What we are looking for:**
+The setup flow creates `.anvilrc`, creates `.anvil/`, and now runs a first
+sample analysis so you see useful signal immediately.
 
-- Boundary detection accuracy
-- Drift detection usefulness
-- Whether the output helps you understand your project's structure
+Record:
 
-### CI and Integrations
+- Whether project type, package manager, Git state, and TypeScript detection
+  were correct.
+- Whether the generated `.anvilrc` makes sense for your project.
+- Whether the first scan found useful warnings or produced noise.
 
-anvil integrates with your existing development workflow.
+If you have already initialised the project and want to retest setup, run:
 
-**Available integrations:**
+```bash
+anvil init --force
+```
 
-- GitHub Action
-- VS Code extension
+### 3. Run the Main Scan
 
-**What we are looking for:**
+```bash
+anvil check --all
+```
 
-- Setup friction (was it easy to get running?)
-- Reliability (does it work consistently?)
-- Whether the output is useful in CI contexts
+Then try the changed-file path:
 
-## Reporting Issues
+```bash
+anvil check --changed
+anvil check --changed --staged
+```
 
-Please report issues on GitHub:
+Record:
+
+- Warnings that are definitely real.
+- Warnings that are false positives.
+- Real problems you expected anvil to catch but it missed.
+- Output that is too vague to act on.
+
+### 4. Leave Watch Mode Running
+
+Start source-file watch mode:
+
+```bash
+anvil watch --source
+```
+
+Save a TypeScript or JavaScript file. Watch should print the active scope and
+respond when files change.
+
+Try the 0.4.0-beta watch filters:
+
+```bash
+anvil watch --patterns "src/**/*.ts,src/**/*.tsx"
+anvil watch --exclude "dist/**,coverage/**"
+```
+
+Record:
+
+- Whether the startup banner makes the active watch scope clear.
+- Whether save-time feedback feels fast enough.
+- Whether any files are missed or unexpectedly included.
+- Whether `--exclude` glob behaviour is clear. Bare names such as `dist` only
+  match that exact path; use `dist/**` to exclude contents.
+
+Press `Ctrl+C` to stop watch mode.
+
+### 5. Run Diagnostics and Status
+
+```bash
+anvil doctor
+anvil status
+```
+
+Record whether remediation steps are specific enough when something is missing,
+misconfigured, or skipped.
+
+### 6. Try a Gate Run
+
+```bash
+anvil gate --profile dev
+```
+
+If your project has CI-like dependencies available locally, also try:
+
+```bash
+anvil gate --profile ci
+```
+
+Record whether gate failures clearly explain what failed and what to do next.
+
+## Optional Deeper Areas
+
+If you have more time, test the areas below.
+
+### Architecture Boundaries
+
+If your project has clear layers, create `.anvil/architecture.yaml` and validate
+it:
+
+```bash
+anvil architecture validate
+anvil architecture show
+anvil check --all
+```
+
+Useful feedback includes whether layer names, glob patterns, and violation
+output map to how you think about the project.
+
+For a walkthrough, see [First Project](./first-project.md).
+
+### Drift Snapshots
+
+Capture and compare dependency snapshots:
+
+```bash
+anvil drift snapshot --name before-test
+anvil drift list
+anvil drift report
+```
+
+After making a small change or finishing a test task, capture a second snapshot
+and compare them:
+
+```bash
+anvil drift snapshot --name after-test
+anvil drift compare before-test after-test
+```
+
+Useful feedback includes whether the report helps you understand how
+architecture changes over time.
+
+### Policies
+
+Explore available policies:
+
+```bash
+anvil policy list
+anvil policy explain AP-003
+```
+
+Useful feedback includes whether policy names, severity, and explanations match
+the issue you saw in the scan output.
+
+### Integrations
+
+Try the integrations that match your workflow:
+
+- [GitHub Actions](./integrations/github.md)
+- [VS Code](./integrations/vscode.md)
+- [MCP / AI editor configuration](./integrations/mcp.md)
+
+Useful feedback includes setup friction, unclear permissions, and whether the
+same findings appear consistently across CLI, editor, and CI surfaces.
+
+## Reporting Feedback
+
+Report issues on GitHub:
 
 **[github.com/eddacraft/anvil/issues](https://github.com/eddacraft/anvil/issues)**
 
-### What to include
+Use the `beta-feedback` label for general observations, `bug` for broken
+behaviour, and `enhancement` for improvement suggestions.
 
-- anvil version (`anvil --version`)
-- Operating system, version, and architecture:
-  - macOS / Linux: `uname -a`
-  - Windows (PowerShell): `[System.Environment]::OSVersion` and
-    `$env:PROCESSOR_ARCHITECTURE`
-- Steps to reproduce the issue
-- Expected behaviour vs actual behaviour
-- Any relevant output or error messages
+### Include This Information
 
-### Suggested labels
+- anvil version from `anvil --version`.
+- Operating system, terminal, and architecture.
+- Installation method: installer, Homebrew, WinGet, Scoop, or manual.
+- Command you ran.
+- Expected behaviour.
+- Actual behaviour.
+- Full error output or the smallest useful excerpt.
+- Whether you were online, offline, behind VPN, or behind a corporate proxy.
+- Whether the project is a monorepo, package workspace, or single-package repo.
 
-| Label           | Use for                                     |
-| --------------- | ------------------------------------------- |
-| `beta-feedback` | General feedback or observations            |
-| `bug`           | Something is broken or behaves incorrectly  |
-| `enhancement`   | Feature requests or improvement suggestions |
+Helpful environment commands:
+
+```bash
+anvil --version
+anvil doctor
+```
+
+```bash
+# macOS / Linux
+uname -a
+```
+
+```powershell
+# Windows PowerShell
+[System.Environment]::OSVersion
+$env:PROCESSOR_ARCHITECTURE
+```
+
+### Feedback Template
+
+```markdown
+## Summary
+
+One sentence describing what happened.
+
+## Environment
+
+- anvil version:
+- OS / terminal:
+- Install method:
+- Project type:
+
+## Steps
+
+1. Ran `...`
+2. Expected `...`
+3. Saw `...`
+
+## Notes
+
+- Was the output actionable?
+- Did this block you or just feel confusing?
+- Can you share a reduced repro or screenshot?
+```
 
 ## Known Limitations
 
-- **TypeScript and JavaScript projects only** — support for other languages is
-  planned but not yet available.
-- **False positives on unconventional structures** — some anti-pattern detectors
-  may flag valid code in projects with non-standard layouts.
-- **Memory system is new** — pattern detection accuracy improves over time as
-  anvil observes more of your project. Early results may be noisy.
-- **Windows ARM (aarch64)** — builds are provided but not yet tested on ARM
-  Windows devices. Please report any issues you encounter.
+- **Primary language coverage is TypeScript and JavaScript.** Other language
+  surfaces are expanding, but the beta is strongest on TS/JS projects.
+- **Gate checks may call your existing tools.** If lint, test, OPA, or other
+  project tools are missing locally, `anvil gate` may skip or fail those checks.
+- **Architecture checks need an architecture definition.** Use
+  `.anvil/architecture.yaml` when you want boundary enforcement.
+- **Some legacy or unconventional projects may be noisy.** False-positive
+  reports are especially useful when you can explain why the code is valid.
+- **Windows ARM is available but less exercised.** Please report install and
+  PATH issues if you test on Windows ARM hardware.
 
 ## FAQ
 
-**Do I need to be online?** Authentication requires an internet connection.
-After initial setup, scanning works entirely offline.
+**Do I need to be online?** Authentication and update checks need an internet
+connection. Local scans continue to work after setup.
 
-**Can I use this on private or proprietary code?** Yes. anvil runs locally on
-your machine. No source code is sent to external services.
+**Is source code sent to EddaCraft?** No. anvil runs analysis locally. Issue
+reports should only include code snippets you are allowed to share.
 
-**Do I need Node.js?** The anvil binary itself has no runtime dependencies.
-However, some gate checks (lint, test) shell out to your project's package
-manager, so Node.js and pnpm/npm are still needed if those checks are enabled.
+**Do I need Node.js?** Not for anvil itself. Your project may still need Node.js
+and a package manager when gate checks run your existing lint or test commands.
 
-**How do I reset my project configuration?** Run `anvil init --force` to
-regenerate your configuration from scratch.
+**How do I reset project configuration?** Run `anvil init --force` to regenerate
+configuration from scratch.
 
-**Where is my data stored?** In the `.anvil/` directory in your project root.
-This directory contains your configuration, baselines, suppressions, and memory
-data.
+**Where is project data stored?** anvil stores project configuration, snapshots,
+cache data, and suppressions under `.anvil/` in your project root.
 
-**How often should I upgrade?** We recommend upgrading before each testing
-session. Beta releases are frequent and often include fixes for issues reported
-by testers.
+**How often should I upgrade?** Upgrade before each beta test session. Beta
+releases are frequent and often include fixes from tester reports.
 
 ---
 

@@ -814,11 +814,12 @@ jobs:
           # contents:write on eddacraft/scoop-bucket; the manifest was
           # pushed manually via the same gh api call from a dev machine
           # (commit eddacraft/scoop-bucket@4f3becf6). See
-          # docs/runbooks/release-token-rotation.md for the required
-          # scope and the rotation procedure.
+          # docs/runbooks/release-token-scope.md for the required
+          # scope; the fix is usually edit-in-place on the existing
+          # PAT (no rotation), and the runbook walks both paths.
           PREFLIGHT_ERR=$(mktemp)
           if ! gh api "repos/${BUCKET}" --silent 2>"$PREFLIGHT_ERR"; then
-            echo "::error title=Scoop bucket pre-flight failed::ANVIL_RELEASES_TOKEN cannot access ${BUCKET}. See docs/runbooks/release-token-rotation.md for the required PAT scope (contents:write on eddacraft/scoop-bucket) and the rotation procedure."
+            echo "::error title=Scoop bucket pre-flight failed::ANVIL_RELEASES_TOKEN cannot READ ${BUCKET}. This is usually a scope issue — the bucket is missing from the fine-grained PAT's selected-repos list, the token lost SSO authorisation, or the token was revoked. See docs/runbooks/release-token-scope.md for the edit-in-place fix (add the repo + verify Metadata: Read). The PUT below additionally needs Contents: Read and write."
             cat "$PREFLIGHT_ERR" >&2
             rm -f "$PREFLIGHT_ERR"
             exit 1
@@ -846,7 +847,7 @@ jobs:
 
           if [ "$PUT_OK" = "0" ]; then
             if grep -qiE 'HTTP 403|not accessible' "$PUT_ERR"; then
-              echo "::error title=Scoop bucket write denied::ANVIL_RELEASES_TOKEN passed the read pre-flight but cannot write to ${BUCKET}. The PAT needs contents:write on eddacraft/scoop-bucket. See docs/runbooks/release-token-rotation.md."
+              echo "::error title=Scoop bucket write denied::ANVIL_RELEASES_TOKEN passed the read pre-flight but cannot write to ${BUCKET}. The PAT needs contents:write on eddacraft/scoop-bucket. See docs/runbooks/release-token-scope.md."
             else
               echo "::error title=Scoop manifest push failed::Unexpected error pushing ${TARGET} to ${BUCKET}."
             fi

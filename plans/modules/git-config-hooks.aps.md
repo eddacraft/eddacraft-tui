@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GHOOK | —     | In Progress | 1/6 |
+| GHOOK | —     | In Progress | 3/6 |
 
 **Last reviewed:** 2026-04-26
 
@@ -100,7 +100,7 @@ configuration.
 
 ### GHOOK-002: `anvil hooks` config-mode install and uninstall
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Let Anvil install and remove native config-based hooks without relying on shell files in `.husky/` or `.git/hooks/`.
 - **Expected Outcome:** `anvil hooks` can manage config-backed pre-commit and pre-push entries.
 - **Files:**
@@ -111,7 +111,7 @@ configuration.
 
 ### GHOOK-003: Status, doctor, and onboarding recognise config hooks
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Treat config-based hooks as first-class in diagnostics and setup flows.
 - **Expected Outcome:** Status, doctor, tutorial, and onboarding surfaces report config hooks accurately instead of assuming Husky or direct hook files.
 - **Files:**
@@ -168,17 +168,17 @@ configuration.
 | Phase | Total | Done | In Progress | Todo |
 | ----- | ----- | ---- | ----------- | ---- |
 | Policy and compatibility | 2 | 1 | 0 | 1 |
-| Product support | 2 | 0 | 0 | 2 |
+| Product support | 2 | 2 | 0 | 0 |
 | Repo and docs rollout | 2 | 0 | 0 | 2 |
-| **Total** | 6 | 1 | 0 | 5 |
+| **Total** | 6 | 3 | 0 | 3 |
 
 ### Item Detail
 
 | ID | Status | Notes |
 | -- | ------ | ----- |
 | GHOOK-001 | Complete | Compatibility doc + baseline pinned in `package.json` engines.git |
-| GHOOK-002 | Todo | Adds native config-hook install and uninstall mode |
-| GHOOK-003 | Todo | Makes status, doctor, and onboarding detect config hooks |
+| GHOOK-002 | Done | Native config-hook install and uninstall via `--config`, with Git 2.54 refusal guard |
+| GHOOK-003 | Done | Status, doctor, onboarding, and tutorial copy recognise config-mode entries; shared predicate lifted to `anvil_kernel_types::hooks` |
 | GHOOK-004 | Todo | Defines safe coexistence with Husky, file hooks, and other managers |
 | GHOOK-005 | Todo | Decides whether this repo should migrate off Husky |
 | GHOOK-006 | Todo | Updates docs once detection and coexistence rules are settled |

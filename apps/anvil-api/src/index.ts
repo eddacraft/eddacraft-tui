@@ -58,7 +58,10 @@ app.use(
     origin: (origin) => matchOrigin(origin) ?? '',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Waitlist-Admin-Token'],
-    maxAge: 86400,
+    // Short preflight cache: a longer TTL means an API outage poisons
+    // browsers for the full TTL after recovery (a failed preflight gets
+    // remembered as "no preflight allowed").
+    maxAge: 300,
   })
 );
 

@@ -3,9 +3,9 @@
 
 # AI Guardrail Profile
 
-| Scope   | Owner | Priority | Status | Progress |
-| ------- | ----- | -------- | ------ | -------- |
-| AIGUARD | —     | high     | Draft  | 0/4      |
+| Scope   | Owner | Priority | Status   | Progress |
+| ------- | ----- | -------- | -------- | -------- |
+| AIGUARD | —     | high     | Complete | 4/4      |
 
 **Last reviewed:** 2026-04-26
 
@@ -82,12 +82,12 @@ This gives teams using external AI tools a predictable safety harness.
 
 ## Acceptance Criteria
 
-- [ ] Single command runs all guardrail checks with one exit code
-- [ ] Missing or invalid config returns a clear blocking diagnostic
-- [ ] Output includes rule id, severity, summary, and fix guidance
-- [ ] JSON output format is documented and stable
-- [ ] Profile can be enabled without changing default behaviour
-- [ ] Typical run completes in < 5 seconds for mid-size repos
+- [x] Single command runs all guardrail checks with one exit code
+- [x] Missing or invalid config returns a clear blocking diagnostic
+- [x] Output includes rule id, severity, summary, and fix guidance
+- [x] JSON output format is documented and stable
+- [x] Profile can be enabled without changing default behaviour
+- [x] Typical run completes in < 5 seconds for mid-size repos
 
 ## Tasks
 
@@ -117,25 +117,28 @@ This gives teams using external AI tools a predictable safety harness.
 
 ### AIGUARD-003: CLI profile integration
 
+- **Status:** Complete
 - **Intent:** Expose the profile via CLI flags
 - **Expected Outcome:** `anvil gate --profile ai` runs guardrail profile
 - **Scope:** `crates/anvil-cli/src/commands/gate.rs`
 - **Non-scope:** IDE integration
 - **Files:**
-  - `crates/anvil-cli/src/commands/gate.rs` (profile flag)
-  - `crates/anvil-cli/src/commands/gate_test.rs`
+  - `crates/anvil-cli/src/commands/gate.rs` (allow-list selection, strict-config + JSON-output defaults, diagnostic envelope, command-safety dispatcher)
+  - `crates/anvil-cli/src/commands/check_catalog.rs` (command-safety registration in CHECK_DEFINITIONS + GATE_INTERNAL_CHECKS)
+  - `crates/anvil-cli/tests/ai_guardrail_profile.rs` (end-to-end JSON envelope assertion)
 - **Dependencies:** AIGUARD-001, AIGUARD-002
-- **Validation:** `cargo test -p eddacraft-anvil -- gate_profile`
+- **Validation:** `cargo test -p eddacraft-anvil -- ai_guardrail` and the colocated unit tests in `gate.rs`
 - **Confidence:** medium
 
 ### AIGUARD-004: Documentation and examples
 
+- **Status:** Complete
 - **Intent:** Provide AI workflow guidance and sample outputs
 - **Expected Outcome:** Guide shows how to use the profile with external AI
-- **Scope:** `docs/guides/`
+- **Scope:** `docs/public/anvil/guides/`
 - **Non-scope:** Marketing copy
 - **Files:**
-  - `docs/guides/ai-guardrail-profile.md`
+  - `docs/public/anvil/guides/ai-guardrail-profile.md`
 - **Dependencies:** AIGUARD-003
 - **Validation:** Manual doc review
 - **Confidence:** medium

@@ -105,4 +105,35 @@ describe('Vercel resources', () => {
     const flag = envVars.find((e) => e.inputs.key === 'ADMIN_PER_OPERATOR_KEYS');
     expect(flag).toBeDefined();
   });
+
+  // Guards the NEXT_PUBLIC_ auto-public rule in components/vercel-app.ts.
+  // Marking NEXT_PUBLIC_* vars sensitive silently breaks Next.js builds
+  // because Vercel does not expose sensitive vars to the build environment.
+  it('marks NEXT_PUBLIC_* env vars as non-sensitive', () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    const apiUrl = envVars.find((e) => e.inputs.key === 'NEXT_PUBLIC_API_URL');
+    expect(apiUrl).toBeDefined();
+    expect(apiUrl!.inputs.sensitive).toBe(false);
+  });
+
+  it('keeps secret env vars sensitive', () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    for (const key of [
+      'DATABASE_URL',
+      'RESEND_API_KEY',
+      'ADMIN_KEY',
+      'ADMIN_KEY_PEPPER',
+      'TOKEN_PEPPER',
+      'LICENSE_SIGNING_KEY',
+      'GITHUB_CLIENT_SECRET',
+    ]) {
+      const v = envVars.find((e) => e.inputs.key === key);
+      expect(v, `expected ${key} to be configured`).toBeDefined();
+      expect(v!.inputs.sensitive, `expected ${key} to be sensitive`).toBe(true);
+    }
+  });
 });

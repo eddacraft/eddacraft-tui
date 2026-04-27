@@ -145,9 +145,9 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
 | [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 4/7 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
-| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | 0/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF |
+| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Ready | 1/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF — RTAI-001 phase-0 spike landed 2026-04-26 ([report](./specs/2026-04-26-rtai-001-spike-report.md)) promoted module Proposed → Ready per RTAI-001 gate |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | In Progress | 4/8 | RCLI; RCLI2-001..-004 shipped per 2026-04-26 freshness audit (commits 1e44ef2d / c5679432 / a2297dca / 06d764d4); -005..-008 still Proposed (gated on OPAE) |
-| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | 0/20 | RCLI |
+| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | In Progress | 1/20 | RCLI |
 | [tui-polish](./archive/modules/tui-polish.aps.md) | POLISH | Complete | 8/8 | RCLI, RATS |
 | [restore-welcome-screen](./archive/modules/restore-welcome-screen.aps.md) | WELCOME | Complete | 18/18 | RCLI, RATS |
 | [distribution-pipeline](./archive/modules/distribution-pipeline.aps.md) | DIST | Complete | 8/10 (1 deferred, 1 optional-deferred) | RCLI |
@@ -241,7 +241,7 @@ implementation targets.
 | [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation, crates/anvil-policy |
 | [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration, crates/anvil-policy |
 | [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety, crates/anvil-kernel |
-| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation, crates/anvil-kernel |
+| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Complete | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation, crates/anvil-kernel |
 | [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
 | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
 | [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Draft | compliance-reporting, policy-lifecycle, eval-harness-integration |
@@ -279,7 +279,7 @@ when specific work is identified.
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 11/22 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + final release-scope refresh; 10 remaining Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
-| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 1/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **In Progress** (GHOOK-001 baseline + rollout policy landed) |
+| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 3/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **In Progress** (GHOOK-001 baseline + rollout policy; GHOOK-002 `--config` install/uninstall landed; GHOOK-003 status/doctor/onboarding/tutorial detect config-mode entries) |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | 3/11 | tools/starters/acknowledgements/ (kit + parameterised generator), cargo-about, deny.toml — **In Progress** (owner: joshuaboys; ATTRIB-001/002/003 landed; v1 entry points retired) |
 

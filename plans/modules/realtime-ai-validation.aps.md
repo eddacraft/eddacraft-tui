@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| RTAI | —     | Proposed | 0/9      |
+| RTAI | —     | Ready    | 1/9      |
 
 **Last reviewed:** 2026-04-26
 
@@ -261,7 +261,15 @@ convention" section). Concretely:
   decisions written up; module promotion from Proposed → Ready
   is gated on this task closing.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Done — landed on `rtai-001-spike` (commit pending PR
+  merge). Spike measured p95 1.4 ms round-trip on the in-process
+  loop fixture (vs ADR-031 mid-edit p95 budget of 80 ms), with one
+  diagnostic per round-trip on `secret-detection`. Decisions
+  recorded in
+  [`plans/specs/2026-04-26-rtai-001-spike-report.md`](../specs/2026-04-26-rtai-001-spike-report.md):
+  (a) single `scan_buffer` RPC method discriminated by `Mode`, not
+  per-mode methods; (b) `DriverClient` owns the debouncer, drivers
+  parameterise the window. Spike binary: `crates/spike/src/rtai_mid_edit.rs`.
 
 ---
 
@@ -544,21 +552,30 @@ convention" section). Concretely:
    the user their own keystrokes). If the answer is "MCP can
    block, editor cannot", that asymmetry needs to be in the
    protocol from RTAI-002 — not bolted on later.
-3. **AI-001 reasoning-pattern rule home: DECIDED 2026-04-26 — Option (a).**
-   Extend `crates/anvil-checks` with a new `reasoning/` submodule
-   alongside `secret/`, `antipattern/`, and `command_safety/`.
-   AI-001 (appeal-to-authority) lands at
-   `crates/anvil-checks/src/reasoning/appeal_to_authority.rs` and
-   registers through the existing rule registry. Rationale:
-   first rule has no infrastructure needs that justify a separate
-   crate; reasoning-as-category lives next to other check categories
-   in the envelope `category` enum (per the diagnostic envelope
-   coordination spec at
-   `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`).
-   If the reasoning corpus later grows infrastructure-heavy
-   (NLP helpers, classifier deps), extract on real evidence —
-   `cargo new` + module move is a small reverse op. Premature
-   crate split was rejected. Tracked as task #24.
+3. **AI-001 reasoning-pattern rule home: RESOLVED 2026-04-26 —
+   Option (a) decided AND landed.** Extended `crates/anvil-checks`
+   with a new `reasoning/` submodule alongside `secret/`,
+   `antipattern/`, and `command_safety/`. AI-001
+   (appeal-to-authority) ships at
+   `crates/anvil-checks/src/reasoning/appeal_to_authority.rs`,
+   registers through `run_reasoning_check`, emits canonical
+   `Diagnostic` values (`anvil.diagnostic.v1`) tagged
+   `Category::Reasoning` per the diagnostic envelope coordination
+   spec, and honours `@anvil-ignore AI-001` via the shared
+   ADR-029 `parse_suppression` parser. Comment-region only
+   (`//`, `/* … */`, `#`, `<!-- … -->`); string content with the
+   same prose does not match. Required by the RTAI launch demo
+   (Scenario B in the runbook at
+   `plans/specs/2026-04-26-rtai-demo-runbook.md`) — without it the
+   demo headline degrades to "secret-detection mid-edit". 21 unit
+   tests + 2 integration tests + 1 fixture cover positive
+   matches, string-content negatives, suppression, and the four
+   comment families. Future AI-002..AI-007 land in the same
+   submodule on the same registration path. Tracked as task #24
+   (now closed). If the reasoning corpus later grows
+   infrastructure-heavy (NLP helpers, classifier deps), extract
+   on real evidence — `cargo new` + module move is a small
+   reverse op. Premature crate split was rejected.
 4. **Confidence scoping is uniformly medium.** All RTAI-002
    onwards tasks are marked `Confidence: medium` against a
    stack (INTD + DRVR) that does not yet exist. RTAI-001 will

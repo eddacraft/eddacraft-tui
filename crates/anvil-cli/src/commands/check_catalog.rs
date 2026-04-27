@@ -85,6 +85,15 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         gate_supported: true,
         gate_config_supported: true,
     },
+    CheckDefinition {
+        canonical_name: "command-safety",
+        internal_name: "command-safety",
+        description: "Detect dangerous shell commands in plan-described scripts",
+        init_enabled: false,
+        init_visible: false,
+        gate_supported: true,
+        gate_config_supported: true,
+    },
 ];
 
 pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
@@ -99,6 +108,7 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "secret",
     "architecture",
     "policy",
+    "command-safety",
 ];
 
 pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {

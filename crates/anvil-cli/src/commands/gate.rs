@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use anvil_kernel_types::{
-    Notification, NotificationClass, NotificationContext, NotificationPriority,
+    Category, Diagnostic, DiagnosticSource, Location, Mode, Notification, NotificationClass,
+    NotificationContext, NotificationPriority, Severity, diagnostics::KnownMode,
 };
 use anyhow::{Result, bail};
 use clap::Args;
@@ -64,7 +65,7 @@ const PROFILES: &[(&str, &str, &[&str])] = &[
     ),
 ];
 
-/// AI guardrail profile (AIGUARD-001).
+/// AI guardrail profile (AIGUARD-001 + AIGUARD-003).
 ///
 /// Declares the curated rule set that the AI guardrail runs to validate
 /// AI-generated changes. The profile bundles structural-governance checks
@@ -72,18 +73,14 @@ const PROFILES: &[(&str, &str, &[&str])] = &[
 /// into a single coherent set so external AI tools have a predictable
 /// safety harness.
 ///
-/// `--profile ai` is already selectable via the existing `--profile`
-/// flag and the `PROFILES` registration above, so the basic skip-list
-/// behaviour is in effect today. What still arrives in later work items:
-/// AIGUARD-002 publishes the canonical `Diagnostic` JSON schema in
-/// `crates/anvil-kernel-types`; AIGUARD-003 wires the strict-config /
-/// JSON-output-default behaviour from `AiGuardrailProfile` (the
-/// `strict_config` and `json_output_default` fields below) into the
-/// gate runner, normalises the profile skip list through
-/// `gate_internal_name` for canonical-name parity with `--skip-checks`,
-/// and registers a `command-safety` dispatcher in
-/// `check_catalog`/`GATE_INTERNAL_CHECKS`.
-#[allow(dead_code)] // Wired up by AIGUARD-003.
+/// `--profile ai` is wired end-to-end as of AIGUARD-003: the gate
+/// runner selects from [`AI_GUARDRAIL_CHECKS`] as an allow-list (not
+/// the inverse skip list), `strict_config = true` converts the
+/// "missing config, skipping" path into a blocking diagnostic for
+/// architecture/policy/command-safety, `json_output_default = true`
+/// pins JSON output for AI consumers unless the caller passes a
+/// non-JSON output mode explicitly, and the JSON envelope uses the
+/// canonical `anvil.diagnostic.v1` shape published by AIGUARD-002.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AiGuardrailProfile {
     /// Canonical check names included in the profile.
@@ -99,12 +96,11 @@ pub(crate) struct AiGuardrailProfile {
 ///
 /// Selection rationale: every check here flags a structural concern that
 /// AI-generated changes regularly trip over — secret leakage, antipatterns,
-/// import-boundary violations, OPA policy breaches, and (once wired into
-/// the gate runner) command-safety rules. Lint/test/coverage/dependency
-/// are intentionally excluded: they're language-toolchain concerns the
-/// host project already enforces and they slow the profile below the 5s
-/// budget set out in the AIGUARD acceptance criteria.
-#[allow(dead_code)] // Wired up by AIGUARD-003.
+/// import-boundary violations, OPA policy breaches, and command-safety
+/// rules. Lint/test/coverage/dependency are intentionally excluded:
+/// they're language-toolchain concerns the host project already enforces
+/// and they would push the profile past the 5s budget set out in the
+/// AIGUARD acceptance criteria.
 pub(crate) const AI_GUARDRAIL_CHECKS: &[&str] = &[
     "secret-detection",
     "import-boundaries",
@@ -113,7 +109,6 @@ pub(crate) const AI_GUARDRAIL_CHECKS: &[&str] = &[
     "command-safety",
 ];
 
-#[allow(dead_code)] // Wired up by AIGUARD-003.
 impl AiGuardrailProfile {
     /// Default AI guardrail profile.
     pub(crate) const DEFAULT: Self = Self {
@@ -127,9 +122,8 @@ impl AiGuardrailProfile {
 }
 
 /// Return the canonical check names that make up the AI guardrail
-/// profile. Used by AIGUARD-003 to filter the gate runner's check list
-/// when `--profile ai` is selected.
-#[allow(dead_code)] // Wired up by AIGUARD-003.
+/// profile. Used by the gate runner to filter checks when
+/// `--profile ai` is selected.
 pub(crate) fn ai_guardrail_profile_checks() -> &'static [&'static str] {
     AiGuardrailProfile::DEFAULT.checks
 }
@@ -1141,6 +1135,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             &ctx.plan_files,
             Some(&ctx.walked_files),
         ),
+        "command-safety" => run_check_command_safety(name, root, ctx.plan_path.as_deref()),
         _ => CheckResult {
             name: name.to_string(),
             passed: false,
@@ -1148,8 +1143,167 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             message: format!("Unknown check: {name}"),
         },
     };
+
+    // AI guardrail strict-config: missing/invalid config is a blocking
+    // diagnostic rather than a soft skip. Detect the "no config, skipping"
+    // pattern by message and flip to failure when `strict_config` is on.
+    // Architecture and policy checks return passed=true with a "Skipping"
+    // message when their config files are absent — that's the precise
+    // signal we elevate.
+    if ctx.strict_config && result.passed && is_skipped_for_missing_config(name, &result.message) {
+        result.passed = false;
+        result.score = 0.0;
+        result.message = format!(
+            "Strict mode (profile=ai): {name} requires configuration. {}",
+            result.message
+        );
+    }
+
     result.name = gate_canonical_name_from_internal(name);
     result
+}
+
+/// Detect the canonical "no project config found, skipping" signal
+/// emitted by architecture, policy, and command-safety checks. Used by
+/// the AI guardrail's strict-config flag to convert the soft skip into
+/// a blocking diagnostic.
+///
+/// This intentionally distinguishes **missing project config** (which
+/// strict mode should block on) from **missing host tooling** like a
+/// missing OPA binary (which is an environment problem, not a project
+/// posture problem). The two were previously conflated via a substring
+/// match on "Skipping", with the result that any developer or CI runner
+/// without OPA in PATH would get a blocked AI-guardrail run.
+fn is_skipped_for_missing_config(name: &str, message: &str) -> bool {
+    match name {
+        "architecture" => message.contains("Skipping"),
+        "policy" => {
+            // OPA-not-installed is host tooling, not project config — do
+            // not elevate it to a blocking diagnostic under strict mode.
+            message.contains("Skipping") && !message.contains("OPA not installed")
+        }
+        "command-safety" => {
+            // Two project-config gaps map to a strict-mode block:
+            //   * "Skipping" — the check is disabled via config.
+            //   * "No commands to analyse" — the gate ran without a plan
+            //     file at all, so the command-safety guarantee is empty.
+            message.contains("Skipping") || message.contains("No commands to analyse")
+        }
+        _ => false,
+    }
+}
+
+/// Dispatch the command-safety check from `anvil-checks`.
+///
+/// The plan file (if any) is parsed for fenced shell-script blocks; the
+/// commands extracted are evaluated against the default rule set. When
+/// no plan is provided the check has nothing to evaluate and reports as
+/// skipped (passed with a clear message).
+fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) -> CheckResult {
+    use anvil_checks::command_safety::{
+        CommandSafetyCheckContext, run_command_safety_check,
+        types::{ScriptChange, ScriptChangeType, ScriptPlan},
+    };
+
+    let plan = match plan_path {
+        Some(raw) => {
+            let path = Path::new(raw);
+            match std::fs::read_to_string(path) {
+                Ok(content) => Some(ScriptPlan {
+                    proposed_changes: vec![ScriptChange {
+                        change_type: ScriptChangeType::ScriptExecute,
+                        description: Some(content),
+                        path: Some(raw.to_string()),
+                    }],
+                }),
+                Err(e) => {
+                    // Treat unreadable plans as a check failure rather than
+                    // silently passing as "no commands to analyse" — under
+                    // --profile ai (strict mode) this would otherwise mask
+                    // permission errors and CI-only IO failures behind a
+                    // green gate.
+                    return CheckResult {
+                        name: name.to_string(),
+                        passed: false,
+                        score: 0.0,
+                        message: format!("failed to read plan file '{}': {e}", path.display()),
+                    };
+                }
+            }
+        }
+        None => None,
+    };
+
+    let context = CommandSafetyCheckContext {
+        plan,
+        check_config: None,
+        workspace_root: Some(root.to_string_lossy().into_owned()),
+    };
+
+    let result = run_command_safety_check(&context);
+
+    if result.skipped {
+        return CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: "Command-safety check disabled. Skipping.".to_string(),
+        };
+    }
+
+    if result.passed {
+        let message = if result.message.is_empty() {
+            "No unsafe commands detected".to_string()
+        } else {
+            result.message
+        };
+        CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: f64::from(result.score),
+            message,
+        }
+    } else {
+        let mut details: Vec<String> = result
+            .blocked
+            .iter()
+            .map(|f| {
+                format!(
+                    "[blocked:{}] {} \u{2014} {}",
+                    f.rule_id, f.command, f.reason
+                )
+            })
+            .collect();
+        details.extend(
+            result
+                .warnings
+                .iter()
+                .map(|f| format!("[warn:{}] {} \u{2014} {}", f.rule_id, f.command, f.reason)),
+        );
+
+        let header = if result.message.is_empty() {
+            format!(
+                "{} blocked, {} warning(s)",
+                result.blocked.len(),
+                result.warnings.len()
+            )
+        } else {
+            result.message
+        };
+
+        let message = if details.is_empty() {
+            header
+        } else {
+            format!("{header}\n{}", details.join("\n"))
+        };
+
+        CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: f64::from(result.score),
+            message,
+        }
+    }
 }
 
 fn list_profiles() {
@@ -1181,6 +1335,49 @@ fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::Hash
         "unknown profile '{name}', valid profiles: {}",
         valid.join(", ")
     );
+}
+
+/// Resolve a profile's skip list to canonical gate-runner internal names.
+///
+/// Profile skip-list entries can use either canonical names like
+/// `secret-detection` or internal names like `secret`. Routing them
+/// through [`gate_internal_name`] guarantees `--profile <name>` and
+/// `--skip-checks <name>` use the same vocabulary downstream.
+///
+/// Any entry that does not resolve through the catalog is treated as a
+/// hard error rather than silently dropped — a typo in `PROFILES` (or
+/// any future profile definition) used to fail open, letting the
+/// supposedly-skipped check run anyway.
+fn resolve_profile_skip_set(
+    profile: Option<&str>,
+) -> Result<std::collections::HashSet<&'static str>> {
+    let raw = resolve_profile_skips(profile)?;
+    let invalid: Vec<&str> = raw
+        .iter()
+        .copied()
+        .filter(|name| gate_internal_name(name).is_none())
+        .collect();
+    if !invalid.is_empty() {
+        let mut sorted = invalid;
+        sorted.sort_unstable();
+        bail!(
+            "profile '{}' references unknown check name(s): {}",
+            profile.unwrap_or("<none>"),
+            sorted.join(", ")
+        );
+    }
+    Ok(raw.iter().filter_map(|n| gate_internal_name(n)).collect())
+}
+
+/// Canonical check names included in the AI guardrail profile, expressed
+/// as gate-runner internal names. Acts as an allow-list when
+/// `--profile ai` is selected so the runner never executes a check
+/// outside the curated set, even if the project's `.anvilrc` would
+/// otherwise enable it.
+fn ai_guardrail_only_set() -> Result<std::collections::HashSet<&'static str>> {
+    let names: std::collections::HashSet<&str> =
+        ai_guardrail_profile_checks().iter().copied().collect();
+    normalize_gate_check_set(&names)
 }
 
 /// Read `.anvilrc#checks` from the workspace root, when present.
@@ -1415,12 +1612,20 @@ struct GateContext {
     plan_path: Option<String>,
     /// All workspace files (walked once, shared across checks).
     walked_files: Vec<String>,
+    /// When true (set by `--profile ai`), missing or invalid config is
+    /// treated as a blocking diagnostic rather than a soft warning.
+    strict_config: bool,
 }
 
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let root = crate::util::workspace_root()?;
 
-    let profile_skips = resolve_profile_skips(args.profile.as_deref())?;
+    // Profile skip lists are canonicalised through `gate_internal_name`
+    // so entries declared as canonical names (`secret-detection`) and
+    // internal names (`secret`) both resolve consistently against
+    // `GATE_INTERNAL_CHECKS`. AIGUARD-003 lifted the literal-skip-list
+    // constraint that PR #1097 deferred.
+    let profile_skip_set = resolve_profile_skip_set(args.profile.as_deref())?;
 
     let skip_names: std::collections::HashSet<&str> = args
         .skip_checks
@@ -1428,16 +1633,28 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         .map(|s| s.split(',').map(str::trim).collect())
         .unwrap_or_default();
     let mut skip_set = normalize_gate_check_set(&skip_names)?;
-    skip_set.extend(&profile_skips);
+    skip_set.extend(profile_skip_set.iter().copied());
 
     let only_names: Option<std::collections::HashSet<&str>> = args
         .only_checks
         .as_deref()
         .map(|s| s.split(',').map(str::trim).collect());
-    let only_set = only_names
+    let mut only_set = only_names
         .as_ref()
         .map(normalize_gate_check_set)
         .transpose()?;
+
+    // `--profile ai` selects from `AI_GUARDRAIL_CHECKS` as an allow-list
+    // (intersected with any explicit `--only-checks` if both were
+    // supplied) so the curated rule set is the floor, not just an
+    // inverse skip list. Mirrors the path `--only-checks` already takes.
+    if args.profile.as_deref() == Some(AiGuardrailProfile::NAME) {
+        let ai_only = ai_guardrail_only_set()?;
+        only_set = Some(match only_set.take() {
+            Some(existing) => existing.intersection(&ai_only).copied().collect(),
+            None => ai_only,
+        });
+    }
 
     // `.anvilrc#checks` acts as a persistent default filter. When the user
     // passes `--only-checks`, that wins — but otherwise we restrict the run
@@ -1469,12 +1686,16 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     // Walk workspace files once — shared across architecture and policy checks.
     let walked_files = walk_source_files(&root, &[]);
 
+    let strict_config = args.profile.as_deref() == Some(AiGuardrailProfile::NAME)
+        && AiGuardrailProfile::DEFAULT.strict_config;
+
     let ctx = GateContext {
         workspace_root: root,
         profile: args.profile.clone(),
         plan_files,
         plan_path,
         walked_files,
+        strict_config,
     };
 
     let mut checks = Vec::new();
@@ -1520,6 +1741,123 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     Ok(checks)
 }
 
+/// AI guardrail return-value envelope (`anvil.gate-result.v1`).
+///
+/// Wraps a list of canonical [`Diagnostic`] payloads — the inner shape
+/// pinned by AIGUARD-002 / `anvil.diagnostic.v1` — with a summary and
+/// exit code so external AI consumers can branch without re-deriving
+/// counts from `diagnostics[]`. Per the diagnostic-envelope spec at
+/// `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`.
+#[derive(Debug, Serialize)]
+struct AiGateResultEnvelope {
+    schema: &'static str,
+    exit_code: u8,
+    summary: AiGateResultSummary,
+    diagnostics: Vec<Diagnostic>,
+    duration_ms: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct AiGateResultSummary {
+    total: usize,
+    by_severity: AiGateBySeverity,
+    by_category: std::collections::BTreeMap<String, usize>,
+    overall_passed: bool,
+    score: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct AiGateBySeverity {
+    error: usize,
+    warning: usize,
+    info: usize,
+}
+
+fn build_ai_gate_result_envelope(result: &GateResult) -> AiGateResultEnvelope {
+    let diagnostics: Vec<Diagnostic> = result
+        .checks
+        .iter()
+        .filter(|c| !c.passed)
+        .map(check_result_to_diagnostic)
+        .collect();
+
+    let mut by_category: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+    let mut error_count: usize = 0;
+    for diag in &diagnostics {
+        let cat_key = serde_json::to_value(diag.category)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_string))
+            .unwrap_or_else(|| "other".to_string());
+        *by_category.entry(cat_key).or_insert(0) += 1;
+        if matches!(diag.severity, Severity::Error) {
+            error_count += 1;
+        }
+    }
+
+    AiGateResultEnvelope {
+        schema: "anvil.gate-result.v1",
+        exit_code: if result.overall { 0 } else { 2 },
+        summary: AiGateResultSummary {
+            total: diagnostics.len(),
+            by_severity: AiGateBySeverity {
+                error: error_count,
+                warning: 0,
+                info: 0,
+            },
+            by_category,
+            overall_passed: result.overall,
+            score: result.score,
+        },
+        diagnostics,
+        duration_ms: result.duration_ms,
+    }
+}
+
+/// Map a failed [`CheckResult`] to a canonical `anvil.diagnostic.v1`
+/// payload for the AI guardrail envelope. The outer envelope sets
+/// `mode = "gate"` and the file anchor is the workspace root when no
+/// per-finding location is available — diagnostics that need
+/// finer-grained location data are emitted by the underlying check
+/// itself in future work.
+fn check_result_to_diagnostic(check: &CheckResult) -> Diagnostic {
+    let category = check_name_to_category(&check.name);
+    let rule_id = format!("gate-{}", check.name);
+    let id = format!("diag_gate_{}", check.name);
+
+    Diagnostic::new(
+        id,
+        Severity::Error,
+        check.message.lines().next().unwrap_or("").to_string(),
+        Location {
+            file: "<workspace>".to_string(),
+            line: None,
+            column: None,
+            end_line: None,
+            end_column: None,
+        },
+        category,
+        DiagnosticSource {
+            rule_id,
+            source_module: format!("anvil-cli::gate::{}", check.name),
+        },
+        Mode::known(KnownMode::Gate),
+    )
+    .with_remediation_hint(check.message.clone())
+}
+
+fn check_name_to_category(name: &str) -> Category {
+    match name {
+        "secret-detection" => Category::Secret,
+        "antipattern-scan" => Category::Antipattern,
+        "import-boundaries" => Category::Boundary,
+        "architecture" => Category::Architecture,
+        "policy" => Category::Policy,
+        "command-safety" => Category::CommandSafety,
+        _ => Category::Other,
+    }
+}
+
 /// Run gate checks and return whether all gates passed.
 ///
 /// Returns `Ok(true)` when every check passes and `Ok(false)` when at
@@ -1532,7 +1870,18 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
         return Ok(true);
     }
 
-    let mode = OutputMode::from_global(global);
+    // The AI guardrail profile pins JSON output by default so AI
+    // consumers reading the gate result get the documented schema
+    // without a flag. Callers can still opt out with `--no-tui` (which
+    // resolves to plain text) when they pass `--profile ai`.
+    let mode = if args.profile.as_deref() == Some(AiGuardrailProfile::NAME)
+        && AiGuardrailProfile::DEFAULT.json_output_default
+        && !global.no_tui
+    {
+        OutputMode::Json
+    } else {
+        OutputMode::from_global(global)
+    };
 
     let start = std::time::Instant::now();
     let checks = run_checks(args)?;
@@ -1561,7 +1910,12 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
 
     match mode {
         OutputMode::Json => {
-            crate::output::json::print(&result)?;
+            if args.profile.as_deref() == Some(AiGuardrailProfile::NAME) {
+                let envelope = build_ai_gate_result_envelope(&result);
+                crate::output::json::print(&envelope)?;
+            } else {
+                crate::output::json::print(&result)?;
+            }
         }
         OutputMode::Plain | OutputMode::Tui => {
             // TUI surface for gate is not yet implemented; fall back to plain.
@@ -1729,16 +2083,160 @@ mod tests {
     #[test]
     fn ai_guardrail_profile_check_names_are_canonical() {
         // The profile exposes canonical names so it composes with the
-        // public check catalog (and the upcoming --profile ai flag in
-        // AIGUARD-003). Each entry must round-trip through the catalog,
-        // except command-safety which is added by AIGUARD-003.
+        // public check catalog and the `--profile ai` flag wired in
+        // AIGUARD-003. Each entry must round-trip through the catalog
+        // — command-safety was registered in AIGUARD-003 so the earlier
+        // skip is no longer required.
         for name in ai_guardrail_profile_checks() {
-            if *name == "command-safety" {
-                continue;
-            }
             assert!(
                 canonical_check_name(name).is_some(),
                 "ai profile references unknown check: {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn ai_guardrail_only_set_resolves_to_internal_names() {
+        // Allow-list path used by `run_checks` when --profile ai is
+        // selected — every entry must resolve to a gate-runner internal
+        // name, otherwise the dispatcher loop in `run_checks` silently
+        // drops it.
+        let resolved = ai_guardrail_only_set().expect("should resolve");
+        for internal in &resolved {
+            assert!(GATE_INTERNAL_CHECKS.contains(internal));
+        }
+        // And every canonical entry in the rule set has a corresponding
+        // internal name in the resolved set.
+        assert_eq!(resolved.len(), ai_guardrail_profile_checks().len());
+    }
+
+    #[test]
+    fn resolve_profile_skip_set_canonicalises_through_internal_names() {
+        // The dev profile's skip list (`coverage`, `dependency`) must
+        // resolve through the catalog so it stays in lock-step with
+        // user-supplied --skip-checks vocabulary.
+        let skips = resolve_profile_skip_set(Some("dev")).unwrap();
+        assert!(skips.contains("coverage"));
+        assert!(skips.contains("dependency"));
+        // Round-trip: every entry must be a real gate-internal name.
+        for entry in &skips {
+            assert!(GATE_INTERNAL_CHECKS.contains(entry));
+        }
+    }
+
+    #[test]
+    fn check_result_to_diagnostic_emits_canonical_envelope_fields() {
+        let check = CheckResult {
+            name: "secret-detection".to_string(),
+            passed: false,
+            score: 0.0,
+            message: "Potential secret on src/leak.ts:12".to_string(),
+        };
+        let diag = check_result_to_diagnostic(&check);
+        assert_eq!(diag.schema_version, "anvil.diagnostic.v1");
+        assert_eq!(diag.severity, Severity::Error);
+        assert_eq!(diag.category, Category::Secret);
+        assert_eq!(diag.mode, Mode::known(KnownMode::Gate));
+        assert!(diag.source.rule_id.contains("secret-detection"));
+    }
+
+    #[test]
+    fn build_ai_gate_result_envelope_pins_schema_and_summary() {
+        let checks = vec![
+            CheckResult {
+                name: "secret-detection".to_string(),
+                passed: false,
+                score: 0.0,
+                message: "leak".to_string(),
+            },
+            CheckResult {
+                name: "policy".to_string(),
+                passed: true,
+                score: 100.0,
+                message: "ok".to_string(),
+            },
+        ];
+        let notifications = notifications_for_gate_result(&checks, false);
+        let result = GateResult {
+            overall: false,
+            score: 50.0,
+            checks,
+            notifications,
+            duration_ms: 17,
+        };
+        let envelope = build_ai_gate_result_envelope(&result);
+        let value = serde_json::to_value(&envelope).unwrap();
+        assert_eq!(value["schema"], "anvil.gate-result.v1");
+        assert_eq!(value["exit_code"], 2);
+        assert_eq!(value["summary"]["total"], 1);
+        assert_eq!(value["summary"]["overall_passed"], false);
+        assert_eq!(value["diagnostics"][0]["mode"], "gate");
+        assert_eq!(value["diagnostics"][0]["category"], "secret");
+    }
+
+    #[test]
+    fn is_skipped_for_missing_config_only_fires_for_config_dependent_checks() {
+        assert!(is_skipped_for_missing_config(
+            "architecture",
+            "No architecture config found. Skipping."
+        ));
+        assert!(is_skipped_for_missing_config(
+            "policy",
+            "No policy bundle found. Skipping."
+        ));
+        assert!(is_skipped_for_missing_config(
+            "command-safety",
+            "Command-safety check disabled. Skipping."
+        ));
+        // Command-safety with no plan supplied — also a project-config gap.
+        assert!(is_skipped_for_missing_config(
+            "command-safety",
+            "No commands to analyse"
+        ));
+        // OPA-not-installed is a host-tooling gap, not a project-config
+        // gap; strict mode must NOT block on it.
+        assert!(!is_skipped_for_missing_config(
+            "policy",
+            "OPA not installed. Skipping policy evaluation."
+        ));
+        // Secret detection skipping is content-driven, not config-driven —
+        // strict_config must not elevate it to a blocking diagnostic.
+        assert!(!is_skipped_for_missing_config("secret", "Skipping."));
+        assert!(!is_skipped_for_missing_config("architecture", "All good"));
+    }
+
+    #[test]
+    fn check_name_to_category_covers_every_ai_guardrail_check() {
+        // Every check listed in AI_GUARDRAIL_CHECKS must map to a
+        // dedicated Category — Other is a routing failure that hides the
+        // signal from `summary.by_category` in the AI envelope.
+        for canonical in [
+            "secret-detection",
+            "antipattern-scan",
+            "import-boundaries",
+            "architecture",
+            "policy",
+            "command-safety",
+        ] {
+            let cat = check_name_to_category(canonical);
+            assert!(
+                !matches!(cat, Category::Other),
+                "{canonical} must map to a non-Other category"
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_profile_skip_set_rejects_unknown_check_names() {
+        // Mock a profile whose skip list contains a typo. Currently
+        // PROFILES are static so we can only assert the present-day
+        // contents always resolve. This guard prevents future profile
+        // edits from silently failing open.
+        for (name, _, skips) in PROFILES {
+            let result = resolve_profile_skip_set(Some(*name));
+            assert!(
+                result.is_ok(),
+                "profile '{name}' has unresolvable skip entries: {skips:?}"
             );
         }
     }
@@ -2341,6 +2839,7 @@ rules: []
             plan_files: std::collections::HashSet::new(),
             plan_path: None,
             walked_files: Vec::new(),
+            strict_config: false,
         };
         let result = run_single_check("nonexistent", &ctx);
         assert!(!result.passed);

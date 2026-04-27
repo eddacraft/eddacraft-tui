@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::process::Command;
 
+use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::{
     Notification, NotificationClass, NotificationContext, NotificationPriority,
 };
@@ -9,6 +10,7 @@ use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState, Rem
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
 use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
 
 /// JSON output schema version. Bumped to 2.0.0 in LAUNCH-005 because
@@ -128,18 +130,26 @@ fn check_git_repo() -> DiagnosticCheck {
         .output()
         .is_ok_and(|o| o.status.success());
 
+    // Missing git repo is a Warn rather than Fail (issue #1108): a fresh
+    // user running `anvil doctor` in a brand-new directory before
+    // `git init` should see a guiding next-step, not a hard failure.
+    // Plan history and the watch loop's `--changed` selector still need
+    // git, but those features fail loudly on their own when invoked
+    // outside a repo — doctor's job here is to surface the gap, not to
+    // gate the rest of the run.
     DiagnosticCheck {
         name: "git-repo".to_string(),
         category: "System".to_string(),
         status: if is_repo {
             CheckStatus::Pass
         } else {
-            CheckStatus::Fail
+            CheckStatus::Warn
         },
         message: if is_repo {
             "git repository detected".to_string()
         } else {
-            "not a git repository".to_string()
+            "not a git repository — run `git init` to enable plan history and `--changed`"
+                .to_string()
         },
         details: None,
         auto_fixable: !is_repo,
@@ -147,7 +157,9 @@ fn check_git_repo() -> DiagnosticCheck {
             Remediation::default()
         } else {
             Remediation {
-                summary: "Initialise a git repository in the current directory.".to_string(),
+                summary: "Initialise a git repository in the current directory so Anvil can \
+                          track plan history and scope `anvil watch --changed` to your edits."
+                    .to_string(),
                 command: Some("git init".to_string()),
                 doc_url: None,
             }
@@ -416,24 +428,82 @@ fn check_plans_dir() -> DiagnosticCheck {
 
 fn check_hooks_installed() -> DiagnosticCheck {
     let hook_path = Path::new(".husky/pre-commit");
+    let file_mode_present = hook_path.exists();
 
-    if !hook_path.exists() {
+    // GHOOK-003: native config-mode hooks (`git config hook.pre-commit.command`)
+    // count as a valid hook source. We list every entry so a user-authored
+    // command that runs `anvil gate` (or any other gate) keeps doctor green
+    // — Anvil-managed entries are just one supported flavour.
+    //
+    // `hook.<event>.enabled = false` flips Git's runtime off even when
+    // commands are present, so disabled config entries are NOT treated
+    // as a valid hook source — they will not run, and surfacing them
+    // as "installed" would mislead the user. Default-when-unset is
+    // enabled (Git's default), preserved by `config_hooks_enabled`.
+    let cwd = Path::new(".");
+    let config_entries = list_config_hook_commands(cwd, "pre-commit").unwrap_or_default();
+    let config_mode_enabled = config_hooks_enabled(cwd, "pre-commit");
+    let config_mode_present = !config_entries.is_empty() && config_mode_enabled;
+    let config_mode_disabled = !config_entries.is_empty() && !config_mode_enabled;
+    let anvil_config_entry_present = config_entries.iter().any(|c| is_anvil_managed_command(c));
+
+    if !file_mode_present && !config_mode_present {
+        // Nothing detected, OR config-mode entries exist but are disabled.
+        // Per `docs/guides/git-hook-compatibility.md` the default
+        // remediation stays Husky/file mode (Husky is what most projects
+        // already have wired), but the prose points at `--config`
+        // explicitly so users on Git 2.54+ can pick either.
+        let (message, summary) = if config_mode_disabled {
+            (
+                "git hooks not installed (config-mode entries present but disabled via hook.pre-commit.enabled=false)".to_string(),
+                "Config-mode commands are configured but Git is told to ignore them. Either re-enable with `git config --unset hook.pre-commit.enabled` (Git's default is enabled), or install a file-mode hook via Husky (`npx husky init`)."
+                    .to_string(),
+            )
+        } else {
+            (
+                "git hooks not installed".to_string(),
+                "Install a pre-commit hook so Anvil runs your gate before each commit. Two supported paths: file mode via Husky (`npx husky init` then add `anvil gate`), or config mode on Git 2.54+ via `anvil hooks install --config`. See docs/guides/git-hook-compatibility.md for the trade-offs."
+                    .to_string(),
+            )
+        };
         return DiagnosticCheck {
             name: "hooks-installed".to_string(),
             category: "Hooks".to_string(),
             status: CheckStatus::Warn,
-            message: "git hooks not installed".to_string(),
+            message,
             details: None,
             auto_fixable: false,
             remediation: Remediation {
-                summary: "Install Husky and add a `.husky/pre-commit` hook that runs your Anvil checks (e.g. `anvil gate`)."
-                    .to_string(),
+                summary,
                 command: Some("npx husky init".to_string()),
                 doc_url: Some("https://typicode.github.io/husky/get-started.html".to_string()),
             },
         };
     }
 
+    if !file_mode_present && config_mode_present {
+        // Config-mode-only install. Always Pass — Git 2.54 runs every
+        // `hook.<event>.command` value, so there is no executable bit to
+        // test and no "not executable" failure mode here.
+        let label = if anvil_config_entry_present {
+            "pre-commit hook installed (config mode, Anvil-managed)"
+        } else {
+            "pre-commit hook installed (config mode)"
+        };
+        return DiagnosticCheck {
+            name: "hooks-installed".to_string(),
+            category: "Hooks".to_string(),
+            status: CheckStatus::Pass,
+            message: label.to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    // File-mode hook is present (with or without an additional config-mode
+    // entry). Keep the existing executable-bit Pass/Warn split so a stale
+    // `.husky/pre-commit` that lost +x is still caught.
     #[cfg(unix)]
     let executable = {
         use std::os::unix::fs::PermissionsExt;
@@ -445,6 +515,12 @@ fn check_hooks_installed() -> DiagnosticCheck {
     #[cfg(not(unix))]
     let executable = true;
 
+    let pass_message = if config_mode_present {
+        "pre-commit hook installed (file + config modes)"
+    } else {
+        "pre-commit hook installed and executable"
+    };
+
     DiagnosticCheck {
         name: "hooks-installed".to_string(),
         category: "Hooks".to_string(),
@@ -454,7 +530,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
             CheckStatus::Warn
         },
         message: if executable {
-            "pre-commit hook installed and executable".to_string()
+            pass_message.to_string()
         } else {
             "pre-commit hook found but not executable".to_string()
         },
@@ -1130,11 +1206,34 @@ mod tests {
         let check = check_git_repo();
         assert_eq!(check.name, "git-repo");
         assert_eq!(check.category, "System");
-        // Status depends on whether .git exists in cwd
+        // Status depends on whether .git exists in cwd. Per issue #1108 the
+        // missing-repo branch is a Warn, not a Fail, so a fresh user before
+        // `git init` is guided rather than blocked.
         assert!(matches!(
             check.status,
-            CheckStatus::Pass | CheckStatus::Fail
+            CheckStatus::Pass | CheckStatus::Warn
         ));
+    }
+
+    /// Issue #1108: when run in a directory with no git repo, `git-repo`
+    /// must Warn (not Fail) and surface a `git init` remediation. Doctor
+    /// must therefore exit 0 in that case, since `bail!` only fires on
+    /// Fail.
+    #[test]
+    fn git_repo_warns_outside_repo_with_actionable_remediation() {
+        with_tempdir_as_cwd(|_| {
+            let check = check_git_repo();
+            assert_eq!(check.name, "git-repo");
+            assert_eq!(check.status, CheckStatus::Warn);
+            assert!(
+                check.message.contains("git init"),
+                "missing-repo message should point at `git init`, got: {}",
+                check.message,
+            );
+            assert_eq!(check.remediation.command.as_deref(), Some("git init"));
+            assert!(!check.remediation.summary.is_empty());
+            assert!(check.auto_fixable);
+        });
     }
 
     #[test]
@@ -1648,5 +1747,136 @@ mod tests {
                 );
             }
         }
+    }
+
+    // --- GHOOK-003: doctor recognises config-mode hooks ---
+
+    fn try_git_init(dir: &Path) -> bool {
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(dir)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    fn add_config_hook(dir: &Path, event: &str, command: &str) {
+        let key = format!("hook.{event}.command");
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["config", "--add", &key, command])
+            .status()
+            .expect("git config --add");
+        assert!(status.success());
+    }
+
+    /// (a) Config-mode-only repo reports the hook as installed.
+    #[test]
+    fn check_hooks_installed_passes_with_config_mode_only() {
+        with_tempdir_as_cwd(|dir| {
+            if !try_git_init(dir) {
+                eprintln!("skipping: git init unavailable");
+                return;
+            }
+            add_config_hook(dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+            let check = check_hooks_installed();
+            assert_eq!(check.status, CheckStatus::Pass);
+            assert!(
+                check.message.contains("config mode"),
+                "config-mode pass must say so: {}",
+                check.message,
+            );
+            assert!(
+                check.message.contains("Anvil-managed"),
+                "Anvil-managed entries must be tagged in the message: {}",
+                check.message,
+            );
+        });
+    }
+
+    /// User-authored config-mode entries also pass — Anvil should not block
+    /// doctor on the user picking a non-Anvil gate. (Pass without the
+    /// "Anvil-managed" tag.)
+    #[test]
+    fn check_hooks_installed_passes_with_user_config_mode_only() {
+        with_tempdir_as_cwd(|dir| {
+            if !try_git_init(dir) {
+                eprintln!("skipping: git init unavailable");
+                return;
+            }
+            add_config_hook(dir, "pre-commit", "npm run my-gate");
+
+            let check = check_hooks_installed();
+            assert_eq!(check.status, CheckStatus::Pass);
+            assert!(check.message.contains("config mode"));
+            assert!(
+                !check.message.contains("Anvil-managed"),
+                "user-authored entries must not claim Anvil ownership: {}",
+                check.message,
+            );
+        });
+    }
+
+    /// (b) File-mode + config-mode both present reports both flavours in
+    /// the message.
+    #[test]
+    #[cfg(unix)]
+    fn check_hooks_installed_reports_both_modes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        with_tempdir_as_cwd(|dir| {
+            if !try_git_init(dir) {
+                eprintln!("skipping: git init unavailable");
+                return;
+            }
+
+            let husky_dir = dir.join(".husky");
+            std::fs::create_dir_all(&husky_dir).unwrap();
+            let hook = husky_dir.join("pre-commit");
+            std::fs::write(&hook, "#!/bin/sh\nexit 0").unwrap();
+            std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+            add_config_hook(dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+            let check = check_hooks_installed();
+            assert_eq!(check.status, CheckStatus::Pass);
+            assert!(
+                check.message.contains("file") && check.message.contains("config"),
+                "both modes must be acknowledged in the message: {}",
+                check.message,
+            );
+        });
+    }
+
+    /// (c) Doctor advice mentions both install paths when no hook is present.
+    #[test]
+    fn check_hooks_installed_remediation_mentions_both_install_paths() {
+        with_tempdir_as_cwd(|dir| {
+            if !try_git_init(dir) {
+                eprintln!("skipping: git init unavailable");
+                return;
+            }
+
+            let check = check_hooks_installed();
+            assert_eq!(check.status, CheckStatus::Warn);
+
+            let summary = &check.remediation.summary;
+            assert!(
+                summary.contains("Husky"),
+                "missing-hook remediation must mention Husky: {summary}",
+            );
+            assert!(
+                summary.contains("--config"),
+                "missing-hook remediation must mention --config: {summary}",
+            );
+            // Default recommendation stays file-mode (per the policy doc).
+            assert_eq!(
+                check.remediation.command.as_deref(),
+                Some("npx husky init"),
+                "default install command must remain file-mode (Husky)",
+            );
+        });
     }
 }
