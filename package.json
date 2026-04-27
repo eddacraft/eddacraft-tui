@@ -6,6 +6,7 @@
     "pnpm": ">=10.20.0",
     "git": ">=2.54.0"
   },
+  "huskyNote": "GHOOK-005 keeps Husky as the contributor bootstrap. `pnpm install` runs `prepare: husky` and materialises `.husky/pre-commit`. Contributors who want to test Git 2.54 native config-mode hooks locally can run `anvil hooks install --config` after `pnpm install`; see docs/guides/git-hook-compatibility.md for the migration decision and revisit conditions.",
   "scripts": {
     "prepare": "husky",
     "changeset": "changeset",
