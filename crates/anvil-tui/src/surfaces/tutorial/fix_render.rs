@@ -269,6 +269,7 @@ mod tests {
             title: "hardcoded secret".to_string(),
             message: "API key found in source".to_string(),
             suggestion: "Move the secret to an environment variable".to_string(),
+            warning_id: None,
         }
     }
 
@@ -378,6 +379,7 @@ mod tests {
             title: "boundary violation".to_string(),
             message: "cross-module import".to_string(),
             suggestion: "use the public API".to_string(),
+            warning_id: None,
         });
         state.set_context(make_context_lines(), 1);
         let theme = EddaCraftTheme;
@@ -399,6 +401,7 @@ mod tests {
             title: "formatting issue".to_string(),
             message: "inconsistent style".to_string(),
             suggestion: "run formatter".to_string(),
+            warning_id: None,
         });
         let theme = EddaCraftTheme;
 

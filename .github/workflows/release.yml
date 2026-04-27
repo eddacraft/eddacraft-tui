@@ -67,16 +67,32 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install dist
-        # we specify bash to get pipefail; it guards against the `curl` command
-        # failing. otherwise `sh` won't catch that `curl` returned non-0
-        # TODO(security): pin installer script by SHA256 hash — currently trusts
-        # the GitHub-hosted script at face value. cargo-dist does not yet publish
-        # checksums for installer scripts; revisit when they do.
+        # V041F-001: pin the downloaded installer script by SHA256 before
+        # executing it with sh. Without this, a compromise of the upstream script
+        # backdoors every Anvil binary the release pipeline produces
+        # (Homebrew tap, WinGet, Scoop bucket all originate here). Bump
+        # both DIST_VERSION and DIST_INSTALLER_SHA256 together when
+        # upgrading cargo-dist; the new hash is the output of:
+        #   curl -fsSL https://github.com/axodotdev/cargo-dist/releases/download/v<version>/cargo-dist-installer.sh \
+        #     | sha256sum
         shell: bash
-        run:
-          "curl --proto '=https' --tlsv1.2 -LsSf
-          https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh
-          | sh"
+        env:
+          DIST_VERSION: v0.31.0
+          DIST_INSTALLER_SHA256: e79d87e418b9d2cbe992d014985457c28a5a7c553add3da4ed1047e161c928f4
+        run: |
+          set -euo pipefail
+          INSTALLER="$RUNNER_TEMP/cargo-dist-installer.sh"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$INSTALLER" \
+            "https://github.com/axodotdev/cargo-dist/releases/download/${DIST_VERSION}/cargo-dist-installer.sh"
+          echo "${DIST_INSTALLER_SHA256}  ${INSTALLER}" | sha256sum --check --status || {
+            echo "::error::cargo-dist installer SHA256 mismatch — refusing to run."
+            echo "::error::expected ${DIST_INSTALLER_SHA256}"
+            echo "::error::actual   $(sha256sum "$INSTALLER" | awk '{print $1}')"
+            echo "::error::either upstream changed the script or the download was tampered with."
+            exit 1
+          }
+          sh "$INSTALLER"
+          rm -f "$INSTALLER"
       - name: Cache dist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

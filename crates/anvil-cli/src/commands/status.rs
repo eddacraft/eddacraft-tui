@@ -1,6 +1,7 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
+use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_tui::surfaces::status::{
     GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
 };
@@ -8,6 +9,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {}
@@ -41,6 +43,18 @@ fn gather_status_data(root: &str) -> StatusData {
 }
 
 /// Check well-known hook locations and report whether each is active.
+///
+/// Reports two source types per event:
+///
+/// 1. **File-mode** — `.husky/<event>` and (for `pre-commit` only) the
+///    bare `.git/hooks/pre-commit` fallback when no Husky entry is active.
+/// 2. **Config-mode** — Git 2.54 native `hook.<event>.command` entries
+///    surfaced via `git config --get-all`. Each entry produces its own
+///    `HookStatus` row with the path set to a `git config hook.<event>.command`
+///    label so the surface distinguishes config-mode from file-mode at a
+///    glance. Anvil-managed entries are tagged with `(anvil-managed)` in
+///    the path label so users can tell their custom commands apart from
+///    Anvil's.
 fn gather_hooks(root: &Path) -> Vec<HookStatus> {
     let candidates = [
         ("pre-commit", ".husky/pre-commit"),
@@ -87,7 +101,46 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
         }
     }
 
+    // Append config-mode (`git config hook.<event>.command`) entries so
+    // GHOOK-002-installed hooks are first-class in the dashboard. These
+    // surface alongside file-mode rows; file mode remains the default
+    // detection branch per the GHOOK-001 compatibility policy.
+    //
+    // `hook.<event>.enabled = false` flips Git's runtime behaviour off
+    // even when commands are present, so the row reflects that — an
+    // explicit-disabled config entry is reported `active: false` with a
+    // `(disabled)` label, matching what Git will actually do.
+    for event in ["pre-commit", "pre-push", "post-merge"] {
+        let commands = list_config_hook_commands_safe(root, event);
+        if commands.is_empty() {
+            continue;
+        }
+        let enabled = config_hooks_enabled(root, event);
+        for cmd in commands {
+            let owner = if is_anvil_managed_command(&cmd) {
+                " (anvil-managed)"
+            } else {
+                ""
+            };
+            let state = if enabled { "" } else { " (disabled)" };
+            let label = format!("git config hook.{event}.command{owner}{state}");
+            hooks.push(HookStatus {
+                name: event.to_string(),
+                active: enabled,
+                path: label,
+            });
+        }
+    }
+
     hooks
+}
+
+/// Wrapper that swallows `git config` failures so the status surface keeps
+/// rendering even on hosts where `git` is missing or the repo's config is
+/// transiently broken. Config-mode detection is best-effort: a missing
+/// `git` should never gate the dashboard.
+fn list_config_hook_commands_safe(root: &Path, event: &str) -> Vec<String> {
+    list_config_hook_commands(root, event).unwrap_or_default()
 }
 
 /// Read `.anvilrc` for profile configuration.
@@ -852,6 +905,136 @@ mod tests {
 
         let data = gather_status_data(dir.to_str().unwrap());
         assert_eq!(data.recent_runs.len(), 5);
+
+        cleanup(&dir);
+    }
+
+    // --- GHOOK-003: config-mode hook detection ---
+
+    /// Initialise a real git repo at `dir`. Returns `Ok(())` on success;
+    /// callers should skip the test (not fail) when `git` is missing or the
+    /// init fails — config-mode detection is not exercisable without a real
+    /// `.git/config` to write into.
+    fn try_git_init(dir: &Path) -> bool {
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(dir)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    fn add_config_hook(dir: &Path, event: &str, command: &str) {
+        let key = format!("hook.{event}.command");
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["config", "--add", &key, command])
+            .status()
+            .expect("git config --add");
+        assert!(
+            status.success(),
+            "failed to seed config-mode hook for tests"
+        );
+    }
+
+    /// (a) Config-mode-only repo reports the hook as installed.
+    #[test]
+    fn gather_hooks_reports_config_mode_only_install() {
+        let dir = make_temp_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        let hooks = gather_hooks(&dir);
+        let pre_commit_config: Vec<&HookStatus> = hooks
+            .iter()
+            .filter(|h| h.name == "pre-commit" && h.path.contains("git config"))
+            .collect();
+        assert_eq!(
+            pre_commit_config.len(),
+            1,
+            "expected exactly one config-mode pre-commit row, got {hooks:?}",
+        );
+        assert!(pre_commit_config[0].active);
+        assert!(
+            pre_commit_config[0].path.contains("(anvil-managed)"),
+            "anvil-managed entries must be tagged in the path label, got: {}",
+            pre_commit_config[0].path,
+        );
+
+        cleanup(&dir);
+    }
+
+    /// (b) File-mode + config-mode both present reports both rows.
+    #[test]
+    #[cfg(unix)]
+    fn gather_hooks_reports_both_file_and_config_modes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = make_temp_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+
+        // File-mode hook in .husky/.
+        let husky_dir = dir.join(".husky");
+        std::fs::create_dir_all(&husky_dir).unwrap();
+        let husky_hook = husky_dir.join("pre-commit");
+        std::fs::write(&husky_hook, "#!/bin/sh\nexit 0").unwrap();
+        std::fs::set_permissions(&husky_hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        // Config-mode hook alongside it.
+        add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
+
+        let hooks = gather_hooks(&dir);
+
+        // File-mode row: path is `.husky/pre-commit`, active.
+        let file_row = hooks
+            .iter()
+            .find(|h| h.name == "pre-commit" && h.path == ".husky/pre-commit")
+            .expect("file-mode row must be present");
+        assert!(file_row.active);
+
+        // Config-mode row alongside it.
+        let config_row = hooks
+            .iter()
+            .find(|h| h.name == "pre-commit" && h.path.contains("git config"))
+            .expect("config-mode row must be present");
+        assert!(config_row.active);
+        assert!(config_row.path.contains("(anvil-managed)"));
+
+        cleanup(&dir);
+    }
+
+    /// User-authored config-mode entries surface without the `(anvil-managed)`
+    /// tag — the surface must distinguish the two so users can tell their
+    /// own commands from Anvil's.
+    #[test]
+    fn gather_hooks_does_not_tag_user_authored_config_entries() {
+        let dir = make_temp_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        add_config_hook(&dir, "pre-commit", "npm run my-gate");
+
+        let hooks = gather_hooks(&dir);
+        let row = hooks
+            .iter()
+            .find(|h| h.name == "pre-commit" && h.path.contains("git config"))
+            .expect("user-authored config-mode row must be reported");
+        assert!(
+            !row.path.contains("(anvil-managed)"),
+            "user-authored entries must not be tagged as anvil-managed: {}",
+            row.path,
+        );
 
         cleanup(&dir);
     }
