@@ -158,15 +158,15 @@ repo hook tooling is a mechanical flip rather than a re-litigation.
 ### The two real options
 
 - **Option A — Keep Husky as the contributor bootstrap.** `pnpm install` keeps
-  invoking `prepare: husky`, which installs Husky's hook-execution wiring
-  and activates the tracked `.husky/pre-commit` hook (via Husky's setup /
+  invoking `prepare: husky`, which installs Husky's hook-execution wiring and
+  activates the tracked `.husky/pre-commit` hook (via Husky's setup /
   `core.hooksPath`) so `lint-staged` plus the post-stage `oxfmt` check run
-  exactly as today. Native config-mode hooks are still available to
-  power-users via `anvil hooks install --config`, run after `pnpm install`,
-  but they are not the default repo posture.
-- **Option B — Replace Husky entirely.** `.husky/` is removed. Repo
-  pre-commit / pre-push hooks live as `hook.<event>.command` entries materialised
-  by a contributor-run bootstrap step (`pnpm setup:hooks` or
+  exactly as today. Native config-mode hooks are still available to power-users
+  via `anvil hooks install --config`, run after `pnpm install`, but they are not
+  the default repo posture.
+- **Option B — Replace Husky entirely.** `.husky/` is removed. Repo pre-commit /
+  pre-push hooks live as `hook.<event>.command` entries materialised by a
+  contributor-run bootstrap step (`pnpm setup:hooks` or
   `scripts/setup-git-hooks.sh`) that wraps `anvil hooks install --config` (or
   the equivalent raw `git config --add hook.<event>.command ...` writes). The
   `prepare` script is replaced or chained so `pnpm install` still ends with a
@@ -177,17 +177,17 @@ repo hook tooling is a mechanical flip rather than a re-litigation.
 - **(a) Contributor Git version distribution.** The repo declares a contributor
   floor of Git ≥ 2.54 in `engines.git` and in this doc's tier table, but the
   floor is advisory — `pnpm` only enforces `node` and `pnpm`. The development
-  runner used for this work reports `git --version` = `2.51.0` *today*. Option B
+  runner used for this work reports `git --version` = `2.51.0` _today_. Option B
   hard-requires every contributor (and every fresh clone, including CI base
   images that have not yet been bumped) to be on Git ≥ 2.54 before the bootstrap
   step succeeds. Option A degrades gracefully on Git < 2.54 because Husky's
   file-mode hooks work on every Git version we support, and the config-mode
   opt-in already refuses below 2.54 with a clear error per GHOOK-002.
-- **(b) `lint-staged` integration.** Husky's value to *this* repo is the
+- **(b) `lint-staged` integration.** Husky's value to _this_ repo is the
   `lint-staged` glue, not the hook execution itself. Native config-mode hooks
-  invoke commands directly and have no notion of staged-file filtering;
-  Option B keeps `lint-staged` available and replaces the `.husky/pre-commit`
-  shell wrapper with an equivalent `hook.pre-commit.command` such as
+  invoke commands directly and have no notion of staged-file filtering; Option B
+  keeps `lint-staged` available and replaces the `.husky/pre-commit` shell
+  wrapper with an equivalent `hook.pre-commit.command` such as
   `pnpm exec lint-staged && <oxfmt staged check>`. That is mechanically
   straightforward but moves the executable surface from a tracked shell file
   (reviewable in PRs) to a `git config` entry materialised by a script
@@ -195,24 +195,24 @@ repo hook tooling is a mechanical flip rather than a re-litigation.
 - **(c) Post-clone bootstrap UX.** Option A ships zero new contributor steps:
   `pnpm install` triggers `prepare: husky`, which is universal and runs on every
   clone. Option B requires either chaining `pnpm install` → `pnpm setup:hooks`
-  via the existing `prepare` script, or documenting a separate `pnpm setup:hooks`
-  invocation. The chained variant has the same UX as today; the separate variant
-  adds a contributor footgun (forgetting the second step yields a repo with no
-  pre-commit at all).
-- **(d) Reversibility.** Option B is reversible: reinstating the `prepare:
-  husky` script and the `.husky/pre-commit` file (both already tracked in git
-  history) restores file-mode hooks. Option A is also reversible — the work to
-  migrate later is small once the Git floor is met across contributors. Neither
-  direction is a one-way door.
+  via the existing `prepare` script, or documenting a separate
+  `pnpm setup:hooks` invocation. The chained variant has the same UX as today;
+  the separate variant adds a contributor footgun (forgetting the second step
+  yields a repo with no pre-commit at all).
+- **(d) Reversibility.** Option B is reversible: reinstating the
+  `prepare: husky` script and the `.husky/pre-commit` file (both already tracked
+  in git history) restores file-mode hooks. Option A is also reversible — the
+  work to migrate later is small once the Git floor is met across contributors.
+  Neither direction is a one-way door.
 
 ### Recommendation
 
 **Option A — Keep Husky as the contributor bootstrap.** The decisive factor is
 criterion (a): the dev runner is on Git 2.51 today, which is below the
-contributor floor declared by GHOOK-001 and below the floor Option B requires
-to function. Anvil's user-facing posture is Git ≥ 2.30, the repo's contributor
-floor is advisory ≥ 2.54, but the operative number is 2.51 *on the machine
-shipping this work right now*. Migrating off Husky before that gap closes would
+contributor floor declared by GHOOK-001 and below the floor Option B requires to
+function. Anvil's user-facing posture is Git ≥ 2.30, the repo's contributor
+floor is advisory ≥ 2.54, but the operative number is 2.51 _on the machine
+shipping this work right now_. Migrating off Husky before that gap closes would
 either break the shipping runner (Option B refuses on 2.51) or force a same-PR
 runner upgrade that is out of scope for a hook-tooling decision. Husky's
 `lint-staged` glue (criterion b) and zero-step bootstrap (criterion c) are
@@ -223,11 +223,11 @@ distribution catches up.
 We will revisit and flip to Option B when **all three** of the following are
 true:
 
-1. The dev runner image and contributor baseline both report Git ≥ 2.54
-   (i.e. the advisory `engines.git` becomes the operational reality, not just
-   the declared floor).
-2. The `.husky/pre-commit` script's `lint-staged` + post-stage oxfmt logic has
-   a documented config-mode equivalent that has been smoke-tested in CI.
+1. The dev runner image and contributor baseline both report Git ≥ 2.54 (i.e.
+   the advisory `engines.git` becomes the operational reality, not just the
+   declared floor).
+2. The `.husky/pre-commit` script's `lint-staged` + post-stage oxfmt logic has a
+   documented config-mode equivalent that has been smoke-tested in CI.
 3. GHOOK-006 docs for native hooks are landed so contributors have a single
    reference for the new bootstrap.
 
@@ -238,35 +238,34 @@ No structural change is required: `package.json` keeps `prepare: husky`, the
 they are. The only addition is contributor guidance, captured here:
 
 > Contributors who want to test config-mode hooks locally can run
-> `anvil hooks install --config` *after* `pnpm install`. This is additive and
+> `anvil hooks install --config` _after_ `pnpm install`. This is additive and
 > does not remove the file-mode hooks Husky installed; the resulting duplicate
-> execution is reported by `anvil hooks status` (per GHOOK-004) so it is
-> visible rather than silent.
+> execution is reported by `anvil hooks status` (per GHOOK-004) so it is visible
+> rather than silent.
 
-This guidance is also referenced from `package.json` via a top-level
-`huskyNote` string sibling to `engines` and `scripts`, so a contributor reading
+This guidance is also referenced from `package.json` via a top-level `huskyNote`
+string sibling to `engines` and `scripts`, so a contributor reading
 `package.json` discovers the opt-in path and the link to this guide without
 having to open it first.
 
 ### Out-of-scope guard
 
 `.husky/` is **not** removed in this PR. If we ever flip to Option B, the
-`.husky/` removal must be its own PR (or its own commit, called out
-explicitly in the PR description) so the change is auditable and revertible in
-isolation. Bundling `.husky/` removal with anything else is forbidden by this
-decision.
+`.husky/` removal must be its own PR (or its own commit, called out explicitly
+in the PR description) so the change is auditable and revertible in isolation.
+Bundling `.husky/` removal with anything else is forbidden by this decision.
 
 ### How a contributor reproduces the chosen setup from a fresh clone
 
 1. `git clone …`
-2. `pnpm install` — runs `prepare: husky`, installs Husky and wires Git to
-   run the tracked `.husky/pre-commit` hook.
+2. `pnpm install` — runs `prepare: husky`, installs Husky and wires Git to run
+   the tracked `.husky/pre-commit` hook.
 3. (Optional) `anvil hooks install --config` — additionally wires
    `hook.pre-commit.command` for power-user testing of native config-mode.
 4. (Optional) `anvil hooks status` — confirms the hook chain Anvil sees.
 
-No other steps are required. CI inherits the same path because the CI image
-runs `pnpm install` before any hook-relevant target.
+No other steps are required. CI inherits the same path because the CI image runs
+`pnpm install` before any hook-relevant target.
 
 ## Testing this policy
 
