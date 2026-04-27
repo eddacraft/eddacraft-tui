@@ -149,6 +149,7 @@ configuration.
 - **Validation:** Migration decision is documented and the chosen workflow is reproducible from a fresh clone.
 - **Confidence:** medium
 - **Outcome:** Recommendation **Option A — keep Husky as the contributor bootstrap** (dev runner is on Git 2.51, below the contributor floor Option B requires). Decision section landed in `docs/guides/git-hook-compatibility.md` ("Repo Husky migration decision (GHOOK-005)"); `package.json` now carries a `huskyNote` field documenting the optional `anvil hooks install --config` opt-in. `.husky/` is intentionally untouched in this PR; if we later flip to Option B, removal must be its own PR. Revisit conditions are spelled out in the decision section.
+- **Merge gate:** the `Dependencies` row pins GHOOK-001 + GHOOK-004 — both must be on `dev` before the GHOOK-005 PR merges. GHOOK-001 has shipped. GHOOK-004 (PR #1125) is in review concurrently; the GHOOK-005 PR is held until that lands, after which the dependency graph is satisfied and the `Done` status is consistent with `plans/aps-rules.md` semantics.
 
 ### GHOOK-006: Docs and examples updated for native hooks
 

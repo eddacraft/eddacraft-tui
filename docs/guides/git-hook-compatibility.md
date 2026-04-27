@@ -158,11 +158,12 @@ repo hook tooling is a mechanical flip rather than a re-litigation.
 ### The two real options
 
 - **Option A — Keep Husky as the contributor bootstrap.** `pnpm install` keeps
-  invoking `prepare: husky`, which materialises `.husky/pre-commit` and runs
-  `lint-staged` plus the post-stage `oxfmt` check exactly as today. Native
-  config-mode hooks are still available to power-users via
-  `anvil hooks install --config`, run after `pnpm install`, but they are not
-  the default repo posture.
+  invoking `prepare: husky`, which installs Husky's hook-execution wiring
+  and activates the tracked `.husky/pre-commit` hook (via Husky's setup /
+  `core.hooksPath`) so `lint-staged` plus the post-stage `oxfmt` check run
+  exactly as today. Native config-mode hooks are still available to
+  power-users via `anvil hooks install --config`, run after `pnpm install`,
+  but they are not the default repo posture.
 - **Option B — Replace Husky entirely.** `.husky/` is removed. Repo
   pre-commit / pre-push hooks live as `hook.<event>.command` entries materialised
   by a contributor-run bootstrap step (`pnpm setup:hooks` or
@@ -251,14 +252,15 @@ having to open it first.
 
 `.husky/` is **not** removed in this PR. If we ever flip to Option B, the
 `.husky/` removal must be its own PR (or its own commit, called out
-explicitly in the PR description) so the change is auditable and revertable in
+explicitly in the PR description) so the change is auditable and revertible in
 isolation. Bundling `.husky/` removal with anything else is forbidden by this
 decision.
 
 ### How a contributor reproduces the chosen setup from a fresh clone
 
 1. `git clone …`
-2. `pnpm install` — runs `prepare: husky`, materialises `.husky/pre-commit`.
+2. `pnpm install` — runs `prepare: husky`, installs Husky and wires Git to
+   run the tracked `.husky/pre-commit` hook.
 3. (Optional) `anvil hooks install --config` — additionally wires
    `hook.pre-commit.command` for power-user testing of native config-mode.
 4. (Optional) `anvil hooks status` — confirms the hook chain Anvil sees.
