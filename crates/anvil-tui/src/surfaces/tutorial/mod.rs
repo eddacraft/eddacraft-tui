@@ -11,7 +11,7 @@ pub mod watch_demo;
 pub mod watch_demo_render;
 
 use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
-use discovery::ScanResults;
+use discovery::{Finding, ScanResults};
 use eddacraft_tui::keyboard::Action;
 use verify::{Verify, VerifyResult};
 
@@ -226,7 +226,7 @@ impl TutorialState {
             .as_ref()?
             .sorted_findings()
             .into_iter()
-            .find_map(|finding| finding.fix_request())
+            .find_map(Finding::fix_request)
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
