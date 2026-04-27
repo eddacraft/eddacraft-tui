@@ -5,9 +5,9 @@
 ## Overview
 
 This is the public-facing marketing and landing page for anvil at
-`eddacraft.ai`. It is a **Next.js 16** application using the **App
-Router**, **React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The
-design follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
+`eddacraft.ai`. It is a **Next.js 16** application using the **App Router**,
+**React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The design
+follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
 
 This is _not_ the documentation site (that lives in `apps/docs-site`).
 

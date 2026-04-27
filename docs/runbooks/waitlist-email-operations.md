@@ -96,8 +96,8 @@ curl -X POST https://api.eddacraft.ai/api/v1/waitlist/resend \
 2. `RESEND_API_KEY` missing or incorrect in API deployment
 3. Resend account restrictions/sandbox recipient limits
 4. DNS SPF/DKIM not fully propagated
-5. `ANVIL_CORS_ORIGINS` not including every live website origin, especially
-   both apex and `www` (CORS rejection)
+5. `ANVIL_CORS_ORIGINS` not including every live website origin, especially both
+   apex and `www` (CORS rejection)
 
 ## Ops notes
 
