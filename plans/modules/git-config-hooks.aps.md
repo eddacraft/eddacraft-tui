@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GHOOK | —     | In Progress | 4/6 |
+| GHOOK | —     | Complete    | 6/6 |
 
 **Last reviewed:** 2026-04-26
 
@@ -138,7 +138,7 @@ configuration.
 
 ### GHOOK-005: Repo developer workflow migration decision
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Decide whether this repository should replace Husky with native Git config hooks once the baseline permits it.
 - **Expected Outcome:** A repo-specific migration decision with explicit keep/replace criteria and any required bootstrap step.
 - **Files:**
@@ -148,6 +148,8 @@ configuration.
 - **Dependencies:** GHOOK-001, GHOOK-004
 - **Validation:** Migration decision is documented and the chosen workflow is reproducible from a fresh clone.
 - **Confidence:** medium
+- **Outcome:** Recommendation **Option A — keep Husky as the contributor bootstrap** (dev runner is on Git 2.51, below the contributor floor Option B requires). Decision section landed in `docs/guides/git-hook-compatibility.md` ("Repo Husky migration decision (GHOOK-005)"); `package.json` now carries a `huskyNote` field documenting the optional `anvil hooks install --config` opt-in. `.husky/` is intentionally untouched in this PR; if we later flip to Option B, removal must be its own PR. Revisit conditions are spelled out in the decision section.
+- **Merge gate:** the `Dependencies` row pins GHOOK-001 + GHOOK-004 — both must be on `dev` before the GHOOK-005 PR merges. GHOOK-001 has shipped. GHOOK-004 (PR #1125) is in review concurrently; the GHOOK-005 PR is held until that lands, after which the dependency graph is satisfied and the `Done` status is consistent with `plans/aps-rules.md` semantics.
 
 ### GHOOK-006: Docs and examples updated for native hooks
 
@@ -169,8 +171,8 @@ configuration.
 | ----- | ----- | ---- | ----------- | ---- |
 | Policy and compatibility | 2 | 2 | 0 | 0 |
 | Product support | 2 | 2 | 0 | 0 |
-| Repo and docs rollout | 2 | 1 | 0 | 1 |
-| **Total** | 6 | 5 | 0 | 1 |
+| Repo and docs rollout | 2 | 2 | 0 | 0 |
+| **Total** | 6 | 6 | 0 | 0 |
 
 ### Item Detail
 
@@ -180,5 +182,5 @@ configuration.
 | GHOOK-002 | Done | Native config-hook install and uninstall via `--config`, with Git 2.54 refusal guard |
 | GHOOK-003 | Done | Status, doctor, onboarding, and tutorial copy recognise config-mode entries; shared predicate lifted to `anvil_kernel_types::hooks` |
 | GHOOK-004 | Done | Coexistence detection (file/config collision, third-party managers, foreign entries, `core.hooksPath`) wired into install/uninstall/status + onboarding warning |
-| GHOOK-005 | Todo | Decides whether this repo should migrate off Husky |
+| GHOOK-005 | Done | Accepted **Option A — keep Husky** (dev runner on Git 2.51 is the operative constraint); revisit conditions documented in `docs/guides/git-hook-compatibility.md`; `.husky/` intentionally untouched |
 | GHOOK-006 | Done | Public docs / tutorials sweep — config-mode parity alongside file-mode default |
