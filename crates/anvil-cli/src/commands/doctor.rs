@@ -10,7 +10,9 @@ use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState, Rem
 use serde::Serialize;
 
 use crate::GlobalArgs;
-use crate::commands::hooks::{list_config_hook_commands, resolve_file_mode_hook_paths};
+use crate::commands::hooks::{
+    config_hooks_enabled, list_config_hook_commands, resolve_file_mode_hook_paths,
+};
 
 /// JSON output schema version. Bumped to 2.0.0 in LAUNCH-005 because
 /// every check now carries a structured `remediation` object — a
@@ -440,26 +442,46 @@ fn check_hooks_installed() -> DiagnosticCheck {
     // count as a valid hook source. We list every entry so a user-authored
     // command that runs `anvil gate` (or any other gate) keeps doctor green
     // — Anvil-managed entries are just one supported flavour.
+    //
+    // `hook.<event>.enabled = false` flips Git's runtime off even when
+    // commands are present, so disabled config entries are NOT treated
+    // as a valid hook source — they will not run, and surfacing them
+    // as "installed" would mislead the user. Default-when-unset is
+    // enabled (Git's default), preserved by `config_hooks_enabled`.
     let config_entries = list_config_hook_commands(cwd, "pre-commit").unwrap_or_default();
-    let config_mode_present = !config_entries.is_empty();
+    let config_mode_enabled = config_hooks_enabled(cwd, "pre-commit");
+    let config_mode_present = !config_entries.is_empty() && config_mode_enabled;
+    let config_mode_disabled = !config_entries.is_empty() && !config_mode_enabled;
     let anvil_config_entry_present = config_entries.iter().any(|c| is_anvil_managed_command(c));
 
     if !file_mode_present && !config_mode_present {
-        // Nothing detected — surface BOTH install paths without preferring
-        // one. Per `docs/guides/git-hook-compatibility.md` the default
+        // Nothing detected, OR config-mode entries exist but are disabled.
+        // Per `docs/guides/git-hook-compatibility.md` the default
         // remediation stays Husky/file mode (Husky is what most projects
-        // already have wired), but the prose now points at `--config`
+        // already have wired), but the prose points at `--config`
         // explicitly so users on Git 2.54+ can pick either.
+        let (message, summary) = if config_mode_disabled {
+            (
+                "git hooks not installed (config-mode entries present but disabled via hook.pre-commit.enabled=false)".to_string(),
+                "Config-mode commands are configured but Git is told to ignore them. Either re-enable with `git config --unset hook.pre-commit.enabled` (Git's default is enabled), or install a file-mode hook via Husky (`npx husky init`)."
+                    .to_string(),
+            )
+        } else {
+            (
+                "git hooks not installed".to_string(),
+                "Install a pre-commit hook so Anvil runs your gate before each commit. Two supported paths: file mode via Husky (`npx husky init` then add `anvil gate`), or config mode on Git 2.54+ via `anvil hooks install --config`. See docs/guides/git-hook-compatibility.md for the trade-offs."
+                    .to_string(),
+            )
+        };
         return DiagnosticCheck {
             name: "hooks-installed".to_string(),
             category: "Hooks".to_string(),
             status: CheckStatus::Warn,
-            message: "git hooks not installed".to_string(),
+            message,
             details: None,
             auto_fixable: false,
             remediation: Remediation {
-                summary: "Install a pre-commit hook so Anvil runs your gate before each commit. Two supported paths: file mode via Husky (`npx husky init` then add `anvil gate`), or config mode on Git 2.54+ via `anvil hooks install --config`. See docs/guides/git-hook-compatibility.md for the trade-offs."
-                    .to_string(),
+                summary,
                 command: Some("npx husky init".to_string()),
                 doc_url: Some("https://typicode.github.io/husky/get-started.html".to_string()),
             },

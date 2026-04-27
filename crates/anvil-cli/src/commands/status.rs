@@ -9,7 +9,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
-use crate::commands::hooks::list_config_hook_commands;
+use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {}
@@ -105,19 +105,28 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
     // GHOOK-002-installed hooks are first-class in the dashboard. These
     // surface alongside file-mode rows; file mode remains the default
     // detection branch per the GHOOK-001 compatibility policy.
+    //
+    // `hook.<event>.enabled = false` flips Git's runtime behaviour off
+    // even when commands are present, so the row reflects that — an
+    // explicit-disabled config entry is reported `active: false` with a
+    // `(disabled)` label, matching what Git will actually do.
     for event in ["pre-commit", "pre-push", "post-merge"] {
-        for cmd in list_config_hook_commands_safe(root, event) {
-            let label = if is_anvil_managed_command(&cmd) {
-                format!("git config hook.{event}.command (anvil-managed)")
+        let commands = list_config_hook_commands_safe(root, event);
+        if commands.is_empty() {
+            continue;
+        }
+        let enabled = config_hooks_enabled(root, event);
+        for cmd in commands {
+            let owner = if is_anvil_managed_command(&cmd) {
+                " (anvil-managed)"
             } else {
-                format!("git config hook.{event}.command")
+                ""
             };
+            let state = if enabled { "" } else { " (disabled)" };
+            let label = format!("git config hook.{event}.command{owner}{state}");
             hooks.push(HookStatus {
                 name: event.to_string(),
-                // Config-mode entries are always "active" once present —
-                // Git 2.54 runs every `hook.<event>.command` value for the
-                // event. There is no executable bit to test.
-                active: true,
+                active: enabled,
                 path: label,
             });
         }

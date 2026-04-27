@@ -99,8 +99,39 @@ pub fn detect_hook_manager(project_dir: &std::path::Path) -> HookManager {
 /// ones — the bare detection here returns `true` for either flavour, which
 /// matches the precedence contract: any config-mode entry is treated as a
 /// hook source.
+///
+/// `hook.<event>.enabled = false` flips Git's runtime behaviour off even
+/// when commands are present, so disabled config entries are NOT treated
+/// as a hook source — Git won't run them and surfacing the repo as
+/// `ConfigHooks` would mislead onboarding's manager-detected branch.
+/// Default-when-unset is enabled (Git's default).
 fn has_config_mode_hook(project_dir: &std::path::Path, event: &str) -> bool {
     !list_config_mode_hook_commands(project_dir, event).is_empty()
+        && config_mode_hooks_enabled(project_dir, event)
+}
+
+/// `git config --get hook.<event>.enabled` — mirrors
+/// `crate::commands::hooks::config_hooks_enabled` from anvil-cli but lives
+/// here to keep the TUI free of a `crate::commands` dep. Returns `true`
+/// when Git would honour the config-mode hook (the default when the key is
+/// absent); only an explicit `false` / `0` / `off` / `no` flips it off.
+fn config_mode_hooks_enabled(project_dir: &std::path::Path, event: &str) -> bool {
+    let key = format!("hook.{event}.enabled");
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(project_dir)
+        .args(["config", "--get", &key])
+        .output();
+    let Ok(output) = output else {
+        return true;
+    };
+    if !output.status.success() {
+        return true;
+    }
+    let raw = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .to_ascii_lowercase();
+    !matches!(raw.as_str(), "false" | "0" | "off" | "no")
 }
 
 /// Read every `hook.<event>.command` entry for `event` in the repo at
@@ -124,14 +155,16 @@ fn list_config_mode_hook_commands(project_dir: &std::path::Path, event: &str) ->
 }
 
 /// True when the repo at `project_dir` has at least one Anvil-managed
-/// `hook.pre-commit.command` entry. Convenience accessor used by callers
-/// (and tests) that want to distinguish Anvil-installed config hooks from
-/// user-authored ones.
+/// `hook.pre-commit.command` entry AND config-mode hooks are not
+/// explicitly disabled via `hook.pre-commit.enabled = false`. Convenience
+/// accessor used by callers (and tests) that want to distinguish
+/// Anvil-installed config hooks from user-authored ones.
 #[must_use]
 pub fn has_anvil_config_hook(project_dir: &std::path::Path) -> bool {
-    list_config_mode_hook_commands(project_dir, "pre-commit")
-        .iter()
-        .any(|cmd| is_anvil_managed_command(cmd))
+    config_mode_hooks_enabled(project_dir, "pre-commit")
+        && list_config_mode_hook_commands(project_dir, "pre-commit")
+            .iter()
+            .any(|cmd| is_anvil_managed_command(cmd))
 }
 
 /// True when the repo has BOTH a file-mode hook source (Husky / Lefthook /
@@ -142,6 +175,9 @@ pub fn has_anvil_config_hook(project_dir: &std::path::Path) -> bool {
 /// GHOOK-004: the CLI side has the same probe in `detect_coexistence`;
 /// this is the TUI-side equivalent that the onboarding surface uses to
 /// drive its warning panel without taking on the full CLI dependency.
+/// Inherits dev's `hook.<event>.enabled` handling via `has_config_mode_hook` —
+/// a disabled config-mode entry no longer triggers the duplicate-execution
+/// warning, since Git won't run it.
 #[must_use]
 pub fn has_duplicate_execution_risk(project_dir: &std::path::Path) -> bool {
     let has_config_entry = has_config_mode_hook(project_dir, "pre-commit");
