@@ -161,11 +161,20 @@ pub fn has_duplicate_execution_risk(project_dir: &std::path::Path) -> bool {
 ///   present (we cannot tell from the YAML alone whether `<event>` is
 ///   wired without parsing it, so any lefthook config counts)
 /// - `.pre-commit-config.yaml` — pre-commit framework, same caveat
+///
+/// File-mode hook resolution mirrors Git's actual lookup rules so the
+/// duplicate-execution detector cannot under-report. Specifically:
+/// - `.git` may be a file pointing at the real git-dir (worktrees,
+///   submodules) — resolve via the gitdir reference rather than
+///   assuming `<project>/.git/hooks/<event>`.
+/// - `core.hooksPath`, when set, replaces `.git/hooks/`; we honour it.
 fn has_file_mode_hook(project_dir: &std::path::Path, event: &str) -> bool {
     if project_dir.join(".husky").join(event).exists() {
         return true;
     }
-    if project_dir.join(".git").join("hooks").join(event).exists() {
+    if let Some(path) = resolve_git_hook_dir(project_dir)
+        && path.join(event).exists()
+    {
         return true;
     }
     if project_dir.join(".lefthook.yml").exists() || project_dir.join("lefthook.yml").exists() {
@@ -175,6 +184,56 @@ fn has_file_mode_hook(project_dir: &std::path::Path, event: &str) -> bool {
         return true;
     }
     false
+}
+
+/// Resolve the directory Git actually consults for file-mode hooks.
+/// Honours `core.hooksPath` first; otherwise resolves `.git`-as-file via
+/// the `gitdir:` reference. Returns `None` when the repo is not a git
+/// repository or `git` is unreachable.
+fn resolve_git_hook_dir(project_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    if let Some(custom) = git_config_value(project_dir, "core.hooksPath") {
+        let custom_path = std::path::Path::new(&custom);
+        return Some(if custom_path.is_absolute() {
+            custom_path.to_path_buf()
+        } else {
+            project_dir.join(custom_path)
+        });
+    }
+    let git_path = project_dir.join(".git");
+    if git_path.is_dir() {
+        return Some(git_path.join("hooks"));
+    }
+    if git_path.is_file() {
+        // `.git` file (worktree / submodule) — read the `gitdir:` line.
+        let raw = std::fs::read_to_string(&git_path).ok()?;
+        let gitdir = raw.lines().find_map(|l| {
+            l.trim()
+                .strip_prefix("gitdir:")
+                .map(|p| p.trim().to_string())
+        })?;
+        let resolved = std::path::Path::new(&gitdir);
+        let abs = if resolved.is_absolute() {
+            resolved.to_path_buf()
+        } else {
+            project_dir.join(resolved)
+        };
+        return Some(abs.join("hooks"));
+    }
+    None
+}
+
+fn git_config_value(project_dir: &std::path::Path, key: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(project_dir)
+        .args(["config", "--get", key])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
 }
 
 /// Phases of the hooks installation surface.

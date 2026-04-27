@@ -561,7 +561,7 @@ impl CoexistenceReport {
 ///    in the public guide; we never override it.
 pub(crate) fn detect_coexistence(
     workspace_root: &Path,
-    git_dir: &Path,
+    _git_dir: &Path,
     event: &str,
 ) -> CoexistenceReport {
     let mut report = CoexistenceReport {
@@ -569,9 +569,15 @@ pub(crate) fn detect_coexistence(
         ..CoexistenceReport::default()
     };
 
-    // (1) File-mode hook scripts on disk for this event.
-    for dir in [git_dir.join("hooks"), workspace_root.join(".husky")] {
-        let path = dir.join(event);
+    // (1) File-mode hook scripts on disk for this event. Use the shared
+    // resolver so detection mirrors Git's actual lookup rules:
+    // - `core.hooksPath`, when set, replaces `.git/hooks/`
+    // - `.git`-as-file (worktrees / submodules) resolves through
+    //   `resolve_git_dir`, not naive `<workspace>/.git/hooks/`
+    // The previous shape (hard-coded `git_dir.join("hooks")` plus
+    // `.husky`) missed both cases and produced false-negatives in
+    // worktrees and false-positives when `core.hooksPath` was set.
+    for path in resolve_file_mode_hook_paths(workspace_root, event) {
         if path.exists() {
             report.file_mode_paths.push(path);
         }
@@ -615,7 +621,7 @@ pub(crate) fn detect_coexistence(
 /// Read `git config core.hooksPath`. Returns `None` when the key is not set
 /// (exit 1) or when `git` is unreachable. Trims trailing newline so the
 /// raw value is suitable for direct rendering.
-fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
+pub(crate) fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
     let output = std::process::Command::new("git")
         .arg("-C")
         .arg(workspace_root)
@@ -627,6 +633,40 @@ fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
     }
     let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if value.is_empty() { None } else { Some(value) }
+}
+
+/// Resolve the file-mode hook paths Git would actually consult for `event`
+/// at this repo. Mirrors Git's resolution rules so detection in `status`,
+/// `doctor`, `install --config`, and onboarding all agree:
+///
+/// - When `core.hooksPath` is set, that directory is the only file-mode
+///   location Git looks at (`<hooksPath>/<event>`); `.git/hooks/` is
+///   bypassed entirely.
+/// - Otherwise: `<resolved git-dir>/hooks/<event>` (handles the
+///   `.git`-as-file case for worktrees / submodules) plus the
+///   `.husky/<event>` Husky entry point if present.
+///
+/// Returns paths regardless of whether they exist on disk; callers test
+/// `.exists()` on each. Best-effort: a missing `git` falls back to the
+/// `<workspace_root>/.git/hooks/<event>` plus `.husky/<event>` pair so
+/// detection still works in environments without git on PATH.
+pub(crate) fn resolve_file_mode_hook_paths(workspace_root: &Path, event: &str) -> Vec<PathBuf> {
+    if let Some(custom) = read_core_hooks_path(workspace_root) {
+        let custom_path = Path::new(&custom);
+        let resolved = if custom_path.is_absolute() {
+            custom_path.to_path_buf()
+        } else {
+            workspace_root.join(custom_path)
+        };
+        return vec![resolved.join(event)];
+    }
+    let git_dir = resolve_git_dir(workspace_root).unwrap_or_else(|_| workspace_root.join(".git"));
+    let mut paths = vec![git_dir.join("hooks").join(event)];
+    let husky = workspace_root.join(".husky").join(event);
+    if husky != paths[0] {
+        paths.push(husky);
+    }
+    paths
 }
 
 /// Render a human-readable coexistence block to stdout. Used by `install
@@ -757,10 +797,25 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                         }
                     }
                     for report in &reports {
-                        // Anvil just installed (or skipped) one config-mode
-                        // entry per event, so the live anvil-managed count
-                        // is exactly 1 per event we touched.
-                        print_coexistence_report(report, 1);
+                        // Read the live anvil-managed count from the repo
+                        // rather than assuming 1. After a `skipped` action
+                        // the count is whatever existed before; a repo
+                        // could also legitimately have multiple managed
+                        // entries from historical force-installs that
+                        // GHOOK-002 has since collapsed but residual rows
+                        // are still possible. Read once per event so the
+                        // duplicate-risk maths in `print_coexistence_report`
+                        // matches reality.
+                        let managed_count =
+                            list_config_hook_commands(&workspace_root, &report.event)
+                                .map(|entries| {
+                                    entries
+                                        .iter()
+                                        .filter(|c| is_anvil_managed_command(c))
+                                        .count()
+                                })
+                                .unwrap_or(0);
+                        print_coexistence_report(report, managed_count);
                     }
                     crate::output::plain::blank();
                     println!("  pre-commit: Runs quality gates ({PRE_COMMIT_CONFIG_COMMAND})");
@@ -1745,6 +1800,69 @@ mod tests {
             report.core_hooks_path.as_deref(),
             Some(custom_dir.to_str().unwrap()),
             "core.hooksPath should be reported verbatim when set: {report:?}",
+        );
+    }
+
+    /// Regression: a hook script under `core.hooksPath` must register as a
+    /// file-mode hook in the coexistence report. Previously the resolver
+    /// only looked at `<git_dir>/hooks/<event>` plus `.husky/<event>` and
+    /// missed `core.hooksPath`-based installs entirely.
+    #[test]
+    fn coexistence_detects_file_mode_hook_under_core_hooks_path() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        let custom_dir = dir.path().join("custom-hooks");
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        git_config(
+            dir.path(),
+            &["core.hooksPath", custom_dir.to_str().unwrap()],
+        )
+        .unwrap();
+        let hook_path = custom_dir.join("pre-commit");
+        std::fs::write(&hook_path, "#!/bin/sh\nexit 0\n").unwrap();
+
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert!(
+            report.file_mode_paths.iter().any(|p| p == &hook_path),
+            "expected core.hooksPath/pre-commit to surface as a file-mode hook: {report:?}"
+        );
+    }
+
+    /// Regression: when `core.hooksPath` is set, a stale `.git/hooks/<event>`
+    /// must NOT register as a file-mode hook — Git will not run it.
+    /// Previously the resolver always checked `<git_dir>/hooks/<event>`
+    /// regardless of `core.hooksPath` and produced a false-positive
+    /// duplicate-execution warning.
+    #[test]
+    fn coexistence_ignores_stale_dot_git_hook_when_core_hooks_path_overrides() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        // Stale hook under `.git/hooks/` — Git would not run this once
+        // core.hooksPath is set.
+        let stale = dir.path().join(".git").join("hooks").join("pre-commit");
+        std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+        std::fs::write(&stale, "#!/bin/sh\nexit 0\n").unwrap();
+
+        let custom_dir = dir.path().join("custom-hooks");
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        git_config(
+            dir.path(),
+            &["core.hooksPath", custom_dir.to_str().unwrap()],
+        )
+        .unwrap();
+
+        let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
+        assert!(
+            !report.file_mode_paths.iter().any(|p| p == &stale),
+            "stale .git/hooks/pre-commit must not register when core.hooksPath overrides: {report:?}"
         );
     }
 
