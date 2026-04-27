@@ -151,7 +151,7 @@ configuration.
 
 ### GHOOK-006: Docs and examples updated for native hooks
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Update examples so Anvil documentation reflects both native config hooks and legacy file-hook installs where relevant.
 - **Expected Outcome:** Public docs, tutorials, and troubleshooting no longer imply that `.husky/` is the only preferred path.
 - **Files:**
@@ -169,8 +169,8 @@ configuration.
 | ----- | ----- | ---- | ----------- | ---- |
 | Policy and compatibility | 2 | 2 | 0 | 0 |
 | Product support | 2 | 2 | 0 | 0 |
-| Repo and docs rollout | 2 | 0 | 0 | 2 |
-| **Total** | 6 | 4 | 0 | 2 |
+| Repo and docs rollout | 2 | 1 | 0 | 1 |
+| **Total** | 6 | 5 | 0 | 1 |
 
 ### Item Detail
 
@@ -181,4 +181,4 @@ configuration.
 | GHOOK-003 | Done | Status, doctor, onboarding, and tutorial copy recognise config-mode entries; shared predicate lifted to `anvil_kernel_types::hooks` |
 | GHOOK-004 | Done | Coexistence detection (file/config collision, third-party managers, foreign entries, `core.hooksPath`) wired into install/uninstall/status + onboarding warning |
 | GHOOK-005 | Todo | Decides whether this repo should migrate off Husky |
-| GHOOK-006 | Todo | Updates docs once detection and coexistence rules are settled |
+| GHOOK-006 | Done | Public docs / tutorials sweep — config-mode parity alongside file-mode default |
