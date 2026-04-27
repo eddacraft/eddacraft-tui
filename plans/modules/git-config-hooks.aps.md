@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GHOOK | —     | In Progress | 2/6 |
+| GHOOK | —     | In Progress | 3/6 |
 
 **Last reviewed:** 2026-04-26
 
@@ -151,7 +151,7 @@ configuration.
 
 ### GHOOK-006: Docs and examples updated for native hooks
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Update examples so Anvil documentation reflects both native config hooks and legacy file-hook installs where relevant.
 - **Expected Outcome:** Public docs, tutorials, and troubleshooting no longer imply that `.husky/` is the only preferred path.
 - **Files:**
@@ -169,8 +169,8 @@ configuration.
 | ----- | ----- | ---- | ----------- | ---- |
 | Policy and compatibility | 2 | 1 | 0 | 1 |
 | Product support | 2 | 1 | 0 | 1 |
-| Repo and docs rollout | 2 | 0 | 0 | 2 |
-| **Total** | 6 | 2 | 0 | 4 |
+| Repo and docs rollout | 2 | 1 | 0 | 1 |
+| **Total** | 6 | 3 | 0 | 3 |
 
 ### Item Detail
 
@@ -181,4 +181,4 @@ configuration.
 | GHOOK-003 | Todo | Makes status, doctor, and onboarding detect config hooks |
 | GHOOK-004 | Todo | Defines safe coexistence with Husky, file hooks, and other managers |
 | GHOOK-005 | Todo | Decides whether this repo should migrate off Husky |
-| GHOOK-006 | Todo | Updates docs once detection and coexistence rules are settled |
+| GHOOK-006 | Done | Public docs / tutorials sweep — config-mode parity alongside file-mode default |

@@ -144,10 +144,11 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-On Git 2.54 or newer, native config-based hooks are planned as a future option,
-but `anvil hooks install` writes a file-based hook today. Native config-mode
-install is gated on `GHOOK-002`. See the
-[Git hook setup](/anvil/operations/git-hooks) page for the rollout shape.
+Config-mode alternative on Git 2.54 or newer: `anvil hooks install --config`
+manages the same entry point through native `[hook.<name>]` blocks instead of a
+file. File mode remains the default; see
+[Git hook setup](/anvil/operations/git-hooks) for both modes and coexistence
+rules.
 
 ## Telemetry and Learning
 
