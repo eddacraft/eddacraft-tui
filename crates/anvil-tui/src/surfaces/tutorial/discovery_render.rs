@@ -400,6 +400,7 @@ mod tests {
             title: title.to_string(),
             message: "test message".to_string(),
             suggestion: "fix it".to_string(),
+            warning_id: None,
         }
     }
 

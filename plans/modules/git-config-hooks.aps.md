@@ -111,7 +111,7 @@ configuration.
 
 ### GHOOK-003: Status, doctor, and onboarding recognise config hooks
 
-- **Status:** Todo
+- **Status:** Done
 - **Intent:** Treat config-based hooks as first-class in diagnostics and setup flows.
 - **Expected Outcome:** Status, doctor, tutorial, and onboarding surfaces report config hooks accurately instead of assuming Husky or direct hook files.
 - **Files:**
@@ -168,9 +168,9 @@ configuration.
 | Phase | Total | Done | In Progress | Todo |
 | ----- | ----- | ---- | ----------- | ---- |
 | Policy and compatibility | 2 | 1 | 0 | 1 |
-| Product support | 2 | 1 | 0 | 1 |
+| Product support | 2 | 2 | 0 | 0 |
 | Repo and docs rollout | 2 | 1 | 0 | 1 |
-| **Total** | 6 | 3 | 0 | 3 |
+| **Total** | 6 | 4 | 0 | 2 |
 
 ### Item Detail
 
@@ -178,7 +178,7 @@ configuration.
 | -- | ------ | ----- |
 | GHOOK-001 | Complete | Compatibility doc + baseline pinned in `package.json` engines.git |
 | GHOOK-002 | Done | Native config-hook install and uninstall via `--config`, with Git 2.54 refusal guard |
-| GHOOK-003 | Todo | Makes status, doctor, and onboarding detect config hooks |
+| GHOOK-003 | Done | Status, doctor, onboarding, and tutorial copy recognise config-mode entries; shared predicate lifted to `anvil_kernel_types::hooks` |
 | GHOOK-004 | Todo | Defines safe coexistence with Husky, file hooks, and other managers |
 | GHOOK-005 | Todo | Decides whether this repo should migrate off Husky |
 | GHOOK-006 | Done | Public docs / tutorials sweep — config-mode parity alongside file-mode default |

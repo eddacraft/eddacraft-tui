@@ -1,5 +1,6 @@
 use std::io::IsTerminal;
 
+use anvil_tui::surfaces::fix_request::FixRequest;
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
 use eddacraft_tui::theme::EddaCraftTheme;
 
@@ -8,6 +9,7 @@ use crate::services::first_run::{
     create_first_run_marker, delete_first_run_marker, first_run_marker_path, is_first_run,
     should_skip_welcome,
 };
+use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
 use crate::tui::SurfaceExit;
 
 /// Draw a loading message and wait for `duration`, processing resize events
@@ -41,6 +43,24 @@ fn timed_loading(
         }
     }
     Ok(())
+}
+
+fn remove_fixed_finding(
+    results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
+    request: &FixRequest,
+) {
+    if let FixRequest::AntiPatternWarning {
+        file,
+        line,
+        warning_id,
+    } = request
+    {
+        results.findings.retain(|finding| {
+            finding.file != *file
+                || finding.line != Some(*line)
+                || finding.warning_id.as_deref() != Some(warning_id.as_str())
+        });
+    }
 }
 
 #[derive(Debug, clap::Args)]
@@ -474,6 +494,7 @@ fn scan_one(
             title: format!("Secret detected: {}", hit.pattern_name),
             message: hit.redacted_line.clone(),
             suggestion: "Move the value to an environment variable or secrets manager.".to_string(),
+            warning_id: None,
         });
     }
 
@@ -496,6 +517,7 @@ fn scan_one(
             title: warning.title.clone(),
             message: warning.message.clone(),
             suggestion: warning.suggestion.clone(),
+            warning_id: Some(warning.id.clone()),
         });
     }
 
@@ -670,6 +692,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
             message: err.clone(),
             suggestion: "Fix or remove the offending pattern in your secret-scan configuration."
                 .to_string(),
+            warning_id: None,
         });
     }
 
@@ -775,46 +798,21 @@ fn run_tutorial_with_fix(
             continue;
         }
 
-        if tutorial_state.wants_fix {
-            tutorial_state.wants_fix = false;
-
-            // Get the top finding from domain_findings.
-            let finding = tutorial_state
-                .domain_findings
-                .as_ref()
-                .and_then(|d| d.sorted_findings().into_iter().next().cloned());
-
-            if let Some(finding) = finding {
-                let mut fix_state =
-                    anvil_tui::surfaces::tutorial::fix::FixState::new(finding.clone());
-                // Disable inline editor — welcome flow cannot drive the
-                // save/check loop that the editor requires.
-                fix_state.editor_disabled = true;
-
-                // Load file context around the finding for display.
-                if let Ok(content) = std::fs::read_to_string(&finding.file) {
-                    let all_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
-                    let target = finding.line.unwrap_or(1).saturating_sub(1);
-                    let start = target.saturating_sub(5);
-                    let end = (target + 6).min(all_lines.len());
-                    let context: Vec<String> = all_lines[start..end].to_vec();
-                    fix_state.set_context(context, start + 1);
+        if let Some(request) = tutorial_state.pending_fix.take() {
+            match apply_fix_request(&request, None) {
+                FixOutcome::Applied { summary } => {
+                    if let Some(results) = tutorial_state.scan_results.as_mut() {
+                        remove_fixed_finding(results, &request);
+                    }
+                    if let Some(results) = tutorial_state.domain_findings.as_mut() {
+                        remove_fixed_finding(results, &request);
+                    }
+                    tutorial_state.resuming_notice = Some(summary);
                 }
-
-                let fix_exit = crate::tui::run_surface_in(terminal, &mut fix_state, theme)?;
-                if fix_exit == SurfaceExit::Quit {
-                    return Ok(SurfaceExit::Quit);
-                }
-
-                // Remove the addressed finding so repeated 'f' presses
-                // advance to the next one instead of reopening the same.
-                if let Some(domain) = tutorial_state.domain_findings.as_mut() {
-                    domain.findings.retain(|f| {
-                        f.file != finding.file || f.line != finding.line || f.title != finding.title
-                    });
+                FixOutcome::Refused { reason } | FixOutcome::Failed { reason } => {
+                    tutorial_state.resuming_notice = Some(reason);
                 }
             }
-            // Resume the tutorial — loop back.
             continue;
         }
 
@@ -994,8 +992,27 @@ fn run_welcome_hub(
                 crate::tui::draw_loading(terminal, "Audit", "Scanning project...", theme)?;
                 let data = crate::commands::audit::collect_audit_data();
                 let mut audit_state = anvil_tui::surfaces::audit::AuditState::new(data);
-                let sub_exit = crate::tui::run_surface_in(terminal, &mut audit_state, theme)?;
-                if sub_exit == SurfaceExit::Quit {
+                loop {
+                    let sub_exit = crate::tui::run_surface_in(terminal, &mut audit_state, theme)?;
+                    if let Some(request) = audit_state.pending_fix.take() {
+                        let selected = audit_state.selected_item;
+                        if matches!(
+                            apply_fix_request(&request, None),
+                            FixOutcome::Applied { .. }
+                        ) {
+                            audit_state.data = crate::commands::audit::collect_audit_data();
+                            audit_state.selected_item =
+                                selected.min(audit_state.data.issues.len().saturating_sub(1));
+                            audit_state.expanded = false;
+                        }
+                        continue;
+                    }
+                    if sub_exit == SurfaceExit::Quit {
+                        break;
+                    }
+                    break;
+                }
+                if audit_state.should_quit {
                     break;
                 }
                 welcome.should_quit = false;
@@ -1007,17 +1024,17 @@ fn run_welcome_hub(
                 let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
                 loop {
                     let _sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
-                    if doctor_state.wants_fix {
-                        if let Some(idx) = doctor_state.fix_index {
-                            crate::commands::doctor::apply_fix_at(&mut doctor_state.checks, idx);
-                            // Re-collect checks so the UI reflects actual state.
+                    if let Some(request) = doctor_state.pending_fix.take() {
+                        let selected = doctor_state.selected;
+                        if matches!(
+                            apply_fix_request(&request, Some(&mut doctor_state.checks)),
+                            FixOutcome::Applied { .. }
+                        ) {
                             let fresh = crate::commands::doctor::collect_checks();
                             doctor_state.checks = fresh;
                             doctor_state.selected =
-                                idx.min(doctor_state.checks.len().saturating_sub(1));
+                                selected.min(doctor_state.checks.len().saturating_sub(1));
                         }
-                        doctor_state.wants_fix = false;
-                        doctor_state.fix_index = None;
                         continue;
                     }
                     break;

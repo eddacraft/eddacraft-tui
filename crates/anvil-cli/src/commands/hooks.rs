@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use anvil_kernel_types::hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::Serialize;
@@ -63,13 +64,10 @@ const HOOK_COMPAT_DOC: &str = "docs/guides/git-hook-compatibility.md";
 
 /// Pre-commit command body installed via `git config --add hook.pre-commit.command`.
 /// The leading `ANVIL_HOOK=1 anvil gate` segment doubles as the ownership marker
-/// for uninstall — matched by [`ANVIL_CONFIG_HOOK_PATTERN`].
+/// for uninstall — matched by `ANVIL_CONFIG_HOOK_PATTERN` (re-exported from
+/// `anvil_kernel_types::hooks`).
 const PRE_COMMIT_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate --progress";
 const PRE_PUSH_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate";
-
-/// Regex used with `git config --unset-all` to remove only Anvil-managed
-/// config-hook entries, leaving any user-authored commands intact.
-const ANVIL_CONFIG_HOOK_PATTERN: &str = "^ANVIL_HOOK=1 anvil gate";
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
@@ -325,18 +323,6 @@ fn ensure_config_hook_support() -> Result<()> {
     bail!("{}", config_hook_support_error(version));
 }
 
-/// Predicate used by both install (skip-when-already-managed) and
-/// uninstall (count-managed-entries-before-removing) so the two
-/// agree about which entries are Anvil's. Keeps a future change to
-/// the install command shape from desynchronising the two paths.
-fn is_anvil_managed_command(cmd: &str) -> bool {
-    static MANAGED_PATTERN: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(ANVIL_CONFIG_HOOK_PATTERN)
-            .expect("static ANVIL_CONFIG_HOOK_PATTERN must compile")
-    });
-    MANAGED_PATTERN.is_match(cmd)
-}
-
 /// Run `git config <args>` inside `workspace_root` and return the captured
 /// stdout. Non-zero exits surface the recorded stderr.
 fn git_config(workspace_root: &Path, args: &[&str]) -> Result<String> {
@@ -356,7 +342,11 @@ fn git_config(workspace_root: &Path, args: &[&str]) -> Result<String> {
 
 /// `git config --get-all hook.<event>.command`. Treats exit code 1 (no key
 /// set) as an empty result instead of an error.
-fn list_config_hook_commands(workspace_root: &Path, event: &str) -> Result<Vec<String>> {
+///
+/// Exposed at `pub(crate)` so other commands (`status`, `doctor`) can detect
+/// config-mode hooks without re-implementing the `git config` invocation or
+/// duplicating the "exit 1 means empty" handling.
+pub(crate) fn list_config_hook_commands(workspace_root: &Path, event: &str) -> Result<Vec<String>> {
     let key = format!("hook.{event}.command");
     let output = std::process::Command::new("git")
         .arg("-C")
@@ -376,6 +366,41 @@ fn list_config_hook_commands(workspace_root: &Path, event: &str) -> Result<Vec<S
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         bail!("git config --get-all {key} failed: {stderr}")
     }
+}
+
+/// `git config --get hook.<event>.enabled` — returns whether config-mode
+/// hooks for `event` are enabled. Git's default when the key is absent is
+/// **true**, so this matches that semantic: only an explicit
+/// case-insensitive `false` flips the result. Best-effort: any IO or
+/// parse error is treated as "default = enabled" so a transient `git`
+/// failure cannot misreport an installed hook as disabled.
+///
+/// Exposed at `pub(crate)` so `status.rs` and `doctor.rs` can mark
+/// disabled config entries inactive without depending on the regex /
+/// `git config` plumbing themselves.
+pub(crate) fn config_hooks_enabled(workspace_root: &Path, event: &str) -> bool {
+    let key = format!("hook.{event}.enabled");
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(workspace_root)
+        .args(["config", "--get", &key])
+        .output();
+    let Ok(output) = output else {
+        return true; // git unavailable — assume Git's default
+    };
+    if !output.status.success() {
+        // Exit 1 = key absent (Git default → enabled). Other non-zero
+        // exits are treated the same — better to over-report enabled
+        // than to silently mark a working hook disabled on an
+        // unrelated `git config` failure.
+        return true;
+    }
+    let raw = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .to_ascii_lowercase();
+    // Honour Git's accepted boolean spellings: `false`, `0`, `off`, `no`
+    // disable; anything else (including the explicit `true`) enables.
+    !matches!(raw.as_str(), "false" | "0" | "off" | "no")
 }
 
 /// Install one config-mode hook. Skips when an Anvil-managed entry already
@@ -1197,5 +1222,53 @@ mod tests {
 
         let remaining = list_config_hook_commands(dir.path(), "pre-commit").unwrap();
         assert_eq!(remaining, vec!["npm run my-thing".to_string()]);
+    }
+
+    /// `hook.<event>.enabled` semantics: Git's default when the key is
+    /// absent is `true`; only explicit boolean-falsey values flip it.
+    /// `config_hooks_enabled` must mirror Git's parser, otherwise
+    /// status / doctor / onboarding will misreport disabled hooks as
+    /// active.
+    #[test]
+    fn config_hooks_enabled_honours_git_boolean_semantics() {
+        let dir = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(dir.path())
+            .status()
+            .expect("git init");
+        assert!(status.success());
+
+        // Default-when-unset is enabled (matches Git's behaviour).
+        assert!(
+            config_hooks_enabled(dir.path(), "pre-commit"),
+            "missing hook.pre-commit.enabled key must default to enabled"
+        );
+
+        // Each falsey form Git accepts must flip to disabled.
+        for value in ["false", "0", "off", "no", "False", "OFF"] {
+            git_config(
+                dir.path(),
+                &["--replace-all", "hook.pre-commit.enabled", value],
+            )
+            .unwrap();
+            assert!(
+                !config_hooks_enabled(dir.path(), "pre-commit"),
+                "hook.pre-commit.enabled={value} must report disabled"
+            );
+        }
+
+        // Explicit truthy values stay enabled.
+        for value in ["true", "1", "on", "yes"] {
+            git_config(
+                dir.path(),
+                &["--replace-all", "hook.pre-commit.enabled", value],
+            )
+            .unwrap();
+            assert!(
+                config_hooks_enabled(dir.path(), "pre-commit"),
+                "hook.pre-commit.enabled={value} must report enabled"
+            );
+        }
     }
 }

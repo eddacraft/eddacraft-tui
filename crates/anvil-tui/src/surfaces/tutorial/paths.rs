@@ -225,7 +225,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Install Git Hooks",
-            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. Anvil auto-detects Husky; pass --husky to force the .husky/ directory.",
+            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. Anvil auto-detects Husky; pass --husky to force the .husky/ directory. On Git 2.54+, --config installs native config-mode hooks instead (no files written under .husky/ or .git/hooks/) — see docs/guides/git-hook-compatibility.md for the trade-offs.",
             "Run: anvil hooks install",
         ),
         step(
