@@ -110,7 +110,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | In Progress | 3/5 (SCAN-001/-002/-003 landed as one slice — parallel-scan rollout, ReDoS line-length guard, first-run rayon pool cap; SCAN-004/-005 deferred per Council E "smallest viable cut") |
 | [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md) | NXRUST | Complete | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed) |
 | [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md) | RUSTNX | Complete | 9/9 |
-| [v041-release-followups](./modules/v041-release-followups.aps.md) | V041F | Ready | 0/15 (15 hardening items: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — and 1 from the copilot PR #1090 review tracking the svix>uuid override exception; non-blocking for the H1 tag, slot into v0.4.1) |
+| [v041-release-followups](./modules/v041-release-followups.aps.md) | V041F | In Progress | 5/16 (16 hardening items: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — 1 from the copilot PR #1090 review tracking the svix>uuid override exception, and 1 private-release Latest promotion fix; non-blocking for the H1 tag, slot into v0.4.1) |
 
 **Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -144,7 +144,7 @@ KERN is complete (3 daemon-mode items deferred post-H1), RENG is complete, RCLI 
 | [rust-cli](./archive/modules/rust-cli.aps.md) | RCLI | Complete | 64/64 | KERN, RATS, PORT |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md) | BENCH | Complete | 16/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (parallel; not blocking) |
-| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 4/7 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
+| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress | 5/7 | RCLI, KERN; coordinates with TUIDASH, DRVR; supersedes RTVS in part |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Ready | 1/9 | Blocks on INTD-002/-003/-005/-013/-014, DRVR-001/-002; coordinates with DRVR-003/-004, LAUNCH, anvil-checks; supersedes RTVF — RTAI-001 phase-0 spike landed 2026-04-26 ([report](./specs/2026-04-26-rtai-001-spike-report.md)) promoted module Proposed → Ready per RTAI-001 gate |
 | [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | In Progress | 4/8 | RCLI; RCLI2-001..-004 shipped per 2026-04-26 freshness audit (commits 1e44ef2d / c5679432 / a2297dca / 06d764d4); -005..-008 still Proposed (gated on OPAE) |
 | [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | In Progress | 1/20 | RCLI |
@@ -279,7 +279,7 @@ when specific work is identified.
 | [release-management](./archive/modules/release-management.aps.md) | RELMGMT | 15/15 | CI pipeline, all packages and crates, DIST — **Complete** |
 | [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 11/22 | docs-site, feature modules — **In Progress** (Rust-migration phase 9/10; Future now includes 0.3.2/0.3.3 + final release-scope refresh; 10 remaining Future/Scanner items Draft) |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
-| [git-config-hooks](./modules/git-config-hooks.aps.md) | GHOOK | 6/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **Complete** (GHOOK-001 baseline + rollout policy; GHOOK-002 `--config` install/uninstall landed; GHOOK-003 status/doctor/onboarding/tutorial detect config-mode entries; GHOOK-004 coexistence detection + duplicate-execution warnings; GHOOK-005 accepted **Option A — keep Husky** with dev runner on Git 2.51 as the decisive constraint; GHOOK-006 public docs sweep landed) |
+| [git-config-hooks](./archive/modules/git-config-hooks.aps.md) | GHOOK | 6/6 | crates/anvil-cli, crates/anvil-tui, docs/public/anvil/, Git 2.54 hook API — **Complete** (GHOOK-001 baseline + rollout policy; GHOOK-002 `--config` install/uninstall landed; GHOOK-003 status/doctor/onboarding/tutorial detect config-mode entries; GHOOK-004 coexistence detection + duplicate-execution warnings; GHOOK-005 accepted **Option A — keep Husky** with dev runner on Git 2.51 as the decisive constraint; GHOOK-006 public docs sweep landed) |
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7/7 | eddacraft-tui, RATS (done) — **Complete** |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | 3/11 | tools/starters/acknowledgements/ (kit + parameterised generator), cargo-about, deny.toml — **In Progress** (owner: joshuaboys; ATTRIB-001/002/003 landed; v1 entry points retired) |
 
@@ -363,7 +363,7 @@ radius × strategic per spec §8.3.
 | [surface-github-actions](./modules/surface-github-actions.aps.md) | SURFGHA | GitHub Actions YAML | T2 | Draft | 2 |
 | [surface-dockerfile](./modules/surface-dockerfile.aps.md) | SURFDOCK | Dockerfile | T2 | Draft | 3 |
 | [surface-shell](./modules/surface-shell.aps.md) | SURFSH | Shell scripts | T1 | Draft | 3 |
-| [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | `.env` files | T1 | Draft | 3 |
+| [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | `.env` files | T1 | In Progress | 3 |
 
 Mostly deferred: Terraform / HCL (T1, demand=1 indirect via Pulumi),
 k8s YAML / Helm (T1, no demand) — promotion gated on direct user demand.
@@ -407,7 +407,7 @@ Without it, each new module would re-design the same plumbing.
 
 | Module | Scope | Status | Notes |
 | ------ | ----- | ------ | ----- |
-| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | Draft | Check-ID registry, drift schema versioning + `anvil drift migrate`, per-track feature flags, CI wall-time budget + file-presence guards, FP reporting channel. Council §16.5 #7. Delivered in slices — surfaces can move to Ready against partial OPSUP. |
+| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | Draft | Stable check-ID registry building on `check_catalog.rs`, drift schema versioning + `anvil drift migrate`, per-track feature flags, CI wall-time budget + file-presence guards, FP reporting channel. Council §16.5 #7. Delivered in slices — surfaces can move to Ready against partial OPSUP. |
 
 #### Supporting decisions
 
@@ -1077,7 +1077,7 @@ Authoritative source: [2026-04-08 Language and Coverage Design](./specs/2026-04-
 | SURFGHA  | [surface-github-actions](./modules/surface-github-actions.aps.md) | T2 | Draft | 2 |
 | SURFDOCK | [surface-dockerfile](./modules/surface-dockerfile.aps.md) | T2 | Draft | 3 |
 | SURFSH   | [surface-shell](./modules/surface-shell.aps.md) | T1 | Draft | 3 |
-| SURFENV  | [surface-env-files](./modules/surface-env-files.aps.md) | T1 | Draft | 3 |
+| SURFENV  | [surface-env-files](./modules/surface-env-files.aps.md) | T1 | In Progress | 3 |
 
 **Track 4 — Semantic packs**
 
@@ -1101,7 +1101,7 @@ Authoritative source: [2026-04-08 Language and Coverage Design](./specs/2026-04-
 
 | Scope ID | Module | Status | Notes |
 | -------- | ------ | ------ | ----- |
-| OPSUP    | [operational-supplement](./modules/operational-supplement.aps.md) | Draft | Owns check-ID registry, drift schema versioning, per-track flags, FP reporting. Delivered in slices — surfaces and packs may move to Ready against partial OPSUP. |
+| OPSUP    | [operational-supplement](./modules/operational-supplement.aps.md) | Draft | Owns stable check-ID registry building on `check_catalog.rs`, drift schema versioning, per-track flags, FP reporting. Delivered in slices — surfaces and packs may move to Ready against partial OPSUP. |
 
 The previous Multi-Language Task Status table (PYLAN / RSTLAN / DNLAN with
 HTMLCSS-001 prerequisites) is fully superseded. .NET/C# is folded into

@@ -251,6 +251,8 @@ Expected behaviour:
 - `build-global-artifacts` job produces shell and PowerShell installers.
 - `host` job creates or updates GitHub Releases on both `eddacraft/anvil-001`
   (private) and `eddacraft/anvil` (public) with all artefacts.
+- `host` job promotes both releases with `--prerelease=false --latest` while
+  Anvil tags are still beta releases.
 - `announce` job posts release notes.
 
 ---
