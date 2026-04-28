@@ -12,6 +12,7 @@ pub mod gate;
 pub mod gate_config;
 pub mod hooks;
 pub mod init;
+pub mod intercept;
 pub mod licenses;
 pub mod mcp;
 pub mod mcp_config;
