@@ -39,11 +39,20 @@ while [[ "${1:-}" == --* ]]; do
   esac
 done
 
-if [ "$SKIP_PREVIEW" = true ] && [ -n "${VERCEL_GIT_COMMIT_REF:-}" ] && [ "$VERCEL_GIT_COMMIT_REF" != "$PROD_BRANCH" ]; then
-  echo "Skipping non-production branch"
-  type log_info >/dev/null 2>&1 && log_info "skipping non-production branch '${VERCEL_GIT_COMMIT_REF}'"
-  type log_exit >/dev/null 2>&1 && log_exit 0
-  exit 0
+if [ "$SKIP_PREVIEW" = true ]; then
+  if [ -n "${VERCEL_ENV:-}" ] && [ "$VERCEL_ENV" != "production" ]; then
+    echo "Skipping ${VERCEL_ENV} deployment"
+    type log_info >/dev/null 2>&1 && log_info "skipping vercel env '${VERCEL_ENV}'"
+    type log_exit >/dev/null 2>&1 && log_exit 0
+    exit 0
+  fi
+
+  if [ -n "${VERCEL_GIT_COMMIT_REF:-}" ] && [ "$VERCEL_GIT_COMMIT_REF" != "$PROD_BRANCH" ]; then
+    echo "Skipping non-production branch"
+    type log_info >/dev/null 2>&1 && log_info "skipping non-production branch '${VERCEL_GIT_COMMIT_REF}'"
+    type log_exit >/dev/null 2>&1 && log_exit 0
+    exit 0
+  fi
 fi
 
 PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh [--skip-preview] <project-dir> [extra-path ...]}"

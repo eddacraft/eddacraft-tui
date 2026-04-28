@@ -83,6 +83,21 @@ describe('vercel-ignore-build.sh', () => {
     }
   });
 
+  it('skips Vercel preview deployments when the branch ref is unavailable', () => {
+    const repo = createFixtureRepo();
+
+    try {
+      const result = runIgnore(repo, ['--skip-preview', 'apps/website'], {
+        VERCEL_ENV: 'preview',
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Skipping preview deployment');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it('builds on production branch root dependency metadata changes', () => {
     const repo = createFixtureRepo();
 
@@ -93,6 +108,7 @@ describe('vercel-ignore-build.sh', () => {
         VERCEL_GIT_PREVIOUS_SHA: previous,
         VERCEL_GIT_COMMIT_SHA: current,
         VERCEL_GIT_COMMIT_REF: 'main',
+        VERCEL_ENV: 'production',
       });
 
       expect(result.status).toBe(1);
