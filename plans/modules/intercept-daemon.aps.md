@@ -208,7 +208,17 @@ a new lane.
   crashed launchers that never call unregister, since Drop guards do not fire on
   SIGKILL or TerminateProcess)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib registry`
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTD-003`):** `SessionRegistry` landed in
+  `crates/anvil-intercept/src/registry.rs` with `SessionRecord` /
+  `SessionStatus` extended onto the proto crate's wire surface. Synchronous
+  `evict_stale(now)` returns the ids it removed; the daemon owns scheduling.
+  Worktree paths canonicalised before use as a key; missing paths refused
+  via `RegistryError::WorktreePathInvalid`. `SessionDispatcher` trait gives
+  INTD-002 an `Arc<dyn>` handle without binding to the concrete type. TTL
+  boundary pinned at "exactly TTL alive, TTL + 1ns evicts". 14 registry
+  tests + 2 new proto tests pass:
+  `cargo test -p eddacraft-anvil-intercept --lib registry`.
 
 ### INTD-004: Watcher Integration
 
