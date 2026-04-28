@@ -7,6 +7,107 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
+## [Unreleased]
+
+### Git Hook Compatibility (GHOOK)
+
+- **Git 2.54 config-hook baseline** — compatibility policy added for native
+  `[hook.<name>]` execution, with Anvil end users kept on the existing Git 2.30+
+  floor unless they opt into config mode
+- **`anvil hooks --config` path** — install/uninstall can append and remove
+  Anvil-owned `hook.<event>.command` entries without touching foreign config or
+  file hooks
+- **Coexistence detection** — install, uninstall, status, doctor, onboarding,
+  and tutorial surfaces detect file hooks, config hooks, third-party managers,
+  `core.hooksPath`, and duplicate-execution risk
+- **Contributor workflow decision** — GHOOK-005 accepted Option A: keep Husky as
+  the repository bootstrap for now, while leaving `anvil hooks install --config`
+  as an explicit power-user opt-in
+- **Public docs sweep** — git-hook operations docs and CI/agent-harness examples
+  now describe file-mode and config-mode behaviour together
+
+### AI Guardrail & Diagnostics
+
+- **AI guardrail profile complete** — `anvil gate --profile ai` now selects a
+  curated check set, treats missing/invalid governance config as blocking, emits
+  JSON by default, and documents the `anvil.gate-result.v1` contract
+- **Canonical diagnostic shape** — `crates/anvil-kernel-types` now owns
+  `anvil.diagnostic.v1` for gate, save-time, watch, and mid-edit diagnostics;
+  the envelope coordination spec records how AIGUARD, RTAI, INTD, and DRVR share
+  it
+- **AI-001 reasoning rule** — `anvil-checks` now flags appeal-to-authority style
+  comments, limits matching to comment regions, honours `@anvil-ignore AI-001`,
+  and emits `Category::Reasoning` diagnostics at info severity
+- **RTAI-001 phase-0 spike** — the mid-edit secret-detection loop measured about
+  1.4 ms p95 over 1024 iterations, roughly 60x under the ADR-031 warm-path
+  budget; the report chooses a single `scan_buffer` method with a mode
+  discriminator for save-time versus mid-edit validation
+- **Validation latency rubric** — ADR-031 pins latency budgets for save-time,
+  mid-edit, and gate paths so future real-time validation work has an explicit
+  performance envelope
+
+### Scanner Coverage & Performance
+
+- **Parallel scan rollout** — `gate`, `audit`, `check`, `drift`, policy,
+  architecture validation, and watcher call-sites now share the gitignore-aware
+  discovery plus rayon scan pattern; the SCAN benchmark recorded a 7.39x
+  wall-time improvement on a synthetic 3k-file surface
+- **ReDoS line-length guard** — `SecretCheckConfig::max_line_bytes` defaults to
+  4096 bytes, skips oversized lines before regex evaluation, and reports skipped
+  counts through `SecretCheckResult`
+- **First-run pool cap** — first-run scans use `ANVIL_SCAN_THREADS` with a
+  default cap of `min(num_cpus, 4)` to avoid starving TUI/editor work
+- **`.env` secret surface** — `.env`, `.env.*`, and `.envrc` parsing routes
+  values through the existing secret patterns, reports the variable name and
+  source line, and supports `# @anvil-ignore SURFENV-001`
+- **Scanner false-positive fixes** — AI-001 comment scanning is string-aware,
+  and the TypeScript LSP fixture no longer trips the reasoning rule
+
+### CLI, Onboarding & Editor Integration
+
+- **`anvil mcp-config`** — Rust CLI command added for Claude Code, Cursor,
+  Windsurf, and VS Code config generation; supports stdio/http transports,
+  `--write`, `--verify`, workspace overrides, path-safety prompts, and atomic
+  writes
+- **Interactive fix handling** — start-flow surfaces share a single interactive
+  fix service so doctor/status/onboarding prompts route consistently
+- **Doctor missing-git behaviour** — `git-repo` now emits a structured warning
+  rather than a failure when run outside a git repository
+- **First-run copy** — inotify capacity guidance, instances-limit text, strict
+  AI-guardrail config wording, and post-init auth-login next steps were
+  tightened
+
+### API, Infra & Release Operations
+
+- **Database migration runner** — `apps/anvil-api` now has a first-party SQL
+  migration runner, unit coverage for drift/pending cases, a manual runbook, and
+  infra workflow wiring before Pulumi Up
+- **Release publisher hardening** — the cargo-dist installer is SHA256-pinned;
+  Scoop publisher pre-flight checks token reachability; WinGet publisher fork
+  handling and `gh` argument usage were hardened after the v0.4.0-beta tag run
+- **Release token runbook** — operator guidance now leads with editing the
+  existing fine-grained PAT repository scope instead of rotating when Scoop or
+  WinGet publishing gets a 403
+- **Vercel/API runtime recovery** — Hono/Vercel entrypoint restoration, scoped
+  API tsconfig, Nx framework-detection controls, and the `svix > uuid` override
+  exception restored production deployment after the post-release runtime break
+- **CORS and env exposure invariants** — tests now lock in lower CORS preflight
+  cache lifetime and avoid treating all `NEXT_PUBLIC_` variables as sensitive
+
+### Documentation, Plans & Attribution
+
+- **Locked release slate** — release plan and roadmap now capture the A1 RTAI
+  spike, A2 AI guardrail, A3 release engineering, and A4 language-credibility
+  floor as the current release menu
+- **Beta docs refresh** — tester guide and beta-user scenarios now cover the
+  current onboarding, hooks, AI guardrail, MCP, and docs-auth flows
+- **Portable attribution kit** — acknowledgement generation moved into a starter
+  template set with `about.toml`, `about.hbs`, CI freshness snippet, and project
+  example config
+- **APS freshness** — GHOOK completed and archived; v0.4.1 release-follow-up,
+  language audit, RTAI, AIGUARD, SCAN, RCLI2/RCLI3, and surface modules were
+  reconciled against the current release plan
+
 ## [0.4.0-beta]
 
 ### Native Rust Scanner Becomes Authoritative
@@ -61,6 +162,10 @@ delivery changes behind each release. For end-user feature summaries, see the
   shape; subscriber filter contract documented; class and priority versioning
   surfaces in JSON outputs. `NotificationSource` trait in `anvil-tui` exposes
   current notices for future telemetry subscribers
+- **Doctor JSON v2 contract** — `anvil doctor --json` now returns a root object
+  with `checks`, `notifications`, and `schema_version`; every check carries a
+  structured remediation object with summary, optional command, and optional
+  docs URL
 
 ### Feature-Flag Plumbing (FLAGM)
 
@@ -92,15 +197,29 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 - **Watch reliability** — partial setup survival, per-change panic isolation,
   SIGINT forwarding, redacted error chains
+- **Watch filtering** — `--patterns` and `--exclude` now feed the watch loop
+  instead of being declared-only flags; `--exclude` uses glob semantics, bare
+  likely-directory names warn, and the plain-mode startup banner prints the
+  active include/exclude scope
 - **Watch animation** — animated stats and demo overlay; animations driven by an
   event loop instead of busy-spin
 - **Onboarding** — post-init landing screen, shared default checks across
   welcome and init, ASCII fallback, title fit, TOCTOU fix on `.anvilrc`
   detection, `ANVIL_NO_PROMPT` / `NONINTERACTIVE` empty-string handling, login
   prompt for gated commands lacking credentials
+- **`anvil init` first-touch diagnostics** — init runs an inline sample analysis
+  with top warnings, counts, and `file:line` pointers; empty repos receive a
+  tutorial/watch next-step hint. Git-history sampling is bounded by a timeout,
+  and low inotify headroom surfaces as a fixable hint before watch startup
+- **Doctor remediation safety** — non-passing checks expose runnable commands,
+  docs links, or fix prompts in plain mode and TUI detail panels; `doctor --fix`
+  writes a valid YAML `.anvilrc` and refuses unsafe `git init` in directories
+  without project markers
 - **Tutorial** — verify-step `husky` flow, scan truncation visibility,
   watcher-failure cause in static-mode notice, language model aligned with TUI
   surfaces
+- **Welcome hub navigation** — arrow keys move through panel rows, list panels
+  scroll, and unfocused panels freeze their scroll state
 - **`.anvilrc` gate-check vocabulary** reconciled with the runner; legacy check
   names mapped during transition (#1016, #1041)
 
