@@ -17,9 +17,15 @@
 
 #![forbid(unsafe_code)]
 
+pub mod reasoning;
+pub mod secret;
+
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+
+pub use reasoning::LaunchReasoningPatternRule;
+pub use secret::SecretDetectionRule;
 
 /// The kind of file change being evaluated. Mirrors the kernel watcher's
 /// `ChangeKind` shape so the daemon's adapter is a 1:1 map; declared
@@ -169,6 +175,27 @@ pub trait InterceptRule: Send + Sync + 'static {
     /// malformed input — return `Allow` and let a higher layer log if
     /// rule data is unusable.
     fn evaluate(&self, input: &RuleInput<'_>) -> RuleDecision;
+}
+
+pub(crate) fn sanitise_id_part(value: &str) -> String {
+    let sanitised = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string();
+
+    if sanitised.is_empty() {
+        "unknown".to_string()
+    } else {
+        sanitised
+    }
 }
 
 #[cfg(test)]

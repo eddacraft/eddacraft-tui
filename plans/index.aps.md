@@ -88,10 +88,10 @@ after RMCP-004 (#1143) and RMCP-005 (#1145) merged.
 | Source module | A1 items                                              | Done | In Progress | Ready / unblocked | Blocked |
 | ------------- | ----------------------------------------------------- | ---- | ----------- | ----------------- | ------- |
 | INTD          | -001, -002, -003, -005, -013, -014                    | 0    | 0           | -001              | -002, -003, -005, -013, -014 |
-| INTR          | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | 0 | 0 | -001              | -002, -006, -008 |
+| INTR          | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | 3 | 0 | -006              | — |
 | RMCP          | -001..-008                                            | 5    | 0           | -006, -007, -008  | — |
 | RTAI          | -001 (spike), -002, -003, -006, -008                  | 1    | 0           | —                 | -002, -003, -006, -008 |
-| **Total**     | **23**                                                | **6** | **0**     | **5**             | **12**  |
+| **Total**     | **23**                                                | **9** | **0**     | **5**             | **9**   |
 
 **Kickoff order (no waste-of-effort sequencing):**
 
@@ -575,14 +575,14 @@ Shell-first, single-host initially, proving the core enforcement thesis. See
 [design spec](./specs/anvil-driver-framework/) for the broader driver framework
 vision.
 
-**Implementation state (2026-04-28, `feat/intercept-scaffold`):** Three new
-crates landed — `crates/anvil-intercept-proto/` (wire types),
-`crates/anvil-intercept-rules/` (`InterceptRule` trait), and
-`crates/anvil-intercept/` (lib + bin with `run_foreground` + cooperative
-shutdown). CLI surface `anvil intercept start --foreground` wired up. The
-current release pulls the A1 subset from INTD and INTR to support RMCP
-pre-write validation; the remaining INTD/INTR/INTL/DRVR work is queued after
-the launch shim.
+**Implementation state (2026-04-28):** Three intercept scaffold crates landed —
+`crates/anvil-intercept-proto/` (wire types),
+`crates/anvil-intercept-rules/` (`InterceptRule` trait plus secret/reasoning
+wrappers), and `crates/anvil-intercept/` (lib + bin with `run_foreground` +
+cooperative shutdown). CLI surface `anvil intercept start --foreground` wired
+up. The current release pulls the A1 subset from INTD and INTR to support RMCP
+pre-write validation; the remaining INTD/INTR/INTL/DRVR work is queued after the
+launch shim.
 
 <!--
   INTD count history:
@@ -603,7 +603,7 @@ the launch shim.
 | ------ | ----- | ------ | -------- | ------------ |
 | [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 0/16 (INTD-001 scaffold landed on `feat/intercept-scaffold`) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 0/8 (INTR-001 scaffold landed on `feat/intercept-scaffold`) | anvil-checks, GV2 later for hot-read rules only |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 3/8 | anvil-checks, GV2 later for hot-read rules only |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/6 active (2 superseded/deferred) | INTD-002/-003/-005/-013/-015, ADR-030, RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-006 deferred to RMCPF |
 
 **Architecture Decisions:**

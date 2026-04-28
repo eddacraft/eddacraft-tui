@@ -1,8 +1,8 @@
 # Intercept Rules
 
-| ID   | Owner  | Status      | Progress                                                |
-| ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTR | @aneki | In Progress | 0/8 (INTR-001 in progress on `feat/intercept-scaffold`) |
+| ID   | Owner  | Status      | Progress |
+| ---- | ------ | ----------- | -------- |
+| INTR | @aneki | In Progress | 3/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -19,12 +19,10 @@
 > without -007, but the daemon path cannot ship multi-rule validation
 > without -006.)*
 >
-> RMCP-005's embedded fallback currently calls `anvil-checks` rules
-> directly without going through the INTR registry. INTR is required for
-> the **daemon-backed** path (RTAI-002 / INTD-005), not for the launch shim
-> in its current form. No `crates/anvil-intercept-rules` crate exists yet
-> on `dev`; INTR-001 kicks off first, with -002 + -008 in parallel after,
-> and -006 closing the slice.
+> RMCP-005's embedded fallback currently calls `anvil-checks` rules directly.
+> INTR-002 and INTR-008 now provide the equivalent daemon-path adapters for the
+> **daemon-backed** path (RTAI-002 / INTD-005). INTR-006 closes the A1 slice by
+> composing those rules through the registry.
 
 ## Purpose
 
@@ -92,8 +90,8 @@ daemon hot path.
   content, returning an allow or interrupt decision with reason metadata; trait
   is object-safe for dynamic dispatch in the rule registry
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib`
-- **Status:** In Progress
-- **Progress (2026-04-28, `feat/intercept-scaffold`):** Crate created at
+- **Status:** Complete
+- **Progress (2026-04-28):** Crate created at
   `crates/anvil-intercept-rules/` and added to the workspace. `InterceptRule`
   trait shipped with `rule_id`/`needs_content`/`evaluate(&RuleInput<'_>) ->
   RuleDecision`, bound `Send + Sync + 'static`, dyn-compatible
@@ -106,10 +104,7 @@ daemon hot path.
   `interrupt()`, and `interrupt_at()` cover the common cases. Unit tests
   cover dyn-dispatch round-trip, allow/interrupt/interrupt_at, RuleInput
   shape, serde shape, and `catch_unwind` panic-isolation contract for the
-  registry. Outstanding for closure: trait-doc example, doc-test for the
-  `RuleDecision::interrupt` constructor, integration test that round-trips
-  a `Box<dyn InterceptRule>` through a sample registry harness once
-  INTR-006 lands.
+  registry.
 
 ### INTR-002: Secret Detection Wrapper
 
@@ -118,7 +113,7 @@ daemon hot path.
 - **Expected Outcome:** A thin adapter that calls anvil-checks secret scanning
   on changed file content and maps findings to interrupt decisions
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib secret`
-- **Status:** Draft
+- **Status:** Complete
 
 ### INTR-003: Antipattern Scanning Wrapper
 
@@ -187,4 +182,4 @@ daemon hot path.
 - **Validation:** Unit test triggers the rule on a fixture planning/code comment
   payload and asserts the RMCP/RTAI response contains a canonical diagnostic with
   no dependency on Node.js or `packages/mcp-server`
-- **Status:** Draft
+- **Status:** Complete
