@@ -107,7 +107,7 @@ fn call_with_validation_client(
         diagnostics = validation.diagnostics;
     }
 
-    let diagnostics = normalise_response_diagnostics(&diagnostics);
+    let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
 
     tool_result(&validation_payload(
         &request.relative_path,
@@ -233,25 +233,34 @@ fn decision_for(diagnostics: &[Diagnostic]) -> ControlDecision {
     }
 }
 
-fn normalise_response_diagnostics(diagnostics: &[Diagnostic]) -> Vec<Diagnostic> {
+fn normalise_response_diagnostics(
+    diagnostics: &[Diagnostic],
+    backend: ValidationBackend,
+) -> Vec<Diagnostic> {
+    let mut secret_index = 0usize;
+
     diagnostics
         .iter()
         .cloned()
-        .enumerate()
-        .map(|(index, mut diagnostic)| {
+        .map(|mut diagnostic| {
             if diagnostic.category == Category::Secret {
-                diagnostic.id = format!("diag_mcp_secret_{:03}", index + 1);
+                secret_index += 1;
+                diagnostic.id = format!("diag_mcp_secret_{secret_index:03}");
                 diagnostic.summary =
                     "Potential secret detected; remove it from the proposed write.".to_string();
-                diagnostic.location.file = redact_secret_values(&diagnostic.location.file);
-                diagnostic.source.rule_id = redact_secret_values(&diagnostic.source.rule_id);
-                diagnostic.source.source_module = redact_secret_values(&diagnostic.source.source_module);
+                let strict_redaction = backend == ValidationBackend::Daemon;
+                diagnostic.location.file =
+                    redact_secret_values(&diagnostic.location.file, strict_redaction);
+                diagnostic.source.rule_id =
+                    redact_secret_values(&diagnostic.source.rule_id, strict_redaction);
+                diagnostic.source.source_module =
+                    redact_secret_values(&diagnostic.source.source_module, strict_redaction);
                 diagnostic.remediation_hint = Some(
                     "Remove the secret from the proposed write; use a placeholder or environment variable instead."
                         .to_string(),
                 );
                 if let Mode::Unknown(value) = &mut diagnostic.mode {
-                    *value = redact_secret_values(value);
+                    *value = redact_secret_values(value, strict_redaction);
                 }
             }
             diagnostic
@@ -259,15 +268,23 @@ fn normalise_response_diagnostics(diagnostics: &[Diagnostic]) -> Vec<Diagnostic>
         .collect()
 }
 
-fn redact_secret_values(value: &str) -> String {
-    DEFAULT_COMPILED_PATTERNS
+fn redact_secret_values(value: &str, strict: bool) -> String {
+    let redacted = DEFAULT_COMPILED_PATTERNS
         .iter()
         .fold(value.to_string(), |current, pattern| {
             pattern
                 .regex
                 .replace_all(&current, "[REDACTED]")
                 .into_owned()
-        })
+        });
+
+    if !strict || redacted != value {
+        redacted
+    } else if value.is_empty() {
+        String::new()
+    } else {
+        "[REDACTED]".to_string()
+    }
 }
 
 fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
@@ -738,10 +755,7 @@ mod tests {
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["correlation"]["backend"], "daemon");
-        assert_eq!(
-            payload["diagnostics"][0]["source"]["rule_id"],
-            "secret-detection"
-        );
+        assert_eq!(payload["diagnostics"][0]["source"]["rule_id"], "[REDACTED]");
     }
 
     #[test]
@@ -756,8 +770,26 @@ mod tests {
         diagnostic.source.source_module = format!("daemon::{raw_secret}");
         diagnostic.mode = Mode::Unknown(format!("pre-write-{raw_secret}"));
         diagnostic.remediation_hint = Some(format!("Remove {raw_secret} from the proposed write."));
+        let non_secret = Diagnostic::new(
+            "diag_reasoning_001",
+            Severity::Warning,
+            "Reasoning pattern detected",
+            Location {
+                file: "src/notes.ts".to_string(),
+                line: Some(1),
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            Category::Reasoning,
+            DiagnosticSource {
+                rule_id: "reasoning-pattern".to_string(),
+                source_module: "anvil-checks::reasoning".to_string(),
+            },
+            Mode::Unknown("pre-write".to_string()),
+        );
         let daemon = FixtureDaemon {
-            outcome: DaemonValidationOutcome::Diagnostics(vec![diagnostic]),
+            outcome: DaemonValidationOutcome::Diagnostics(vec![non_secret, diagnostic]),
         };
         let result = call_with_validation_client(
             &json!({
@@ -772,18 +804,19 @@ mod tests {
         let response_text = serde_json::to_string(&payload).expect("payload serialises");
 
         assert_eq!(payload["decision"], "block");
-        assert_eq!(payload["diagnostics"][0]["id"], "diag_mcp_secret_001");
+        assert_eq!(payload["diagnostics"][0]["id"], "diag_reasoning_001");
+        assert_eq!(payload["diagnostics"][1]["id"], "diag_mcp_secret_001");
         assert_eq!(
-            payload["diagnostics"][0]["schema_version"],
+            payload["diagnostics"][1]["schema_version"],
             "anvil.diagnostic.v1"
         );
         assert!(!response_text.contains(raw_secret));
         assert_eq!(
-            payload["diagnostics"][0]["summary"],
+            payload["diagnostics"][1]["summary"],
             "Potential secret detected; remove it from the proposed write."
         );
         assert_eq!(
-            payload["diagnostics"][0]["remediation_hint"],
+            payload["diagnostics"][1]["remediation_hint"],
             "Remove the secret from the proposed write; use a placeholder or environment variable instead."
         );
     }
