@@ -54,7 +54,8 @@ fn build_repo() -> (TempDir, Vec<String>) {
         for i in 0..per {
             let path = subdir.join(format!("file_{i:04}.ts"));
             let content = if (sub * per + i).is_multiple_of(50) {
-                "const apiKey = 'ghp_aa…aaaa';\nexport function go() { return apiKey; }\n".to_string()
+                "const apiKey = 'ghp_aa…aaaa';\nexport function go() { return apiKey; }\n"
+                    .to_string()
             } else {
                 format!(
                     "export const value_{i} = {i};\nfunction helper_{i}() {{ return value_{i} * 2; }}\n"

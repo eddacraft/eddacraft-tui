@@ -19,7 +19,6 @@ workspace-hack.workspace = true
 rayon = { workspace = true }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
-rayon = { workspace = true }
 
 [[bench]]
 name = "stress"
@@ -35,7 +34,3 @@ harness = false
 
 [lints]
 workspace = true
-
-[[bench]]
-name = "secret_scan_parallel"
-harness = false
