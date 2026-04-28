@@ -132,8 +132,9 @@ warn or block before the write hits disk.
 - **INTR subset** (4 of 8): INTR-001 (rule trait), INTR-002 (secret detection
   wrapper), INTR-006 (config), INTR-008 (launch reasoning-pattern wrapper)
 - **RMCP subset** (8 of 8): RMCP-001..RMCP-008 — Rust MCP launch shim only:
-  stdio server, minimal pre-write validation tool, Rust validation path,
-  canonical diagnostics, Cursor / Claude Code install verification, smoke tests
+  stdio server, minimal pre-write validation tool, daemon-preferred validation
+  adapter, canonical diagnostics, Cursor / Claude Code install verification,
+  smoke tests
 - **DRVR coordination**: DRVR remains the full driver-framework track, but A1 no
   longer depends on building a TS `DriverClient` solely to bridge MCP back into
   Rust. DRVR-004-lite is replaced by RMCP for the launch demo.
@@ -141,14 +142,13 @@ warn or block before the write hits disk.
   RTAI-006, RTAI-008 — MCP/RMCP path first (deterministic demo target). RTAI-004
   is deferred with the TS `DriverClient`/editor-driver path.
 
-**Execution stance:** INTD remains the primary A1 path for this release. RMCP's
-embedded/shared Rust validation path is a contingency only; activate it by
-explicit release-owner decision if INTD threatens the release.
-
 **Prerequisites:**
 
 - RTAI-001 spike completed and latency budget validated _before_ any other RTAI
   item commits
+- INTD remains the primary A1 path for this release; treat RMCP's
+  embedded/shared Rust validation path as contingency-only, activated only by
+  explicit release-owner decision if INTD threatens the release
 - RMCP-001 scope lock recorded before implementation starts
 - ADR-031 latency rubric referenced by INTD-014 / RTAI / RMCP
 - Generated Cursor / Claude Code config verified to launch
