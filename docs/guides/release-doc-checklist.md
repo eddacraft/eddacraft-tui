@@ -169,10 +169,11 @@ affects install commands, supported targets, or project status.
       (cargo-dist auto-marks `-beta` tags as prerelease, which hides them from
       `/releases/latest/download/...`)
 - [ ] `eddacraft/anvil-001` GitHub Release created for the tag with CHANGELOG
-      excerpt and a pointer to the public binaries:
+      excerpt and a pointer to the public binaries, then marked
+      `--latest --prerelease=false`:
 
       ```bash
-      gh release create vX.Y.Z --repo eddacraft/anvil-001 --latest --notes-file <file>
+      gh release create vX.Y.Z --repo eddacraft/anvil-001 --latest --prerelease=false --notes-file <file>
       ```
 
 - [ ] `install.eddacraft.ai` serves `HTTP/2 200` with a valid cert and the

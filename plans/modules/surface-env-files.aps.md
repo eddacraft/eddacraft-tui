@@ -3,11 +3,16 @@
 
 # `.env` Files Governance Surface (Track 3)
 
-| ID      | Owner | Status |
-| ------- | ----- | ------ |
-| SURFENV | —     | Draft  |
+| ID      | Owner | Status      | Progress |
+| ------- | ----- | ----------- | -------- |
+| SURFENV | —     | In Progress | 1/6      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-27
+
+> Hygiene note (2026-04-27): SURFENV-001 has landed in
+> `crates/anvil-checks/src/surface/env/` with parser, scanner, ADR-029
+> suppression support, and integration tests. The remaining work is the
+> structural catalogue and validation pass below.
 
 ## Purpose
 
@@ -37,7 +42,9 @@ Phase 3 deliverable.
 
 ## Out of Scope
 
-- Secret detection itself (covered by the existing secret scanner).
+- General secret detection outside `.env` parsing (covered by the
+  existing secret scanner). SURFENV-001 adds `.env`-aware value
+  parsing and routes values through the existing secret patterns.
 - Encrypted `.env` formats (`.env.vault`, `dotenv-vault`).
 - Pulumi ESC / SOPS / age / Doppler integrations — config-intelligence
   territory.
@@ -67,22 +74,54 @@ Phase 3 deliverable.
 Change status to **Ready** when:
 
 - [ ] OPSUP slices landed.
-- [ ] ADR-029 Accepted.
-- [ ] Secret-scanner contract clear — what SURFENV adds vs. defers.
+- [x] ADR-029 Accepted.
+- [x] Secret-scanner contract clear — what SURFENV adds vs. defers.
 - [ ] Anvil's own `.env*` files baselined.
 - [ ] External codebase validation candidate identified.
 - [ ] Owner named.
 
 ## Tasks
 
-Anticipated:
+### SURFENV-001: `.env` file detection and value scan
 
-- SURFENV-001: File detection (`.env`, `.env.*`, `.envrc`).
-- SURFENV-002: `.gitignore` hygiene rules.
-- SURFENV-003: Production-value heuristic for non-prod files.
-- SURFENV-004: `.env.example` drift detection.
-- SURFENV-005: Suppression wiring.
-- SURFENV-006: Anvil + external validation runs.
+- **Intent:** `.env`, `.env.*`, and `.envrc` files are parsed as
+  environment files and their values are checked with the existing
+  secret patterns.
+- **Expected Outcome:** Findings include file, line, variable name,
+  redacted value context, and ADR-029 suppression state.
+- **Validation:** `cargo test -p eddacraft-anvil-checks -- surfenv`
+- **Confidence:** high
+- **Status:** Complete
+
+### SURFENV-002: `.gitignore` hygiene rules
+
+- **Intent:** Repositories get actionable warnings when sensitive
+  `.env` files are not protected by ignore rules.
+- **Status:** Todo
+
+### SURFENV-003: Production-value heuristic for non-prod files
+
+- **Intent:** Development env files flag production-shaped values with
+  conservative defaults.
+- **Status:** Todo
+
+### SURFENV-004: `.env.example` drift detection
+
+- **Intent:** Template env files and concrete env files report
+  structural drift without duplicating secret detection.
+- **Status:** Todo
+
+### SURFENV-005: Structural rule suppression wiring
+
+- **Intent:** Structural SURFENV findings use the Rust ADR-029
+  suppression parser consistently.
+- **Status:** Todo
+
+### SURFENV-006: Anvil and external validation runs
+
+- **Intent:** Validate SURFENV findings against this repository and
+  one external candidate before broadening the surface.
+- **Status:** Todo
 
 ## Risks
 
