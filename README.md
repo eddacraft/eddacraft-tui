@@ -25,8 +25,9 @@ violations **before they ever leave the developer's machine.**
 0          perceptible delay
 ```
 
-Measured 2026-04-28 against the Rust kernel via Criterion (release build). Previously measured 2026-04-03. Governance overhead is effectively zero — anvil is in a different
-category from SAST, not a faster scanner.
+Measured 2026-04-28 against the Rust kernel via Criterion (release build).
+Previously measured 2026-04-03. Governance overhead is effectively zero — anvil
+is in a different category from SAST, not a faster scanner.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
@@ -350,7 +351,7 @@ so cross-release numbers stay honest.
 | --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
 | pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                              |
 | **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
-| **dev**         | 2026-04-28 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)   |
+| **dev**         | 2026-04-28 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)  |
 
 ```mermaid
 xychart-beta

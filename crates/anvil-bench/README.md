@@ -77,14 +77,17 @@ not the dev-box number above.
 
 Collected on the same dev machine (2026-04-28, `dev` branch):
 
-- `graph_memory/small_graph` (100/500/1000 nodes, 3 edges/node) — 281 µs (within noise; no real change)
+- `graph_memory/small_graph` (100/500/1000 nodes, 3 edges/node) — 281 µs (within
+  noise; no real change)
 - `incremental_throughput/sustained_edits` (500 nodes, 0.1 batch fraction, 100
   ms sustain) — 100 ms (flat; matches sustain budget)
-- `policy_scaling/rule_scaling` (200 symbols, 10/50/100 rules) — 115 µs (no change)
-- `cold_start/scaling` (multi-step file-count scaling) — 3.54 ms (+3% vs prior; expected — SCAN-001 ignore::WalkBuilder overhead)
+- `policy_scaling/rule_scaling` (200 symbols, 10/50/100 rules) — 115 µs (no
+  change)
+- `cold_start/scaling` (multi-step file-count scaling) — 3.54 ms (+3% vs prior;
+  expected — SCAN-001 ignore::WalkBuilder overhead)
 
-Previous baseline (2026-04-25, after LAUNCH-001 watch hot-path rewrite):
-273 µs / 100 ms / 114 µs / 3.45 ms.
+Previous baseline (2026-04-25, after LAUNCH-001 watch hot-path rewrite): 273 µs
+/ 100 ms / 114 µs / 3.45 ms.
 
 These are upper bounds for the README hero stats
 (`10 µs save-time incremental file update`, `800 ns full policy evaluation`,
