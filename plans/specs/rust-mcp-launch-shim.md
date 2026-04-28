@@ -107,13 +107,17 @@ call the launch tool.
 | `exit` | client -> server notification | Terminate cleanly. |
 | `ping` | either direction | Return an empty success response when called as a request. |
 
-Unsupported methods return JSON-RPC `-32601` (`Method not found`). Malformed
-JSON returns `-32700`. Invalid params return `-32602`. Internal operational
-failures return `-32603` only when the server cannot construct a tool result.
+For JSON-RPC requests (messages with an `id`), unsupported methods return
+JSON-RPC `-32601` (`Method not found`). Malformed JSON returns `-32700`.
+Invalid params return `-32602`. Internal operational failures return `-32603`
+only when the server cannot construct a tool result. JSON-RPC notifications
+(messages without an `id`) do not receive responses, including error responses,
+and are ignored as required by JSON-RPC.
 
-The server does not advertise resource or prompt capabilities. If a client still
-calls `resources/list`, `resources/read`, `prompts/list`, or `prompts/get`, the
-server returns `-32601` rather than a partial compatibility shim.
+The server does not advertise resource or prompt capabilities. If a client
+sends `resources/list`, `resources/read`, `prompts/list`, or `prompts/get` as
+requests, the server returns `-32601` rather than a partial compatibility shim.
+If they are sent as notifications, the server ignores them without response.
 
 ## Tool Contract
 

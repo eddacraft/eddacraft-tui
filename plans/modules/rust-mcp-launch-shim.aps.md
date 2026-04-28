@@ -295,7 +295,7 @@ starting implementation:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Scope Lock | 1 | Complete |
-| 1 — Rust Stdio Server | 3 | 1 Complete, 2 Ready |
+| 1 — Rust Stdio Server | 3 | In Progress |
 | 2 — Validation Backend | 2 | Ready |
 | 3 — Install and Verification | 2 | Ready |
 | **Total** | **8** | **2/8 Done** |

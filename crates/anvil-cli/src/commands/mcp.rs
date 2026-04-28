@@ -119,8 +119,12 @@ fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Frame>> {
         return Ok(None);
     }
 
-    if frame.len() as u64 > MAX_STDIO_FRAME_BYTES {
-        discard_line_tail(reader)?;
+    let has_newline = frame.ends_with(b"\n");
+    let payload_len = frame.len().saturating_sub(usize::from(has_newline)) as u64;
+    if payload_len > MAX_STDIO_FRAME_BYTES {
+        if !has_newline {
+            discard_line_tail(reader)?;
+        }
         return Ok(Some(Frame::Oversize));
     }
 
@@ -145,11 +149,15 @@ fn discard_line_tail(reader: &mut impl BufRead) -> io::Result<()> {
 }
 
 fn initialize_response(id: &Value, message: &Value) -> Value {
-    let protocol_version = message
-        .get("params")
-        .and_then(|params| params.get("protocolVersion"))
-        .and_then(Value::as_str)
-        .unwrap_or(DEFAULT_PROTOCOL_VERSION);
+    let Some(params) = message.get("params").and_then(Value::as_object) else {
+        return error_response(id, -32602, "Invalid params");
+    };
+
+    let protocol_version = match params.get("protocolVersion") {
+        Some(Value::String(version)) => version.as_str(),
+        Some(_) => return error_response(id, -32602, "Invalid params"),
+        None => DEFAULT_PROTOCOL_VERSION,
+    };
 
     let result = json!({
         "protocolVersion": protocol_version,
@@ -210,5 +218,20 @@ mod tests {
         let frame = read_frame(&mut input).expect("frame read succeeds");
 
         assert!(matches!(frame, Some(Frame::Oversize)));
+    }
+
+    #[test]
+    fn read_frame_allows_max_payload_with_newline_without_discarding_next_frame() {
+        let max_len = usize::try_from(MAX_STDIO_FRAME_BYTES).expect("test frame size fits usize");
+        let mut input = Vec::with_capacity(max_len + 7);
+        input.extend(vec![b'a'; max_len]);
+        input.extend(b"\nnext\n");
+        let mut input = Cursor::new(input);
+
+        let frame = read_frame(&mut input).expect("first frame read succeeds");
+        let next_frame = read_frame(&mut input).expect("next frame read succeeds");
+
+        assert!(matches!(frame, Some(Frame::Message(frame)) if frame.len() == max_len + 1));
+        assert!(matches!(next_frame, Some(Frame::Message(frame)) if frame == b"next\n"));
     }
 }

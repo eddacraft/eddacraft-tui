@@ -131,6 +131,43 @@ fn mcp_serve_stdio_malformed_json_returns_protocol_error() {
 }
 
 #[test]
+fn mcp_serve_stdio_initialize_invalid_params_returns_invalid_params_error() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "initialize",
+                "params": "invalid"
+            })
+        )
+        .expect("failed to send invalid initialize frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after invalid initialize params and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("invalid params response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 4);
+    assert_eq!(parsed["error"]["code"], -32602);
+}
+
+#[test]
 fn mcp_serve_stdio_oversize_frame_returns_protocol_error() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
@@ -168,7 +205,7 @@ fn spawn_mcp_server() -> Child {
         .arg("--stdio")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()
         .expect("failed to spawn anvil mcp serve --stdio")
 }
