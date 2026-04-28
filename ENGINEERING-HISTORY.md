@@ -89,7 +89,7 @@ delivery changes behind each release. For end-user feature summaries, see the
   existing fine-grained PAT repository scope instead of rotating when Scoop or
   WinGet publishing gets a 403
 - **Vercel/API runtime recovery** — Hono/Vercel entrypoint restoration, scoped
-  API tsconfig, Nx framework-detection controls, and the `svix > uuid` override
+  API tsconfig, Nx framework-detection controls, and the `svix>uuid` override
   exception restored production deployment after the post-release runtime break
 - **CORS and env exposure invariants** — tests now lock in lower CORS preflight
   cache lifetime and avoid treating all `NEXT_PUBLIC_` variables as sensitive
