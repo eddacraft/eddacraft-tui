@@ -28,15 +28,13 @@
 
 #![forbid(unsafe_code)]
 
-// Scaffold-stage re-exports. The proto + rules crates are part of the
-// daemon's eventual surface area but the scaffold body does not call
-// them yet. Importing as `_` silences `unused-crate-dependencies`
-// without pretending to consume them — INTD-002 wires proto messages
-// into the IPC listener; INTD-005 wires rule evaluation into the
-// enforcement pipeline. Removing these lines should be the first edit
-// either of those tasks makes.
-use anvil_intercept_proto as _;
+// INTD-005 wires rule evaluation into the enforcement pipeline.
+// Until then the rules crate is unused at the call-site level —
+// `use ... as _` silences `unused-crate-dependencies`. INTD-002
+// consumes `anvil_intercept_proto` directly from `ipc.rs`.
 use anvil_intercept_rules as _;
+
+pub mod ipc;
 
 use std::time::Duration;
 

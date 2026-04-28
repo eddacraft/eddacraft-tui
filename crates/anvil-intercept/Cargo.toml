@@ -18,8 +18,21 @@ anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraf
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
 anyhow = { workspace = true }
 clap = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
+tracing = "0.1"
 workspace-hack.workspace = true
+
+# Unix-only deps for the IPC socket permission ladder. `nix` keeps us on
+# safe wrappers for `stat`/`fchmod`/`mkdir` so the crate-level
+# `forbid(unsafe_code)` lint stays honest. Pinned to 0.30 per INTD-002
+# guidance.
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", default-features = false, features = ["fs", "user"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

@@ -1044,7 +1044,12 @@ dependencies = [
  "clap",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
+ "nix 0.30.1",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "workspace-hack",
 ]
 
@@ -4757,6 +4762,7 @@ dependencies = [
  "libc",
  "memchr",
  "mio",
+ "nix 0.30.1",
  "num-traits",
  "once_cell",
  "proc-macro2",

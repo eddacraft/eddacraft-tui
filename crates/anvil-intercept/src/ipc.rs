@@ -1,0 +1,1119 @@
+//! INTD-002: NDJSON IPC listener.
+//!
+//! The daemon listens on a Unix domain socket (Linux/macOS) or a named
+//! pipe (Windows) and parses one JSON envelope per line. This module
+//! owns:
+//!
+//! - **Path resolution** — `$XDG_RUNTIME_DIR/anvil` (else
+//!   `$HOME/.local/state/anvil`) on Unix; `\\.\pipe\anvil-intercept-<user>`
+//!   on Windows. The launcher (DRVR-001) reads the same algorithm.
+//! - **Permission pinning** — symlink refusal, owner-and-mode checks,
+//!   `0700` directories, `0600` socket files. None of this is left to
+//!   umask.
+//! - **NDJSON framing** — `tokio::io::AsyncBufReadExt::lines()` with a
+//!   1 MiB per-line cap, malformed-line skip, structured logs.
+//! - **Per-connection task spawning** — handlers go on a `JoinSet` so
+//!   shutdown can drain them with a bounded deadline.
+//!
+//! Session-state mutation lives behind a [`SessionDispatcher`] trait
+//! instead of a concrete registry: INTD-003 lands the registry and
+//! plugs in here without touching the listener body.
+//!
+//! See `plans/modules/intercept-daemon.aps.md` INTD-002 for the
+//! end-to-end pinning council review M8 demanded.
+
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+
+use anvil_intercept_proto::{IpcCommand, IpcEnvelope, SessionId};
+use thiserror::Error;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::task::JoinSet;
+
+use crate::ShutdownToken;
+
+/// Maximum size of a single NDJSON line, in bytes. Lines larger than
+/// this cause the connection to be torn down with [`IpcError::OversizedLine`]
+/// — protects the daemon from a same-UID peer streaming an unbounded
+/// blob into one line.
+pub const MAX_LINE_BYTES: usize = 1 << 20; // 1 MiB
+
+/// How long [`IpcListener::shutdown`] waits for in-flight handler tasks
+/// to drain before aborting them. Kept small so a misbehaving handler
+/// can't block daemon shutdown — INTD-006 owns the harder
+/// signal-ladder semantics.
+pub const SHUTDOWN_DRAIN_DEADLINE: Duration = Duration::from_millis(250);
+
+/// Hooks the listener calls when it dispatches a wire command.
+///
+/// Concrete implementations live in INTD-003 (session registry) and in
+/// the daemon's eventual status/diagnostics surface (INTD-011). Tests
+/// use [`NoopDispatcher`] — it records nothing — or a simple
+/// recording double.
+pub trait SessionDispatcher: Send + Sync + 'static {
+    /// Register a session. Idempotency is the registry's call.
+    fn register(&self, id: &SessionId) -> Result<(), DispatchError>;
+    /// Refresh a session's heartbeat TTL.
+    fn heartbeat(&self, id: &SessionId) -> Result<(), DispatchError>;
+    /// Remove a session from the registry.
+    fn unregister(&self, id: &SessionId) -> Result<(), DispatchError>;
+    /// List the currently registered sessions.
+    fn list(&self) -> Vec<SessionId>;
+}
+
+/// Default no-op dispatcher used by tests and by the very first
+/// listener spin-up before the registry is wired in. Production
+/// callers always supply a real dispatcher.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoopDispatcher;
+
+impl SessionDispatcher for NoopDispatcher {
+    fn register(&self, _id: &SessionId) -> Result<(), DispatchError> {
+        Ok(())
+    }
+    fn heartbeat(&self, _id: &SessionId) -> Result<(), DispatchError> {
+        Ok(())
+    }
+    fn unregister(&self, _id: &SessionId) -> Result<(), DispatchError> {
+        Ok(())
+    }
+    fn list(&self) -> Vec<SessionId> {
+        Vec::new()
+    }
+}
+
+/// Errors returned by a [`SessionDispatcher`] hook. Treated by the
+/// listener as a logged warning — the connection stays open.
+#[derive(Debug, Error)]
+pub enum DispatchError {
+    #[error("session not found: {0}")]
+    NotFound(String),
+    #[error("session already registered: {0}")]
+    AlreadyRegistered(String),
+    #[error("dispatch failure: {0}")]
+    Other(String),
+}
+
+/// Errors that the IPC listener surfaces. Bind-time failures bubble
+/// up; per-connection failures are logged and the connection torn
+/// down without taking the listener with it.
+#[derive(Debug, Error)]
+pub enum IpcError {
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
+    #[error("socket directory is a symlink: {0}")]
+    SocketDirIsSymlink(PathBuf),
+    #[error("socket path is a symlink: {0}")]
+    SocketPathIsSymlink(PathBuf),
+    #[error(
+        "socket directory has wrong permissions: {path} (mode={mode:o}, expected 0o700, owner={owner_uid}, current={current_uid})"
+    )]
+    SocketDirPermissions {
+        path: PathBuf,
+        mode: u32,
+        owner_uid: u32,
+        current_uid: u32,
+    },
+    #[error("socket path exists and is not a socket: {0}")]
+    SocketPathNotASocket(PathBuf),
+    #[error("another anvil-intercept daemon is already listening at {0}")]
+    AnotherDaemonRunning(PathBuf),
+    #[error("could not resolve socket directory: $XDG_RUNTIME_DIR is unset and $HOME is unset")]
+    NoSocketDirCandidate,
+    #[error("could not resolve current user: neither USER nor USERNAME nor LOGNAME env var is set")]
+    NoCurrentUser,
+    #[error("NDJSON line exceeded the {MAX_LINE_BYTES}-byte cap")]
+    OversizedLine,
+}
+
+// --------------------------------------------------------------------
+// Path resolution — testable on every platform.
+// --------------------------------------------------------------------
+
+/// Resolve the directory the Unix socket lives in. Looks up
+/// `$XDG_RUNTIME_DIR` first, then falls back to
+/// `$HOME/.local/state/anvil`. Never returns `/tmp`. Pure-environment;
+/// no filesystem access.
+///
+/// Callers wanting to inject a directory in tests should use the
+/// env-var-driven [`resolve_socket_dir_with_env`] helper.
+#[cfg(unix)]
+pub fn resolve_socket_dir() -> Result<PathBuf, IpcError> {
+    resolve_socket_dir_with_env(
+        std::env::var_os("XDG_RUNTIME_DIR"),
+        std::env::var_os("HOME"),
+    )
+}
+
+#[cfg(unix)]
+fn resolve_socket_dir_with_env(
+    xdg_runtime_dir: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Result<PathBuf, IpcError> {
+    if let Some(dir) = xdg_runtime_dir.filter(|d| !d.is_empty()) {
+        return Ok(PathBuf::from(dir).join("anvil"));
+    }
+    if let Some(dir) = home.filter(|d| !d.is_empty()) {
+        return Ok(PathBuf::from(dir).join(".local/state/anvil"));
+    }
+    Err(IpcError::NoSocketDirCandidate)
+}
+
+/// Resolve the absolute Unix socket path used by the daemon. The
+/// socket file itself is named `intercept.sock`.
+#[cfg(unix)]
+pub fn resolve_socket_path() -> Result<PathBuf, IpcError> {
+    Ok(resolve_socket_dir()?.join("intercept.sock"))
+}
+
+/// Resolve the Windows named-pipe path used by the daemon.
+///
+/// Format: `\\.\pipe\anvil-intercept-<user>`. The launcher
+/// (`DriverClient` in DRVR-001) MUST resolve the path with the same
+/// algorithm — the helper here is `pub` so DRVR-001 can re-export
+/// rather than re-implement.
+#[cfg(windows)]
+pub fn resolve_pipe_name() -> Result<String, IpcError> {
+    let user = current_user_name()?;
+    Ok(format!(r"\\.\pipe\anvil-intercept-{user}"))
+}
+
+/// Lookup the current OS user's account name from environment vars.
+/// Used by [`resolve_pipe_name`]; left platform-independent so the
+/// helper can be unit-tested on any host.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+fn current_user_name() -> Result<String, IpcError> {
+    for var in ["USERNAME", "USER", "LOGNAME"] {
+        if let Some(val) = std::env::var_os(var)
+            && let Some(s) = val.to_str()
+            && !s.is_empty()
+        {
+            return Ok(s.to_owned());
+        }
+    }
+    Err(IpcError::NoCurrentUser)
+}
+
+// --------------------------------------------------------------------
+// Unix permission ladder.
+// --------------------------------------------------------------------
+
+#[cfg(unix)]
+mod unix_perms {
+    use std::fs;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::path::Path;
+
+    use super::IpcError;
+
+    /// Mode bits that matter for the 0700 / 0600 checks. Strips file
+    /// type bits and the high-order setuid/setgid/sticky bits we
+    /// don't care about here.
+    pub fn mode_bits(mode: u32) -> u32 {
+        mode & 0o777
+    }
+
+    /// Ensure the socket directory exists with mode 0700 owned by the
+    /// current user. Creates it if missing — otherwise verifies the
+    /// existing one. Refuses to follow symlinks at any step.
+    pub fn ensure_dir(dir: &Path, current_uid: u32) -> Result<(), IpcError> {
+        match fs::symlink_metadata(dir) {
+            Ok(meta) => {
+                if meta.file_type().is_symlink() {
+                    return Err(IpcError::SocketDirIsSymlink(dir.to_path_buf()));
+                }
+                // Already exists and is not a symlink — verify owner + mode.
+                let mode = mode_bits(meta.permissions().mode());
+                let owner_uid = meta.uid();
+                if mode != 0o700 || owner_uid != current_uid {
+                    return Err(IpcError::SocketDirPermissions {
+                        path: dir.to_path_buf(),
+                        mode,
+                        owner_uid,
+                        current_uid,
+                    });
+                }
+                Ok(())
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                // Create the parent recursively first (without our
+                // strict mode — the parent only needs to exist), then
+                // create our directory with explicit 0700 via
+                // `nix::unistd::mkdir` (avoids the umask race that
+                // `fs::create_dir_all` runs).
+                if let Some(parent) = dir.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                nix::unistd::mkdir(dir, nix::sys::stat::Mode::S_IRWXU)
+                    .map_err(|e| std::io::Error::other(format!("mkdir: {e}")))?;
+                // Re-verify after creation. If umask or ACLs widened
+                // the mode beyond 0700, we surface the failure now
+                // instead of silently shipping a wider socket dir.
+                let meta = fs::symlink_metadata(dir)?;
+                let mode = mode_bits(meta.permissions().mode());
+                let owner_uid = meta.uid();
+                if mode != 0o700 || owner_uid != current_uid {
+                    // Tighten and re-check once — avoids spurious
+                    // failures on filesystems where mkdir respects
+                    // the umask but not the requested mode bits
+                    // exactly.
+                    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+                    let meta = fs::symlink_metadata(dir)?;
+                    let mode = mode_bits(meta.permissions().mode());
+                    let owner_uid = meta.uid();
+                    if mode != 0o700 || owner_uid != current_uid {
+                        return Err(IpcError::SocketDirPermissions {
+                            path: dir.to_path_buf(),
+                            mode,
+                            owner_uid,
+                            current_uid,
+                        });
+                    }
+                }
+                Ok(())
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+// --------------------------------------------------------------------
+// Listener.
+// --------------------------------------------------------------------
+
+/// Bound IPC listener. On Unix, a Unix domain socket. On Windows the
+/// shape will be a named pipe (`#[cfg(windows)]` stubs land in DRVR-001
+/// or a follow-up — see the module-level note).
+///
+/// Construct with [`IpcListener::bind`]; drive with
+/// [`IpcListener::serve`] until the supplied [`ShutdownToken`] fires.
+pub struct IpcListener<D: SessionDispatcher> {
+    #[cfg(unix)]
+    inner: tokio::net::UnixListener,
+    #[cfg(unix)]
+    socket_path: PathBuf,
+    #[cfg(unix)]
+    dispatcher: Arc<D>,
+    #[cfg(not(unix))]
+    _marker: std::marker::PhantomData<D>,
+}
+
+impl<D: SessionDispatcher> IpcListener<D> {
+    /// Bind a fresh listener at the platform-default path with the
+    /// supplied dispatcher. Performs the full directory and socket
+    /// permission ladder.
+    #[cfg(unix)]
+    pub fn bind_default(dispatcher: D) -> Result<Self, IpcError> {
+        let socket_path = resolve_socket_path()?;
+        Self::bind(&socket_path, dispatcher)
+    }
+
+    /// Bind a fresh listener at `path`. The path's parent directory
+    /// is checked / created with the strict permission ladder. The
+    /// socket file itself is `fchmod`-ed to 0600 before connections
+    /// are accepted.
+    #[cfg(unix)]
+    pub fn bind(path: &Path, dispatcher: D) -> Result<Self, IpcError> {
+        use nix::sys::stat::{Mode, fchmod};
+        use nix::unistd::Uid;
+        use std::os::unix::fs::{FileTypeExt, PermissionsExt};
+
+        let current_uid = Uid::current().as_raw();
+        let parent = path.parent().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "socket path has no parent",
+            )
+        })?;
+
+        unix_perms::ensure_dir(parent, current_uid)?;
+
+        // Refuse if the socket path itself is a symlink — defends
+        // against pre-positioned symlinks that would redirect bind
+        // somewhere we don't control.
+        match std::fs::symlink_metadata(path) {
+            Ok(meta) => {
+                if meta.file_type().is_symlink() {
+                    return Err(IpcError::SocketPathIsSymlink(path.to_path_buf()));
+                }
+                if !meta.file_type().is_socket() {
+                    return Err(IpcError::SocketPathNotASocket(path.to_path_buf()));
+                }
+                // Existing socket: try to connect. If a live daemon
+                // answers, refuse — we are not the singleton. If no
+                // one is listening, the socket is stale: unlink and
+                // rebind.
+                match std::os::unix::net::UnixStream::connect(path) {
+                    Ok(_) => return Err(IpcError::AnotherDaemonRunning(path.to_path_buf())),
+                    Err(_) => {
+                        std::fs::remove_file(path)?;
+                    }
+                }
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err.into()),
+        }
+
+        let listener = tokio::net::UnixListener::bind(path)?;
+        // Tighten the socket to 0600 before any peer can connect.
+        // We try `fchmod` first — going via the fd defeats the
+        // symlink-substitution window between bind and chmod-by-path.
+        // On some platforms (notably some Linux variants) `fchmod` on
+        // an `AF_UNIX` socket inode is a no-op, so we follow up with
+        // a `chmod`-by-path. The path-based call is safe here only
+        // because we have just verified that `path` did not exist
+        // (or was a stale socket we unlinked) before `bind()`, and
+        // we re-verify with `symlink_metadata` immediately afterwards
+        // that the file we just bound is not a symlink.
+        // `tokio::net::UnixListener` implements `AsFd`, which is what
+        // `nix::sys::stat::fchmod` (a safe wrapper) wants — no unsafe
+        // is needed here, keeping `forbid(unsafe_code)` honest.
+        let _ = fchmod(&listener, Mode::S_IRUSR | Mode::S_IWUSR);
+        let post_meta = std::fs::symlink_metadata(path)?;
+        if post_meta.file_type().is_symlink() {
+            return Err(IpcError::SocketPathIsSymlink(path.to_path_buf()));
+        }
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+
+        Ok(Self {
+            inner: listener,
+            socket_path: path.to_path_buf(),
+            dispatcher: Arc::new(dispatcher),
+        })
+    }
+
+    /// Accept connections until `token` fires, spawning one handler
+    /// per connection on a [`JoinSet`]. On shutdown, in-flight
+    /// handlers are given [`SHUTDOWN_DRAIN_DEADLINE`] to finish before
+    /// being aborted. The PID-file tie-in lands in INTD-001 follow-on;
+    /// for INTD-002, socket-bind contention is the singleton guard.
+    #[cfg(unix)]
+    pub async fn serve(self, mut token: ShutdownToken) -> Result<(), IpcError> {
+        let mut joinset: JoinSet<()> = JoinSet::new();
+        let dispatcher = Arc::clone(&self.dispatcher);
+
+        loop {
+            tokio::select! {
+                biased;
+                () = token.cancelled() => break,
+                accepted = self.inner.accept() => {
+                    match accepted {
+                        Ok((stream, _addr)) => {
+                            let dispatcher = Arc::clone(&dispatcher);
+                            let conn_token = token.clone();
+                            joinset.spawn(async move {
+                                if let Err(err) = handle_connection(stream, dispatcher, conn_token).await {
+                                    tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
+                                    eprintln!("anvil-intercept: ipc connection ended with error: {err}");
+                                }
+                            });
+                        }
+                        Err(err) => {
+                            // A single bad accept — typically a peer
+                            // that disconnected mid-handshake — must
+                            // not take the listener down. Log and
+                            // keep serving.
+                            tracing::warn!(target: "anvil_intercept::ipc", error = %err, "accept failed");
+                            eprintln!("anvil-intercept: accept failed: {err}");
+                        }
+                    }
+                }
+            }
+        }
+
+        // Drain in-flight handlers within the deadline. After the
+        // deadline expires, abort what's left so daemon shutdown
+        // cannot stall behind a misbehaving peer.
+        let drain = async { while joinset.join_next().await.is_some() {} };
+        if tokio::time::timeout(SHUTDOWN_DRAIN_DEADLINE, drain)
+            .await
+            .is_err()
+        {
+            joinset.shutdown().await;
+        }
+
+        // Best-effort cleanup of the socket file. If the file has
+        // already been replaced (race with another daemon starting),
+        // surfacing the error is more confusing than helpful.
+        let _ = std::fs::remove_file(&self.socket_path);
+
+        Ok(())
+    }
+}
+
+// Windows scaffold. The pipe-name resolution lives in
+// `resolve_pipe_name`; binding the named pipe with a strict
+// `SECURITY_DESCRIPTOR` lands in a follow-up so the DACL invariant
+// (owner = current user SID, generic-all-owner-only,
+// `PIPE_REJECT_REMOTE_CLIENTS`) gets validated on a real Windows
+// host. The stubs here keep the public surface compiling on
+// `cargo check --target x86_64-pc-windows-msvc`.
+#[cfg(windows)]
+impl<D: SessionDispatcher> IpcListener<D> {
+    /// Windows scaffold — see module note. Lands proper named-pipe
+    /// binding with explicit DACL in a follow-up.
+    pub fn bind_default(_dispatcher: D) -> Result<Self, IpcError> {
+        unimplemented!("Windows named-pipe IpcListener::bind_default — INTD-002 follow-up");
+    }
+
+    /// Windows scaffold — see module note.
+    pub fn bind(_pipe_name: &str, _dispatcher: D) -> Result<Self, IpcError> {
+        unimplemented!("Windows named-pipe IpcListener::bind — INTD-002 follow-up");
+    }
+
+    /// Windows scaffold — see module note.
+    pub async fn serve(self, _token: ShutdownToken) -> Result<(), IpcError> {
+        unimplemented!("Windows named-pipe IpcListener::serve — INTD-002 follow-up");
+    }
+}
+
+// --------------------------------------------------------------------
+// Per-connection handler.
+// --------------------------------------------------------------------
+
+#[cfg(unix)]
+async fn handle_connection<D: SessionDispatcher>(
+    stream: tokio::net::UnixStream,
+    dispatcher: Arc<D>,
+    mut token: ShutdownToken,
+) -> Result<(), IpcError> {
+    let (read_half, _write_half) = stream.into_split();
+    let mut reader = BufReader::new(read_half);
+    let mut buf = String::new();
+
+    loop {
+        buf.clear();
+        let read = tokio::select! {
+            biased;
+            () = token.cancelled() => return Ok(()),
+            res = read_one_line(&mut reader, &mut buf) => res?,
+        };
+        if read == 0 {
+            // Peer closed cleanly.
+            return Ok(());
+        }
+        // `read_line` keeps the trailing `\n`; trim it before parsing.
+        let line = buf.trim_end_matches(['\r', '\n']);
+        if line.is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<IpcEnvelope>(line) {
+            Ok(envelope) => dispatch_envelope(&envelope, &dispatcher),
+            Err(err) => {
+                // Per the module doc: parse errors are logged and
+                // skipped, the connection stays open. Unknown command
+                // names take this branch too — see the proto crate's
+                // `unknown_command_variant_fails_to_deserialise` test.
+                tracing::warn!(
+                    target: "anvil_intercept::ipc",
+                    error = %err,
+                    line_len = line.len(),
+                    "skipping malformed NDJSON line"
+                );
+                eprintln!(
+                    "anvil-intercept: skipping malformed NDJSON line ({} bytes): {}",
+                    line.len(),
+                    err
+                );
+            }
+        }
+    }
+}
+
+/// Read a single newline-terminated line from `reader` into `buf`,
+/// rejecting any line that exceeds [`MAX_LINE_BYTES`]. Returns the
+/// number of bytes read (0 on clean EOF).
+async fn read_one_line<R>(reader: &mut BufReader<R>, buf: &mut String) -> Result<usize, IpcError>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    // We can't use `read_line` directly because it has no size cap.
+    // Read raw bytes until `\n`, bail if we exceed the cap, then
+    // convert to UTF-8.
+    let mut raw: Vec<u8> = Vec::with_capacity(256);
+    loop {
+        let chunk = reader.fill_buf().await?;
+        if chunk.is_empty() {
+            // EOF.
+            if raw.is_empty() {
+                return Ok(0);
+            }
+            // Trailing line without a newline: still parse it.
+            break;
+        }
+        if let Some(idx) = chunk.iter().position(|&b| b == b'\n') {
+            let take = idx + 1;
+            if raw.len() + take > MAX_LINE_BYTES {
+                return Err(IpcError::OversizedLine);
+            }
+            raw.extend_from_slice(&chunk[..take]);
+            reader.consume(take);
+            break;
+        }
+        if raw.len() + chunk.len() > MAX_LINE_BYTES {
+            return Err(IpcError::OversizedLine);
+        }
+        raw.extend_from_slice(chunk);
+        let consumed = chunk.len();
+        reader.consume(consumed);
+    }
+
+    let s = String::from_utf8(raw)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("invalid utf-8: {e}")))?;
+    let n = s.len();
+    buf.push_str(&s);
+    Ok(n)
+}
+
+fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &Arc<D>) {
+    // Notification vs request: the proto layer pins
+    // `{"id": null, ...}` as identical to a missing `id`. Both yield
+    // `id: None`. We do not branch on `id.is_some()` to distinguish
+    // dispatch behaviour — only response routing (a future task)
+    // would consult the field, and only after dispatch.
+    let result = match &envelope.command {
+        IpcCommand::RegisterSession { session_id } => dispatcher.register(session_id),
+        IpcCommand::Heartbeat { session_id } => dispatcher.heartbeat(session_id),
+        IpcCommand::UnregisterSession { session_id } => dispatcher.unregister(session_id),
+        IpcCommand::ListSessions => {
+            let _ = dispatcher.list();
+            Ok(())
+        }
+    };
+    if let Err(err) = result {
+        tracing::warn!(target: "anvil_intercept::ipc", error = %err, "dispatcher returned error");
+        eprintln!("anvil-intercept: dispatcher returned error: {err}");
+    }
+}
+
+// --------------------------------------------------------------------
+// Tests.
+// --------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::time::Duration;
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::UnixStream;
+
+    // ----- Recording dispatcher used by behaviour tests. ------------
+
+    #[derive(Debug, Default)]
+    struct RecordingDispatcher {
+        calls: Mutex<Vec<RecordedCall>>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum RecordedCall {
+        Register(String),
+        Heartbeat(String),
+        Unregister(String),
+        List,
+    }
+
+    impl RecordingDispatcher {
+        fn calls(&self) -> Vec<RecordedCall> {
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    impl SessionDispatcher for Arc<RecordingDispatcher> {
+        fn register(&self, id: &SessionId) -> Result<(), DispatchError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(RecordedCall::Register(id.as_str().to_owned()));
+            Ok(())
+        }
+        fn heartbeat(&self, id: &SessionId) -> Result<(), DispatchError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(RecordedCall::Heartbeat(id.as_str().to_owned()));
+            Ok(())
+        }
+        fn unregister(&self, id: &SessionId) -> Result<(), DispatchError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(RecordedCall::Unregister(id.as_str().to_owned()));
+            Ok(())
+        }
+        fn list(&self) -> Vec<SessionId> {
+            self.calls.lock().unwrap().push(RecordedCall::List);
+            Vec::new()
+        }
+    }
+
+    // ----- Path resolution (platform-independent). ------------------
+
+    #[test]
+    fn current_user_name_reads_username_then_user_then_logname() {
+        // We can't reliably mutate the process env in a unit test
+        // without races, so we just verify the function returns
+        // something sane for the current process.
+        let user =
+            current_user_name().expect("test host has at least one of USER/USERNAME/LOGNAME");
+        assert!(!user.is_empty(), "user name must not be empty");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_socket_dir_prefers_xdg_runtime_dir() {
+        let dir = resolve_socket_dir_with_env(
+            Some("/run/user/1000".into()),
+            Some("/home/somebody".into()),
+        )
+        .expect("resolve");
+        assert_eq!(dir, PathBuf::from("/run/user/1000/anvil"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_socket_dir_falls_back_to_home_state() {
+        let dir =
+            resolve_socket_dir_with_env(None, Some("/home/somebody".into())).expect("resolve");
+        assert_eq!(dir, PathBuf::from("/home/somebody/.local/state/anvil"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_socket_dir_treats_empty_xdg_as_unset() {
+        let dir = resolve_socket_dir_with_env(Some("".into()), Some("/home/somebody".into()))
+            .expect("resolve");
+        assert_eq!(dir, PathBuf::from("/home/somebody/.local/state/anvil"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_socket_dir_errors_when_no_candidate() {
+        let err = resolve_socket_dir_with_env(None, None).unwrap_err();
+        assert!(matches!(err, IpcError::NoSocketDirCandidate));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolve_pipe_name_uses_user_suffix() {
+        let name = resolve_pipe_name().expect("resolve");
+        assert!(name.starts_with(r"\\.\pipe\anvil-intercept-"), "got {name}");
+    }
+
+    // ----- Unix permission and bind tests. --------------------------
+
+    #[cfg(unix)]
+    mod unix {
+        use super::*;
+        use nix::unistd::Uid;
+        use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+
+        fn current_uid() -> u32 {
+            Uid::current().as_raw()
+        }
+
+        #[test]
+        fn ensure_dir_creates_with_mode_0700_when_missing() {
+            let tmp = tempfile::tempdir().unwrap();
+            let target = tmp.path().join("anvil");
+            assert!(!target.exists());
+            unix_perms::ensure_dir(&target, current_uid()).expect("create");
+            let meta = std::fs::symlink_metadata(&target).unwrap();
+            assert_eq!(meta.permissions().mode() & 0o777, 0o700);
+            assert_eq!(meta.uid(), current_uid());
+        }
+
+        #[test]
+        fn ensure_dir_accepts_existing_with_mode_0700() {
+            let tmp = tempfile::tempdir().unwrap();
+            let target = tmp.path().join("anvil");
+            std::fs::create_dir(&target).unwrap();
+            std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o700)).unwrap();
+            unix_perms::ensure_dir(&target, current_uid()).expect("verify");
+        }
+
+        #[test]
+        fn ensure_dir_refuses_existing_with_wrong_mode() {
+            let tmp = tempfile::tempdir().unwrap();
+            let target = tmp.path().join("anvil");
+            std::fs::create_dir(&target).unwrap();
+            std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let err = unix_perms::ensure_dir(&target, current_uid()).unwrap_err();
+            assert!(
+                matches!(err, IpcError::SocketDirPermissions { mode: 0o755, .. }),
+                "unexpected error: {err:?}"
+            );
+        }
+
+        #[test]
+        fn ensure_dir_refuses_symlink() {
+            let tmp = tempfile::tempdir().unwrap();
+            let real = tmp.path().join("real");
+            std::fs::create_dir(&real).unwrap();
+            std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let link = tmp.path().join("link");
+            symlink(&real, &link).unwrap();
+            let err = unix_perms::ensure_dir(&link, current_uid()).unwrap_err();
+            assert!(
+                matches!(err, IpcError::SocketDirIsSymlink(_)),
+                "got {err:?}"
+            );
+        }
+
+        // -------- Bind / serve tests against real sockets. ----------
+
+        fn fresh_socket_path() -> (tempfile::TempDir, PathBuf) {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().join("anvil");
+            // intentionally do not create — bind() should create it
+            // with the correct mode.
+            let path = dir.join("intercept.sock");
+            (tmp, path)
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_creates_dir_0700_and_socket_0600() {
+            let (_tmp, path) = fresh_socket_path();
+            let listener: IpcListener<NoopDispatcher> =
+                IpcListener::bind(&path, NoopDispatcher).expect("bind");
+
+            let dir_meta = std::fs::symlink_metadata(path.parent().unwrap()).unwrap();
+            assert_eq!(dir_meta.permissions().mode() & 0o777, 0o700);
+
+            let sock_meta = std::fs::symlink_metadata(&path).unwrap();
+            assert_eq!(sock_meta.permissions().mode() & 0o777, 0o600);
+
+            drop(listener);
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_refuses_when_dir_has_wrong_mode() {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().join("anvil");
+            std::fs::create_dir(&dir).unwrap();
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let path = dir.join("intercept.sock");
+            let err = IpcListener::bind(&path, NoopDispatcher).err().unwrap();
+            assert!(
+                matches!(err, IpcError::SocketDirPermissions { mode: 0o755, .. }),
+                "got {err:?}"
+            );
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_refuses_when_socket_parent_is_symlink() {
+            let tmp = tempfile::tempdir().unwrap();
+            let real = tmp.path().join("real");
+            std::fs::create_dir(&real).unwrap();
+            std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let link = tmp.path().join("link");
+            symlink(&real, &link).unwrap();
+            let path = link.join("intercept.sock");
+            let err = IpcListener::bind(&path, NoopDispatcher).err().unwrap();
+            assert!(
+                matches!(err, IpcError::SocketDirIsSymlink(_)),
+                "got {err:?}"
+            );
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_refuses_when_socket_path_is_symlink() {
+            let (_tmp, path) = fresh_socket_path();
+            // Pre-create the parent dir at 0700.
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::set_permissions(
+                path.parent().unwrap(),
+                std::fs::Permissions::from_mode(0o700),
+            )
+            .unwrap();
+            // Plant a dangling symlink at the socket path.
+            symlink("/nonexistent/anvil-target", &path).unwrap();
+            let err = IpcListener::bind(&path, NoopDispatcher).err().unwrap();
+            assert!(
+                matches!(err, IpcError::SocketPathIsSymlink(_)),
+                "got {err:?}"
+            );
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_unlinks_stale_socket_with_no_listener() {
+            let (_tmp, path) = fresh_socket_path();
+            // First bind creates the socket and the parent dir at 0700.
+            let first: IpcListener<NoopDispatcher> =
+                IpcListener::bind(&path, NoopDispatcher).expect("first bind");
+            // Drop the listener WITHOUT removing the socket file —
+            // simulate a daemon that crashed before its `serve`
+            // cleanup ran. `into_std` then forget gives us that.
+            let std_listener = first.inner.into_std().unwrap();
+            drop(std_listener);
+            assert!(path.exists(), "stale socket should remain on disk");
+            // Second bind sees the stale socket, fails to connect,
+            // unlinks, and rebinds.
+            let second: IpcListener<NoopDispatcher> =
+                IpcListener::bind(&path, NoopDispatcher).expect("second bind unlinks stale");
+            drop(second);
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_refuses_when_live_listener_already_holds_path() {
+            let (_tmp, path) = fresh_socket_path();
+            let _first: IpcListener<NoopDispatcher> =
+                IpcListener::bind(&path, NoopDispatcher).expect("first bind");
+            let err = IpcListener::bind(&path, NoopDispatcher).err().unwrap();
+            assert!(
+                matches!(err, IpcError::AnotherDaemonRunning(_)),
+                "got {err:?}"
+            );
+            // PID-file tie-in lands later — for INTD-002 the
+            // socket-bind contention is sufficient.
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn bind_refuses_when_path_is_a_regular_file() {
+            let (_tmp, path) = fresh_socket_path();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::set_permissions(
+                path.parent().unwrap(),
+                std::fs::Permissions::from_mode(0o700),
+            )
+            .unwrap();
+            std::fs::write(&path, b"not a socket").unwrap();
+            let err = IpcListener::bind(&path, NoopDispatcher).err().unwrap();
+            assert!(
+                matches!(err, IpcError::SocketPathNotASocket(_)),
+                "got {err:?}"
+            );
+        }
+
+        // --------- NDJSON dispatch tests. --------------------------
+
+        async fn spawn_listener_with_dispatcher(
+            path: &Path,
+            dispatcher: Arc<RecordingDispatcher>,
+        ) -> (
+            crate::Shutdown,
+            tokio::task::JoinHandle<Result<(), IpcError>>,
+        ) {
+            let listener = IpcListener::bind(path, Arc::clone(&dispatcher)).expect("bind");
+            let (shutdown, token) = crate::Shutdown::new();
+            let handle = tokio::spawn(async move { listener.serve(token).await });
+            // Yield once so the listener enters its accept loop.
+            tokio::task::yield_now().await;
+            (shutdown, handle)
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn ndjson_register_session_dispatches() {
+            let (_tmp, path) = fresh_socket_path();
+            let dispatcher = Arc::new(RecordingDispatcher::default());
+            let (shutdown, handle) =
+                spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
+
+            let mut stream = UnixStream::connect(&path).await.expect("connect");
+            let envelope = IpcEnvelope::request(
+                "req-1",
+                IpcCommand::RegisterSession {
+                    session_id: SessionId::new("sess_abc"),
+                },
+            );
+            let mut line = serde_json::to_string(&envelope).unwrap();
+            line.push('\n');
+            stream.write_all(line.as_bytes()).await.unwrap();
+            stream.shutdown().await.unwrap();
+
+            // Wait briefly for the handler to record the call.
+            for _ in 0..50 {
+                if !dispatcher.calls().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert_eq!(
+                dispatcher.calls(),
+                vec![RecordedCall::Register("sess_abc".into())]
+            );
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .expect("listener did not return after shutdown")
+                .expect("join")
+                .expect("serve");
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn ndjson_malformed_line_is_skipped_and_next_line_dispatches() {
+            let (_tmp, path) = fresh_socket_path();
+            let dispatcher = Arc::new(RecordingDispatcher::default());
+            let (shutdown, handle) =
+                spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
+
+            let mut stream = UnixStream::connect(&path).await.expect("connect");
+            // First line: structurally valid JSON but unknown command.
+            stream
+                .write_all(b"{\"command\":\"future-unknown\",\"session_id\":\"x\"}\n")
+                .await
+                .unwrap();
+            // Second line: also nonsense.
+            stream.write_all(b"not even json\n").await.unwrap();
+            // Third line: a real envelope. Connection must still be
+            // open and dispatch must fire.
+            let envelope = IpcEnvelope::notification(IpcCommand::Heartbeat {
+                session_id: SessionId::new("sess_xyz"),
+            });
+            let mut line = serde_json::to_string(&envelope).unwrap();
+            line.push('\n');
+            stream.write_all(line.as_bytes()).await.unwrap();
+            stream.shutdown().await.unwrap();
+
+            for _ in 0..50 {
+                if !dispatcher.calls().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert_eq!(
+                dispatcher.calls(),
+                vec![RecordedCall::Heartbeat("sess_xyz".into())],
+                "malformed lines must be skipped without dispatch"
+            );
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn ndjson_unknown_command_treated_as_malformed() {
+            // The proto layer pins the deserialise failure on unknown
+            // commands. The dispatch layer must surface that the same
+            // way it surfaces any other malformed line: warning +
+            // skip, no panic, no dispatch.
+            let (_tmp, path) = fresh_socket_path();
+            let dispatcher = Arc::new(RecordingDispatcher::default());
+            let (shutdown, handle) =
+                spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
+
+            let mut stream = UnixStream::connect(&path).await.expect("connect");
+            stream
+                .write_all(b"{\"command\":\"future-unknown\",\"session_id\":\"x\"}\n")
+                .await
+                .unwrap();
+            stream.shutdown().await.unwrap();
+
+            // Give the handler a moment, then assert nothing
+            // dispatched and the listener is still alive.
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            assert!(
+                dispatcher.calls().is_empty(),
+                "unknown command must not dispatch; got {:?}",
+                dispatcher.calls()
+            );
+
+            // Connect a second time and send a real envelope to prove
+            // the listener is still serving.
+            let mut second = UnixStream::connect(&path).await.expect("second connect");
+            let envelope = IpcEnvelope::notification(IpcCommand::ListSessions);
+            let mut line = serde_json::to_string(&envelope).unwrap();
+            line.push('\n');
+            second.write_all(line.as_bytes()).await.unwrap();
+            second.shutdown().await.unwrap();
+
+            for _ in 0..50 {
+                if !dispatcher.calls().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert_eq!(dispatcher.calls(), vec![RecordedCall::List]);
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn ndjson_oversized_line_closes_connection_but_listener_continues() {
+            let (_tmp, path) = fresh_socket_path();
+            let dispatcher = Arc::new(RecordingDispatcher::default());
+            let (shutdown, handle) =
+                spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
+
+            // First connection: send a line larger than 1 MiB. The
+            // connection should be torn down with OversizedLine.
+            let mut stream = UnixStream::connect(&path).await.expect("connect");
+            // 1 MiB + 1 byte of payload, no newline yet.
+            let blob = vec![b'x'; MAX_LINE_BYTES + 1];
+            // The peer closing on its side is fine — what we care
+            // about is that the second connection still works.
+            let _ = stream.write_all(&blob).await;
+            let _ = stream.shutdown().await;
+            drop(stream);
+
+            // Second connection: a valid envelope dispatches.
+            let mut second = UnixStream::connect(&path).await.expect("second connect");
+            let envelope = IpcEnvelope::notification(IpcCommand::Heartbeat {
+                session_id: SessionId::new("sess_after_oversize"),
+            });
+            let mut line = serde_json::to_string(&envelope).unwrap();
+            line.push('\n');
+            second.write_all(line.as_bytes()).await.unwrap();
+            second.shutdown().await.unwrap();
+
+            for _ in 0..100 {
+                if !dispatcher.calls().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert_eq!(
+                dispatcher.calls(),
+                vec![RecordedCall::Heartbeat("sess_after_oversize".into())],
+                "listener must continue serving other connections after an oversized line",
+            );
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn shutdown_drains_inflight_handlers_within_deadline() {
+            let (_tmp, path) = fresh_socket_path();
+            let dispatcher = Arc::new(RecordingDispatcher::default());
+            let (shutdown, handle) =
+                spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
+
+            // Open a connection but don't send anything — the
+            // handler is mid-stream waiting for a line. Shutdown
+            // must still complete within the drain deadline.
+            let stream = UnixStream::connect(&path).await.expect("connect");
+
+            let started = std::time::Instant::now();
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_millis(750), handle)
+                .await
+                .expect("listener did not stop within 750 ms")
+                .expect("join")
+                .expect("serve");
+            let elapsed = started.elapsed();
+            assert!(
+                elapsed < Duration::from_millis(750),
+                "drain took too long: {elapsed:?}"
+            );
+
+            drop(stream);
+        }
+    }
+}
