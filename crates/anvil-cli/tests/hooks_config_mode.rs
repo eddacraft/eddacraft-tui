@@ -279,7 +279,7 @@ fn hooks_install_config_warns_when_file_mode_hook_already_exists() {
         "install --config must warn rather than block per scope-guard",
     );
     assert!(
-        stdout.contains("File-mode hook(s) detected"),
+        stdout.contains("Duplicate-execution risk"),
         "expected coexistence warning in stdout, got:\n{stdout}",
     );
     // And the config entry must still be written.
