@@ -59,7 +59,7 @@ critical flow.
 - `crates/anvil-cli` — command dispatch, MCP config generation, packaging
 - `crates/anvil-checks` — launch rule execution, including secret detection and
   the A1 reasoning-pattern rule
-- `crates/anvil-kernel-types` — canonical diagnostic envelope once coordinated
+- `crates/anvil-kernel-types` — canonical `anvil.diagnostic.v1` envelope published by AIGUARD-002
 - RCLI3-016 — existing `mcp-config` command that writes
   `anvil mcp serve --stdio`
 - RCLI3-016b — `anvil mcp install` wrapper, pulled forward to A1
@@ -103,7 +103,7 @@ generated config already depends on this command existing. Re-check before
 starting implementation:
 
 - [ ] Tool name and request shape agreed with RTAI owner
-- [ ] Canonical diagnostic envelope fields agreed with AIGUARD/RTAI/INTD owners
+- [x] Canonical diagnostic envelope fields agreed via `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
 - [ ] Cursor and Claude Code config paths verified by RCLI3-016/RCLI3-016b
 - [ ] Decision recorded on daemon-first vs embedded-fallback validation order
 - [ ] Demo runbook updated to name this module as the MCP launch path

@@ -7,39 +7,20 @@
 | ------- | ----- | -------- | -------- | -------- |
 | AIGUARD | —     | high     | Complete | 4/4      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-28
 
-> **Audit note (2026-04-26):** Tier A — current-release candidate. Council C
-> recommended archival on the basis that AIGUARD is "one CLI flag, not a
-> module" — that was too dismissive. AIGUARD-002 (stable JSON diagnostic
-> schema in `crates/anvil-kernel-types/src/diagnostics.rs`) is the
-> strategic piece: it defines what AI tools consume when they invoke
-> `anvil gate --profile ai`. That is launch-aligned with RTAI's
-> "trust-in-AI-generated-code" thesis — RTAI fires the validation, AI
-> tool reads gate-result JSON in the **same envelope shape**.
+> **Reconciliation note (2026-04-28):** Checked against the Rust
+> implementation. AIGUARD remains **Complete 4/4**: `anvil gate --profile ai`
+> is the implemented surface, the profile allow-list and strict-config defaults
+> live in `crates/anvil-cli/src/commands/gate.rs`, and AIGUARD-002 publishes the
+> canonical `anvil.diagnostic.v1` type in
+> `crates/anvil-kernel-types/src/diagnostics.rs`. The stale dependency list and
+> `--profile ai` / `--ai` ambiguity from the 2026-04-26 audit are resolved below.
 >
-> Earlier audit pass framed the archived dependency planning modules
-> (`architecture-safety`, `antipattern-library`,
-> `opa-architecture-integration`, `policy-pack-validation`,
-> `architecture-config-validation`, `llms-txt-export`) as evidence of
-> staleness — that was a misread. Those *planning modules* are archived
-> because their work-item lists completed; the equivalent Rust capability
-> is **live** in `crates/anvil-kernel` (architecture invariants,
-> secret/anti-pattern checks, command safety) and `crates/anvil-policy`
-> (policy validation). All 4 task scopes already target Rust crates with
-> `cargo test` validations — no rescope work needed.
->
-> **Cross-coordination required:** AIGUARD-002 diagnostic envelope must
-> share a single schema with RTAI-007 (notification mirror) and INTD-013
-> (telemetry control envelope). Whichever module lands first publishes
-> the canonical shape; the others reference it. Coordinate before
-> implementation.
->
-> **Followup work** (tracked separately):
-> 1. Update Interfaces "Depends on" block to remove the archived planning
->    modules and rely on the live Rust crate references already present.
-> 2. Add cross-reference to RTAI-007 / INTD-013 envelope coordination.
-> 3. Confirm `--profile ai` is the right surface name (vs. `--ai`).
+> **Envelope coordination resolved for this module:**
+> `plans/specs/2026-04-26-diagnostic-envelope-coordination.md` is the canonical
+> cross-module spec. RTAI, INTD, DRVR, RMCP and later producers should import or
+> wrap the shared diagnostic shape rather than defining parallel payloads.
 
 ## Purpose
 
@@ -65,20 +46,19 @@ This gives teams using external AI tools a predictable safety harness.
 
 **Depends on:**
 
-- `architecture-safety` — Architecture analysis
-- `antipattern-library` — Antipattern checks
-- `opa-architecture-integration` — Policy evaluation
-- `policy-pack-validation` — Policy validation preflight
-- `architecture-config-validation` — Config validation preflight
-- `llms-txt-export` — Constraint export for AI tools
-- `crates/anvil-kernel` — kernel checks (secret scan, anti-pattern, command safety, architecture invariants)
-- `crates/anvil-cli` — Rust CLI `--profile ai` flag
+- `crates/anvil-cli` — Rust `anvil gate --profile ai` surface, strict-config handling, JSON gate-result envelope
+- `crates/anvil-kernel-types` — canonical `Diagnostic` / `anvil.diagnostic.v1` shape
+- `crates/anvil-kernel` — parser support for architecture edge extraction
+- `crates/anvil-architecture` — import-boundary validation
+- `crates/anvil-checks` — secret detection, antipattern scan, command-safety checks
+- `crates/anvil-policy` — OPA policy evaluation
+- `plans/specs/2026-04-26-diagnostic-envelope-coordination.md` — shared diagnostic-envelope contract for AIGUARD/RTAI/INTD/DRVR/RMCP
 
 **Exposes:**
 
-- `--profile ai` (or `--ai`) CLI entry point
+- `anvil gate --profile ai` CLI entry point
 - `AiGuardrailProfile` configuration
-- Structured diagnostics format for AI tooling
+- `anvil.gate-result.v1` envelope wrapping `anvil.diagnostic.v1` diagnostics for AI tooling
 
 ## Acceptance Criteria
 
@@ -93,6 +73,7 @@ This gives teams using external AI tools a predictable safety harness.
 
 ### AIGUARD-001: Profile definition
 
+- **Status:** Complete
 - **Intent:** Define the AI guardrail profile and its default checks
 - **Expected Outcome:** Profile describes strict rules and required inputs
 - **Scope:** `crates/anvil-cli/src/commands/gate.rs` (profile integration)
@@ -105,6 +86,7 @@ This gives teams using external AI tools a predictable safety harness.
 
 ### AIGUARD-002: Structured diagnostics format
 
+- **Status:** Complete
 - **Intent:** Standardise diagnostics across policy, architecture, and rules
 - **Expected Outcome:** Consistent schema with remediation hints
 - **Scope:** `crates/anvil-kernel-types/src/diagnostics.rs`
@@ -127,7 +109,7 @@ This gives teams using external AI tools a predictable safety harness.
   - `crates/anvil-cli/src/commands/check_catalog.rs` (command-safety registration in CHECK_DEFINITIONS + GATE_INTERNAL_CHECKS)
   - `crates/anvil-cli/tests/ai_guardrail_profile.rs` (end-to-end JSON envelope assertion)
 - **Dependencies:** AIGUARD-001, AIGUARD-002
-- **Validation:** `cargo test -p eddacraft-anvil -- ai_guardrail` and the colocated unit tests in `gate.rs`
+- **Validation:** `cargo test -p eddacraft-anvil -- ai_guardrail` and `cargo test -p eddacraft-anvil --test ai_guardrail_profile`
 - **Confidence:** medium
 
 ### AIGUARD-004: Documentation and examples
