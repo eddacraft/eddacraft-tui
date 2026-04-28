@@ -141,6 +141,10 @@ warn or block before the write hits disk.
   RTAI-006, RTAI-008 — MCP/RMCP path first (deterministic demo target). RTAI-004
   is deferred with the TS `DriverClient`/editor-driver path.
 
+**Execution stance:** INTD remains the primary A1 path for this release. RMCP's
+embedded/shared Rust validation path is a contingency only; activate it by
+explicit release-owner decision if INTD threatens the release.
+
 **Prerequisites:**
 
 - RTAI-001 spike completed and latency budget validated _before_ any other RTAI
@@ -149,6 +153,8 @@ warn or block before the write hits disk.
 - ADR-031 latency rubric referenced by INTD-014 / RTAI / RMCP
 - Generated Cursor / Claude Code config verified to launch
   `anvil mcp serve --stdio`
+- Before tagging, record whether RMCP shipped daemon-backed or via the embedded
+  validation fallback
 
 **Out-of-scope (protect the slice):**
 
@@ -164,12 +170,12 @@ warn or block before the write hits disk.
 - TUIDASH, RCLI2, and RCLI3 except the already-pulled-forward MCP config/install
   items RCLI3-016/RCLI3-016b
 
-**Adversarial risk:** **Latency budget is fiction.** Sub-50ms daemon-side /
-sub-100ms total numbers extrapolate from in-process kernel benchmarks. Rust MCP
-stdio framing may still break "feels real-time." RTAI-001 measures truth; if
-real number is 250ms, demo "works" but does not _wow_. Mitigation must be
-planned before slice commits — pre-warm daemon, batch rule eval, or accept
-"save-time" framing if mid-edit is unrealistic.
+**Adversarial risk:** **Latency budget is fiction and INTD may slip.** Sub-50ms
+daemon-side / sub-100ms total numbers extrapolate from in-process kernel
+benchmarks. Rust MCP stdio framing may still break "feels real-time." RTAI-001
+measures truth; if real number is 250ms, demo "works" but does not _wow_. If
+INTD becomes the release bottleneck, RMCP can fall back to the embedded/shared
+Rust validation path, but only after an explicit release-owner decision.
 
 **Recommendation: PICK. This is the launch.**
 
