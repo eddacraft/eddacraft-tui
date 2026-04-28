@@ -5,7 +5,7 @@ use anvil_checks::reasoning::{
 };
 use anvil_kernel_types::{Diagnostic, Mode};
 
-use crate::{InterceptRule, RuleDecision, RuleInput, sanitise_id_part};
+use crate::{InterceptRule, RuleDecision, RuleInput};
 
 pub const LAUNCH_REASONING_RULE_ID: &str = APPEAL_TO_AUTHORITY_RULE_ID;
 
@@ -70,21 +70,14 @@ impl InterceptRule for LaunchReasoningPatternRule {
 
         match first.location.line {
             Some(line) if line > 0 => {
-                RuleDecision::interrupt_at(&first.source.rule_id, first.summary.clone(), line)
+                RuleDecision::interrupt_at(self.rule_id(), first.summary.clone(), line)
             }
-            _ => RuleDecision::interrupt(&first.source.rule_id, first.summary.clone()),
+            _ => RuleDecision::interrupt(self.rule_id(), first.summary.clone()),
         }
     }
 }
 
 fn retag_diagnostic(mut diagnostic: Diagnostic, mode: Mode) -> Diagnostic {
-    let line = diagnostic.location.line.unwrap_or(0);
-    diagnostic.id = format!(
-        "diag_intercept_reasoning_{}_{}_{}",
-        sanitise_id_part(&diagnostic.location.file),
-        line,
-        sanitise_id_part(&diagnostic.source.rule_id)
-    );
     diagnostic.mode = mode;
     diagnostic
 }
@@ -158,6 +151,7 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         let diagnostic = &diagnostics[0];
         assert_eq!(diagnostic.schema_version, "anvil.diagnostic.v1");
+        assert_eq!(diagnostic.id, APPEAL_TO_AUTHORITY_RULE_ID);
         assert_eq!(diagnostic.severity, Severity::Info);
         assert_eq!(diagnostic.category, Category::Reasoning);
         assert_eq!(diagnostic.location.file, "plans/demo.rs");

@@ -82,7 +82,7 @@ impl InterceptRule for SecretDetectionRule {
 fn finding_to_diagnostic(finding: &SecretFinding, mode: Mode) -> Diagnostic {
     Diagnostic::new(
         format!(
-            "diag_intercept_secret_{}_{}_{}",
+            "diag_prewrite_{}_{}_{}",
             sanitise_id_part(&finding.file),
             finding.line,
             sanitise_id_part(&finding.pattern_name)
@@ -202,6 +202,7 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         let diagnostic = &diagnostics[0];
         assert_eq!(diagnostic.schema_version, "anvil.diagnostic.v1");
+        assert_eq!(diagnostic.id, "diag_prewrite_src_auth_client_ts_1_api_key");
         assert_eq!(diagnostic.severity, Severity::Error);
         assert_eq!(diagnostic.category, Category::Secret);
         assert_eq!(diagnostic.location.file, "src/auth/client.ts");
