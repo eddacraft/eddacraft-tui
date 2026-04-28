@@ -35,6 +35,30 @@ pub enum Severity {
     Error,
 }
 
+/// Enforcement decision vocabulary shared by control surfaces. This is
+/// deliberately separate from [`Severity`]: rules describe findings with
+/// severity, while the caller maps those findings to an enforcement decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlDecision {
+    Allow,
+    Warn,
+    Block,
+    Interrupt,
+}
+
+impl ControlDecision {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Warn => "warn",
+            Self::Block => "block",
+            Self::Interrupt => "interrupt",
+        }
+    }
+}
+
 /// Coarse routing/filtering grouping for diagnostics. Closed list per
 /// the spec — new values require a spec amendment before producers
 /// emit them.
@@ -265,6 +289,24 @@ mod tests {
         assert_eq!(serde_json::to_value(Severity::Info).unwrap(), "info");
         assert_eq!(serde_json::to_value(Severity::Warning).unwrap(), "warning");
         assert_eq!(serde_json::to_value(Severity::Error).unwrap(), "error");
+    }
+
+    #[test]
+    fn diagnostic_schema_decision_variants_serialise_kebab_case() {
+        let cases = [
+            (ControlDecision::Allow, "allow"),
+            (ControlDecision::Warn, "warn"),
+            (ControlDecision::Block, "block"),
+            (ControlDecision::Interrupt, "interrupt"),
+        ];
+
+        for (variant, expected) in cases {
+            let json = serde_json::to_value(variant).expect("serialise");
+            assert_eq!(json, expected);
+            let back: ControlDecision = serde_json::from_value(json).expect("deserialise");
+            assert_eq!(back, variant);
+            assert_eq!(variant.as_str(), expected);
+        }
     }
 
     #[test]

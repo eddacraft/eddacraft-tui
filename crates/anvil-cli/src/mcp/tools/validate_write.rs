@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
+use anvil_kernel_types::diagnostics::ControlDecision;
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use serde_json::{Value, json};
 
@@ -105,6 +107,8 @@ fn call_with_validation_client(
         diagnostics = validation.diagnostics;
     }
 
+    let diagnostics = normalise_response_diagnostics(&diagnostics);
+
     tool_result(&validation_payload(
         &request.relative_path,
         &diagnostics,
@@ -178,7 +182,7 @@ fn validation_payload(
         }
     });
 
-    if decision == "block" {
+    if decision == ControlDecision::Block {
         payload["safeDefault"] = json!("do-not-write");
     }
 
@@ -216,17 +220,54 @@ fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
     })
 }
 
-fn decision_for(diagnostics: &[Diagnostic]) -> &'static str {
+fn decision_for(diagnostics: &[Diagnostic]) -> ControlDecision {
     if diagnostics
         .iter()
         .any(|diagnostic| diagnostic.severity == Severity::Error)
     {
-        "block"
+        ControlDecision::Block
     } else if diagnostics.is_empty() {
-        "allow"
+        ControlDecision::Allow
     } else {
-        "warn"
+        ControlDecision::Warn
     }
+}
+
+fn normalise_response_diagnostics(diagnostics: &[Diagnostic]) -> Vec<Diagnostic> {
+    diagnostics
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(index, mut diagnostic)| {
+            if diagnostic.category == Category::Secret {
+                diagnostic.id = format!("diag_mcp_secret_{:03}", index + 1);
+                diagnostic.summary =
+                    "Potential secret detected; remove it from the proposed write.".to_string();
+                diagnostic.location.file = redact_secret_values(&diagnostic.location.file);
+                diagnostic.source.rule_id = redact_secret_values(&diagnostic.source.rule_id);
+                diagnostic.source.source_module = redact_secret_values(&diagnostic.source.source_module);
+                diagnostic.remediation_hint = Some(
+                    "Remove the secret from the proposed write; use a placeholder or environment variable instead."
+                        .to_string(),
+                );
+                if let Mode::Unknown(value) = &mut diagnostic.mode {
+                    *value = redact_secret_values(value);
+                }
+            }
+            diagnostic
+        })
+        .collect()
+}
+
+fn redact_secret_values(value: &str) -> String {
+    DEFAULT_COMPILED_PATTERNS
+        .iter()
+        .fold(value.to_string(), |current, pattern| {
+            pattern
+                .regex
+                .replace_all(&current, "[REDACTED]")
+                .into_owned()
+        })
 }
 
 fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
@@ -617,9 +658,29 @@ mod tests {
             }),
         );
 
-        assert_eq!(payload["decision"], "allow");
-        assert_eq!(payload["summary"]["total"], 0);
-        assert_eq!(payload["diagnostics"], json!([]));
+        assert_eq!(
+            payload,
+            json!({
+                "schema": "anvil.mcp.validate-write.v1",
+                "decision": "allow",
+                "summary": {
+                    "total": 0,
+                    "bySeverity": {
+                        "error": 0,
+                        "warning": 0,
+                        "info": 0,
+                    }
+                },
+                "diagnostics": [],
+                "correlation": {
+                    "id": "corr_mcp_src_example_ts",
+                    "surface": "mcp",
+                    "mode": "preWrite",
+                    "backend": "embedded",
+                    "path": "src/example.ts",
+                }
+            })
+        );
     }
 
     #[test]
@@ -639,8 +700,21 @@ mod tests {
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
         assert_eq!(payload["diagnostics"][0]["category"], "secret");
         assert_eq!(
+            payload["diagnostics"][0]["summary"],
+            "Potential secret detected; remove it from the proposed write."
+        );
+        assert_eq!(
+            payload["diagnostics"][0]["remediation_hint"],
+            "Remove the secret from the proposed write; use a placeholder or environment variable instead."
+        );
+        assert_eq!(
             payload["diagnostics"][0]["source"]["rule_id"],
             "secret-detection"
+        );
+        assert!(
+            !serde_json::to_string(&payload)
+                .expect("payload serialises")
+                .contains("ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         );
     }
 
@@ -667,6 +741,50 @@ mod tests {
         assert_eq!(
             payload["diagnostics"][0]["source"]["rule_id"],
             "secret-detection"
+        );
+    }
+
+    #[test]
+    fn daemon_secret_diagnostics_are_redacted_before_mcp_response() {
+        let workspace = tempdir().expect("workspace exists");
+        let raw_secret = "ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let mut diagnostic = sample_daemon_diagnostic();
+        diagnostic.id = format!("diag_{raw_secret}");
+        diagnostic.summary = format!("Potential secret detected: {raw_secret}");
+        diagnostic.location.file = format!("src/{raw_secret}.ts");
+        diagnostic.source.rule_id = format!("secret-detection-{raw_secret}");
+        diagnostic.source.source_module = format!("daemon::{raw_secret}");
+        diagnostic.mode = Mode::Unknown(format!("pre-write-{raw_secret}"));
+        diagnostic.remediation_hint = Some(format!("Remove {raw_secret} from the proposed write."));
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::Diagnostics(vec![diagnostic]),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &daemon,
+        );
+        let payload = parse_payload(&result);
+        let response_text = serde_json::to_string(&payload).expect("payload serialises");
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["diagnostics"][0]["id"], "diag_mcp_secret_001");
+        assert_eq!(
+            payload["diagnostics"][0]["schema_version"],
+            "anvil.diagnostic.v1"
+        );
+        assert!(!response_text.contains(raw_secret));
+        assert_eq!(
+            payload["diagnostics"][0]["summary"],
+            "Potential secret detected; remove it from the proposed write."
+        );
+        assert_eq!(
+            payload["diagnostics"][0]["remediation_hint"],
+            "Remove the secret from the proposed write; use a placeholder or environment variable instead."
         );
     }
 

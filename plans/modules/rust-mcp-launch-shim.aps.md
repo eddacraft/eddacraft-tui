@@ -2,19 +2,18 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RMCP | —     | In Progress | 6/8      |
+| RMCP | —     | In Progress | 7/8      |
 
 **Last reviewed:** 2026-04-28
 
 > **A1 launch slice:** RMCP-001..RMCP-008 are the entire A1 RMCP scope.
-> Done (5/8): RMCP-001 (spec), RMCP-002 (`anvil mcp serve --stdio`),
+> Done (7/8): RMCP-001 (spec), RMCP-002 (`anvil mcp serve --stdio`),
 > RMCP-003 (MCP protocol subset), RMCP-004 (validate-write tool),
 > RMCP-005 (validation backend adapter + embedded fallback against
 > `anvil-checks` reasoning + secret rules; daemon client returns
-> `Unavailable` until INTD-002 / RTAI-002 land the IPC RPC). Ready to
-> kick off in parallel: RMCP-006 (canonical decision shape), RMCP-007
-> (`anvil mcp install --client X` wrapper), RMCP-008 (E2E smoke tests
-> + demo runbook refresh).
+> `Unavailable` until INTD-002 / RTAI-002 land the IPC RPC), RMCP-006
+> (canonical decision shape), and RMCP-007 (`anvil mcp install --client X`
+> wrapper). Remaining: RMCP-008 (E2E smoke tests + demo runbook refresh).
 
 ## Purpose
 
@@ -226,7 +225,7 @@ starting implementation:
 
 ### RMCP-006: Canonical diagnostics and decision mapping
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Ensure MCP responses use the same diagnostic vocabulary as the
   Rust CLI, daemon, and AI guardrail profile.
 - **Expected Outcome:** MCP response carries canonical diagnostics plus a clear
@@ -320,6 +319,6 @@ starting implementation:
 | ----- | ----- | ------ |
 | 0 — Scope Lock | 1 | Complete |
 | 1 — Rust Stdio Server | 3 | Complete |
-| 2 — Validation Backend | 2 | In Progress |
+| 2 — Validation Backend | 2 | Complete |
 | 3 — Install and Verification | 2 | In Progress |
-| **Total** | **8** | **6/8 Done** |
+| **Total** | **8** | **7/8 Done** |
