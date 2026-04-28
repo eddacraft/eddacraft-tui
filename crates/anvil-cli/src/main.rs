@@ -607,6 +607,19 @@ mod tests {
     }
 
     #[test]
+    fn bypass_auth_intercept() {
+        // INTD-001 scaffold: `anvil intercept start` is a daemon
+        // launcher and must not be gated behind the licence-gate
+        // flag's auth list. If a future flag-config change accidentally
+        // enrols `intercept`, this test pins the regression.
+        assert!(!requires_auth(&parse_command(&[
+            "intercept",
+            "start",
+            "--foreground",
+        ])));
+    }
+
+    #[test]
     fn bypass_auth_licenses() {
         assert!(!requires_auth(&parse_command(&["licenses"])));
     }

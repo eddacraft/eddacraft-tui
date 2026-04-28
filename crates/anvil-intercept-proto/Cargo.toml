@@ -11,8 +11,10 @@ name = "anvil_intercept_proto"
 
 [dependencies]
 serde = { workspace = true }
-serde_json = { workspace = true }
 workspace-hack.workspace = true
+
+[dev-dependencies]
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

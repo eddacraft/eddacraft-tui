@@ -6,7 +6,7 @@
 //! path.
 
 use anyhow::Result;
-use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground};
+use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground, wait_for_shutdown_signal};
 use clap::{Args, Subcommand};
 
 use crate::GlobalArgs;
@@ -54,10 +54,35 @@ fn run_start(args: &StartArgs) -> Result<()> {
         let (shutdown, token) = Shutdown::new();
         let signal_shutdown = shutdown.clone();
         tokio::spawn(async move {
-            if tokio::signal::ctrl_c().await.is_ok() {
+            if wait_for_shutdown_signal().await.is_ok() {
                 signal_shutdown.trigger();
             }
         });
         run_foreground(ForegroundOpts::default(), token).await
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pin the contract: `anvil intercept start` without `--foreground`
+    /// exits with a clear error directing the user at the missing
+    /// flag, not a silent no-op or a confusing panic. Future flag
+    /// changes that drop the bail (e.g. flipping the default to
+    /// foreground) must update this test.
+    #[test]
+    fn run_start_without_foreground_bails_with_actionable_message() {
+        let args = StartArgs { foreground: false };
+        let err = run_start(&args).expect_err("expected bail when --foreground omitted");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("--foreground"),
+            "bail message must mention --foreground, got: {msg}",
+        );
+        assert!(
+            msg.contains("INTD-002"),
+            "bail message must point at the future backgrounded path (INTD-002), got: {msg}",
+        );
+    }
 }

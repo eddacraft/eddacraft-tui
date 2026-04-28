@@ -6,22 +6,37 @@
 //!   tokio cancellation handle. The CLI calls into this from
 //!   `anvil intercept start --foreground`; tests drive it through the
 //!   same path without sending real signals.
-//! - A `Daemon` lifecycle handle that future tasks (INTD-002 IPC
-//!   listener, INTD-003 session registry, INTD-005 enforcement
-//!   pipeline) attach behind without touching the CLI surface.
+//! - A future `Daemon` lifecycle handle (INTD-002 onwards) that
+//!   subsequent tasks (INTD-002 IPC listener, INTD-003 session
+//!   registry, INTD-005 enforcement pipeline) attach behind without
+//!   touching the CLI surface.
+//! - [`wait_for_shutdown_signal`] — the single source of truth for
+//!   signal handling shared by the daemon binary and the CLI
+//!   subcommand, so SIGINT and (on Unix) SIGTERM cannot drift between
+//!   entry points.
 //!
 //! Intentionally out of scope here:
 //!
 //! - PID files (deferred until INTD-002 lands the IPC listener that
 //!   actually needs a single-instance guard).
 //! - Backgrounded / double-fork daemonisation (INTD-002+).
-//! - Cross-platform signal handling beyond SIGINT / SIGTERM /
-//!   `ctrl_c`. Windows `JobObject` termination arrives with INTD-006.
+//! - Cross-platform signal handling beyond SIGINT and Unix SIGTERM.
+//!   Windows `JobObject` termination arrives with INTD-006.
 //!
 //! See `plans/modules/intercept-daemon.aps.md` and
 //! `plans/decisions/015-intercept-loop-enforcement.md`.
 
 #![forbid(unsafe_code)]
+
+// Scaffold-stage re-exports. The proto + rules crates are part of the
+// daemon's eventual surface area but the scaffold body does not call
+// them yet. Importing as `_` silences `unused-crate-dependencies`
+// without pretending to consume them — INTD-002 wires proto messages
+// into the IPC listener; INTD-005 wires rule evaluation into the
+// enforcement pipeline. Removing these lines should be the first edit
+// either of those tasks makes.
+use anvil_intercept_proto as _;
+use anvil_intercept_rules as _;
 
 use std::time::Duration;
 
@@ -44,7 +59,8 @@ pub struct Shutdown {
 impl Shutdown {
     /// Build a fresh shutdown handle plus the receiver the daemon
     /// loop awaits on. Tests construct one of these directly; the
-    /// `--foreground` CLI path wires the receiver to `tokio::signal`.
+    /// `--foreground` CLI path wires the receiver to
+    /// [`wait_for_shutdown_signal`].
     #[must_use]
     pub fn new() -> (Self, ShutdownToken) {
         let (tx, rx) = watch::channel(false);
@@ -52,10 +68,14 @@ impl Shutdown {
     }
 
     /// Request shutdown. Idempotent — repeated calls are a no-op.
+    ///
+    /// Uses `send_replace`, which never fails: it overwrites the
+    /// watched value regardless of receiver count and wakes any
+    /// outstanding listeners. Even after every [`ShutdownToken`] has
+    /// been dropped (no one to notify), the trigger is recorded for
+    /// any token cloned later from this handle.
     pub fn trigger(&self) {
-        // `send_replace` always succeeds because we hold a clone of
-        // the sender ourselves, so there is at least one receiver.
-        let _ = self.tx.send(true);
+        self.tx.send_replace(true);
     }
 }
 
@@ -67,9 +87,15 @@ pub struct ShutdownToken {
 }
 
 impl ShutdownToken {
-    /// Resolve when shutdown has been requested. Cheap to call from
-    /// multiple awaiters — every clone of the token sees the same
-    /// transition.
+    /// Resolve when shutdown has been requested.
+    ///
+    /// Takes `&mut self` because [`watch::Receiver::changed`] requires
+    /// it. Callers that need to await cancellation from multiple
+    /// `tokio::select!` arms simultaneously must clone the token —
+    /// `ShutdownToken` is `Clone` and cloning a `watch::Receiver` is
+    /// cheap. INTD-002 onwards is expected to hold one cloned token
+    /// per spawned handler future; the registry-style "share one
+    /// token across consumers" idiom needs to clone first.
     pub async fn cancelled(&mut self) {
         // Already triggered before we awaited.
         if *self.rx.borrow_and_update() {
@@ -82,6 +108,52 @@ impl ShutdownToken {
     }
 }
 
+/// Wait for the operating system to ask the daemon to stop, on every
+/// platform the daemon supports.
+///
+/// - Unix: races SIGINT (via [`tokio::signal::ctrl_c`]) and SIGTERM
+///   (via [`tokio::signal::unix`]). Either wakes the future. SIGTERM
+///   is the signal `kill <pid>`, `systemd stop`, Docker, and
+///   Kubernetes use; SIGINT is the controlling-terminal Ctrl+C.
+/// - Windows: only Ctrl+C is wired today. Process-manager
+///   termination on Windows uses `JobObject` semantics, which
+///   INTD-006 owns.
+///
+/// Both intercept entrypoints (`anvil intercept start --foreground`
+/// in the CLI, the standalone `anvil-intercept` binary) call this
+/// helper. Keeping the signal logic in one place stops the two
+/// entrypoints drifting — a shutdown signal that cleanly stops one
+/// must cleanly stop the other.
+///
+/// Returns when any supported signal arrives; errors only if the
+/// signal infrastructure itself fails to install (rare, generally
+/// fatal).
+pub async fn wait_for_shutdown_signal() -> Result<()> {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+
+        let mut sigterm = signal(SignalKind::terminate())
+            .map_err(|err| anyhow::anyhow!("failed to install SIGTERM handler: {err}"))?;
+
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => {
+                result.map_err(|err| anyhow::anyhow!("ctrl_c handler failed: {err}"))?;
+            }
+            _ = sigterm.recv() => {}
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c()
+            .await
+            .map_err(|err| anyhow::anyhow!("ctrl_c handler failed: {err}"))?;
+    }
+
+    Ok(())
+}
+
 /// Run the intercept daemon in the current process. Blocks until
 /// `shutdown` is triggered (by SIGINT/SIGTERM in production, or by
 /// the caller in tests).
@@ -91,9 +163,13 @@ impl ShutdownToken {
 /// particular IPC or watcher integration. INTD-002 grafts the IPC
 /// listener onto this loop; INTD-003 the session registry; etc.
 pub async fn run_foreground(_opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
-    // A real heartbeat tick will replace this once the daemon loop
-    // does work. For now it just keeps the future polling so a
-    // shutdown signal is observed.
+    // TODO(INTD-002): once IPC handler tasks are spawned here, track
+    // them in a `tokio::task::JoinSet` so shutdown can drain with a
+    // bounded deadline (then hard-abort). Today the loop only ticks,
+    // so a slow handler problem cannot exist yet — but the registry
+    // shape that prevents one needs to be in place before the IPC
+    // listener lands. Do not paste handler-spawn code into the select
+    // arm without adding the JoinSet first.
     let mut tick = tokio::time::interval(Duration::from_millis(250));
     loop {
         tokio::select! {
@@ -163,5 +239,18 @@ mod tests {
         .await
         .expect("foreground loop did not return after repeated triggers");
         result.expect("foreground loop reported error");
+    }
+
+    /// Trigger applied after every receiver dropped still records the
+    /// state on a freshly-cloned token. `send_replace` (used by
+    /// `trigger`) never fails on missing receivers, unlike `send`.
+    #[tokio::test(flavor = "current_thread")]
+    async fn shutdown_trigger_survives_all_tokens_dropped() {
+        let (shutdown, token) = Shutdown::new();
+        drop(token);
+        // No receivers exist. With `send` this would silently no-op
+        // and discard an Err; `send_replace` overwrites the value so a
+        // later token clone observes the trigger.
+        shutdown.trigger();
     }
 }

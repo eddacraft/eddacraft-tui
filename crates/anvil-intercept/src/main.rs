@@ -3,12 +3,19 @@
 //! The shipped CLI is `anvil intercept start ...` (in `anvil-cli`); this
 //! binary exists so the daemon crate is independently runnable for
 //! triage and for the demo runbook §4.1 fallback. Both paths call into
-//! the same library surface (`anvil_intercept::run_foreground`).
+//! the same library surface (`anvil_intercept::run_foreground`) and use
+//! the shared `wait_for_shutdown_signal` helper, so signal handling
+//! cannot drift between them.
+//!
+//! INTD-001 scaffold: `anvil-intercept start` runs the daemon in the
+//! foreground unconditionally. The backgrounded launch path (PID file
+//! handoff, double-fork on Unix, service install on Windows) lands
+//! with INTD-002.
 
 use std::process::ExitCode;
 
 use anyhow::Result;
-use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground};
+use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground, wait_for_shutdown_signal};
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -20,13 +27,9 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Run the intercept daemon in the current process.
-    Start {
-        /// Stay in the foreground; logs stream to stdout/stderr and
-        /// SIGINT/SIGTERM stops the daemon cleanly.
-        #[arg(long, default_value_t = true)]
-        foreground: bool,
-    },
+    /// Run the intercept daemon in the current process. Always
+    /// foreground today — backgrounded launch lands with INTD-002.
+    Start,
 }
 
 fn main() -> ExitCode {
@@ -38,11 +41,11 @@ fn main() -> ExitCode {
 
     let result: Result<()> = runtime.block_on(async {
         match cli.command {
-            Command::Start { foreground: _ } => {
+            Command::Start => {
                 let (shutdown, token) = Shutdown::new();
                 let signal_shutdown = shutdown.clone();
                 tokio::spawn(async move {
-                    if tokio::signal::ctrl_c().await.is_ok() {
+                    if wait_for_shutdown_signal().await.is_ok() {
                         signal_shutdown.trigger();
                     }
                 });

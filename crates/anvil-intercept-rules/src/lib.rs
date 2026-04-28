@@ -90,12 +90,30 @@ impl RuleDecision {
     }
 
     /// Convenience constructor for an interrupt with rule id + message.
+    /// `line` is `None`; use [`RuleDecision::interrupt_at`] when the
+    /// rule can localise the violation to a specific line.
     #[must_use]
     pub fn interrupt(rule_id: impl Into<String>, message: impl Into<String>) -> Self {
         Self::Interrupt(InterruptReason {
             rule_id: rule_id.into(),
             message: message.into(),
             line: None,
+        })
+    }
+
+    /// Convenience constructor for an interrupt that knows the 1-based
+    /// line number of the violation. Content-scanning rules
+    /// (secret-detection, regex-content) are expected to use this.
+    #[must_use]
+    pub fn interrupt_at(
+        rule_id: impl Into<String>,
+        message: impl Into<String>,
+        line: u32,
+    ) -> Self {
+        Self::Interrupt(InterruptReason {
+            rule_id: rule_id.into(),
+            message: message.into(),
+            line: Some(line),
         })
     }
 }
@@ -107,11 +125,26 @@ impl RuleDecision {
 /// (INTR-006) relies on this to hold heterogeneous rules behind
 /// `Box<dyn InterceptRule>`.
 ///
+/// **Lifetime:** the trait is bound `+ 'static` so rules stored in the
+/// registry own their data. Rules that want to borrow from outer
+/// scopes cannot be boxed — they must take ownership (e.g. clone the
+/// config they need into the rule struct).
+///
 /// **Latency:** implementations MUST execute in microseconds to
 /// hundreds of microseconds. No graph recomputation, no network calls,
 /// no expensive AST analysis. See `plans/modules/intercept-rules.aps.md`
 /// "Out of Scope" for the full list.
-pub trait InterceptRule: Send + Sync {
+///
+/// **Panic policy:** implementations MUST NOT panic. The registry
+/// (INTR-006) is the layer responsible for *enforcing* this — every
+/// `evaluate` call there is expected to be wrapped in
+/// `std::panic::catch_unwind` so a misbehaving rule cannot abort the
+/// daemon's tokio task. The
+/// `panicking_rule_unwinds_via_catch_unwind` test in this crate pins
+/// the contract: a panicking `Box<dyn InterceptRule>` does unwind
+/// through dyn dispatch, so the registry's `catch_unwind` wrapper is
+/// the correct (and only) place to isolate it.
+pub trait InterceptRule: Send + Sync + 'static {
     /// Stable identifier the registry uses for ordering, dedup, and
     /// observability. MUST be globally unique across registered rules.
     fn rule_id(&self) -> &str;
@@ -129,6 +162,7 @@ pub trait InterceptRule: Send + Sync {
 
 #[cfg(test)]
 mod tests {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::path::PathBuf;
 
     use super::*;
@@ -212,6 +246,19 @@ mod tests {
     }
 
     #[test]
+    fn interrupt_at_decision_carries_line_number() {
+        let decision = RuleDecision::interrupt_at("secret-detection", "potential secret", 4);
+        match decision {
+            RuleDecision::Interrupt(reason) => {
+                assert_eq!(reason.rule_id, "secret-detection");
+                assert_eq!(reason.message, "potential secret");
+                assert_eq!(reason.line, Some(4));
+            }
+            RuleDecision::Allow => panic!("expected Interrupt, got Allow"),
+        }
+    }
+
+    #[test]
     fn rule_input_carries_change_kind_and_optional_content() {
         let path = PathBuf::from("src/removed.rs");
         let removed = RuleInput {
@@ -251,6 +298,41 @@ mod tests {
                 "message": "potential secret",
                 "line": 4,
             })
+        );
+    }
+
+    /// A rule that violates the trait's "MUST NOT panic" contract.
+    /// Used to pin the panic-isolation contract: `Box<dyn
+    /// InterceptRule>` does propagate panics through dyn dispatch, so
+    /// the registry (INTR-006) is the layer that must wrap every
+    /// `evaluate` call in `catch_unwind` to keep a misbehaving rule
+    /// from aborting the daemon's tokio task. If this test ever stops
+    /// failing the unwind, the trait surface has changed in a way
+    /// that breaks the registry's isolation strategy.
+    struct PanickingRule;
+
+    impl InterceptRule for PanickingRule {
+        fn rule_id(&self) -> &'static str {
+            "panic-rule"
+        }
+
+        fn needs_content(&self) -> bool {
+            false
+        }
+
+        fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+            panic!("rule misbehaviour");
+        }
+    }
+
+    #[test]
+    fn panicking_rule_unwinds_via_catch_unwind() {
+        let rule: Box<dyn InterceptRule> = Box::new(PanickingRule);
+        let path = PathBuf::from("test.rs");
+        let result = catch_unwind(AssertUnwindSafe(|| rule.evaluate(&input_for(&path, None))));
+        assert!(
+            result.is_err(),
+            "panicking rule must surface as Err — registry (INTR-006) is responsible for wrapping evaluate() in catch_unwind",
         );
     }
 }
