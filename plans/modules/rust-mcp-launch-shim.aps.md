@@ -59,7 +59,8 @@ critical flow.
 - `crates/anvil-cli` — command dispatch, MCP config generation, packaging
 - `crates/anvil-checks` — launch rule execution, including secret detection and
   the A1 reasoning-pattern rule
-- `crates/anvil-kernel-types` — canonical `anvil.diagnostic.v1` envelope published by AIGUARD-002
+- `crates/anvil-kernel-types` — canonical `Diagnostic` / `anvil.diagnostic.v1`
+  shape published by AIGUARD-002
 - RCLI3-016 — existing `mcp-config` command that writes
   `anvil mcp serve --stdio`
 - RCLI3-016b — `anvil mcp install` wrapper, pulled forward to A1
