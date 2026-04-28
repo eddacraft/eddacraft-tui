@@ -208,8 +208,7 @@ migration.
 - **Intent:** Single `FrontDoor` ComponentResource that owns AFD profile +
   endpoint + WAF policy + origin groups + routes + custom-domain bindings.
   Region-pinned to Australia East. WAF MS Default Rule Set in detection mode.
-  Origin/route definitions accepted as args. Per ADR-032
-  §Decision-Pulumi-layout.
+  Origin/route definitions accepted as args. Per ADR-032.
 - **Expected Outcome:** Single component; refactor only if it grows past ~400
   LOC.
 - **Validation:** `pnpm exec tsc -p infra/tsconfig.json --noEmit`; component
