@@ -104,8 +104,23 @@ impl RuleDecision {
     /// Convenience constructor for an interrupt that knows the 1-based
     /// line number of the violation. Content-scanning rules
     /// (secret-detection, regex-content) are expected to use this.
+    ///
+    /// **Panics** if `line == 0`. The line number is contractually
+    /// 1-based; passing `0` is almost always an off-by-one bug from a
+    /// rule that mistakenly forwarded a 0-based parser index. The
+    /// registry (INTR-006) wraps every rule call in `catch_unwind`, so
+    /// a misbehaving rule that violates this precondition is isolated
+    /// from the daemon's tokio task — but the assertion still surfaces
+    /// the bug to the rule author rather than letting it serialise as
+    /// a phantom `line: 0` diagnostic.
     #[must_use]
     pub fn interrupt_at(rule_id: impl Into<String>, message: impl Into<String>, line: u32) -> Self {
+        assert!(
+            line > 0,
+            "RuleDecision::interrupt_at requires a 1-based line number; \
+             got 0 — convert from a 0-based parser index by adding 1, \
+             or use RuleDecision::interrupt() if the rule cannot localise.",
+        );
         Self::Interrupt(InterruptReason {
             rule_id: rule_id.into(),
             message: message.into(),
@@ -252,6 +267,16 @@ mod tests {
             }
             RuleDecision::Allow => panic!("expected Interrupt, got Allow"),
         }
+    }
+
+    /// `interrupt_at(.., 0)` panics — the constructor's 1-based
+    /// contract is enforced at runtime so a rule that accidentally
+    /// forwards a 0-based parser index surfaces the bug immediately
+    /// rather than silently emitting a phantom `line: 0` diagnostic.
+    #[test]
+    #[should_panic(expected = "1-based")]
+    fn interrupt_at_with_zero_line_panics() {
+        let _ = RuleDecision::interrupt_at("secret-detection", "potential secret", 0);
     }
 
     #[test]
