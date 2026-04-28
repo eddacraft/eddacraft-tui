@@ -271,7 +271,7 @@ starting implementation:
 
 ### RMCP-008: Launch smoke tests and demo runbook update
 
-- **Status:** In Progress
+- **Status:** Committed
 - **Intent:** Prove the release path end-to-end and keep the operator runbook
   aligned with the Rust server.
 - **Expected Outcome:** E2E smoke starts `anvil mcp serve --stdio`, lists tools,
@@ -286,8 +286,8 @@ starting implementation:
 - **Priority:** High
 - **Dependencies:** RMCP-007
 - **Notes (2026-04-29):** Headless Rust MCP smoke coverage and runbook refresh
-  are in progress on `feat/rust-mcp-launch-shim-rmcp-008`; Cursor / Claude Code
-  GUI dry-run remains pending before the item can be marked complete.
+  are in PR #1154 on `feat/rust-mcp-launch-shim-rmcp-008`; Cursor / Claude Code
+  GUI dry-run remains pending before the item can be marked Complete.
 
 ---
 

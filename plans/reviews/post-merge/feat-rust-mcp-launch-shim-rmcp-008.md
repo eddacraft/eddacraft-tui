@@ -1,6 +1,6 @@
 # Post-merge: feat-rust-mcp-launch-shim-rmcp-008
 
-PR: TBD
+PR: #1154
 Branch: `feat/rust-mcp-launch-shim-rmcp-008`
 APS: RMCP-008
 Merged: <!-- filled by cleanup agent -->
