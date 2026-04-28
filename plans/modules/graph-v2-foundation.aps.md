@@ -382,9 +382,9 @@ Change status to **Ready** when:
 
 ## Stats
 
-| Phase | Items | Status |
-| ----- | ----- | ------ |
-| 0 — Architecture and Contracts | 3 | 0/3 Draft |
-| 1 — Graph Schemas | 5 | 0/5 Draft |
-| 2 — Runtime Substrate | 4 | 0/4 Draft |
-| **Total** | **12** | **0/12 Draft** |
+| Phase | Items | Completion | Status |
+| ----- | ----- | ---------- | ------ |
+| 0 — Architecture and Contracts | 3 | 0/3 done | Draft |
+| 1 — Graph Schemas | 5 | 0/5 done | Draft |
+| 2 — Runtime Substrate | 4 | 0/4 done | Draft |
+| **Total** | **12** | **0/12 done** | **Draft** |

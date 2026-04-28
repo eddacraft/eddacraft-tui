@@ -293,8 +293,8 @@ starting implementation:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Scope Lock | 1 | 0/1 Ready |
-| 1 — Rust Stdio Server | 3 | 0/3 Ready |
-| 2 — Validation Backend | 2 | 0/2 Ready |
-| 3 — Install and Verification | 2 | 0/2 Ready |
-| **Total** | **8** | **0/8 Ready** |
+| 0 — Scope Lock | 1 | Ready |
+| 1 — Rust Stdio Server | 3 | Ready |
+| 2 — Validation Backend | 2 | Ready |
+| 3 — Install and Verification | 2 | Ready |
+| **Total** | **8** | **0/8 Done** |

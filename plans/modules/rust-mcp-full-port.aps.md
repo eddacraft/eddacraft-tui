@@ -263,8 +263,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Inventory and Compatibility | 2 | 0/2 Draft |
-| 1 — Tool Parity | 3 | 0/3 Draft |
-| 2 — Resources and Transports | 2 | 0/2 Draft |
-| 3 — Cutover | 2 | 0/2 Draft |
-| **Total** | **9** | **0/9 Draft** |
+| 0 — Inventory and Compatibility | 2 | Draft |
+| 1 — Tool Parity | 3 | Draft |
+| 2 — Resources and Transports | 2 | Draft |
+| 3 — Cutover | 2 | Draft |
+| **Total** | **9** | **0/9 done** |

@@ -345,8 +345,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Delivery Contract | 2 | 0/2 Draft |
-| 1 — Graph Query Tools | 4 | 0/4 Draft |
-| 2 — Context Slicing | 4 | 0/4 Draft |
-| 3 — Resources, Benchmarks, Docs | 3 | 0/3 Draft |
-| **Total** | **13** | **0/13 Draft** |
+| 0 — Delivery Contract | 2 | Draft |
+| 1 — Graph Query Tools | 4 | Draft |
+| 2 — Context Slicing | 4 | Draft |
+| 3 — Resources, Benchmarks, Docs | 3 | Draft |
+| **Total** | **13** | **0/13** |
