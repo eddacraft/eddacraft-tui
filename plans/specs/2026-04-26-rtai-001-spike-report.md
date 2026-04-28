@@ -32,7 +32,7 @@ infrastructure; it answers two questions:
 | Daemon endpoint | Single worker thread blocked on `mpsc::Receiver`. Stand-in for the IPC listener INTD-002 will eventually deliver. |
 | Rule | `anvil_checks::secret::scan_content` with `SecretCheckConfig::default()`. Picked because it is the rule whose mid-edit value-density is highest per ADR-031's RTAI-001 fallback clause, and it operates on raw buffer content with no disk I/O. |
 | Diagnostic envelope | Canonical `anvil_kernel_types::Diagnostic` tagged `Mode::MidEdit`. Same shape AIGUARD-002 froze and AIGUARD-003 emits from the gate path. |
-| Fixture | A 103-byte three-line buffer with `api_key='abcdEFGH1234567890'` on line 2. Picked to fire the default `API Key` rule deterministically (the bare `AKIA…` form is filtered by `looks_like_code`). |
+| Fixture | A 103-byte three-line buffer with `api_key='abcdEFGH1234567890'` on line 2. Picked to fire the default `API Key` rule deterministically; in this scan path, bare `AKIA…`-style tokens are treated as code-like identifiers by `looks_like_code` and may be suppressed, so the key/value assignment form avoids that ambiguity. |
 | Iterations | 1024 round-trips after one warm-up. |
 
 ## Measurement
@@ -165,7 +165,7 @@ here so RTAI-002+ start with the open list, not a re-derivation:
   unmeasured. RTAI-002 needs a back-pressure decision: do we coalesce stale
   versions in the daemon, or in the driver, or both?
 - **Rule-set scaling.** Only secret-detection ran. Antipattern + reasoning
-  (AI-001 from #1111) are the next mid-edit candidates. Their per-byte cost
+  (AI-001 from GitHub issue #1111) are the next mid-edit candidates. Their per-byte cost
   needs measuring before they ship to the mid-edit path.
 - **Cold-start cost.** ADR-031's budgets are explicitly for the warm path.
   First-keystroke latency (regex compilation, page faults) is unmeasured here
