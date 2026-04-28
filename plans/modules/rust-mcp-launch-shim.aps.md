@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RMCP | —     | In Progress | 2/8      |
+| RMCP | —     | In Progress | 3/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -152,7 +152,7 @@ starting implementation:
 
 ### RMCP-003: Minimal MCP protocol subset over stdio
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Implement only the MCP protocol surface required for Cursor and
   Claude Code to discover and call the launch validation tool.
 - **Expected Outcome:** Server handles initialise/ready flow, `tools/list`,
@@ -161,7 +161,7 @@ starting implementation:
 - **Validation:** Protocol tests cover valid frames, malformed JSON, unsupported
   methods, and clean shutdown without stdout log pollution
 - **Files:** `crates/anvil-cli/src/commands/mcp.rs`,
-  `crates/anvil-cli/src/mcp/stdio.rs`
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** RMCP-002
@@ -298,4 +298,4 @@ starting implementation:
 | 1 — Rust Stdio Server | 3 | In Progress |
 | 2 — Validation Backend | 2 | Ready |
 | 3 — Install and Verification | 2 | Ready |
-| **Total** | **8** | **2/8 Done** |
+| **Total** | **8** | **3/8 Done** |

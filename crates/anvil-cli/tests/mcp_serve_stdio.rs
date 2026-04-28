@@ -60,6 +60,92 @@ fn mcp_serve_stdio_initialise_returns_json_rpc_response() {
 }
 
 #[test]
+fn mcp_serve_stdio_ready_notification_does_not_emit_response() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            })
+        )
+        .expect("failed to send ready notification");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "ping"
+            })
+        )
+        .expect("failed to send ping frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after ready notification and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("ping response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 5);
+    assert_eq!(parsed["result"], json!({}));
+}
+
+#[test]
+fn mcp_serve_stdio_tools_list_returns_validate_write_tool() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "tools/list"
+            })
+        )
+        .expect("failed to send tools/list frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after tools/list and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("tools/list response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 6);
+    let tools = parsed["result"]["tools"]
+        .as_array()
+        .expect("tools/list result must include a tools array");
+    assert_eq!(tools.len(), 1);
+    assert_eq!(tools[0]["name"], "anvil_validate_write");
+    assert_eq!(tools[0]["inputSchema"]["type"], "object");
+}
+
+#[test]
 fn mcp_serve_stdio_shutdown_flushes_response_before_exit_notification() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
@@ -165,6 +251,137 @@ fn mcp_serve_stdio_initialize_invalid_params_returns_invalid_params_error() {
     assert_eq!(parsed["jsonrpc"], "2.0");
     assert_eq!(parsed["id"], 4);
     assert_eq!(parsed["error"]["code"], -32602);
+}
+
+#[test]
+fn mcp_serve_stdio_unsupported_method_returns_method_not_found() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "resources/list"
+            })
+        )
+        .expect("failed to send unsupported method frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after unsupported method and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("unsupported method response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 7);
+    assert_eq!(parsed["error"]["code"], -32601);
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_rejects_unknown_tool() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "tools/call",
+                "params": {
+                    "name": "not_anvil_validate_write",
+                    "arguments": {}
+                }
+            })
+        )
+        .expect("failed to send unknown tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after unknown tool call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("unknown tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 8);
+    assert_eq!(parsed["error"]["code"], -32602);
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_known_tool_returns_structured_unavailable_error() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_validate_write",
+                    "arguments": {
+                        "path": "src/example.ts",
+                        "operation": "create",
+                        "proposedContent": "export const value = 1;\n"
+                    }
+                }
+            })
+        )
+        .expect("failed to send known tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after known tool call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("known tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 9);
+    assert_eq!(parsed["error"]["code"], -32603);
+    assert_eq!(
+        parsed["error"]["data"]["schema"],
+        "anvil.mcp.validate-write.v1"
+    );
+    assert_eq!(
+        parsed["error"]["data"]["error"]["code"],
+        "validation-backend-unavailable"
+    );
+    assert_eq!(parsed["error"]["data"]["safeDefault"], "do-not-write");
+    assert_eq!(parsed["error"]["data"]["correlation"]["surface"], "mcp");
+    assert_eq!(parsed["error"]["data"]["correlation"]["mode"], "preWrite");
 }
 
 #[test]

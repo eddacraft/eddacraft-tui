@@ -8,6 +8,7 @@ use crate::GlobalArgs;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
 const MAX_STDIO_FRAME_BYTES: u64 = 1024 * 1024;
+const VALIDATE_WRITE_TOOL_NAME: &str = "anvil_validate_write";
 
 #[derive(Debug, Args)]
 pub struct McpArgs {
@@ -92,6 +93,8 @@ fn handle_message(message: &Value) -> Option<Value> {
         Some("exit") => id.map(|id| error_response(id, -32600, "Invalid Request")),
         Some("shutdown") => id.map(|id| success_response(id, &Value::Null)),
         Some("ping") => id.map(|id| success_response(id, &json!({}))),
+        Some("tools/list") => id.map(tools_list_response),
+        Some("tools/call") => id.map(|id| tools_call_response(id, message)),
         Some(_) => id.map(|id| error_response(id, -32601, "Method not found")),
         None => id.map(|id| error_response(id, -32600, "Invalid Request")),
     }
@@ -173,6 +176,103 @@ fn initialize_response(id: &Value, message: &Value) -> Value {
     success_response(id, &result)
 }
 
+fn tools_list_response(id: &Value) -> Value {
+    success_response(
+        id,
+        &json!({
+            "tools": [validate_write_tool_descriptor()]
+        }),
+    )
+}
+
+fn validate_write_tool_descriptor() -> Value {
+    json!({
+        "name": VALIDATE_WRITE_TOOL_NAME,
+        "description": "Validate a proposed file write before the MCP client applies it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspaceRoot": {
+                    "type": "string",
+                    "description": "Absolute workspace root. Defaults to the server cwd when omitted."
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Workspace-relative path, or an absolute path inside workspaceRoot."
+                },
+                "operation": {
+                    "type": "string",
+                    "enum": ["create", "update", "delete", "rename"]
+                },
+                "proposedContent": {
+                    "type": "string",
+                    "description": "Full proposed UTF-8 file content after the operation."
+                },
+                "patch": {
+                    "type": ["string", "null"],
+                    "description": "Unified diff or client patch payload."
+                },
+                "contentEncoding": {
+                    "type": "string",
+                    "enum": ["utf-8", "base64"],
+                    "default": "utf-8"
+                },
+                "client": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "required": ["path", "operation"],
+            "additionalProperties": true
+        }
+    })
+}
+
+fn tools_call_response(id: &Value, message: &Value) -> Value {
+    let Some(params) = message.get("params").and_then(Value::as_object) else {
+        return error_response(id, -32602, "Invalid params");
+    };
+
+    let Some(name) = params.get("name").and_then(Value::as_str) else {
+        return error_response(id, -32602, "Invalid params");
+    };
+
+    if name != VALIDATE_WRITE_TOOL_NAME {
+        return error_response_with_data(
+            id,
+            -32602,
+            "Invalid params",
+            &json!({
+                "reason": "unknown-tool",
+                "tool": name
+            }),
+        );
+    }
+
+    if !params.get("arguments").is_some_and(Value::is_object) {
+        return error_response(id, -32602, "Invalid params");
+    }
+
+    error_response_with_data(
+        id,
+        -32603,
+        "Anvil could not validate the proposed write.",
+        &json!({
+            "schema": "anvil.mcp.validate-write.v1",
+            "error": {
+                "code": "validation-backend-unavailable",
+                "message": "Anvil could not validate the proposed write.",
+                "retriable": true
+            },
+            "safeDefault": "do-not-write",
+            "correlation": {
+                "surface": "mcp",
+                "mode": "preWrite"
+            }
+        }),
+    )
+}
+
 fn success_response(id: &Value, result: &Value) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -192,6 +292,18 @@ fn error_response(id: &Value, code: i64, message: &str) -> Value {
         "error": {
             "code": code,
             "message": message
+        }
+    })
+}
+
+fn error_response_with_data(id: &Value, code: i64, message: &str, data: &Value) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": code,
+            "message": message,
+            "data": data
         }
     })
 }
