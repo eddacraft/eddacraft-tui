@@ -5,8 +5,8 @@
 //! later INTD tasks add `status`, `stop`, and the backgrounded launch
 //! path.
 
-use anyhow::Result;
 use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground, wait_for_shutdown_signal};
+use anyhow::Result;
 use clap::{Args, Subcommand};
 
 use crate::GlobalArgs;

@@ -105,11 +105,7 @@ impl RuleDecision {
     /// line number of the violation. Content-scanning rules
     /// (secret-detection, regex-content) are expected to use this.
     #[must_use]
-    pub fn interrupt_at(
-        rule_id: impl Into<String>,
-        message: impl Into<String>,
-        line: u32,
-    ) -> Self {
+    pub fn interrupt_at(rule_id: impl Into<String>, message: impl Into<String>, line: u32) -> Self {
         Self::Interrupt(InterruptReason {
             rule_id: rule_id.into(),
             message: message.into(),

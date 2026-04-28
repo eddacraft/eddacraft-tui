@@ -88,6 +88,7 @@ getrandom = { version = "0.4", default-features = false, features = ["std", "sys
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 libc = { version = "0.2", features = ["extra_traits"] }
+mio = { version = "1", features = ["net", "os-ext"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
@@ -104,6 +105,7 @@ getrandom = { version = "0.4", default-features = false, features = ["std", "sys
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 libc = { version = "0.2", features = ["extra_traits"] }
+mio = { version = "1", features = ["net", "os-ext"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }

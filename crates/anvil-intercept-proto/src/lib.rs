@@ -57,18 +57,12 @@ pub enum IpcCommand {
     /// Register a new session with the daemon. Carries the session id
     /// only at this stage; richer process / worktree fields land with
     /// INTD-003.
-    RegisterSession {
-        session_id: SessionId,
-    },
+    RegisterSession { session_id: SessionId },
     /// Heartbeat from a registered session to refresh its liveness TTL
     /// (INTD-003 will enforce a 30 s default).
-    Heartbeat {
-        session_id: SessionId,
-    },
+    Heartbeat { session_id: SessionId },
     /// Unregister a session, releasing it from the registry.
-    UnregisterSession {
-        session_id: SessionId,
-    },
+    UnregisterSession { session_id: SessionId },
     /// List all currently registered sessions. Diagnostic / status
     /// query — used by `anvil intercept status` (INTD-011) and the
     /// launcher's reconciliation flow.

@@ -272,8 +272,7 @@ mod tests {
         // observes the triggered state. Without this assertion the
         // test would pass even if `trigger` became a no-op.
         let mut late_token = shutdown.token();
-        let result = timeout(Duration::from_secs(1), late_token.cancelled())
-            .await;
+        let result = timeout(Duration::from_secs(1), late_token.cancelled()).await;
         assert!(
             result.is_ok(),
             "fresh token did not observe pre-triggered shutdown",

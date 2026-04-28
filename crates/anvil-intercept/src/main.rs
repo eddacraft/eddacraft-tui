@@ -14,12 +14,15 @@
 
 use std::process::ExitCode;
 
-use anyhow::Result;
 use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground, wait_for_shutdown_signal};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
-#[command(name = "anvil-intercept", about = "Anvil intercept daemon (A1 scaffold)")]
+#[command(
+    name = "anvil-intercept",
+    about = "Anvil intercept daemon (A1 scaffold)"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
