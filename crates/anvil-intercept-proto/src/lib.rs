@@ -13,6 +13,8 @@
 
 #![forbid(unsafe_code)]
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 /// Stable identifier for an intercept session.
@@ -55,10 +57,14 @@ impl SessionId {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "kebab-case")]
 pub enum IpcCommand {
-    /// Register a new session with the daemon. Carries the session id
-    /// only at this stage; richer process / worktree fields land with
-    /// INTD-003.
-    RegisterSession { session_id: SessionId },
+    /// Register a new session with the daemon. The worktree path is the
+    /// authority key for the daemon's "single session per worktree"
+    /// constraint (INTD-003); the registry canonicalises it before use.
+    /// PID / PGID arrive later via a follow-up update command.
+    RegisterSession {
+        session_id: SessionId,
+        worktree: PathBuf,
+    },
     /// Heartbeat from a registered session to refresh its liveness TTL
     /// (INTD-003 will enforce a 30 s default).
     Heartbeat { session_id: SessionId },
@@ -136,10 +142,12 @@ pub struct SessionRecord {
     pub status: SessionStatus,
 }
 
-/// Liveness state of a `SessionRecord`. The registry maintains
-/// `Active` records in its index and emits `Ended` for evicted entries
-/// (the daemon reports the eviction, but the record itself is removed
-/// from the active map).
+/// Liveness state of a `SessionRecord`. The registry snapshot only
+/// contains `Active` records — stale sessions are evicted by removing
+/// their entries outright, not by flipping to `Ended`. `Ended` is
+/// reserved for downstream notification / reporting surfaces (INTD-013
+/// telemetry mirror) where the eviction event itself is the payload;
+/// `list-sessions` registry results never include `Ended` records.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SessionStatus {
@@ -173,6 +181,7 @@ mod tests {
             "req-1",
             IpcCommand::RegisterSession {
                 session_id: SessionId::new("sess_abc"),
+                worktree: PathBuf::from("/tmp/wt"),
             },
         );
 
@@ -181,6 +190,7 @@ mod tests {
         assert_eq!(parsed["id"], "req-1");
         assert_eq!(parsed["command"], "register-session");
         assert_eq!(parsed["session_id"], "sess_abc");
+        assert_eq!(parsed["worktree"], "/tmp/wt");
     }
 
     #[test]
