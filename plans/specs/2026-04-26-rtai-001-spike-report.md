@@ -41,7 +41,7 @@ Rubric dimensions for this spike:
 | Dimension | Value |
 |---|---|
 | `mode` | `midEdit` |
-| `boundary` | synthetic in-process round-trip floor; not production `validation.roundtrip` compliance evidence |
+| `boundary` | `validation.roundtrip` |
 | `surface` | `fake-driver` |
 | `contentSource` | `buffer` |
 | `ruleSet` | `secret-only` |
@@ -49,6 +49,10 @@ Rubric dimensions for this spike:
 | `daemonState` | warm synthetic worker after one warm-up iteration |
 | `driverProtocol` | in-process `mpsc`, not daemon IPC |
 | `debounceMs` | 0 |
+
+Because `surface = fake-driver`, `fixtureCorpus = synthetic-spike`, and
+`driverProtocol = in-process mpsc`, this is floor evidence for the loop shape —
+not production `validation.roundtrip` compliance evidence.
 
 ## Measurement
 
