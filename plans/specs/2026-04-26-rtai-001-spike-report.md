@@ -20,8 +20,9 @@ RTAI work commits to a shape.
 The spike is intentionally throwaway. It does not attempt to land production
 infrastructure; it answers two questions:
 
-1. Does the simplest possible loop (driver → daemon → rule → diagnostic) fit
-   under ADR-031's interactive buffer `validation.roundtrip` p95 = 80 ms SLO?
+1. Does the simplest possible loop (driver → daemon → rule → diagnostic) leave
+   enough headroom for ADR-031's interactive buffer `validation.roundtrip` p95 =
+   80 ms SLO?
 2. What architecture decisions does the measured shape force on RTAI-002+?
 
 ## Setup
@@ -30,10 +31,24 @@ infrastructure; it answers two questions:
 |---|---|
 | Driver "didChange" | In-process `mpsc::Sender<DidChange>` posting `{ path, text, version }` envelopes. Stand-in for the eventual LSP `textDocument/didChange` and MCP `apply_edit` payloads. |
 | Daemon endpoint | Single worker thread blocked on `mpsc::Receiver`. Stand-in for the IPC listener INTD-002 will eventually deliver. |
-| Rule | `anvil_checks::secret::scan_content` with `SecretCheckConfig::default()`. Picked because it is the rule whose mid-edit value-density is highest per ADR-031's RTAI-001 fallback clause, and it operates on raw buffer content with no disk I/O. |
+| Rule | `anvil_checks::secret::scan_content` with `SecretCheckConfig::default()`. Picked because it has high mid-edit value density and operates on raw buffer content with no disk I/O. |
 | Diagnostic envelope | Canonical `anvil_kernel_types::Diagnostic` tagged `Mode::MidEdit`. Same shape AIGUARD-002 froze and AIGUARD-003 emits from the gate path. |
 | Fixture | A 103-byte three-line buffer with `api_key='abcdEFGH1234567890'` on line 2. Picked to fire the default `API Key` rule deterministically; in this scan path, bare `AKIA…`-style tokens are treated as code-like identifiers by `looks_like_code` and may be suppressed, so the key/value assignment form avoids that ambiguity. |
 | Iterations | 1024 round-trips after one warm-up. |
+
+Rubric dimensions for this spike:
+
+| Dimension | Value |
+|---|---|
+| `mode` | `midEdit` |
+| `boundary` | synthetic in-process round-trip floor; not production `validation.roundtrip` compliance evidence |
+| `surface` | `fake-driver` |
+| `contentSource` | `buffer` |
+| `ruleSet` | `secret-only` |
+| `fixtureCorpus` | `synthetic-spike` |
+| `daemonState` | warm synthetic worker after one warm-up iteration |
+| `driverProtocol` | in-process `mpsc`, not daemon IPC |
+| `debounceMs` | 0 |
 
 ## Measurement
 
@@ -52,8 +67,8 @@ Round-trip latency
   p99  :     1617 µs
   max  :     2105 µs
 
-Mid-edit p95 budget (ADR-031): 80 ms warm. Spike measured p95 1.4 ms.
-Result: PASS — spike floor is well inside the warm budget.
+Interactive buffer round-trip SLO (ADR-031): 80 ms warm. Spike floor p95: 1.4 ms.
+Result: FLOOR CHECK PASS — production `validation.roundtrip` still requires RTAI-003.
 ```
 
 Reproduce with `cargo run -q --release -p anvil-spike --bin spike-rtai-mid-edit`.

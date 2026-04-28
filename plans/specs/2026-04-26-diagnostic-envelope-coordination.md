@@ -95,7 +95,7 @@ the others import it.
 | `category` | enum | yes | Coarse grouping for routing/filtering: `secret`, `antipattern`, `boundary`, `policy`, `reasoning`, `command-safety`, `architecture`, `other`. New values require a spec amendment (see Versioning). |
 | `source` | object | yes | Provenance. `rule_id` uniquely identifies the rule across Anvil; `source_module` is the crate or sub-module that produced it (e.g. `anvil-checks::secrets`). |
 | `remediation_hint` | string | optional | Free-text actionable hint. Omit when no useful guidance exists rather than emitting a generic placeholder. |
-| `mode` | enum | yes | Mode discriminator: `save-time`, `mid-edit`, `gate`, `watch`. See "Mode Discriminator Semantics" below. |
+| `mode` | enum | yes | Mode discriminator: `save-time`, `mid-edit`, `pre-write`, `gate`, `watch`. See "Mode Discriminator Semantics" below. |
 
 ### Rust shape
 
@@ -110,7 +110,7 @@ pub struct Diagnostic {
     pub source: DiagnosticSource,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remediation_hint: Option<String>,
-    pub mode: Mode,                       // SaveTime | MidEdit | Gate | Watch
+    pub mode: Mode,                       // SaveTime | MidEdit | PreWrite | Gate | Watch
 }
 ```
 
@@ -128,7 +128,8 @@ produced the diagnostic and what the consumer expectation is.
 | Mode | When it fires | Producer | Consumer expectation |
 | --- | --- | --- | --- |
 | `save-time` | After file write hits disk; daemon scans; diagnostic emitted via DRVR-002 protocol. | Intercept daemon (post-write). | Editor renders persistent diagnostic anchored to on-disk content. Suppression UI applies. |
-| `mid-edit` | Before file write; driver sends in-flight buffer or proposed tool content to the daemon. | Intercept daemon (pre-write / didChange). | Editor renders ephemeral diagnostic with `phase: midEdit` marker; MCP driver may block tool call per project config. Latency uses ADR-031's interactive buffer SLO. |
+| `mid-edit` | Before file write; editor driver sends an in-flight buffer after `didChange` debounce. | Intercept daemon (didChange). | Editor renders ephemeral advisory diagnostic with `phase: midEdit` marker. Latency maps to ADR-031 `mode = midEdit`. |
+| `pre-write` | Before an agent / MCP write reaches disk; driver sends proposed tool-call content. | Intercept daemon (pre-write tool interception). | MCP driver may warn or block the tool call per project config. Latency maps to ADR-031 `mode = preWrite`. |
 | `gate` | `anvil gate` invocation (any profile, including `--profile ai`). | CLI gate command. | Single consumer reads structured JSON return value, decides exit code consequences. No persistent rendering required. |
 | `watch` | File-system watch loop emits without an attached driver session. | Watcher (LAUNCH module). | Streaming consumer (TUI, dashboard) renders transient notification. May coexist with `save-time` from a driver-attached session. |
 

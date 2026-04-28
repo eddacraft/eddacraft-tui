@@ -281,16 +281,21 @@ Per [ADR-031](../decisions/031-validation-latency-rubric.md), all
 latency claims for save-time and mid-edit validation use one rubric.
 T3 anchors honour the same budgets:
 
-- [ ] **Mid-edit p95 within budget.** `mode = midEdit`
-      `validation.roundtrip` p95 <= 80 ms on `latency-corpus-v1`
-      (per ADR-031), with the language's typical file size class
-      included in the corpus or a documented analogue. If the budget
-      is exceeded, scope the hot path before loosening the SLO.
+- [ ] **Mid-edit p95 within budget.** On a warm daemon,
+      `mode = midEdit` `validation.roundtrip` p95 <= 80 ms on
+      `latency-corpus-v1` (per ADR-031), with the language's typical
+      file size class included in the corpus or a documented
+      analogue. If the budget is exceeded, scope the hot path before
+      loosening the SLO.
 - [ ] **Save-time p95 within budget.** `mode = save`
-      `validation.roundtrip` p95 <= 120 ms on `latency-corpus-v1`.
+      `validation.roundtrip` p95 <= 120 ms on a warm daemon over
+      `latency-corpus-v1`.
 - [ ] **Service latency recorded.** `validation.service` p95 is
       recorded for the same run so regressions can be attributed to
       daemon work versus driver / transport work.
+- [ ] **Tail context reported.** p50 and p99 are reported alongside
+      p95, and cold-start samples are reported separately from the
+      warm-daemon percentiles.
 - [ ] **Bench in `crates/anvil-intercept/benches/`** exercising the
       language's representative fixture (criterion + the
       observability span layout from ADR-031). The bench files are

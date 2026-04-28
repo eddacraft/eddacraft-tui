@@ -209,8 +209,9 @@ execute because no surface imports scanner code.
   - **End-to-end latency harness (S7):** delete local latency
     numbers from the protocol design and cite ADR-031 instead. The
     harness must record `mode = save` with `validation.roundtrip`
-    for the driver-visible SLO and `validation.visible` only when
-    making UX claims.
+    for the driver-visible SLO and `validation.service` for the same
+    corpus / run so daemon work can be separated from driver / transport
+    work. `validation.visible` is recorded only when making UX claims.
 - **Scope:** `plans/specs/`, shared contracts package
 - **Dependencies:** DRVR-001 (transport), DRVR-006 (MCP scope
   resolved), driver-framework ADR
