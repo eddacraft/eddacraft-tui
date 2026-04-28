@@ -49,7 +49,9 @@ export default defineConfig({
       '@eddacraft/anvil-adapters': resolve(__dirname, './packages/adapters/src'),
       '@eddacraft/anvil-aps': resolve(__dirname, './packages/aps/src'),
       // @eddacraft/anvil-mcp-server archived under ADR-033 (2026-04-29)
-      // → archive/anvil-mcp-server/. Intentionally not aliased here.
+      // → archive/anvil-mcp-server/. Intentionally not aliased here;
+      // pnpm-workspace.yaml's '!archive/**' glob already excludes it
+      // from package resolution.
       '@eddacraft/anvil-edda-stack': resolve(__dirname, './packages/edda-stack/src'),
       '@eddacraft/anvil-kindling-integration': resolve(
         __dirname,

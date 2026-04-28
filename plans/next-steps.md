@@ -554,6 +554,9 @@ not need to be made in advance.
   `git mv`). READMEs rewritten to the Archived banner shape
   matching `archive/anvil-cli-node/`. Workspace glob
   `'!archive/**'` already excludes them from build/test/publish.
+  `pnpm-lock.yaml` regenerated to drop the stale workspace
+  references (Vercel deployments use `--frozen-lockfile` and
+  failed on the original commit).
 - **Root configs reconciled:**
   `pnpm-workspace.yaml` — `packages/mcp-server` and
   `packages/vscode-extension` lines removed (replaced by an
