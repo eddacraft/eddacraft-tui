@@ -1,8 +1,8 @@
 # Intercept Daemon
 
-| ID   | Owner  | Status | Progress |
-| ---- | ------ | ------ | -------- |
-| INTD | @aneki | Draft  | 0/16     |
+| ID   | Owner  | Status      | Progress                                                |
+| ---- | ------ | ----------- | ------------------------------------------------------- |
+| INTD | @aneki | In Progress | 0/16 (INTD-001 in progress on `feat/intercept-scaffold`) |
 
 **Last reviewed:** 2026-04-28
 
@@ -126,7 +126,18 @@ a new lane.
   runbook §4.1 falls back to when the backgrounded daemon fails to start
   and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
-- **Status:** Draft
+- **Status:** In Progress
+- **Progress (2026-04-28, `feat/intercept-scaffold`):** Three crates
+  scaffolded — `crates/anvil-intercept-proto/` (NDJSON envelope,
+  `SessionId`, `IpcCommand` enum: register/heartbeat/unregister/list),
+  `crates/anvil-intercept/` (lib + bin with `run_foreground`,
+  cooperative `Shutdown`/`ShutdownToken` watch handles, SIGINT-driven
+  exit). CLI surface `anvil intercept start --foreground` wired through
+  `crates/anvil-cli/src/commands/intercept.rs`. 5 proto tests + 3
+  daemon tests passing; smoke test confirms SIGINT → exit 0. Still
+  outstanding for INTD-001 closure: PID file with single-instance
+  guard, parser-concurrency decision capture, full-suite Windows CI
+  run on the new bin, demo runbook §4.1 fallback note refresh.
 - **Trigger flag (parser concurrency ADR):** The LANGTS audit
   (`plans/specs/2026-04-26-langts-audit-report.md` §5.3, K3) deferred
   the parser thread-locality ADR conditionally. **At INTD-001 review,

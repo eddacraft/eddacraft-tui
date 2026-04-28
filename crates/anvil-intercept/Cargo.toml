@@ -1,0 +1,26 @@
+[package]
+name = "eddacraft-anvil-intercept"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Anvil intercept daemon — session registry, enforcement, and IPC surface"
+
+[lib]
+name = "anvil_intercept"
+
+[[bin]]
+name = "anvil-intercept"
+path = "src/main.rs"
+
+[dependencies]
+anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
+anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+workspace-hack.workspace = true
+
+[lints]
+workspace = true

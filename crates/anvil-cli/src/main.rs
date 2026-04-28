@@ -79,6 +79,8 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// Manage the Anvil intercept daemon.
+    Intercept(commands::intercept::InterceptArgs),
     /// Show Anvil's acknowledgements and third-party licence attribution.
     Licenses(commands::licenses::LicensesArgs),
     /// Generate MCP server configuration for AI editors (claude-code, cursor, windsurf, vscode).
@@ -142,6 +144,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
+        Commands::Intercept(_) => "intercept",
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
         Commands::Mcp(_) => "mcp",
@@ -468,6 +471,7 @@ fn main() -> ExitCode {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
         Commands::Mcp(args) => commands::mcp::run(args, &cli.global),

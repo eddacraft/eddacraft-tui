@@ -1,8 +1,8 @@
 # Intercept Rules
 
-| ID   | Owner  | Status | Progress |
-| ---- | ------ | ------ | -------- |
-| INTR | @aneki | Draft  | 0/8      |
+| ID   | Owner  | Status      | Progress                                                |
+| ---- | ------ | ----------- | ------------------------------------------------------- |
+| INTR | @aneki | In Progress | 0/8 (INTR-001 in progress on `feat/intercept-scaffold`) |
 
 **Last reviewed:** 2026-04-28
 
@@ -91,8 +91,21 @@ daemon hot path.
   workspace; a trait accepting a change batch reference and optional file
   content, returning an allow or interrupt decision with reason metadata; trait
   is object-safe for dynamic dispatch in the rule registry
-- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib trait`
-- **Status:** Draft
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib`
+- **Status:** In Progress
+- **Progress (2026-04-28, `feat/intercept-scaffold`):** Crate created at
+  `crates/anvil-intercept-rules/` and added to the workspace. `InterceptRule`
+  trait shipped with `rule_id`/`needs_content`/`evaluate(&RuleInput<'_>) ->
+  RuleDecision`, marked `Send + Sync`, dyn-compatible (compile-time test
+  asserts `Vec<Box<dyn InterceptRule>>` is constructible). `RuleInput`
+  carries path + change kind + optional borrowed content so the daemon
+  on-disk path and the RMCP/RTAI mid-edit path can both call rules without
+  copying. `RuleDecision` is `Allow | Interrupt(InterruptReason{rule_id,
+  message, line})`, serde-tagged `decision`. Five unit tests passing.
+  Outstanding for closure: trait-doc example, doc-test for the
+  `RuleDecision::interrupt` constructor, integration test that round-trips
+  a `Box<dyn InterceptRule>` through a sample registry harness once
+  INTR-006 lands.
 
 ### INTR-002: Secret Detection Wrapper
 

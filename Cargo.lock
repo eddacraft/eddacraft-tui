@@ -966,6 +966,7 @@ dependencies = [
  "dirs",
  "eddacraft-anvil-architecture",
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-intercept",
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-policy",
@@ -1030,6 +1031,37 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "serde",
+ "serde_json",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-intercept"
+version = "0.4.0-beta"
+dependencies = [
+ "anyhow",
+ "clap",
+ "eddacraft-anvil-intercept-proto",
+ "eddacraft-anvil-intercept-rules",
+ "serde",
+ "tokio",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-intercept-proto"
+version = "0.4.0-beta"
+dependencies = [
+ "serde",
+ "serde_json",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-intercept-rules"
+version = "0.4.0-beta"
+dependencies = [
  "serde",
  "serde_json",
  "workspace-hack",
