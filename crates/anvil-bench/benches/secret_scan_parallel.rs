@@ -44,6 +44,7 @@ const SUBDIRS: usize = 30;
 fn build_repo() -> (TempDir, Vec<String>) {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().to_path_buf();
+    let github_token = format!("ghp_{}", "a".repeat(36));
 
     let mut paths: Vec<String> = Vec::with_capacity(CORPUS_FILES);
 
@@ -54,8 +55,9 @@ fn build_repo() -> (TempDir, Vec<String>) {
         for i in 0..per {
             let path = subdir.join(format!("file_{i:04}.ts"));
             let content = if (sub * per + i).is_multiple_of(50) {
-                "const apiKey = 'ghp_aa…aaaa';\nexport function go() { return apiKey; }\n"
-                    .to_string()
+                format!(
+                    "const token = '{github_token}';\nexport function go() {{ return token; }}\n"
+                )
             } else {
                 format!(
                     "export const value_{i} = {i};\nfunction helper_{i}() {{ return value_{i} * 2; }}\n"
