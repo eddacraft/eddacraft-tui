@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RMCP | —     | In Progress | 4/8      |
+| RMCP | —     | In Progress | 5/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -192,19 +192,25 @@ starting implementation:
 
 ### RMCP-005: Daemon or shared validation path adapter
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Route MCP pre-write requests to Rust validation without requiring a
   TypeScript bridge.
-- **Expected Outcome:** Adapter calls the daemon validation RPC when available;
-  otherwise it uses the same Rust rule pipeline in-process for the launch slice.
-  Response semantics are identical across both paths.
+- **Expected Outcome:** Adapter exposes a `DaemonValidationClient` trait. The
+  default implementation returns `Unavailable` for the launch slice because no
+  concrete daemon IPC listener or pre-write RPC exists yet; MCP then falls back
+  to the embedded Rust rule pipeline. The concrete daemon client lands with
+  RTAI-002 and INTD-002 once the RPC contract and IPC listener are pinned.
 - **Validation:** Tests run the same fixture through daemon-backed and
   embedded-fallback validation and assert matching diagnostics
 - **Files:** `crates/anvil-cli/src/mcp/validation.rs`,
   `crates/anvil-checks/src/`
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** RMCP-004, RTAI validation semantics
+- **Dependencies:** RMCP-004, RTAI validation semantics; RTAI-002 and INTD-002
+  own the concrete daemon client and are out of scope for RMCP-005
+- **Notes:** 2026-04-28 council review narrowed RMCP-005 to the launch-slice
+  daemon seam plus embedded fallback; production daemon RPC wiring is deferred
+  until the downstream RPC and IPC work exists.
 
 ---
 
@@ -297,6 +303,6 @@ starting implementation:
 | ----- | ----- | ------ |
 | 0 — Scope Lock | 1 | Complete |
 | 1 — Rust Stdio Server | 3 | Complete |
-| 2 — Validation Backend | 2 | Ready |
+| 2 — Validation Backend | 2 | In Progress |
 | 3 — Install and Verification | 2 | Ready |
-| **Total** | **8** | **4/8 Done** |
+| **Total** | **8** | **5/8 Done** |

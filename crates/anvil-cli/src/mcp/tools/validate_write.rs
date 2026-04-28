@@ -1,10 +1,13 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use anvil_checks::reasoning::{ReasoningCheckConfig, run_reasoning_check};
-use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content_with_stats};
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use serde_json::{Value, json};
+
+use crate::mcp::validation::{
+    DaemonValidationClient, LocalDaemonValidationClient, PreWriteValidationRequest,
+    ValidationBackend, ValidationBackendFailure, validate_pre_write,
+};
 
 pub const TOOL_NAME: &str = "anvil_validate_write";
 
@@ -62,6 +65,18 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn call_with_workspace(arguments: &Value, default_workspace_root: &Path) -> Value {
+    call_with_validation_client(
+        arguments,
+        default_workspace_root,
+        &LocalDaemonValidationClient,
+    )
+}
+
+fn call_with_validation_client(
+    arguments: &Value,
+    default_workspace_root: &Path,
+    daemon: &impl DaemonValidationClient,
+) -> Value {
     let request = match ValidateWriteRequest::parse(arguments, default_workspace_root) {
         Ok(request) => request,
         Err(problem) => return tool_result(&problem_payload(problem, None)),
@@ -71,36 +86,30 @@ fn call_with_workspace(arguments: &Value, default_workspace_root: &Path) -> Valu
         return tool_result(&problem_payload(problem, Some(&request.relative_path)));
     }
 
+    let mut backend = ValidationBackend::Embedded;
     let mut diagnostics = Vec::new();
     if let Some(content) = request.content.as_deref() {
-        let secret_config = SecretCheckConfig::default();
-        let (secret_findings, secret_stats) =
-            scan_content_with_stats(content, &request.relative_path, &secret_config);
-        diagnostics.extend(secret_findings_to_diagnostics(
-            &request.relative_path,
-            &secret_findings,
-        ));
-
-        if secret_stats.lines_skipped_oversize > 0 {
-            diagnostics.push(input_diagnostic(
-                ToolProblem::new(
-                    "oversize-line-skipped",
-                    "Anvil skipped an oversize line while validating the proposed write.",
-                ),
-                &request.relative_path,
-            ));
-        }
-
-        let reasoning = run_reasoning_check(
-            &[(&request.relative_path, content)],
-            &ReasoningCheckConfig::default(),
+        let validation = validate_pre_write(
+            &PreWriteValidationRequest {
+                relative_path: &request.relative_path,
+                content,
+            },
+            daemon,
         );
-        diagnostics.extend(reasoning.findings.into_iter().map(with_pre_write_mode));
+        let validation = match validation {
+            Ok(validation) => validation,
+            Err(failure) => {
+                return tool_result(&backend_failure_payload(&request.relative_path, failure));
+            }
+        };
+        backend = validation.backend;
+        diagnostics = validation.diagnostics;
     }
 
     tool_result(&validation_payload(
         &request.relative_path,
         &diagnostics,
+        backend,
         None,
     ))
 }
@@ -122,12 +131,29 @@ fn tool_result(payload: &Value) -> Value {
 fn problem_payload(problem: ToolProblem, path: Option<&str>) -> Value {
     let path = path.unwrap_or("<unknown>");
     let diagnostic = input_diagnostic(problem, path);
-    validation_payload(path, &[diagnostic], Some(problem))
+    validation_payload(
+        path,
+        &[diagnostic],
+        ValidationBackend::Embedded,
+        Some(problem),
+    )
+}
+
+fn backend_failure_payload(path: &str, failure: ValidationBackendFailure) -> Value {
+    let diagnostic = input_diagnostic(ToolProblem::new(failure.code, failure.message), path);
+    let mut payload = validation_payload(path, &[diagnostic], ValidationBackend::Daemon, None);
+    payload["error"] = json!({
+        "code": failure.code,
+        "message": failure.message,
+        "retriable": failure.retriable
+    });
+    payload
 }
 
 fn validation_payload(
     path: &str,
     diagnostics: &[Diagnostic],
+    backend: ValidationBackend,
     problem: Option<ToolProblem>,
 ) -> Value {
     let decision = decision_for(diagnostics);
@@ -140,7 +166,7 @@ fn validation_payload(
             "id": correlation_id(path),
             "surface": "mcp",
             "mode": "preWrite",
-            "backend": "embedded",
+            "backend": backend.as_str(),
             "path": path
         }
     });
@@ -196,38 +222,6 @@ fn decision_for(diagnostics: &[Diagnostic]) -> &'static str {
     }
 }
 
-fn secret_findings_to_diagnostics(path: &str, findings: &[SecretFinding]) -> Vec<Diagnostic> {
-    findings
-        .iter()
-        .map(|finding| {
-            Diagnostic::new(
-                format!(
-                    "diag_prewrite_{}_{}_{}",
-                    sanitise_id_part(path),
-                    finding.line,
-                    sanitise_id_part(&finding.pattern_name)
-                ),
-                Severity::Error,
-                format!("Potential secret detected ({})", finding.pattern_name),
-                Location {
-                    file: path.to_string(),
-                    line: u32::try_from(finding.line).ok(),
-                    column: None,
-                    end_line: None,
-                    end_column: None,
-                },
-                Category::Secret,
-                DiagnosticSource {
-                    rule_id: "secret-detection".to_string(),
-                    source_module: "anvil-checks::secret".to_string(),
-                },
-                Mode::Unknown(PRE_WRITE_MODE.to_string()),
-            )
-            .with_remediation_hint("Use a placeholder or environment variable instead.")
-        })
-        .collect()
-}
-
 fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
     Diagnostic::new(
         format!(
@@ -251,11 +245,6 @@ fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
         },
         Mode::Unknown(PRE_WRITE_MODE.to_string()),
     )
-}
-
-fn with_pre_write_mode(mut diagnostic: Diagnostic) -> Diagnostic {
-    diagnostic.mode = Mode::Unknown(PRE_WRITE_MODE.to_string());
-    diagnostic
 }
 
 fn correlation_id(path: &str) -> String {
@@ -597,9 +586,28 @@ fn path_to_slash_string(path: &Path) -> String {
 mod tests {
     use std::fs;
 
-    use super::{MAX_PROPOSED_CONTENT_BYTES, call_with_workspace, descriptor, parse_payload};
+    use super::{MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client, call_with_workspace};
+    use super::{descriptor, parse_payload};
+    use crate::mcp::validation::{
+        DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
+        ValidationBackendFailure,
+    };
+    use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
     use serde_json::{Value, json};
     use tempfile::tempdir;
+
+    struct FixtureDaemon {
+        outcome: DaemonValidationOutcome,
+    }
+
+    impl DaemonValidationClient for FixtureDaemon {
+        fn validate_pre_write(
+            &self,
+            _request: &PreWriteValidationRequest<'_>,
+        ) -> DaemonValidationOutcome {
+            self.outcome.clone()
+        }
+    }
 
     #[test]
     fn descriptor_advertises_supported_content_encodings() {
@@ -648,6 +656,60 @@ mod tests {
             payload["diagnostics"][0]["source"]["rule_id"],
             "secret-detection"
         );
+    }
+
+    #[test]
+    fn daemon_backend_payload_is_reported_when_available() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::Diagnostics(vec![sample_daemon_diagnostic()]),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &daemon,
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["safeDefault"], "do-not-write");
+        assert_eq!(payload["correlation"]["backend"], "daemon");
+        assert_eq!(
+            payload["diagnostics"][0]["source"]["rule_id"],
+            "secret-detection"
+        );
+    }
+
+    #[test]
+    fn daemon_operational_failure_blocks_without_fallback() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::OperationalFailure(ValidationBackendFailure {
+                code: "validation-backend-unavailable",
+                message: "Anvil could not validate the proposed write.",
+                retriable: true,
+            }),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "validation-backend-unavailable");
+        assert_eq!(payload["error"]["retriable"], true);
+        assert_eq!(payload["correlation"]["backend"], "daemon");
     }
 
     #[test]
@@ -867,6 +929,28 @@ mod tests {
         let result = call_with_workspace(&arguments, workspace_root);
         assert_eq!(result["content"][0]["type"], "text");
         parse_payload(&result)
+    }
+
+    fn sample_daemon_diagnostic() -> Diagnostic {
+        Diagnostic::new(
+            "diag_prewrite_src_secret_ts_1_github-token",
+            Severity::Error,
+            "Potential secret detected (GitHub Token)",
+            Location {
+                file: "src/secret.ts".to_string(),
+                line: Some(1),
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            Category::Secret,
+            DiagnosticSource {
+                rule_id: "secret-detection".to_string(),
+                source_module: "anvil-checks::secret".to_string(),
+            },
+            Mode::Unknown("pre-write".to_string()),
+        )
+        .with_remediation_hint("Use a placeholder or environment variable instead.")
     }
 }
 
