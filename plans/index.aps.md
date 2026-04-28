@@ -30,7 +30,7 @@
 - [Multi-Language Support](#multi-language-support-draft)
 - [Config Intelligence](#config-intelligence-draft)
 - [Graph Substrate](#graph-substrate-draft)
-- [Rust MCP Launch Path](#rust-mcp-launch-path-readydraft)
+- [Rust MCP Launch Path](#rust-mcp-launch-path-in-progressdraft)
 - [Intercept Loop](#intercept-loop-draft--no-code-yet)
 - [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
 
@@ -481,7 +481,7 @@ trusted model.
 | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | Draft | 0/12 | KERN, ADR-015, ADR-030, ADR-031, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
-### Rust MCP Launch Path (Ready/Draft)
+### Rust MCP Launch Path (In Progress/Draft)
 
 Current-release Rust MCP launch shim plus next-release full parity port. The
 current release ships only the narrow A1 path: `anvil mcp install` writes client
@@ -490,7 +490,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Ready | 0/8 | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
+| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | In Progress | 2/8 | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 | RMCP, DRVR, packages/mcp-server |
 
 ### Intercept Loop (Draft — no code yet)

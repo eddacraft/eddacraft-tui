@@ -83,6 +83,8 @@ enum Commands {
     /// Generate MCP server configuration for AI editors (claude-code, cursor, windsurf, vscode).
     #[command(name = "mcp-config")]
     McpConfig(commands::mcp_config::McpConfigArgs),
+    /// Manage and serve MCP integrations.
+    Mcp(commands::mcp::McpArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
@@ -141,6 +143,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Init(_) => "init",
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
+        Commands::Mcp(_) => "mcp",
         Commands::New(_) => "new",
         Commands::Wizard(_) => "wizard",
         Commands::Admin(_) => "admin",
@@ -466,6 +469,7 @@ fn main() -> ExitCode {
         Commands::Init(args) => commands::init::run(args, &cli.global),
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
+        Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),

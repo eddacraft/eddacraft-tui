@@ -1,8 +1,8 @@
 # Rust MCP Launch Shim
 
-| ID   | Owner | Status | Progress |
-| ---- | ----- | ------ | -------- |
-| RMCP | —     | Ready  | 0/8      |
+| ID   | Owner | Status      | Progress |
+| ---- | ----- | ----------- | -------- |
+| RMCP | —     | In Progress | 2/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -98,7 +98,7 @@ critical flow.
 
 ## Implementation Start Checklist
 
-This module is **Ready** because the scope is intentionally narrow and the
+This module is **In Progress** because the scope is intentionally narrow and the
 generated config already depends on this command existing. Re-check before
 starting implementation:
 
@@ -114,7 +114,7 @@ starting implementation:
 
 ### RMCP-001: Rust MCP launch-shim contract
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Freeze the launch-sized MCP contract so implementation does not
   drift into a full server port.
 - **Expected Outcome:** A short spec names the supported MCP methods, minimal
@@ -134,7 +134,7 @@ starting implementation:
 
 ### RMCP-002: `anvil mcp serve --stdio` command surface
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Add the Rust CLI command that editor configs already reference.
 - **Expected Outcome:** `anvil mcp serve --stdio` starts a stdio MCP server,
   reserves stdout for protocol frames, routes logs to stderr, and exits cleanly
@@ -142,7 +142,8 @@ starting implementation:
 - **Validation:** CLI integration test launches the command, sends a minimal MCP
   initialise frame, and observes a valid JSON-RPC response
 - **Files:** `crates/anvil-cli/src/main.rs`,
-  `crates/anvil-cli/src/commands/mcp.rs`
+  `crates/anvil-cli/src/commands/mcp.rs`,
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** RMCP-001
@@ -293,8 +294,8 @@ starting implementation:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Scope Lock | 1 | Ready |
-| 1 — Rust Stdio Server | 3 | Ready |
+| 0 — Scope Lock | 1 | Complete |
+| 1 — Rust Stdio Server | 3 | 1 Complete, 2 Ready |
 | 2 — Validation Backend | 2 | Ready |
 | 3 — Install and Verification | 2 | Ready |
-| **Total** | **8** | **0/8 Done** |
+| **Total** | **8** | **2/8 Done** |
