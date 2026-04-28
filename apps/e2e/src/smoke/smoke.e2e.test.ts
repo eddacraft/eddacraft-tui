@@ -88,7 +88,7 @@ async function runMcpLaunchShim(
     };
 
     const timeout = setTimeout(() => {
-      child.kill('SIGKILL');
+      child.kill();
       finish(new Error(`Timed out waiting for MCP launch shim. stderr: ${stderr}`));
     }, 10_000);
 
