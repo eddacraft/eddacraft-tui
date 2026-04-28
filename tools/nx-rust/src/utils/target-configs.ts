@@ -5,10 +5,12 @@ import type { TargetConfiguration } from '@nx/devkit';
  * the executor + cache + outputs wiring. Each accepts optional option
  * overrides that get merged into the target's `options`.
  *
- * Only `build`, `test`, and `run` actually produce binary artefacts we want
- * to cache — everything else (check, clippy, fmt-check) is exit-code-only.
- * Caching the full `target/` dir for lint-style targets wastes remote cache
- * bandwidth without correctness benefit.
+ * Only `build` actually produces binary artefacts we want to cache.
+ * `test` is exit-code-only — cargo test reuses the workspace `target/` dir
+ * that `build` already populates, and snapshotting the full 36 GB dir into
+ * `.nx/cache` (and pushing it to the remote cache) for every per-crate test
+ * target dominated `pnpm test` wall-clock with disk I/O. `check`, `clippy`,
+ * and `fmt-check` are exit-code-only for the same reason.
  */
 
 type AnyOpts = Record<string, unknown>;
@@ -73,7 +75,7 @@ export function testTargetConfig(options: AnyOpts = {}): TargetConfiguration {
   return {
     executor: '@eddacraft/nx-rust:test',
     cache: true,
-    outputs: BINARY_OUTPUTS,
+    outputs: [],
     options,
     configurations: {
       production: { release: true },
