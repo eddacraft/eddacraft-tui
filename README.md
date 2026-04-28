@@ -25,8 +25,7 @@ violations **before they ever leave the developer's machine.**
 0          perceptible delay
 ```
 
-Measured 2026-04-03 against the Rust kernel via Criterion (100 samples, release
-build). Governance overhead is effectively zero — anvil is in a different
+Measured 2026-04-28 against the Rust kernel via Criterion (release build). Previously measured 2026-04-03. Governance overhead is effectively zero — anvil is in a different
 category from SAST, not a faster scanner.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
@@ -351,14 +350,15 @@ so cross-release numbers stay honest.
 | --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
 | pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                              |
 | **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
+| **dev**         | 2026-04-28 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)   |
 
 ```mermaid
 xychart-beta
     title "antipattern_scan throughput (artifacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)"]
-    y-axis "artifacts / sec" 0 --> 32000
-    bar [21900, 28600]
-    line [21900, 28600]
+    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "dev (2026-04-28)"]
+    y-axis "artifacts / sec" 0 --> 44000
+    bar [21900, 28600, 39900]
+    line [21900, 28600, 39900]
 ```
 
 Each release adds a row so scan-path drift is visible over time. Per-run detail
