@@ -479,10 +479,6 @@ modules are pure plans — design + ADR only. Pick these up only after the Tier 
 ready plans have landed; the thesis they prove is the highest-leverage "wow" in
 the roadmap but also the largest greenfield build.
 
-| Module                                                | Scope | Status | Progress | Dependencies                                             |
-| ----------------------------------------------------- | ----- | ------ | -------- | -------------------------------------------------------- |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD  | Draft  | 0/16     | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
-
 <!--
   INTD count history:
   - Pre-NOTIFY-009: index claimed 0/11, module already had 12 tasks (001–012) — off-by-one.
@@ -493,12 +489,12 @@ the roadmap but also the largest greenfield build.
   - Net: module now has 16 tasks; index reconciled to 0/16.
 -->
 
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9
-| INTD | | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft |
-0/7 | anvil-checks | | [surface-drivers](./modules/surface-drivers.aps.md) |
-DRVR | Draft | 0/8 | INTD-002/-003/-005/-013/-015, ADR-030 — supersedes
-TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030);
-DRVR-006/-007/-008 added 2026-04-24 per council review C2/M5-M7/M10-M11 |
+| Module                                                    | Scope | Status | Progress | Dependencies                                                                                                                                                                                     |
+| --------------------------------------------------------- | ----- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [intercept-daemon](./modules/intercept-daemon.aps.md)     | INTD  | Draft  | 0/16     | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY                                                                                                                                         |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL  | Draft  | 0/9      | INTD                                                                                                                                                                                             |
+| [intercept-rules](./modules/intercept-rules.aps.md)       | INTR  | Draft  | 0/7      | anvil-checks                                                                                                                                                                                     |
+| [surface-drivers](./modules/surface-drivers.aps.md)       | DRVR  | Draft  | 0/8      | INTD-002/-003/-005/-013/-015, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-006/-007/-008 added 2026-04-24 per council review C2/M5-M7/M10-M11 |
 
 **Architecture Decisions:**
 [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md),

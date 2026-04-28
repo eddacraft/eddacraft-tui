@@ -99,6 +99,35 @@ headers. CORS, HSTS, rate-limiting are infrastructure-only concerns enforced at
 AFD. This eliminates dev/prod parity bugs (Vercel preview deploys bypass AFD) by
 construction.
 
+### Decision-6: CORS hybrid — coarse at AFD, per-route at origin
+
+CORS is a request-introspection concern (Origin header echoing, credential-aware
+rules, per-route allow-lists) that AFD's response-header rules engine handles
+poorly. Origin-managed CORS knows its routes but defeats centralisation when new
+origins arrive.
+
+**Decision:** AFD enforces a coarse host-allowlist for non-API hosts (cheap,
+static). Origin (`apps/anvil-api`) keeps `ANVIL_CORS_ORIGINS` for per-route
+logic. Each tool plays to its strengths. Two places to update on a new origin,
+but matches the actual capability boundary.
+
+This is the explicit fork called out in the pre-council draft §11.3 and in the
+council's CORS round; recorded here as a first-class decision so the
+cross-references in spec / module resolve to a defined ADR section.
+
+### Decision-7: Single FrontDoor Pulumi component
+
+The pre-council draft proposed three component classes (`FrontDoor` +
+`FrontDoorOrigin` + `FrontDoorRoute`) across six files. Architect persona
+(council Round 5) pushed back: for a single AFD profile with ~4 origin groups
+and ~6 routes, that's over-decomposition that fights Pulumi's parent/child
+resource model.
+
+**Decision:** A single `FrontDoor` ComponentResource owns the whole tree
+(profile + endpoint + WAF + origin-groups + routes + custom-domain bindings).
+Origin/route definitions are passed in as args. Refactor only if it grows past
+~400 LOC.
+
 ### Decision-5: Phased migration with named phases
 
 | Phase | Theme                                                                         | Pre-launch?                                    |

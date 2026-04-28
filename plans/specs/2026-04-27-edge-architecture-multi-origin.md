@@ -1,13 +1,14 @@
 # Edge Architecture: Multi-Origin Federation via Azure Front Door
 
-> **Status:** Approved post-council (revision 2) **Original draft:** 2026-04-27
-> **Revised:** 2026-04-28 with council outcomes from session `plan-286b981a`
-> **Author:** orchestrator (initial draft); revised after 5-persona council
-> interrogation **Scope:** Network topology, edge layer, DNS, cross-cutting HTTP
-> concerns, Pulumi IaC layout, and migration plan. Anvil-side application code
-> limited to `/health` endpoints and (deferred) FDID middleware. **Decision
-> class:** Architectural — ratified as **ADR-032**. **Module:**
-> `plans/modules/edge.aps.md`
+| Field          | Value                                                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status         | Approved post-council (revision 2)                                                                                                                                                                |
+| Original draft | 2026-04-27                                                                                                                                                                                        |
+| Revised        | 2026-04-28 with council outcomes from session `plan-286b981a`                                                                                                                                     |
+| Author         | orchestrator (initial draft); revised after 5-persona council interrogation                                                                                                                       |
+| Scope          | Network topology, edge layer, DNS, cross-cutting HTTP concerns, Pulumi IaC layout, and migration plan. Anvil-side application code limited to `/health` endpoints and (deferred) FDID middleware. |
+| Decision class | Architectural — ratified as **ADR-032**                                                                                                                                                           |
+| Module         | `plans/modules/edge.aps.md`                                                                                                                                                                       |
 
 ---
 
@@ -19,7 +20,7 @@ validated by the planning council as the load-bearing premise for this
 architecture.
 
 **Decision:** Use Azure Front Door Standard as the always-in-front edge layer.
-Azure DNS points at AFD; AFD routes to Vercel today and the Azure- hosted origin
+Azure DNS points at AFD; AFD routes to Vercel today and the Azure-hosted origin
 within 8 weeks. WAF, the www→apex redirect, TLS termination, observability,
 **static-asset caching** (to mitigate Vercel egress at scale), and rate-limiting
 all live at AFD.
@@ -212,9 +213,8 @@ architecture from "speculative" to "correctly-sequenced".
 
 ### 5.1 Pulumi components
 
-Per ADR-032 §Decision-Pulumi-layout, the AFD layer is a **single**
-ComponentResource (was three in pre-council draft). Refactor only if it grows
-past ~400 LOC.
+Per ADR-032 §Decision-7, the AFD layer is a **single** ComponentResource (was
+three in pre-council draft). Refactor only if it grows past ~400 LOC.
 
 ```
 infra/src/

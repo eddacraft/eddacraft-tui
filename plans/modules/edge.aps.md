@@ -179,8 +179,7 @@ migration.
   `anvil-api`)
 - **Intent:** Add `https://www.eddacraft.ai` to the API CORS allow-list. Mirrors
   what already shipped on `main` via PR #1124. Lands the change on the `dev`
-  line. Origin-side CORS remains the source of truth per ADR-032
-  §Decision-Hybrid.
+  line. Origin-side CORS remains the source of truth per ADR-032 §Decision-6.
 - **Expected Outcome:** Waitlist submissions from www origin are accepted by the
   API on the dev deploy.
 - **Validation:** Post-deploy CORS preflight smoke check (existing
@@ -208,7 +207,7 @@ migration.
 - **Intent:** Single `FrontDoor` ComponentResource that owns AFD profile +
   endpoint + WAF policy + origin groups + routes + custom-domain bindings.
   Region-pinned to Australia East. WAF MS Default Rule Set in detection mode.
-  Origin/route definitions accepted as args. Per ADR-032.
+  Origin/route definitions accepted as args. Per ADR-032 §Decision-7.
 - **Expected Outcome:** Single component; refactor only if it grows past ~400
   LOC.
 - **Validation:** `pnpm exec tsc -p infra/tsconfig.json --noEmit`; component
