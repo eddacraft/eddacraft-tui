@@ -5,6 +5,7 @@ use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
 use anvil_kernel_types::diagnostics::ControlDecision;
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::mcp::validation::{
     DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient, PRE_WRITE_MODE,
@@ -237,18 +238,15 @@ fn normalise_response_diagnostics(
     diagnostics: &[Diagnostic],
     backend: ValidationBackend,
 ) -> Vec<Diagnostic> {
-    let mut secret_index = 0usize;
-
     diagnostics
         .iter()
         .cloned()
         .map(|mut diagnostic| {
             if diagnostic.category == Category::Secret {
-                secret_index += 1;
-                diagnostic.id = format!("diag_mcp_secret_{secret_index:03}");
+                let strict_redaction = backend == ValidationBackend::Daemon;
+                diagnostic.id = redact_secret_id(&diagnostic.id, strict_redaction);
                 diagnostic.summary =
                     "Potential secret detected; remove it from the proposed write.".to_string();
-                let strict_redaction = backend == ValidationBackend::Daemon;
                 diagnostic.location.file =
                     redact_secret_values(&diagnostic.location.file, strict_redaction);
                 diagnostic.source.rule_id =
@@ -266,6 +264,18 @@ fn normalise_response_diagnostics(
             diagnostic
         })
         .collect()
+}
+
+fn redact_secret_id(id: &str, strict: bool) -> String {
+    let redacted = redact_secret_values(id, false);
+    if !strict || redacted != id {
+        return redacted;
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(id.as_bytes());
+    let digest = hasher.finalize();
+    format!("diag_mcp_secret_redacted_{}", hex::encode(&digest[..6]))
 }
 
 fn redact_secret_values(value: &str, strict: bool) -> String {
@@ -630,7 +640,10 @@ fn path_to_slash_string(path: &Path) -> String {
 mod tests {
     use std::fs;
 
-    use super::{MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client, call_with_workspace};
+    use super::{
+        MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client, call_with_workspace,
+        redact_secret_id,
+    };
     use super::{descriptor, parse_payload};
     use crate::mcp::validation::{
         DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
@@ -763,7 +776,8 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let raw_secret = "ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let mut diagnostic = sample_daemon_diagnostic();
-        diagnostic.id = format!("diag_{raw_secret}");
+        let daemon_secret_id = "custom-daemon-secret-diagnostic";
+        diagnostic.id = daemon_secret_id.to_string();
         diagnostic.summary = format!("Potential secret detected: {raw_secret}");
         diagnostic.location.file = format!("src/{raw_secret}.ts");
         diagnostic.source.rule_id = format!("secret-detection-{raw_secret}");
@@ -802,10 +816,14 @@ mod tests {
         );
         let payload = parse_payload(&result);
         let response_text = serde_json::to_string(&payload).expect("payload serialises");
+        let expected_redacted_id = redact_secret_id(daemon_secret_id, true);
 
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["diagnostics"][0]["id"], "diag_reasoning_001");
-        assert_eq!(payload["diagnostics"][1]["id"], "diag_mcp_secret_001");
+        assert_eq!(
+            payload["diagnostics"][1]["id"].as_str(),
+            Some(expected_redacted_id.as_str())
+        );
         assert_eq!(
             payload["diagnostics"][1]["schema_version"],
             "anvil.diagnostic.v1"
