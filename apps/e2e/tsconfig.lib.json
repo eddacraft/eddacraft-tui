@@ -16,9 +16,6 @@
       "path": "../../packages/edda-stack"
     },
     {
-      "path": "../../packages/mcp-server/tsconfig.lib.json"
-    },
-    {
       "path": "../../packages/adapters/tsconfig.lib.json"
     },
     {

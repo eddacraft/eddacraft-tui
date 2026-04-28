@@ -15,10 +15,11 @@ merge that changes strategic shape.
 
 > **Last refreshed:** 2026-04-29 (ADR-033 lands — IDE/MCP surfaces
 > archived under `archive/anvil-vscode-extension/` and
-> `archive/anvil-mcp-server/`; TS scanner / suppression parser /
-> parity harness archived under TSRET-005; TSRET-006 superseded;
-> DRVR-003 deferred until a new extension package is created on
-> the daemon-driver path; module/index docs reconciled).
+> `archive/anvil-mcp-server/`; TSRET-005 (engine archive) is
+> **unblocked** by ADR-033 but execution is **out of scope for
+> this PR** and lands separately on `chore/TSRET-005`; TSRET-006
+> superseded; DRVR-003 deferred until a new extension package is
+> created on the daemon-driver path; module/index docs reconciled).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
