@@ -2,9 +2,9 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 0/16 (INTD-001 in progress on `feat/intercept-scaffold`) |
+| INTD | @aneki | In Progress | 2/16 (INTD-002 + INTD-003 landed on `feat/INTD-002-003` 2026-04-29; INTD-001 scaffold merged via #1150 with closure items still outstanding — PID file, parser-concurrency ADR, demo runbook §4.1 refresh) |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-04-29
 
 > **A1 launch slice (cherry-picked, not the whole module):** INTD-001,
 > INTD-002, INTD-003, INTD-005, INTD-013, INTD-014. The remaining INTD work
