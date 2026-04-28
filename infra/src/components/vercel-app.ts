@@ -36,6 +36,8 @@ export class VercelApp extends pulumi.ComponentResource {
     const skipFlag = args.skipPreviewDeploys ? '--skip-preview ' : '';
     const branchFlag =
       args.skipPreviewDeploys && prodBranch !== 'main' ? `--prod-branch ${prodBranch} ` : '';
+    const gitProductionBranch =
+      args.skipPreviewDeploys || args.productionBranch ? prodBranch : undefined;
     const extraArgs = args.extraWatchPaths?.length
       ? ' ' + args.extraWatchPaths.map((p) => `'${p}'`).join(' ')
       : '';
@@ -50,9 +52,11 @@ export class VercelApp extends pulumi.ComponentResource {
         buildCommand: args.buildCommand,
         installCommand: args.installCommand,
         ignoreCommand: args.ignoreCommand ?? defaultIgnoreCommand,
+        previewDeploymentsDisabled: args.skipPreviewDeploys || undefined,
         gitRepository: {
           type: 'github',
           repo: args.gitRepo,
+          ...(gitProductionBranch ? { productionBranch: gitProductionBranch } : {}),
         },
       },
       { parent: this }

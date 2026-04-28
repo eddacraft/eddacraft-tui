@@ -75,6 +75,18 @@ describe('Vercel resources', () => {
     expect(domains.length).toBe(3);
   });
 
+  it('limits managed Vercel Git deployments to the main branch', () => {
+    const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
+
+    expect(projects).toHaveLength(6);
+    for (const project of projects) {
+      expect(project.inputs.previewDeploymentsDisabled, project.name).toBe(true);
+      expect(project.inputs.gitRepository, project.name).toMatchObject({
+        productionBranch: 'main',
+      });
+    }
+  });
+
   it('assigns docs.eddacraft.ai to docs-shell, not docs-site', () => {
     const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
 
