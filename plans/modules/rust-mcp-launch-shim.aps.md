@@ -206,11 +206,11 @@ starting implementation:
   `crates/anvil-checks/src/`
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** RMCP-004, RTAI validation semantics; RTAI-002 and INTD-002
-  own the concrete daemon client and are out of scope for RMCP-005
+- **Dependencies:** RMCP-004, RTAI validation semantics
 - **Notes:** 2026-04-28 council review narrowed RMCP-005 to the launch-slice
-  daemon seam plus embedded fallback; production daemon RPC wiring is deferred
-  until the downstream RPC and IPC work exists.
+  daemon seam plus embedded fallback; the concrete daemon client, RPC contract,
+  and IPC listener remain deferred follow-up work owned by `RTAI-002` and
+  `INTD-002`.
 
 ---
 

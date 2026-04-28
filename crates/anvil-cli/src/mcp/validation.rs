@@ -2,8 +2,8 @@ use anvil_checks::reasoning::{ReasoningCheckConfig, run_reasoning_check};
 use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content_with_stats};
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 
-const INPUT_RULE_ID: &str = "mcp-validate-write-input";
-const PRE_WRITE_MODE: &str = "pre-write";
+pub(crate) const INPUT_RULE_ID: &str = "mcp-validate-write-input";
+pub(crate) const PRE_WRITE_MODE: &str = "pre-write";
 
 pub struct PreWriteValidationRequest<'a> {
     pub relative_path: &'a str,
@@ -171,7 +171,7 @@ fn with_pre_write_mode(mut diagnostic: Diagnostic) -> Diagnostic {
     diagnostic
 }
 
-fn sanitise_id_part(value: &str) -> String {
+pub(crate) fn sanitise_id_part(value: &str) -> String {
     let sanitised = value
         .chars()
         .map(|ch| {

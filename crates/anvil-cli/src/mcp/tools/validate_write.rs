@@ -5,16 +5,15 @@ use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode,
 use serde_json::{Value, json};
 
 use crate::mcp::validation::{
-    DaemonValidationClient, LocalDaemonValidationClient, PreWriteValidationRequest,
-    ValidationBackend, ValidationBackendFailure, validate_pre_write,
+    DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient, PRE_WRITE_MODE,
+    PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure, sanitise_id_part,
+    validate_pre_write,
 };
 
 pub const TOOL_NAME: &str = "anvil_validate_write";
 
 const RESPONSE_SCHEMA: &str = "anvil.mcp.validate-write.v1";
 const MAX_PROPOSED_CONTENT_BYTES: usize = 1024 * 1024;
-const INPUT_RULE_ID: &str = "mcp-validate-write-input";
-const PRE_WRITE_MODE: &str = "pre-write";
 
 pub fn descriptor() -> Value {
     json!({
@@ -115,7 +114,7 @@ fn call_with_validation_client(
 }
 
 fn tool_result(payload: &Value) -> Value {
-    let is_error = payload["decision"] == "block";
+    let is_error = payload["decision"] == "block" || payload.get("error").is_some();
     let text = serde_json::to_string(&payload).expect("validate-write payload serialises");
     json!({
         "content": [
@@ -140,14 +139,22 @@ fn problem_payload(problem: ToolProblem, path: Option<&str>) -> Value {
 }
 
 fn backend_failure_payload(path: &str, failure: ValidationBackendFailure) -> Value {
-    let diagnostic = input_diagnostic(ToolProblem::new(failure.code, failure.message), path);
-    let mut payload = validation_payload(path, &[diagnostic], ValidationBackend::Daemon, None);
-    payload["error"] = json!({
-        "code": failure.code,
-        "message": failure.message,
-        "retriable": failure.retriable
-    });
-    payload
+    json!({
+        "schema": RESPONSE_SCHEMA,
+        "error": {
+            "code": failure.code,
+            "message": failure.message,
+            "retriable": failure.retriable
+        },
+        "safeDefault": "do-not-write",
+        "correlation": {
+            "id": correlation_id(path),
+            "surface": "mcp",
+            "mode": "preWrite",
+            "backend": ValidationBackend::Daemon.as_str(),
+            "path": path
+        }
+    })
 }
 
 fn validation_payload(
@@ -249,27 +256,6 @@ fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
 
 fn correlation_id(path: &str) -> String {
     format!("corr_mcp_{}", sanitise_id_part(path))
-}
-
-fn sanitise_id_part(value: &str) -> String {
-    let sanitised = value
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() {
-                ch.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>()
-        .trim_matches('_')
-        .to_string();
-
-    if sanitised.is_empty() {
-        "unknown".to_string()
-    } else {
-        sanitised
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -706,10 +692,12 @@ mod tests {
         let payload = parse_payload(&result);
 
         assert_eq!(result["isError"], true);
-        assert_eq!(payload["decision"], "block");
         assert_eq!(payload["error"]["code"], "validation-backend-unavailable");
         assert_eq!(payload["error"]["retriable"], true);
+        assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["correlation"]["backend"], "daemon");
+        assert!(payload.get("diagnostics").is_none());
+        assert!(payload.get("summary").is_none());
     }
 
     #[test]
