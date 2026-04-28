@@ -8,6 +8,14 @@
 [`../../decisions/030-surface-drivers-supersede-napi-cutover.md`](../../decisions/030-surface-drivers-supersede-napi-cutover.md)
 **APS module:** DRVR
 
+> **MCP sequencing amendment (2026-04-28):** The current release does not build
+> the TS `DriverClient` bridge for MCP. A1 uses
+> [`RMCP`](../../modules/rust-mcp-launch-shim.aps.md), a narrow Rust
+> `anvil mcp serve --stdio` launch shim for pre-write validation. Full existing
+> MCP server parity moves to [`RMCPF`](../../modules/rust-mcp-full-port.aps.md)
+> next release. The MCP-driver design below remains useful as the broader
+> driver-framework direction, but it is no longer the launch-critical path.
+
 ---
 
 ## 1. Why this doc exists

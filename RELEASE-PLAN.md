@@ -1,6 +1,6 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-04-26 (after APS audit + 5 mini planning councils)
+**Last updated:** 2026-04-28 (Graph v2 + Rust MCP launch-shim planning update)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
@@ -9,37 +9,45 @@
 ## 🔒 CURRENT RELEASE — Locked 2026-04-26
 
 The slate for the current release is **A1 + A2 + A3 + A4** — the realistic
-ceiling per council consensus. Total ≈ 33 work items across 4 coherent slices.
+ceiling per council consensus, with the A1 MCP path narrowed to a Rust launch
+shim rather than a full MCP server port. Total ≈ 37 work items across 4 coherent
+slices.
 
-| Slice                             | Goal                                                             | Items |
-| --------------------------------- | ---------------------------------------------------------------- | ----- |
-| **A1** RTAI Spike Slice           | Real-time AI validation that fires before save (the launch demo) | ~19   |
-| **A2** AIGUARD                    | `anvil gate --profile ai` + stable JSON diagnostic envelope      | 4     |
-| **A3** Release Engineering        | GHOOK + ATTRIB + SCAN smallest viable cut                        | 7     |
-| **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV       | 3     |
+| Slice                             | Goal                                                                            | Items |
+| --------------------------------- | ------------------------------------------------------------------------------- | ----- |
+| **A1** RTAI Spike Slice           | Real-time AI validation that fires before save through the Rust MCP launch path | ~23   |
+| **A2** AIGUARD                    | `anvil gate --profile ai` + stable JSON diagnostic envelope                     | 4     |
+| **A3** Release Engineering        | GHOOK + ATTRIB + SCAN smallest viable cut                                       | 7     |
+| **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV                      | 3     |
 
-**Out of this release:** A5 (Dashboard MVP) — defer to next release. All Tier B
-and Tier C items remain queued/parked.
+**Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
+GV2/GCTX (Graph v2 foundation and graph context delivery), and full DRVR editor
+/ MCP driver cutover. The current release ships the Rust MCP launch shim only.
+All other Tier B and Tier C items remain queued/parked.
 
 ### Required prerequisites (cross-cutting glue)
 
 These are **not slices** — they're glue items that the locked candidates need.
-None has an existing work-item home; all must be claimed before the slice they
-support starts.
+Some now have work-item homes after the 2026-04-28 MCP-path update; any
+remaining unclaimed glue must be claimed before the slice it supports starts.
 
 - [ ] **Reasoning-pattern rule** in `crates/anvil-checks` — minimum-viable
-      AI-pattern check (e.g. AI-001 appeal-to-authority). Required by **A1**.
-      Without it, the demo headline is "secret detection mid-edit."
-- [ ] **Single latency rubric ADR** — INTD-014 / DRVR-002 / RTAI currently give
-      conflicting numbers. One ADR, one rubric, one place. Required by **A1**.
-- [ ] **Demo runbook** — `anvil init` → install editor extension → open Cursor →
-      paste known-bad pattern → Anvil flags before save. LAUNCH polishes
-      save-time, RTAI builds the engine; nobody yet owns the user journey.
-      Required by **A1**.
-- [ ] **MCP config for Cursor / Claude Code** — RCLI3-016 currently Tier 3; pull
-      forward as a single-task addition to **A1**.
-- [ ] **Diagnostic envelope coordination** — AIGUARD-002 ↔ RTAI-007 ↔ INTD-013 ↔
-      DRVR-002 must agree. Decide envelope shape _before_ AIGUARD-001 starts.
+      AI-pattern check (e.g. AI-001 appeal-to-authority). Required by **A1**;
+      tracked as INTR-008. Without it, the demo headline is "secret detection
+      mid-edit."
+- [ ] **Single latency rubric ADR** — INTD-014 / RTAI / RMCP must cite one
+      rubric rather than inventing per-surface numbers. Required by **A1**.
+- [ ] **Demo runbook** — `anvil init` → `anvil mcp install` → open Cursor /
+      Claude Code → paste known-bad pattern → Anvil flags before save. LAUNCH
+      polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
+      MCP launch path; nobody yet owns the user journey. Required by **A1**.
+- [ ] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
+      writes config pointing at `anvil mcp serve --stdio`; **RMCP** makes that
+      command real in Rust for the A1 path. Do not port the whole TS MCP server
+      in this release.
+- [ ] **Diagnostic envelope coordination** — AIGUARD-002 ↔ RMCP-006 ↔ RTAI-006 /
+      RTAI-008 ↔ INTD-013 must agree for the launch path. DRVR-002 consumes the
+      same shape later. Decide envelope shape _before_ AIGUARD-001 starts.
       Required by **A2**.
 - [ ] **ADR-027 / ADR-028 / ADR-029 acceptance** — currently Proposed; Council
       D: "their continued Proposed status is procedural debt, not technical
@@ -53,7 +61,7 @@ support starts.
    if real number is 250ms, demo "works" but does not _wow_. Mitigation must be
    planned before the rest of A1 commits.
 2. **Envelope coordination drift.** If A2 ships its diagnostic envelope before
-   A1 locks down RTAI/INTD/DRVR shapes, consumers branch.
+   A1 locks down RTAI/INTD/RMCP shapes, consumers branch.
 3. **Cross-cutting expansion.** A3 wants to grow (downstream-port, WalkParallel
    spike). Be willing to say no.
 4. **A4 looks too small.** Counter-frame as "Phase 0 floor," not "theme
@@ -63,7 +71,11 @@ support starts.
 
 Most likely successors, in order of council confidence:
 
+- **RMCPF** Rust MCP Full Port — full parity with the existing TS MCP server,
+  after RMCP proves the launch path
 - **A5** Dashboard MVP — once RTAI ships clean
+- **GV2** Graph v2 Foundation — shared graph substrate for future enforcement,
+  provenance, and graph-context delivery
 - **B1** Intercept Loop v0 — wrapped-launch v2 narrative
 - **B4** Beta Migration Hardening — EAMIG/EATEST/TINT regression-prevention
 
@@ -109,47 +121,55 @@ Each candidate gives you:
 ### A1. RTAI Spike Slice — _the launch-blocker_
 
 **Goal:** Real-time AI-output validation that fires before save. The 60-second
-demo: open Cursor with the MCP driver attached, ask Claude Code for a confident
-rewrite, watch Anvil refuse the write before it hits disk.
+demo: run `anvil mcp install`, open Cursor / Claude Code with
+`anvil mcp serve --stdio` attached, ask for a confident rewrite, watch Anvil
+warn or block before the write hits disk.
 
-**Modules / work items (~19 items):**
+**Modules / work items (~23 items):**
 
 - **INTD subset** (6 of 16): INTD-001, INTD-002, INTD-003, INTD-005, INTD-013,
   INTD-014
-- **INTR subset** (3 of 7): INTR-001 (rule trait), INTR-002 (secret detection
-  wrapper), INTR-006 (config)
-- **DRVR subset** (4 of 8): DRVR-001 (DriverClient), DRVR-002 (protocol),
-  DRVR-006 (MCP scope resolution), DRVR-004-lite (validate path only, not full
-  GateRunner replacement)
-- **RTAI subset** (5 of 9): RTAI-001 (Phase-0 spike), RTAI-002, RTAI-004,
-  RTAI-006, RTAI-008 — MCP path first (deterministic demo target)
-- **NEW work item:** one reasoning-pattern rule (e.g. AI-001
-  appeal-to-authority) landed in `crates/anvil-checks` — gap surfaced by Council
-  A
+- **INTR subset** (4 of 8): INTR-001 (rule trait), INTR-002 (secret detection
+  wrapper), INTR-006 (config), INTR-008 (launch reasoning-pattern wrapper)
+- **RMCP subset** (8 of 8): RMCP-001..RMCP-008 — Rust MCP launch shim only:
+  stdio server, minimal pre-write validation tool, Rust validation path,
+  canonical diagnostics, Cursor / Claude Code install verification, smoke tests
+- **DRVR coordination**: DRVR remains the full driver-framework track, but A1 no
+  longer depends on building a TS `DriverClient` solely to bridge MCP back into
+  Rust. DRVR-004-lite is replaced by RMCP for the launch demo.
+- **RTAI subset** (5 of 9): RTAI-001 (Phase-0 spike), RTAI-002, RTAI-003,
+  RTAI-006, RTAI-008 — MCP/RMCP path first (deterministic demo target). RTAI-004
+  is deferred with the TS `DriverClient`/editor-driver path.
 
 **Prerequisites:**
 
 - RTAI-001 spike completed and latency budget validated _before_ any other RTAI
   item commits
-- DRVR-006 scope decision recorded
-- ADR clarifying single latency rubric across INTD-014 / DRVR-002 / RTAI
+- RMCP-001 scope lock recorded before implementation starts
+- ADR-031 latency rubric referenced by INTD-014 / RTAI / RMCP
+- Generated Cursor / Claude Code config verified to launch
+  `anvil mcp serve --stdio`
 
 **Out-of-scope (protect the slice):**
 
 - INTD-007/-008/-010/-011/-016 (fence persistence, full config, unregistered
   handling, diagnostics, DoS budgets)
 - DRVR-003 (full VSCode cutover) — RTAI-005 mid-edit can demo without it
+- DRVR-004 full MCP cutover and TS `DriverClient` bridge — replaced for A1 by
+  RMCP; full parity moves to RMCPF in the next release
 - DRVR-007/-008 (driver trust + non-VSCode LSP) — defer to v1.1
-- RTAI-005, RTAI-007, RTAI-009 — editor-specific path + telemetry mirror + docs
+- RTAI-004, RTAI-005, RTAI-007, RTAI-009 — TS `DriverClient`, editor-specific
+  path, telemetry mirror, and docs
 - Intercept Launcher (INTL) entirely — wrapped-launch is v2 narrative
-- TUIDASH, RCLI2, RCLI3 entirely
+- TUIDASH, RCLI2, and RCLI3 except the already-pulled-forward MCP config/install
+  items RCLI3-016/RCLI3-016b
 
 **Adversarial risk:** **Latency budget is fiction.** Sub-50ms daemon-side /
-sub-100ms total numbers extrapolate from in-process kernel benchmarks. MCP
-transport (stdio, sometimes network) may break "feels real-time." RTAI-001
-measures truth; if real number is 250ms, demo "works" but does not _wow_.
-Mitigation must be planned before slice commits — pre-warm daemon, batch rule
-eval, or accept "save-time" framing if mid-edit is unrealistic.
+sub-100ms total numbers extrapolate from in-process kernel benchmarks. Rust MCP
+stdio framing may still break "feels real-time." RTAI-001 measures truth; if
+real number is 250ms, demo "works" but does not _wow_. Mitigation must be
+planned before slice commits — pre-warm daemon, batch rule eval, or accept
+"save-time" framing if mid-edit is unrealistic.
 
 **Recommendation: PICK. This is the launch.**
 
@@ -171,9 +191,10 @@ The shape AI tools consume when they invoke Anvil — launch-aligned with RTAI's
 
 **Prerequisites:**
 
-- Coordinate AIGUARD-002 envelope shape with **RTAI-007** (notification mirror),
-  **INTD-013** (telemetry control envelope), **DRVR-002** (driver protocol).
-  Whichever lands first publishes canonical shape; others reference it.
+- Coordinate AIGUARD-002 envelope shape with **RMCP-006** (Rust MCP launch
+  response), **RTAI-006/RTAI-008** (pre-write semantics and error contract), and
+  **INTD-013** (telemetry control envelope). DRVR-002 consumes the same shape
+  later. Whichever lands first publishes canonical shape; others reference it.
 
 **Out-of-scope:**
 
@@ -182,11 +203,12 @@ The shape AI tools consume when they invoke Anvil — launch-aligned with RTAI's
 - Live IDE feedback
 
 **Adversarial risk:** Envelope coordination drift — if AIGUARD-002 ships before
-RTAI-007 / INTD-013 / DRVR-002 lock down their shapes, the envelope diverges and
-consumers branch. Coordinate the schema decision _before_ AIGUARD-001 starts.
+RMCP-006 / RTAI-006 / RTAI-008 / INTD-013 lock down their shapes, the envelope
+diverges and consumers branch. Coordinate the schema decision _before_
+AIGUARD-001 starts.
 
-**Recommendation: PICK or CONSIDER. Small (4 items), high RTAI-alignment, low
-contention. Strong "consider" if RTAI-007 is on the slice anyway.**
+**Recommendation: PICK or CONSIDER. Small (4 items), high RTAI/RMCP-alignment,
+low contention. Strong "consider" if RMCP-006 is on the slice anyway.**
 
 ---
 
@@ -448,31 +470,31 @@ The OPAE-blocked subset (RCLI2-005..-008) is **Tier C** until OPAE moves.
 These do not compete for current-release attention. Keep in `plans/modules/` for
 cataloguing; promote on signal.
 
-| Module                                                                              | Why parked                                                                                                                                                                             |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **DASHAI** (dashboard-ai-builder)                                                   | Wave 4 of dashboard. Coordinate with TUIDASH json-render schema post-launch.                                                                                                           |
-| **DASHARCH** (dashboard-architecture-views)                                         | Demote Ready → Draft pending real schema source from `crates/anvil-architecture` + drift snapshot format.                                                                              |
-| **DASHOPS** remaining                                                               | Plan/role/AI-tool views are spec-orphan today.                                                                                                                                         |
-| **OBS** (observability-foundation)                                                  | Park, rescope post-launch against `apps/anvil-api` (hosted-product surface, not local CLI).                                                                                            |
-| **OPAE** (opa-enhancements)                                                         | 36 tasks is a programme. Only policy-library + bundle inheritance pieces are launch-relevant; defer until a "policy library beats gate" slice (post-RTAI v0.5+).                       |
-| **CPACKS** (compliance-policy-packs)                                                | Shippable as ecosystem content after OPAE library + POLVAL. Compliance-pack effort scales by framework count.                                                                          |
-| **AGOV** (agent-governance-patterns)                                                | Signal-producer module for CPACKS/MDGOV. Promote when CPACKS POLVAL prep lands. AGOV-002 → CPACKS migration pending.                                                                   |
-| **AIGUARD**                                                                         | If not picked for Tier A, parks here as "small but coherent."                                                                                                                          |
-| **OPAG** (opa-agent-orchestration)                                                  | Orchestration on a policy stack that does not exist yet. Park until OPAE library lands.                                                                                                |
-| **EVAL** (eval-harness-integration)                                                 | Adapter contract is small, useful for RTAI regression once RTAI ships; revisit post-launch.                                                                                            |
-| **CPOL** (contextual-policy-assertions)                                             | Isolated, complements OPAE; small scope (3 tasks) — Tier B/C boundary.                                                                                                                 |
-| **IORISK** (io-risk-controls)                                                       | Closest to RTAI's input/output validation theme. Could enrich RTAI as a 1–2 task addition, but **default recommendation: do not include** in launch slice (dilutes "wow" with config). |
-| **ATC** (adversarial-testing-catalog)                                               | Useful when there is a model under test; pair with PATT as v0.6 safety pack.                                                                                                           |
-| **PATT** (prompt-attack-regression-packs)                                           | Pair with ATC.                                                                                                                                                                         |
-| **POLVAL** (policy-pack-validation)                                                 | Necessary precondition for any pack work; small scope. Promote when packs activate.                                                                                                    |
-| **ARCHCFG** (architecture-config-validation)                                        | Could absorb into `crates/anvil-architecture` as a tier-2 item.                                                                                                                        |
-| **TUIDASH** (tui-dashboard-render)                                                  | Demote Ready → Draft pending DASHAI catalogue resolution and schema source pin.                                                                                                        |
-| **RCLI3** (rust-cli-tier3)                                                          | Genuinely useful for parity; pure historical-contract work. Frame as "post-launch parity."                                                                                             |
-| **RSTLAN, PYLAN**                                                                   | Heavy anchors. Self-dogfood compelling, not launch-blocking.                                                                                                                           |
-| **LANGTAIL, PACKTOK**                                                               | Tier D in Council D's classification — defer until breadth becomes a sales blocker (LANGTAIL) or RSTLAN moves (PACKTOK).                                                               |
-| **MDGOV** (markdown-governance)                                                     | M1 wellformedness as internal compounding value — promote slice 1 when bandwidth allows.                                                                                               |
-| **WEAVE**                                                                           | Greenfield import + harness build. Schedule after intercept-loop thesis is proven.                                                                                                     |
-| **PFGW, ILGOV, LAC, OPENSPEC, GCTX, UCFG, BMAD4, CGBDG, FLAGCAT, APGOV, SEC, TEST** | Various long-bet / future / signpost / cross-cutting items. See [`ROADMAP.md`](./ROADMAP.md) Horizon 6 + audit followup tasks #17–22.                                                  |
+| Module                                                                                          | Why parked                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DASHAI** (dashboard-ai-builder)                                                               | Wave 4 of dashboard. Coordinate with TUIDASH json-render schema post-launch.                                                                                                           |
+| **DASHARCH** (dashboard-architecture-views)                                                     | Demote Ready → Draft pending real schema source from `crates/anvil-architecture` + drift snapshot format.                                                                              |
+| **DASHOPS** remaining                                                                           | Plan/role/AI-tool views are spec-orphan today.                                                                                                                                         |
+| **OBS** (observability-foundation)                                                              | Park, rescope post-launch against `apps/anvil-api` (hosted-product surface, not local CLI).                                                                                            |
+| **OPAE** (opa-enhancements)                                                                     | 36 tasks is a programme. Only policy-library + bundle inheritance pieces are launch-relevant; defer until a "policy library beats gate" slice (post-RTAI v0.5+).                       |
+| **CPACKS** (compliance-policy-packs)                                                            | Shippable as ecosystem content after OPAE library + POLVAL. Compliance-pack effort scales by framework count.                                                                          |
+| **AGOV** (agent-governance-patterns)                                                            | Signal-producer module for CPACKS/MDGOV. Promote when CPACKS POLVAL prep lands. AGOV-002 → CPACKS migration pending.                                                                   |
+| **AIGUARD**                                                                                     | If not picked for Tier A, parks here as "small but coherent."                                                                                                                          |
+| **OPAG** (opa-agent-orchestration)                                                              | Orchestration on a policy stack that does not exist yet. Park until OPAE library lands.                                                                                                |
+| **EVAL** (eval-harness-integration)                                                             | Adapter contract is small, useful for RTAI regression once RTAI ships; revisit post-launch.                                                                                            |
+| **CPOL** (contextual-policy-assertions)                                                         | Isolated, complements OPAE; small scope (3 tasks) — Tier B/C boundary.                                                                                                                 |
+| **IORISK** (io-risk-controls)                                                                   | Closest to RTAI's input/output validation theme. Could enrich RTAI as a 1–2 task addition, but **default recommendation: do not include** in launch slice (dilutes "wow" with config). |
+| **ATC** (adversarial-testing-catalog)                                                           | Useful when there is a model under test; pair with PATT as v0.6 safety pack.                                                                                                           |
+| **PATT** (prompt-attack-regression-packs)                                                       | Pair with ATC.                                                                                                                                                                         |
+| **POLVAL** (policy-pack-validation)                                                             | Necessary precondition for any pack work; small scope. Promote when packs activate.                                                                                                    |
+| **ARCHCFG** (architecture-config-validation)                                                    | Could absorb into `crates/anvil-architecture` as a tier-2 item.                                                                                                                        |
+| **TUIDASH** (tui-dashboard-render)                                                              | Demote Ready → Draft pending DASHAI catalogue resolution and schema source pin.                                                                                                        |
+| **RCLI3** (rust-cli-tier3)                                                                      | Genuinely useful for parity; pure historical-contract work. Frame as "post-launch parity."                                                                                             |
+| **RSTLAN, PYLAN**                                                                               | Heavy anchors. Self-dogfood compelling, not launch-blocking.                                                                                                                           |
+| **LANGTAIL, PACKTOK**                                                                           | Tier D in Council D's classification — defer until breadth becomes a sales blocker (LANGTAIL) or RSTLAN moves (PACKTOK).                                                               |
+| **MDGOV** (markdown-governance)                                                                 | M1 wellformedness as internal compounding value — promote slice 1 when bandwidth allows.                                                                                               |
+| **WEAVE**                                                                                       | Greenfield import + harness build. Schedule after intercept-loop thesis is proven.                                                                                                     |
+| **PFGW, ILGOV, LAC, OPENSPEC, GV2, GCTX, RMCPF, UCFG, BMAD4, CGBDG, FLAGCAT, APGOV, SEC, TEST** | Various long-bet / future / signpost / cross-cutting items. See [`ROADMAP.md`](./ROADMAP.md) Horizon 6 + audit followup tasks #17–22.                                                  |
 
 ---
 
@@ -487,16 +509,17 @@ their own — they're glue that some Tier A picks need:
 2. **One reasoning-pattern rule in `crates/anvil-checks`** — required by A1
    (RTAI Spike). Without it, the demo headline is "secret detection mid-edit"
    rather than "AI-pattern detection."
-3. **Single latency rubric** — required by A1. INTD-014 says "warm," DRVR-002
-   says "<100ms p95 save-time," RTAI says "<100ms total mid-edit." One rubric,
-   one ADR, one place.
-4. **Demo runbook** — required by A1. `anvil init` → install editor extension →
-   open Cursor → paste known-bad pattern → Anvil flags before save. LAUNCH
-   polishes save-time, RTAI builds the engine — nobody owns the user journey.
-5. **MCP config for Cursor / Claude Code** — RCLI3-016 is currently Tier 3; pull
-   forward for A1.
+3. **Single latency rubric** — required by A1. INTD-014, RTAI, and RMCP must
+   cite one ADR-031 rubric rather than inventing per-surface numbers.
+4. **Demo runbook** — required by A1. `anvil init` → `anvil mcp install` → open
+   Cursor / Claude Code → paste known-bad pattern → Anvil flags before save.
+   LAUNCH polishes save-time, RTAI defines validation semantics, RMCP owns the
+   Rust MCP launch path — nobody owns the user journey.
+5. **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 writes config;
+   RMCP makes `anvil mcp serve --stdio` real for A1.
 6. **Diagnostic envelope coordination** — required by A2 (AIGUARD). AIGUARD-002
-   ↔ RTAI-007 ↔ INTD-013 ↔ DRVR-002 must agree.
+   ↔ RMCP-006 ↔ RTAI-006/RTAI-008 ↔ INTD-013 must agree; DRVR-002 consumes the
+   result later.
 7. **3 ADRs to accept now** — ADR-027 (pack architecture), ADR-028 (markdown
    crate), ADR-029 (suppression parser authority). Council D: "their continued
    Proposed status is procedural debt, not technical debt. Resolve in a single
@@ -511,13 +534,13 @@ their own — they're glue that some Tier A picks need:
 You will pick — but for context, here are coherent multi-candidate combinations
 the councils support:
 
-| Combo                           | Slices                 | Net items | Posture                                                                                                        |
-| ------------------------------- | ---------------------- | --------- | -------------------------------------------------------------------------------------------------------------- |
-| **Hype-phase minimum**          | A1 + A3                | ~26       | RTAI demo + launch hygiene. Smallest credible launch.                                                          |
-| **Hype-phase plus integration** | A1 + A2 + A3           | ~30       | Adds AIGUARD diagnostic envelope. Locks the AI-tooling integration story.                                      |
-| **Hype-phase plus credibility** | A1 + A3 + A4           | ~29       | Adds language audit + check-ID registry + .env scan. Three governance artefacts riding alongside.              |
-| **Full launch slate**           | A1 + A2 + A3 + A4      | ~33       | All except dashboard. Realistic if RTAI ships clean.                                                           |
-| **Founder-pitch slate**         | A1 + A2 + A3 + A4 + A5 | ~45       | Launch + team-lead surface. Most ambitious Tier A. Adversarial risk: RTAI bandwidth contention with dashboard. |
+| Combo                           | Slices                 | Net items | Posture                                                                                                             |
+| ------------------------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Hype-phase minimum**          | A1 + A3                | ~30       | RTAI/RMCP demo + launch hygiene. Smallest credible launch.                                                          |
+| **Hype-phase plus integration** | A1 + A2 + A3           | ~34       | Adds AIGUARD diagnostic envelope. Locks the AI-tooling integration story.                                           |
+| **Hype-phase plus credibility** | A1 + A3 + A4           | ~33       | Adds language audit + check-ID registry + .env scan. Three governance artefacts riding alongside.                   |
+| **Full launch slate**           | A1 + A2 + A3 + A4      | ~37       | All except dashboard, full MCP parity, and Graph v2. Realistic if RTAI/RMCP ships clean.                            |
+| **Founder-pitch slate**         | A1 + A2 + A3 + A4 + A5 | ~49       | Launch + team-lead surface. Most ambitious Tier A. Adversarial risk: RTAI/RMCP bandwidth contention with dashboard. |
 
 The councils consistently recommend **A1 + A3** as the floor and **A1 + A2 +
 A3 + A4** as the realistic ceiling for a single release. A5 (Dashboard) is

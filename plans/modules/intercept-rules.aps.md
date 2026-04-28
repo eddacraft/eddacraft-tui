@@ -2,9 +2,9 @@
 
 | ID   | Owner  | Status | Progress |
 | ---- | ------ | ------ | -------- |
-| INTR | @aneki | Draft  | 0/7      |
+| INTR | @aneki | Draft  | 0/8      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-28
 
 ## Purpose
 
@@ -22,6 +22,8 @@ analysis.
   allow | interrupt with reason)
 - Wrapper rules for existing anvil-checks secret detection
 - Wrapper rules for existing anvil-checks antipattern scanning
+- Minimum launch reasoning-pattern rule wrapper for A1 / RMCP pre-write
+  validation
 - PathDenyList rule (configurable list of forbidden path patterns)
 - RegexContent rule (configurable regex patterns matched against changed file
   content)
@@ -31,7 +33,9 @@ analysis.
 
 ## Out of Scope
 
-- Graph-assisted checks (boundary membership, symbol ownership)
+- Graph-assisted checks in this module's current scope. Future boundary
+  membership, symbol ownership, known-edge, or architectural-index rules must
+  wait for GV2's hot-read API and stay within ADR-031 latency budgets.
 - OPA policy evaluation on the hot path
 - Per-rule enforcement granularity (all rules share the project enforcement mode)
 - Warn or block decisions (v1 is binary: allow | interrupt)
@@ -44,6 +48,18 @@ analysis.
 - **Depends on:** anvil-checks (secret detection, antipattern scanning crates)
 - **Exposes:** InterceptRule trait and rule registry for consumption by
   intercept-daemon (INTD) enforcement pipeline
+
+## Graph v2 Coordination
+
+INTR intentionally remains cheap and deterministic. Graph v2 does not change the
+current INTR scope: no graph recompute, transitive traversal, context slicing,
+or explanation work belongs in hot-path rule evaluation.
+
+After GV2-022 exposes bounded hot reads, a later INTR slice may add graph-backed
+rules for boundary membership, symbol ownership, known-edge existence, or
+precomputed architectural-index checks. Those rules must consume GV2 hot indexes
+only; they must not query the general graph registry or perform traversal on the
+daemon hot path.
 
 ## Tasks
 
@@ -117,4 +133,21 @@ analysis.
   lists); regex patterns compiled once at startup and cached for the lifetime
   of the rule instance
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib config`
+- **Status:** Draft
+
+### INTR-008: Launch reasoning-pattern rule wrapper
+
+- **Intent:** Give the A1 Rust MCP pre-write path at least one AI-output
+  reasoning-pattern rule beyond secret detection, without expanding INTR into a
+  full reasoning engine.
+- **Expected Outcome:** A minimum-viable rule from `anvil-checks` reasoning
+  patterns, such as AI-001 appeal-to-authority or unjustified precision, is
+  exposed as an `InterceptRule`. The rule evaluates proposed content supplied by
+  RMCP/RTAI the same way it evaluates file-backed content from INTD. Findings map
+  to the canonical diagnostic envelope and obey the project enforcement mode.
+- **Non-scope:** Full AI-001..AI-007 catalogue, false-positive tuning beyond the
+  launch fixture, or LLM-based classification.
+- **Validation:** Unit test triggers the rule on a fixture planning/code comment
+  payload and asserts the RMCP/RTAI response contains a canonical diagnostic with
+  no dependency on Node.js or `packages/mcp-server`
 - **Status:** Draft

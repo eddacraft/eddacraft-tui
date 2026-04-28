@@ -1,6 +1,6 @@
 # Anvil Roadmap
 
-**Last updated:** 2026-04-26 (after APS audit + 5 mini planning councils)
+**Last updated:** 2026-04-28 (Rust MCP launch path + Graph v2 planning update)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of
 > release-slice candidates organised by readiness tier.
@@ -47,30 +47,31 @@ yet released:
 
 These are foreground work; they ride out on the current branch.
 
-### Horizon 1 — Launch (the differentiator) 🔒 LOCKED 2026-04-26
+### Horizon 1 — Launch (the differentiator) 🔒 LOCKED 2026-04-26; MCP path updated 2026-04-28
 
 **Theme: real-time AI-output validation that fires before save.**
 
 The thesis Anvil sells against is "AI tools produce code that compiles and
 passes tests yet drifts from intended patterns." The launch demo answers that
 literally: open Cursor, ask Claude Code to make a confident-but-wrong rewrite,
-watch Anvil refuse the write **before it hits disk** and surface the reason to
-the agent.
+watch Anvil refuse the write **before it hits disk** through
+`anvil mcp serve --stdio` and surface the reason to the agent.
 
 Big bets in this horizon:
 
-- **Intercept Daemon (INTD)** — host-local enforcement daemon, JSON-RPC over
-  stdio, fence-on-fail.
-- **Surface Drivers (DRVR)** — editor + MCP drivers feeding the daemon.
+- **Intercept Daemon (INTD)** — host-local validation/enforcement authority and
+  shared rule pipeline for the launch path.
+- **Rust MCP Launch Shim (RMCP)** — narrow `anvil mcp serve --stdio` path for
+  Cursor / Claude Code pre-write validation in the single Rust binary.
 - **Real-time AI Validation (RTAI)** — mid-edit and pre-write validation paths.
-- **One reasoning-pattern rule** — minimum-viable AI-pattern check landing in
-  `crates/anvil-checks` (gap surfaced by Council A).
+- **One reasoning-pattern rule** — minimum-viable AI-pattern check exposed via
+  INTR-008 (gap surfaced by Council A).
 - **AI Guardrail Profile (AIGUARD)** — `anvil gate --profile ai` with stable
   JSON diagnostic envelope; the shape AI tools consume.
 
 These ship as a coherent **RTAI Spike Slice** plus the AIGUARD envelope work.
-The slice is deliberately small (≈20 items) so it does not compete with itself
-for attention. Everything below this line waits.
+The slice is deliberately small (≈23 items) and explicitly avoids a full MCP
+server port or TS `DriverClient` bridge. Everything below this line waits.
 
 ### Horizon 2 — Credibility & Hygiene (parallel with Horizon 1) 🔒 LOCKED 2026-04-26
 
@@ -142,6 +143,11 @@ Real concepts, no current consumer:
 - **Agent Infrastructure (WEAVE)** — provider-agnostic agent runtime in upstream
   `eddacraft/weave-rs`, anvil-weave harness with zero-copy semantic graph
   access. Greenfield import + harness build.
+- **Graph v2 Foundation (GV2)** — joined semantic/dependency/trust/control/
+  provenance graph substrate. Anvil-first foundation for enforcement and
+  provenance; assistant context delivery is a projection over it.
+- **Rust MCP Full Port (RMCPF)** — next-release full parity port of the existing
+  TypeScript MCP server after RMCP proves the launch path.
 - **PocketFlow Orchestration Gateway (PFGW)** — agent-task orchestration layer
   (capsule lifecycle, memory I/O routing). Complementary to INTD/DRVR, not a
   substitute. PocketFlow-RS upstream as substrate option.
@@ -157,14 +163,15 @@ Real concepts, no current consumer:
 
 ## Big bets, named
 
-| Bet                                       | Why it matters                                                                                        | Where it lives                                          |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **Intercept Daemon + Surface Drivers**    | Mechanical enforcement at the surface where AI tools actually write code. The thing nothing else has. | INTD, DRVR, INTR (Horizon 1)                            |
-| **Real-time AI validation**               | The launch demo. Refuse the bad write before disk.                                                    | RTAI (Horizon 1)                                        |
-| **AI guardrail diagnostic envelope**      | Stable JSON shape AI tools consume. The integration surface.                                          | AIGUARD (Horizon 1)                                     |
-| **Dashboard for non-developer personas**  | Team-lead/platform-engineer/compliance — the buyer that funds the tool.                               | DASH/DASHCORE (Horizon 3)                               |
-| **Enterprise readiness constellation**    | The org-tier deployment story. Becoming important soon.                                               | GATE/POLFED/ORGHIER/POLLC/COMPLY/CEWS/TRUST (Horizon 4) |
-| **Symbol-graph-driven effect prediction** | What ILGOV becomes — predict effect of a change against captured intent.                              | ILGOV rescope (Horizon 6)                               |
+| Bet                                         | Why it matters                                                                                | Where it lives                                          |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| **Intercept Daemon + Rust MCP launch shim** | Mechanical validation at the surface where AI tools propose writes, without a Node sidecar.   | INTD, INTR, RMCP, RTAI (Horizon 1)                      |
+| **Real-time AI validation**                 | The launch demo. Refuse the bad write before disk.                                            | RTAI (Horizon 1)                                        |
+| **AI guardrail diagnostic envelope**        | Stable JSON shape AI tools consume. The integration surface.                                  | AIGUARD (Horizon 1)                                     |
+| **Dashboard for non-developer personas**    | Team-lead/platform-engineer/compliance — the buyer that funds the tool.                       | DASH/DASHCORE (Horizon 3)                               |
+| **Enterprise readiness constellation**      | The org-tier deployment story. Becoming important soon.                                       | GATE/POLFED/ORGHIER/POLLC/COMPLY/CEWS/TRUST (Horizon 4) |
+| **Graph v2 substrate**                      | Joined structural model for enforcement, trust, control, provenance, and later agent context. | GV2/GCTX (Horizon 6+)                                   |
+| **Symbol-graph-driven effect prediction**   | What ILGOV becomes — predict effect of a change against captured intent.                      | ILGOV rescope (Horizon 6)                               |
 
 ## Cuts and parks
 

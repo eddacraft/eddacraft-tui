@@ -1,17 +1,18 @@
 <!--
 APS Module: Surface Drivers
 ===========================
-Cut VSCode and MCP over to drivers on the anvil-intercept daemon,
-superseding TSRET-003/-004. Per ADR-030. See: plans/aps-rules.md
+Cut editor surfaces, and later full MCP parity, over to drivers on the
+anvil-intercept daemon, superseding TSRET-003/-004. Per ADR-030.
+See: plans/aps-rules.md
 -->
 
 # Surface Drivers
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| DRVR | —     | Draft  | 0/8      |
+| DRVR | —     | Draft  | 0/6 active (2 superseded/deferred) |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-28
 
 ## Purpose
 
@@ -19,15 +20,26 @@ Anvil's integration surfaces (VSCode extension, MCP server, future
 editors) currently either import the TS scanner in-process
 (`@eddacraft/anvil-core/antipattern`) or — under the superseded TSRET
 plan — were intended to import a napi binding of the Rust scanner.
-ADR-030 supersedes that plan: both surfaces become **drivers** that
-attach to the `anvil-intercept` daemon over JSON-RPC 2.0 + NDJSON, per
-the driver-framework ADR (`plans/specs/anvil-driver-framework/`).
+ADR-030 supersedes that plan: editor surfaces become **drivers** that attach to
+the `anvil-intercept` daemon over JSON-RPC 2.0 + NDJSON, per the
+driver-framework ADR (`plans/specs/anvil-driver-framework/`). Full MCP parity
+still aligns with the driver framework, but it is now sequenced through RMCPF
+after the current-release Rust MCP launch shim.
 
-This module delivers the first two surface drivers — **editor-driver**
-(VSCode, LSP-shaped where possible) and **mcp-driver** (JSON-RPC
-consumer of the daemon from within the existing MCP server). Once both
-land, TSRET-005 (delete TS scanner + retire parity harness) can
-execute because no surface imports scanner code.
+This module delivers the editor-driver foundation: protocol, client, VSCode
+cutover, trust/capability rules, and cross-links that keep the driver-framework
+story coherent. RMCP delivers the narrow A1 MCP pre-write path in Rust; RMCPF
+owns the next-release full MCP server port. Once editor and MCP surfaces no
+longer import scanner code, TSRET-005 (delete TS scanner + retire parity
+harness) can execute.
+
+> **MCP split note (2026-04-28):** The current release no longer builds a TS
+> `DriverClient` solely to bridge MCP back into Rust. A1 uses
+> [RMCP](./rust-mcp-launch-shim.aps.md): a narrow Rust
+> `anvil mcp serve --stdio` launch shim for pre-write validation. Full existing
+> MCP-server parity moves to [RMCPF](./rust-mcp-full-port.aps.md) next release.
+> DRVR remains the broader driver-framework home, especially for editor drivers
+> and daemon capability contracts.
 
 ## Background
 
@@ -62,14 +74,12 @@ execute because no surface imports scanner code.
   telemetry-lane event emission; `textDocument/codeAction`); custom
   Anvil extensions for what it doesn't (suppression state, gate
   results, nudge metadata).
-- MCP driver: the MCP server's `check.tool.ts`, `fix.tool.ts`,
-  `gate.tool.ts`, and related surfaces re-implemented as JSON-RPC
-  callers against the daemon. Existing MCP wire contract with agents
-  preserved.
+- MCP driver: full MCP parity is now sequenced through RMCPF after the current
+  release's Rust launch shim. Existing MCP wire contract preservation remains a
+  goal of the full port, not of A1.
 - Shared TS client library (`packages/anvil-driver-client/` or similar)
-  that both surfaces use for JSON-RPC framing, reconnection, and
-  typed method/response envelopes. Prevents reimplementing the
-  transport in two places.
+  that editor/future TS driver surfaces use for JSON-RPC framing, reconnection,
+  and typed method/response envelopes. RMCP does not depend on this TS bridge.
 - "Read-only diagnostic mode" vs "enforcement-participating mode" as
   distinct driver capabilities — the editor starts read-only; opting
   into enforcement is explicit.
@@ -118,10 +128,23 @@ execute because no surface imports scanner code.
 - Editor-driver contract: methods an editor driver implements (connect,
   handshake, subscribe to diagnostics, ack enforcement decisions,
   report local state)
-- MCP-driver contract: methods the MCP layer translates between its own
-  tool calls and daemon RPC
+- MCP-driver contract hooks for RMCPF/future parity work, not current-release
+  launch implementation
 - `packages/anvil-driver-client/` — shared transport and typed API for
   TS consumers
+
+## Graph v2 Coordination
+
+DRVR is one of the primary consumers and producers of Graph v2 control/session
+state, but it is not blocked by GV2 for the current editor-driver work. Driver
+manifests, session attachment, capability transitions, enforcement acks,
+fallback/degraded states, and driver reliability data are future inputs to the
+GV2 control/session graph.
+
+When GV2 hot reads exist, drivers may request diagnostics backed by warmed graph
+indexes, but they must not run graph traversal or schema-specific logic in the
+surface process. Driver code consumes daemon/GV2 query contracts; it does not
+define graph schema.
 
 ## Tasks
 
@@ -129,8 +152,8 @@ execute because no surface imports scanner code.
 
 - **Intent:** One place implements JSON-RPC 2.0 + NDJSON framing,
   reconnection, transport selection (UDS / named pipe), and typed
-  method envelopes. Both editor-driver and mcp-driver depend on this;
-  no direct `net.createConnection` from either consumer.
+  method envelopes for editor and future TS driver surfaces. RMCP does not
+  depend on this TS client.
 - **Expected Outcome:** `packages/anvil-driver-client/` (or a similar
   path matching monorepo-structure conventions) exports a typed
   `DriverClient` class: `connect()`, `request<M, R>(method, params)`,
@@ -196,9 +219,9 @@ execute because no surface imports scanner code.
   - **Multi-window fan-out (M4, §6 Q3):** pick
     broadcast-and-first-ack vs primary-editor nomination. Reconcile
     with INTD-003's "single session per worktree" constraint.
-  - **MCP redaction contract (M6):** specify allow-list / deny-list
-    for payload fields crossing the MCP transport; default-deny on
-    secret-detection content excerpts to remote LLM endpoints.
+  - **MCP redaction handoff (M6):** confirm the payload redaction concern is
+    carried by RMCP-006/RMCPF/DRVR-007 rather than blocking editor-driver
+    protocol sign-off. Editor telemetry still follows INTD-015 scoping.
   - **correlationId retention (M12):** specify the daemon-side
     retention window, on-disk store (or explicit non-persistence),
     and Kindling bridge shape. "Daemon log lookup gives the whole
@@ -213,8 +236,9 @@ execute because no surface imports scanner code.
     corpus / run so daemon work can be separated from driver / transport
     work. `validation.visible` is recorded only when making UX claims.
 - **Scope:** `plans/specs/`, shared contracts package
-- **Dependencies:** DRVR-001 (transport), DRVR-006 (MCP scope
-  resolved), driver-framework ADR
+- **Dependencies:** DRVR-001 (transport), driver-framework ADR
+- **Coordinates with:** RMCP-006/RMCPF for MCP redaction and full-port scope;
+  DRVR-006 is no longer an A1 prerequisite.
 - **Validation:** Reviewed by one member each of: architect,
   pragmatic-lead, operations-reviewer. Matches the driver-framework
   ADR's capability vocabulary. Each of the council-review items
@@ -254,27 +278,24 @@ execute because no surface imports scanner code.
 
 ---
 
-### DRVR-004: MCP server cut over to MCP driver
+### DRVR-004: MCP server cut over to MCP driver — superseded by RMCPF
 
-- **Intent:** MCP tool handlers stop calling `@eddacraft/anvil-runtime`'s
-  `GateRunner` for antipattern/scan work. They become thin adapters
-  that translate MCP tool input into daemon RPCs and format responses.
-- **Expected Outcome:** `packages/mcp-server/src/tools/check.tool.ts`,
-  `fix.tool.ts`, `gate.tool.ts`, and relevant resource handlers use
-  `DriverClient`. The MCP wire contract with agents is unchanged. E2E
-  MCP tests pass against a live daemon. Documented failure mode when
-  the daemon is unreachable (MCP tool returns a structured error that
-  agents can reason about).
-- **Scope:** `packages/mcp-server/`
-- **Dependencies:** DRVR-001, DRVR-002, INTD-002 (IPC Listener),
-  INTD-005 (Enforcement Decision Pipeline — the rule-evaluation
-  surface MCP tools translate to)
-- **Validation:** `pnpm --filter @eddacraft/anvil-mcp test`; E2E
-  harness call through the MCP transport returns structurally
-  identical results to pre-cutover for the fixture set.
-- **Confidence:** medium
-- **Priority:** High
-- **Status:** Draft
+- **Status:** Superseded by [RMCP](./rust-mcp-launch-shim.aps.md) for the
+  current release launch path and [RMCPF](./rust-mcp-full-port.aps.md) for the
+  next-release full port.
+- **Intent:** Historical TS-server plan: MCP tool handlers would stop calling
+  `@eddacraft/anvil-runtime`'s `GateRunner` and become TS `DriverClient`
+  adapters. This is no longer the release path.
+- **Expected Outcome:** No A1 work builds a TS driver bridge for MCP. RMCP ships
+  the narrow Rust pre-write validation server; RMCPF owns full parity for the
+  existing MCP tools/resources/prompts.
+- **Scope:** Historical reference only; do not start without re-opening the MCP
+  sequencing decision.
+- **Dependencies:** RMCP, RMCPF
+- **Validation:** RMCP/RMCPF plan references replace this task in current release
+  planning and generated config points at `anvil mcp serve --stdio`.
+- **Confidence:** high
+- **Priority:** Low
 
 ---
 
@@ -293,8 +314,8 @@ execute because no surface imports scanner code.
 - **Scope:** `docs/architecture/`, `plans/decisions/DECISION-LOG.md`,
   `plans/modules/anvil-ts-scanner-retirement.aps.md`, any doc with a
   "napi" or "TSRET" reference
-- **Dependencies:** DRVR-003 and DRVR-004 complete (so docs reflect
-  reality, not aspiration)
+- **Dependencies:** DRVR-003 complete and RMCP/RMCPF sequencing documented (so
+  docs reflect reality, not aspiration)
 - **Validation:** `grep -r "napi cutover\|@eddacraft/anvil-checks-native"
   docs/` returns only historical references under `ENGINEERING-HISTORY.md`
   or similar archive paths.
@@ -304,8 +325,10 @@ execute because no surface imports scanner code.
 
 ---
 
-### DRVR-006: Pin MCP daemon-RPC surface (resolve translation-table scope)
+### DRVR-006: Pin MCP daemon-RPC surface — deferred to RMCPF
 
+- **Status:** Superseded for the current release by RMCP and deferred for full
+  parity to RMCPF-002/RMCPF-010.
 - **Intent:** The MCP translation table in
   `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`
   §4.3 names six RPCs (`scan.files`, `fix.apply`, `gate.run`,
@@ -322,20 +345,20 @@ execute because no surface imports scanner code.
     MCP-driver-local composition in the table; record which category
     each MCP tool belongs to and why.
   - **(c) Expand** INTD scope with new work items for the missing
-    RPCs, acknowledging the cost and slipping the DRVR-004 schedule.
-  Whichever path lands, the design-spec §4.3 and the DRVR-004
-  expected-outcome are rewritten to match. If (c) is chosen, file
+    RPCs, acknowledging the cost and slipping the RMCPF schedule.
+  Whichever path lands, the design-spec §4.3 and the RMCPF/DRVR full-port
+  expected outcomes are rewritten to match. If (c) is chosen, file
   the new INTD items as part of the DRVR-006 execution work (not
   the current docs PR, which will already be merged by the time
   this decision lands).
 - **Scope:** `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`,
-  `plans/modules/surface-drivers.aps.md` (DRVR-004 expected outcome),
+  `plans/modules/rust-mcp-full-port.aps.md` (RMCPF expected outcomes),
   `plans/modules/intercept-daemon.aps.md` (only if path (c) is
   chosen)
 - **Dependencies:** none (this is a scope-resolution task blocking
   DRVR-002)
-- **Validation:** Design spec §4.3 updated, DRVR-004 expected outcome
-  updated to match, inline prose contains no references to RPC names
+- **Validation:** Design spec §4.3 updated, RMCPF expected outcomes updated to
+  match, inline prose contains no references to RPC names
   that lack a backing INTD item (or driver-local helper).
 - **Source:** 2026-04-24 council review C2 (adversarial reviewer +
   council-reviewer, judge-upgraded) — tracked in
@@ -354,7 +377,7 @@ execute because no surface imports scanner code.
   escalates to fence, which can DoS active sessions), and promote
   themselves to `Participating`. The current spec trusts any
   same-UID process via `SO_PEERCRED`. Without a written threat model
-  and hardening, DRVR-003 / DRVR-004 ship a local privilege-lateral
+  and hardening, DRVR-003 / RMCPF ship a local privilege-lateral
   path to arbitrary same-UID peers.
 - **Expected Outcome:** The `editor-and-mcp-driver-design.md` spec
   gains an explicit "Driver trust boundary (v1)" section enumerating:
@@ -384,7 +407,7 @@ execute because no surface imports scanner code.
 - **Dependencies:** INTD-003 (session registry for `workspaceRoots`
   claim validation), INTD-015 (daemon-enforced telemetry scoping)
 - **Validation:** Spec review by security-analyst covers each of the
-  four sub-points; implementation tests (when DRVR-003 / DRVR-004
+  four sub-points; implementation tests (when DRVR-003 / RMCPF
   land) include a hostile-driver fixture per category.
 - **Source:** 2026-04-24 council review M5 / M6 / M7 / M11
   (security-analyst + adversarial-reviewer) — tracked in
@@ -458,7 +481,7 @@ execute because no surface imports scanner code.
 - **Fallback UX.** Editor and MCP behaviour when the daemon is
   unreachable determines whether users perceive the daemon as
   load-bearing infrastructure (bad) or a nice-to-have accelerator
-  (fine). Mitigation: DRVR-003 and DRVR-004 both include explicit
+  (fine). Mitigation: DRVR-003 and RMCPF both include explicit
   tests for the daemon-down path, and the fallback surfaces a clear
   "degraded" signal rather than failing silently.
 - **Enforcement participation.** Editor drivers with enforcement

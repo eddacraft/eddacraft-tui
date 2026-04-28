@@ -4,7 +4,7 @@
 | ---- | ------ | ------ | -------- |
 | INTD | @aneki | Draft  | 0/16     |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-28
 
 ## Purpose
 
@@ -39,7 +39,8 @@ persisted to disk to survive restarts.
 - Full driver framework or driver capability negotiation
 - Session leases with expiry and renewal
 - Dual-lane transport (control vs telemetry split)
-- Graph-assisted hot-path checks
+- Graph-assisted hot-path checks in v1; future graph reads must go through GV2's
+  warmed hot-read API and remain constant-time or near-constant-time
 - MCP as a control surface
 - Editor or web-session drivers
 - Per-rule enforcement granularity
@@ -55,6 +56,24 @@ persisted to disk to survive restarts.
 - **Exposes:** IPC interface for session lifecycle and worktree status; in-process
   API for embedded mode; disk-persisted fence state readable by launcher;
   telemetry-lane notification stream mirroring control-lane decisions
+
+## Graph v2 Coordination
+
+INTD is not blocked by Graph v2. For the current release it remains a
+deterministic daemon over sessions, file changes, rules, fences, and telemetry.
+
+When GV2 lands, INTD becomes the authoritative producer for the control/session
+graph: hosts, drivers, sessions, worktrees, leases/fences, attribution, and
+control decisions. INTD may later consume GV2 hot-path indexes for boundary
+membership, symbol ownership, known-edge existence, or architectural index
+checks, but only through the GV2-022 hot-read API and only within ADR-031
+latency budgets. Full graph recompute, transitive traversal, context slicing,
+and explanation workloads stay outside INTD's hot path.
+
+RMCP does not make MCP a control surface. For A1, the Rust MCP launch shim may
+call the daemon or the shared Rust validation path to validate proposed content,
+but session control, fencing, interruption, and attribution authority still live
+with INTD and the broader driver framework.
 
 ## Notification Model Integration
 
@@ -176,7 +195,10 @@ a new lane.
   and affected file paths; content reading is performed in the enforcement
   pipeline before rule evaluation, with a hard size cap (1 MB) above which
   content-dependent rules are skipped; binary detection (null byte check)
-  short-circuits content rules; deleted files pass only path-based rules
+  short-circuits content rules; deleted files pass only path-based rules. The
+  core evaluation step is factored so RTAI/RMCP can validate caller-provided
+  proposed content through the same rule pipeline without duplicating rule
+  semantics; the daemon's file-change path still reads from disk for v1.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib enforcement`
 - **Status:** Draft
 
