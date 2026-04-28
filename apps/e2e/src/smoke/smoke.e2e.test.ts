@@ -11,8 +11,123 @@
  * Surface: ALL
  */
 
+import { spawn } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
-import { cliBinaryAvailable, runCliExpectSuccess } from '../helpers/cli-runner.js';
+import {
+  cliBinaryAvailable,
+  resolveCliBinary,
+  runCliExpectSuccess,
+} from '../helpers/cli-runner.js';
+import { createE2EWorkspace } from '../helpers/workspace.js';
+
+type JsonRpcResponse = {
+  id?: number | string | null;
+  result?: {
+    tools?: Array<{ name?: string }>;
+    content?: Array<{ type?: string; text?: string }>;
+    isError?: boolean;
+  };
+  error?: { code?: number; message?: string };
+};
+
+type ValidateWritePayload = {
+  decision?: string;
+  safeDefault?: string;
+  summary?: { total?: number; bySeverity?: { error?: number } };
+  diagnostics?: Array<{ category?: string; source?: { rule_id?: string } }>;
+  correlation?: { surface?: string; mode?: string; backend?: string };
+};
+
+function responseById(responses: JsonRpcResponse[], id: number): JsonRpcResponse {
+  const response = responses.find((candidate) => candidate.id === id);
+  if (!response) {
+    throw new Error(`Missing JSON-RPC response id ${id}. Got: ${JSON.stringify(responses)}`);
+  }
+  return response;
+}
+
+function parseToolPayload(response: JsonRpcResponse): ValidateWritePayload {
+  const text = response.result?.content?.[0]?.text;
+  if (!text) {
+    throw new Error(`Missing MCP tool text payload. Got: ${JSON.stringify(response)}`);
+  }
+  return JSON.parse(text) as ValidateWritePayload;
+}
+
+async function runMcpLaunchShim(
+  cwd: string,
+  frames: Array<Record<string, unknown>>
+): Promise<JsonRpcResponse[]> {
+  const binary = resolveCliBinary();
+  if (!binary) {
+    throw new Error('anvil CLI binary not found');
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, ['--no-tui', 'mcp', 'serve', '--stdio'], {
+      cwd,
+      env: {
+        ...process.env,
+        CI: 'true',
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
+        NO_TUI: '1',
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (error) reject(error);
+    };
+
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(new Error(`Timed out waiting for MCP launch shim. stderr: ${stderr}`));
+    }, 10_000);
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on('error', (error) => finish(error));
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(`MCP launch shim exited ${code}. stderr: ${stderr}`));
+        return;
+      }
+
+      try {
+        const responses = stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as JsonRpcResponse);
+        resolve(responses);
+      } catch (error) {
+        reject(new Error(`MCP stdout contained non-JSON frames: ${stdout}\n${String(error)}`));
+      }
+    });
+
+    for (const frame of frames) {
+      child.stdin.write(`${JSON.stringify(frame)}\n`);
+    }
+    child.stdin.end();
+  });
+}
 
 // ─── Surface: Contracts ─────────────────────────────────────────
 
@@ -182,5 +297,103 @@ describe('Smoke › CLI binary', () => {
   maybeIt('built Rust CLI responds to --version', async () => {
     const result = await runCliExpectSuccess(['--version']);
     expect(result.stdout.toLowerCase()).toContain('anvil');
+  });
+});
+
+// ─── Surface: Rust MCP Launch Shim (binary exists) ───────────────
+
+describe('Smoke › Rust MCP launch shim', () => {
+  const maybeIt = cliBinaryAvailable() ? it : it.skip;
+
+  maybeIt('lists tools and validates safe and blocked proposed writes over stdio', async () => {
+    const workspace = createE2EWorkspace({
+      files: {
+        'src/existing.ts': 'export const existing = true;\n',
+      },
+    });
+
+    try {
+      const responses = await runMcpLaunchShim(workspace.root, [
+        {
+          jsonrpc: '2.0',
+          id: 100,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'anvil-e2e-smoke', version: '0.0.0' },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        },
+        {
+          jsonrpc: '2.0',
+          id: 101,
+          method: 'tools/list',
+        },
+        {
+          jsonrpc: '2.0',
+          id: 102,
+          method: 'tools/call',
+          params: {
+            name: 'anvil_validate_write',
+            arguments: {
+              workspaceRoot: workspace.root,
+              path: 'src/safe.ts',
+              operation: 'create',
+              proposedContent: 'export const value = 1;\n',
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 103,
+          method: 'tools/call',
+          params: {
+            name: 'anvil_validate_write',
+            arguments: {
+              workspaceRoot: workspace.root,
+              path: 'config/credentials.example',
+              operation: 'create',
+              proposedContent: "export const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 104,
+          method: 'shutdown',
+        },
+        {
+          jsonrpc: '2.0',
+          method: 'exit',
+        },
+      ]);
+
+      expect(responseById(responses, 100).result).toBeDefined();
+
+      const tools = responseById(responses, 101).result?.tools ?? [];
+      expect(tools.some((tool) => tool.name === 'anvil_validate_write')).toBe(true);
+
+      const safePayload = parseToolPayload(responseById(responses, 102));
+      expect(safePayload.decision).toBe('allow');
+      expect(safePayload.summary?.total).toBe(0);
+      expect(safePayload.correlation?.surface).toBe('mcp');
+      expect(safePayload.correlation?.mode).toBe('preWrite');
+
+      const blockedResponse = responseById(responses, 103);
+      expect(blockedResponse.result?.isError).toBe(true);
+
+      const blockedPayload = parseToolPayload(blockedResponse);
+      expect(blockedPayload.decision).toBe('block');
+      expect(blockedPayload.safeDefault).toBe('do-not-write');
+      expect(blockedPayload.summary?.bySeverity?.error).toBe(1);
+      expect(blockedPayload.diagnostics?.[0]?.category).toBe('secret');
+      expect(blockedPayload.diagnostics?.[0]?.source?.rule_id).toBe('secret-detection');
+    } finally {
+      workspace.cleanup();
+    }
   });
 });
