@@ -9,10 +9,12 @@ use crate::mcp::tools::validate_write;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
 // Keep the stdio frame ceiling comfortably above the largest accepted tool
-// payload (validate-write caps proposedContent at 1 MiB) so JSON-RPC and MCP
-// envelope overhead does not cause valid requests to be rejected as oversize
-// before tool-level validation runs.
-const MAX_STDIO_FRAME_BYTES: u64 = 2 * 1024 * 1024;
+// payload. validate-write caps `proposedContent` at 1 MiB of UTF-8 source.
+// JSON string escaping can grow that almost 2x in the worst case (every byte
+// is `"` or `\\`), and the JSON-RPC / MCP envelope adds further overhead, so
+// allow up to 4 MiB on the wire to keep valid requests from being rejected
+// at the framing layer before tool-level validation runs.
+const MAX_STDIO_FRAME_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Debug, Args)]
 pub struct McpArgs {

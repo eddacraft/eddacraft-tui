@@ -525,12 +525,17 @@ fn normalise_relative_path(path: &Path) -> Result<PathBuf, ToolProblem> {
         match component {
             Component::CurDir => {}
             Component::Normal(part) => normalised.push(part),
-            Component::ParentDir => {
-                if !normalised.pop() {
-                    return Err(workspace_escape_problem());
-                }
+            // Reject `..` outright. Lexically collapsing parent-dir
+            // segments before symlink resolution is unsound: a path like
+            // `link/../target`, where `link` is a symlink to a location
+            // outside the workspace, would normalise to `target` (in
+            // workspace) but resolve at write time to the symlink target's
+            // parent, escaping `workspaceRoot`. Root and prefix segments are
+            // rejected for the same reason — relative paths must stay
+            // unambiguously inside the workspace.
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(workspace_escape_problem());
             }
-            Component::RootDir | Component::Prefix(_) => return Err(workspace_escape_problem()),
         }
     }
     Ok(normalised)
@@ -544,11 +549,10 @@ fn normalise_absolute_path(path: &Path) -> Result<PathBuf, ToolProblem> {
             Component::RootDir => normalised.push(component.as_os_str()),
             Component::CurDir => {}
             Component::Normal(part) => normalised.push(part),
-            Component::ParentDir => {
-                if !normalised.pop() {
-                    return Err(workspace_escape_problem());
-                }
-            }
+            // Same rationale as `normalise_relative_path`: lexically
+            // collapsing `..` before symlink resolution would let symlinked
+            // segments smuggle the resolved path outside `workspaceRoot`.
+            Component::ParentDir => return Err(workspace_escape_problem()),
         }
     }
     Ok(normalised)
@@ -773,6 +777,46 @@ mod tests {
             workspace.path(),
             json!({
                 "path": "../outside.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "workspace-escape");
+    }
+
+    #[test]
+    fn parent_dir_traversal_blocks_write_even_when_lexically_in_workspace() {
+        // A path like `link/../target` would lexically normalise to `target`
+        // (inside the workspace), but if `link` were a symlink to an
+        // external directory the actual write target would escape the
+        // workspace. Reject any `..` segment outright.
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            json!({
+                "path": "link/../target.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "workspace-escape");
+    }
+
+    #[test]
+    fn absolute_parent_dir_traversal_blocks_write() {
+        let workspace = tempdir().expect("workspace exists");
+        let mut absolute = workspace.path().to_path_buf();
+        absolute.push("link");
+        absolute.push("..");
+        absolute.push("target.ts");
+        let payload = call_payload(
+            workspace.path(),
+            json!({
+                "path": absolute.to_string_lossy(),
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
             }),
