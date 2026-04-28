@@ -1,11 +1,12 @@
 //! INTD-001 (proto half): wire types shared by the Anvil intercept
 //! daemon, launcher, and future drivers.
 //!
-//! Scope kept deliberately narrow for the A1 scaffold: identifiers,
-//! the IPC command enum, and the NDJSON envelope. Session-state
-//! structs, fence shapes, and full enforcement-decision payloads
-//! arrive with INTD-003 and INTD-005 — landing them here pre-empts
-//! design choices that should fall out of the daemon implementation.
+//! Scope kept deliberately narrow: identifiers, the IPC command enum,
+//! the NDJSON envelope, and (with INTD-003) the `SessionRecord` /
+//! `SessionStatus` shapes that the registry serialises onto the wire.
+//! Fence shapes and full enforcement-decision payloads still arrive
+//! with INTD-005 and INTD-007 respectively — landing them here
+//! pre-empts design choices that should fall out of those tasks.
 //!
 //! See `plans/modules/intercept-daemon.aps.md` and
 //! `plans/decisions/015-intercept-loop-enforcement.md`.
@@ -107,6 +108,45 @@ impl IpcEnvelope {
     }
 }
 
+/// Wire snapshot of a registry entry. Mirrors the in-memory state the
+/// daemon's session registry (INTD-003) keeps for each active session
+/// so callers of `list-sessions` and the diagnostic surfaces (INTD-011)
+/// see the same shape.
+///
+/// Timestamps are pinned as `u64` Unix seconds rather than `Instant`
+/// so the format is stable across a daemon restart and serialisable —
+/// `Instant` is process-local and not `Serialize`. The registry
+/// converts to/from `Instant` internally when it needs to compare
+/// against a TTL.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionRecord {
+    pub id: SessionId,
+    pub worktree: std::path::PathBuf,
+    pub pid: Option<u32>,
+    /// Unix process group id; populated by the daemon once the launcher
+    /// has reported it. None on Windows; the Job Object handle is
+    /// tracked out-of-band by INTD-006.
+    pub pgid: Option<i32>,
+    /// Start time as Unix seconds since epoch, set by the registry on
+    /// register; never updated. Helps PID-reuse defence in INTD-006.
+    pub started_at_unix: u64,
+    /// Most recent heartbeat as Unix seconds since epoch; refreshed by
+    /// `heartbeat`. Compared against the TTL by `evict_stale`.
+    pub last_heartbeat_unix: u64,
+    pub status: SessionStatus,
+}
+
+/// Liveness state of a `SessionRecord`. The registry maintains
+/// `Active` records in its index and emits `Ended` for evicted entries
+/// (the daemon reports the eviction, but the record itself is removed
+/// from the active map).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SessionStatus {
+    Active,
+    Ended,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,6 +233,36 @@ mod tests {
             !line.contains("\"id\""),
             "round-trip must not reintroduce a null id: {line}",
         );
+    }
+
+    /// `SessionRecord` round-trips through JSON without losing any
+    /// field, and `SessionStatus` keeps the kebab-case wire form
+    /// pinned by `IpcCommand`'s convention.
+    #[test]
+    fn session_record_round_trips_through_json() {
+        let record = SessionRecord {
+            id: SessionId::new("sess_abc"),
+            worktree: std::path::PathBuf::from("/tmp/wt"),
+            pid: Some(4242),
+            pgid: Some(4242),
+            started_at_unix: 1_700_000_000,
+            last_heartbeat_unix: 1_700_000_010,
+            status: SessionStatus::Active,
+        };
+
+        let line = serde_json::to_string(&record).expect("serialise");
+        assert!(line.contains("\"active\""), "kebab-case status: {line}");
+
+        let back: SessionRecord = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, record);
+    }
+
+    #[test]
+    fn session_status_serialises_as_kebab_case() {
+        let active = serde_json::to_string(&SessionStatus::Active).expect("serialise");
+        assert_eq!(active, "\"active\"");
+        let ended = serde_json::to_string(&SessionStatus::Ended).expect("serialise");
+        assert_eq!(ended, "\"ended\"");
     }
 
     /// Pinned contract for INTD-002's NDJSON socket reader: unknown
