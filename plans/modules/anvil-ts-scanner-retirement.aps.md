@@ -12,7 +12,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| TSRET | —     | In Progress | 2/5 active (1 superseded) |
+| TSRET | —     | Complete    | 3/5 active (1 superseded — terminal state reached on `chore/TSRET-005`) |
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The IDE/MCP surfaces this module's TS code exists for are
@@ -257,13 +257,23 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
   archived per ADR-033)*
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Ready (unblocked by ADR-033)
-- **Plan change (2026-04-28, ADR-033):** Executes under ADR-033
-  alongside the IDE/MCP pause. Removes
-  `packages/anvil/core/src/antipattern/`,
-  `packages/anvil/core/src/suppression/parser.ts`, and
-  `tests/scanner-parity/` (both sides). The original "blocks on
-  DRVR-003/-004" wording in the Dependencies field is dissolved.
+- **Status:** Complete (2026-04-29 on `chore/TSRET-005`)
+- **Closeout (2026-04-29):** Executed under ADR-033 alongside the
+  IDE/MCP archive. The cascade through inbound consumers landed
+  larger than the literal ADR-033 scope: drift detection
+  (`packages/anvil/core/src/drift/`) and the antipattern explainer
+  (`packages/anvil/core/src/explain/antipattern-explainer.ts`)
+  archived because they were end-to-end coupled to the archived
+  engine code. The TS gate runner
+  (`packages/anvil/runtime/src/gate/`), constraint collector, and
+  formatters archived for the same reason. A minimal `Warning`
+  type was extracted to `packages/anvil/core/src/warnings/types.ts`
+  so active consumers (`warnings/warning-id`,
+  `explain/explain-service` boundary surface) keep a typed handle.
+  The Rust-side parity test
+  (`crates/anvil-checks/tests/scanner_parity.rs`) and the root
+  `test:scanner-parity` script were deleted. ADR-033's "Code
+  archived" section was updated to record the full cascade.
 
 ---
 

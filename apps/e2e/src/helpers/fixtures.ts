@@ -194,35 +194,10 @@ export function makeAPSMarkdown(intent = 'E2E test plan'): string {
   ].join('\n');
 }
 
-/**
- * Create source content that deliberately triggers multiple anti-patterns
- * from `packages/anvil/core/src/antipattern/patterns.ts`:
- *
- * - AP-004 `@ts-ignore`
- * - AP-003 explicit `any`
- * - AP-006 empty catch block
- * - AP-007 `console.*` in production-shaped code (only when
- *   `includeOptIn: true` is enabled)
- *
- * Intentionally contains no secret-shaped strings — the antipattern catalogue
- * has no secret-detection rule (see `patterns.ts`), so a fixture that claimed
- * to exercise "secret detection" would be lying about coverage.
- */
-export function makeSourceWithAntipatterns(): string {
-  return [
-    '// config.ts',
-    '// @ts-ignore',
-    'const DB_HOST: any = process.env.DB_HOST;',
-    '',
-    'export function load(): void {',
-    '  try {',
-    '    console.log("loading", DB_HOST);',
-    '  } catch (e) {',
-    '  }',
-    '}',
-    '',
-  ].join('\n');
-}
+// makeSourceWithAntipatterns() removed: only consumer was
+// drift-detection.e2e.test.ts, deleted alongside the antipattern
+// scanner archive under ADR-033 (2026-04-29). The Rust scanner has
+// its own fixtures under crates/anvil-checks/.
 
 /**
  * Create source content with a known architecture violation

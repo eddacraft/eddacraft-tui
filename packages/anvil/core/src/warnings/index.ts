@@ -14,3 +14,5 @@ export {
   generateShortId,
   resolveShortId,
 } from './warning-id.js';
+
+export type { Location, Warning, WarningSeverity, WarningCategory, Confidence } from './types.js';

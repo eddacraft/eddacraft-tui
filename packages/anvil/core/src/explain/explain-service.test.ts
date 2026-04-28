@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { Warning } from '../antipattern/types.js';
+import type { Warning } from '../warnings/types.js';
 import {
   resetExplainService,
   initExplainService,

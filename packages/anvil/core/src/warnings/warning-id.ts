@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import type { Warning } from '../antipattern/types.js';
+import type { Warning } from './types.js';
 
 // =============================================================================
 // Warning ID Schema

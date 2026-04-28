@@ -153,18 +153,9 @@ describe('Smoke › @eddacraft/anvil-contracts', () => {
 // ─── Surface: Core ──────────────────────────────────────────────
 
 describe('Smoke › @eddacraft/anvil-core', () => {
-  it('exports antipattern scanning', async () => {
-    const mod = await import('@eddacraft/anvil-core/antipattern');
-    expect(typeof mod.scanFile).toBe('function');
-    expect(typeof mod.scanFiles).toBe('function');
-    expect(typeof mod.getEnabledPatterns).toBe('function');
-  });
-
-  it('exports drift detection', async () => {
-    const mod = await import('@eddacraft/anvil-core/drift');
-    expect(typeof mod.createEmptySnapshot).toBe('function');
-    expect(typeof mod.compareSnapshots).toBe('function');
-  });
+  // antipattern scanner + drift detection archived under ADR-033
+  // → archive/anvil-ts-scanner/. The Rust scanner is the sole engine;
+  // drift was scoped to anti-pattern deltas and has no live equivalent.
 
   it('exports validation', async () => {
     const mod = await import('@eddacraft/anvil-core/validation');
@@ -180,11 +171,9 @@ describe('Smoke › @eddacraft/anvil-core', () => {
 // ─── Surface: Runtime ───────────────────────────────────────────
 
 describe('Smoke › @eddacraft/anvil-runtime', () => {
-  it('exports gate runner', async () => {
-    const mod = await import('@eddacraft/anvil-runtime/gate');
-    expect(mod.GateRunner).toBeDefined();
-    expect(mod.GateConfigManager).toBeDefined();
-  });
+  // Gate runner + export utilities archived under ADR-033
+  // → archive/anvil-ts-scanner/runtime-gate/, runtime-export/.
+  // The Rust CLI / RMCP shim are the gate-evaluation path now.
 
   it('exports cache providers', async () => {
     const mod = await import('@eddacraft/anvil-runtime/cache');
@@ -194,11 +183,6 @@ describe('Smoke › @eddacraft/anvil-runtime', () => {
   it('exports watch utilities', async () => {
     const mod = await import('@eddacraft/anvil-runtime/watch');
     expect(typeof mod.createFileWatcher).toBe('function');
-  });
-
-  it('exports export utilities', async () => {
-    const mod = await import('@eddacraft/anvil-runtime/export');
-    expect(mod).toBeDefined();
   });
 });
 
