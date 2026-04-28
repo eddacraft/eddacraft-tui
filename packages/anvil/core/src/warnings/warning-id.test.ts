@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Warning } from '../antipattern/types.js';
+import type { Warning } from './types.js';
 import {
   generateWarningId,
   createWarningId,

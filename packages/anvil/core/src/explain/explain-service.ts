@@ -1,4 +1,4 @@
-import type { Warning } from '../antipattern/types.js';
+import type { Warning } from '../warnings/types.js';
 import type { ExplanationContext, WarningExplanation } from './types.js';
 import {
   hasTemplate,
@@ -6,7 +6,8 @@ import {
   createGenericExplanation,
   clearTemplates,
 } from './template-loader.js';
-import { registerAntiPatternTemplates } from './antipattern-explainer.js';
+// Anti-pattern explainer archived under ADR-033 (2026-04-29)
+// → archive/anvil-ts-scanner/core-explain-antipattern.ts.
 import { registerBoundaryTemplates, isArchitectureRule } from './boundary-explainer.js';
 import {
   parseWarningId,
@@ -14,7 +15,6 @@ import {
   findWarningsByRule,
   getWarningIds,
 } from '../warnings/warning-id.js';
-import { getPattern } from '../antipattern/patterns.js';
 import { createDebugger } from '../utils/debug.js';
 
 const debug = createDebugger('explain');
@@ -24,7 +24,6 @@ let templatesInitialised = false;
 function ensureTemplatesInitialised(): void {
   if (!templatesInitialised) {
     clearTemplates();
-    registerAntiPatternTemplates();
     registerBoundaryTemplates();
     templatesInitialised = true;
   }
@@ -111,11 +110,6 @@ export function explainByRule(
     return renderExplanation(ruleId, fullContext);
   }
 
-  const pattern = getPattern(ruleId);
-  if (pattern) {
-    return renderExplanation(ruleId, fullContext);
-  }
-
   if (isArchitectureRule(ruleId)) {
     return renderExplanation(ruleId, fullContext);
   }
@@ -152,7 +146,8 @@ export function isExplainable(ruleId: string): boolean {
 
 export function getExplainableRules(): string[] {
   ensureTemplatesInitialised();
-  const antiPatternIds = ['AP-001', 'AP-002', 'AP-003', 'AP-004', 'AP-005', 'AP-006', 'AP-007'];
-  const archIds = ['ARCH-001', 'ARCH-002', 'ARCH-003', 'ARCH-004', 'BOUND-001'];
-  return [...antiPatternIds, ...archIds];
+  // Anti-pattern rule IDs (AP-NNN) archived under ADR-033; the Rust
+  // scanner publishes the canonical catalogue. Architecture rules
+  // remain explainable here.
+  return ['ARCH-001', 'ARCH-002', 'ARCH-003', 'ARCH-004', 'BOUND-001'];
 }

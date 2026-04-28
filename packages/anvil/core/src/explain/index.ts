@@ -21,10 +21,8 @@ export {
   createGenericExplanation,
 } from './template-loader.js';
 
-export {
-  registerAntiPatternTemplates,
-  getAntiPatternExplanation,
-} from './antipattern-explainer.js';
+// Anti-pattern explainer archived under ADR-033 (2026-04-29)
+// → archive/anvil-ts-scanner/core-explain-antipattern.ts.
 
 export {
   registerBoundaryTemplates,

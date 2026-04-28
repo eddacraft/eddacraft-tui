@@ -13,11 +13,14 @@ merge that changes strategic shape.
 
 # Anvil — Next Steps
 
-> **Last refreshed:** 2026-05-01 (`v0.5.0-beta` shipped — H1 hype-builder
-> release is now in market with the locked A1 + A2 + A3 + A4 slate;
-> horizons rebased so H1 closes as shipped, H2 becomes daemon-backed
-> RTV + driver reach (slate not yet locked), H3 stays GA; cherry-pick
-> output re-derived against the post-`v0.5.0-beta` window).
+> **Last refreshed:** 2026-05-01 (`v0.5.0-beta` shipped (PR #1219) and
+> **TSRET-005 engine archive cascade** lands on top — TS scanner /
+> suppression / drift / gate runner / explainer / parity harness all
+> moved under `archive/anvil-ts-scanner/`; minimal `Warning` type
+> extracted to `core/src/warnings/types.ts`; Rust-side parity test
+> deleted; TSRET module reaches terminal state. Horizons stay rebased:
+> H1 closes as shipped, H2 becomes daemon-backed RTV + driver reach
+> (slate not yet locked), H3 stays GA).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
@@ -534,6 +537,37 @@ LAUNCH-005 (doctor remediation depth) shipped Complete in
 > Append-only. Newest entry first. A future session reads this to
 > see what has moved since the last refresh.
 
+### 2026-05-01 (TSRET-005 — engine archive cascade on top of post-`v0.5.0-beta` dev)
+
+- TSRET-005 executed via cherry-pick onto `chore/TSRET-005-v2`,
+  cut from `dev` after the `v0.5.0-beta` ship (the original
+  `chore/TSRET-005` branch was 2026-04-26-era and stale; only
+  `fb218848b` from it was novel — the rest were patch-id
+  duplicates of commits that landed via the release path).
+  Terminal state for the TSRET module.
+- Engine code moved to `archive/anvil-ts-scanner/` under sub-dirs
+  `core-antipattern/`, `core-suppression/`, `core-drift/`,
+  `core-explain-antipattern.{ts,test.ts}`, `runtime-gate/`,
+  `runtime-export/`, `scanner-parity/` — all reachable from the
+  archive's `README.md`.
+- Cascade resolution: drift detection and the antipattern
+  explainer were end-to-end coupled to the archived engine; the
+  TS gate runner, gate checks, constraint collector, and
+  formatters likewise. All archived together — they had no
+  active consumers outside the now-archived MCP server / VSCode
+  extension. The TS gate runner survives only as historical
+  reference under `archive/anvil-ts-scanner/runtime-gate/`.
+- A minimal `Warning` type was extracted to
+  `packages/anvil/core/src/warnings/types.ts` so active
+  consumers (`warnings/warning-id`, the boundary half of
+  `explain/explain-service`) keep a typed handle on warnings
+  emitted by the Rust scanner.
+- `crates/anvil-checks/tests/scanner_parity.rs` deleted. Root
+  `test:scanner-parity` script removed from `package.json`.
+- ADR-033 "Code archived" reference block updated to record the
+  full cascade. TSRET module flipped to **Complete** (3/5
+  active, 1 superseded). Index updated.
+
 ### 2026-05-01 (`v0.5.0-beta` shipped — H1 closed, horizons rebased)
 
 - `v0.5.0-beta` tagged from `release/v0.5.0-beta`, public release
@@ -559,10 +593,8 @@ LAUNCH-005 (doctor remediation depth) shipped Complete in
   post-release follow-ups.
 - ADR-033 surface archives executed:
   `packages/vscode-extension/` → `archive/anvil-vscode-extension/`,
-  `packages/mcp-server/` → `archive/anvil-mcp-server/`. TSRET-005
-  (engine archive of TS scanner / TS suppression parser / parity
-  harness to `archive/anvil-ts-scanner/`) **remains unblocked but
-  not yet executed** — pending post-release window.
+  `packages/mcp-server/` → `archive/anvil-mcp-server/`.
+  Engine-side TSRET-005 archive cascade follows in the next entry.
 - X5 contradiction effectively resolved by reality: INTD work *did*
   ship inside the `-beta` cut. Tag-rename question for H2 is still
   open but no longer load-bearing.

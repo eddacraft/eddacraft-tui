@@ -320,16 +320,35 @@ which scanner consumers exist.
 - Code (archived under this ADR — surface packages):
   `packages/vscode-extension/` → `archive/anvil-vscode-extension/`,
   `packages/mcp-server/` → `archive/anvil-mcp-server/`
-- Code (archived under this ADR via TSRET-005 — engine):
-  `packages/anvil/core/src/antipattern/` →
-  `archive/anvil-ts-scanner/antipattern/`,
-  `packages/anvil/core/src/suppression/parser.ts` →
-  `archive/anvil-ts-scanner/suppression/parser.ts`,
-  `tests/scanner-parity/` (TS side) →
-  `archive/anvil-ts-scanner/scanner-parity/`
+- Code (archived under this ADR via TSRET-005 — engine and
+  cascade): all paths land under `archive/anvil-ts-scanner/`.
+  - `packages/anvil/core/src/antipattern/` → `core-antipattern/`
+  - `packages/anvil/core/src/suppression/` → `core-suppression/`
+    (whole directory; `service.ts` and `store.ts` consume the
+    parser internally, so they archive together)
+  - `packages/anvil/core/src/drift/` → `core-drift/` (drift was
+    scoped to anti-pattern + suppression deltas; with both
+    archived, drift has nothing to capture)
+  - `packages/anvil/core/src/explain/antipattern-explainer.ts`
+    and its test → `core-explain-antipattern.ts` /
+    `core-explain-antipattern.test.ts`. `explain-service.ts`
+    keeps its boundary explanations and survives slimmed
+  - `packages/anvil/runtime/src/gate/` → `runtime-gate/`
+    (gate-runner + all checks)
+  - `packages/anvil/runtime/src/export/constraint-collector*`
+    and the formatters folder → `runtime-export/`
+  - `tests/scanner-parity/` (TS side) → `scanner-parity/`
 - Code (deleted under this ADR via TSRET-005):
   `crates/anvil-checks/tests/scanner_parity.rs` — Rust-side parity
   test, no second engine to compare against
+- Type extraction:
+  `packages/anvil/core/src/warnings/types.ts` (new) carries a
+  minimal `Warning` / `Location` / severity / category / confidence
+  shape so active consumers (`warnings/warning-id`,
+  `explain/explain-service`) keep a typed handle. Full zod
+  schemas, fingerprint helpers, and producer types stay in the
+  archive — they are re-derivable from the Rust scanner's
+  emitted JSON if needed.
 - Code (retained as build canary):
   `crates/anvil-checks-napi/`
 - Archive convention reference: `archive/anvil-cli-node/` (Node
