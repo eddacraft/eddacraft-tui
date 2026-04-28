@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "docusaurus-2",
-  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh apps/anvil-docs-private docs/public/anvil docs/public/beta",
+  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/anvil-docs-private docs/public/anvil docs/public/beta",
   "outputDirectory": "build"
 }

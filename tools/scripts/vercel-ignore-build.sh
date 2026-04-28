@@ -1,9 +1,9 @@
 #!/bin/bash
 # Vercel Ignored Build Step
 #
-# Skips builds when no files in the project's directory (or shared config)
-# have changed since the last deployment. Vercel sets VERCEL_GIT_PREVIOUS_SHA
-# to the last successfully deployed commit.
+# Skips builds when no files in the project's directory or explicitly watched
+# paths have changed since the last deployment. Vercel sets
+# VERCEL_GIT_PREVIOUS_SHA to the last successfully deployed commit.
 #
 # Usage (set as ignoreCommand in Vercel project config):
 #   bash tools/scripts/vercel-ignore-build.sh apps/website
@@ -50,10 +50,6 @@ PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh [--skip-preview] <project-dir> [
 shift
 EXTRA_PATHS=("$@")
 
-# Shared paths that should trigger a rebuild for any project.
-# These affect dependency resolution, workspace discovery, or app build logic.
-SHARED_PATHS="package.json pnpm-lock.yaml pnpm-workspace.yaml nx.json tsconfig.base.json .npmrc tools/scripts/vercel-ignore-build.sh"
-
 # Ensure we work from the repo root regardless of where Vercel invokes us
 cd "$REPO_ROOT"
 type log_debug >/dev/null 2>&1 && log_debug "project_dir='${PROJECT_DIR}' repo_root='${REPO_ROOT}'"
@@ -91,9 +87,17 @@ if [ -z "$CHANGED_FILES" ]; then
   exit 0
 fi
 
+path_changed() {
+  local path="${1%/}"
+  echo "$CHANGED_FILES" | awk -v path="$path" '
+    $0 == path || index($0, path "/") == 1 { found=1; exit }
+    END { exit !found }
+  '
+}
+
 # Check if any changed file is in the project directory
 # Use awk for anchored literal prefix match (grep -F can't anchor to start-of-line)
-if echo "$CHANGED_FILES" | awk -v prefix="${PROJECT_DIR}/" 'index($0, prefix) == 1 { found=1; exit } END { exit !found }'; then
+if path_changed "$PROJECT_DIR"; then
   echo ">> Changes detected in $PROJECT_DIR — building"
   type log_info >/dev/null 2>&1 && log_info "changes in project dir, triggering build"
   type log_trace >/dev/null 2>&1 && log_trace "matching files: $(echo "$CHANGED_FILES" | awk -v prefix="${PROJECT_DIR}/" 'index($0, prefix) == 1' | head -5)"
@@ -101,19 +105,9 @@ if echo "$CHANGED_FILES" | awk -v prefix="${PROJECT_DIR}/" 'index($0, prefix) ==
   exit 1
 fi
 
-# Check shared paths
-for path in $SHARED_PATHS; do
-  if echo "$CHANGED_FILES" | grep -q "^${path}$"; then
-    echo ">> Shared config changed ($path) — building"
-    type log_info >/dev/null 2>&1 && log_info "shared config '${path}' changed, triggering build"
-    type log_exit >/dev/null 2>&1 && log_exit 1
-    exit 1
-  fi
-done
-
 # Check extra watched paths (e.g. docs/public for docs-site)
 for extra in "${EXTRA_PATHS[@]}"; do
-  if echo "$CHANGED_FILES" | grep -qF "${extra}/"; then
+  if path_changed "$extra"; then
     echo ">> Changes detected in extra watched path $extra — building"
     type log_info >/dev/null 2>&1 && log_info "extra path '${extra}' changed, triggering build"
     type log_exit >/dev/null 2>&1 && log_exit 1
