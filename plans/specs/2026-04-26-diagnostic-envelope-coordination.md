@@ -128,7 +128,7 @@ produced the diagnostic and what the consumer expectation is.
 | Mode | When it fires | Producer | Consumer expectation |
 | --- | --- | --- | --- |
 | `save-time` | After file write hits disk; daemon scans; diagnostic emitted via DRVR-002 protocol. | Intercept daemon (post-write). | Editor renders persistent diagnostic anchored to on-disk content. Suppression UI applies. |
-| `mid-edit` | Before file write; driver sends in-flight buffer to daemon `validate.midEdit` RPC. | Intercept daemon (pre-write / didChange). | Editor renders ephemeral diagnostic with `phase: midEdit` marker; MCP driver may block tool call per project config. Latency budget < 100ms total (see ADR-031). |
+| `mid-edit` | Before file write; driver sends in-flight buffer or proposed tool content to the daemon. | Intercept daemon (pre-write / didChange). | Editor renders ephemeral diagnostic with `phase: midEdit` marker; MCP driver may block tool call per project config. Latency uses ADR-031's interactive buffer SLO. |
 | `gate` | `anvil gate` invocation (any profile, including `--profile ai`). | CLI gate command. | Single consumer reads structured JSON return value, decides exit code consequences. No persistent rendering required. |
 | `watch` | File-system watch loop emits without an attached driver session. | Watcher (LAUNCH module). | Streaming consumer (TUI, dashboard) renders transient notification. May coexist with `save-time` from a driver-attached session. |
 

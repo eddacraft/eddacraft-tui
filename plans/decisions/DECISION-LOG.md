@@ -56,7 +56,7 @@ These define how Anvil behaves by default. All features must align.
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [015](015-intercept-loop-enforcement.md) | Rust daemon detects file changes from AI agents, evaluates policy, interrupts sessions | Proposed |
-| [031](031-validation-latency-rubric.md) | Single latency rubric for save-time and mid-edit validation; p50/p95/p99 budgets, component boundaries, versioned fixture corpus; INTD-014 / DRVR-002 / RTAI-002 / RTAI-006 cite instead of inventing | Proposed |
+| [031](031-validation-latency-rubric.md) | Shared latency measurement rubric for intercept validation modes; standardises modes, timing boundaries, dimensions, and warm p95 SLOs so INTD / DRVR / RTAI cite one source | Proposed |
 
 ## Policy and Governance
 

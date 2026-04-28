@@ -243,12 +243,12 @@ a new lane.
   list, and daemon health; output suitable for consumption by the launcher and
   future CLI status commands. `anvil intercept status` MUST include an
   operator-visible **mid-edit p50/p95 latency rollup line** sourced from the
-  daemon-side telemetry (e.g. `latency: p50 <X>ms p95 <Y>ms (mid-edit)`), so
-  the demo runbook §1.5 trust-signal line is real and not estimated. The
-  rollup is computed over a sliding window (default last 100 mid-edit calls
-  or last 60 seconds, whichever is shorter) and the threshold of acceptable
-  numbers is owned by ADR-031 (single latency rubric — pending). Cross-ref
-  ADR-031 for the budget the operator is comparing against.
+  daemon-side `validation.service` telemetry for `mode = midEdit` (e.g.
+  `latency: p50 <X>ms p95 <Y>ms (mid-edit)`), so the demo runbook §1.5
+  trust-signal line is real and not estimated. The rollup is computed over a
+  sliding window (default last 100 mid-edit calls or last 60 seconds,
+  whichever is shorter). The measurement labels and acceptable thresholds are
+  owned by ADR-031.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib status`
   plus an assertion that the status payload carries `latency.midEdit.p50`
   and `latency.midEdit.p95` fields (or their textual rollup) when the
@@ -299,17 +299,17 @@ a new lane.
   shape (`code`, `message`, `data`), `id` semantics for request vs
   notification, batch request behaviour, `-32600`..`-32603` reserved
   codes, and the distinction between request `id: null` and
-  notification. A latency harness measures round-trip p50 / p95 for a
-  small RPC (`session.heartbeat`) and a telemetry-emission path
-  (`enforcement.decision` round-trip) on a warm daemon and records
-  the numbers. The surface under test is the daemon↔driver JSON-RPC
-  boundary (what `DriverClient` in DRVR-001 talks to) — editors
-  reach the daemon via the editor-driver, not by connecting
-  LSP-style directly, so the risk to cover is silent drift between
-  the daemon's wire behaviour and the driver client's expected
-  request/response semantics. The latency numbers back the
-  `editor-and-mcp-driver-design.md` §3.4 save-time budget
-  (< 100ms p95 warm), which otherwise has no factual basis.
+  notification. A latency harness records p50 / p95 / p99 using the
+  ADR-031 measurement vocabulary, at minimum `validation.service` for
+  daemon-handled requests and `validation.roundtrip` where the
+  `DriverClient` transport is present. The surface under test is the
+  daemon↔driver JSON-RPC boundary (what `DriverClient` in DRVR-001
+  talks to) — editors reach the daemon via the editor-driver, not by
+  connecting LSP-style directly, so the risk to cover is silent drift
+  between the daemon's wire behaviour and the driver client's expected
+  request/response semantics. Local latency numbers must not be
+  invented here; save-time and buffer/pre-write budgets come from
+  ADR-031.
 - **Files:** `crates/anvil-intercept/src/ipc.rs`,
   `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (new),
   `crates/anvil-intercept/benches/ipc_roundtrip.rs` (new)

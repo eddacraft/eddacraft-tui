@@ -206,11 +206,11 @@ execute because no surface imports scanner code.
   - **Five §6 open questions (S6):** assign owners and deadlines;
     mark which block DRVR-001 API sign-off vs DRVR-002 sign-off vs
     DRVR-003.
-  - **End-to-end latency harness (S7):** before committing to the
-    < 50ms daemon-side / < 100ms total save-to-diagnostic numbers
-    in §3.4 exit criteria, add a harness that measures the actual
-    socket round-trip on representative fixtures. Current numbers
-    extrapolate from KERN in-process benchmarks.
+  - **End-to-end latency harness (S7):** delete local latency
+    numbers from the protocol design and cite ADR-031 instead. The
+    harness must record `mode = save` with `validation.roundtrip`
+    for the driver-visible SLO and `validation.visible` only when
+    making UX claims.
 - **Scope:** `plans/specs/`, shared contracts package
 - **Dependencies:** DRVR-001 (transport), DRVR-006 (MCP scope
   resolved), driver-framework ADR
@@ -235,10 +235,11 @@ execute because no surface imports scanner code.
 - **Expected Outcome:** `packages/vscode-extension/src/services/embeddedAnalysis.ts`
   no longer imports `@eddacraft/anvil-core/antipattern`. Diagnostics,
   code actions, and pattern-registry queries route through
-  `DriverClient`. Save-time latency budget (< 200ms p95 for files under
-  the standard fixture sizes) held or justified. Existing extension
-  tests pass after refactor; one new test covers the fallback path
-  when the daemon is unreachable.
+  `DriverClient`. The ADR-031 interactive save-time SLO is held or
+  justified using `mode = save` and `validation.roundtrip`; any
+  save-to-visible UX claim reports `validation.visible` separately.
+  Existing extension tests pass after refactor; one new test covers
+  the fallback path when the daemon is unreachable.
 - **Scope:** `packages/vscode-extension/`
 - **Dependencies:** DRVR-001, DRVR-002, INTD-002 (IPC Listener),
   INTD-013 (telemetry mirror — the canonical violation stream)

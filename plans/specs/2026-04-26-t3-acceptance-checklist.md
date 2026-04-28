@@ -281,32 +281,28 @@ Per [ADR-031](../decisions/031-validation-latency-rubric.md), all
 latency claims for save-time and mid-edit validation use one rubric.
 T3 anchors honour the same budgets:
 
-- [ ] **Mid-edit p95 within budget.** `e2e.midEdit` p95 ≤ 80 ms on
-      `latency-corpus-v1` (per ADR-031), with the language's typical
-      file size class included in the corpus or a documented
-      analogue. ADR-031's pre-committed fallback (Open Question 1 —
-      degrade to "save-time + secret peek" if budget exceeded) is
-      honoured rather than loosening the budget.
-- [ ] **Save-time p95 within budget.** `e2e.save` p95 ≤ 120 ms on
-      `latency-corpus-v1`.
-- [ ] **Component budgets honoured additively.** The language's
-      `comp.ruleEval` for save-time stays within ADR-031's
-      30/80/180 ms p50/p95/p99 (with-disk-read), and for mid-edit
-      stays within 20/50/110 ms (content-from-request).
+- [ ] **Mid-edit p95 within budget.** `mode = midEdit`
+      `validation.roundtrip` p95 <= 80 ms on `latency-corpus-v1`
+      (per ADR-031), with the language's typical file size class
+      included in the corpus or a documented analogue. If the budget
+      is exceeded, scope the hot path before loosening the SLO.
+- [ ] **Save-time p95 within budget.** `mode = save`
+      `validation.roundtrip` p95 <= 120 ms on `latency-corpus-v1`.
+- [ ] **Service latency recorded.** `validation.service` p95 is
+      recorded for the same run so regressions can be attributed to
+      daemon work versus driver / transport work.
 - [ ] **Bench in `crates/anvil-intercept/benches/`** exercising the
       language's representative fixture (criterion + the
       observability span layout from ADR-031). The bench files are
       committed; baseline is recorded under
       `crates/anvil-intercept/benches/baselines/`.
-- [ ] **Regression policy honoured.** CI fails if p95 regresses
-      > 15 % vs baseline or p99 > 25 %, per ADR-031 §"Regression
-      policy".
+- [ ] **Regression policy honoured.** CI fails if interactive
+      `validation.roundtrip` p95 exceeds the ADR-031 SLO. The owning
+      benchmark task may add stricter baseline-relative gates.
 
 If a language cannot meet the mid-edit budget, the anchor module
-records the specific component cost responsible (the bench reports
-component spans) and the design either narrows the active rule set
-for mid-edit (per ADR-031 fallback) or files a follow-up ADR
-revising the budget.
+records the boundary and dimensions responsible, then narrows the
+active rule set or files a follow-up ADR revising the budget.
 
 ---
 

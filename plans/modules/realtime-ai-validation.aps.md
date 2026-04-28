@@ -130,10 +130,11 @@ convention" section). Concretely:
   that accepts unsaved buffer content and a path, runs the
   configured rule set without touching disk, and returns
   diagnostics. Distinct from the save-time path.
-- A **latency budget** for the mid-edit path: < 50ms p95 on the
-  daemon side for a single fixture-sized buffer, < 100ms total
-  round-trip including driver framing. Stricter than the
-  save-time < 100ms / < 200ms budget DRVR currently targets.
+- A **latency budget** for the interactive buffer class defined by
+  ADR-031: `mode = midEdit` and `mode = preWrite` use
+  `validation.service` p95 <= 50 ms and `validation.roundtrip` p95 <=
+  80 ms on a warm daemon. Save-time uses ADR-031's separate
+  interactive save-time class; RTAI must not invent local numbers.
 - **Debounce / dedup at the driver edge** — drivers must not flood
   the daemon. The default debounce is 80ms (a typing cycle); the
   daemon also computes a content hash and short-circuits identical
@@ -308,11 +309,12 @@ convention" section). Concretely:
   on and surface a regression signal in CI before users feel it.
 - **Expected Outcome:** A criterion benchmark measures the
   daemon-side cost of a single mid-edit RPC against a
-  representative fixture set (a small, a medium, and a near-cap
-  buffer; secret-detection rule plus one reasoning-pattern rule
-  active). Recorded baseline numbers establish the < 50ms
-  daemon-side / < 100ms total p95 budget. CI enforces no
-  regression beyond a documented tolerance.
+  representative fixture set labelled with ADR-031's required
+  dimensions, including a small, a medium, and a near-cap buffer.
+  Recorded baseline numbers establish the `mode = midEdit`
+  `validation.service` and `validation.roundtrip` p50 / p95 / p99
+  values against ADR-031's interactive buffer SLO. CI enforces the
+  SLO and may add stricter baseline-relative regression gates.
 - **Blocks on:** RTAI-002. **Coordinates with:** INTD-014
   (extends the existing RPC benchmark with a mid-edit case
   rather than living separately).
@@ -493,13 +495,14 @@ convention" section). Concretely:
   mid-edit shape before INTD-005 is finalised. Do not let the
   spike become a full implementation in disguise — it ships on
   a throwaway branch.
-- **Latency budget is aspirational.** The < 50ms / < 100ms
-  numbers come from the existing editor-driver design's
-  save-time budget reasoning, halved. They have no mid-edit
-  evidence behind them yet. RTAI-001 measures real numbers on
-  a fixture; RTAI-003 enforces them. If the real numbers are
-  worse, scope contracts (fewer rules on the hot path, larger
-  debounce, etc.) before the budget is loosened.
+- **Latency budget still needs production-path evidence.** RTAI-001
+  proved the thin in-process loop fits well inside ADR-031's
+  interactive buffer SLO, but real IPC transport, representative
+  corpus size, and wider rule-set cost remain unmeasured. RTAI-003
+  records the production-path numbers using ADR-031's mode,
+  boundary, and dimension labels. If the real numbers are worse,
+  scope contracts (fewer rules on the hot path, larger debounce,
+  etc.) before the budget is loosened.
 - **Reasoning-pattern false-positive blast radius.** RTVS
   catalogued seven reasoning patterns with explicit < 10% FP
   rate targets. Mid-edit firing means an FP appears while the
