@@ -180,7 +180,19 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
   plus permission-creation unit tests on each platform (Linux/macOS
   permission bits; Windows ACL).
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTD-002`):** `crates/anvil-intercept/src/ipc.rs`
+  ships the `SessionDispatcher` trait, `NoopDispatcher`, the Unix
+  socket-dir resolution + permission ladder (lstat-based symlink
+  refusal, owner-and-mode verification, `mkdir(0o700)` then
+  re-verify, `fchmod`+chmod-by-path to `0o600`), the stale-vs-live
+  socket handling, NDJSON framing with a 1 MiB cap, malformed-line
+  skip, per-connection `JoinSet`, and a 250 ms shutdown drain.
+  Validation: `cargo test -p eddacraft-anvil-intercept --lib ipc` —
+  21 tests pass (full crate suite: 25 pass). Windows pipe-name
+  resolution + DACL binding are scaffolded behind `#[cfg(windows)]`
+  with `unimplemented!()` stubs; pipe-name helper is unit-tested on
+  Windows builds. PID-file tie-in remains an INTD-001 follow-on.
 - **Council review (2026-04-24):** M8 (security-analyst) pinned the
   end-to-end creation sequence above; see
   PR #1063.
