@@ -118,6 +118,12 @@ pub enum IpcError {
     NoCurrentUser,
     #[error("NDJSON line exceeded the {MAX_LINE_BYTES}-byte cap")]
     OversizedLine,
+    /// A complete line was framed but its bytes are not valid UTF-8.
+    /// Soft error: the connection handler logs and continues to the
+    /// next line (same policy as malformed JSON), so a single bad
+    /// frame on a long-lived stream cannot kill subsequent commands.
+    #[error("NDJSON line is not valid UTF-8 ({len} bytes)")]
+    InvalidUtf8 { len: usize },
 }
 
 // --------------------------------------------------------------------
@@ -500,7 +506,26 @@ async fn handle_connection<D: SessionDispatcher>(
         let read = tokio::select! {
             biased;
             () = token.cancelled() => return Ok(()),
-            res = read_one_line(&mut reader, &mut buf) => res?,
+            res = read_one_line(&mut reader, &mut buf) => match res {
+                Ok(n) => n,
+                Err(IpcError::InvalidUtf8 { len }) => {
+                    // Per the module doc: malformed-frame errors are
+                    // logged and skipped, the connection stays open.
+                    // Invalid UTF-8 is a malformed frame too — not a
+                    // reason to disconnect a long-lived client mid
+                    // stream.
+                    tracing::warn!(
+                        target: "anvil_intercept::ipc",
+                        bytes = len,
+                        "skipping NDJSON line: invalid UTF-8",
+                    );
+                    eprintln!(
+                        "anvil-intercept: skipping NDJSON line ({len} bytes): invalid UTF-8",
+                    );
+                    continue;
+                }
+                Err(err) => return Err(err),
+            },
         };
         if read == 0 {
             // Peer closed cleanly.
@@ -572,11 +597,10 @@ where
         reader.consume(consumed);
     }
 
-    let s = String::from_utf8(raw)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("invalid utf-8: {e}")))?;
-    let n = s.len();
+    let len = raw.len();
+    let s = String::from_utf8(raw).map_err(|_| IpcError::InvalidUtf8 { len })?;
     buf.push_str(&s);
-    Ok(n)
+    Ok(s.len())
 }
 
 fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &Arc<D>) {
@@ -1055,6 +1079,53 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
             assert_eq!(dispatcher.calls(), vec![RecordedCall::List]);
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+        }
+
+        /// A line of valid bytes terminated by `\n` but containing an
+        /// invalid UTF-8 sequence is logged and skipped; the same
+        /// connection can still send a valid envelope right after.
+        /// Without this contract a single bad frame on a long-lived
+        /// client stream would force a reconnect.
+        #[tokio::test(flavor = "current_thread")]
+        async fn ndjson_invalid_utf8_line_is_skipped_connection_continues() {
+            let (_tmp, path) = fresh_socket_path();
+            let dispatcher = Arc::new(RecordingDispatcher::default());
+            let (shutdown, handle) =
+                spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
+
+            let mut stream = UnixStream::connect(&path).await.expect("connect");
+            // First line: a stray invalid UTF-8 byte (0xFF) followed
+            // by a newline. Framed correctly, just not valid UTF-8.
+            stream.write_all(b"\xFF\n").await.unwrap();
+            // Second line: a real envelope on the SAME connection.
+            // The contract says the bad UTF-8 must not have torn the
+            // socket down.
+            let envelope = IpcEnvelope::notification(IpcCommand::Heartbeat {
+                session_id: SessionId::new("sess_after_bad_utf8"),
+            });
+            let mut line = serde_json::to_string(&envelope).unwrap();
+            line.push('\n');
+            stream.write_all(line.as_bytes()).await.unwrap();
+            stream.shutdown().await.unwrap();
+
+            for _ in 0..50 {
+                if !dispatcher.calls().is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert_eq!(
+                dispatcher.calls(),
+                vec![RecordedCall::Heartbeat("sess_after_bad_utf8".into())],
+                "invalid-UTF-8 line must be skipped, not close the connection",
+            );
 
             shutdown.trigger();
             tokio::time::timeout(Duration::from_secs(1), handle)

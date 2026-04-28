@@ -387,16 +387,20 @@ impl SessionRegistry {
         // mutate `sessions` and `by_worktree` in two separate
         // statements, so a panic between them could leave the indices
         // inconsistent. On poison recovery we rebuild `by_worktree`
-        // from `sessions` (the sole authority on record bodies) before
-        // handing the guard back, so subsequent reads see a coherent
-        // view. Carrying poisoning forward would let one panicking
-        // caller take the whole daemon offline, which is worse than
-        // the cost of a single `O(n)` rebuild on the rare panic path.
+        // from `sessions` (the sole authority on record bodies),
+        // **clear the poison flag**, then hand the guard back. Without
+        // `clear_poison` every later `lock()` would keep taking the
+        // poison path and repaying the `O(n)` repair cost forever —
+        // turning a one-off recovery into permanent per-operation
+        // overhead. Carrying poisoning forward (the `std::sync::Mutex`
+        // default) would let one panicking caller take the whole
+        // daemon offline, which is worse than a single rebuild.
         match self.inner.lock() {
             Ok(guard) => guard,
             Err(poisoned) => {
                 let mut guard = poisoned.into_inner();
                 Self::repair_after_poison(&mut guard);
+                self.inner.clear_poison();
                 guard
             }
         }
@@ -870,6 +874,12 @@ mod tests {
         assert!(
             registry.session_for_worktree(wt_a.path()).is_some(),
             "previously-registered session must survive poison recovery",
+        );
+        // After the first recovery, the poison flag is cleared so
+        // later lock attempts don't keep paying the repair cost.
+        assert!(
+            !registry.inner.is_poisoned(),
+            "poison flag must be cleared after the first recovery",
         );
         registry
             .register(&sid("after-poison"), wt_b.path(), Instant::now())
