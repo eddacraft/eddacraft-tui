@@ -19,6 +19,31 @@ fn run(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output {
     cmd.output().expect("failed to invoke anvil binary")
 }
 
+fn run_mcp(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui").arg("mcp");
+    cmd.args(extra);
+    cmd.arg("--workspace").arg(workspace);
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
+fn run_mcp_from(cwd: &std::path::Path, extra: &[&str]) -> std::process::Output {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui").arg("mcp");
+    cmd.args(extra);
+    cmd.current_dir(cwd);
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
+fn assert_rust_stdio_entry(parsed: &Value) {
+    let entry = &parsed["mcpServers"]["anvil"];
+    assert_eq!(entry["command"], "anvil");
+    assert_eq!(
+        entry["args"],
+        serde_json::json!(["mcp", "serve", "--stdio"])
+    );
+}
+
 #[test]
 fn write_creates_claude_code_config_at_dot_claude_mcp_json() {
     let dir = tempfile::tempdir().unwrap();
@@ -158,4 +183,183 @@ fn write_refuses_when_existing_config_is_invalid_json() {
     // Original content must be preserved.
     let after = fs::read_to_string(&path).unwrap();
     assert!(after.contains("a comment"), "original file untouched");
+}
+
+#[test]
+fn mcp_install_cursor_writes_rust_stdio_entry_and_verify_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(
+        install.status.success(),
+        "install failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&install.stdout),
+        String::from_utf8_lossy(&install.stderr),
+    );
+
+    let path = dir.path().join(".cursor").join("mcp.json");
+    let raw = fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert_rust_stdio_entry(&parsed);
+
+    let verify = run_mcp(dir.path(), &["install", "--client", "cursor", "--verify"]);
+    assert!(
+        verify.status.success(),
+        "verify failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&verify.stdout),
+        String::from_utf8_lossy(&verify.stderr),
+    );
+}
+
+#[test]
+fn mcp_install_claude_code_writes_rust_stdio_entry_and_verify_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let install = run_mcp(dir.path(), &["install", "--client", "claude-code"]);
+    assert!(install.status.success());
+
+    let path = dir.path().join(".claude").join("mcp.json");
+    let raw = fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert_rust_stdio_entry(&parsed);
+
+    let verify = run_mcp(
+        dir.path(),
+        &["install", "--client", "claude-code", "--verify"],
+    );
+    assert!(verify.status.success());
+}
+
+#[test]
+#[cfg(unix)]
+fn mcp_install_defaults_to_home_client_config_root() {
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+
+    temp_env::with_vars(
+        [
+            ("HOME", Some(home.path().to_str().unwrap())),
+            ("USERPROFILE", Some(home.path().to_str().unwrap())),
+        ],
+        || {
+            let install = run_mcp_from(cwd.path(), &["install", "--client", "cursor"]);
+            assert!(
+                install.status.success(),
+                "install failed\nstdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&install.stdout),
+                String::from_utf8_lossy(&install.stderr),
+            );
+
+            assert!(home.path().join(".cursor").join("mcp.json").exists());
+            assert!(!cwd.path().join(".cursor").join("mcp.json").exists());
+        },
+    );
+}
+
+#[test]
+fn mcp_install_is_idempotent() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".cursor").join("mcp.json");
+
+    let first = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(first.status.success());
+    let after_first = fs::read_to_string(&path).unwrap();
+
+    let second = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(second.status.success());
+    let after_second = fs::read_to_string(&path).unwrap();
+
+    assert_eq!(
+        after_first, after_second,
+        "second install must leave config byte-identical"
+    );
+}
+
+#[test]
+fn mcp_install_warns_when_rewriting_drifted_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".cursor").join("mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": { "command": "node", "args": ["legacy-mcp.js"] }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(install.status.success());
+    let stdout = String::from_utf8_lossy(&install.stdout);
+    assert!(
+        stdout.contains("drifted") || stdout.contains("rewrote"),
+        "stdout should warn about drifted entry: {stdout}"
+    );
+
+    let raw = fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert_rust_stdio_entry(&parsed);
+}
+
+#[test]
+fn mcp_install_verify_fails_when_rust_stdio_entry_is_malformed() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".cursor").join("mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": { "command": "anvil", "args": ["mcp", "serve"] }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let verify = run_mcp(dir.path(), &["install", "--client", "cursor", "--verify"]);
+    assert!(
+        !verify.status.success(),
+        "malformed entry must fail verification"
+    );
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(
+        stderr.contains("malformed") || stderr.contains("expected command"),
+        "stderr should explain malformed entry: {stderr}"
+    );
+}
+
+#[test]
+fn mcp_install_verify_fails_when_command_is_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".claude").join("mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": { "args": ["mcp", "serve", "--stdio"] }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let verify = run_mcp(
+        dir.path(),
+        &["install", "--client", "claude-code", "--verify"],
+    );
+
+    assert!(
+        !verify.status.success(),
+        "missing command must fail verification"
+    );
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(
+        stderr.contains("malformed") || stderr.contains("expected command"),
+        "stderr should explain missing command: {stderr}"
+    );
 }

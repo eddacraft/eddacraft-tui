@@ -1,10 +1,12 @@
 use std::io::{self, BufRead, BufReader, Read, Write};
+use std::path::PathBuf;
 
 use anyhow::{Result, bail};
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use serde_json::{Value, json};
 
 use crate::GlobalArgs;
+use crate::commands::mcp_config::{self, Target};
 use crate::mcp::tools::validate_write;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
@@ -24,8 +26,33 @@ pub struct McpArgs {
 
 #[derive(Debug, Subcommand)]
 enum McpCommand {
+    /// Install Anvil MCP configuration for an editor.
+    Install(McpInstallArgs),
     /// Start an MCP server.
     Serve(McpServeArgs),
+}
+
+#[derive(Debug, Args)]
+struct McpInstallArgs {
+    /// Client to configure.
+    #[arg(long, value_enum)]
+    client: McpClient,
+
+    /// Verify the existing client config instead of writing it.
+    #[arg(long)]
+    verify: bool,
+
+    /// Override the client config root. Defaults to the user's home directory.
+    #[arg(long)]
+    workspace: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum McpClient {
+    /// Cursor (`.cursor/mcp.json`).
+    Cursor,
+    /// Anthropic Claude Code (`.claude/mcp.json`).
+    ClaudeCode,
 }
 
 #[derive(Debug, Args)]
@@ -35,9 +62,89 @@ struct McpServeArgs {
     stdio: bool,
 }
 
-pub fn run(args: &McpArgs, _global: &GlobalArgs) -> Result<()> {
+pub fn run(args: &McpArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
+        McpCommand::Install(install) => run_install(install, global),
         McpCommand::Serve(serve) => run_serve(serve),
+    }
+}
+
+fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
+    let config_root = match &args.workspace {
+        Some(path) => path.clone(),
+        None => mcp_config::default_client_config_root()?,
+    };
+    let target = args.client.target();
+
+    if args.verify {
+        let (path, entry) = mcp_config::verify_rust_stdio_target(target, &config_root, global)?;
+        if global.json {
+            println!(
+                "{}",
+                json!({
+                    "client": args.client.label(),
+                    "path": path.display().to_string(),
+                    "entry": entry,
+                    "ok": true,
+                })
+            );
+        } else {
+            println!(
+                "Detected client: {} (config: {})",
+                args.client.label(),
+                path.display()
+            );
+            println!("Status: ok");
+        }
+        return Ok(());
+    }
+
+    let install = mcp_config::install_rust_stdio_target(target, &config_root, global)?;
+    if global.json {
+        println!(
+            "{}",
+            json!({
+                "client": args.client.label(),
+                "path": install.path.display().to_string(),
+                "wrote": install.wrote,
+                "drifted": install.drifted,
+                "command": "anvil",
+                "args": ["mcp", "serve", "--stdio"],
+            })
+        );
+    } else {
+        println!(
+            "Detected client: {} (config: {})",
+            args.client.label(),
+            install.path.display()
+        );
+        if install.drifted {
+            println!("Existing entry drifted; rewrote anvil MCP server entry.");
+        }
+        let status = if install.wrote {
+            "ok"
+        } else {
+            "already configured"
+        };
+        println!("Installing anvil MCP server entry ... {status}");
+        println!("Restart {} to pick up the new server.", args.client.label());
+    }
+    Ok(())
+}
+
+impl McpClient {
+    fn target(self) -> Target {
+        match self {
+            McpClient::Cursor => Target::Cursor,
+            McpClient::ClaudeCode => Target::ClaudeCode,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            McpClient::Cursor => "cursor",
+            McpClient::ClaudeCode => "claude-code",
+        }
     }
 }
 

@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RMCP | —     | In Progress | 5/8      |
+| RMCP | —     | In Progress | 6/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -246,7 +246,7 @@ starting implementation:
 
 ### RMCP-007: `anvil mcp install` integration for Cursor and Claude Code
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Make the install command configure clients to launch the Rust MCP
   shim and verify the entry is usable.
 - **Expected Outcome:** `anvil mcp install --client cursor|claude-code` writes an
@@ -321,5 +321,5 @@ starting implementation:
 | 0 — Scope Lock | 1 | Complete |
 | 1 — Rust Stdio Server | 3 | Complete |
 | 2 — Validation Backend | 2 | In Progress |
-| 3 — Install and Verification | 2 | Ready |
-| **Total** | **8** | **5/8 Done** |
+| 3 — Install and Verification | 2 | In Progress |
+| **Total** | **8** | **6/8 Done** |

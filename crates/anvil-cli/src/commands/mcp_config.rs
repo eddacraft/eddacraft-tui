@@ -119,19 +119,7 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
         return Ok(());
     }
 
-    ensure_path_safe(&workspace, &config_path, args.yes, global)?;
-
-    if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("creating directory {}", parent.display()))?;
-    }
-
-    let merged = merge_into_existing(args.target, &config_path, &value)?;
-    // atomic_write replaces the destination via rename, which avoids the
-    // TOCTOU window that fs::write opens between the path-safety check and
-    // the actual write (a symlink could be swapped in mid-call).
-    atomic_write(&config_path, format!("{merged}\n").as_bytes())
-        .with_context(|| format!("writing {}", config_path.display()))?;
+    write_target_config(args.target, &workspace, &value, args.yes, global)?;
 
     if global.json {
         println!(
@@ -154,53 +142,7 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Result<()> {
-    let config_path = workspace.join(relative_path_for(args.target));
-    if !config_path.exists() {
-        if global.json {
-            eprintln!(
-                "{}",
-                json!({
-                    "target": target_label(args.target),
-                    "path": config_path.display().to_string(),
-                    "error": "missing",
-                })
-            );
-        } else {
-            eprintln!(
-                "No {} config found at {}",
-                target_label(args.target),
-                config_path.display()
-            );
-        }
-        // The structured/human-readable message is already on stderr;
-        // signal main to exit non-zero without printing again.
-        return Err(AlreadyReported.into());
-    }
-
-    let raw = fs::read_to_string(&config_path)
-        .with_context(|| format!("reading {}", config_path.display()))?;
-    let parsed: Value = serde_json::from_str(&raw)
-        .with_context(|| format!("parsing {} as JSON", config_path.display()))?;
-
-    let Some(entry) = extract_entry(args.target, &parsed) else {
-        if global.json {
-            eprintln!(
-                "{}",
-                json!({
-                    "target": target_label(args.target),
-                    "path": config_path.display().to_string(),
-                    "error": "missing-entry",
-                })
-            );
-        } else {
-            eprintln!(
-                "{} config at {} is missing the `{SERVER_NAME}` entry.",
-                target_label(args.target),
-                config_path.display()
-            );
-        }
-        return Err(AlreadyReported.into());
-    };
+    let (config_path, entry) = verify_target_config(args.target, global, workspace, false)?;
 
     if global.json {
         println!(
@@ -219,6 +161,195 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
         println!("Status   : ok");
     }
     Ok(())
+}
+
+pub(crate) fn install_rust_stdio_target(
+    target: Target,
+    config_root: &Path,
+    global: &GlobalArgs,
+) -> Result<RustStdioInstall> {
+    let value = build_config(target, Transport::Stdio, DEFAULT_HTTP_PORT, Some("anvil"));
+    let config_path = config_root.join(relative_path_for(target));
+    let expected_entry = extract_entry(target, &value).unwrap_or(Value::Null);
+    let existing_entry = read_existing_entry(target, &config_path)?;
+
+    if existing_entry.as_ref() == Some(&expected_entry) {
+        return Ok(RustStdioInstall {
+            path: config_path,
+            wrote: false,
+            drifted: false,
+        });
+    }
+
+    let drifted = existing_entry.is_some();
+    let path = write_target_config(target, config_root, &value, false, global)?;
+    Ok(RustStdioInstall {
+        path,
+        wrote: true,
+        drifted,
+    })
+}
+
+pub(crate) struct RustStdioInstall {
+    pub(crate) path: PathBuf,
+    pub(crate) wrote: bool,
+    pub(crate) drifted: bool,
+}
+
+pub(crate) fn default_client_config_root() -> Result<PathBuf> {
+    dirs::home_dir().context("could not determine home directory")
+}
+
+pub(crate) fn verify_rust_stdio_target(
+    target: Target,
+    workspace: &Path,
+    global: &GlobalArgs,
+) -> Result<(PathBuf, Value)> {
+    verify_target_config(target, global, workspace, true)
+}
+
+fn write_target_config(
+    target: Target,
+    workspace: &Path,
+    value: &Value,
+    yes: bool,
+    global: &GlobalArgs,
+) -> Result<PathBuf> {
+    let config_path = workspace.join(relative_path_for(target));
+    ensure_path_safe(workspace, &config_path, yes, global)?;
+
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating directory {}", parent.display()))?;
+    }
+
+    let merged = merge_into_existing(target, &config_path, value)?;
+    // atomic_write replaces the destination via rename, which avoids the
+    // TOCTOU window that fs::write opens between the path-safety check and
+    // the actual write (a symlink could be swapped in mid-call).
+    atomic_write(&config_path, format!("{merged}\n").as_bytes())
+        .with_context(|| format!("writing {}", config_path.display()))?;
+
+    Ok(config_path)
+}
+
+fn verify_target_config(
+    target: Target,
+    global: &GlobalArgs,
+    workspace: &Path,
+    require_rust_stdio: bool,
+) -> Result<(PathBuf, Value)> {
+    let config_path = workspace.join(relative_path_for(target));
+    if !config_path.exists() {
+        if global.json {
+            eprintln!(
+                "{}",
+                json!({
+                    "target": target_label(target),
+                    "path": config_path.display().to_string(),
+                    "error": "missing",
+                })
+            );
+        } else {
+            eprintln!(
+                "No {} config found at {}",
+                target_label(target),
+                config_path.display()
+            );
+        }
+        // The structured/human-readable message is already on stderr;
+        // signal main to exit non-zero without printing again.
+        return Err(AlreadyReported.into());
+    }
+
+    let raw = fs::read_to_string(&config_path)
+        .with_context(|| format!("reading {}", config_path.display()))?;
+    let parsed: Value = serde_json::from_str(&raw)
+        .with_context(|| format!("parsing {} as JSON", config_path.display()))?;
+
+    let Some(entry) = extract_entry(target, &parsed) else {
+        if global.json {
+            eprintln!(
+                "{}",
+                json!({
+                    "target": target_label(target),
+                    "path": config_path.display().to_string(),
+                    "error": "missing-entry",
+                })
+            );
+        } else {
+            eprintln!(
+                "{} config at {} is missing the `{SERVER_NAME}` entry.",
+                target_label(target),
+                config_path.display()
+            );
+        }
+        return Err(AlreadyReported.into());
+    };
+
+    if require_rust_stdio {
+        validate_rust_stdio_entry(target, &config_path, &entry, global)?;
+    }
+
+    Ok((config_path, entry))
+}
+
+fn validate_rust_stdio_entry(
+    target: Target,
+    config_path: &Path,
+    entry: &Value,
+    global: &GlobalArgs,
+) -> Result<()> {
+    let command_ok = entry.get("command").and_then(Value::as_str) == Some("anvil");
+    let args_ok = entry.get("args") == Some(&json!(["mcp", "serve", "--stdio",]));
+
+    if command_ok && args_ok {
+        return Ok(());
+    }
+
+    if global.json {
+        eprintln!(
+            "{}",
+            json!({
+                "target": target_label(target),
+                "path": config_path.display().to_string(),
+                "error": "malformed-entry",
+                "expected": {
+                    "command": "anvil",
+                    "args": ["mcp", "serve", "--stdio"]
+                },
+                "entry": entry,
+            })
+        );
+    } else {
+        eprintln!(
+            "{} config at {} has a malformed `{SERVER_NAME}` entry; expected command `anvil` with args `mcp serve --stdio`.",
+            target_label(target),
+            config_path.display()
+        );
+    }
+
+    Err(AlreadyReported.into())
+}
+
+fn read_existing_entry(target: Target, config_path: &Path) -> Result<Option<Value>> {
+    let raw = match fs::read_to_string(config_path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => {
+            return Err(anyhow::Error::from(e))
+                .with_context(|| format!("reading existing config at {}", config_path.display()));
+        }
+        Ok(raw) if raw.trim().is_empty() => return Ok(None),
+        Ok(raw) => raw,
+    };
+
+    let parsed: Value = serde_json::from_str(&raw).with_context(|| {
+        format!(
+            "existing config at {} is not valid JSON; refusing to overwrite (resolve or remove the file and re-run)",
+            config_path.display()
+        )
+    })?;
+    Ok(extract_entry(target, &parsed))
 }
 
 /// Build the editor-specific JSON value that goes on disk.
