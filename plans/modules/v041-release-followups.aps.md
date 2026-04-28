@@ -29,7 +29,7 @@ closed manually (scoop bucket commit `4f3becf6`, winget PR
 microsoft/winget-pkgs#365186, prod migrations applied by hand);
 CI / deploy pipelines must be repaired before the next tag.
 V041F-015 added 2026-04-26 from the copilot review on PR #1090 — track
-the `svix>uuid` override exception so the global `uuid >=14.0.0`
+the `svix → uuid` override exception so the global `uuid >=14.0.0`
 security floor is restored uniformly when the upstream dependency
 chain ships ESM-aware uuid. V041F-016 added 2026-04-27 after the private
 `eddacraft/anvil-001` v0.4.0-beta release was published as a prerelease,
@@ -80,6 +80,8 @@ require a coordinated bundle — pick them off in any order.
   together). Removed the previous `TODO(security)` since the gap is
   closed.
 - **Status:** Done
+
+### V041F-002: Correct auth_method attribution for rejected admin tokens when per-operator mode is active
 
 - **Surface:** `apps/anvil-api/src/middleware/admin-auth.ts:181-182`
 - **Flagged by:** security-analyst (round 2), pragmatic-lead (round 3
