@@ -83,7 +83,7 @@ describe('vercel-ignore-build.sh', () => {
     }
   });
 
-  it('does not rebuild every app for root dependency metadata changes', () => {
+  it('builds on production branch root dependency metadata changes', () => {
     const repo = createFixtureRepo();
 
     try {
@@ -95,8 +95,8 @@ describe('vercel-ignore-build.sh', () => {
         VERCEL_GIT_COMMIT_REF: 'main',
       });
 
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('No relevant changes for apps/website');
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('Changes detected in extra watched path package.json');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

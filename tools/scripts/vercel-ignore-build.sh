@@ -48,7 +48,16 @@ fi
 
 PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh [--skip-preview] <project-dir> [extra-path ...]}"
 shift
-EXTRA_PATHS=("$@")
+SHARED_ROOT_PATHS=(
+  "package.json"
+  "pnpm-lock.yaml"
+  "pnpm-workspace.yaml"
+  "nx.json"
+  "tsconfig.base.json"
+  ".npmrc"
+  "tools/scripts/vercel-ignore-build.sh"
+)
+EXTRA_PATHS=("${SHARED_ROOT_PATHS[@]}" "$@")
 
 # Ensure we work from the repo root regardless of where Vercel invokes us
 cd "$REPO_ROOT"
