@@ -492,7 +492,9 @@ fn mcp_serve_stdio_oversize_frame_returns_protocol_error() {
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
-        let oversize_frame = vec![b'a'; 1024 * 1024 + 2];
+        // Send a frame larger than the server's stdio frame ceiling
+        // (currently 2 MiB) without a trailing newline.
+        let oversize_frame = vec![b'a'; 2 * 1024 * 1024 + 2];
         stdin
             .write_all(&oversize_frame)
             .expect("failed to send oversize frame");

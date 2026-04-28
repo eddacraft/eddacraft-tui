@@ -42,7 +42,7 @@ pub fn descriptor() -> Value {
                 },
                 "contentEncoding": {
                     "type": "string",
-                    "enum": ["utf-8"],
+                    "enum": ["utf-8", "base64"],
                     "default": "utf-8"
                 },
                 "client": {
@@ -299,6 +299,7 @@ struct ValidateWriteRequest {
     relative_path: String,
     operation: Operation,
     content: Option<String>,
+    patch_only: bool,
     preflight_problem: Option<ToolProblem>,
 }
 
@@ -337,21 +338,20 @@ impl ValidateWriteRequest {
 
         let proposed_content = optional_string(arguments.get("proposedContent"))?;
         let patch_content = optional_string(arguments.get("patch"))?;
-        let ambiguous_content = proposed_content.is_some() && patch_content.is_some();
-        let content = proposed_content.or(patch_content).map(str::to_string);
+        // Per the launch-shim contract, when both fields are supplied
+        // `proposedContent` is authoritative and `patch` is correlation
+        // metadata. Patch text is never scanned as file content because diff
+        // hunks include removed lines and metadata that would mislead the
+        // secret/reasoning checks.
+        let content = proposed_content.map(str::to_string);
+        let patch_only = content.is_none() && patch_content.is_some();
 
         Ok(Self {
             relative_path,
             operation,
             content,
-            preflight_problem: preflight_problem.or_else(|| {
-                ambiguous_content.then(|| {
-                    ToolProblem::new(
-                        "ambiguous-content",
-                        "Provide proposedContent or patch, not both.",
-                    )
-                })
-            }),
+            patch_only,
+            preflight_problem,
         })
     }
 
@@ -361,9 +361,15 @@ impl ValidateWriteRequest {
         }
 
         if self.content.is_none() && self.operation.requires_content() {
+            if self.patch_only {
+                return Some(ToolProblem::new(
+                    "patch-only-unsupported",
+                    "Patch-only validation is not supported in this release; supply proposedContent.",
+                ));
+            }
             return Some(ToolProblem::new(
                 "missing-content",
-                "Validate-write requires proposedContent or patch for this operation.",
+                "Validate-write requires proposedContent for this operation.",
             ));
         }
 
@@ -592,12 +598,12 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn descriptor_advertises_only_supported_utf8_encoding() {
+    fn descriptor_advertises_supported_content_encodings() {
         let descriptor = descriptor();
 
         assert_eq!(
             descriptor["inputSchema"]["properties"]["contentEncoding"]["enum"],
-            json!(["utf-8"])
+            json!(["utf-8", "base64"])
         );
     }
 
@@ -641,20 +647,40 @@ mod tests {
     }
 
     #[test]
-    fn proposed_content_and_patch_blocks_as_ambiguous() {
+    fn proposed_content_authoritative_when_patch_also_supplied() {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
             json!({
-                "path": "src/secret.ts",
+                "path": "src/example.ts",
                 "operation": "update",
                 "proposedContent": "export const value = 1;\n",
                 "patch": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
         );
 
+        // Patch text is correlation metadata only — its embedded "secret"
+        // must not influence validation when proposedContent is supplied.
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["summary"]["total"], 0);
+        assert_eq!(payload["diagnostics"], json!([]));
+    }
+
+    #[test]
+    fn patch_only_blocks_as_unsupported() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@\n-old\n+new\n"
+            }),
+        );
+
         assert_eq!(payload["decision"], "block");
-        assert_eq!(payload["error"]["code"], "ambiguous-content");
+        assert_eq!(payload["error"]["code"], "patch-only-unsupported");
+        assert_eq!(payload["safeDefault"], "do-not-write");
     }
 
     #[test]

@@ -8,7 +8,11 @@ use crate::GlobalArgs;
 use crate::mcp::tools::validate_write;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
-const MAX_STDIO_FRAME_BYTES: u64 = 1024 * 1024;
+// Keep the stdio frame ceiling comfortably above the largest accepted tool
+// payload (validate-write caps proposedContent at 1 MiB) so JSON-RPC and MCP
+// envelope overhead does not cause valid requests to be rejected as oversize
+// before tool-level validation runs.
+const MAX_STDIO_FRAME_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Args)]
 pub struct McpArgs {
