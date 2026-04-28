@@ -9,11 +9,15 @@
 
 **Last reviewed:** 2026-04-26
 
-> Note (2026-04-26): the spec-level reference to a hardcoded `AVAILABLE_CHECKS`
-> in `gate.rs` is conceptual — the actual gate runner lives at
-> `crates/anvil-cli/src/commands/gate.rs`, and `SCHEMA_VERSION` constants
-> currently live in `crates/anvil-cli/src/commands/drift.rs` (and `init.rs`,
-> `doctor.rs`). The check-registry slice will need to migrate all three.
+> Note (2026-04-27): the old spec-level reference to a hardcoded
+> `AVAILABLE_CHECKS` array in `gate.rs` is stale. The current Rust CLI
+> has `crates/anvil-cli/src/commands/check_catalog.rs` as a central
+> catalogue for user-facing check names, but it is not yet the stable
+> check-ID registry OPSUP requires: it does not assign durable IDs,
+> alias renamed checks for a transition window, declare file-presence
+> guards or wall-time budgets, or cover drift schema migration.
+> `SCHEMA_VERSION` constants still live in `drift.rs`, `init.rs`, and
+> `doctor.rs`.
 
 ## Purpose
 
@@ -25,10 +29,11 @@ each new module would re-design the same operational story differently.
 
 Specifically owns:
 
-- **Check registry with stable IDs** (council C-008) — replaces the
-  hardcoded `AVAILABLE_CHECKS` array in `gate.rs`. `--skip_checks` must
-  resolve against the registry, and newly shipped checks must be skippable
-  without a binary downgrade.
+- **Check registry with stable IDs** (council C-008) — promotes the
+  current `check_catalog.rs` naming catalogue into a durable registry
+  with stable IDs, aliases, and per-check metadata. `--skip_checks` must
+  resolve against the registry, and newly shipped checks must be
+  skippable without a binary downgrade.
 - **Drift baseline schema versioning + `anvil drift migrate`** (council
   C-009) — the spec adds 7 new surfaces each with new baseline fields. The
   hardcoded `SCHEMA_VERSION = "1.0.0"` cannot absorb this silently. Owns
@@ -54,7 +59,7 @@ Specifically owns:
 - Stable check-ID registry crate or module, including:
   - ID assignment scheme (e.g. `ANV-SURF-SQL-001`)
   - Skip/disable resolution against the registry
-  - Migration of existing `AVAILABLE_CHECKS` entries to the registry
+  - Migration of existing `check_catalog.rs` entries to the registry
 - Drift baseline schema versioning:
   - `SCHEMA_VERSION` becomes a versioned enum
   - `anvil drift migrate` command for on-upgrade migration
@@ -81,14 +86,14 @@ Specifically owns:
   it, does not replace it.
 - Telemetry-data analytics dashboards (the channel exists; what gets done
   with the data is a separate dashboard module concern).
-- Backwards-compatibility of the legacy `AVAILABLE_CHECKS` API beyond a
+- Backwards-compatibility of legacy check-name aliases beyond a
   one-release transition window.
 
 ## Interfaces
 
 **Depends on:**
 
-- Existing `AVAILABLE_CHECKS` in `gate.rs` (migrates from).
+- Existing `check_catalog.rs` naming catalogue (migrates from).
 - Existing `SCHEMA_VERSION` in `drift.rs` (migrates from).
 - Existing feature-flag system per
   [`feature-flag-catalogue`](./feature-flag-catalogue.aps.md) (FLAGS and FLAGM
@@ -123,10 +128,10 @@ Change status to **Ready** when:
 
 Tasks will be defined when this module moves to Ready. Anticipated:
 
-- OPSUP-001: Check-ID registry — schema, ID assignment, migration of
-  existing entries.
+- OPSUP-001: Check-ID registry — schema, ID assignment, aliases, and
+  migration of existing check catalogue entries.
 - OPSUP-002: Skip/disable resolution against the registry; replace
-  hardcoded array.
+  name-only catalogue lookups where durable IDs are required.
 - OPSUP-003: Drift baseline schema versioning — versioned enum + per-field
   declarations.
 - OPSUP-004: `anvil drift migrate` command + on-upgrade migration path.
@@ -149,6 +154,6 @@ Tasks will be defined when this module moves to Ready. Anticipated:
 - [ ] Hosting the FP telemetry — Kindling pipeline reuse or new endpoint?
 - [ ] Per-track flag default policy — opt-in for one release then flip on,
       or opt-in until an explicit promotion decision?
-- [ ] How do legacy `AVAILABLE_CHECKS` IDs map to the new registry — via
+- [ ] How do legacy check names map to the new registry IDs — via
       alias table or one-shot rename in a major release?
 - [ ] Wall-time budget — global default, per-check, or per-track?

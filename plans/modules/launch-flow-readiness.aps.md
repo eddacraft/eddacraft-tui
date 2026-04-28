@@ -12,7 +12,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 4/7      |
+| LAUNCH | —     | In Progress | 5/7      |
 
 ## Purpose
 
@@ -92,8 +92,9 @@ new primitive, this module follows three rules:
   dispatch.
 - The watch TUI surface (`crates/anvil-tui/src/surfaces/watch/`) has a
   2x2 grid skeleton (Status / Queue / History / Stats) and an event
-  adapter, but `WatchData` stats are never rolled up from kernel
-  events. The rich-dashboard work lives in TUIDASH.
+  adapter. LAUNCH-003 now rolls up `WatchData` stats from kernel
+  events; the richer json-render dashboard work still lives in
+  TUIDASH.
 
 ### Audit findings (2026-04-24)
 
@@ -145,8 +146,9 @@ new primitive, this module follows three rules:
 
 ## Tasks
 
-> Status: In Progress. LAUNCH-001, LAUNCH-004, and LAUNCH-005 are
-> complete; remaining work stays Todo until picked up.
+> Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
+> LAUNCH-005, and LAUNCH-007 are complete; remaining work stays Todo
+> until picked up.
 
 ### LAUNCH-001: Implement user-facing glob filter for watch loop
 
@@ -170,7 +172,7 @@ new primitive, this module follows three rules:
 - **Confidence:** low — the working scope is a feature build, not a
   wire-up; total cost depends on the glob engine choice and how the
   user-pattern path interacts with the existing internal denylist.
-- **Status:** Committed
+- **Status:** Complete
 
 ---
 
@@ -217,7 +219,7 @@ new primitive, this module follows three rules:
   on a fixture event stream; unit test asserting `WatchStats` (or
   equivalent) is the only public surface for stat data.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete
 
 ---
 
@@ -287,7 +289,7 @@ new primitive, this module follows three rules:
   supported fixes and that each participating surface only exposes `f`
   when a request can actually be serviced.
 - **Confidence:** medium
-- **Status:** Committed
+- **Status:** Complete
 
 ## Risks
 

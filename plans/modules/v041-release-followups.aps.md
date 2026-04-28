@@ -16,9 +16,9 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status |
 | ----- | ----- | ------ |
-| V041F | —     | Ready  |
+| V041F | —     | In Progress |
 
-15 work items. Items 001–010 captured from the three council rounds +
+16 work items. Items 001–010 captured from the three council rounds +
 Codex CLI external review during release prep; V041F-011 added 2026-04-26
 from the copilot review on PR #1081 (`scan_content` recompile / silent-
 error); V041F-012 + V041F-013 + V041F-014 added from the v0.4.0-beta
@@ -29,18 +29,22 @@ closed manually (scoop bucket commit `4f3becf6`, winget PR
 microsoft/winget-pkgs#365186, prod migrations applied by hand);
 CI / deploy pipelines must be repaired before the next tag.
 V041F-015 added 2026-04-26 from the copilot review on PR #1090 — track
-the `svix>uuid` override exception so the global `uuid >=14.0.0`
+the `svix → uuid` override exception so the global `uuid >=14.0.0`
 security floor is restored uniformly when the upstream dependency
-chain ships ESM-aware uuid.
+chain ships ESM-aware uuid. V041F-016 added 2026-04-27 after the private
+`eddacraft/anvil-001` v0.4.0-beta release was published as a prerelease,
+leaving v0.3.3-beta marked Latest.
 
 ## Purpose
 
-Capture every hardening item the v0.4.0-beta release council surfaced
-that was deliberately deferred so the tag could ship. Three council
-rounds + one external Codex CLI review produced ~25 findings; 18 were
-fixed in-flight, the 10 here were judged non-blocking against the H1
-gate criterion ("no first-touch papercuts that would make a wait-listed
-viewer close the tab") and are tracked here for v0.4.1 / next sweep.
+Capture every hardening item the v0.4.0-beta release council and
+follow-up release runs surfaced that was deliberately deferred so the
+tag could ship. Three council rounds + one external Codex CLI review
+produced ~25 findings; 18 were fixed in-flight, and the remaining
+follow-ups here were judged non-blocking against the H1 gate criterion
+("no first-touch papercuts that would make a wait-listed viewer close
+the tab") or were discovered by the subsequent tag/deploy path. They
+are tracked here for v0.4.1 / next sweep.
 
 This module exists so the deferral does not silently rot. None of these
 require a coordinated bundle — pick them off in any order.
@@ -76,6 +80,8 @@ require a coordinated bundle — pick them off in any order.
   together). Removed the previous `TODO(security)` since the gap is
   closed.
 - **Status:** Done
+
+### V041F-002: Correct auth_method attribution for rejected admin tokens when per-operator mode is active
 
 - **Surface:** `apps/anvil-api/src/middleware/admin-auth.ts:181-182`
 - **Flagged by:** security-analyst (round 2), pragmatic-lead (round 3
@@ -398,6 +404,20 @@ require a coordinated bundle — pick them off in any order.
   `post-deploy-smoke-check.md`.
 - **Confidence:** high
 - **Status:** Todo
+
+### V041F-016: Promote private beta releases to Latest
+
+- **Surface:** `.github/workflows/release.yml`,
+  `docs/guides/release-doc-checklist.md`
+- **Intent:** Keep the private `eddacraft/anvil-001` release record aligned
+  with the public distribution release when publishing beta tags.
+- **Expected outcome:** Beta tags published by the release workflow are not
+  left as prereleases on `eddacraft/anvil-001`, so GitHub marks the newest tag
+  as Latest.
+- **Validation:** `gh release list --repo eddacraft/anvil-001 --limit 3`
+- **Source:** Reported 2026-04-27 after `v0.4.0-beta` was not shown as Latest.
+- **Confidence:** high
+- **Status:** Done
 
 ## Cross-cutting notes
 

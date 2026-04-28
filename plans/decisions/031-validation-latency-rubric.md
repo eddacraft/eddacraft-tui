@@ -1,4 +1,4 @@
-# ADR-031: Single Latency Rubric for Save-Time and Mid-Edit Validation
+# ADR-031: Validation Latency Measurement Rubric
 
 ## Status
 
@@ -10,324 +10,252 @@ Proposed
 
 ## Context
 
-Anvil's intercept daemon serves two structurally different validation
-flows that today carry three different, mutually inconsistent latency
-budgets across the planning record:
+Anvil's intercept daemon is becoming the shared validation point for multiple
+surfaces:
 
-- **`intercept-daemon.aps.md` INTD-014** — the JSON-RPC conformance +
-  round-trip benchmark task references a "warm daemon" budget without
-  pinning percentiles, fixture corpus, or the boundary being measured.
-  It points at a "< 100ms p95 warm" save-time number borrowed from the
-  editor-driver design spec without an evidence base.
-- **`surface-drivers.aps.md` DRVR-002** — the editor-driver protocol
-  task names "< 50ms daemon-side / < 100ms total save-to-diagnostic
-  p95" as a §3.4 exit criterion, flags that those numbers extrapolate
-  from in-process KERN benchmarks, and parks an unowned harness as
-  S7.
-- **`realtime-ai-validation.aps.md` RTAI** — the mid-edit module
-  declares "< 50ms p95 daemon-side / < 100ms total round-trip" as a
-  *stricter* mid-edit budget, drops it onto the same wire as
-  save-time, and acknowledges in its Risks section that the numbers
-  come from halving the save-time budget with no mid-edit evidence.
+- save-time editor diagnostics
+- filesystem-watch validation
+- editor mid-edit diagnostics from unsaved buffers
+- MCP / agent pre-write validation before proposed content reaches disk
+- future drivers that should reuse the same daemon, rule registry, diagnostic
+  envelope, and measurement language
 
-These three statements describe two genuinely different paths:
+The planning record currently carries inconsistent latency language across
+INTD, DRVR, and RTAI. Some tasks quote daemon-side numbers, some quote
+save-to-diagnostic numbers, some include debounce, and some extrapolate from
+in-process benchmarks. That makes the requirement hard to verify and encourages
+each new intercept use case to invent its own measurement scheme.
 
-- **Save-time path.** Triggered by `didSave` (or filesystem watcher in
-  daemon-only flows). Driver requests a scan; daemon reads file from
-  disk, evaluates rules, returns diagnostics. Measured from save event
-  on the surface to diagnostic delivered back to the surface. Lower
-  call rate, larger payloads possible (whole-file content), tolerant
-  of disk I/O.
-- **Mid-edit path.** Triggered by `didChange` (LSP) or pre-write tool
-  intercept (MCP). Driver supplies unsaved buffer content in the
-  request; daemon evaluates rules without disk I/O; returns
-  diagnostics. Measured from typed character (or proposed-write
-  intercept) to diagnostic delivered. Higher call rate (every typing
-  burst after debounce), no disk I/O, tighter human-perception budget
-  ("real-time" as agent feedback).
+The problem is not that every validation path needs a bespoke budget. The
+problem is that every validation path needs to state:
 
-Council A surfaced the inconsistency as a launch-blocker: three
-modules invent their own numbers, none of them measure the same thing
-end-to-end, and downstream work items pin to whichever variant their
-author copied first. Until one rubric exists, the launch story for
-real-time AI-output validation cannot honestly claim a latency
-contract.
+1. which mode it is measuring,
+2. which timing boundary it is claiming,
+3. which content source and rule set were used, and
+4. whether the path is interactive enough to carry a latency SLO.
 
-This ADR defines that single rubric. INTD-014, DRVR-002, RTAI-002, and
-RTAI-006 will be re-pointed at this document instead of carrying their
-own numbers.
+This ADR defines that shared rubric. INTD-014, DRVR-002, RTAI-002, RTAI-003,
+RTAI-006, and future intercept modes cite this document instead of copying local
+latency definitions.
 
 ## Decision
 
-Adopt one validation latency rubric covering both modes. The rubric
-specifies (a) the boundaries being measured, (b) the budgets at p50,
-p95, p99, (c) the measurement methodology, (d) the fixture corpus,
-and (e) the fallback if measured numbers exceed budget.
+Adopt one validation latency measurement rubric for all intercept-backed
+validation paths.
 
-### Boundaries and what they measure
+The rubric defines:
 
-Two end-to-end boundaries, four component boundaries, all named
-explicitly so downstream work items reference one definition.
+- canonical validation modes,
+- canonical timing boundaries,
+- required measurement dimensions,
+- current interactive p95 SLOs, and
+- rules for adding future modes without duplicating scanner or driver patterns.
 
-#### End-to-end boundaries
+Detailed benchmark implementation, exact fixture files, baseline storage, and
+CI wiring stay in the owning work items. This ADR is the source of truth for
+what those tasks must measure and how they must label the result.
 
-| Boundary | Mode | Start event | End event |
+### Shared validation shape
+
+All intercept validation paths follow the same logical shape:
+
+```text
+surface trigger
+  -> content acquired or supplied
+  -> driver sends validation request
+  -> daemon evaluates configured rules
+  -> daemon returns diagnostics or structured error
+  -> surface renders diagnostics or composes a tool response
+```
+
+New paths should reuse this shape before adding a new protocol, scanner, or
+surface-specific validation pipeline. A path is a new mode only when it differs
+in content source, trigger semantics, or enforcement semantics.
+
+### Validation modes
+
+| Mode | Trigger | Content source | Enforcement semantics | Budget class |
+| --- | --- | --- | --- | --- |
+| `save` | Editor `didSave`, explicit save command, or equivalent save event | On-disk file content unless the driver already has an authoritative saved buffer | Diagnostics and configured save-time enforcement | Interactive save-time |
+| `midEdit` | Editor `didChange` after driver-side debounce | Unsaved editor buffer | Advisory diagnostics; cannot refuse the user's keystroke | Interactive buffer |
+| `preWrite` | Agent / MCP tool proposes a write before it reaches disk | Proposed tool-call content | May warn or refuse the write according to project config | Interactive buffer |
+| `watch` | Filesystem watcher observes a changed file outside an explicit driver request | On-disk file content | Background diagnostics / enforcement according to daemon policy | Background |
+
+Future modes must declare the same four fields. If a future path uses the same
+trigger, content source, and enforcement semantics as an existing mode, it must
+reuse the existing mode label and add a `surface` dimension instead of creating a
+new mode.
+
+### Timing boundaries
+
+All measurements must use one of these boundaries.
+
+| Boundary | Start | End | Purpose |
 | --- | --- | --- | --- |
-| `e2e.save` | Save-time | Surface emits save event (`didSave` on the editor driver, fs-watcher event in daemon-only mode) | Diagnostic delivered to surface (`publishDiagnostics` received, or MCP tool response composed) |
-| `e2e.midEdit` | Mid-edit | Typed character lands in surface buffer (`didChange` fired) **or** MCP pre-write tool call enters the driver | Diagnostic delivered to surface (`publishDiagnostics` received with `phase: "midEdit"` marker, or MCP tool response composed) |
+| `validation.service` | Daemon has accepted a complete validation request | Daemon has produced the response payload | Measures the daemon validation service: request decode, content handling, rule evaluation, and response construction. |
+| `validation.roundtrip` | Driver sends the validation request | Driver receives the validation response | Measures what an interactive driver experiences over the real transport. This is the primary SLO boundary. |
+| `validation.visible` | User- or agent-observable trigger occurs | Diagnostic is visible, or MCP/tool response is composed | Measures surface UX. Report when useful, but each surface owns this number. It is not the global daemon SLO. |
 
-Driver-side debounce is **excluded** from the budget — debounce is a
-cooperative quieting interval, not latency. The clock starts on the
-event that survives debounce. RTAI-004's 80ms debounce is therefore
-not a tax on the mid-edit budget.
+Driver-side debounce is not part of `validation.roundtrip` or
+`validation.service`. Debounce is a cooperative quieting interval before a
+request exists. If a surface wants to measure from raw keystroke to visible
+diagnostic, it reports `validation.visible` and records the debounce window as a
+dimension.
 
-#### Component boundaries
+Implementations may record spans such as transport, decode, content read, rule
+evaluation, serialisation, and render time. Those spans are diagnostic evidence,
+not separate product requirements unless a specific follow-up task makes them
+one.
 
-Each component boundary is independently measurable so the rubric can
-diagnose where budget is being spent without re-instrumenting.
+### Required dimensions
 
-| Boundary | What it measures |
+Every recorded measurement must include these dimensions:
+
+| Dimension | Examples |
 | --- | --- |
-| `comp.transport` | Driver `request()` call to daemon `accept()` of the JSON-RPC frame, plus the symmetric return path (response written by daemon to response acked by driver). UDS / named-pipe round-trip only — excludes JSON parsing on either end. |
-| `comp.daemonRpc` | Daemon JSON-RPC dispatch: frame parsed, method resolved, params validated, ready to enter rule pipeline. |
-| `comp.ruleEval` | Rule pipeline: content acquired (read from disk for save-time, taken from request for mid-edit), binary check + size cap applied, configured rules executed against content, diagnostics built. |
-| `comp.driverFraming` | Surface-side: time spent in `DriverClient` framing, NDJSON serialise/deserialise, debouncer admission check (excluding the debounce interval itself). |
+| `mode` | `save`, `midEdit`, `preWrite`, `watch` |
+| `boundary` | `validation.service`, `validation.roundtrip`, `validation.visible` |
+| `surface` | `vscode`, `mcp`, `daemon-watch`, `fake-driver`, `cli-harness` |
+| `contentSource` | `disk`, `buffer`, `tool-proposal` |
+| `ruleSet` | `default-v1`, `secret-only`, `reasoning-ai-001`, `custom` |
+| `fixtureCorpus` | `latency-corpus-v1`, `user-sample`, `synthetic-spike` |
+| `contentSize` | bytes, plus any configured size-cap marker |
+| `platform` | Linux, macOS, Windows, CI runner class where relevant |
+| `daemonState` | `warm`, `cold`, `restarted` |
+| `driverProtocol` | protocol or contract version when a driver is involved |
+| `debounceMs` | present for debounced surfaces; `0` or omitted for non-debounced paths |
 
-For any e2e measurement, `e2e ≈ 2*comp.transport + comp.daemonRpc +
-comp.ruleEval + 2*comp.driverFraming` (plus surface-specific overhead
-the driver cannot avoid — e.g. VSCode diagnostics-collection redraw).
-The rubric budgets the four components additively so a regression in
-one is locatable without bisecting the e2e number.
+Measurements without these dimensions are exploratory notes, not evidence for a
+latency claim.
 
-### Budgets
+### Interactive SLOs
 
-Budgets are stated at p50, p95, and p99 against the canonical fixture
-corpus (defined below) on a warm daemon. Cold-start is **out of
-scope** for this rubric — daemon cold-start is a separate launch
-concern handled by INTD-001.
+The shared requirement is p95 latency on a warm daemon. p50 and p99 must be
+reported, but p95 is the pass/fail SLO unless an owning module explicitly adds a
+stricter gate.
 
-#### End-to-end budgets
-
-| Boundary | p50 | p95 | p99 |
+| Budget class | Applies to | `validation.service` p95 | `validation.roundtrip` p95 |
 | --- | --- | --- | --- |
-| `e2e.save` | 50 ms | 120 ms | 250 ms |
-| `e2e.midEdit` | 35 ms | 80 ms | 150 ms |
+| Interactive buffer | `midEdit`, `preWrite` | 50 ms | 80 ms |
+| Interactive save-time | `save` | 80 ms | 120 ms |
+| Background | `watch` and non-interactive batch paths | Report only | Report only |
 
-Save-time p95 is loosened to 120 ms (from the legacy "< 100 ms"
-phrasing) because the disk-read step in INTD-005 is genuinely
-variable on consumer SSDs at the cap fixture, and a budget that
-ignores that variance fails honestly under load. Mid-edit p95 stays
-tight at 80 ms because no disk I/O is on the path; this is the
-human-perception budget for "feedback while I'm typing".
+Cold-start measurements are reported separately and must not be mixed into warm
+percentiles. If cold-start becomes a launch-blocking product requirement, it gets
+its own ADR or module task rather than being hidden inside this rubric.
 
-#### Component budgets (warm, near-cap fixture)
+Background validation still matters, but it is not judged by the interactive
+latency SLO. Background paths should instead be evaluated by throughput,
+fairness, and whether they starve interactive requests.
 
-| Boundary | p50 | p95 | p99 |
-| --- | --- | --- | --- |
-| `comp.transport` | 1.0 ms | 3.0 ms | 8.0 ms |
-| `comp.daemonRpc` | 0.5 ms | 1.5 ms | 4.0 ms |
-| `comp.ruleEval` (save-time, with disk read) | 30 ms | 80 ms | 180 ms |
-| `comp.ruleEval` (mid-edit, content-from-request) | 20 ms | 50 ms | 110 ms |
-| `comp.driverFraming` | 1.0 ms | 3.0 ms | 8.0 ms |
+### Corpus and harness requirements
 
-These component budgets sum, with headroom, to the e2e budgets above.
-The headroom is intentional — surface-side overhead (VSCode
-diagnostics redraw, MCP tool-response composition) eats the rest and
-varies per consumer.
+The owning benchmark tasks must provide a versioned fixture corpus and at least
+two harness perspectives:
 
-### Measurement methodology
+1. a daemon/service harness for `validation.service`, and
+2. a driver/transport harness for `validation.roundtrip` where a real driver or
+   `DriverClient` path exists.
 
-One harness, one fixture corpus, one tool, used identically for
-INTD-014, DRVR-002, RTAI-003, and any future budget claim.
+The canonical corpus should be versioned by directory or identifier, for
+example `latency-corpus-v1`, and should cover at minimum:
 
-#### Tool
+- empty content,
+- small representative content,
+- medium representative source content,
+- near-cap content at the configured validation size limit,
+- binary or binary-like content that should short-circuit content rules, and
+- Unicode-heavy content.
 
-- **Daemon-side and component-level:** `criterion` benches in
-  `crates/anvil-intercept/benches/` — `ipc_roundtrip.rs` (existing,
-  expanded under INTD-014) and `midedit_roundtrip.rs` (new under
-  RTAI-003). Component boundaries instrumented via `tracing` spans
-  with histograms exported through the existing observability lane.
-- **End-to-end:** a node test harness in
-  `packages/anvil-driver-client/test/latency/` that drives the
-  `DriverClient` API against a real daemon binary, records timings
-  with `process.hrtime.bigint()`, and emits the same percentile
-  layout as the criterion side. The harness lives next to
-  `DriverClient` because that is the boundary the surface actually
-  experiences.
+Exact fixture files, benchmark commands, and baseline locations are owned by
+INTD-014 / RTAI-003 and related implementation tasks. Future corpus revisions
+must be additive or versioned so historical measurements remain comparable.
 
-#### Fixture corpus
+### Regression policy
 
-The canonical corpus is named `latency-corpus-v1` and lives at
-`crates/anvil-intercept/tests/fixtures/latency-corpus-v1/`. It
-contains:
+CI and release gates should use this rule:
 
-- `small.txt` — 2 KB, plain text, 1 secret-detection match.
-- `medium.ts` — 50 KB, typical TypeScript module, 2
-  antipattern matches.
-- `large.ts` — 500 KB, generated module, 5 mixed matches.
-- `near-cap.ts` — 1 MB minus 1 byte (the INTD-005 content cap), 10
-  mixed matches. Exercises the size-cap edge.
-- `binary-blob.bin` — 100 KB binary, exercises the binary-detection
-  short-circuit.
-- `empty.txt` — 0 bytes, exercises the empty-content path.
-- `unicode-heavy.md` — 100 KB of mixed UTF-8 with combining
-  characters, exercises grapheme-cluster handling in
-  reasoning-pattern rules once they exist.
+- Interactive `validation.roundtrip` p95 over the canonical warm corpus must not
+  exceed the SLO for its budget class.
+- `validation.service` p95 must be recorded for the same run so regressions can
+  be attributed to daemon work versus driver / transport work.
+- p50 and p99 are reported for context and tail-risk review.
+- Baseline-relative regression thresholds may be stricter than the SLO, but they
+  are implementation policy owned by the benchmark task.
 
-Each fixture is committed and immutable — versioning is in the
-directory name (`latency-corpus-v1`). A future corpus revision is a
-new directory, not a mutation, so historical bench numbers stay
-comparable.
+This keeps the product requirement simple while still allowing INTD, DRVR, and
+RTAI to add stricter local regression gates when useful.
 
-#### Active rule set
+### Rules for future intercept paths
 
-Benches run with the **default v1 rule set** active:
-`secret-detection`, `antipattern`, `path-deny`, `regex-content`. The
-reasoning-pattern rules (AI-001..AI-007) are **not** part of the
-canonical corpus run because they live in a crate that does not yet
-exist (RTVS open question 3); when they land they extend the corpus
-with their own bench rather than replacing the rubric.
+Any future intercept-backed validation path must answer these questions before
+it gets a bespoke implementation:
 
-#### Run conditions
+1. Can it reuse an existing mode label with a new `surface` value?
+2. Does it use the shared diagnostic envelope and rule registry?
+3. Does it need `validation.service`, `validation.roundtrip`,
+   `validation.visible`, or all three?
+4. Is it interactive enough to inherit an existing SLO class?
+5. If it needs a new SLO class, what user- or agent-perception constraint makes
+   the existing classes wrong?
 
-- **Warm daemon.** The harness performs 100 throwaway iterations
-  before the recorded run to amortise JIT-ish effects (rule registry
-  cache warmup, PGID lookup cache, etc.).
-- **CI host class.** Numbers are recorded against `ubuntu-latest`
-  on the workspace CI runner. macOS and Windows are recorded as
-  separate datasets — the rubric numbers above are
-  Linux-CI-runner numbers; deviation thresholds for the other
-  platforms are tracked, not enforced.
-- **No concurrent IPC traffic.** The harness is the only client of
-  the daemon during measurement.
-- **Reported as percentiles, never as averages.** Averages are
-  forbidden in the rubric — they hide tail behaviour, which is
-  exactly what the budget targets.
-
-#### Regression policy
-
-CI fails a benchmark run if:
-
-- Any p95 number for the run regresses by more than 15 % vs the
-  recorded baseline for that boundary on that platform, or
-- Any p99 number regresses by more than 25 %, or
-- Any e2e p95 exceeds its absolute budget above (regardless of
-  baseline drift).
-
-Baseline numbers are committed to
-`crates/anvil-intercept/benches/baselines/`. Updating a baseline
-requires an explicit commit message tagged `bench-baseline:` so
-re-baselining is auditable.
-
-## Open questions
-
-1. **RTAI-001 spike is the validator for the mid-edit numbers.** The
-   `e2e.midEdit` p95 budget of 80 ms is the rubric's claim *before*
-   measurement. RTAI-001 measures the actual numbers on
-   `latency-corpus-v1`. If the measured p95 exceeds 80 ms by more
-   than the regression tolerance, the rubric does **not** loosen the
-   number to fit reality; instead the **save-time framing replaces
-   the mid-edit framing**:
-   - Mid-edit reverts to a degraded mode where it runs a reduced
-     rule subset (secret-detection only — the rule whose mid-edit
-     value-density is highest) on a tighter debounce, and the
-     "real-time validation" capability claim is downgraded to
-     "save-time validation with mid-edit secret peek".
-   - The rest of the mid-edit feature remains gated behind a
-     feature flag until the rule pipeline is fast enough to honour
-     the rubric.
-
-   This fallback is the rubric's pre-committed answer to
-   "what if the numbers don't hold" — it stops the rubric from
-   becoming aspirational fiction.
-2. **Cold-start rubric.** Daemon cold-start latency is out of scope
-   here. INTD-001 owns it. The rubric assumes a warm daemon; if a
-   cold-start budget becomes a launch concern, it gets its own ADR
-   rather than being bolted onto this one.
-3. **Surface-specific overhead.** The headroom between the sum of
-   component budgets and the e2e budgets absorbs surface-specific
-   redraw / response-composition cost. If a particular surface
-   consistently eats more headroom than budgeted (e.g. VSCode
-   diagnostics-collection redraw at scale), that surface owns the
-   investigation — the daemon-side rubric does not loosen.
-4. **Multi-rule scaling.** The rubric is calibrated for the v1
-   default rule set. As the catalogue grows (reasoning-pattern
-   rules, structural rules), per-rule cost has to be measured and
-   either fits inside `comp.ruleEval` or the rubric is revised. The
-   regression policy catches drift; new rules failing the budget
-   are the rule's problem to optimise, not the rubric's to widen.
-5. **Plain-prose budgets in module docs.** Once this ADR is
-   Accepted, INTD-014 / DRVR-002 / RTAI-002 / RTAI-006 should
-   delete their inline numbers and link here. That cleanup is
-   tracked as a follow-up item in each module's update pass — the
-   ADR's existence does not by itself rewrite the modules.
+The default answer should be reuse. New modes and new budgets require evidence,
+not taste.
 
 ## Consequences
 
 - **Positive:**
-  - One source of truth for validation latency. Three modules stop
-    inventing their own numbers; downstream specs cite ADR-031.
-  - Component boundaries make regressions diagnosable without
-    re-instrumentation.
-  - Fixture corpus is versioned and immutable, so historical bench
-    numbers stay comparable.
-  - p50/p95/p99 framing kills the "the average is fine" failure
-    mode that hides tail-latency regressions.
-  - Pre-committed fallback (RTAI-001 spike → save-time framing if
-    mid-edit fails) prevents the rubric from becoming aspirational.
+  - INTD, DRVR, RTAI, and future intercept users share one latency vocabulary.
+  - Measurement claims become comparable because mode, boundary, surface,
+    content source, rule set, corpus, and daemon state are explicit.
+  - Save-time, mid-edit, MCP pre-write, and watcher validation reuse the same
+    daemon/rule/diagnostic pattern instead of growing separate pipelines.
+  - The SLO stays simple: warm p95 at the round-trip boundary for interactive
+    paths.
 - **Negative:**
-  - The save-time p95 budget loosens from "< 100 ms" (the legacy
-    phrasing in the editor-driver design) to 120 ms. Marketing /
-    docs that quoted the tighter number need updating.
-  - Two benches and one node harness is more measurement
-    infrastructure than the modules currently have. INTD-014 and
-    RTAI-003 absorb that cost; DRVR-002 references both.
-  - The rubric is calibrated against a single CI host class (Linux
-    runner). macOS / Windows numbers are tracked, not enforced.
-    A regression visible only on Windows is allowed by the rubric
-    but flagged for follow-up.
+  - Existing module text that quotes local numbers must be rewritten to cite this
+    ADR.
+  - Some detail from the old ADR moves into implementation tasks, so reviewers
+    must check INTD-014 / RTAI-003 for exact fixture and harness coverage.
+  - `validation.visible` is intentionally surface-owned; it will vary more than
+    daemon-owned measurements.
 - **Risks:**
-  - **Measured mid-edit numbers don't fit the budget.** Pre-empted
-    by Open Question 1's fallback. The rubric's reaction to bad
-    numbers is documented; it is not "raise the budget".
-  - **Fixture corpus doesn't represent real workloads.** The corpus
-    is a synthetic anchor. If real users routinely operate above
-    `near-cap.ts` or with rule mixes the bench doesn't cover, the
-    corpus needs revision (`latency-corpus-v2`). The directory-name
-    versioning makes that auditable.
-  - **Component sums don't actually add to e2e.** The "headroom"
-    absorbs surface redraw cost; if it doesn't, either a component
-    is mis-budgeted or the surface is doing more work than
-    expected. The rubric mandates that the e2e harness records
-    component spans alongside the e2e number so this is visible.
-- **Mitigations:**
-  - INTD-014, DRVR-002, RTAI-002, RTAI-003, RTAI-006 cite this ADR
-    rather than copying numbers. Numerical drift is a single-file
-    edit in this ADR plus a baseline re-commit.
-  - The fallback in Open Question 1 is the launch-blocker safety
-    valve: if reality doesn't fit, capability claims downgrade
-    before the rubric does.
+  - A surface may report a good `validation.roundtrip` while still feeling slow
+    because debounce or rendering dominates `validation.visible`. Mitigation:
+    surface tasks must report `validation.visible` when making UX claims.
+  - A future mode may be named unnecessarily. Mitigation: the future-mode rules
+    require reuse unless trigger, content source, or enforcement semantics differ.
+  - Background validation could starve interactive work while still being outside
+    the SLO. Mitigation: daemon scheduling and rate-limit tasks must test
+    interactive fairness separately from this latency rubric.
+
+## Follow-up Work
+
+- INTD-014 should use `validation.service` and `validation.roundtrip` when it
+  adds JSON-RPC conformance and latency benchmarks.
+- DRVR-002 should delete local save-time latency language and cite this ADR's
+  `save` mode and interactive save-time SLO.
+- RTAI-002 / RTAI-003 should cite this ADR's `midEdit` mode, interactive buffer
+  SLO, and required dimensions.
+- RTAI-006 should cite this ADR's `preWrite` mode instead of treating MCP
+  pre-write validation as an unnamed variant of mid-edit.
+- Watcher/background validation tasks should report measurements but should not
+  claim the interactive SLO unless they become user-blocking.
 
 ## References
 
-- Related ADRs: [ADR-015](./015-intercept-loop-enforcement.md)
-  (intercept loop authority — AD-4 IPC transport, AD-6 rule
-  integration), [ADR-030](./030-surface-drivers-supersede-napi-cutover.md)
+- Related ADRs: [ADR-015](./015-intercept-loop-enforcement.md) (intercept loop
+  authority and daemon enforcement), [ADR-030](./030-surface-drivers-supersede-napi-cutover.md)
   (drivers-on-daemon architecture).
 - APS modules:
-  - [intercept-daemon](../modules/intercept-daemon.aps.md) —
-    INTD-014 references this ADR for save-time round-trip
-    measurement; it owns the JSON-RPC conformance work that the
-    bench rides on.
-  - [surface-drivers](../modules/surface-drivers.aps.md) —
-    DRVR-002 references this ADR in its §3.4 exit criterion and
-    drops the S7 harness ask in favour of pointing at this
-    rubric.
-  - [realtime-ai-validation](../modules/realtime-ai-validation.aps.md)
-    — RTAI-002 / RTAI-003 / RTAI-006 reference this ADR for the
-    mid-edit budgets, fixture corpus, and the fallback in Open
-    Question 1.
+  - [intercept-daemon](../modules/intercept-daemon.aps.md) — INTD-014 owns the
+    daemon JSON-RPC conformance and latency benchmark implementation.
+  - [surface-drivers](../modules/surface-drivers.aps.md) — DRVR-002 owns the
+    editor-driver protocol and should cite this ADR for save-time latency
+    vocabulary.
+  - [realtime-ai-validation](../modules/realtime-ai-validation.aps.md) —
+    RTAI-002 / RTAI-003 / RTAI-006 own mid-edit and pre-write implementation and
+    benchmarking.
 - Design specs:
   [editor-and-mcp-driver-design](../specs/anvil-driver-framework/editor-and-mcp-driver-design.md)
-  §3.4 (the prior save-time number whose evidence base this ADR
-  supplies).
+  §3.4 contains the legacy local save-time number this ADR replaces.

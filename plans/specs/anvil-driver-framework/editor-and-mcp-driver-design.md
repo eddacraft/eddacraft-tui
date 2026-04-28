@@ -290,21 +290,18 @@ The save-time path is:
 save → textDocument/didSave → daemon scans → publishDiagnostics
 ```
 
-Target budget (p95, files under 10KB, warm daemon):
+Latency requirements are defined by ADR-031 rather than by local
+numbers in this design spec. The save-time path uses `mode = save` and
+the interactive save-time SLO: warm `validation.service` p95 <= 80 ms
+and warm `validation.roundtrip` p95 <= 120 ms over the canonical
+corpus. p50 and p99 are reported for context.
 
-- `didSave` acknowledged by daemon: < 5ms
-- Scan + rule evaluation: < 50ms (daemon-side, matches existing
-  intercept-loop hot-path budget)
-- `publishDiagnostics` rendered: < 20ms
-- **Total save-to-diagnostic: < 100ms**
-
-The TSRET napi cutover targeted ~200ms because it was measured
-file-by-file with in-process marshalling. The daemon path is faster in
-the warm case because the pattern registry stays loaded and the
-trust-graph stays warm; it's slower in the cold case because the
-first scan after a fresh daemon start pays the registry load. Cold
-start budget is < 500ms total; if it exceeds that, the editor shows
-a one-time "Anvil warming up" hint and diagnostics land when ready.
+If this surface makes a user-visible claim such as "diagnostics appear
+within X ms of save", it must also report `validation.visible`. That
+surface-owned number includes editor rendering and any surface-specific
+work that ADR-031 intentionally keeps outside the daemon SLO. Cold-start
+latency is reported separately and should surface a one-time "Anvil
+warming up" hint if diagnostics are delayed.
 
 ### 3.5 Offline / daemon-down behaviour
 

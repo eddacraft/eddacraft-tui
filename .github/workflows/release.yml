@@ -340,6 +340,19 @@ jobs:
               --notes-file "$RUNNER_TEMP/private-notes.txt" \
               artifacts/*
           fi
+      - name: Promote private release to Latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          # Keep the private source-of-truth release list aligned with the
+          # public distribution repo. GitHub skips prereleases for Latest, so
+          # beta tags must be published as normal releases while Anvil is in
+          # beta.
+          gh release edit "$RELEASE_TAG" \
+            --repo eddacraft/anvil-001 \
+            --prerelease=false \
+            --latest
       - name: Publish release to eddacraft/anvil (public)
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}

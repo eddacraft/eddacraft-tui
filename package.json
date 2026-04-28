@@ -6,6 +6,7 @@
     "pnpm": ">=10.20.0",
     "git": ">=2.54.0"
   },
+  "huskyNote": "GHOOK-005 keeps Husky as the contributor bootstrap. `pnpm install` runs `prepare: husky`, installs Husky's hook wiring, and activates the tracked `.husky/pre-commit` hook. Contributors who want to test Git 2.54 native config-mode hooks locally can run `anvil hooks install --config` after `pnpm install`; see docs/guides/git-hook-compatibility.md for the migration decision and revisit conditions.",
   "scripts": {
     "prepare": "husky",
     "changeset": "changeset",
@@ -161,7 +162,8 @@
       "smol-toml@<1.6.1": ">=1.6.1",
       "path-to-regexp@<0.1.13": "0.1.13",
       "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0",
-      "follow-redirects@<1.16.0": ">=1.16.0"
+      "follow-redirects@<1.16.0": ">=1.16.0",
+      "postcss@<8.5.10": ">=8.5.10"
     },
     "onlyBuiltDependencies": [
       "@pulumi/command",

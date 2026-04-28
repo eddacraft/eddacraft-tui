@@ -20,8 +20,9 @@ RTAI work commits to a shape.
 The spike is intentionally throwaway. It does not attempt to land production
 infrastructure; it answers two questions:
 
-1. Does the simplest possible loop (driver → daemon → rule → diagnostic) fit
-   under the `e2e.midEdit` p95 = 80 ms budget defined by ADR-031?
+1. Does the simplest possible loop (driver → daemon → rule → diagnostic) leave
+   enough headroom for ADR-031's interactive buffer `validation.roundtrip` p95 =
+   80 ms SLO?
 2. What architecture decisions does the measured shape force on RTAI-002+?
 
 ## Setup
@@ -30,10 +31,28 @@ infrastructure; it answers two questions:
 |---|---|
 | Driver "didChange" | In-process `mpsc::Sender<DidChange>` posting `{ path, text, version }` envelopes. Stand-in for the eventual LSP `textDocument/didChange` and MCP `apply_edit` payloads. |
 | Daemon endpoint | Single worker thread blocked on `mpsc::Receiver`. Stand-in for the IPC listener INTD-002 will eventually deliver. |
-| Rule | `anvil_checks::secret::scan_content` with `SecretCheckConfig::default()`. Picked because it is the rule whose mid-edit value-density is highest per ADR-031's RTAI-001 fallback clause, and it operates on raw buffer content with no disk I/O. |
+| Rule | `anvil_checks::secret::scan_content` with `SecretCheckConfig::default()`. Picked because it has high mid-edit value density and operates on raw buffer content with no disk I/O. |
 | Diagnostic envelope | Canonical `anvil_kernel_types::Diagnostic` tagged `Mode::MidEdit`. Same shape AIGUARD-002 froze and AIGUARD-003 emits from the gate path. |
-| Fixture | A 103-byte three-line buffer with `api_key='abcdEFGH1234567890'` on line 2. Picked to fire the default `API Key` rule deterministically (the bare `AKIA…` form is filtered by `looks_like_code`). |
+| Fixture | A 103-byte three-line buffer with `api_key='abcdEFGH1234567890'` on line 2. Picked to fire the default `API Key` rule deterministically; in this scan path, bare `AKIA…`-style tokens are treated as code-like identifiers by `looks_like_code` and may be suppressed, so the key/value assignment form avoids that ambiguity. |
 | Iterations | 1024 round-trips after one warm-up. |
+
+Rubric dimensions for this spike:
+
+| Dimension | Value |
+|---|---|
+| `mode` | `midEdit` |
+| `boundary` | `validation.roundtrip` |
+| `surface` | `fake-driver` |
+| `contentSource` | `buffer` |
+| `ruleSet` | `secret-only` |
+| `fixtureCorpus` | `synthetic-spike` |
+| `daemonState` | warm synthetic worker after one warm-up iteration |
+| `driverProtocol` | in-process `mpsc`, not daemon IPC |
+| `debounceMs` | 0 |
+
+Because `surface = fake-driver`, `fixtureCorpus = synthetic-spike`, and
+`driverProtocol = in-process mpsc`, this is floor evidence for the loop shape —
+not production `validation.roundtrip` compliance evidence.
 
 ## Measurement
 
@@ -52,8 +71,8 @@ Round-trip latency
   p99  :     1617 µs
   max  :     2105 µs
 
-Mid-edit p95 budget (ADR-031): 80 ms warm. Spike measured p95 1.4 ms.
-Result: PASS — spike floor is well inside the warm budget.
+Interactive buffer round-trip SLO (ADR-031): 80 ms warm. Spike floor p95: 1.4 ms.
+Result: FLOOR CHECK PASS — production `validation.roundtrip` still requires RTAI-003.
 ```
 
 Reproduce with `cargo run -q --release -p anvil-spike --bin spike-rtai-mid-edit`.
@@ -67,19 +86,18 @@ on this workload. Production will pay more than that on top of this floor:
 
 | Cost the spike does **not** incur | Expected impact |
 |---|---|
-| IPC transport (Unix socket / named pipe) instead of in-process mpsc | ADR-031 budgets `2 × comp.transport` p95 = 6 ms |
-| `anvil.diagnostic.v1` JSON serialise / deserialise on the wire | Subsumed by `comp.driverFraming` p95 = 3 ms |
+| IPC transport (Unix socket / named pipe) instead of in-process mpsc | Covered by ADR-031's `validation.roundtrip` boundary; unmeasured by the spike |
+| `anvil.diagnostic.v1` JSON serialise / deserialise on the wire | Part of the production service/round-trip path; unmeasured by the spike |
 | Larger buffers (the fixture is 103 bytes; real edits hit 10–100 KB files) | Linear in buffer size for `secret-detection`; sub-millisecond at typical sizes given the spike's per-byte cost |
 | Multiple rules, not just secret-detection | Adds the rule's per-byte cost; antipattern + reasoning are the next two and both are line-bounded |
-| Cancellation, batching, debounce admission | Adds bookkeeping but should not exceed `comp.driverFraming` |
+| Cancellation, batching, debounce admission | Adds DriverClient bookkeeping; measured by the RTAI-003 production harness |
 
-Adding ADR-031's component budgets up: `e2e ≈ 2 × 3 ms + 1.5 ms + 50 ms + 2 × 3
-ms = 63.5 ms` p95. The 80 ms `e2e.midEdit` budget has 16.5 ms of headroom over
-the rubric's own component sum. The spike confirms the rubric's underlying
-assumption — that a tight loop plus a single rule comfortably fits — is real,
-not aspirational. The risk going forward is concentrated in `comp.ruleEval` (50
-ms p95) once the rule set widens beyond secret-detection, not in the loop
-shape.
+ADR-031 now frames this as the interactive buffer SLO: `mode = midEdit`
+`validation.service` p95 <= 50 ms and `validation.roundtrip` p95 <= 80 ms on a
+warm daemon. The spike confirms the underlying assumption — that a tight loop
+plus a single rule comfortably fits — is real, not aspirational. The risk going
+forward is concentrated in production transport, larger buffers, and wider rule
+sets, all of which RTAI-003 measures using ADR-031's required dimensions.
 
 **Bottom line:** the spike clears the gate. RTAI-002 can proceed against a
 real budget rather than against an extrapolated one.
@@ -110,11 +128,10 @@ one method instead of two:
    `Mode::MidEdit` per the envelope spec. Mirroring that on the request keeps
    the request/response symmetric and removes a class of "request was for
    save, response is tagged mid-edit" bug.
-3. **Rule pipeline already branches on mode.** ADR-031 specifies different
-   `comp.ruleEval` budgets for save-time (with disk read) vs mid-edit
-   (content-from-request). A single method passing the mode through to the
-   pipeline keeps the dispatch in one place; two methods would duplicate the
-   branch on the boundary instead.
+3. **Rule pipeline already branches on mode.** ADR-031 distinguishes modes by
+   trigger, content source, and enforcement semantics. A single method passing
+   the mode through to the pipeline keeps the dispatch in one place; two methods
+   would duplicate the branch on the boundary instead.
 
 What this means for RTAI-002 (Daemon mid-edit RPC surface): the method
 signature is `scan_buffer(path: String, text: String, version: u64, mode:
@@ -165,7 +182,7 @@ here so RTAI-002+ start with the open list, not a re-derivation:
   unmeasured. RTAI-002 needs a back-pressure decision: do we coalesce stale
   versions in the daemon, or in the driver, or both?
 - **Rule-set scaling.** Only secret-detection ran. Antipattern + reasoning
-  (AI-001 from #1111) are the next mid-edit candidates. Their per-byte cost
+  (AI-001 from GitHub PR #1111) are the next mid-edit candidates. Their per-byte cost
   needs measuring before they ship to the mid-edit path.
 - **Cold-start cost.** ADR-031's budgets are explicitly for the warm path.
   First-keystroke latency (regex compilation, page faults) is unmeasured here
