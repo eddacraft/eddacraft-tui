@@ -6,6 +6,13 @@
 
 **Last reviewed:** 2026-04-28
 
+> **A1 launch slice (cherry-picked, not the whole module):** INTD-001,
+> INTD-002, INTD-003, INTD-005, INTD-013, INTD-014. The remaining INTD work
+> items (INTD-004, -006..-012, -015, -016) ship after A1 alongside DRVR.
+> No `crates/anvil-intercept` crate exists yet on `dev`; A1 kickoff begins
+> with INTD-001 scaffolding (and the parser-concurrency decision recorded
+> inline at INTD-001 review per the LANGTS K3 deferral).
+
 ## Purpose
 
 The intercept daemon is the core enforcement authority for the Anvil Intercept

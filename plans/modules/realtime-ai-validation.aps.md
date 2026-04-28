@@ -15,7 +15,13 @@ See: plans/aps-rules.md
 | ---- | ----- | -------- | -------- |
 | RTAI | —     | Ready    | 1/9      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-28
+
+> **A1 launch slice:** RTAI-001 (Done), RTAI-002, RTAI-003, RTAI-006, RTAI-008.
+> RTAI-004 (TS `DriverClient` envelope) and RTAI-005 (VSCode editor-driver
+> mid-edit path) are deferred to the post-A1 editor-driver path. RTAI-007
+> (telemetry mirror) and RTAI-009 (architecture doc supersession) remain on
+> the H2 roadmap but are not part of the A1 cut.
 
 ## Purpose
 
@@ -267,11 +273,10 @@ convention" section). Concretely:
   decisions written up; module promotion from Proposed → Ready
   is gated on this task closing.
 - **Confidence:** medium
-- **Status:** Done — landed on `rtai-001-spike` (commit pending PR
-  merge). Spike measured p95 1.4 ms round-trip on the in-process
-  loop fixture (vs ADR-031 mid-edit p95 budget of 80 ms), with one
-  diagnostic per round-trip on `secret-detection`. Decisions
-  recorded in
+- **Status:** Done — landed on `feat/RTAI-spike` (commit `ad4f0400`).
+  Spike measured p95 1.4 ms round-trip on the in-process loop fixture
+  (vs ADR-031 mid-edit p95 budget of 80 ms), with one diagnostic per
+  round-trip on `secret-detection`. Decisions recorded in
   [`plans/specs/2026-04-26-rtai-001-spike-report.md`](../specs/2026-04-26-rtai-001-spike-report.md):
   (a) single `scan_buffer` RPC method discriminated by `Mode`, not
   per-mode methods; (b) `DriverClient` owns the debouncer, drivers

@@ -6,6 +6,16 @@
 
 **Last reviewed:** 2026-04-28
 
+> **A1 launch slice:** RMCP-001..RMCP-008 are the entire A1 RMCP scope.
+> Done (5/8): RMCP-001 (spec), RMCP-002 (`anvil mcp serve --stdio`),
+> RMCP-003 (MCP protocol subset), RMCP-004 (validate-write tool),
+> RMCP-005 (validation backend adapter + embedded fallback against
+> `anvil-checks` reasoning + secret rules; daemon client returns
+> `Unavailable` until INTD-002 / RTAI-002 land the IPC RPC). Ready to
+> kick off in parallel: RMCP-006 (canonical decision shape), RMCP-007
+> (`anvil mcp install --client X` wrapper), RMCP-008 (E2E smoke tests
+> + demo runbook refresh).
+
 ## Purpose
 
 Ship the launch-critical MCP path in the single Rust `anvil` binary without
@@ -250,6 +260,13 @@ starting implementation:
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** RCLI3-016, RCLI3-016b, RMCP-002
+- **Notes (2026-04-28):** Today the underlying generator ships as
+  `anvil mcp-config --target cursor|claude-code [--write|--verify]`
+  (RCLI3-016, in `crates/anvil-cli/src/commands/mcp_config.rs`). RMCP-007's
+  remaining work is the `mcp install --client X` wrapper subcommand on
+  `anvil mcp` that delegates to the existing generator and surfaces a
+  consistent `--verify` exit code. No new config-emission code required;
+  this is a CLI-surface alias plus tests.
 
 ---
 

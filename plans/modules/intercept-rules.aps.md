@@ -6,6 +6,26 @@
 
 **Last reviewed:** 2026-04-28
 
+> **A1 launch slice (cherry-picked, not the whole module):** INTR-001 (rule
+> trait), INTR-002 (secret-detection wrapper), INTR-006 (rule registry —
+> required so the eventual daemon-backed validation path can compose multiple
+> rules through one pipeline), INTR-008 (launch reasoning-pattern wrapper).
+> INTR-003 (antipattern wrapper), INTR-004 (path-deny), INTR-005
+> (regex-content), and INTR-007 (rule configuration from `.anvil.yaml`) are
+> post-A1.
+>
+> *(If "INTR config" was meant to refer to INTR-007 rather than INTR-006,
+> flag at A1 kickoff — the launch shim runs on the embedded fallback today
+> without -007, but the daemon path cannot ship multi-rule validation
+> without -006.)*
+>
+> RMCP-005's embedded fallback currently calls `anvil-checks` rules
+> directly without going through the INTR registry. INTR is required for
+> the **daemon-backed** path (RTAI-002 / INTD-005), not for the launch shim
+> in its current form. No `crates/anvil-intercept-rules` crate exists yet
+> on `dev`; INTR-001 kicks off first, with -002 + -008 in parallel after,
+> and -006 closing the slice.
+
 ## Purpose
 
 The intercept rules module defines the rule evaluation contract and the initial

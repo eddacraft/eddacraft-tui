@@ -79,6 +79,78 @@ class reaches across architectural contexts.
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
+### A1 — RTAI Spike Slice (launch-blocker, ~23 items)
+
+The A1 cut is a **virtual slice** cherry-picked across four modules
+(INTD, INTR, RMCP, RTAI). Status reconciled against `crates/` on 2026-04-28
+after RMCP-004 (#1143) and RMCP-005 (#1145) merged.
+
+| Source module | A1 items                                              | Done | In Progress | Ready / unblocked | Blocked |
+| ------------- | ----------------------------------------------------- | ---- | ----------- | ----------------- | ------- |
+| INTD          | -001, -002, -003, -005, -013, -014                    | 0    | 0           | -001              | -002, -003, -005, -013, -014 |
+| INTR          | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | 0 | 0 | -001              | -002, -006, -008 |
+| RMCP          | -001..-008                                            | 5    | 0           | -006, -007, -008  | — |
+| RTAI          | -001 (spike), -002, -003, -006, -008                  | 1    | 0           | —                 | -002, -003, -006, -008 |
+| **Total**     | **23**                                                | **6** | **0**     | **5**             | **12**  |
+
+**Kickoff order (no waste-of-effort sequencing):**
+
+1. **Wave 0 — already done:** RMCP-001/-002/-003/-004/-005, RTAI-001.
+2. **Wave 1 — kick off now (no upstream deps):**
+   - **INTD-001** (daemon scaffold + `anvil-intercept-proto`). Carries the
+     parser-concurrency decision per LANGTS K3.
+   - **INTR-001** (`InterceptRule` trait, new `anvil-intercept-rules` crate).
+   - **RMCP-006** (canonical diagnostics + decision mapping) — uses
+     `anvil-kernel-types::diagnostics` already in tree.
+   - **RMCP-007** (`anvil mcp install --client X` wrapper over the existing
+     `anvil mcp-config`).
+   - **RMCP-008** (E2E smoke + demo runbook refresh — drives the launch
+     shim end-to-end against a fake MCP client; decoupled from the daemon
+     path, so can land alongside RMCP-006/-007).
+3. **Wave 2 — INTR-001 done:**
+   - **INTR-002** (secret-detection wrapper over existing `anvil-checks::secret`).
+   - **INTR-008** (reasoning-pattern wrapper over existing
+     `anvil-checks::reasoning::appeal_to_authority`).
+   - Both can land in parallel.
+4. **Wave 3 — INTR-001/-002/-008 done:**
+   - **INTR-006** (rule registry — required for the daemon-backed
+     validation path; the embedded fallback shipped with RMCP-005
+     short-circuits to `anvil-checks` directly).
+5. **Wave 4 — INTD-001 done:**
+   - **INTD-002** (IPC listener), **INTD-003** (session registry). Parallelisable.
+6. **Wave 5 — INTD-002 done:**
+   - **INTD-005** (enforcement decision pipeline — also needs INTD-003 for
+     ownership resolution and INTR-006 for the rule pipeline).
+   - **INTD-014** (JSON-RPC conformance + latency benchmark).
+7. **Wave 6 — INTD-005 + NOTIFY-008 (already complete) done:**
+   - **INTD-013** (telemetry mirror).
+8. **Wave 7 — INTD-002/-005 done:**
+   - **RTAI-002** (mid-edit RPC surface). Unblocks the rest of RTAI and
+     promotes RMCP's `DaemonValidationClient` from `Unavailable` to a
+     real backend.
+9. **Wave 8 — RTAI-002 done:**
+   - **RTAI-003** (mid-edit latency benchmark).
+   - **RTAI-006** (MCP pre-write semantics — RMCP-004/-005 already in tree).
+   - **RTAI-008** (errors-as-first-class contract test — also needs
+     RMCP-004 + RMCP-006).
+
+**Daemon-path note:** RMCP-005's `DaemonValidationClient` ships with a
+default impl that returns `Unavailable`, falling back to the embedded
+`anvil-checks` rule pipeline. Until INTD-002 + RTAI-002 wire the real
+RPC, every MCP `tools/call` runs through the embedded path — INTR-001/
+-002/-006/-008 are required for the eventual daemon-backed pipeline,
+but not for the launch shim shipping today.
+
+**Outstanding A1 ambiguities to resolve at kickoff:**
+
+- INTR slice item: launch slice listed "INTR-006 config" — INTR-006 is the
+  rule **Registry** and INTR-007 is rule **Configuration**. Treated as
+  INTR-006 here (the registry is load-bearing for the daemon-backed path;
+  -007 is defaults-friendly and post-A1). Confirm at INTR kickoff.
+- The X5 ADR-030 sequencing question (see `plans/next-steps.md` Open
+  Decision 1) still gates whether INTD work formally counts as part of the
+  beta cut or sits behind a tag rename.
+
 ### Edda Stack — Memory System (Done)
 
 Kindling (observation), Ember (interpretation), Edda (canonical memory),
