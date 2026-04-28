@@ -336,7 +336,7 @@ fn run_secret_check_scores_degrade_with_findings() {
     let aws_secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let content =
-        format!("aws_secret_access_key='{aws_secret}';\nconst secret = '{stripe_key}';\n",);
+        format!("aws_secret_access_key='{aws_secret}';\nconst secret = '{stripe_key}';\n");
     std::fs::write(&f, content).unwrap();
 
     let fs = f.to_string_lossy().to_string();

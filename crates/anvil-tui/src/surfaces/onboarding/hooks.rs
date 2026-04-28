@@ -1044,8 +1044,7 @@ mod tests {
             .args(["init", "-q"])
             .current_dir(dir)
             .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .is_ok_and(|s| s.success())
     }
 
     fn add_config_hook(dir: &std::path::Path, event: &str, command: &str) {

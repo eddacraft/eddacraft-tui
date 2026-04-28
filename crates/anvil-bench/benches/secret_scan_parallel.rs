@@ -111,8 +111,7 @@ fn bench_secret_scan(c: &mut Criterion) {
 
 fn num_cpus_fallback() -> usize {
     std::thread::available_parallelism()
-        .map(std::num::NonZeroUsize::get)
-        .unwrap_or(1)
+        .map_or(1, std::num::NonZeroUsize::get)
         .max(1)
 }
 

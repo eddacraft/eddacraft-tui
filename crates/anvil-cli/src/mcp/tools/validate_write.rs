@@ -630,11 +630,11 @@ fn path_to_slash_string(path: &Path) -> String {
 mod tests {
     use std::fs;
 
+    use super::descriptor;
     use super::{
         MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client, call_with_workspace,
         redact_secret_id,
     };
-    use super::{descriptor, parse_payload};
     use crate::mcp::validation::{
         DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
         ValidationBackendFailure,
@@ -671,7 +671,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -708,7 +708,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -879,7 +879,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/example.ts",
                 "operation": "update",
                 "proposedContent": "export const value = 1;\n",
@@ -899,7 +899,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/example.ts",
                 "operation": "update",
                 "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@\n-old\n+new\n"
@@ -916,7 +916,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/reasoning.ts",
                 "operation": "update",
                 "proposedContent": "// the lead said to skip this branch\nexport const value = 1;\n"
@@ -934,7 +934,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
             }),
@@ -950,7 +950,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/blob.bin",
                 "operation": "create",
                 "proposedContent": "abc\0def"
@@ -966,7 +966,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/blob.bin",
                 "operation": "create",
                 "contentEncoding": "base64",
@@ -983,7 +983,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "src/huge.ts",
                 "operation": "create",
                 "proposedContent": "x".repeat(MAX_PROPOSED_CONTENT_BYTES + 1)
@@ -999,7 +999,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "../outside.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -1019,7 +1019,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": "link/../target.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -1039,7 +1039,7 @@ mod tests {
         absolute.push("target.ts");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "path": absolute.to_string_lossy(),
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -1056,7 +1056,7 @@ mod tests {
         let other_workspace = tempdir().expect("other workspace exists");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "workspaceRoot": other_workspace.path().to_string_lossy(),
                 "path": "src/example.ts",
                 "operation": "create",
@@ -1075,7 +1075,7 @@ mod tests {
         fs::write(&root_file, "not a directory").expect("root fixture file written");
         let payload = call_payload(
             workspace.path(),
-            json!({
+            &json!({
                 "workspaceRoot": root_file.to_string_lossy(),
                 "path": "src/example.ts",
                 "operation": "create",
@@ -1087,8 +1087,15 @@ mod tests {
         assert_eq!(payload["error"]["code"], "invalid-workspace-root");
     }
 
-    fn call_payload(workspace_root: &std::path::Path, arguments: Value) -> Value {
-        let result = call_with_workspace(&arguments, workspace_root);
+    fn parse_payload(result: &Value) -> Value {
+        let text = result["content"][0]["text"]
+            .as_str()
+            .expect("tool result contains JSON text");
+        serde_json::from_str(text).expect("tool result text is JSON")
+    }
+
+    fn call_payload(workspace_root: &std::path::Path, arguments: &Value) -> Value {
+        let result = call_with_workspace(arguments, workspace_root);
         assert_eq!(result["content"][0]["type"], "text");
         parse_payload(&result)
     }
@@ -1114,12 +1121,4 @@ mod tests {
         )
         .with_remediation_hint("Use a placeholder or environment variable instead.")
     }
-}
-
-#[cfg(test)]
-fn parse_payload(result: &Value) -> Value {
-    let text = result["content"][0]["text"]
-        .as_str()
-        .expect("tool result contains JSON text");
-    serde_json::from_str(text).expect("tool result text is JSON")
 }
