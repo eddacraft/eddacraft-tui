@@ -165,7 +165,7 @@ here so RTAI-002+ start with the open list, not a re-derivation:
   unmeasured. RTAI-002 needs a back-pressure decision: do we coalesce stale
   versions in the daemon, or in the driver, or both?
 - **Rule-set scaling.** Only secret-detection ran. Antipattern + reasoning
-  (AI-001 from GitHub issue #1111) are the next mid-edit candidates. Their per-byte cost
+  (AI-001 from GitHub PR #1111) are the next mid-edit candidates. Their per-byte cost
   needs measuring before they ship to the mid-edit path.
 - **Cold-start cost.** ADR-031's budgets are explicitly for the warm path.
   First-keystroke latency (regex compilation, page faults) is unmeasured here
