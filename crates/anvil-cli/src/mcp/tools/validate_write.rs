@@ -247,18 +247,16 @@ fn normalise_response_diagnostics(
                 diagnostic.id = redact_secret_id(&diagnostic.id, strict_redaction);
                 diagnostic.summary =
                     "Potential secret detected; remove it from the proposed write.".to_string();
-                diagnostic.location.file =
-                    redact_secret_values(&diagnostic.location.file, strict_redaction);
-                diagnostic.source.rule_id =
-                    redact_secret_values(&diagnostic.source.rule_id, strict_redaction);
+                diagnostic.location.file = redact_secret_values(&diagnostic.location.file);
+                diagnostic.source.rule_id = redact_secret_values(&diagnostic.source.rule_id);
                 diagnostic.source.source_module =
-                    redact_secret_values(&diagnostic.source.source_module, strict_redaction);
+                    redact_secret_values(&diagnostic.source.source_module);
                 diagnostic.remediation_hint = Some(
                     "Remove the secret from the proposed write; use a placeholder or environment variable instead."
                         .to_string(),
                 );
                 if let Mode::Unknown(value) = &mut diagnostic.mode {
-                    *value = redact_secret_values(value, strict_redaction);
+                    *value = redact_secret_values(value);
                 }
             }
             diagnostic
@@ -267,7 +265,7 @@ fn normalise_response_diagnostics(
 }
 
 fn redact_secret_id(id: &str, strict: bool) -> String {
-    let redacted = redact_secret_values(id, false);
+    let redacted = redact_secret_values(id);
     if !strict || redacted != id {
         return redacted;
     }
@@ -278,23 +276,15 @@ fn redact_secret_id(id: &str, strict: bool) -> String {
     format!("diag_mcp_secret_redacted_{}", hex::encode(&digest[..6]))
 }
 
-fn redact_secret_values(value: &str, strict: bool) -> String {
-    let redacted = DEFAULT_COMPILED_PATTERNS
+fn redact_secret_values(value: &str) -> String {
+    DEFAULT_COMPILED_PATTERNS
         .iter()
         .fold(value.to_string(), |current, pattern| {
             pattern
                 .regex
                 .replace_all(&current, "[REDACTED]")
                 .into_owned()
-        });
-
-    if !strict || redacted != value {
-        redacted
-    } else if value.is_empty() {
-        String::new()
-    } else {
-        "[REDACTED]".to_string()
-    }
+        })
 }
 
 fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
@@ -768,7 +758,14 @@ mod tests {
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["correlation"]["backend"], "daemon");
-        assert_eq!(payload["diagnostics"][0]["source"]["rule_id"], "[REDACTED]");
+        assert_eq!(
+            payload["diagnostics"][0]["source"]["rule_id"],
+            "secret-detection"
+        );
+        assert_eq!(
+            payload["diagnostics"][0]["location"]["file"],
+            "src/secret.ts"
+        );
     }
 
     #[test]
@@ -836,6 +833,14 @@ mod tests {
         assert_eq!(
             payload["diagnostics"][1]["remediation_hint"],
             "Remove the secret from the proposed write; use a placeholder or environment variable instead."
+        );
+        assert_eq!(
+            payload["diagnostics"][1]["source"]["rule_id"],
+            "secret-detection-[REDACTED]"
+        );
+        assert_eq!(
+            payload["diagnostics"][1]["source"]["source_module"],
+            "daemon::[REDACTED]"
         );
     }
 
