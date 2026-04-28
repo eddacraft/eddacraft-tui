@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RMCP | —     | In Progress | 3/8      |
+| RMCP | —     | In Progress | 4/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -170,7 +170,7 @@ starting implementation:
 
 ### RMCP-004: Minimal pre-write validation tool
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Expose one MCP tool that validates a proposed write before the
   client applies it.
 - **Expected Outcome:** Tool accepts path, proposed content or patch, operation
@@ -295,7 +295,7 @@ starting implementation:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Scope Lock | 1 | Complete |
-| 1 — Rust Stdio Server | 3 | In Progress |
+| 1 — Rust Stdio Server | 3 | Complete |
 | 2 — Validation Backend | 2 | Ready |
 | 3 — Install and Verification | 2 | Ready |
-| **Total** | **8** | **3/8 Done** |
+| **Total** | **8** | **4/8 Done** |

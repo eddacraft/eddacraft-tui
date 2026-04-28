@@ -2,6 +2,7 @@ mod auth;
 mod capacity;
 mod commands;
 mod feature_flags;
+mod mcp;
 mod output;
 mod services;
 mod tui;

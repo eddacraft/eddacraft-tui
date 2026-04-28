@@ -5,10 +5,10 @@ use clap::{Args, Subcommand};
 use serde_json::{Value, json};
 
 use crate::GlobalArgs;
+use crate::mcp::tools::validate_write;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
 const MAX_STDIO_FRAME_BYTES: u64 = 1024 * 1024;
-const VALIDATE_WRITE_TOOL_NAME: &str = "anvil_validate_write";
 
 #[derive(Debug, Args)]
 pub struct McpArgs {
@@ -186,46 +186,7 @@ fn tools_list_response(id: &Value) -> Value {
 }
 
 fn validate_write_tool_descriptor() -> Value {
-    json!({
-        "name": VALIDATE_WRITE_TOOL_NAME,
-        "description": "Validate a proposed file write before the MCP client applies it.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "workspaceRoot": {
-                    "type": "string",
-                    "description": "Absolute workspace root. Defaults to the server cwd when omitted."
-                },
-                "path": {
-                    "type": "string",
-                    "description": "Workspace-relative path, or an absolute path inside workspaceRoot."
-                },
-                "operation": {
-                    "type": "string",
-                    "enum": ["create", "update", "delete", "rename"]
-                },
-                "proposedContent": {
-                    "type": "string",
-                    "description": "Full proposed UTF-8 file content after the operation."
-                },
-                "patch": {
-                    "type": ["string", "null"],
-                    "description": "Unified diff or client patch payload."
-                },
-                "contentEncoding": {
-                    "type": "string",
-                    "enum": ["utf-8", "base64"],
-                    "default": "utf-8"
-                },
-                "client": {
-                    "type": "object",
-                    "additionalProperties": true
-                }
-            },
-            "required": ["path", "operation"],
-            "additionalProperties": true
-        }
-    })
+    validate_write::descriptor()
 }
 
 fn tools_call_response(id: &Value, message: &Value) -> Value {
@@ -237,7 +198,7 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
         return error_response(id, -32602, "Invalid params");
     };
 
-    if name != VALIDATE_WRITE_TOOL_NAME {
+    if name != validate_write::TOOL_NAME {
         return error_response_with_data(
             id,
             -32602,
@@ -249,28 +210,10 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
         );
     }
 
-    if !params.get("arguments").is_some_and(Value::is_object) {
-        return error_response(id, -32602, "Invalid params");
-    }
+    let empty_arguments = json!({});
+    let arguments = params.get("arguments").unwrap_or(&empty_arguments);
 
-    error_response_with_data(
-        id,
-        -32603,
-        "Anvil could not validate the proposed write.",
-        &json!({
-            "schema": "anvil.mcp.validate-write.v1",
-            "error": {
-                "code": "validation-backend-unavailable",
-                "message": "Anvil could not validate the proposed write.",
-                "retriable": true
-            },
-            "safeDefault": "do-not-write",
-            "correlation": {
-                "surface": "mcp",
-                "mode": "preWrite"
-            }
-        }),
-    )
+    success_response(id, &validate_write::call(arguments))
 }
 
 fn success_response(id: &Value, result: &Value) -> Value {
