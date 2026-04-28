@@ -3,8 +3,9 @@
 
 # Anvil — Save-time Trust
 
-> **🔒 Current release locked 2026-04-26:** A1 (RTAI Spike) + A2 (AIGUARD) +
-> A3 (Release Engineering) + A4 (Language Credibility Floor). See
+> **🔒 Current release locked 2026-04-26; MCP path updated 2026-04-28:** A1
+> (RTAI Spike + Rust MCP launch shim) + A2 (AIGUARD) + A3 (Release
+> Engineering) + A4 (Language Credibility Floor). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
 > and adversarial risks. See [`ROADMAP.md`](../ROADMAP.md) for thematic
 > context across horizons.
@@ -28,6 +29,8 @@
 - [Test Quality](#test-quality-readydraft)
 - [Multi-Language Support](#multi-language-support-draft)
 - [Config Intelligence](#config-intelligence-draft)
+- [Graph Substrate](#graph-substrate-draft)
+- [Rust MCP Launch Path](#rust-mcp-launch-path-readydraft)
 - [Intercept Loop](#intercept-loop-draft--no-code-yet)
 - [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
 
@@ -463,6 +466,30 @@ graph data.
 | ------ | ----- | ---------- | ------------ |
 | [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | 7 | architecture-safety |
 
+### Graph Substrate (Draft)
+
+Persistent joined graph substrate for deterministic enforcement, provenance,
+trust, control/session joins, and optional assistant context projection. Graph
+v2 is Anvil-first; agent context delivery consumes projections over that same
+trusted model.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | Draft | 0/12 | KERN, ADR-015, ADR-030, ADR-031, EDDA |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2, RMCPF |
+
+### Rust MCP Launch Path (Ready/Draft)
+
+Current-release Rust MCP launch shim plus next-release full parity port. The
+current release ships only the narrow A1 path: `anvil mcp install` writes client
+config, clients launch `anvil mcp serve --stdio`, and the Rust server validates
+proposed writes before they land. Full TS MCP server parity is next-release work.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Ready | 0/8 | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
+| [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 | RMCP, DRVR, GV2/GCTX, packages/mcp-server |
+
 ### Intercept Loop (Draft — no code yet)
 
 Host-local enforcement daemon that detects policy violations from AI agent file
@@ -471,10 +498,10 @@ single-host initially, proving the core enforcement thesis. See
 [design spec](./specs/anvil-driver-framework/) for the broader driver framework
 vision.
 
-**Implementation state:** No intercept crates exist in `crates/`. All three
-modules are pure plans — design + ADR only. Pick these up only after the
-Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
-"wow" in the roadmap but also the largest greenfield build.
+**Implementation state:** No intercept crates exist in `crates/`. These modules
+are still plans, but the current release pulls a narrow A1 subset from INTD and
+INTR to support RMCP pre-write validation. Full wrapped-launch enforcement and
+broader driver-framework work remain queued after the launch shim.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
@@ -490,8 +517,8 @@ Tier 2 ready plans have landed; the thesis they prove is the highest-leverage
 -->
 
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
-| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/8 | INTD-002/-003/-005/-013/-015, ADR-030 — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-006/-007/-008 added 2026-04-24 per council review C2/M5-M7/M10-M11 |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/8 | anvil-checks, GV2 later for hot-read rules only |
+| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/6 active (2 superseded/deferred) | INTD-002/-003/-005/-013/-015, ADR-030, RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-006 deferred to RMCPF |
 
 **Architecture Decisions:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md), [D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md)
 
@@ -522,7 +549,6 @@ harness build — schedule after the intercept-loop thesis is proven.
 | [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Gateway integration with pocketflow | Draft |
 | [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Early access migration tooling | Ready |
 | [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Early access test infrastructure | Ready |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Graph context delivery for policy evaluation | Draft |
 | [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model | Ready |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking | Ready |
 | [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces | Proposed |

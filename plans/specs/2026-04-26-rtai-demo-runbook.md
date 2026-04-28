@@ -1,20 +1,22 @@
 # RTAI Launch Demo Runbook
 
-**Last updated:** 2026-04-26
+**Last updated:** 2026-04-28
 **Owner:** TBD (see [Owner & cadence](#owner--cadence))
 **Status:** Draft — pending RTAI-001 spike numbers (latency rubric pinned in [ADR-031](../decisions/031-validation-latency-rubric.md)).
 
 > **Scope.** This is a runbook for the "first-touch wow" launch demo: a developer
-> opens Cursor (or Claude Code) with the MCP driver attached, asks the AI for a
+> opens Cursor (or Claude Code) with the Rust MCP launch shim attached, asks the AI for a
 > confident-but-wrong rewrite, and Anvil refuses the write **before it hits
 > disk**. It owns the *user journey* — the integrated path that
 > [LAUNCH](../modules/launch-flow-readiness.aps.md) (save-time polish),
 > [RTAI](../modules/realtime-ai-validation.aps.md) (mid-edit engine),
-> [INTD](../modules/intercept-daemon.aps.md) (daemon), and
-> [DRVR](../modules/surface-drivers.aps.md) (drivers) each cover only in part.
+> [INTD](../modules/intercept-daemon.aps.md) (daemon),
+> [RMCP](../modules/rust-mcp-launch-shim.aps.md) (Rust MCP stdio launch path),
+> and [DRVR](../modules/surface-drivers.aps.md) (broader drivers) each cover
+> only in part.
 >
 > **Not in scope.** This document does not specify the implementation of RTAI,
-> INTD, or DRVR. It assumes the engine works. Latency budget references defer
+> INTD, RMCP, or DRVR. It assumes the engine works. Latency budget references defer
 > to **ADR-031** — the single latency rubric ADR being drafted in
 > parallel. Do not duplicate budget numbers here.
 
@@ -123,7 +125,7 @@ Expected:
 
 ```
 daemon:    running (pid <N>)
-sessions:  1 active   (cursor / mcp-driver)
+sessions:  1 active   (cursor / rust-mcp)
 fences:    0
 latency:   p50 <X>ms  p95 <Y>ms  (mid-edit)
 ```
@@ -151,7 +153,7 @@ Show the audience the rolling decision log; close.
 
 > **Pattern.** Each scenario is: (1) a prompt the operator pastes into the
 > AI agent, (2) the AI's expected response, (3) Anvil's intervention, (4) the
-> message the audience sees. Scenarios are run **with the MCP driver
+> message the audience sees. Scenarios are run **with the Rust MCP launch shim
 > attached** so Anvil can refuse the write. Operator MUST run a dry-run of
 > each scenario on the demo machine before any customer call (see
 > [Cadence](#owner--cadence)).
@@ -178,11 +180,11 @@ containing a string matching the AWS access-key pattern
 (`AKIA[0-9A-Z]{16}` or similar). Exact tool name varies by client (Cursor
 uses `apply_edit`; Claude Code uses `fs.write` or `edit_file`).
 
-**Anvil intervention.** MCP driver intercepts the write call (RTAI-006);
-daemon mid-edit RPC evaluates the secret-detection rule (INTR-002 via
-RTAI-002) on the proposed buffer; rule fires; daemon returns a `block`
-decision (per `.anvil.yaml` enforcement mode); MCP tool response carries
-structured diagnostics and a refusal.
+**Anvil intervention.** Rust MCP launch shim validates the proposed write
+(RMCP-004/RMCP-005); daemon or shared Rust validation evaluates the
+secret-detection rule (INTR-002 via RTAI-002) on the proposed buffer; rule
+fires; validation returns a `block` decision (per `.anvil.yaml` enforcement
+mode); MCP tool response carries structured diagnostics and a refusal.
 
 **Message displayed in the AI agent UI.** The AI gets back a tool error
 shaped like:
@@ -365,7 +367,7 @@ wrote, and whether the file parses. Common causes:
 - Wrong client — Claude Code config path differs from Cursor; if the
   operator pasted the wrong `--client`, re-run with the right one.
 
-### 4.3 AI tool does not pick up the driver
+### 4.3 AI tool does not pick up the Rust MCP shim
 
 Symptom: editor extension shows `Anvil: connected` (or MCP entry is
 present) but the AI's write goes through with no Anvil intervention.
@@ -373,14 +375,14 @@ present) but the AI's write goes through with no Anvil intervention.
 Triage:
 
 1. `anvil intercept status` — is a session registered for this worktree?
-   If `sessions: 0`, the driver is connected but did not register. File
-   under [DRVR feedback](#feedback-to-rtai--intd--drvr).
+   If `sessions: 0`, the Rust MCP shim is connected but did not register. File
+   under [RMCP feedback](#feedback-to-rtai--intd--rmcp--drvr).
 2. Check the rule is enabled for this worktree: `anvil config show`
    prints the merged config. If the rule is suppressed or set to
    `severity: info` in `.anvil.yaml`, the demo will see no block.
 3. Check the agent is actually using the write tool you expect. Cursor
    sometimes does in-buffer edits without an `apply_edit` tool call —
-   those go through the LSP driver path (advisory) not the MCP driver
+   those go through the LSP driver path (advisory) not the Rust MCP
    path (refusable). Switch to Claude Code if Cursor regresses to
    in-buffer edits mid-demo.
 
@@ -453,7 +455,7 @@ Responsibilities:
   every Monday, and after every release tag.
 - Maintain the asset checklist (refresh clips and screenshots per
   release).
-- Triage failure-mode reports from operators back to RTAI / INTD / DRVR
+- Triage failure-mode reports from operators back to RTAI / INTD / RMCP / DRVR
   work-item lists (see §7).
 - Sign off on each new RTAI work item that lands by re-running this
   runbook against the change before the work item is marked Complete.
@@ -463,32 +465,31 @@ Responsibilities:
 | When | Who | What |
 |---|---|---|
 | Per release tag | Demo owner | Full re-run; refresh all assets |
-| Per merge to RTAI / INTD / DRVR / `anvil-checks` reasoning rules | Demo owner | Smoke test (one scenario, MCP path) within 24 h |
+| Per merge to RTAI / INTD / RMCP / DRVR / `anvil-checks` reasoning rules | Demo owner | Smoke test (one scenario, MCP path) within 24 h |
 | Weekly (Monday) | Demo owner | Full smoke test on the demo VM, log results |
 | Before any customer call | Operator (may be ≠ demo owner) | Dry-run of all three scenarios on the actual machine that will run the demo, within 24 h of the call |
 | Before any conference / public demo | Demo owner + operator | Full dry-run on the venue machine if possible, otherwise on a representative VM, within 4 h of the slot |
 
 Smoke-test failures block the next demo until triaged. The demo owner
-files a bug against RTAI / INTD / DRVR / `anvil-checks` and either
+files a bug against RTAI / INTD / RMCP / DRVR / `anvil-checks` and either
 recovers the path or removes the affected scenario from the runbook
 until it is fixed.
 
 ---
 
-## 7. Feedback to RTAI / INTD / DRVR
+## 7. Feedback to RTAI / INTD / RMCP / DRVR
 
 Gaps surfaced while writing this runbook that need to land as work
 items in the appropriate module:
 
-- **`anvil mcp install` command** — used in §1.4. RCLI3-016 (currently
-  Tier 3 in RELEASE-PLAN.md) is the closest existing item; pull
-  forward into A1 as required by RELEASE-PLAN.md `Required
-  prerequisites`. The runbook depends on `--client cursor` and
-  `--client claude-code` shipping in the locked release. Feedback to:
-  RCLI3 (or wherever the `anvil mcp` subcommand lives).
-- **`anvil mcp install --verify` flag** — used in §4.2. Not currently
-  scoped anywhere. Small addition — proposed addition to the same
-  work item as `anvil mcp install`. Feedback to: RCLI3 / DRVR.
+- **`anvil mcp install` + `anvil mcp serve --stdio`** — used in §1.4.
+  RCLI3-016 writes config pointing at `anvil mcp serve --stdio`; RMCP
+  now owns making that Rust stdio server real for the locked release.
+  The runbook depends on `--client cursor` and `--client claude-code`
+  shipping in A1. Feedback to: RMCP / RCLI3.
+- **`anvil mcp install --verify` flag** — used in §4.2. Covered by
+  RMCP-007 alongside the install wrapper and existing RCLI3-016b
+  config resolver. Feedback to: RMCP / RCLI3.
 - **`anvil intercept status` command + latency line** — used in §1.5
   and §4.4. INTD-011 (daemon status) covers shape; the **mid-edit
   latency rollup line** (p50 / p95) is not currently in INTD-011's
@@ -512,13 +513,11 @@ items in the appropriate module:
   `anvil-checks-reasoning` (TBD).
 - **MCP write-class tool inventory** — Scenarios A / B / C all assume
   Cursor's `apply_edit` and Claude Code's `fs.write` / `edit_file`
-  are intercepted. RTAI-006's expected outcome says "write-class tool
-  handlers wrap the underlying disk write" but does not enumerate the
-  specific tool names per agent. The runbook needs that enumeration
-  to ship pinned. Feedback to: RTAI-006 (extend expected outcome with
-  the per-client tool-name list).
+  route through the RMCP validate tool before the write lands. RMCP-004
+  owns the tool shape; RTAI-006 owns validation semantics. The runbook
+  needs that enumeration to ship pinned. Feedback to: RMCP-004 / RTAI-006.
 - **In-buffer Cursor edits bypass MCP** — flagged in §4.3.iii. If
-  Cursor edits the buffer without calling a tool, the MCP driver
+  Cursor edits the buffer without calling a tool, the Rust MCP shim
   cannot intercept. This is a real demo hazard. Feedback to: RTAI
   (open question) — does the LSP `didChange` path carry enough
   information to refuse, or is mid-edit always advisory there? See
@@ -544,9 +543,10 @@ correct but quantitatively soft.
   engine; RTAI-001 spike informs §1.5 latency expectations
 - [INTD module](../modules/intercept-daemon.aps.md) — daemon authority;
   INTD-011 owns `anvil intercept status` shape
-- [DRVR module](../modules/surface-drivers.aps.md) — drivers consumed
-  by scenarios; DRVR-004 owns the MCP cutover that Scenarios A–C ride
-  on
+- [RMCP module](../modules/rust-mcp-launch-shim.aps.md) — Rust MCP
+  stdio launch path that Scenarios A–C ride on
+- [DRVR module](../modules/surface-drivers.aps.md) — broader driver
+  framework; full MCP parity moves to RMCPF after the launch shim
 - [RELEASE-PLAN.md](../../RELEASE-PLAN.md) — current release context;
   this runbook closes the `Demo runbook` prerequisite under A1
 - ADR-031 — single latency rubric across INTD-014 / DRVR-002

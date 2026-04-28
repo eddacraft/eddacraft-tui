@@ -88,8 +88,9 @@ shape of the problem:
 - `INTD-014` measures save-time RPC latency. RTAI needs a separate
   mid-edit latency measurement because the budget is tighter and
   the call rate is higher.
-- `DRVR-001` ships `DriverClient`. RTAI extends — does not duplicate
-  — the client's request envelope.
+- `DRVR-001` ships `DriverClient` for editor/future TS driver surfaces. The A1
+  MCP path no longer waits for it: RMCP owns the Rust stdio launch shim and uses
+  RTAI's validation semantics directly.
 
 ## Cross-cutting convention
 
@@ -149,11 +150,12 @@ convention" section). Concretely:
   rendered via `publishDiagnostics` in the same channel as
   save-time results, with a marker distinguishing in-flight from
   on-disk findings.
-- **MCP-driver pre-write path** — the MCP server intercepts
-  `fs.write` / `apply_edit` style tool calls before they hit disk
-  and routes the proposed content through the same daemon RPC.
-  Failures are surfaced to the agent as a structured tool result
-  (not a silent log) so the agent can re-plan in-loop.
+- **MCP pre-write path** — for the current release, RMCP owns the
+  narrow Rust `anvil mcp serve --stdio` launch shim that validates
+  proposed writes before they hit disk. Full MCP-driver parity remains
+  downstream RMCPF/DRVR work. Failures are surfaced to the agent as a
+  structured tool result (not a silent log) so the agent can re-plan
+  in-loop.
 - **Observability** — every mid-edit decision emits a notification
   on the telemetry lane via the same envelope INTD-013 defined,
   with `correlation.source = "intercept"` and a new
@@ -174,10 +176,11 @@ convention" section). Concretely:
 - Save-time watch-flow polish — owned by **LAUNCH**.
 - The save-time gate itself, the editor diagnostics-on-save
   channel, code actions, suppression UI — owned by **DRVR-002 /
-  DRVR-003 / DRVR-004**.
-- LSP / HTTP / stdin server framing as a separate process — that
-  was RTVF's framing and is replaced by "drivers on the daemon".
-  No separate validation server ships from this module.
+  DRVR-003 / RMCPF** depending on surface.
+- LSP / HTTP / stdin server framing implementation — RMCP owns the
+  current-release Rust stdio MCP launch shim; DRVR/RMCPF own broader
+  driver and MCP-server parity work. RTAI owns validation semantics,
+  not the server process.
 - Notification fan-out across terminal / desktop / Slack — owned
   by **NOTIFY** (RTAI emits onto the telemetry lane;
   presentation is downstream).
@@ -186,8 +189,8 @@ convention" section). Concretely:
   not RTAI's job.
 - Editors beyond VSCode and the MCP server. Cursor and Claude Code
   reach Anvil via either an editor driver (where they speak LSP)
-  or the MCP driver (where they speak MCP). No bespoke "Cursor
-  driver" ships in v1.
+  or the Rust MCP launch shim / future MCP driver path (where they
+  speak MCP). No bespoke "Cursor driver" ships in v1.
 - Hot-path graph / boundary checks — those are queued behind
   INTR's "no graph recomputation on hot path" rule. Reasoning
   patterns and content checks first; structural checks later if
@@ -202,16 +205,20 @@ convention" section). Concretely:
   (telemetry mirror), [INTD-014](./intercept-daemon.aps.md)
   (JSON-RPC conformance + latency benchmark — RTAI's mid-edit
   benchmark extends it).
-- **Blocks on:** [DRVR-001](./surface-drivers.aps.md)
-  (`DriverClient`), [DRVR-002](./surface-drivers.aps.md)
+- **Blocks on for editor-driver tasks only:** [DRVR-001](./surface-drivers.aps.md)
+  (`DriverClient`) and [DRVR-002](./surface-drivers.aps.md)
   (editor-driver protocol — RTAI extends the method table with
-  the mid-edit RPC).
+  the mid-edit RPC). The A1 RMCP path does not block on these.
 - **Coordinates with:** [DRVR-003](./surface-drivers.aps.md) (VSCode
   extension cutover) — the editor-driver mid-edit path is most
   cheaply built once DRVR-003 is in flight, but RTAI's spike
   (RTAI-001) does not need to wait for DRVR-003 to complete.
-- **Coordinates with:** [DRVR-004](./surface-drivers.aps.md) (MCP
-  server cutover) — same rationale as DRVR-003.
+- **Coordinates with:** [rust-mcp-launch-shim](./rust-mcp-launch-shim.aps.md)
+  (RMCP) — current-release MCP path for pre-write validation in the
+  single Rust binary.
+- **Coordinates with:** [rust-mcp-full-port](./rust-mcp-full-port.aps.md)
+  (RMCPF) and DRVR — next-release full MCP parity and driver-framework
+  alignment.
 - **Coordinates with:** [LAUNCH](./launch-flow-readiness.aps.md)
   (save-time watch flow) — RTAI is the in-flight sibling. The two
   must produce diagnostics that look the same on the wire so
@@ -228,12 +235,10 @@ convention" section). Concretely:
 
 ## Tasks
 
-> Status: Proposed. Tasks are listed for review and to scope the
-> Phase-0 spike (RTAI-001). Module is **not yet Ready** — see
-> open questions below before promoting. RTAI-001 is intentionally
-> the only task that can start before INTD lands a stable IPC
-> surface; everything else blocks on INTD / DRVR work pinned in
-> "Dependencies".
+> Status: Ready. RTAI-001 completed the Phase-0 spike and promoted this module
+> to Ready. The current-release path is RMCP-first: RTAI owns validation
+> semantics and contracts, RMCP owns the Rust MCP stdio server/tool surface, and
+> DRVR remains the editor/future-driver path.
 
 ### RTAI-001: Phase-0 architecture spike (one driver, one rule, one fixture)
 
@@ -326,6 +331,9 @@ convention" section). Concretely:
 
 ### RTAI-004: DriverClient mid-edit envelope + debouncer
 
+- **Release note:** Deferred from A1 after the 2026-04-28 Rust MCP launch-shim
+  split. RMCP does not use the TS `DriverClient`; this task remains for the
+  editor-driver/future TS driver path.
 - **Intent:** Extend `DriverClient` so any driver can emit
   mid-edit requests with a built-in debouncer and content-hash
   dedup, without re-implementing either in each surface.
@@ -377,41 +385,27 @@ convention" section). Concretely:
 
 ---
 
-### RTAI-006: MCP-driver pre-write path
+### RTAI-006: MCP pre-write validation semantics
 
-- **Intent:** Intercept MCP tool calls that propose file writes
-  (e.g. `fs.write`, `apply_edit`, equivalents) before they hit
-  disk and route the proposed content through the daemon
-  mid-edit RPC.
-- **Expected Outcome:** The MCP driver's write-class tool
-  handlers wrap the underlying disk write with a
-  `validateMidEdit` call. If diagnostics are returned at or
-  above a configured severity, the MCP tool response includes
-  them in a structured shape the agent can read (not a silent
-  log) and — per project config — either blocks the write,
-  warns and proceeds, or proceeds with diagnostics attached.
-  The choice between block / warn / proceed is governed by the
-  same `.anvil.yaml` enforcement block INTD-008 already loads.
-  The MCP driver enumerates and wraps per-client write tools:
-  `apply_edit` (Cursor), `fs.write` and `edit_file` (Claude
-  Code), and performs tool-registration discovery for unknown
-  clients (logs the discovered write-class tool names so the
-  inventory is not silently incomplete when a new client is
-  attached). The enumeration is data, not code: the per-client
-  tool-name list lives alongside the driver and is updated
-  when a new client lands, not when a new release ships.
-- **Blocks on:** RTAI-004, DRVR-002, DRVR-004 (MCP driver
-  must exist before its pre-write path can be wired).
-- **Coordinates with:** DRVR-006 (MCP daemon-RPC translation
-  table — the mid-edit method must appear there with the right
-  category) and DRVR-007 (driver trust boundary — the MCP
-  redaction contract applies to mid-edit content excerpts the
-  same way it applies to save-time scan results).
-- **Validation:** `pnpm --filter @eddacraft/anvil-mcp test`
-  plus an E2E test that drives a fake MCP `apply_edit` call
-  carrying content known to trigger the secret-detection rule;
-  asserts the tool response carries structured diagnostics and
-  honours the configured enforcement mode.
+- **Intent:** Define the validation semantics RMCP uses when an MCP client asks
+  Anvil to validate a proposed write before it hits disk.
+- **Expected Outcome:** RMCP's validation tool accepts proposed write content,
+  evaluates it through the daemon or shared Rust validation path, and returns a
+  structured tool response the agent can read. If diagnostics are returned at or
+  above a configured severity, the response either blocks the write, warns, or
+  proceeds with diagnostics attached. The choice is governed by the same
+  `.anvil.yaml` enforcement block INTD-008 loads. RTAI owns the semantic
+  contract; RMCP owns the Rust stdio MCP server/tool implementation. Full
+  per-client write-tool inventory for the next-release parity server belongs to
+  RMCPF.
+- **Blocks on:** RTAI-002 and RMCP-004/RMCP-005 (Rust MCP launch shim must expose
+  the validate tool and validation adapter before this path can be proven).
+- **Coordinates with:** RMCP-006 (canonical diagnostics and redaction), RMCPF
+  (full MCP parity), and DRVR-007 (driver trust boundary for any future
+  driver-participating MCP surface).
+- **Validation:** RMCP E2E test drives a fake MCP validate-write call carrying
+  content known to trigger the secret-detection rule; asserts the tool response
+  carries structured diagnostics and honours the configured enforcement mode.
 - **Confidence:** medium
 - **Status:** Proposed
 
@@ -452,13 +446,15 @@ convention" section). Concretely:
   cross-session subscription rejection) and every driver that
   consumes the mid-edit RPC must run it. New drivers fail CI
   if they swallow an error into "no diagnostics".
-- **Blocks on:** RTAI-002, RTAI-004.
+- **Blocks on:** RTAI-002 and RMCP-004/RMCP-006 for the A1 Rust MCP path;
+  RTAI-004 is an additional dependency only for future TS `DriverClient`
+  consumers.
 - **Coordinates with:** RTAI-005, RTAI-006 (consumers of the
   contract — both must run the fixture in their test suites).
 - **Validation:** Contract fixture lives in
   `crates/anvil-intercept/tests/midedit_contract.rs` (Rust
-  side) and is mirrored to a TS consumer fixture for the
-  driver client; CI fails if either side drifts.
+  side) and is consumed by RMCP. A TS consumer fixture is added later when
+  RTAI-004/DRVR-001 land; CI fails if any active consumer drifts.
 - **Confidence:** medium
 - **Status:** Proposed
 
@@ -527,7 +523,7 @@ convention" section). Concretely:
   through LSP `didChange` (advisory only) — the daemon cannot
   refuse the write because there is no pending tool call to
   refuse. The same physical keystroke can be demo-stable
-  (when Cursor routes via `apply_edit` through the MCP driver)
+  (when Cursor routes via `apply_edit` through the Rust MCP shim)
   or demo-fragile (when Cursor edits the buffer directly and
   only fires `didChange`). RTAI-002's protocol must document
   this asymmetry explicitly so demo operators understand which

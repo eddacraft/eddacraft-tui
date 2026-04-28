@@ -445,8 +445,9 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Confidence:** high (176 LOC in historical Node.js; template generation with path
   safety)
 - **Priority:** **High** (was Low — promoted with pull-forward)
-- **Dependencies:** RCLI (foundation), DRVR-002 (driver protocol — so the
-  generated config points at a working daemon endpoint)
+- **Dependencies:** RCLI (foundation), RMCP-002 (the generated stdio config
+  points at `anvil mcp serve --stdio`; RMCP owns making that command real for
+  the A1 launch path)
 
 ---
 
@@ -479,8 +480,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
   write are already implemented there)
 - **Priority:** **High** (A1 demo runbook prerequisite)
 - **Dependencies:** RCLI3-016 (provides the underlying config writer and
-  client-path resolution), DRVR-002 (driver protocol — generated entry must
-  point at a working daemon endpoint)
+  client-path resolution), RMCP-002 (generated entry must point at a working
+  Rust stdio MCP server)
 
 ---
 
