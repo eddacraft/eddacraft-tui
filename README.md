@@ -191,10 +191,10 @@ and tooling.
 | `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
 | `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                               |
 | `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
-| `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                               |
+| `archive/anvil-vscode-extension`     | `anvil-vscode`                          | VS Code integration                               |
 | `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
 | `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
-| `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
+| `archive/anvil-mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
 | `packages/libs/render`          | `@eddacraft/render`                     | Shared render-layer utilities                     |
 | `packages/shared`               | —                                       | Shared cross-cutting utilities                    |
 | `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |

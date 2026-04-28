@@ -54,7 +54,7 @@ enforcement/provenance requirements conflict, GV2 wins and this module adapts.
 - GV2 — graph taxonomy, stable identity, deltas, persistence, query traits, and
   hot/non-hot path boundary
 - RMCPF — eventual Rust MCP parity surface for existing server functionality
-- `packages/mcp-server` — interim delivery surface until RMCPF lands
+- `archive/anvil-mcp-server` — interim delivery surface until RMCPF lands
 - `anvil-kernel` / `anvil-kernel-types` — graph query implementation and
   diagnostic/source-span types
 - RTAI/RMCP — release launch path, kept separate from graph context delivery

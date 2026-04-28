@@ -115,20 +115,12 @@ describe('Smoke › @eddacraft/anvil-adapters', () => {
   });
 });
 
-// ─── Surface: MCP Server ────────────────────────────────────────
-
-describe('Smoke › @eddacraft/anvil-mcp-server', () => {
-  it('exports createAnvilMcpServer', async () => {
-    const mod = await import('@eddacraft/anvil-mcp-server');
-    expect(typeof mod.createAnvilMcpServer).toBe('function');
-  });
-
-  it('exports config generation', async () => {
-    const mod = await import('@eddacraft/anvil-mcp-server');
-    expect(typeof mod.generateMcpConfig).toBe('function');
-    expect(Array.isArray(mod.SUPPORTED_TARGETS)).toBe(true);
-  });
-});
+// ─── Surface: MCP Server (archived per ADR-033) ─────────────────
+// Smoke tests for `@eddacraft/anvil-mcp-server` removed —
+// package archived to `archive/anvil-mcp-server/`. The launch MCP
+// path runs through RMCP (`anvil mcp serve --stdio` in the Rust
+// binary); RMCPF will replace these contracts in Rust and own its
+// own smoke tests.
 
 // ─── Surface: Edda Stack ────────────────────────────────────────
 

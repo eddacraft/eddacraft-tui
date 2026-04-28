@@ -18,7 +18,7 @@ anvil mcp install
   -> client warns or blocks before writing content
 ```
 
-This is a launch shim, not a port of `packages/mcp-server`.
+This is a launch shim, not a port of `archive/anvil-mcp-server`.
 
 ## Contract Summary
 
@@ -60,7 +60,7 @@ Requirements:
 - Reserve stdout exclusively for MCP protocol frames.
 - Send all logs, diagnostics about server startup, and panic summaries to stderr.
 - Exit cleanly on EOF and on the JSON-RPC `shutdown` / `exit` lifecycle.
-- Never require Node.js, pnpm, or `packages/mcp-server`.
+- Never require Node.js, pnpm, or `archive/anvil-mcp-server`.
 - Load enough workspace context to validate supplied paths, but do not scan the
   workspace at startup.
 
@@ -268,7 +268,7 @@ the embedded fallback path.
 The embedded fallback exists only for the launch slice. It may call the shared
 Rust rule pipeline directly, starting with secret detection and any available A1
 reasoning-pattern rules. It must not shell out to Node.js or call
-`packages/mcp-server`.
+`archive/anvil-mcp-server`.
 
 Operational backend failures return a structured MCP tool error:
 

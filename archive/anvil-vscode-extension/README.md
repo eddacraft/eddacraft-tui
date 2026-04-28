@@ -1,4 +1,41 @@
-# Anvil VS Code Extension
+# Anvil VS Code Extension (Archived)
+
+> **Archived (2026-04-29) under [ADR-033](../../plans/decisions/033-park-ide-mcp-retire-ts-scanner.md).**
+> This package was moved from `packages/vscode-extension/` to
+> `archive/anvil-vscode-extension/` because the in-process
+> TypeScript scanner it imported is being retired alongside it.
+> It is **not built, tested, released, or published to the
+> Marketplace**. The `pnpm-workspace.yaml` `'!archive/**'` glob
+> excludes it from the active workspace.
+>
+> **Use this instead.** The `anvil` CLI runs the authoritative
+> Rust scanner this extension used to bridge to:
+>
+> ```bash
+> anvil check          # one-shot validation
+> anvil watch          # save-time watcher
+> anvil mcp install    # configure MCP for Cursor / Claude Code
+> ```
+>
+> **When IDE integration returns.** A new active package will be
+> created on the daemon-driver path
+> ([DRVR-003](../../plans/modules/surface-drivers.aps.md)) once
+> INTD reaches a stable IPC surface, or via another return path
+> resolved by a follow-up ADR. This archive is reference material
+> for that work; the new package is not expected to be a literal
+> un-archive of this one.
+>
+> **Why archived rather than evolved in place:** The extension
+> imports the TS scanner; carrying the TS scanner alive for a
+> surface that is not on the current release path is dual-engine
+> cost without realised benefit. ADR-033 retires the TS scanner
+> now and accepts the IDE gap until a daemon-shaped extension
+> lands.
+>
+> The documentation below describes the pre-archive feature set
+> and is preserved for historical context.
+
+---
 
 Deterministic validation and quality gates for AI-generated code plans.
 
