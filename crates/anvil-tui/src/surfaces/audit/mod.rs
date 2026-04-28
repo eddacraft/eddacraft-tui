@@ -189,11 +189,9 @@ impl AuditState {
 
     pub fn handle_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.selected_item > 0 {
-                    self.selected_item -= 1;
-                    self.expanded = false;
-                }
+            Action::Up if self.selected_item > 0 => {
+                self.selected_item -= 1;
+                self.expanded = false;
             }
             Action::Down => {
                 let max = self.max_items_in_panel().saturating_sub(1);
@@ -212,10 +210,10 @@ impl AuditState {
                 self.selected_item = 0;
                 self.expanded = false;
             }
-            Action::Select => {
-                if self.focused_panel == AuditPanel::Issues && !self.data.issues.is_empty() {
-                    self.expanded = !self.expanded;
-                }
+            Action::Select
+                if self.focused_panel == AuditPanel::Issues && !self.data.issues.is_empty() =>
+            {
+                self.expanded = !self.expanded;
             }
             Action::Character('f') => {
                 if let Some(request) = self.selected_issue_fix_request() {

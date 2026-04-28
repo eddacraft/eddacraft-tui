@@ -164,7 +164,7 @@ fn scan_proc() -> (u64, u64, Vec<(String, u64)>) {
     }
     let total_watches: u64 = per_pid.iter().map(|(_, c)| c).sum();
     let total_procs = per_pid.len() as u64;
-    per_pid.sort_by(|a, b| b.1.cmp(&a.1));
+    per_pid.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     per_pid.truncate(TOP_CONSUMERS_SHOWN);
     (total_watches, total_procs, per_pid)
 }

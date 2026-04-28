@@ -1111,7 +1111,7 @@ fn run_welcome_hub(
                 if onboarding_ok {
                     let marker_path = first_run_marker_path()?;
                     if let Err(err) = create_first_run_marker(&marker_path) {
-                        eprintln!("[welcome] warning: failed to create first-run marker: {err}",);
+                        eprintln!("[welcome] warning: failed to create first-run marker: {err}");
                     }
                 }
 

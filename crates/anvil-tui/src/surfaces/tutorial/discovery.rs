@@ -99,7 +99,7 @@ impl ScanResults {
     pub fn sorted_findings(&self) -> Vec<&Finding> {
         let mut sorted: Vec<&Finding> = self.findings.iter().collect();
         // Sort descending: Error > Warning > Info.
-        sorted.sort_by(|a, b| b.severity.cmp(&a.severity));
+        sorted.sort_by_key(|finding| std::cmp::Reverse(finding.severity));
         sorted
     }
 

@@ -126,17 +126,13 @@ impl DoctorState {
 
     pub fn handle_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                    self.expanded = false;
-                }
+            Action::Up if self.selected > 0 => {
+                self.selected -= 1;
+                self.expanded = false;
             }
-            Action::Down => {
-                if self.selected < self.checks.len().saturating_sub(1) {
-                    self.selected += 1;
-                    self.expanded = false;
-                }
+            Action::Down if self.selected < self.checks.len().saturating_sub(1) => {
+                self.selected += 1;
+                self.expanded = false;
             }
             Action::Select => {
                 self.expanded = !self.expanded;

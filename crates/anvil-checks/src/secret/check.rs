@@ -115,9 +115,7 @@ fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {
 }
 
 fn file_exceeds_size_limit(file: &str) -> bool {
-    fs::metadata(file)
-        .map(|m| m.len() >= MAX_FILE_SIZE)
-        .unwrap_or(false)
+    fs::metadata(file).is_ok_and(|m| m.len() >= MAX_FILE_SIZE)
 }
 
 fn deduplicate_findings(findings: Vec<SecretFinding>) -> Vec<SecretFinding> {

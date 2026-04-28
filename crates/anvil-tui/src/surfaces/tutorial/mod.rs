@@ -327,15 +327,11 @@ impl TutorialState {
 
     fn handle_path_select(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.path_selected > 0 {
-                    self.path_selected -= 1;
-                }
+            Action::Up if self.path_selected > 0 => {
+                self.path_selected -= 1;
             }
-            Action::Down => {
-                if self.path_selected < self.paths.len().saturating_sub(1) {
-                    self.path_selected += 1;
-                }
+            Action::Down if self.path_selected < self.paths.len().saturating_sub(1) => {
+                self.path_selected += 1;
             }
             Action::Select => {
                 if let Some(&path) = self.paths.get(self.path_selected) {

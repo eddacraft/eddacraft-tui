@@ -172,22 +172,16 @@ impl BrowserState {
 
     fn handle_categories_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.cat_selected > 0 {
-                    self.cat_selected -= 1;
-                }
+            Action::Up if self.cat_selected > 0 => {
+                self.cat_selected -= 1;
             }
-            Action::Down => {
-                if self.cat_selected < self.categories.len().saturating_sub(1) {
-                    self.cat_selected += 1;
-                }
+            Action::Down if self.cat_selected < self.categories.len().saturating_sub(1) => {
+                self.cat_selected += 1;
             }
-            Action::Select | Action::Right => {
-                if !self.categories.is_empty() {
-                    self.view = BrowserView::Templates;
-                    self.tmpl_selected = 0;
-                    self.search_term.clear();
-                }
+            Action::Select | Action::Right if !self.categories.is_empty() => {
+                self.view = BrowserView::Templates;
+                self.tmpl_selected = 0;
+                self.search_term.clear();
             }
             Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
@@ -199,21 +193,15 @@ impl BrowserState {
         let filtered_count = self.filtered_templates().len();
 
         match action {
-            Action::Up => {
-                if self.tmpl_selected > 0 {
-                    self.tmpl_selected -= 1;
-                }
+            Action::Up if self.tmpl_selected > 0 => {
+                self.tmpl_selected -= 1;
             }
-            Action::Down => {
-                if self.tmpl_selected < filtered_count.saturating_sub(1) {
-                    self.tmpl_selected += 1;
-                }
+            Action::Down if self.tmpl_selected < filtered_count.saturating_sub(1) => {
+                self.tmpl_selected += 1;
             }
-            Action::Select | Action::Right => {
-                if filtered_count > 0 {
-                    self.view = BrowserView::Detail;
-                    self.var_selected = 0;
-                }
+            Action::Select | Action::Right if filtered_count > 0 => {
+                self.view = BrowserView::Detail;
+                self.var_selected = 0;
             }
             Action::Back | Action::Left => {
                 self.view = BrowserView::Categories;
@@ -230,15 +218,11 @@ impl BrowserState {
         let var_count = self.selected_template().map_or(0, |t| t.variables.len());
 
         match action {
-            Action::Up => {
-                if self.var_selected > 0 {
-                    self.var_selected -= 1;
-                }
+            Action::Up if self.var_selected > 0 => {
+                self.var_selected -= 1;
             }
-            Action::Down => {
-                if self.var_selected < var_count.saturating_sub(1) {
-                    self.var_selected += 1;
-                }
+            Action::Down if self.var_selected < var_count.saturating_sub(1) => {
+                self.var_selected += 1;
             }
             Action::Select => {
                 if let Some(t) = self.selected_template() {

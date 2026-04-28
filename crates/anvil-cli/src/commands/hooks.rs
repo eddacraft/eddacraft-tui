@@ -841,15 +841,16 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                         // are still possible. Read once per event so the
                         // duplicate-risk maths in `print_coexistence_report`
                         // matches reality.
-                        let managed_count =
-                            list_config_hook_commands(&workspace_root, &report.event)
-                                .map(|entries| {
-                                    entries
-                                        .iter()
-                                        .filter(|c| is_anvil_managed_command(c))
-                                        .count()
-                                })
-                                .unwrap_or(0);
+                        let managed_count = list_config_hook_commands(
+                            &workspace_root,
+                            &report.event,
+                        )
+                        .map_or(0, |entries| {
+                            entries
+                                .iter()
+                                .filter(|c| is_anvil_managed_command(c))
+                                .count()
+                        });
                         print_coexistence_report(report, managed_count);
                     }
                     crate::output::plain::blank();

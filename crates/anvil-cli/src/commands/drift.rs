@@ -456,7 +456,7 @@ fn save_snapshot(workspace: &Path, snapshot: &DriftSnapshot, name: Option<&str>)
     if let Some(n) = name
         && path.exists()
     {
-        bail!("Snapshot '{n}' already exists. Use a different name or delete the existing one.",);
+        bail!("Snapshot '{n}' already exists. Use a different name or delete the existing one.");
     }
 
     let json = serde_json::to_string_pretty(snapshot)?;

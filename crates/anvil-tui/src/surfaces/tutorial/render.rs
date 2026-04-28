@@ -28,12 +28,10 @@ fn progress_glyphs() -> (&'static str, &'static str, &'static str) {
 }
 
 fn ascii_mode() -> bool {
-    std::env::var("ANVIL_ASCII")
-        .map(|v| {
-            let v = v.trim();
-            v.eq_ignore_ascii_case("1") || v.eq_ignore_ascii_case("true")
-        })
-        .unwrap_or(false)
+    std::env::var("ANVIL_ASCII").is_ok_and(|v| {
+        let v = v.trim();
+        v.eq_ignore_ascii_case("1") || v.eq_ignore_ascii_case("true")
+    })
 }
 
 /// Fit `title` inside a block whose outer width is `area_width`. A Ratatui

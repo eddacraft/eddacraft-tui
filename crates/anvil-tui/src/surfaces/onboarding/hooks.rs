@@ -360,15 +360,11 @@ impl HooksState {
 
     fn handle_overview_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.cursor > 0 {
-                    self.cursor -= 1;
-                }
+            Action::Up if self.cursor > 0 => {
+                self.cursor -= 1;
             }
-            Action::Down => {
-                if self.cursor < self.hooks.len().saturating_sub(1) {
-                    self.cursor += 1;
-                }
+            Action::Down if self.cursor < self.hooks.len().saturating_sub(1) => {
+                self.cursor += 1;
             }
             Action::Toggle => {
                 if let Some(on) = self.selected_hooks.get_mut(self.cursor) {

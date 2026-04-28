@@ -206,17 +206,13 @@ impl GateState {
         let filtered_count = self.filtered_checks().len();
 
         match action {
-            Action::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                    self.expanded = false;
-                }
+            Action::Up if self.selected > 0 => {
+                self.selected -= 1;
+                self.expanded = false;
             }
-            Action::Down => {
-                if self.selected < filtered_count.saturating_sub(1) {
-                    self.selected += 1;
-                    self.expanded = false;
-                }
+            Action::Down if self.selected < filtered_count.saturating_sub(1) => {
+                self.selected += 1;
+                self.expanded = false;
             }
             Action::Select => {
                 self.expanded = !self.expanded;

@@ -79,15 +79,11 @@ impl WelcomeState {
 
     pub fn handle_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                }
+            Action::Up if self.selected > 0 => {
+                self.selected -= 1;
             }
-            Action::Down => {
-                if self.selected < QuickStartOption::ALL.len() - 1 {
-                    self.selected += 1;
-                }
+            Action::Down if self.selected < QuickStartOption::ALL.len() - 1 => {
+                self.selected += 1;
             }
             Action::Select => {
                 self.chosen = Some(QuickStartOption::ALL[self.selected]);
