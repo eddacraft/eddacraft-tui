@@ -67,13 +67,29 @@ impl Shutdown {
         (Self { tx }, ShutdownToken { rx })
     }
 
+    /// Mint a fresh [`ShutdownToken`] from this handle. The new token
+    /// observes the current shutdown state immediately, so a token
+    /// minted after [`Shutdown::trigger`] resolves on the next
+    /// [`ShutdownToken::cancelled`] without waiting.
+    ///
+    /// Use this when a downstream consumer (an INTD-002 IPC handler,
+    /// for example) needs its own token but the original receiver
+    /// has already been moved into another future.
+    #[must_use]
+    pub fn token(&self) -> ShutdownToken {
+        ShutdownToken {
+            rx: self.tx.subscribe(),
+        }
+    }
+
     /// Request shutdown. Idempotent — repeated calls are a no-op.
     ///
     /// Uses `send_replace`, which never fails: it overwrites the
-    /// watched value regardless of receiver count and wakes any
-    /// outstanding listeners. Even after every [`ShutdownToken`] has
-    /// been dropped (no one to notify), the trigger is recorded for
-    /// any token cloned later from this handle.
+    /// watched value regardless of receiver count. Even after every
+    /// [`ShutdownToken`] has been dropped (no one to notify), the
+    /// trigger is recorded — any token minted later via
+    /// [`Shutdown::token`] observes the triggered state on its first
+    /// [`ShutdownToken::cancelled`] call.
     pub fn trigger(&self) {
         self.tx.send_replace(true);
     }
@@ -242,15 +258,25 @@ mod tests {
     }
 
     /// Trigger applied after every receiver dropped still records the
-    /// state on a freshly-cloned token. `send_replace` (used by
-    /// `trigger`) never fails on missing receivers, unlike `send`.
+    /// state, and a fresh token minted via [`Shutdown::token`]
+    /// observes it without further work. This is the property
+    /// `send_replace` (used by `trigger`) gives us over `send`, which
+    /// would silently no-op when no receivers exist.
     #[tokio::test(flavor = "current_thread")]
     async fn shutdown_trigger_survives_all_tokens_dropped() {
         let (shutdown, token) = Shutdown::new();
         drop(token);
-        // No receivers exist. With `send` this would silently no-op
-        // and discard an Err; `send_replace` overwrites the value so a
-        // later token clone observes the trigger.
         shutdown.trigger();
+
+        // Mint a brand-new token from the handle and verify it
+        // observes the triggered state. Without this assertion the
+        // test would pass even if `trigger` became a no-op.
+        let mut late_token = shutdown.token();
+        let result = timeout(Duration::from_secs(1), late_token.cancelled())
+            .await;
+        assert!(
+            result.is_ok(),
+            "fresh token did not observe pre-triggered shutdown",
+        );
     }
 }

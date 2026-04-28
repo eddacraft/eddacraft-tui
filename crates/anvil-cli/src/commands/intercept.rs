@@ -26,9 +26,9 @@ enum InterceptCommand {
 
 #[derive(Debug, Args)]
 struct StartArgs {
-    /// Stay in the foreground; logs stream to stdout/stderr and
-    /// SIGINT/SIGTERM stops the daemon cleanly. Demo runbook §4.1
-    /// fallback path.
+    /// Stay in the foreground; logs stream to stdout/stderr.
+    /// Ctrl+C (and SIGTERM on Unix) stops the daemon cleanly. Demo
+    /// runbook §4.1 fallback path.
     #[arg(long)]
     foreground: bool,
 }
@@ -54,9 +54,16 @@ fn run_start(args: &StartArgs) -> Result<()> {
         let (shutdown, token) = Shutdown::new();
         let signal_shutdown = shutdown.clone();
         tokio::spawn(async move {
-            if wait_for_shutdown_signal().await.is_ok() {
-                signal_shutdown.trigger();
+            // Trigger shutdown on either a signal arriving or a
+            // signal-handler installation failure. Swallowing the Err
+            // would leave the daemon hanging in restricted /
+            // containerised environments where signal install fails;
+            // the operator-visible diagnostic plus a triggered
+            // shutdown lets the foreground loop unwind cleanly.
+            if let Err(err) = wait_for_shutdown_signal().await {
+                eprintln!("anvil intercept: shutdown signal handler failed: {err}");
             }
+            signal_shutdown.trigger();
         });
         run_foreground(ForegroundOpts::default(), token).await
     })

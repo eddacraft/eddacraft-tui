@@ -45,9 +45,16 @@ fn main() -> ExitCode {
                 let (shutdown, token) = Shutdown::new();
                 let signal_shutdown = shutdown.clone();
                 tokio::spawn(async move {
-                    if wait_for_shutdown_signal().await.is_ok() {
-                        signal_shutdown.trigger();
+                    // Trigger shutdown whether the signal arrived or
+                    // the handler install itself failed — silently
+                    // swallowing Err would leave the daemon hanging
+                    // in restricted environments. The operator-visible
+                    // diagnostic plus a triggered shutdown lets the
+                    // foreground loop unwind cleanly.
+                    if let Err(err) = wait_for_shutdown_signal().await {
+                        eprintln!("anvil-intercept: shutdown signal handler failed: {err}");
                     }
+                    signal_shutdown.trigger();
                 });
                 run_foreground(ForegroundOpts::default(), token).await
             }

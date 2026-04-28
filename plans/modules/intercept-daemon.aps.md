@@ -131,13 +131,16 @@ a new lane.
   scaffolded — `crates/anvil-intercept-proto/` (NDJSON envelope,
   `SessionId`, `IpcCommand` enum: register/heartbeat/unregister/list),
   `crates/anvil-intercept/` (lib + bin with `run_foreground`,
-  cooperative `Shutdown`/`ShutdownToken` watch handles, SIGINT-driven
-  exit). CLI surface `anvil intercept start --foreground` wired through
-  `crates/anvil-cli/src/commands/intercept.rs`. 5 proto tests + 3
-  daemon tests passing; smoke test confirms SIGINT → exit 0. Still
-  outstanding for INTD-001 closure: PID file with single-instance
-  guard, parser-concurrency decision capture, full-suite Windows CI
-  run on the new bin, demo runbook §4.1 fallback note refresh.
+  cooperative `Shutdown`/`ShutdownToken` watch handles, shared
+  `wait_for_shutdown_signal` helper that races SIGINT (Ctrl+C) and
+  Unix SIGTERM). CLI surface `anvil intercept start --foreground`
+  wired through `crates/anvil-cli/src/commands/intercept.rs`. Proto,
+  daemon, and rules unit tests passing; smoke tests confirm SIGINT
+  and (on Unix) SIGTERM → exit 0 against both the standalone bin and
+  the CLI subcommand. Still outstanding for INTD-001 closure: PID
+  file with single-instance guard, parser-concurrency decision
+  capture, full-suite Windows CI run on the new bin, demo runbook
+  §4.1 fallback note refresh.
 - **Trigger flag (parser concurrency ADR):** The LANGTS audit
   (`plans/specs/2026-04-26-langts-audit-report.md` §5.3, K3) deferred
   the parser thread-locality ADR conditionally. **At INTD-001 review,

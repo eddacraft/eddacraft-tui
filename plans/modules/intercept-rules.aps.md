@@ -96,13 +96,17 @@ daemon hot path.
 - **Progress (2026-04-28, `feat/intercept-scaffold`):** Crate created at
   `crates/anvil-intercept-rules/` and added to the workspace. `InterceptRule`
   trait shipped with `rule_id`/`needs_content`/`evaluate(&RuleInput<'_>) ->
-  RuleDecision`, marked `Send + Sync`, dyn-compatible (compile-time test
-  asserts `Vec<Box<dyn InterceptRule>>` is constructible). `RuleInput`
-  carries path + change kind + optional borrowed content so the daemon
-  on-disk path and the RMCP/RTAI mid-edit path can both call rules without
-  copying. `RuleDecision` is `Allow | Interrupt(InterruptReason{rule_id,
-  message, line})`, serde-tagged `decision`. Five unit tests passing.
-  Outstanding for closure: trait-doc example, doc-test for the
+  RuleDecision`, bound `Send + Sync + 'static`, dyn-compatible
+  (compile-time test asserts `Vec<Box<dyn InterceptRule>>` is constructible).
+  `RuleInput` carries path + change kind + optional borrowed content so
+  the daemon on-disk path and the RMCP/RTAI mid-edit path can both call
+  rules without copying. `RuleDecision` is `Allow |
+  Interrupt(InterruptReason{rule_id, message, line})`, serde-tagged
+  `decision`; convenience constructors `RuleDecision::allow()`,
+  `interrupt()`, and `interrupt_at()` cover the common cases. Unit tests
+  cover dyn-dispatch round-trip, allow/interrupt/interrupt_at, RuleInput
+  shape, serde shape, and `catch_unwind` panic-isolation contract for the
+  registry. Outstanding for closure: trait-doc example, doc-test for the
   `RuleDecision::interrupt` constructor, integration test that round-trips
   a `Box<dyn InterceptRule>` through a sample registry harness once
   INTR-006 lands.

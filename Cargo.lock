@@ -1044,7 +1044,6 @@ dependencies = [
  "clap",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
- "serde",
  "tokio",
  "workspace-hack",
 ]

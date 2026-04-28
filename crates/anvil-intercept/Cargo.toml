@@ -18,7 +18,6 @@ anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraf
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
 anyhow = { workspace = true }
 clap = { workspace = true }
-serde = { workspace = true }
 tokio = { workspace = true }
 workspace-hack.workspace = true
 
