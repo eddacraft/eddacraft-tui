@@ -10,14 +10,23 @@
 //! - **Permission pinning** — symlink refusal, owner-and-mode checks,
 //!   `0700` directories, `0600` socket files. None of this is left to
 //!   umask.
-//! - **NDJSON framing** — `tokio::io::AsyncBufReadExt::lines()` with a
-//!   1 MiB per-line cap, malformed-line skip, structured logs.
+//! - **NDJSON framing** — a custom line reader (see [`read_one_line`])
+//!   so the 1 MiB per-line cap is enforced byte-by-byte before UTF-8
+//!   conversion. Malformed lines are logged and skipped without
+//!   tearing the connection down. The stock
+//!   `tokio::io::AsyncBufReadExt::lines()` API has no size cap, which
+//!   is why the listener does not use it.
 //! - **Per-connection task spawning** — handlers go on a `JoinSet` so
 //!   shutdown can drain them with a bounded deadline.
 //!
-//! Session-state mutation lives behind a [`SessionDispatcher`] trait
-//! instead of a concrete registry: INTD-003 lands the registry and
-//! plugs in here without touching the listener body.
+//! Session-state mutation lives behind the
+//! [`registry::SessionDispatcher`](crate::registry::SessionDispatcher)
+//! trait. The listener parameterises over it so tests can substitute a
+//! recording double and the daemon can plug the concrete
+//! [`SessionRegistry`](crate::registry::SessionRegistry) without
+//! touching the listener body. There is exactly one dispatcher trait
+//! across the crate — keeping it in `registry` (rather than duplicating
+//! it here) avoids the wire surface and the registry surface drifting.
 //!
 //! See `plans/modules/intercept-daemon.aps.md` INTD-002 for the
 //! end-to-end pinning council review M8 demanded.
@@ -27,12 +36,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anvil_intercept_proto::{IpcCommand, IpcEnvelope, SessionId};
+use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::task::JoinSet;
 
 use crate::ShutdownToken;
+use crate::registry::SessionDispatcher;
 
 /// Maximum size of a single NDJSON line, in bytes. Lines larger than
 /// this cause the connection to be torn down with [`IpcError::OversizedLine`]
@@ -46,54 +56,36 @@ pub const MAX_LINE_BYTES: usize = 1 << 20; // 1 MiB
 /// signal-ladder semantics.
 pub const SHUTDOWN_DRAIN_DEADLINE: Duration = Duration::from_millis(250);
 
-/// Hooks the listener calls when it dispatches a wire command.
-///
-/// Concrete implementations live in INTD-003 (session registry) and in
-/// the daemon's eventual status/diagnostics surface (INTD-011). Tests
-/// use [`NoopDispatcher`] — it records nothing — or a simple
-/// recording double.
-pub trait SessionDispatcher: Send + Sync + 'static {
-    /// Register a session. Idempotency is the registry's call.
-    fn register(&self, id: &SessionId) -> Result<(), DispatchError>;
-    /// Refresh a session's heartbeat TTL.
-    fn heartbeat(&self, id: &SessionId) -> Result<(), DispatchError>;
-    /// Remove a session from the registry.
-    fn unregister(&self, id: &SessionId) -> Result<(), DispatchError>;
-    /// List the currently registered sessions.
-    fn list(&self) -> Vec<SessionId>;
-}
-
 /// Default no-op dispatcher used by tests and by the very first
 /// listener spin-up before the registry is wired in. Production
-/// callers always supply a real dispatcher.
+/// callers always supply a real
+/// [`SessionRegistry`](crate::registry::SessionRegistry).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoopDispatcher;
 
 impl SessionDispatcher for NoopDispatcher {
-    fn register(&self, _id: &SessionId) -> Result<(), DispatchError> {
+    fn register(
+        &self,
+        _id: &anvil_intercept_proto::SessionId,
+        _worktree: &Path,
+    ) -> Result<(), crate::registry::RegistryError> {
         Ok(())
     }
-    fn heartbeat(&self, _id: &SessionId) -> Result<(), DispatchError> {
+    fn heartbeat(
+        &self,
+        _id: &anvil_intercept_proto::SessionId,
+    ) -> Result<(), crate::registry::RegistryError> {
         Ok(())
     }
-    fn unregister(&self, _id: &SessionId) -> Result<(), DispatchError> {
-        Ok(())
+    fn unregister(
+        &self,
+        _id: &anvil_intercept_proto::SessionId,
+    ) -> Result<bool, crate::registry::RegistryError> {
+        Ok(false)
     }
-    fn list(&self) -> Vec<SessionId> {
+    fn list(&self) -> Vec<anvil_intercept_proto::SessionRecord> {
         Vec::new()
     }
-}
-
-/// Errors returned by a [`SessionDispatcher`] hook. Treated by the
-/// listener as a logged warning — the connection stays open.
-#[derive(Debug, Error)]
-pub enum DispatchError {
-    #[error("session not found: {0}")]
-    NotFound(String),
-    #[error("session already registered: {0}")]
-    AlreadyRegistered(String),
-    #[error("dispatch failure: {0}")]
-    Other(String),
 }
 
 /// Errors that the IPC listener surfaces. Bind-time failures bubble
@@ -217,7 +209,15 @@ mod unix_perms {
 
     /// Ensure the socket directory exists with mode 0700 owned by the
     /// current user. Creates it if missing — otherwise verifies the
-    /// existing one. Refuses to follow symlinks at any step.
+    /// existing one. Refuses if the target itself is a symlink. Parent
+    /// path components are NOT lstat-checked individually — `mkdir`
+    /// does follow symlinks while resolving the parent path. The
+    /// strong invariant we enforce is on the socket directory and
+    /// socket file we ultimately bind on; the launcher's `DriverClient`
+    /// (DRVR-001) re-validates owner / mode from its side. Tightening
+    /// to per-component `O_NOFOLLOW`-style traversal would add
+    /// platform-specific code on Windows and is deferred until a
+    /// concrete attack on parent traversal surfaces.
     pub fn ensure_dir(dir: &Path, current_uid: u32) -> Result<(), IpcError> {
         match fs::symlink_metadata(dir) {
             Ok(meta) => {
@@ -342,14 +342,26 @@ impl<D: SessionDispatcher> IpcListener<D> {
                     return Err(IpcError::SocketPathNotASocket(path.to_path_buf()));
                 }
                 // Existing socket: try to connect. If a live daemon
-                // answers, refuse — we are not the singleton. If no
-                // one is listening, the socket is stale: unlink and
-                // rebind.
+                // answers, refuse — we are not the singleton. Unlink
+                // ONLY on connect errors that reliably mean "no
+                // listener" (`ConnectionRefused` / `NotFound`). Other
+                // errors (transient resource exhaustion such as
+                // `EMFILE`/`ENFILE`, permission failures, etc.) MUST
+                // be surfaced — silently unlinking on those would let
+                // a second daemon overwrite the well-known path while
+                // a live one is still running, breaking the singleton
+                // guarantee.
                 match std::os::unix::net::UnixStream::connect(path) {
                     Ok(_) => return Err(IpcError::AnotherDaemonRunning(path.to_path_buf())),
-                    Err(_) => {
+                    Err(err)
+                        if matches!(
+                            err.kind(),
+                            std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound
+                        ) =>
+                    {
                         std::fs::remove_file(path)?;
                     }
+                    Err(err) => return Err(err.into()),
                 }
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
@@ -573,10 +585,15 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
     // `id: None`. We do not branch on `id.is_some()` to distinguish
     // dispatch behaviour — only response routing (a future task)
     // would consult the field, and only after dispatch.
-    let result = match &envelope.command {
-        IpcCommand::RegisterSession { session_id } => dispatcher.register(session_id),
+    let result: Result<(), crate::registry::RegistryError> = match &envelope.command {
+        IpcCommand::RegisterSession {
+            session_id,
+            worktree,
+        } => dispatcher.register(session_id, worktree),
         IpcCommand::Heartbeat { session_id } => dispatcher.heartbeat(session_id),
-        IpcCommand::UnregisterSession { session_id } => dispatcher.unregister(session_id),
+        IpcCommand::UnregisterSession { session_id } => {
+            dispatcher.unregister(session_id).map(|_| ())
+        }
         IpcCommand::ListSessions => {
             let _ = dispatcher.list();
             Ok(())
@@ -595,10 +612,13 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_intercept_proto::{SessionId, SessionRecord};
     use std::sync::Mutex;
     use std::time::Duration;
     use tokio::io::AsyncWriteExt;
     use tokio::net::UnixStream;
+
+    use crate::registry::RegistryError;
 
     // ----- Recording dispatcher used by behaviour tests. ------------
 
@@ -609,7 +629,7 @@ mod tests {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum RecordedCall {
-        Register(String),
+        Register { id: String, worktree: PathBuf },
         Heartbeat(String),
         Unregister(String),
         List,
@@ -622,28 +642,28 @@ mod tests {
     }
 
     impl SessionDispatcher for Arc<RecordingDispatcher> {
-        fn register(&self, id: &SessionId) -> Result<(), DispatchError> {
-            self.calls
-                .lock()
-                .unwrap()
-                .push(RecordedCall::Register(id.as_str().to_owned()));
+        fn register(&self, id: &SessionId, worktree: &Path) -> Result<(), RegistryError> {
+            self.calls.lock().unwrap().push(RecordedCall::Register {
+                id: id.as_str().to_owned(),
+                worktree: worktree.to_path_buf(),
+            });
             Ok(())
         }
-        fn heartbeat(&self, id: &SessionId) -> Result<(), DispatchError> {
+        fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError> {
             self.calls
                 .lock()
                 .unwrap()
                 .push(RecordedCall::Heartbeat(id.as_str().to_owned()));
             Ok(())
         }
-        fn unregister(&self, id: &SessionId) -> Result<(), DispatchError> {
+        fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
             self.calls
                 .lock()
                 .unwrap()
                 .push(RecordedCall::Unregister(id.as_str().to_owned()));
-            Ok(())
+            Ok(true)
         }
-        fn list(&self) -> Vec<SessionId> {
+        fn list(&self) -> Vec<SessionRecord> {
             self.calls.lock().unwrap().push(RecordedCall::List);
             Vec::new()
         }
@@ -916,6 +936,7 @@ mod tests {
                 "req-1",
                 IpcCommand::RegisterSession {
                     session_id: SessionId::new("sess_abc"),
+                    worktree: PathBuf::from("/tmp/wt-abc"),
                 },
             );
             let mut line = serde_json::to_string(&envelope).unwrap();
@@ -932,7 +953,10 @@ mod tests {
             }
             assert_eq!(
                 dispatcher.calls(),
-                vec![RecordedCall::Register("sess_abc".into())]
+                vec![RecordedCall::Register {
+                    id: "sess_abc".into(),
+                    worktree: PathBuf::from("/tmp/wt-abc"),
+                }]
             );
 
             shutdown.trigger();

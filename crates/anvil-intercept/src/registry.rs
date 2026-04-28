@@ -56,6 +56,14 @@ pub enum RegistryError {
     /// no record of (never registered, or already evicted).
     #[error("unknown session: {0:?}")]
     UnknownSession(SessionId),
+
+    /// A `register` call reused a session id that is already in the
+    /// registry (potentially against a different worktree). Reusing an
+    /// id would leave the previous worktree index entry orphaned, so
+    /// v1 rejects this rather than silently replacing the record. The
+    /// caller must `unregister` the old id first or pick a fresh one.
+    #[error("session already registered: {0:?}")]
+    SessionAlreadyExists(SessionId),
 }
 
 impl PartialEq for RegistryError {
@@ -75,7 +83,8 @@ impl PartialEq for RegistryError {
                 Self::WorktreeAlreadyOwned { existing: a },
                 Self::WorktreeAlreadyOwned { existing: b },
             )
-            | (Self::UnknownSession(a), Self::UnknownSession(b)) => a == b,
+            | (Self::UnknownSession(a), Self::UnknownSession(b))
+            | (Self::SessionAlreadyExists(a), Self::SessionAlreadyExists(b)) => a == b,
             _ => false,
         }
     }
@@ -183,7 +192,11 @@ impl SessionRegistry {
     /// Pinned at one session per canonicalised worktree for v1; a
     /// retry on the same worktree returns
     /// [`RegistryError::WorktreeAlreadyOwned`] carrying the existing
-    /// owner's id.
+    /// owner's id. Reusing a `SessionId` already present in the
+    /// registry — even against a different worktree — returns
+    /// [`RegistryError::SessionAlreadyExists`]; the caller must
+    /// `unregister` the old id first to avoid orphaning the previous
+    /// worktree index entry.
     pub fn register(
         &self,
         id: &SessionId,
@@ -193,6 +206,9 @@ impl SessionRegistry {
         let canonical = canonicalise(worktree)?;
         let mut inner = self.lock();
 
+        if inner.sessions.contains_key(id) {
+            return Err(RegistryError::SessionAlreadyExists(id.clone()));
+        }
         if let Some(existing) = inner.by_worktree.get(&canonical) {
             return Err(RegistryError::WorktreeAlreadyOwned {
                 existing: existing.clone(),
@@ -341,16 +357,48 @@ impl SessionRegistry {
         stale
     }
 
+    /// Rebuild the `by_worktree` index from `sessions`. Used by
+    /// [`SessionRegistry::lock`] on poison recovery — `register` /
+    /// `unregister` mutate two maps in sequence, so a panic between
+    /// the inserts can leave the indices inconsistent. We re-derive
+    /// the worktree index from the sessions map (which is the sole
+    /// source of truth for record bodies) and panic loudly if the
+    /// recovery surfaces a true invariant violation (two records
+    /// claiming the same worktree).
+    fn repair_after_poison(inner: &mut Inner) {
+        let mut by_worktree = HashMap::with_capacity(inner.sessions.len());
+        for (id, entry) in &inner.sessions {
+            let worktree = entry.record.worktree.clone();
+            if let Some(existing) = by_worktree.insert(worktree.clone(), id.clone()) {
+                panic!(
+                    "session registry mutex poisoned and recovery surfaced duplicate \
+                     worktree ownership for {}: {} and {}",
+                    worktree.display(),
+                    existing.as_str(),
+                    id.as_str(),
+                );
+            }
+        }
+        inner.by_worktree = by_worktree;
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
-        // `std::sync::Mutex` poisons on panic; recovering the guard is
-        // the right call here because the registry data structure is
-        // a plain `HashMap` — a panic mid-mutation cannot leave it in
-        // a half-updated state visible to readers (the operations are
-        // single-statement inserts/removes). Carrying poisoning forward
-        // would let one panicking caller take the whole daemon offline.
+        // `std::sync::Mutex` poisons on panic. `register` / `unregister`
+        // mutate `sessions` and `by_worktree` in two separate
+        // statements, so a panic between them could leave the indices
+        // inconsistent. On poison recovery we rebuild `by_worktree`
+        // from `sessions` (the sole authority on record bodies) before
+        // handing the guard back, so subsequent reads see a coherent
+        // view. Carrying poisoning forward would let one panicking
+        // caller take the whole daemon offline, which is worse than
+        // the cost of a single `O(n)` rebuild on the rare panic path.
         match self.inner.lock() {
             Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
+            Err(poisoned) => {
+                let mut guard = poisoned.into_inner();
+                Self::repair_after_poison(&mut guard);
+                guard
+            }
         }
     }
 }
@@ -465,6 +513,40 @@ mod tests {
             RegistryError::WorktreeAlreadyOwned {
                 existing: sid("first")
             },
+        );
+    }
+
+    /// A registration that reuses an active session id is rejected even
+    /// if the worktree differs. Letting it through would orphan the
+    /// previous worktree index entry — the second worktree would be
+    /// "owned" by `id` while the first stayed flagged as taken with no
+    /// way for `unregister(id)` to release it. v1 makes the caller
+    /// `unregister` first.
+    #[test]
+    fn duplicate_session_id_on_different_worktree_is_rejected() {
+        let registry = SessionRegistry::new();
+        let wt_a = make_worktree();
+        let wt_b = make_worktree();
+        let now = Instant::now();
+
+        registry
+            .register(&sid("dup"), wt_a.path(), now)
+            .expect("first wins");
+
+        let err = registry
+            .register(&sid("dup"), wt_b.path(), now)
+            .expect_err("duplicate id must lose");
+        assert_eq!(err, RegistryError::SessionAlreadyExists(sid("dup")));
+
+        // Both invariants must hold afterwards: the original worktree
+        // is still marked as owned, and the second worktree is not.
+        assert!(
+            registry.session_for_worktree(wt_a.path()).is_some(),
+            "first worktree should remain owned",
+        );
+        assert!(
+            registry.session_for_worktree(wt_b.path()).is_none(),
+            "second worktree must NOT be silently registered",
         );
     }
 
@@ -714,11 +796,20 @@ mod tests {
             "list ordering must be deterministic between calls",
         );
 
-        // Sorted by (started_at_unix, id); ids tie-break.
-        let mut expected: Vec<String> = (0..8).map(|i| format!("s{i}")).collect();
-        expected.sort();
+        // Sorted by (started_at_unix, id). Two threads racing on
+        // `register` near a Unix-second boundary can land in different
+        // seconds, so compute the expected order with the same key the
+        // registry uses rather than assuming the id-only ordering.
+        let mut expected = first.clone();
+        expected.sort_by(|a, b| {
+            a.started_at_unix
+                .cmp(&b.started_at_unix)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
+        let expected_ids: Vec<String> =
+            expected.iter().map(|r| r.id.as_str().to_string()).collect();
         let actual: Vec<String> = first.iter().map(|r| r.id.as_str().to_string()).collect();
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected_ids);
     }
 
     /// Crash-safe Drop is NOT this layer's job. A launcher whose
@@ -746,6 +837,44 @@ mod tests {
         registry
             .register(&sid("recovered"), wt.path(), later)
             .expect("worktree freed by eviction");
+    }
+
+    /// Poisoning the mutex (panic while a guard is held) does not
+    /// take the registry offline — `lock()` recovers and rebuilds the
+    /// `by_worktree` index from `sessions`. The post-recovery view is
+    /// coherent: prior sessions remain queryable, and a fresh
+    /// `register` succeeds on a free worktree.
+    #[test]
+    fn poisoned_mutex_recovery_yields_coherent_state() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let registry = Arc::new(SessionRegistry::new());
+        let wt_a = make_worktree();
+        let wt_b = make_worktree();
+        registry
+            .register(&sid("alive"), wt_a.path(), Instant::now())
+            .expect("register");
+
+        // Poison the mutex by panicking while a guard is held.
+        let registry_clone = Arc::clone(&registry);
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            let _guard = registry_clone.inner.lock().expect("first lock cannot fail");
+            panic!("poison");
+        }));
+        assert!(
+            registry.inner.is_poisoned(),
+            "test setup expected the mutex to be poisoned",
+        );
+
+        // Subsequent operations recover the guard and keep working.
+        assert!(
+            registry.session_for_worktree(wt_a.path()).is_some(),
+            "previously-registered session must survive poison recovery",
+        );
+        registry
+            .register(&sid("after-poison"), wt_b.path(), Instant::now())
+            .expect("registry remains usable after poison");
+        assert_eq!(registry.active_sessions().len(), 2);
     }
 
     /// `SessionDispatcher` trait dispatch works against the concrete
