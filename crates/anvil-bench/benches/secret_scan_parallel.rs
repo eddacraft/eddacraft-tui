@@ -53,12 +53,8 @@ fn build_repo() -> (TempDir, Vec<String>) {
         let per = CORPUS_FILES / SUBDIRS;
         for i in 0..per {
             let path = subdir.join(format!("file_{i:04}.ts"));
-            // Mix in plausible source content with a 1-in-50 secret seed
-            // (the seed only appears in the file body, never in
-            // filenames). Keeps the bench dominated by clean-file work
-            // while still touching every code path.
             let content = if (sub * per + i).is_multiple_of(50) {
-                "const apiKey = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\nexport function go() { return apiKey; }\n".to_string()
+                "const apiKey = 'ghp_aa…aaaa';\nexport function go() { return apiKey; }\n".to_string()
             } else {
                 format!(
                     "export const value_{i} = {i};\nfunction helper_{i}() {{ return value_{i} * 2; }}\n"
@@ -73,8 +69,6 @@ fn build_repo() -> (TempDir, Vec<String>) {
 }
 
 fn run_with_threads<F: FnOnce() + Send>(threads: usize, body: F) {
-    // A scoped pool keeps the rayon override from leaking into other
-    // benches that share the criterion process.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .build()
@@ -102,9 +96,6 @@ fn bench_secret_scan(c: &mut Criterion) {
 
     group.bench_function("parallel_rollout", |b| {
         b.iter(|| {
-            // Use min(8, available) — captures the realistic 4-8 thread
-            // cap that the welcome flow imposes via SCAN-003 while
-            // still leaving enough head-room to demonstrate the win.
             let threads = std::cmp::min(num_cpus_fallback(), 8);
             run_with_threads(threads, || {
                 let _ = run_secret_check(&refs, &config, None);
@@ -115,8 +106,6 @@ fn bench_secret_scan(c: &mut Criterion) {
     group.finish();
 }
 
-/// Tiny `num_cpus` shim — anvil-bench doesn't pull in `num_cpus` and we
-/// want to avoid adding it just for the bench.
 fn num_cpus_fallback() -> usize {
     std::thread::available_parallelism()
         .map(std::num::NonZeroUsize::get)
