@@ -7,6 +7,7 @@ use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode,
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use crate::mcp::enforcement::{self, EnforcementMode};
 use crate::mcp::validation::{
     DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient, PRE_WRITE_MODE,
     PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure, sanitise_id_part,
@@ -71,21 +72,51 @@ fn call_with_workspace(arguments: &Value, default_workspace_root: &Path) -> Valu
         arguments,
         default_workspace_root,
         &LocalDaemonValidationClient,
+        &WorkspaceEnforcementResolver,
     )
+}
+
+/// Resolver for the per-workspace enforcement mode. The default
+/// implementation reads `.anvil.yaml` per RTAI-006 / INTD-008 contract;
+/// tests substitute a fixed-mode resolver to exercise each branch
+/// without writing temp files.
+trait EnforcementResolver {
+    fn resolve(&self, workspace_root: &Path) -> EnforcementMode;
+}
+
+struct WorkspaceEnforcementResolver;
+
+impl EnforcementResolver for WorkspaceEnforcementResolver {
+    fn resolve(&self, workspace_root: &Path) -> EnforcementMode {
+        enforcement::load_for_workspace(workspace_root)
+    }
 }
 
 fn call_with_validation_client(
     arguments: &Value,
     default_workspace_root: &Path,
     daemon: &impl DaemonValidationClient,
+    enforcement_resolver: &impl EnforcementResolver,
 ) -> Value {
     let request = match ValidateWriteRequest::parse(arguments, default_workspace_root) {
         Ok(request) => request,
-        Err(problem) => return tool_result(&problem_payload(problem, None)),
+        Err(problem) => {
+            // Input problems short-circuit before we have a trusted
+            // workspace root to read `.anvil.yaml` from. They always
+            // map to `block` regardless of enforcement mode — the tool
+            // cannot evaluate a request it cannot parse.
+            return tool_result(&problem_payload(problem, None, EnforcementMode::Block));
+        }
     };
 
+    let enforcement_mode = enforcement_resolver.resolve(&request.workspace_root);
+
     if let Some(problem) = request.input_problem() {
-        return tool_result(&problem_payload(problem, Some(&request.relative_path)));
+        return tool_result(&problem_payload(
+            problem,
+            Some(&request.relative_path),
+            enforcement_mode,
+        ));
     }
 
     let mut backend = ValidationBackend::Embedded;
@@ -101,7 +132,11 @@ fn call_with_validation_client(
         let validation = match validation {
             Ok(validation) => validation,
             Err(failure) => {
-                return tool_result(&backend_failure_payload(&request.relative_path, failure));
+                return tool_result(&backend_failure_payload(
+                    &request.relative_path,
+                    failure,
+                    enforcement_mode,
+                ));
             }
         };
         backend = validation.backend;
@@ -115,6 +150,7 @@ fn call_with_validation_client(
         &diagnostics,
         backend,
         None,
+        enforcement_mode,
     ))
 }
 
@@ -132,18 +168,32 @@ fn tool_result(payload: &Value) -> Value {
     })
 }
 
-fn problem_payload(problem: ToolProblem, path: Option<&str>) -> Value {
+fn problem_payload(
+    problem: ToolProblem,
+    path: Option<&str>,
+    enforcement_mode: EnforcementMode,
+) -> Value {
     let path = path.unwrap_or("<unknown>");
     let diagnostic = input_diagnostic(problem, path);
-    validation_payload(
+    // Input problems are tool-level errors, not rule findings. The
+    // enforcement mode controls whether *rule* diagnostics block; a
+    // malformed request is still rejected so the client cannot proceed
+    // with content the server could not parse.
+    validation_payload_with_decision(
         path,
         &[diagnostic],
         ValidationBackend::Embedded,
         Some(problem),
+        enforcement_mode,
+        ControlDecision::Block,
     )
 }
 
-fn backend_failure_payload(path: &str, failure: ValidationBackendFailure) -> Value {
+fn backend_failure_payload(
+    path: &str,
+    failure: ValidationBackendFailure,
+    enforcement_mode: EnforcementMode,
+) -> Value {
     json!({
         "schema": RESPONSE_SCHEMA,
         "error": {
@@ -157,7 +207,8 @@ fn backend_failure_payload(path: &str, failure: ValidationBackendFailure) -> Val
             "surface": "mcp",
             "mode": "preWrite",
             "backend": ValidationBackend::Daemon.as_str(),
-            "path": path
+            "path": path,
+            "enforcementMode": enforcement_mode.as_str()
         }
     })
 }
@@ -167,8 +218,20 @@ fn validation_payload(
     diagnostics: &[Diagnostic],
     backend: ValidationBackend,
     problem: Option<ToolProblem>,
+    enforcement_mode: EnforcementMode,
 ) -> Value {
-    let decision = decision_for(diagnostics);
+    let decision = enforcement::decision_for(diagnostics, enforcement_mode);
+    validation_payload_with_decision(path, diagnostics, backend, problem, enforcement_mode, decision)
+}
+
+fn validation_payload_with_decision(
+    path: &str,
+    diagnostics: &[Diagnostic],
+    backend: ValidationBackend,
+    problem: Option<ToolProblem>,
+    enforcement_mode: EnforcementMode,
+    decision: ControlDecision,
+) -> Value {
     let mut payload = json!({
         "schema": RESPONSE_SCHEMA,
         "decision": decision,
@@ -179,7 +242,8 @@ fn validation_payload(
             "surface": "mcp",
             "mode": "preWrite",
             "backend": backend.as_str(),
-            "path": path
+            "path": path,
+            "enforcementMode": enforcement_mode.as_str()
         }
     });
 
@@ -219,19 +283,6 @@ fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
             "info": info
         }
     })
-}
-
-fn decision_for(diagnostics: &[Diagnostic]) -> ControlDecision {
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity == Severity::Error)
-    {
-        ControlDecision::Block
-    } else if diagnostics.is_empty() {
-        ControlDecision::Allow
-    } else {
-        ControlDecision::Warn
-    }
 }
 
 fn normalise_response_diagnostics(
@@ -329,6 +380,7 @@ impl ToolProblem {
 }
 
 struct ValidateWriteRequest {
+    workspace_root: PathBuf,
     relative_path: String,
     operation: Operation,
     content: Option<String>,
@@ -380,6 +432,7 @@ impl ValidateWriteRequest {
         let patch_only = content.is_none() && patch_content.is_some();
 
         Ok(Self {
+            workspace_root,
             relative_path,
             operation,
             content,
@@ -632,15 +685,17 @@ mod tests {
 
     use super::descriptor;
     use super::{
-        MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client, call_with_workspace,
-        redact_secret_id,
+        EnforcementResolver, MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client,
+        call_with_workspace, redact_secret_id,
     };
+    use crate::mcp::enforcement::EnforcementMode;
     use crate::mcp::validation::{
         DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
         ValidationBackendFailure,
     };
     use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
     use serde_json::{Value, json};
+    use std::path::Path;
     use tempfile::tempdir;
 
     struct FixtureDaemon {
@@ -653,6 +708,18 @@ mod tests {
             _request: &PreWriteValidationRequest<'_>,
         ) -> DaemonValidationOutcome {
             self.outcome.clone()
+        }
+    }
+
+    /// Test-only resolver that returns a fixed enforcement mode regardless
+    /// of workspace contents. Lets unit tests exercise each branch of the
+    /// enforcement-mode policy without writing temporary `.anvil.yaml`
+    /// fixtures (those live in the dedicated E2E suite).
+    struct FixedEnforcement(EnforcementMode);
+
+    impl EnforcementResolver for FixedEnforcement {
+        fn resolve(&self, _workspace_root: &Path) -> EnforcementMode {
+            self.0
         }
     }
 
@@ -698,6 +765,7 @@ mod tests {
                     "mode": "preWrite",
                     "backend": "embedded",
                     "path": "src/example.ts",
+                    "enforcementMode": "block",
                 }
             })
         );
@@ -752,12 +820,14 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
         );
         let payload = parse_payload(&result);
 
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["correlation"]["backend"], "daemon");
+        assert_eq!(payload["correlation"]["enforcementMode"], "block");
         assert_eq!(
             payload["diagnostics"][0]["source"]["rule_id"],
             "secret-detection"
@@ -810,6 +880,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
         );
         let payload = parse_payload(&result);
         let response_text = serde_json::to_string(&payload).expect("payload serialises");
@@ -862,6 +933,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
         );
         let payload = parse_payload(&result);
 
@@ -1085,6 +1157,138 @@ mod tests {
 
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["error"]["code"], "invalid-workspace-root");
+    }
+
+    /// RTAI-006: in `block` mode (default), a secret diagnostic
+    /// rejects the write and the response carries `safeDefault`.
+    #[test]
+    fn enforcement_mode_block_rejects_secret_write() {
+        let workspace = tempdir().expect("workspace exists");
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &super::LocalDaemonValidationClient,
+            &FixedEnforcement(EnforcementMode::Block),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["safeDefault"], "do-not-write");
+        assert_eq!(payload["correlation"]["enforcementMode"], "block");
+        assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+    }
+
+    /// RTAI-006: in `warn` mode, a secret diagnostic that would
+    /// otherwise block becomes a warning. The diagnostic is still
+    /// returned verbatim so the agent can show it to the user.
+    #[test]
+    fn enforcement_mode_warn_downgrades_secret_block_to_warn() {
+        let workspace = tempdir().expect("workspace exists");
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &super::LocalDaemonValidationClient,
+            &FixedEnforcement(EnforcementMode::Warn),
+        );
+        let payload = parse_payload(&result);
+
+        // Diagnostics are still returned, but the decision is now `warn`
+        // and the payload carries no `safeDefault` flag.
+        assert_eq!(result["isError"], false);
+        assert_eq!(payload["decision"], "warn");
+        assert!(payload.get("safeDefault").is_none());
+        assert_eq!(payload["correlation"]["enforcementMode"], "warn");
+        assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+    }
+
+    /// RTAI-006: in `off` mode, diagnostics are returned but the
+    /// decision is always `allow`. This is the operator-pull-the-handbrake
+    /// mode for noisy environments where Anvil should report findings
+    /// without ever blocking the agent.
+    #[test]
+    fn enforcement_mode_off_passes_secret_write_with_diagnostics() {
+        let workspace = tempdir().expect("workspace exists");
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &super::LocalDaemonValidationClient,
+            &FixedEnforcement(EnforcementMode::Off),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(result["isError"], false);
+        assert_eq!(payload["decision"], "allow");
+        assert!(payload.get("safeDefault").is_none());
+        assert_eq!(payload["correlation"]["enforcementMode"], "off");
+        // Diagnostics are still surfaced so the agent can see what
+        // would have blocked the write under stricter modes.
+        assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+    }
+
+    /// RTAI-006: enforcement mode does not paper over malformed input.
+    /// A missing path is a tool-level error and must always block.
+    #[test]
+    fn enforcement_mode_off_still_rejects_malformed_input() {
+        let workspace = tempdir().expect("workspace exists");
+        let result = call_with_validation_client(
+            &json!({
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &super::LocalDaemonValidationClient,
+            &FixedEnforcement(EnforcementMode::Off),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "missing-path");
+    }
+
+    /// RTAI-006: when `.anvil.yaml` declares `enforcement.mode: warn`,
+    /// the workspace resolver picks it up end-to-end without any
+    /// in-process override. This is the unit-level proof of the
+    /// `.anvil.yaml` -> tool-response wire that the E2E test also
+    /// covers via the live binary.
+    #[test]
+    fn anvil_yaml_warn_mode_is_honoured_end_to_end() {
+        let workspace = tempdir().expect("workspace exists");
+        std::fs::write(
+            workspace.path().join(".anvil.yaml"),
+            "enforcement:\n  mode: warn\n",
+        )
+        .expect("write fixture");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "warn");
+        assert_eq!(payload["correlation"]["enforcementMode"], "warn");
+        assert!(payload.get("safeDefault").is_none());
+        assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
     }
 
     fn parse_payload(result: &Value) -> Value {

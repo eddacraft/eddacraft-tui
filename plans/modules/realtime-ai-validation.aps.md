@@ -432,13 +432,27 @@ convention" section). Concretely:
   content known to trigger the secret-detection rule; asserts the tool response
   carries structured diagnostics and honours the configured enforcement mode.
 - **Confidence:** medium
-- **Status:** Blocked — waits for RTAI-002.
+- **Status:** In Progress — landing on `feat/RTAI-006-mcp-prewrite`. The MCP
+  `validate_write` tool now consults a workspace-level `EnforcementMode`
+  (`block` | `warn` | `off`) loaded from `.anvil.yaml` and applies the
+  RTAI-006 mapping table (see
+  `crates/anvil-cli/src/mcp/enforcement.rs`): `block` rejects on
+  `Severity::Error` and warns on lower severities, `warn` always returns
+  `warn` when diagnostics are non-empty, `off` always returns `allow` while
+  still surfacing diagnostics. Default is `block` — matches the pre-RTAI-006
+  behaviour. INTD-008's full `.anvil.yaml` loader stays Draft; the loader
+  here reads the same `enforcement.mode` field so the contract remains
+  daemon-shareable when INTD-008 lands. E2E coverage in
+  `crates/anvil-cli/tests/mcp_validate_write_enforcement.rs` drives
+  `anvil mcp serve --stdio` against fixture `.anvil.yaml` files for all
+  three modes plus the missing-file default.
 - **Reconciliation note (2026-04-30):** RMCP-004/-005/-006 implement the launch
   shim's embedded `anvil_validate_write` path and structured MCP response, but
   the default daemon client still returns `Unavailable` and the write decision
-  is hard-coded from diagnostic severity rather than the INTD-008 enforcement
-  block. Treat that as RMCP launch-path progress, not completion of this RTAI
-  semantic contract.
+  prior to RTAI-006 was hard-coded from diagnostic severity rather than the
+  INTD-008 enforcement block. RTAI-006 closes that semantic gap on the
+  embedded path; the daemon-backed path takes over transparently when
+  RTAI-002's RPC lands.
 
 ---
 
