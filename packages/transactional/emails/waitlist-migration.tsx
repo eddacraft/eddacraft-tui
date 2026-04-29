@@ -1,15 +1,4 @@
-import {
-  Body,
-  Container,
-  Head,
-  Hr,
-  Html,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text,
-} from '@react-email/components';
+import { Body, Container, Head, Hr, Html, Link, Preview, Row, Section, Text } from 'react-email';
 import * as React from 'react';
 
 interface WaitlistMigrationProps {

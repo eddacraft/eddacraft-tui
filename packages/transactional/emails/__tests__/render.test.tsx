@@ -1,4 +1,4 @@
-import { render } from '@react-email/render';
+import { render } from 'react-email';
 import { describe, expect, it } from 'vitest';
 
 import { BetaInvite } from '../beta-invite.js';
