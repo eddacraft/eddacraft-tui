@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use anvil_kernel_types::diagnostics::ControlDecision;
@@ -14,6 +15,8 @@ use crate::enforcement::EnforcementDecision;
 pub const NOTIFICATION_SCHEMA: &str = "anvil.notification.v1";
 pub const INTERCEPT_SOURCE: &str = "intercept";
 pub const INTERCEPT_DRIVER_ID: &str = "intercept-daemon-v1";
+
+static PRODUCER_INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TelemetryCorrelation {
@@ -126,7 +129,7 @@ impl Default for TelemetryEmitter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TelemetryContext {
+pub(crate) struct TelemetryContext {
     producer_instance_id: String,
     seq: u64,
     timestamp: String,
@@ -212,7 +215,7 @@ pub enum FenceTransition {
 }
 
 #[must_use]
-pub fn delivered_envelope_for_decision(
+pub(crate) fn delivered_envelope_for_decision(
     context: &TelemetryContext,
     decision: &EnforcementDecision,
 ) -> NotificationEnvelope {
@@ -244,7 +247,7 @@ pub fn delivered_envelope_for_decision(
 }
 
 #[must_use]
-pub fn envelope_for_fence_transition(
+pub(crate) fn envelope_for_fence_transition(
     context: &TelemetryContext,
     worktree: &Path,
     transition: FenceTransition,
@@ -341,10 +344,12 @@ fn grouping_for_path(path: Option<&String>) -> Option<NotificationGrouping> {
 }
 
 fn generate_producer_instance_id() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_nanos());
-    format!("pi_{:x}_{nanos:x}", process::id())
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+        |error| error.duration().as_nanos(),
+        |duration| duration.as_nanos(),
+    );
+    let counter = PRODUCER_INSTANCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("pi_{:x}_{nanos:x}_{counter:x}", process::id())
 }
 
 #[cfg(test)]
