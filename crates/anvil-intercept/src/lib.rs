@@ -43,15 +43,496 @@ pub use registry::{
 // Removing this line should be INTD-005's first edit.
 use anvil_intercept_rules as _;
 
-use std::time::Duration;
+use std::env;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use anyhow::Result;
+#[cfg(unix)]
+use nix::errno::Errno;
+#[cfg(unix)]
+use nix::sys::signal::kill;
+#[cfg(unix)]
+use nix::unistd::{Pid, geteuid};
+#[cfg(unix)]
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+
+use anyhow::{Context, Result};
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
-/// Options accepted by [`run_foreground`]. Currently empty; future
-/// tasks add the socket path, config path, and observe-only flag here.
+#[derive(Clone)]
+struct RegistryDispatcher {
+    registry: Arc<SessionRegistry>,
+}
+
+impl RegistryDispatcher {
+    fn new(registry: Arc<SessionRegistry>) -> Self {
+        Self { registry }
+    }
+}
+
+impl SessionDispatcher for RegistryDispatcher {
+    fn register(
+        &self,
+        id: &anvil_intercept_proto::SessionId,
+        worktree: &Path,
+    ) -> Result<(), RegistryError> {
+        SessionDispatcher::register(self.registry.as_ref(), id, worktree)
+    }
+
+    fn heartbeat(&self, id: &anvil_intercept_proto::SessionId) -> Result<(), RegistryError> {
+        SessionDispatcher::heartbeat(self.registry.as_ref(), id)
+    }
+
+    fn unregister(&self, id: &anvil_intercept_proto::SessionId) -> Result<bool, RegistryError> {
+        SessionDispatcher::unregister(self.registry.as_ref(), id)
+    }
+
+    fn list(&self) -> Vec<anvil_intercept_proto::SessionRecord> {
+        SessionDispatcher::list(self.registry.as_ref())
+    }
+}
+
+/// Options accepted by [`run_foreground`]. Future tasks add the socket
+/// path, config path, and observe-only flag here.
 #[derive(Debug, Default, Clone)]
-pub struct ForegroundOpts {}
+pub struct ForegroundOpts {
+    pid_file: Option<PathBuf>,
+    #[cfg(unix)]
+    ipc_socket: Option<PathBuf>,
+    #[cfg(windows)]
+    ipc_pipe_name: Option<String>,
+}
+
+impl ForegroundOpts {
+    /// Override the PID file path. Used by tests and by future service
+    /// managers that need to pin state into a caller-owned runtime dir.
+    #[must_use]
+    pub fn with_pid_file(pid_file: impl Into<PathBuf>) -> Self {
+        Self {
+            pid_file: Some(pid_file.into()),
+            #[cfg(unix)]
+            ipc_socket: None,
+            #[cfg(windows)]
+            ipc_pipe_name: None,
+        }
+    }
+
+    /// Override both PID file and Unix IPC socket paths. Used by tests
+    /// so daemon integration can run without mutating process env.
+    #[cfg(unix)]
+    #[must_use]
+    pub fn with_pid_file_and_ipc_socket(
+        pid_file: impl Into<PathBuf>,
+        ipc_socket: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            pid_file: Some(pid_file.into()),
+            ipc_socket: Some(ipc_socket.into()),
+        }
+    }
+
+    /// Override both PID file and Windows named-pipe paths. Used by
+    /// Windows tests so parallel cases do not contend on the per-user pipe.
+    #[cfg(windows)]
+    #[must_use]
+    pub fn with_pid_file_and_ipc_pipe_name(
+        pid_file: impl Into<PathBuf>,
+        ipc_pipe_name: impl Into<String>,
+    ) -> Self {
+        Self {
+            pid_file: Some(pid_file.into()),
+            ipc_pipe_name: Some(ipc_pipe_name.into()),
+        }
+    }
+
+    fn pid_file_path(&self) -> Result<PathBuf> {
+        self.pid_file.clone().map_or_else(default_pid_file_path, Ok)
+    }
+
+    #[cfg(unix)]
+    fn ipc_socket_path(&self) -> Option<&Path> {
+        self.ipc_socket.as_deref()
+    }
+
+    #[cfg(windows)]
+    fn ipc_pipe_name(&self) -> Option<&str> {
+        self.ipc_pipe_name.as_deref()
+    }
+}
+
+struct AbortOnDropJoinHandle<T> {
+    handle: Option<JoinHandle<T>>,
+}
+
+impl<T> AbortOnDropJoinHandle<T> {
+    fn new(handle: JoinHandle<T>) -> Self {
+        Self {
+            handle: Some(handle),
+        }
+    }
+
+    async fn join(&mut self) -> std::result::Result<T, tokio::task::JoinError> {
+        self.handle.as_mut().expect("join handle missing").await
+    }
+
+    fn abort(&self) {
+        if let Some(handle) = &self.handle {
+            handle.abort();
+        }
+    }
+}
+
+impl<T> Drop for AbortOnDropJoinHandle<T> {
+    fn drop(&mut self) {
+        if let Some(handle) = &self.handle
+            && !handle.is_finished()
+        {
+            handle.abort();
+        }
+    }
+}
+
+/// Resolve the default PID file location for the current user.
+///
+/// The path intentionally matches the daemon runtime directory used by
+/// the demo reset path: `$XDG_RUNTIME_DIR/anvil` when available, falling
+/// back to `$HOME/.local/state/anvil` on Unix-like hosts and
+/// `%LOCALAPPDATA%\anvil` on Windows.
+pub fn default_pid_file_path() -> Result<PathBuf> {
+    if let Some(runtime_dir) = non_empty_env("XDG_RUNTIME_DIR") {
+        return Ok(runtime_dir.join("anvil").join("intercept.pid"));
+    }
+
+    if cfg!(windows)
+        && let Some(local_app_data) = non_empty_env("LOCALAPPDATA")
+    {
+        return Ok(local_app_data.join("anvil").join("intercept.pid"));
+    }
+
+    let home = non_empty_env("HOME")
+        .or_else(|| non_empty_env("USERPROFILE"))
+        .context("cannot resolve home directory for anvil intercept PID file")?;
+    Ok(home
+        .join(".local")
+        .join("state")
+        .join("anvil")
+        .join("intercept.pid"))
+}
+
+fn non_empty_env(name: &str) -> Option<PathBuf> {
+    env::var_os(name)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+#[derive(Debug)]
+struct PidFileGuard {
+    path: PathBuf,
+    identity: PidFileIdentity,
+}
+
+impl PidFileGuard {
+    fn acquire(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            ensure_secure_runtime_dir(parent)?;
+        }
+
+        match Self::create(path) {
+            Ok(guard) => Ok(guard),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                recover_stale_pid_file(path)?;
+                Self::create(path)
+                    .with_context(|| format!("failed to re-create PID file {}", path.display()))
+            }
+            Err(err) => {
+                Err(err).with_context(|| format!("failed to create PID file {}", path.display()))
+            }
+        }
+    }
+
+    fn create(path: &Path) -> std::io::Result<Self> {
+        let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        let record = write_pid_record(&mut file)?;
+        let identity = PidFileIdentity::from_file(&file, record)?;
+        Ok(Self {
+            path: path.to_path_buf(),
+            identity,
+        })
+    }
+}
+
+impl Drop for PidFileGuard {
+    fn drop(&mut self) {
+        if !self.identity.matches_path(&self.path) {
+            return;
+        }
+
+        if let Err(err) = fs::remove_file(&self.path)
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            eprintln!(
+                "anvil-intercept: failed to remove PID file {}: {err}",
+                self.path.display()
+            );
+        }
+    }
+}
+
+fn ensure_secure_runtime_dir(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        ensure_secure_runtime_dir_unix(path)
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::create_dir_all(path)
+            .with_context(|| format!("failed to create PID file directory {}", path.display()))
+    }
+}
+
+#[cfg(unix)]
+fn ensure_secure_runtime_dir_unix(path: &Path) -> Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => verify_secure_runtime_dir(path, &metadata),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).with_context(|| {
+                    format!("failed to create PID file parent {}", parent.display())
+                })?;
+            }
+
+            fs::DirBuilder::new()
+                .mode(0o700)
+                .create(path)
+                .or_else(|err| {
+                    if err.kind() == std::io::ErrorKind::AlreadyExists {
+                        Ok(())
+                    } else {
+                        Err(err)
+                    }
+                })
+                .with_context(|| {
+                    format!("failed to create PID file directory {}", path.display())
+                })?;
+            let metadata = fs::symlink_metadata(path)
+                .with_context(|| format!("failed to stat PID file directory {}", path.display()))?;
+            verify_secure_runtime_dir(path, &metadata)
+        }
+        Err(err) => Err(err)
+            .with_context(|| format!("failed to stat PID file directory {}", path.display())),
+    }
+}
+
+#[cfg(unix)]
+fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()> {
+    if metadata.file_type().is_symlink() {
+        anyhow::bail!("refusing symlink PID file directory {}", path.display());
+    }
+    if !metadata.is_dir() {
+        anyhow::bail!("PID file directory is not a directory: {}", path.display());
+    }
+
+    let expected_uid = geteuid().as_raw();
+    if metadata.uid() != expected_uid {
+        anyhow::bail!(
+            "PID file directory {} is owned by uid {}, expected {}",
+            path.display(),
+            metadata.uid(),
+            expected_uid,
+        );
+    }
+
+    let mode = metadata.permissions().mode() & 0o777;
+    if mode != 0o700 {
+        anyhow::bail!(
+            "PID file directory {} has mode {:o}, expected 700",
+            path.display(),
+            mode,
+        );
+    }
+
+    Ok(())
+}
+
+fn write_pid_record(file: &mut File) -> std::io::Result<String> {
+    let mut record = format!("{}\n", process::id());
+    if let Some(start_time) = process_start_time(process::id()) {
+        record.push_str("start_time=");
+        record.push_str(&start_time.to_string());
+        record.push('\n');
+    }
+    file.write_all(record.as_bytes())?;
+    file.sync_all()?;
+    Ok(record)
+}
+
+fn recover_stale_pid_file(path: &Path) -> Result<()> {
+    let metadata = fs::symlink_metadata(path)
+        .with_context(|| format!("failed to inspect existing PID file {}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        anyhow::bail!("refusing symlink PID file {}", path.display());
+    }
+
+    let record = fs::read_to_string(path)
+        .with_context(|| format!("failed to read existing PID file {}", path.display()))?;
+    match existing_pid_status(&record) {
+        ExistingPidStatus::Stale => {}
+        ExistingPidStatus::Live | ExistingPidStatus::Unknown => {
+            anyhow::bail!(
+                "anvil intercept daemon is already running or PID file cannot be proven stale at {}",
+                path.display(),
+            );
+        }
+    }
+
+    fs::remove_file(path)
+        .with_context(|| format!("failed to remove stale PID file {}", path.display()))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExistingPidStatus {
+    Live,
+    Stale,
+    Unknown,
+}
+
+fn existing_pid_status(record: &str) -> ExistingPidStatus {
+    let Some(pid) = record
+        .lines()
+        .next()
+        .and_then(|line| line.trim().parse::<u32>().ok())
+    else {
+        return ExistingPidStatus::Unknown;
+    };
+
+    if pid == process::id() {
+        return ExistingPidStatus::Live;
+    }
+
+    let recorded_start_time = record
+        .lines()
+        .find_map(|line| line.strip_prefix("start_time="))
+        .and_then(|value| value.parse::<u64>().ok());
+
+    if !process_exists(pid) {
+        return ExistingPidStatus::Stale;
+    }
+
+    if let (Some(expected), Some(actual)) = (recorded_start_time, process_start_time(pid)) {
+        if expected == actual {
+            ExistingPidStatus::Live
+        } else {
+            ExistingPidStatus::Stale
+        }
+    } else {
+        ExistingPidStatus::Live
+    }
+}
+
+#[cfg(unix)]
+fn process_exists(pid: u32) -> bool {
+    let Ok(pid) = i32::try_from(pid) else {
+        return false;
+    };
+
+    !matches!(kill(Pid::from_raw(pid), None), Err(Errno::ESRCH))
+}
+
+#[cfg(windows)]
+fn process_exists(pid: u32) -> bool {
+    anvil_intercept_win32::process_exists(pid).unwrap_or(true)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn process_exists(_pid: u32) -> bool {
+    true
+}
+
+#[cfg(target_os = "linux")]
+fn process_start_time(pid: u32) -> Option<u64> {
+    let stat = fs::read_to_string(Path::new("/proc").join(pid.to_string()).join("stat")).ok()?;
+    let after_command = stat.rsplit_once(") ")?.1;
+    after_command.split_whitespace().nth(19)?.parse().ok()
+}
+
+#[cfg(windows)]
+fn process_start_time(pid: u32) -> Option<u64> {
+    anvil_intercept_win32::process_creation_time(pid)
+        .ok()
+        .flatten()
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+fn process_start_time(_pid: u32) -> Option<u64> {
+    None
+}
+
+#[derive(Debug)]
+struct PidFileIdentity {
+    record: String,
+    #[cfg(unix)]
+    dev: u64,
+    #[cfg(unix)]
+    ino: u64,
+    #[cfg(not(unix))]
+    pid: u32,
+}
+
+impl PidFileIdentity {
+    fn from_file(file: &File, record: String) -> std::io::Result<Self> {
+        let metadata = file.metadata()?;
+        Ok(Self::from_metadata(&metadata, record))
+    }
+
+    #[cfg(unix)]
+    fn from_metadata(metadata: &fs::Metadata, record: String) -> Self {
+        Self {
+            record,
+            dev: metadata.dev(),
+            ino: metadata.ino(),
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn from_metadata(_metadata: &fs::Metadata, record: String) -> Self {
+        Self {
+            record,
+            pid: process::id(),
+        }
+    }
+
+    fn matches_path(&self, path: &Path) -> bool {
+        let Ok(record) = fs::read_to_string(path) else {
+            return false;
+        };
+        if record != self.record {
+            return false;
+        }
+
+        #[cfg(unix)]
+        {
+            let Ok(metadata) = fs::metadata(path) else {
+                return false;
+            };
+            metadata.dev() == self.dev && metadata.ino() == self.ino
+        }
+
+        #[cfg(not(unix))]
+        {
+            record
+                .lines()
+                .next()
+                .and_then(|line| line.trim().parse::<u32>().ok())
+                == Some(self.pid)
+        }
+    }
+}
 
 /// Cooperative shutdown handle. Held by the caller; calling
 /// [`Shutdown::trigger`] flips the watch channel and the foreground
@@ -177,49 +658,191 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
 
 /// Run the intercept daemon in the current process. Blocks until
 /// `shutdown` is triggered (by SIGINT/SIGTERM in production, or by
-/// the caller in tests).
-///
-/// The body of the loop is intentionally a single sleep tick: the
-/// scaffold demonstrates clean shutdown without asserting any
-/// particular IPC or watcher integration. INTD-002 grafts the IPC
-/// listener onto this loop; INTD-003 the session registry; etc.
-pub async fn run_foreground(_opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
-    // TODO(INTD-002): once IPC handler tasks are spawned here, track
-    // them in a `tokio::task::JoinSet` so shutdown can drain with a
-    // bounded deadline (then hard-abort). Today the loop only ticks,
-    // so a slow handler problem cannot exist yet — but the registry
-    // shape that prevents one needs to be in place before the IPC
-    // listener lands. Do not paste handler-spawn code into the select
-    // arm without adding the JoinSet first.
-    let mut tick = tokio::time::interval(Duration::from_millis(250));
-    loop {
-        tokio::select! {
-            biased;
-            () = token.cancelled() => return Ok(()),
-            _ = tick.tick() => {}
+/// the caller in tests). The foreground daemon owns the session
+/// registry, serves the IPC listener, and ticks stale-session eviction.
+pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
+    let pid_file_path = opts.pid_file_path()?;
+    let _pid_file = PidFileGuard::acquire(&pid_file_path)?;
+
+    #[cfg(any(unix, windows))]
+    {
+        let registry = Arc::new(SessionRegistry::new());
+        let dispatcher = RegistryDispatcher::new(Arc::clone(&registry));
+
+        #[cfg(unix)]
+        let listener = if let Some(socket_path) = opts.ipc_socket_path() {
+            ipc::IpcListener::bind(socket_path, dispatcher)
+        } else {
+            ipc::IpcListener::bind_default(dispatcher)
         }
+        .context("failed to bind intercept IPC listener")?;
+
+        #[cfg(windows)]
+        let listener = if let Some(pipe_name) = opts.ipc_pipe_name() {
+            ipc::IpcListener::bind(pipe_name, dispatcher)
+        } else {
+            ipc::IpcListener::bind_default(dispatcher)
+        }
+        .context("failed to bind intercept IPC listener")?;
+
+        let listener_token = token.clone();
+        let mut listener_handle = AbortOnDropJoinHandle::new(tokio::spawn(async move {
+            listener.serve(listener_token).await
+        }));
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        loop {
+            tokio::select! {
+                biased;
+                () = token.cancelled() => break,
+                result = listener_handle.join() => {
+                    result
+                        .context("intercept IPC listener task panicked")?
+                        .context("intercept IPC listener failed")?;
+                    return Ok(());
+                }
+                _ = tick.tick() => {
+                    let evicted = registry.evict_stale(Instant::now());
+                    if !evicted.is_empty() {
+                        tracing::debug!(
+                            target: "anvil_intercept::registry",
+                            count = evicted.len(),
+                            "evicted stale intercept sessions",
+                        );
+                    }
+                }
+            }
+        }
+
+        if let Ok(result) =
+            tokio::time::timeout(Duration::from_secs(1), listener_handle.join()).await
+        {
+            result
+                .context("intercept IPC listener task panicked")?
+                .context("intercept IPC listener failed")?;
+        } else {
+            listener_handle.abort();
+        }
+        Ok(())
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        loop {
+            tokio::select! {
+                biased;
+                () = token.cancelled() => break,
+                _ = tick.tick() => {}
+            }
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
     use std::time::Duration;
 
-    use tokio::time::timeout;
+    #[cfg(unix)]
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    #[cfg(unix)]
+    use anvil_intercept_proto::{IpcCommand, IpcEnvelope, SessionId};
+    use tokio::time::{sleep, timeout};
 
     use super::*;
+
+    #[cfg(unix)]
+    fn test_opts(pid_file: impl Into<PathBuf>) -> ForegroundOpts {
+        let pid_file = pid_file.into();
+        let ipc_socket = pid_file
+            .parent()
+            .expect("pid file has parent")
+            .join("intercept.sock");
+        ForegroundOpts::with_pid_file_and_ipc_socket(pid_file, ipc_socket)
+    }
+
+    #[cfg(windows)]
+    fn test_opts(pid_file: impl Into<PathBuf>) -> ForegroundOpts {
+        let pid_file = pid_file.into();
+        let suffix =
+            format!("{}-{}", std::process::id(), pid_file.display()).replace(['/', '\\', ':'], "-");
+        let pipe_name = format!(r"\\.\pipe\anvil-intercept-test-{suffix}");
+        ForegroundOpts::with_pid_file_and_ipc_pipe_name(pid_file, pipe_name)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn test_opts(pid_file: impl Into<PathBuf>) -> ForegroundOpts {
+        ForegroundOpts::with_pid_file(pid_file)
+    }
+
+    fn test_pid_file(tmp: &tempfile::TempDir) -> PathBuf {
+        tmp.path().join("anvil").join("intercept.pid")
+    }
+
+    #[cfg(unix)]
+    fn test_ipc_socket(tmp: &tempfile::TempDir) -> PathBuf {
+        tmp.path().join("ipc").join("intercept.sock")
+    }
+
+    fn create_secure_test_pid_dir(path: &Path) {
+        fs::create_dir(path).expect("create secure pid dir");
+        #[cfg(unix)]
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+            .expect("set secure pid dir mode");
+    }
+
+    async fn wait_for_pid_file(pid_file: &Path) {
+        for _ in 0..20 {
+            if pid_file.exists() {
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+        panic!("pid file was not created at {}", pid_file.display());
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_current_pid_record(pid_file: &Path) {
+        let expected = std::process::id().to_string();
+        for _ in 0..20 {
+            if fs::read_to_string(pid_file)
+                .ok()
+                .and_then(|record| record.lines().next().map(str::to_owned))
+                == Some(expected.clone())
+            {
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+        panic!("pid file was not replaced at {}", pid_file.display());
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_socket(socket: &Path) {
+        for _ in 0..20 {
+            if socket.exists() {
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+        panic!("ipc socket was not created at {}", socket.display());
+    }
 
     /// `Shutdown::trigger` before `run_foreground` is awaited still
     /// stops the loop on the first poll — the cancellation flag is
     /// observed via `borrow_and_update`, not just via `changed()`.
     #[tokio::test(flavor = "current_thread")]
     async fn run_foreground_returns_when_shutdown_already_triggered() {
+        let tmp = tempfile::tempdir().unwrap();
         let (shutdown, token) = Shutdown::new();
         shutdown.trigger();
 
         let result = timeout(
             Duration::from_secs(1),
-            run_foreground(ForegroundOpts::default(), token),
+            run_foreground(test_opts(test_pid_file(&tmp)), token),
         )
         .await
         .expect("foreground loop did not return after pre-triggered shutdown");
@@ -232,7 +855,8 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn run_foreground_returns_when_shutdown_triggered_concurrently() {
         let (shutdown, token) = Shutdown::new();
-        let handle = tokio::spawn(run_foreground(ForegroundOpts::default(), token));
+        let tmp = tempfile::tempdir().unwrap();
+        let handle = tokio::spawn(run_foreground(test_opts(test_pid_file(&tmp)), token));
 
         // Yield once so the spawned task enters its select.
         tokio::task::yield_now().await;
@@ -248,6 +872,7 @@ mod tests {
     /// Multiple `trigger` calls are idempotent and do not panic.
     #[tokio::test(flavor = "current_thread")]
     async fn shutdown_trigger_is_idempotent() {
+        let tmp = tempfile::tempdir().unwrap();
         let (shutdown, token) = Shutdown::new();
         shutdown.trigger();
         shutdown.trigger();
@@ -255,7 +880,7 @@ mod tests {
 
         let result = timeout(
             Duration::from_secs(1),
-            run_foreground(ForegroundOpts::default(), token),
+            run_foreground(test_opts(test_pid_file(&tmp)), token),
         )
         .await
         .expect("foreground loop did not return after repeated triggers");
@@ -281,6 +906,237 @@ mod tests {
         assert!(
             result.is_ok(),
             "fresh token did not observe pre-triggered shutdown",
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_writes_pid_file_and_removes_it_on_shutdown() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(test_opts(&pid_file), token));
+
+        wait_for_pid_file(&pid_file).await;
+        let pid = fs::read_to_string(&pid_file).expect("read pid file");
+        assert_eq!(
+            pid.lines().next(),
+            Some(std::process::id().to_string().as_str())
+        );
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
+        assert!(!pid_file.exists(), "pid file should be removed on shutdown");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_accepts_ipc_registration() {
+        use tokio::io::AsyncWriteExt;
+        use tokio::net::UnixStream;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        let socket = test_ipc_socket(&tmp);
+        let worktree = tmp.path().join("worktree");
+        fs::create_dir(&worktree).expect("create worktree");
+
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(
+            ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket),
+            token,
+        ));
+
+        wait_for_pid_file(&pid_file).await;
+        wait_for_socket(&socket).await;
+
+        let mut stream = UnixStream::connect(&socket).await.expect("connect");
+        let envelope = IpcEnvelope::notification(IpcCommand::RegisterSession {
+            session_id: SessionId::new("sess_foreground"),
+            worktree,
+        });
+        let mut line = serde_json::to_string(&envelope).expect("serialise envelope");
+        line.push('\n');
+        stream
+            .write_all(line.as_bytes())
+            .await
+            .expect("write register");
+        stream.shutdown().await.expect("shutdown client");
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
+        assert!(!pid_file.exists(), "pid file should be removed on shutdown");
+        assert!(!socket.exists(), "ipc socket should be removed on shutdown");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_refuses_existing_pid_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(test_opts(&pid_file), token));
+
+        wait_for_pid_file(&pid_file).await;
+        let (_, second_token) = Shutdown::new();
+        let err = run_foreground(test_opts(&pid_file), second_token)
+            .await
+            .expect_err("second foreground daemon should refuse the pid file");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("already running")
+                && message.contains(&pid_file.display().to_string()),
+            "single-instance error should name the existing pid file, got: {message}",
+        );
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_creates_missing_pid_parent_as_owner_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_dir = tmp.path().join("runtime").join("anvil");
+        let pid_file = pid_dir.join("intercept.pid");
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(test_opts(&pid_file), token));
+
+        wait_for_pid_file(&pid_file).await;
+        let mode = fs::metadata(&pid_dir)
+            .expect("stat pid dir")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o700);
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_refuses_insecure_pid_parent_mode() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_dir = tmp.path().join("anvil");
+        fs::create_dir(&pid_dir).expect("create pid dir");
+        fs::set_permissions(&pid_dir, fs::Permissions::from_mode(0o755))
+            .expect("set insecure mode");
+        let (_, token) = Shutdown::new();
+
+        let err = run_foreground(test_opts(pid_dir.join("intercept.pid")), token)
+            .await
+            .expect_err("insecure pid dir should be rejected");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("expected 700"),
+            "error should explain owner-only mode requirement, got: {message}",
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_refuses_symlink_pid_parent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join("target");
+        fs::create_dir(&target).expect("create symlink target");
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o700)).expect("set target mode");
+        let link = tmp.path().join("anvil-link");
+        symlink(&target, &link).expect("create pid dir symlink");
+        let (_, token) = Shutdown::new();
+
+        let err = run_foreground(test_opts(link.join("intercept.pid")), token)
+            .await
+            .expect_err("symlink pid dir should be rejected");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("refusing symlink PID file directory"),
+            "error should reject pid dir symlink, got: {message}",
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_recovers_stale_pid_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        create_secure_test_pid_dir(pid_file.parent().expect("pid parent"));
+        fs::write(&pid_file, "999999999\nstart_time=1\n").expect("write stale pid");
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(test_opts(&pid_file), token));
+
+        wait_for_current_pid_record(&pid_file).await;
+        let pid = fs::read_to_string(&pid_file).expect("read pid file");
+        assert_eq!(
+            pid.lines().next(),
+            Some(std::process::id().to_string().as_str())
+        );
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_preserves_unparseable_existing_pid_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        create_secure_test_pid_dir(pid_file.parent().expect("pid parent"));
+        fs::write(&pid_file, "not-a-pid\n").expect("write malformed pid");
+        let (_, token) = Shutdown::new();
+
+        let err = run_foreground(test_opts(&pid_file), token)
+            .await
+            .expect_err("malformed pid record should not be deleted as stale");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("cannot be proven stale"),
+            "error should refuse unproven stale records, got: {message}",
+        );
+        assert_eq!(
+            fs::read_to_string(&pid_file).expect("malformed pid file should remain"),
+            "not-a-pid\n",
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_does_not_remove_replaced_pid_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(test_opts(&pid_file), token));
+
+        wait_for_pid_file(&pid_file).await;
+        fs::remove_file(&pid_file).expect("remove original pid file");
+        fs::write(&pid_file, "replacement\n").expect("write replacement pid file");
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
+
+        assert_eq!(
+            fs::read_to_string(&pid_file).expect("replacement pid file should remain"),
+            "replacement\n",
         );
     }
 }

@@ -38,7 +38,7 @@ use std::time::Duration;
 
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use thiserror::Error;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 use tokio::task::JoinSet;
 
 use crate::ShutdownToken;
@@ -168,20 +168,22 @@ pub fn resolve_socket_path() -> Result<PathBuf, IpcError> {
 
 /// Resolve the Windows named-pipe path used by the daemon.
 ///
-/// Format: `\\.\pipe\anvil-intercept-<user>`. The launcher
+/// Format: `\\.\pipe\anvil-intercept-<current-user-sid>`. The launcher
 /// (`DriverClient` in DRVR-001) MUST resolve the path with the same
 /// algorithm — the helper here is `pub` so DRVR-001 can re-export
-/// rather than re-implement.
+/// rather than re-implement. The suffix is the token SID, not an env
+/// username, so account-name spoofing and local/domain username
+/// collisions do not change the rendezvous point.
 #[cfg(windows)]
 pub fn resolve_pipe_name() -> Result<String, IpcError> {
-    let user = current_user_name()?;
-    Ok(format!(r"\\.\pipe\anvil-intercept-{user}"))
+    let sid = anvil_intercept_win32::current_user_sid()?;
+    Ok(format!(r"\\.\pipe\anvil-intercept-{sid}"))
 }
 
 /// Lookup the current OS user's account name from environment vars.
 /// Used by [`resolve_pipe_name`]; left platform-independent so the
 /// helper can be unit-tested on any host.
-#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+#[cfg_attr(not(test), allow(dead_code))]
 fn current_user_name() -> Result<String, IpcError> {
     for var in ["USERNAME", "USER", "LOGNAME"] {
         if let Some(val) = std::env::var_os(var)
@@ -289,9 +291,8 @@ mod unix_perms {
 // Listener.
 // --------------------------------------------------------------------
 
-/// Bound IPC listener. On Unix, a Unix domain socket. On Windows the
-/// shape will be a named pipe (`#[cfg(windows)]` stubs land in DRVR-001
-/// or a follow-up — see the module-level note).
+/// Bound IPC listener. On Unix, a Unix domain socket. On Windows, a
+/// named pipe created with an owner-only security descriptor.
 ///
 /// Construct with [`IpcListener::bind`]; drive with
 /// [`IpcListener::serve`] until the supplied [`ShutdownToken`] fires.
@@ -302,7 +303,13 @@ pub struct IpcListener<D: SessionDispatcher> {
     socket_path: PathBuf,
     #[cfg(unix)]
     dispatcher: Arc<D>,
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    inner: tokio::net::windows::named_pipe::NamedPipeServer,
+    #[cfg(windows)]
+    pipe_name: String,
+    #[cfg(windows)]
+    dispatcher: Arc<D>,
+    #[cfg(not(any(unix, windows)))]
     _marker: std::marker::PhantomData<D>,
 }
 
@@ -480,29 +487,91 @@ impl<D: SessionDispatcher> IpcListener<D> {
     }
 }
 
-// Windows scaffold. The pipe-name resolution lives in
-// `resolve_pipe_name`; binding the named pipe with a strict
-// `SECURITY_DESCRIPTOR` lands in a follow-up so the DACL invariant
-// (owner = current user SID, generic-all-owner-only,
-// `PIPE_REJECT_REMOTE_CLIENTS`) gets validated on a real Windows
-// host. The stubs here keep the public surface compiling on
-// `cargo check --target x86_64-pc-windows-msvc`.
 #[cfg(windows)]
 impl<D: SessionDispatcher> IpcListener<D> {
-    /// Windows scaffold — see module note. Lands proper named-pipe
-    /// binding with explicit DACL in a follow-up.
-    pub fn bind_default(_dispatcher: D) -> Result<Self, IpcError> {
-        unimplemented!("Windows named-pipe IpcListener::bind_default — INTD-002 follow-up");
+    /// Bind a Windows named pipe at the platform-default name.
+    pub fn bind_default(dispatcher: D) -> Result<Self, IpcError> {
+        let pipe_name = resolve_pipe_name()?;
+        Self::bind(&pipe_name, dispatcher)
     }
 
-    /// Windows scaffold — see module note.
-    pub fn bind(_pipe_name: &str, _dispatcher: D) -> Result<Self, IpcError> {
-        unimplemented!("Windows named-pipe IpcListener::bind — INTD-002 follow-up");
+    /// Bind a Windows named pipe using an owner-only DACL and local-only clients.
+    pub fn bind(pipe_name: &str, dispatcher: D) -> Result<Self, IpcError> {
+        let server = anvil_intercept_win32::create_owner_only_pipe_server(
+            pipe_name,
+            anvil_intercept_win32::PipeInstance::First,
+        )?;
+        Ok(Self {
+            inner: server,
+            pipe_name: pipe_name.to_owned(),
+            dispatcher: Arc::new(dispatcher),
+        })
     }
 
-    /// Windows scaffold — see module note.
-    pub async fn serve(self, _token: ShutdownToken) -> Result<(), IpcError> {
-        unimplemented!("Windows named-pipe IpcListener::serve — INTD-002 follow-up");
+    /// Accept named-pipe clients until `token` fires, spawning one handler per client.
+    pub async fn serve(self, mut token: ShutdownToken) -> Result<(), IpcError> {
+        let mut server = self.inner;
+        let pipe_name = self.pipe_name;
+        let dispatcher = self.dispatcher;
+        let mut joinset: JoinSet<()> = JoinSet::new();
+
+        loop {
+            tokio::select! {
+                biased;
+                () = token.cancelled() => break,
+                Some(res) = joinset.join_next(), if !joinset.is_empty() => {
+                    if let Err(err) = res
+                        && !err.is_cancelled()
+                    {
+                        tracing::warn!(
+                            target: "anvil_intercept::ipc",
+                            error = %err,
+                            "ipc handler task panicked",
+                        );
+                        eprintln!("anvil-intercept: ipc handler task panicked: {err}");
+                    }
+                }
+                connected = server.connect() => {
+                    match connected {
+                        Ok(()) => {
+                            let connected_server = server;
+                            server = anvil_intercept_win32::create_owner_only_pipe_server(
+                                &pipe_name,
+                                anvil_intercept_win32::PipeInstance::Additional,
+                            )?;
+                            let dispatcher = Arc::clone(&dispatcher);
+                            let conn_token = token.clone();
+                            joinset.spawn(async move {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, conn_token).await {
+                                    tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
+                                    eprintln!("anvil-intercept: ipc connection ended with error: {err}");
+                                }
+                            });
+                        }
+                        Err(err) => {
+                            tracing::warn!(target: "anvil_intercept::ipc", error = %err, "named-pipe connect failed");
+                            eprintln!("anvil-intercept: named-pipe connect failed: {err}");
+                            drop(server);
+                            tokio::time::sleep(Duration::from_millis(25)).await;
+                            server = anvil_intercept_win32::create_owner_only_pipe_server(
+                                &pipe_name,
+                                anvil_intercept_win32::PipeInstance::Additional,
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
+
+        let drain = async { while joinset.join_next().await.is_some() {} };
+        if tokio::time::timeout(SHUTDOWN_DRAIN_DEADLINE, drain)
+            .await
+            .is_err()
+        {
+            joinset.shutdown().await;
+        }
+
+        Ok(())
     }
 }
 
@@ -510,14 +579,12 @@ impl<D: SessionDispatcher> IpcListener<D> {
 // Per-connection handler.
 // --------------------------------------------------------------------
 
-#[cfg(unix)]
-async fn handle_connection<D: SessionDispatcher>(
-    stream: tokio::net::UnixStream,
+async fn handle_connection<D: SessionDispatcher, R: AsyncRead + Unpin>(
+    stream: R,
     dispatcher: Arc<D>,
     mut token: ShutdownToken,
 ) -> Result<(), IpcError> {
-    let (read_half, _write_half) = stream.into_split();
-    let mut reader = BufReader::new(read_half);
+    let mut reader = BufReader::new(stream);
     let mut buf = String::new();
 
     loop {
@@ -655,22 +722,30 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use anvil_intercept_proto::{SessionId, SessionRecord};
+    #[cfg(unix)]
     use std::sync::Mutex;
+    #[cfg(unix)]
     use std::time::Duration;
+    #[cfg(unix)]
     use tokio::io::AsyncWriteExt;
+    #[cfg(unix)]
     use tokio::net::UnixStream;
 
+    #[cfg(unix)]
     use crate::registry::RegistryError;
 
     // ----- Recording dispatcher used by behaviour tests. ------------
 
     #[derive(Debug, Default)]
+    #[cfg(unix)]
     struct RecordingDispatcher {
         calls: Mutex<Vec<RecordedCall>>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
+    #[cfg(unix)]
     enum RecordedCall {
         Register { id: String, worktree: PathBuf },
         Heartbeat(String),
@@ -678,12 +753,14 @@ mod tests {
         List,
     }
 
+    #[cfg(unix)]
     impl RecordingDispatcher {
         fn calls(&self) -> Vec<RecordedCall> {
             self.calls.lock().unwrap().clone()
         }
     }
 
+    #[cfg(unix)]
     impl SessionDispatcher for Arc<RecordingDispatcher> {
         fn register(&self, id: &SessionId, worktree: &Path) -> Result<(), RegistryError> {
             self.calls.lock().unwrap().push(RecordedCall::Register {

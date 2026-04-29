@@ -12,6 +12,7 @@ members = [
   "crates/anvil-intercept",
   "crates/anvil-intercept-proto",
   "crates/anvil-intercept-rules",
+  "crates/anvil-intercept-win32",
   "crates/anvil-policy",
   "crates/anvil-architecture",
   "crates/workspace-hack",

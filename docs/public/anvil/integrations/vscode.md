@@ -154,9 +154,9 @@ anvil complements ESLint—they run independently:
 
 Both appear in Problems panel.
 
-### Prettier
+### Formatters
 
-anvil doesn't interfere with Prettier formatting.
+anvil doesn't interfere with formatter extensions.
 
 ### GitLens
 

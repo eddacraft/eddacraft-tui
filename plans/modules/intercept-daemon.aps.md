@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 (INTD-002 + INTD-003 landed on `feat/INTD-002-003` 2026-04-29; INTD-001 scaffold merged via #1150 with closure items still outstanding — PID file, parser-concurrency ADR, demo runbook §4.1 refresh) |
+| INTD | @aneki | In Progress | 2/16 complete, 1 committed (INTD-002) |
 
 **Last reviewed:** 2026-04-29
 
@@ -126,21 +126,22 @@ a new lane.
   runbook §4.1 falls back to when the backgrounded daemon fails to start
   and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
-- **Status:** In Progress
-- **Progress (2026-04-28, `feat/intercept-scaffold`):** Three crates
-  scaffolded — `crates/anvil-intercept-proto/` (NDJSON envelope,
-  `SessionId`, `IpcCommand` enum: register/heartbeat/unregister/list),
+- **Status:** Complete
+- **Committed (2026-04-29, PR #1165):** Three crates scaffolded —
+  `crates/anvil-intercept-proto/` (NDJSON envelope, `SessionId`,
+  `IpcCommand` enum: register/heartbeat/unregister/list),
   `crates/anvil-intercept/` (lib + bin with `run_foreground`,
   cooperative `Shutdown`/`ShutdownToken` watch handles, shared
   `wait_for_shutdown_signal` helper that races SIGINT (Ctrl+C) and
-  Unix SIGTERM). CLI surface `anvil intercept start --foreground`
-  wired through `crates/anvil-cli/src/commands/intercept.rs`. Proto,
-  daemon, and rules unit tests passing; smoke tests confirm SIGINT
-  and (on Unix) SIGTERM → exit 0 against both the standalone bin and
-  the CLI subcommand. Still outstanding for INTD-001 closure: PID
-  file with single-instance guard, parser-concurrency decision
-  capture, full-suite Windows CI run on the new bin, demo runbook
-  §4.1 fallback note refresh.
+  Unix SIGTERM), and `crates/anvil-intercept-rules/` (initial
+  `InterceptRule` trait surface for downstream INTR work). CLI
+  surface `anvil intercept start --foreground` is wired through
+  `crates/anvil-cli/src/commands/intercept.rs`. Foreground startup
+  creates the PID file exclusively at the daemon runtime path, refuses
+  a second daemon against the same PID file, and removes the PID file
+  on clean shutdown. Proto, daemon, and CLI intercept tests pass locally;
+  Windows coverage is provided by the existing `rust.yml` workspace
+  build/test matrix because the intercept crates are workspace members.
 - **Trigger flag (parser concurrency ADR):** The LANGTS audit
   (`plans/specs/2026-04-26-langts-audit-report.md` §5.3, K3) deferred
   the parser thread-locality ADR conditionally. **At INTD-001 review,
@@ -151,6 +152,13 @@ a new lane.
   daemon scenarios materialise, **author the parser thread-locality ADR
   before INTD-001 lands**. The audit's evaluation of the four options
   is the starting point for this discussion.
+- **Notes (parser concurrency decision, 2026-04-29):** No ADR required for
+  INTD-001. The daemon's future parser-driven hot path will use the audit's
+  option (1): one parser pool per worker via `thread_local!`, keeping
+  `tree_sitter::Parser` thread-confined while allowing concurrent file
+  evaluation. Worker-scope parsing remains the escape hatch if a later
+  parser-backed rule proves the memory cost unacceptable; multi-process daemon
+  scenarios would re-open the ADR trigger.
 
 ### INTD-002: IPC Listener
 
@@ -180,7 +188,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
   plus permission-creation unit tests on each platform (Linux/macOS
   permission bits; Windows ACL).
-- **Status:** Complete
+- **Status:** Committed
 - **Progress (2026-04-29, `feat/INTD-002`):** `crates/anvil-intercept/src/ipc.rs`
   ships the `SessionDispatcher` trait, `NoopDispatcher`, the Unix
   socket-dir resolution + permission ladder (lstat-based symlink
@@ -192,7 +200,24 @@ a new lane.
   21 tests pass (full crate suite: 25 pass). Windows pipe-name
   resolution + DACL binding are scaffolded behind `#[cfg(windows)]`
   with `unimplemented!()` stubs; pipe-name helper is unit-tested on
-  Windows builds. PID-file tie-in remains an INTD-001 follow-on.
+  Windows builds. PID-file guarding is covered by INTD-001.
+- **Reopened (2026-04-29):** A1 now requires the full cross-platform
+  contract, including Windows named-pipe binding with an owner-only
+  security descriptor and foreground daemon integration with the IPC
+  listener and session registry.
+- **Committed (2026-04-29, `feat/INTD-002-cross-platform`):** Foreground
+  daemon startup now owns a `SessionRegistry`, binds the IPC listener,
+  dispatches registration frames into the registry, ticks stale-session
+  eviction, and shuts the listener down with bounded drain. Windows
+  named-pipe binding is implemented through the Windows-only
+  `anvil-intercept-win32` helper crate so `anvil-intercept` remains
+  `#![forbid(unsafe_code)]`; the helper creates a local-only pipe with
+  `PIPE_REJECT_REMOTE_CLIENTS` and an explicit current-user owner-only
+  DACL. Validation: `cargo test -p eddacraft-anvil-intercept` (51 pass),
+  `cargo clippy -p eddacraft-anvil-intercept --all-targets -- -D warnings`,
+  `cargo clippy -p eddacraft-anvil-intercept --target x86_64-pc-windows-msvc --all-targets -- -D warnings`,
+  `cargo clippy -p eddacraft-anvil-intercept-win32 --target x86_64-pc-windows-msvc --all-targets -- -D warnings`,
+  `cargo fmt --check`, and `cargo hakari verify`.
 - **Council review (2026-04-24):** M8 (security-analyst) pinned the
   end-to-end creation sequence above; see
   PR #1063.

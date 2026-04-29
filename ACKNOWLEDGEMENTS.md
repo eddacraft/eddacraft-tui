@@ -1034,7 +1034,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `utf8parse` | 0.2.2 | MIT License | https://github.com/alacritty/vte |
 | `hyper-rustls` | 0.27.9 | MIT License | https://github.com/rustls/hyper-rustls |
 | `rustls-native-certs` | 0.8.3 | MIT License | https://github.com/rustls/rustls-native-certs |
-| `rustls` | 0.23.38 | MIT License | https://github.com/rustls/rustls |
+| `rustls` | 0.23.40 | MIT License | https://github.com/rustls/rustls |
 | `httpdate` | 1.0.3 | MIT License | https://github.com/pyfisch/httpdate |
 | `streaming-iterator` | 0.1.9 | MIT License | https://github.com/sfackler/streaming-iterator |
 | `lock_api` | 0.4.14 | MIT License | https://github.com/Amanieu/parking_lot |
@@ -1043,7 +1043,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
-| `reqwest` | 0.13.2 | MIT License | https://github.com/seanmonstar/reqwest |
+| `reqwest` | 0.13.3 | MIT License | https://github.com/seanmonstar/reqwest |
 | `sha2` | 0.11.0 | MIT License | https://github.com/RustCrypto/hashes |
 | `fnv` | 1.0.7 | MIT License | https://github.com/servo/rust-fnv |
 | `stable_deref_trait` | 1.2.1 | MIT License | https://github.com/storyyeller/stable_deref_trait |
@@ -1081,11 +1081,11 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `const-oid` | 0.10.2 | MIT License | https://github.com/RustCrypto/formats |
 | `num_threads` | 0.1.7 | MIT License | https://github.com/jhpratt/num_threads |
 | `crypto-common` | 0.2.1 | MIT License | https://github.com/RustCrypto/traits |
-| `hybrid-array` | 0.4.10 | MIT License | https://github.com/RustCrypto/hybrid-array |
+| `hybrid-array` | 0.4.11 | MIT License | https://github.com/RustCrypto/hybrid-array |
 | `axoasset` | 2.0.1 | MIT License | https://github.com/axodotdev/axoasset |
 | `axoprocess` | 0.2.1 | MIT License | https://github.com/axodotdev/axoprocess |
 | `axotag` | 0.3.0 | MIT License | https://github.com/axodotdev/axotag |
-| `rustls-pki-types` | 1.14.0 | MIT License | https://github.com/rustls/pki-types |
+| `rustls-pki-types` | 1.14.1 | MIT License | https://github.com/rustls/pki-types |
 | `powerfmt` | 0.2.0 | MIT License | https://github.com/jhpratt/powerfmt |
 | `notify-types` | 2.1.0 | MIT License | https://github.com/notify-rs/notify.git |
 | `hyper-util` | 0.1.20 | MIT License | https://github.com/hyperium/hyper-util |
@@ -1111,8 +1111,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `num-conv` | 0.2.1 | MIT License | https://github.com/jhpratt/num-conv |
 | `time-core` | 0.1.8 | MIT License | https://github.com/time-rs/time |
 | `time` | 0.3.47 | MIT License | https://github.com/time-rs/time |
-| `libc` | 0.2.185 | MIT License | https://github.com/rust-lang/libc |
-| `idna_adapter` | 1.2.1 | MIT License | https://github.com/hsivonen/idna_adapter |
+| `libc` | 0.2.186 | MIT License | https://github.com/rust-lang/libc |
+| `idna_adapter` | 1.2.2 | MIT License | https://github.com/hsivonen/idna_adapter |
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
 | `ipnet` | 2.12.0 | MIT License | https://github.com/krisprice/ipnet |
 | `iri-string` | 0.7.12 | MIT License | https://github.com/lo48576/iri-string |
@@ -1129,7 +1129,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
 | `compact_str` | 0.9.0 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
-| `rustls-platform-verifier` | 0.6.2 | MIT License | https://github.com/rustls/rustls-platform-verifier |
+| `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.7 | MIT License | https://github.com/ratatui/line-clipping |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
@@ -1208,9 +1208,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unsafe-libyaml` | 0.2.11 | MIT License | https://github.com/dtolnay/unsafe-libyaml |
 | `zmij` | 1.0.21 | MIT License | https://github.com/dtolnay/zmij |
 | `allocator-api2` | 0.2.21 | MIT License | https://github.com/zakarumych/allocator-api2 |
-| `winnow` | 1.0.1 | MIT License | https://github.com/winnow-rs/winnow |
+| `winnow` | 1.0.2 | MIT License | https://github.com/winnow-rs/winnow |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
-| `typenum` | 1.19.0 | MIT License | https://github.com/paholg/typenum |
+| `typenum` | 1.20.0 | MIT License | https://github.com/paholg/typenum |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `aho-corasick` | 1.1.4 | MIT License | https://github.com/BurntSushi/aho-corasick |
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |
