@@ -40,7 +40,7 @@ export function HeroSection() {
               anvil enforces policy at generation time, not at review.
             </p>
 
-            {/* Primary CTA - NPM Terminal Box */}
+            {/* Primary CTA - Install Terminal Box */}
             <div className="flex flex-col gap-3 sm:gap-4">
               <button
                 className="w-full max-w-[450px] border border-anvil bg-anvil/5 px-4 sm:px-6 py-4 font-mono text-xs sm:text-sm text-left transition-colors hover:bg-anvil/10 cursor-pointer"
