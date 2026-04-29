@@ -178,7 +178,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: github.event_name != 'pull_request'
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
@@ -288,7 +288,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-hakari
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-hakari@${{ env.CARGO_HAKARI_VERSION }}
       - name: Verify workspace-hack manifest is current
@@ -310,7 +310,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-deny
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
       - name: Run cargo deny check
@@ -328,7 +328,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-about
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
