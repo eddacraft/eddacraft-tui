@@ -148,7 +148,7 @@ Enable these in your `.anvilrc` when relevant to your project.
 anvil is focused. It doesn't:
 
 - **Run your tests** — use your existing test runner
-- **Format your code** — use Prettier/ESLint
+- **Format your code** — use your existing formatter and linter
 - **Deploy your code** — use your existing CI/CD
 - **Replace code review** — it augments review, not replaces it
 

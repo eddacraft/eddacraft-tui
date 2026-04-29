@@ -1,6 +1,6 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-04-29 (locked-release state + A1 dependency order)
+**Last updated:** 2026-04-29 (A1/A4 release-state reconciliation)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
@@ -10,7 +10,7 @@
 
 The slate for the current release is **A1 + A2 + A3 + A4** — the realistic
 ceiling per council consensus, with the A1 MCP path narrowed to a Rust launch
-shim rather than a full MCP server port. Total ≈ 37 work items across 4 coherent
+shim rather than a full MCP server port. Total ≈ 43 work items across 4 coherent
 slices.
 
 | Slice                             | Goal                                                                            | Items |
@@ -18,7 +18,7 @@ slices.
 | **A1** RTAI Spike Slice           | Real-time AI validation that fires before save through the Rust MCP launch path | ~23   |
 | **A2** AIGUARD                    | `anvil gate --profile ai` + stable JSON diagnostic envelope                     | 4     |
 | **A3** Release Engineering        | GHOOK + ATTRIB + SCAN smallest viable cut                                       | 7     |
-| **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV                      | 3     |
+| **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV                      | 9     |
 
 ### Locked release state (2026-04-29)
 
@@ -29,44 +29,42 @@ that is locked for the release.
 
 | Slice  | Locked state                                                                                                         |
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| **A1** | 13 Complete, 1 Committed, 1 In Progress, 2 Ready / unblocked, 6 Blocked across the 23-item RTAI/RMCP/INTD/INTR slice |
+| **A1** | 14 Complete, 2 Committed, 0 In Progress, 2 Ready / unblocked, 5 Blocked across the 23-item RTAI/RMCP/INTD/INTR slice |
 | **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                        |
 | **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                    |
-| **A4** | Mixed state: LANGTS audit/checklist complete; OPSUP slice 1 and SURFENV structural rules remain outstanding          |
+| **A4** | Mixed state: LANGTS audit/checklist and SURFENV complete; OPSUP slice 1 remains outstanding                          |
 
 **A1 source-module state:**
 
-| Source module | A1 items                           | Complete         | Committed | In Progress | Ready / unblocked | Blocked                |
-| ------------- | ---------------------------------- | ---------------- | --------- | ----------- | ----------------- | ---------------------- |
-| INTD          | -001, -002, -003, -005, -013, -014 | -002, -003       | —         | -001        | -014              | -005, -013             |
-| INTR          | -001, -002, -006, -008             | -001, -002, -008 | —         | —           | -006              | —                      |
-| RMCP          | -001..-008                         | -001..-007       | -008      | —           | —                 | —                      |
-| RTAI          | -001, -002, -003, -006, -008       | -001             | —         | —           | —                 | -002, -003, -006, -008 |
-| **Total**     | **23**                             | **13**           | **1**     | **1**       | **2**             | **6**                  |
+| Source module | A1 items                           | Complete               | Committed | In Progress | Ready / unblocked | Blocked                |
+| ------------- | ---------------------------------- | ---------------------- | --------- | ----------- | ----------------- | ---------------------- |
+| INTD          | -001, -002, -003, -005, -013, -014 | -002, -003             | -001      | —           | -005, -014        | -013                   |
+| INTR          | -001, -002, -006, -008             | -001, -002, -006, -008 | —         | —           | —                 | —                      |
+| RMCP          | -001..-008                         | -001..-007             | -008      | —           | —                 | —                      |
+| RTAI          | -001, -002, -003, -006, -008       | -001                   | —         | —           | —                 | -002, -003, -006, -008 |
+| **Total**     | **23**                             | **14**                 | **2**     | **0**       | **2**             | **5**                  |
 
 **A2-A4 source-module state:**
 
-| Slice  | Source module | Locked items                        | Complete               | Remaining state                                                        |
-| ------ | ------------- | ----------------------------------- | ---------------------- | ---------------------------------------------------------------------- |
-| **A2** | AIGUARD       | AIGUARD-001..-004                   | AIGUARD-001..-004      | —                                                                      |
-| **A3** | GHOOK         | GHOOK-001                           | GHOOK-001              | —                                                                      |
-| **A3** | ATTRIB        | ATTRIB-001, ATTRIB-002, ATTRIB-003  | ATTRIB-001..-003       | ATTRIB-004..-011 remain outside this release cut                       |
-| **A3** | SCAN          | SCAN-001, SCAN-002, SCAN-003        | SCAN-001..-003         | SCAN-004/-005 remain outside this release cut                          |
-| **A4** | LANGTS        | LANGTS-001, LANGTS-003              | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped  |
-| **A4** | OPSUP         | OPSUP-001 (check-ID registry slice) | —                      | Draft; needs owner, check-ID scheme, and Ready flip before execution   |
-| **A4** | SURFENV       | SURFENV-001..-006                   | SURFENV-001            | SURFENV-002..-006 outstanding for `.env` structural governance surface |
+| Slice  | Source module | Locked items                        | Complete               | Remaining state                                                       |
+| ------ | ------------- | ----------------------------------- | ---------------------- | --------------------------------------------------------------------- |
+| **A2** | AIGUARD       | AIGUARD-001..-004                   | AIGUARD-001..-004      | —                                                                     |
+| **A3** | GHOOK         | GHOOK-001                           | GHOOK-001              | —                                                                     |
+| **A3** | ATTRIB        | ATTRIB-001, ATTRIB-002, ATTRIB-003  | ATTRIB-001..-003       | ATTRIB-004..-011 remain outside this release cut                      |
+| **A3** | SCAN          | SCAN-001, SCAN-002, SCAN-003        | SCAN-001..-003         | SCAN-004/-005 remain outside this release cut                         |
+| **A4** | LANGTS        | LANGTS-001, LANGTS-003              | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped |
+| **A4** | OPSUP         | OPSUP-001 (check-ID registry slice) | —                      | Draft; needs owner, check-ID scheme, and Ready flip before execution  |
+| **A4** | SURFENV       | SURFENV-001..-006                   | SURFENV-001..-006      | —                                                                     |
 
 **Locked A1 development / dependency order:**
 
-1. **Close committed / started work:** finish RMCP-008's Cursor / Claude Code
-   GUI dry-run and merge PR #1154; finish INTD-001 closure items (PID file,
-   parser-concurrency decision, demo runbook §4.1 refresh).
-2. **Unblock daemon-backed rule composition:** land INTR-006 after the complete
-   INTR-001/-002/-008 rule wrappers.
-3. **Pin daemon conformance while INTR closes:** land INTD-014 now that INTD-002
-   is complete; it can run alongside INTR-006.
-4. **Build enforcement pipeline:** land INTD-005 after INTR-006 and the complete
-   INTD-002/-003 IPC + registry work.
+1. **Close committed work:** finish RMCP-008's Cursor / Claude Code GUI dry-run
+   and merge PR #1154; follow through on INTD-001's PR #1165 cleanup path.
+2. **Rule composition is complete:** INTR-001/-002/-008 wrappers and INTR-006
+   registry composition are complete, closing the A1 INTR slice.
+3. **Pin daemon conformance:** land INTD-014 now that INTD-002 is complete.
+4. **Build enforcement pipeline:** land INTD-005 now that INTR-006 and the
+   complete INTD-002/-003 IPC + registry work are available.
 5. **Mirror decisions:** land INTD-013 after INTD-005 and the already-complete
    NOTIFY-008 telemetry contract.
 6. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
@@ -103,23 +101,25 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       RTAI-008 ↔ INTD-013 must agree for the launch path. DRVR-002 consumes the
       same shape later. Resolved by the canonical diagnostic-envelope spec and
       AIGUARD-002 / RMCP-006. Required by **A2**.
-- [ ] **ADR-027 / ADR-028 / ADR-029 acceptance** — currently Proposed; Council
-      D: "their continued Proposed status is procedural debt, not technical
-      debt. Resolve in a single review session." Required by **A4**.
+- [x] **ADR-027 / ADR-028 / ADR-029 acceptance** — accepted at the minimum bar
+      on 2026-04-26; ADR-028 and ADR-029 were strengthened / amended by ADR-033.
+      Required by **A4**.
 - [ ] **Anchor re-scoring process owner** — currently no permanent owner named
       in the L&C spec. Required by **A4**.
 
 ### Adversarial risks for this release
 
-1. **RTAI latency budget is unverified.** RTAI-001 spike measures truth first;
-   if real number is 250ms, demo "works" but does not _wow_. Mitigation must be
-   planned before the rest of A1 commits.
+1. **RTAI production-path latency budget is unverified.** RTAI-001's in-process
+   spike measured p95 1.4 ms against an 80 ms ADR-031 mid-edit budget, but
+   RTAI-003 / INTD-014 still need daemon/RMCP production-path evidence before
+   tagging.
 2. **Envelope coordination drift.** If A2 ships its diagnostic envelope before
    A1 locks down RTAI/INTD/RMCP shapes, consumers branch.
 3. **Cross-cutting expansion.** A3 wants to grow (downstream-port, WalkParallel
    spike). Be willing to say no.
-4. **A4 looks too small.** Counter-frame as "Phase 0 floor," not "theme
-   release."
+4. **A4 can read unevenly while OPSUP remains outstanding.** Frame it as the
+   Phase 0 floor: TS audit and `.env` governance landed; durable check IDs are
+   the remaining operational supplement.
 
 ### What ships next (after this release)
 
@@ -316,18 +316,18 @@ etc. The hype phase is funding for the launch-blocker, not engineering polish.
 even if the rest of the Language & Coverage theme stalls. Pure governance /
 operational floor.
 
-**Modules / work items (3 items):**
+**Modules / work items (9 locked work items across 3 deliverables):**
 
-- **LANGTS** — full TS audit + checklist artefact (re-usable governance asset)
-- **OPSUP slice 1** — check-ID registry replacing the hardcoded
-  `AVAILABLE_CHECKS` array in `crates/anvil-cli/src/commands/gate.rs`
-- **SURFENV** — `.env` file secret-scan promotion to T1 (cheapest "Anvil saved
-  my key" demo)
+- **LANGTS-001 / LANGTS-003** — full TS audit + checklist artefact (re-usable
+  governance asset), complete
+- **OPSUP-001** — check-ID registry replacing name-only catalogue lookups with
+  durable IDs, outstanding
+- **SURFENV-001..-006** — `.env` structural governance surface, complete
 
 **Prerequisites:**
 
-- ADR-027 / ADR-028 / ADR-029 accepted at minimum bar (Council D recommends
-  accepting all three now — they are blocking nothing real)
+- ADR-027 / ADR-028 / ADR-029 accepted at minimum bar — complete as of
+  2026-04-26
 
 **Out-of-scope:**
 
@@ -336,10 +336,11 @@ operational floor.
 - MDGOV
 - All surfaces beyond `.env` (SURFSQL, SURFGHA, SURFDOCK, SURFSH)
 
-**Adversarial risk:** Looks too small for a "theme" release. Counter-narrative:
-"Phase 0" or "foundation slice" framing makes it the credible-by-design floor —
-we shipped the audit and the operational floor; the rest queues in priority
-order against demand and RTAI bandwidth.
+**Adversarial risk:** The value can read as uneven while OPSUP-001 is still
+Draft and LANGTS / SURFENV have landed. Counter-narrative: "Phase 0" or
+"foundation slice" framing makes it the credible-by-design floor — we shipped
+the audit and the `.env` operational surface; the remaining check-ID registry
+queues against RTAI bandwidth.
 
 **Recommendation: PICK. Three small deliverables. Zero RTAI contention. Each
 independent.**
@@ -561,17 +562,17 @@ cataloguing; promote on signal.
 
 ---
 
-## Cross-cutting gaps that any slice must address
+## Cross-cutting glue status
 
-These are missing prerequisites surfaced by councils. They aren't slices on
-their own — they're glue that some Tier A picks need:
+These are prerequisites surfaced by councils. They aren't slices on their own —
+they're glue that some Tier A picks need:
 
 1. **`anvil export` CLI work item** — required by A5 (Dashboard MVP). One task
    in `crates/anvil-cli`. Without it, dashboard has no canonical `.anvil/*.json`
    to read.
-2. **One reasoning-pattern rule in `crates/anvil-checks`** — required by A1
-   (RTAI Spike). Without it, the demo headline is "secret detection mid-edit"
-   rather than "AI-pattern detection."
+2. **One reasoning-pattern rule in `crates/anvil-checks`** — complete via
+   INTR-008 for A1. Without it, the demo headline would have been "secret
+   detection mid-edit" rather than "AI-pattern detection."
 3. **Single latency rubric** — required by A1. INTD-014, RTAI, and RMCP must
    cite one ADR-031 rubric rather than inventing per-surface numbers.
 4. **Demo runbook** — required by A1. `anvil init` → `anvil mcp install` → open
@@ -580,13 +581,12 @@ their own — they're glue that some Tier A picks need:
    Rust MCP launch path — nobody owns the user journey.
 5. **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 writes config;
    RMCP makes `anvil mcp serve --stdio` real for A1.
-6. **Diagnostic envelope coordination** — required by A2 (AIGUARD). AIGUARD-002
-   ↔ RMCP-006 ↔ RTAI-006/RTAI-008 ↔ INTD-013 must agree; DRVR-002 consumes the
-   result later.
-7. **3 ADRs to accept now** — ADR-027 (pack architecture), ADR-028 (markdown
-   crate), ADR-029 (suppression parser authority). Council D: "their continued
-   Proposed status is procedural debt, not technical debt. Resolve in a single
-   review session." Required by A4.
+6. **Diagnostic envelope coordination** — complete for A2 through the canonical
+   diagnostic-envelope spec and AIGUARD-002 / RMCP-006. RTAI-006/RTAI-008 and
+   INTD-013 still consume that shape; DRVR-002 consumes it later.
+7. **3 ADRs accepted** — ADR-027 (pack architecture), ADR-028 (markdown crate),
+   ADR-029 (suppression parser authority) are Accepted; ADR-028 and ADR-029 were
+   strengthened / amended by ADR-033. Required by A4.
 8. **Anchor re-scoring process owner** — required by A4. Council D recommends
    owning it — currently no permanent owner.
 
@@ -601,9 +601,9 @@ the councils support:
 | ------------------------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Hype-phase minimum**          | A1 + A3                | ~30       | RTAI/RMCP demo + launch hygiene. Smallest credible launch.                                                          |
 | **Hype-phase plus integration** | A1 + A2 + A3           | ~34       | Adds AIGUARD diagnostic envelope. Locks the AI-tooling integration story.                                           |
-| **Hype-phase plus credibility** | A1 + A3 + A4           | ~33       | Adds language audit + check-ID registry + .env scan. Three governance artefacts riding alongside.                   |
-| **Full launch slate**           | A1 + A2 + A3 + A4      | ~37       | All except dashboard, full MCP parity, and Graph v2. Realistic if RTAI/RMCP ships clean.                            |
-| **Founder-pitch slate**         | A1 + A2 + A3 + A4 + A5 | ~49       | Launch + team-lead surface. Most ambitious Tier A. Adversarial risk: RTAI/RMCP bandwidth contention with dashboard. |
+| **Hype-phase plus credibility** | A1 + A3 + A4           | ~39       | Adds language audit + check-ID registry + .env scan. Three governance artefacts riding alongside.                   |
+| **Full launch slate**           | A1 + A2 + A3 + A4      | ~43       | All except dashboard, full MCP parity, and Graph v2. Realistic if RTAI/RMCP ships clean.                            |
+| **Founder-pitch slate**         | A1 + A2 + A3 + A4 + A5 | ~56       | Launch + team-lead surface. Most ambitious Tier A. Adversarial risk: RTAI/RMCP bandwidth contention with dashboard. |
 
 The councils consistently recommend **A1 + A3** as the floor and **A1 + A2 +
 A3 + A4** as the realistic ceiling for a single release. A5 (Dashboard) is

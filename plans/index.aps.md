@@ -97,18 +97,22 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 
 > Already complete as of 2026-04-29: INTD-003,
-> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001, INTR-001/-002/-008.
+> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001,
+> INTR-001/-002/-006/-008.
 > Committed but not Complete: INTD-002 (full cross-platform IPC) and RMCP-008
-> (headless smoke + runbook refresh in PR #1154; Cursor / Claude Code GUI
+> (headless smoke and runbook refresh in PR #1154; Cursor / Claude Code GUI
 > dry-run remains).
 
 1. **Close committed work:** finish RMCP-008's GUI dry-run and merge.
-2. **Unblock daemon-backed rule composition:** land **INTR-006** after the
-   complete INTR-001/-002/-008 rule wrappers.
-3. **Pin daemon conformance while INTR closes:** land **INTD-014** after the
-   full cross-platform INTD-002 contract; this can run alongside INTR-006.
-4. **Build enforcement pipeline:** land **INTD-005** after INTR-006 and the
-   complete INTD-002/-003 IPC + registry work.
+2. **Rule composition is complete:** INTR-001/-002/-008 wrappers are complete,
+   and **INTR-006** is now complete, closing the A1 INTR slice.
+3. **Complete cross-platform IPC cleanup:** merge **INTD-002** and let the
+   cleanup agent advance it after CI / merge verification.
+4. **Pin daemon conformance:** land **INTD-014** after the full cross-platform
+   INTD-002 contract is Complete.
+5. **Build enforcement pipeline:** land **INTD-005** now that INTR-006 is
+   complete and after the complete INTD-002/-003 IPC + registry work is
+   available.
 5. **Mirror decisions:** land **INTD-013** after INTD-005 and the
    already-complete NOTIFY-008 telemetry contract.
 6. **Finish RTAI:** land **RTAI-002** after INTD-005, then **RTAI-003**,
@@ -146,7 +150,7 @@ module state remains in the detailed module tables below.
 | A3 | SCAN | SCAN-001, SCAN-002, SCAN-003 | SCAN-001..-003 | SCAN-004/-005 remain outside this release cut |
 | A4 | LANGTS | LANGTS-001, LANGTS-003 | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped |
 | A4 | OPSUP | OPSUP-001 (check-ID registry slice) | — | Draft; needs owner, check-ID scheme, and Ready flip before execution |
-| A4 | SURFENV | SURFENV-001..-006 | SURFENV-001 | SURFENV-002..-006 outstanding for `.env` structural governance surface |
+| A4 | SURFENV | SURFENV-001..-006 | SURFENV-001..-006 | — |
 
 ### Edda Stack — Memory System (Done)
 
@@ -653,7 +657,7 @@ schedule after the intercept-loop thesis is proven.
   (planless-first)
 - Must not hard-block by default — warnings, not errors
 - Must run on Node.js 20+
-- Must integrate with existing ESLint/Prettier tooling, not replace it
+- Must integrate with existing linting/formatting tooling, not replace it
 - Must acknowledge legacy drift without overwhelming developers with noise
 
 ## System Map

@@ -36,7 +36,7 @@ export default typescriptEslint.config(
 ### Exports
 
 - `@eddacraft/anvil-eslint-config` - Default config (base + TypeScript)
-- `@eddacraft/anvil-eslint-config/base` - Base JavaScript + Prettier rules
+- `@eddacraft/anvil-eslint-config/base` - Base JavaScript linting rules
 - `@eddacraft/anvil-eslint-config/typescript` - TypeScript-specific rules
 - `@eddacraft/anvil-eslint-config/react` - React-specific rules
 
