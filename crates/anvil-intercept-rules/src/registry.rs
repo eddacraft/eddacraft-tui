@@ -215,13 +215,14 @@ impl RuleRegistry {
     /// Enforce mode: returns [`RegistryDecision::Interrupt`] from the
     /// first rule that fires; later rules are not called.
     ///
-    /// Observe-only mode: every rule is called regardless. Interrupts
-    /// are emitted on `stderr` and the returned decision is always
-    /// [`RegistryDecision::Allow`]. This is the "shadow rollout"
-    /// path. (`tracing` is intentionally not a dep of this crate; if
-    /// you wire one in, both this path and the panic path become
-    /// `tracing::warn!` candidates — the eprintln calls are the
-    /// minimum-dep fallback.)
+    /// Rules that require content are skipped when `input.content` is
+    /// unavailable. Observe-only mode calls every remaining applicable
+    /// rule regardless of interrupts. Interrupts are emitted on `stderr`
+    /// and the returned decision is always [`RegistryDecision::Allow`].
+    /// This is the "shadow rollout" path. (`tracing` is intentionally
+    /// not a dep of this crate; if you wire one in, both this path and
+    /// the panic path become `tracing::warn!` candidates — the eprintln
+    /// calls are the minimum-dep fallback.)
     ///
     /// Panicking rules are isolated under `panic="unwind"`: a panic
     /// from `evaluate` is caught, reported on stderr, and treated as

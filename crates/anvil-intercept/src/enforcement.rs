@@ -94,7 +94,11 @@ pub fn evaluate_proposed_changes(
         .map(|change| change.path.to_path_buf())
         .collect::<Vec<_>>();
     for change in changes {
-        let content = evaluation_content(change.change_kind, change.content);
+        let content = if registry.any_needs_content() {
+            evaluation_content(change.change_kind, change.content)
+        } else {
+            None
+        };
         if let Some(interrupt) = evaluate_one(
             registry,
             change.path,
