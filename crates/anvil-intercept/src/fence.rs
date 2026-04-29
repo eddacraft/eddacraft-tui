@@ -60,6 +60,8 @@ pub enum FenceStoreError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FenceRecord {
     pub worktree: PathBuf,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<PathBuf>,
     pub reason: String,
     pub fenced_at_unix: u64,
 }
@@ -80,16 +82,14 @@ impl FenceState {
         let Some(canonical) = lookup_path(worktree) else {
             return false;
         };
-        self.records
-            .iter()
-            .any(|record| record.worktree == canonical)
+        self.records.iter().any(|record| record.matches(&canonical))
     }
 
     fn upsert(&mut self, record: FenceRecord) {
         if let Some(existing) = self
             .records
             .iter_mut()
-            .find(|existing| existing.worktree == record.worktree)
+            .find(|existing| existing.matches(&record.worktree))
         {
             *existing = record;
         } else {
@@ -102,8 +102,14 @@ impl FenceState {
         let index = self
             .records
             .iter()
-            .position(|record| record.worktree == worktree)?;
+            .position(|record| record.matches(worktree))?;
         Some(self.records.remove(index))
+    }
+}
+
+impl FenceRecord {
+    fn matches(&self, worktree: &Path) -> bool {
+        self.worktree == worktree || self.aliases.iter().any(|alias| alias == worktree)
     }
 }
 
@@ -125,6 +131,7 @@ impl FenceStore {
     }
 
     pub fn load(&self) -> Result<FenceState, FenceStoreError> {
+        validate_store_parent(&self.path)?;
         #[cfg(windows)]
         recover_windows_backup(&self.path)?;
         let content = match fs::read_to_string(&self.path) {
@@ -163,8 +170,10 @@ impl FenceStore {
         reason: impl Into<String>,
     ) -> Result<FenceRecord, FenceStoreError> {
         let canonical = canonicalise_worktree(worktree)?;
+        let aliases = original_worktree_alias(worktree, &canonical)?;
         let record = FenceRecord {
             worktree: canonical,
+            aliases,
             reason: reason.into(),
             fenced_at_unix: unix_seconds_now(),
         };
@@ -201,9 +210,9 @@ impl FenceStore {
             fences: state.records.clone(),
         };
         let mut content =
-            serde_json::to_vec_pretty(&file).map_err(|source| FenceStoreError::Parse {
+            serde_json::to_vec_pretty(&file).map_err(|source| FenceStoreError::Write {
                 path: self.path.clone(),
-                source,
+                source: std::io::Error::other(source),
             })?;
         content.push(b'\n');
 
@@ -237,14 +246,52 @@ fn validate_records(
                 ),
             });
         }
+        for alias in &record.aliases {
+            if !alias.is_absolute() {
+                return Err(FenceStoreError::InvalidRecord {
+                    path: store_path.to_path_buf(),
+                    reason: format!("fenced worktree alias is not absolute: {}", alias.display()),
+                });
+            }
+        }
         if !seen.insert(record.worktree.clone()) {
             return Err(FenceStoreError::InvalidRecord {
                 path: store_path.to_path_buf(),
                 reason: format!("duplicate fenced worktree: {}", record.worktree.display()),
             });
         }
+        for alias in &record.aliases {
+            if !seen.insert(alias.clone()) {
+                return Err(FenceStoreError::InvalidRecord {
+                    path: store_path.to_path_buf(),
+                    reason: format!("duplicate fenced worktree alias: {}", alias.display()),
+                });
+            }
+        }
     }
     Ok(records)
+}
+
+fn original_worktree_alias(
+    worktree: &Path,
+    canonical: &Path,
+) -> Result<Vec<PathBuf>, FenceStoreError> {
+    let original = if worktree.is_absolute() {
+        worktree.to_path_buf()
+    } else {
+        env::current_dir()
+            .map_err(|source| FenceStoreError::WorktreePathInvalid {
+                path: worktree.to_path_buf(),
+                source,
+            })?
+            .join(worktree)
+    };
+
+    if original == canonical {
+        Ok(Vec::new())
+    } else {
+        Ok(vec![original])
+    }
 }
 
 fn temporary_store_path(path: &Path) -> PathBuf {
@@ -407,22 +454,7 @@ fn ensure_store_parent(path: &Path) -> Result<(), FenceStoreError> {
                 path: parent.to_path_buf(),
                 source,
             })?;
-        let metadata = fs::symlink_metadata(parent).map_err(|source| FenceStoreError::Write {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(FenceStoreError::InsecureStoreParent {
-                path: parent.to_path_buf(),
-                reason: "parent must be a real directory, not a symlink".to_string(),
-            });
-        }
-        if metadata.uid() != nix::unistd::geteuid().as_raw() {
-            return Err(FenceStoreError::InsecureStoreParent {
-                path: parent.to_path_buf(),
-                reason: "parent must be owned by the current user".to_string(),
-            });
-        }
+        validate_existing_store_parent(parent)?;
         fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).map_err(|source| {
             FenceStoreError::Write {
                 path: parent.to_path_buf(),
@@ -437,6 +469,40 @@ fn ensure_store_parent(path: &Path) -> Result<(), FenceStoreError> {
         source,
     })?;
 
+    Ok(())
+}
+
+fn validate_store_parent(path: &Path) -> Result<(), FenceStoreError> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+
+    #[cfg(unix)]
+    if parent.exists() {
+        validate_existing_store_parent(parent)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn validate_existing_store_parent(parent: &Path) -> Result<(), FenceStoreError> {
+    let metadata = fs::symlink_metadata(parent).map_err(|source| FenceStoreError::Write {
+        path: parent.to_path_buf(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(FenceStoreError::InsecureStoreParent {
+            path: parent.to_path_buf(),
+            reason: "parent must be a real directory, not a symlink".to_string(),
+        });
+    }
+    if metadata.uid() != nix::unistd::geteuid().as_raw() {
+        return Err(FenceStoreError::InsecureStoreParent {
+            path: parent.to_path_buf(),
+            reason: "parent must be owned by the current user".to_string(),
+        });
+    }
     Ok(())
 }
 
@@ -557,6 +623,32 @@ mod tests {
             store
                 .unblock_worktree(&worktree_path)
                 .expect("unblock deleted worktree")
+                .is_some()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deleted_symlink_worktree_can_still_be_queried_and_unblocked() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let target = temp.path().join("target-worktree");
+        let link = temp.path().join("linked-worktree");
+        fs::create_dir(&target).expect("create target worktree");
+        symlink(&target, &link).expect("create worktree symlink");
+        let store = store_in(&temp);
+
+        store
+            .fence_worktree(&link, "symlinked worktree")
+            .expect("fence symlink worktree");
+        fs::remove_dir(&target).expect("remove target worktree");
+        fs::remove_file(&link).expect("remove worktree symlink");
+        let state = store.load().expect("reload fences");
+
+        assert!(state.is_fenced(&link));
+        assert!(
+            store
+                .unblock_worktree(&link)
+                .expect("unblock deleted symlink worktree")
                 .is_some()
         );
     }
