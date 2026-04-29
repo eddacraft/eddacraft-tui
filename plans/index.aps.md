@@ -31,7 +31,7 @@
 - [Config Intelligence](#config-intelligence-draft)
 - [Graph Substrate](#graph-substrate-draft)
 - [Rust MCP Launch Path](#rust-mcp-launch-path-in-progressdraft)
-- [Intercept Loop](#intercept-loop-draft--no-code-yet)
+- [Intercept Loop](#intercept-loop-in-progress--a1-scaffold-landed)
 - [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
 
 Anvil makes AI-generated code safe to merge by catching architecture boundary
