@@ -5,9 +5,9 @@
 
 | ID  | Owner      | Status | Progress |
 | --- | ---------- | ------ | -------- |
-| OBS | @eddacraft | Draft  | 0/5      |
+| OBS | @eddacraft | Draft  | 0/6      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-29
 
 > **Audit note (2026-04-26):** Several upstream dependencies named below
 > (`kindling-integration`, `edda-stack-integration`, `cli-hardening`) now live
@@ -28,6 +28,8 @@ Unify Anvil observability into one executable foundation so incidents can be det
 - Dashboard data contract for operational views (including real-time update feed)
 - Alert thresholds + severity mapping for production support
 - Runbooks for common operational failures and recovery actions
+- Runtime tracing baseline across Rust services, CLI entry points, and hosted API
+  paths
 
 ## Out of Scope
 
@@ -53,6 +55,8 @@ Unify Anvil observability into one executable foundation so incidents can be det
 - Neon health checklist + query diagnostics model
 - Dashboard/live-feed data requirements for ops pages
 - Runbook set for support + engineering responders
+- Tracing conventions for spans, correlation IDs, redaction, and exporter
+  boundaries
 
 ## Ready Checklist
 
@@ -94,6 +98,25 @@ Change status to **Ready** when:
 - **Intent:** Ensure common incidents have fast, repeatable playbooks.
 - **Expected Outcome:** Published runbooks for Neon DB ops, waitlist email delivery, and observability triage.
 - **Validation:** `test -f docs/guides/runbooks/neon-db-operations.md && test -f docs/guides/runbooks/observability-triage.md && test -f docs/guides/waitlist-email-operations.md`
+
+### OBS-006: Runtime tracing baseline
+
+- **Intent:** Make request, command, daemon, and validation flows traceable
+  without inventing a second telemetry vocabulary.
+- **Expected Outcome:** Rust CLI / daemon paths and hosted API routes emit
+  structured spans with correlation ids, bounded fields, and documented redaction
+  rules. Tracing integrates with the existing notification / telemetry envelope
+  where events cross surface boundaries, while low-level spans remain diagnostic
+  context rather than user-facing notifications. Exporter boundaries are explicit:
+  local development can log spans, production can forward spans to the chosen
+  observability sink, and no secret-bearing content is exported by default.
+- **Files:** `crates/anvil-cli/src/main.rs`, `crates/anvil-intercept/src/main.rs`,
+  `crates/anvil-intercept/src/lib.rs`, `apps/anvil-api/src/index.ts`,
+  `docs/runbooks/observability-triage.md`
+- **Dependencies:** OBS-001, INTD-013, NOTIFY telemetry contract, ADR-023
+- **Validation:** `rg -n "tracing|span|correlation|redact" crates/anvil-cli crates/anvil-intercept apps/anvil-api docs/runbooks/observability-triage.md`
+- **Confidence:** medium
+- **Status:** Draft
 
 ## Execution
 

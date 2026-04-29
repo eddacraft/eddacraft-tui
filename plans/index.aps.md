@@ -266,11 +266,12 @@ format. Discovery-first: understand the interface before building.
 ### Observability Foundation (Draft)
 
 Unified observability: telemetry contracts, Neon health instrumentation,
-dashboard ops data contract, alert thresholds, runbook pack. 5 tasks.
+dashboard ops data contract, tracing baseline, alert thresholds, runbook pack. 6
+tasks.
 
 | Module                                                                | Scope | Status | Progress | Dependencies                              |
 | --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------- |
-| [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/5      | kindling-integration, dashboard-ops-views |
+| [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/6      | kindling-integration, dashboard-ops-views |
 
 ### Infrastructure as Code (In Progress)
 
