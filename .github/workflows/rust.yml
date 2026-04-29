@@ -261,6 +261,9 @@ jobs:
           else
             cargo clippy --workspace --all-targets -- -D warnings
           fi
+      - name: Run clippy --all-targets gate (PRs)
+        if: github.event_name == 'pull_request'
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   format:
     name: Format
