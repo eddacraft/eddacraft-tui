@@ -73,13 +73,13 @@ Change status to **Ready** when:
 
 - **Intent:** Define one agreed list of production signals and payload semantics.
 - **Expected Outcome:** Shared contract document covering metrics, event fields, log levels, and ownership.
-- **Validation:** `rg -n "OBS-001|signal inventory|ownership" plans/modules/observability-foundation.aps.md docs/guides/runbooks/*.md`
+- **Validation:** `rg -n "OBS-001|signal inventory|ownership" plans/modules/observability-foundation.aps.md docs/runbooks/*.md`
 
 ### OBS-002: Neon operational health instrumentation baseline
 
 - **Intent:** Make Neon failure modes visible before customer impact.
 - **Expected Outcome:** Baseline checks and telemetry for connection failures, slow queries, and transaction degradation.
-- **Validation:** `rg -n "Neon|DATABASE_URL|latency|transaction" docs/guides/runbooks/*.md`
+- **Validation:** `rg -n "Neon|DATABASE_URL|latency|transaction" docs/runbooks/*.md`
 
 ### OBS-003: Dashboard operations real-time data contract
 
@@ -91,20 +91,20 @@ Change status to **Ready** when:
 
 - **Intent:** Standardise when to page, when to warn, and when to watch.
 - **Expected Outcome:** Threshold table mapped to severity levels with explicit responder actions.
-- **Validation:** `rg -n "severity|threshold|page|warn" docs/guides/runbooks/*.md`
+- **Validation:** `rg -n "severity|threshold|page|warn" docs/runbooks/*.md`
 
 ### OBS-005: Operations runbook pack v1
 
 - **Intent:** Ensure common incidents have fast, repeatable playbooks.
 - **Expected Outcome:** Published runbooks for Neon DB ops, waitlist email delivery, and observability triage.
-- **Validation:** `test -f docs/guides/runbooks/neon-db-operations.md && test -f docs/guides/runbooks/observability-triage.md && test -f docs/guides/waitlist-email-operations.md`
+- **Validation:** `test -f docs/runbooks/neon-db-operations.md && test -f docs/runbooks/observability-triage.md && test -f docs/runbooks/waitlist-email-operations.md`
 
 ### OBS-006: Runtime tracing baseline
 
 - **Intent:** Make request, command, daemon, and validation flows traceable
   without inventing a second telemetry vocabulary.
 - **Expected Outcome:** Rust CLI / daemon paths and hosted API routes emit
-  structured spans with correlation ids, bounded fields, and documented redaction
+  structured spans with correlation IDs, bounded fields, and documented redaction
   rules. Tracing integrates with the existing notification / telemetry envelope
   where events cross surface boundaries, while low-level spans remain diagnostic
   context rather than user-facing notifications. Exporter boundaries are explicit:
@@ -124,6 +124,6 @@ Steps: [../execution/OBS.steps.md](../execution/OBS.steps.md) *(file not yet
 created — produce when module reaches Ready)*
 
 > **Audit note (2026-04-26):** validation commands above reference
-> `docs/guides/runbooks/*.md` and `docs/public/anvil/operations/realtime-feed-contract.md`,
-> neither of which exist yet. Treat the validation rg/test invocations as
+> `docs/runbooks/*.md` and `docs/public/anvil/operations/realtime-feed-contract.md`.
+> The runbook directory exists, but treat missing target files or contents as
 > placeholders the work items must produce, not as already-passing checks.
