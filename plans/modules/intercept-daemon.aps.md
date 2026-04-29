@@ -417,8 +417,8 @@ a new lane.
   notification / batch response handling is pinned at the daemon IPC boundary,
   with local fixture-style conformance coverage for parse errors, error object
   shape, invalid request handling, id semantics including `id: null`, request-only
-  batch responses, all-notification batches, and reserved `-32700` / `-32600`..
-  `-32603` error codes. `ipc_roundtrip` records `validation.service` separately
+  batch responses, all-notification batches, and reserved `-32700` /
+  `-32600`..`-32603` error codes. `ipc_roundtrip` records `validation.service` separately
   from Unix-socket `validation.roundtrip` and prints ADR-031-style dimensions.
 
 ### INTD-015: Daemon-Enforced Telemetry Subscription Scoping
