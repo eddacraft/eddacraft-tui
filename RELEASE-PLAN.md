@@ -10,12 +10,12 @@
 
 The slate for the current release is **A1 + A2 + A3 + A4** — the realistic
 ceiling per council consensus, with the A1 MCP path narrowed to a Rust launch
-shim rather than a full MCP server port. Total ≈ 43 work items across 4 coherent
+shim rather than a full MCP server port. Total ≈ 44 work items across 4 coherent
 slices.
 
 | Slice                             | Goal                                                                            | Items |
 | --------------------------------- | ------------------------------------------------------------------------------- | ----- |
-| **A1** RTAI Spike Slice           | Real-time AI validation that fires before save through the Rust MCP launch path | ~23   |
+| **A1** RTAI Spike Slice           | Real-time AI validation that fires before save through the Rust MCP launch path | ~24   |
 | **A2** AIGUARD                    | `anvil gate --profile ai` + stable JSON diagnostic envelope                     | 4     |
 | **A3** Release Engineering        | GHOOK + ATTRIB + SCAN smallest viable cut                                       | 7     |
 | **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV                      | 9     |
@@ -29,20 +29,20 @@ that is locked for the release.
 
 | Slice  | Locked state                                                                                                         |
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| **A1** | 14 Complete, 2 Committed, 0 In Progress, 2 Ready / unblocked, 5 Blocked across the 23-item RTAI/RMCP/INTD/INTR slice |
+| **A1** | 14 Complete, 2 Committed, 0 In Progress, 2 Ready / unblocked, 6 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
 | **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                        |
 | **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                    |
 | **A4** | Mixed state: LANGTS audit/checklist and SURFENV complete; OPSUP slice 1 remains outstanding                          |
 
 **A1 source-module state:**
 
-| Source module | A1 items                           | Complete               | Committed | In Progress | Ready / unblocked | Blocked                |
-| ------------- | ---------------------------------- | ---------------------- | --------- | ----------- | ----------------- | ---------------------- |
-| INTD          | -001, -002, -003, -005, -013, -014 | -002, -003             | -001      | —           | -005, -014        | -013                   |
-| INTR          | -001, -002, -006, -008             | -001, -002, -006, -008 | —         | —           | —                 | —                      |
-| RMCP          | -001..-008                         | -001..-007             | -008      | —           | —                 | —                      |
-| RTAI          | -001, -002, -003, -006, -008       | -001                   | —         | —           | —                 | -002, -003, -006, -008 |
-| **Total**     | **23**                             | **14**                 | **2**     | **0**       | **2**             | **5**                  |
+| Source module | A1 items                                 | Complete               | Committed | In Progress | Ready / unblocked | Blocked                |
+| ------------- | ---------------------------------------- | ---------------------- | --------- | ----------- | ----------------- | ---------------------- |
+| INTD          | -001, -002, -003, -005, -007, -013, -014 | -002, -003             | -001      | —           | -005, -014        | -007, -013             |
+| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008 | —         | —           | —                 | —                      |
+| RMCP          | -001..-008                               | -001..-007             | -008      | —           | —                 | —                      |
+| RTAI          | -001, -002, -003, -006, -008             | -001                   | —         | —           | —                 | -002, -003, -006, -008 |
+| **Total**     | **24**                                   | **14**                 | **2**     | **0**       | **2**             | **6**                  |
 
 **A2-A4 source-module state:**
 
@@ -65,7 +65,9 @@ that is locked for the release.
 3. **Pin daemon conformance:** land INTD-014 now that INTD-002 is complete.
 4. **Build enforcement pipeline:** land INTD-005 now that INTR-006 and the
    complete INTD-002/-003 IPC + registry work are available.
-5. **Mirror decisions:** land INTD-013 after INTD-005 and the already-complete
+5. **Mirror decisions:** land INTD-007 (fence persistence — required so INTD-013
+   can populate `grouping.transition` for `active ↔ fenced` events) after
+   INTD-005, then land INTD-013 after INTD-007 and the already-complete
    NOTIFY-008 telemetry contract.
 6. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
    RTAI-008 after the daemon-backed mid-edit surface exists.
@@ -179,10 +181,11 @@ demo: run `anvil mcp install`, open Cursor / Claude Code with
 `anvil mcp serve --stdio` attached, ask for a confident rewrite, watch Anvil
 warn or block before the write hits disk.
 
-**Modules / work items (~23 items):**
+**Modules / work items (~24 items):**
 
-- **INTD subset** (6 of 16): INTD-001, INTD-002, INTD-003, INTD-005, INTD-013,
-  INTD-014
+- **INTD subset** (7 of 16): INTD-001, INTD-002, INTD-003, INTD-005, INTD-007,
+  INTD-013, INTD-014 (INTD-007 fence persistence is required by INTD-013's
+  `grouping.transition` mirror)
 - **INTR subset** (4 of 8): INTR-001 (rule trait), INTR-002 (secret detection
   wrapper), INTR-006 (registry), INTR-008 (launch reasoning-pattern wrapper)
 - **RMCP subset** (8 of 8): RMCP-001..RMCP-008 — Rust MCP launch shim only:
@@ -212,8 +215,9 @@ warn or block before the write hits disk.
 
 **Out-of-scope (protect the slice):**
 
-- INTD-007/-008/-010/-011/-016 (fence persistence, full config, unregistered
-  handling, diagnostics, DoS budgets)
+- INTD-008/-010/-011/-016 (full config, unregistered handling, diagnostics, DoS
+  budgets) — INTD-007 was previously listed here but has been pulled in as a
+  prerequisite for INTD-013's fence-transition mirror
 - DRVR-003 (full VSCode cutover) — RTAI-005 mid-edit can demo without it
 - DRVR-004 full MCP cutover and TS `DriverClient` bridge — replaced for A1 by
   RMCP; full parity moves to RMCPF in the next release
