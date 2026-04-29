@@ -229,8 +229,7 @@ mod tests {
             );
             assert!(
                 ids.insert(stable_id),
-                "duplicate stable check ID {}",
-                stable_id
+                "duplicate stable check ID {stable_id}"
             );
         }
     }
@@ -295,7 +294,7 @@ mod tests {
                     definition.canonical_name,
                     alias
                 );
-                assert!(aliases.insert(*alias), "duplicate alias '{}'", alias);
+                assert!(aliases.insert(*alias), "duplicate alias '{alias}'");
             }
         }
     }
