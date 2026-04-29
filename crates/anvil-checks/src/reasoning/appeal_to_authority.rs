@@ -108,6 +108,15 @@ struct ScanState {
 /// suppression directive. `content` is the raw file contents.
 #[must_use]
 pub fn scan_file(file: &str, content: &str) -> Vec<Diagnostic> {
+    scan_file_with_limit(file, content, usize::MAX)
+}
+
+/// Run the AI-001 rule and return at most `limit` diagnostics.
+#[must_use]
+pub fn scan_file_with_limit(file: &str, content: &str, limit: usize) -> Vec<Diagnostic> {
+    if limit == 0 {
+        return Vec::new();
+    }
     let lines: Vec<&str> = content.split('\n').collect();
     let mut state = ScanState::default();
     let mut findings = Vec::new();
@@ -132,6 +141,9 @@ pub fn scan_file(file: &str, content: &str) -> Vec<Diagnostic> {
         }
 
         findings.push(make_diagnostic(file, line_number));
+        if findings.len() == limit {
+            return findings;
+        }
     }
 
     findings
@@ -324,7 +336,7 @@ fn any_pattern_matches(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{RULE_ID, SOURCE_MODULE, scan_file};
+    use super::{RULE_ID, SOURCE_MODULE, scan_file, scan_file_with_limit};
     use anvil_kernel_types::{Category, Severity};
 
     fn finding_lines(file: &str, content: &str) -> Vec<u32> {
@@ -429,6 +441,15 @@ mod tests {
         let content = "// the lead said skip auth here\n# the manager wants this disabled\n/* as discussed with the principal engineer */\n";
         let lines = finding_lines("src/a.sh", content);
         assert_eq!(lines, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn scan_file_with_limit_stops_after_requested_findings() {
+        let content = "// the lead said skip auth here\n# the manager wants this disabled\n";
+        let findings = scan_file_with_limit("src/a.sh", content, 1);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].location.line, Some(1));
     }
 
     #[test]

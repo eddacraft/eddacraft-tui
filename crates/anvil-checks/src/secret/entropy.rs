@@ -31,6 +31,30 @@ pub fn detect_high_entropy_strings(
     file: &str,
     config: &SecretCheckConfig,
 ) -> Vec<SecretFinding> {
+    detect_high_entropy_strings_with_limit(content, file, config, usize::MAX)
+}
+
+pub fn detect_high_entropy_strings_with_limit(
+    content: &str,
+    file: &str,
+    config: &SecretCheckConfig,
+    limit: usize,
+) -> Vec<SecretFinding> {
+    detect_high_entropy_strings_with_line_filter_and_limit(content, file, config, limit, |_, _| {
+        true
+    })
+}
+
+pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
+    content: &str,
+    file: &str,
+    config: &SecretCheckConfig,
+    limit: usize,
+    mut include_line: impl FnMut(usize, &str) -> bool,
+) -> Vec<SecretFinding> {
+    if limit == 0 {
+        return Vec::new();
+    }
     let matcher = PatternMatcher::new(&config.custom_allowlist);
     let Ok(quoted_pattern) = Regex::new(r#"['\"]([^'\"]{16,})['\"]"#) else {
         return Vec::new();
@@ -43,6 +67,9 @@ pub fn detect_high_entropy_strings(
 
     for (index, line) in content.lines().enumerate() {
         let line_number = index + 1;
+        if !include_line(index, line) {
+            continue;
+        }
 
         for pattern in [&quoted_pattern, &assignment_pattern] {
             let Some(captures) = pattern.captures(line) else {
@@ -77,6 +104,9 @@ pub fn detect_high_entropy_strings(
                         candidate_match.end(),
                     ),
                 });
+                if findings.len() == limit {
+                    return findings;
+                }
             }
         }
     }

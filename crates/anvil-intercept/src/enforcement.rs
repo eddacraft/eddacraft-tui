@@ -2,12 +2,17 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use anvil_intercept_rules::{ChangeKind, RegistryDecision, RuleInput, RuleRegistry};
+use anvil_intercept_rules::{
+    ChangeKind, LaunchReasoningPatternRule, RegistryDecision, RuleInput, RuleRegistry,
+    SecretDetectionRule,
+};
+use anvil_kernel_types::{Diagnostic, Mode};
 
 #[cfg(test)]
 use anvil_intercept_rules::{InterceptRule, RuleDecision};
 
 pub const CONTENT_SIZE_CAP_BYTES: u64 = 1024 * 1024;
+pub const CONTENT_SIZE_CAP_BYTES_USIZE: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnforcementDecision {
@@ -60,6 +65,40 @@ impl EnforcementPipeline {
     pub fn evaluate_proposed_changes(&self, changes: &[ProposedChange<'_>]) -> EnforcementDecision {
         evaluate_proposed_changes(&self.registry, changes)
     }
+
+    #[must_use]
+    pub fn diagnostics_for_proposed_changes(
+        &self,
+        changes: &[ProposedChange<'_>],
+        mode: &Mode,
+    ) -> Vec<Diagnostic> {
+        diagnostics_for_proposed_changes(&self.registry, changes, mode)
+    }
+
+    #[must_use]
+    pub fn diagnostics_for_proposed_changes_with_limit(
+        &self,
+        changes: &[ProposedChange<'_>],
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        diagnostics_for_proposed_changes_with_limit(&self.registry, changes, mode, limit)
+    }
+}
+
+impl Default for EnforcementPipeline {
+    fn default() -> Self {
+        Self::new(default_rule_registry())
+    }
+}
+
+#[must_use]
+pub fn default_rule_registry() -> RuleRegistry {
+    RuleRegistry::with_rules(vec![
+        Box::<SecretDetectionRule>::default(),
+        Box::<LaunchReasoningPatternRule>::default(),
+    ])
+    .expect("default intercept rules have unique ids")
 }
 
 impl FileChange {
@@ -143,6 +182,45 @@ pub fn evaluate_filesystem_changes(
     }
 
     EnforcementDecision::Allow { affected_paths }
+}
+
+#[must_use]
+pub fn diagnostics_for_proposed_changes(
+    registry: &RuleRegistry,
+    changes: &[ProposedChange<'_>],
+    mode: &Mode,
+) -> Vec<Diagnostic> {
+    diagnostics_for_proposed_changes_with_limit(registry, changes, mode, usize::MAX)
+}
+
+#[must_use]
+pub fn diagnostics_for_proposed_changes_with_limit(
+    registry: &RuleRegistry,
+    changes: &[ProposedChange<'_>],
+    mode: &Mode,
+    limit: usize,
+) -> Vec<Diagnostic> {
+    if limit == 0 {
+        return Vec::new();
+    }
+    for change in changes {
+        let content = if registry.any_needs_content() {
+            evaluation_content(change.change_kind, change.content)
+        } else {
+            None
+        };
+        let input = RuleInput {
+            path: change.path,
+            change_kind: change.change_kind,
+            content,
+        };
+        let diagnostics = registry.diagnostics_with_limit(&input, mode, limit);
+        if !diagnostics.is_empty() {
+            return diagnostics;
+        }
+    }
+
+    Vec::new()
 }
 
 fn evaluate_one(

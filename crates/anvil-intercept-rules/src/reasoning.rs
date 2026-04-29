@@ -1,11 +1,11 @@
 use std::str;
 
 use anvil_checks::reasoning::{
-    APPEAL_TO_AUTHORITY_RULE_ID, ReasoningCheckConfig, run_reasoning_check,
+    APPEAL_TO_AUTHORITY_RULE_ID, ReasoningCheckConfig, run_reasoning_check_with_limit,
 };
 use anvil_kernel_types::{Diagnostic, Mode};
 
-use crate::{InterceptRule, RuleDecision, RuleInput};
+use crate::{InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
 
 pub const LAUNCH_REASONING_RULE_ID: &str = APPEAL_TO_AUTHORITY_RULE_ID;
 
@@ -27,13 +27,29 @@ impl LaunchReasoningPatternRule {
 
     #[must_use]
     pub fn diagnostics(&self, input: &RuleInput<'_>, mode: &Mode) -> Vec<Diagnostic> {
-        self.findings(input)
+        self.diagnostics_with_limit(input, mode, usize::MAX)
+    }
+
+    #[must_use]
+    pub fn diagnostics_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        self.findings_with_limit(input, limit)
             .into_iter()
             .map(|diagnostic| retag_diagnostic(diagnostic, mode.clone()))
             .collect()
     }
 
-    fn findings(&self, input: &RuleInput<'_>) -> Vec<Diagnostic> {
+    fn findings_with_limit(&self, input: &RuleInput<'_>, limit: usize) -> Vec<Diagnostic> {
+        if limit == 0 {
+            return Vec::new();
+        }
         let Some(content) = input.content else {
             return Vec::new();
         };
@@ -41,7 +57,7 @@ impl LaunchReasoningPatternRule {
             return Vec::new();
         };
         let path = input.path.to_string_lossy();
-        run_reasoning_check(&[(path.as_ref(), content)], &self.config).findings
+        run_reasoning_check_with_limit(&[(path.as_ref(), content)], &self.config, limit).findings
     }
 }
 
@@ -63,7 +79,7 @@ impl InterceptRule for LaunchReasoningPatternRule {
     }
 
     fn evaluate(&self, input: &RuleInput<'_>) -> RuleDecision {
-        let findings = self.findings(input);
+        let findings = self.findings_with_limit(input, 1);
         let Some(first) = findings.first() else {
             return RuleDecision::Allow;
         };
@@ -75,9 +91,29 @@ impl InterceptRule for LaunchReasoningPatternRule {
             _ => RuleDecision::interrupt(self.rule_id(), first.summary.clone()),
         }
     }
+
+    fn diagnostics(&self, input: &RuleInput<'_>, mode: &Mode) -> Vec<Diagnostic> {
+        LaunchReasoningPatternRule::diagnostics(self, input, mode)
+    }
+
+    fn diagnostics_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        LaunchReasoningPatternRule::diagnostics_with_limit(self, input, mode, limit)
+    }
 }
 
 fn retag_diagnostic(mut diagnostic: Diagnostic, mode: Mode) -> Diagnostic {
+    diagnostic.id = format!(
+        "diag_reasoning_{}_{}_{}_{}",
+        mode_id_part(&mode),
+        sanitise_id_part(&diagnostic.location.file),
+        diagnostic.location.line.unwrap_or(0),
+        sanitise_id_part(&diagnostic.id)
+    );
     diagnostic.mode = mode;
     diagnostic
 }
@@ -151,7 +187,10 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         let diagnostic = &diagnostics[0];
         assert_eq!(diagnostic.schema_version, "anvil.diagnostic.v1");
-        assert_eq!(diagnostic.id, APPEAL_TO_AUTHORITY_RULE_ID);
+        assert_eq!(
+            diagnostic.id,
+            "diag_reasoning_pre_write_plans_demo_rs_1_ai_001"
+        );
         assert_eq!(diagnostic.severity, Severity::Info);
         assert_eq!(diagnostic.category, Category::Reasoning);
         assert_eq!(diagnostic.location.file, "plans/demo.rs");

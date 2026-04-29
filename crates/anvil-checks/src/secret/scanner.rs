@@ -1,4 +1,4 @@
-use crate::secret::entropy::detect_high_entropy_strings;
+use crate::secret::entropy::detect_high_entropy_strings_with_line_filter_and_limit;
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
 };
@@ -29,11 +29,24 @@ pub fn scan_content_with_stats(
     file_path: &str,
     config: &SecretCheckConfig,
 ) -> (Vec<SecretFinding>, ScanStats) {
+    scan_content_with_limit_and_stats(content, file_path, config, usize::MAX)
+}
+
+pub fn scan_content_with_limit_and_stats(
+    content: &str,
+    file_path: &str,
+    config: &SecretCheckConfig,
+    limit: usize,
+) -> (Vec<SecretFinding>, ScanStats) {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
     let (custom_patterns, _custom_errors) = compile_custom_patterns(&config.custom_patterns);
     let default_patterns: &[CompiledPattern] = &DEFAULT_COMPILED_PATTERNS;
     let mut findings = Vec::new();
     let mut stats = ScanStats::default();
+
+    if limit == 0 {
+        return (findings, stats);
+    }
 
     let patterns_iter = || default_patterns.iter().chain(custom_patterns.iter());
 
@@ -85,16 +98,20 @@ pub fn scan_content_with_stats(
                     matched_range.end(),
                 ),
             });
+            if findings.len() == limit {
+                return (findings, stats);
+            }
         }
     }
 
     if config.enable_entropy {
-        let lines: Vec<&str> = content.lines().collect();
-        let entropy_findings = detect_high_entropy_strings(content, file_path, config);
-        let new_entropy_findings = entropy_findings
-            .into_iter()
-            .filter(|finding| {
-                let line_index = finding.line.saturating_sub(1);
+        let remaining = limit.saturating_sub(findings.len());
+        let entropy_findings = detect_high_entropy_strings_with_line_filter_and_limit(
+            content,
+            file_path,
+            config,
+            remaining,
+            |line_index, line| {
                 // SCAN-002: respect the length-guard skip set — entropy
                 // scanning over the original content already touches every
                 // line, but we must not surface findings on lines the
@@ -105,15 +122,22 @@ pub fn scan_content_with_stats(
                 {
                     return false;
                 }
-                lines.get(line_index).is_some_and(|line| {
-                    patterns_iter().all(|pattern| !pattern.regex.is_match(line))
-                })
-            })
-            .collect::<Vec<_>>();
-        findings.extend(new_entropy_findings);
+                patterns_iter().all(|pattern| !pattern.regex.is_match(line))
+            },
+        );
+        findings.extend(entropy_findings);
     }
 
     (findings, stats)
+}
+
+pub fn scan_content_with_limit(
+    content: &str,
+    file_path: &str,
+    config: &SecretCheckConfig,
+    limit: usize,
+) -> Vec<SecretFinding> {
+    scan_content_with_limit_and_stats(content, file_path, config, limit).0
 }
 
 /// Legacy entry point that drops the SCAN-002 stats. Prefer
@@ -153,6 +177,17 @@ mod tests {
                 .iter()
                 .any(|f| f.finding_type == FindingType::Entropy)
         );
+    }
+
+    #[test]
+    fn scan_content_with_limit_stops_after_requested_findings() {
+        let config = SecretCheckConfig::default();
+        let content = "api_key='abcdEFGH1234567890'\npassword='abcdEFGH1234567890'";
+
+        let findings = super::scan_content_with_limit(content, "src/test.ts", &config, 1);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].line, 1);
     }
 
     #[test]

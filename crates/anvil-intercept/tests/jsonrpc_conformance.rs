@@ -5,12 +5,20 @@
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
 use anvil_intercept::Shutdown;
-use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
+use anvil_intercept::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipeline};
+use anvil_intercept::ipc::{IpcListener, LEGACY_MAX_LINE_BYTES, NoopDispatcher};
+use anvil_intercept::midedit::{
+    MAX_CONCURRENT_SCAN_BUFFERS, MAX_SCAN_BUFFER_PATH_BYTES, ScanBufferService,
+};
 use anvil_intercept::registry::{RegistryError, SessionDispatcher};
 use anvil_intercept_proto::{SessionId, SessionRecord};
+use anvil_intercept_rules::{InterceptRule, RuleDecision, RuleInput, RuleRegistry};
+use anvil_kernel_types::{Diagnostic, Mode};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -45,11 +53,24 @@ async fn with_dispatcher<D: SessionDispatcher + Send + Sync + 'static>(
     UnixStream,
     TempDir,
 ) {
+    with_dispatcher_and_scan_buffer(dispatcher, ScanBufferService::default()).await
+}
+
+async fn with_dispatcher_and_scan_buffer<D: SessionDispatcher + Send + Sync + 'static>(
+    dispatcher: D,
+    scan_buffer: ScanBufferService,
+) -> (
+    Shutdown,
+    tokio::task::JoinHandle<Result<(), anvil_intercept::ipc::IpcError>>,
+    UnixStream,
+    TempDir,
+) {
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o700))
         .expect("secure tempdir permissions");
     let socket = tmp.path().join("intercept.sock");
-    let listener = IpcListener::bind(&socket, dispatcher).expect("bind listener");
+    let listener = IpcListener::bind_with_scan_buffer_service(&socket, dispatcher, scan_buffer)
+        .expect("bind listener");
     let (shutdown, token) = Shutdown::new();
     let handle = tokio::spawn(async move { listener.serve(token).await });
     let client = UnixStream::connect(&socket).await.expect("connect client");
@@ -77,12 +98,12 @@ async fn request_raw(frame: &str) -> Value {
         .expect("write request");
     let mut reader = BufReader::new(client);
     let mut line = String::new();
-    tokio::time::timeout(Duration::from_secs(1), reader.read_line(&mut line))
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
         .await
         .expect("response timeout")
         .expect("read response");
     shutdown.trigger();
-    tokio::time::timeout(Duration::from_secs(1), handle)
+    tokio::time::timeout(Duration::from_secs(5), handle)
         .await
         .expect("listener timeout")
         .expect("listener join")
@@ -101,16 +122,63 @@ async fn request_with_dispatcher<D: SessionDispatcher + Send + Sync + 'static>(
         .expect("write request");
     let mut reader = BufReader::new(client);
     let mut line = String::new();
-    tokio::time::timeout(Duration::from_secs(1), reader.read_line(&mut line))
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
         .await
         .expect("response timeout")
         .expect("read response");
     shutdown.trigger();
-    tokio::time::timeout(Duration::from_secs(1), handle)
+    tokio::time::timeout(Duration::from_secs(5), handle)
         .await
         .expect("listener timeout")
         .expect("listener join")
         .expect("listener ok");
+    serde_json::from_str(line.trim_end()).expect("response json")
+}
+
+async fn request_with_scan_buffer_service(frame: Value, scan_buffer: ScanBufferService) -> Value {
+    let (shutdown, handle, mut client, _tmp) =
+        with_dispatcher_and_scan_buffer(NoopDispatcher, scan_buffer).await;
+    client
+        .write_all(format!("{frame}\n").as_bytes())
+        .await
+        .expect("write request");
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+        .await
+        .expect("response timeout")
+        .expect("read response");
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+    serde_json::from_str(line.trim_end()).expect("response json")
+}
+
+async fn scan_buffer_request(mut client: UnixStream, id: &str) -> Value {
+    let frame = json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/busy.ts",
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": id
+    });
+    client
+        .write_all(format!("{frame}\n").as_bytes())
+        .await
+        .expect("write scan request");
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+        .await
+        .expect("response timeout")
+        .expect("read response");
     serde_json::from_str(line.trim_end()).expect("response json")
 }
 
@@ -247,6 +315,33 @@ async fn all_notification_batch_does_not_emit_response() {
 }
 
 #[tokio::test]
+async fn oversized_all_notification_batch_does_not_emit_response() {
+    let (shutdown, handle, mut client, _tmp) = with_client().await;
+    let batch = (0..=32)
+        .map(|_| json!({"jsonrpc": "2.0", "method": "list-sessions"}))
+        .collect::<Vec<_>>();
+    client
+        .write_all(format!("{}\n", Value::Array(batch)).as_bytes())
+        .await
+        .expect("write batch");
+
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    let read = tokio::time::timeout(Duration::from_millis(100), reader.read_line(&mut line)).await;
+    assert!(
+        read.is_err(),
+        "oversized all-notification batch must not produce response: {line}"
+    );
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(1), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+}
+
+#[tokio::test]
 async fn invalid_no_id_object_is_not_treated_as_notification() {
     let response = request(json!({"jsonrpc": "2.0"})).await;
 
@@ -260,6 +355,95 @@ async fn empty_batch_returns_invalid_request() {
 
     assert_eq!(response["id"], Value::Null);
     assert_eq!(response["error"]["code"], -32600);
+}
+
+#[tokio::test]
+async fn oversized_batch_returns_invalid_request() {
+    let batch = (0..=32)
+        .map(|id| json!({"jsonrpc": "2.0", "method": "list-sessions", "id": id}))
+        .collect::<Vec<_>>();
+    let response = request(Value::Array(batch)).await;
+
+    assert_eq!(response["id"], Value::Null);
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("batch must not contain more than")
+    );
+}
+
+#[tokio::test]
+async fn oversized_non_scan_jsonrpc_frame_is_rejected_before_full_parse() {
+    let padding = "a".repeat(LEGACY_MAX_LINE_BYTES);
+    let response = request_raw(&format!(
+        r#"{{"jsonrpc":"2.0","method":"list-sessions","params":{{"padding":"{padding}"}},"id":"large-list"}}"#
+    ))
+    .await;
+
+    assert_eq!(response["id"], Value::Null);
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("non-scan_buffer")
+    );
+}
+
+#[tokio::test]
+async fn oversized_scan_buffer_batch_is_rejected_before_full_parse() {
+    let text = "a".repeat(LEGACY_MAX_LINE_BYTES);
+    let response = request_raw(&format!(
+        r#"[{{"jsonrpc":"2.0","method":"scan_buffer","params":{{"path":"src/a.ts","text":"{text}","version":1,"mode":"midEdit"}},"id":"batched-scan"}}]"#
+    ))
+    .await;
+
+    assert_eq!(response["id"], Value::Null);
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("single scan_buffer request")
+    );
+}
+
+#[tokio::test]
+async fn oversized_scan_buffer_with_duplicate_method_is_rejected_before_parse() {
+    let text = "a".repeat(LEGACY_MAX_LINE_BYTES);
+    let response = request_raw(&format!(
+        r#"{{"jsonrpc":"2.0","method":"scan_buffer","params":{{"path":"src/a.ts","text":"{text}","version":1,"mode":"midEdit"}},"method":"list-sessions","id":"dup-method"}}"#
+    ))
+    .await;
+
+    assert_eq!(response["id"], Value::Null);
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("duplicate method")
+    );
+}
+
+#[tokio::test]
+async fn oversized_scan_buffer_with_unrelated_payload_is_rejected_before_parse() {
+    let padding = "a".repeat(LEGACY_MAX_LINE_BYTES);
+    let response = request_raw(&format!(
+        r#"{{"jsonrpc":"2.0","method":"scan_buffer","params":{{"path":"src/a.ts","text":"ok","version":1,"mode":"midEdit"}},"padding":"{padding}","id":"scan-padding"}}"#
+    ))
+    .await;
+
+    assert_eq!(response["id"], Value::Null);
+    assert_eq!(response["error"]["code"], -32600);
+    let response_text = response.to_string();
+    assert!(response_text.contains("unsupported top-level fields"));
+    assert!(
+        !response_text.contains(&"a".repeat(256)),
+        "error response must not echo attacker-controlled padding"
+    );
 }
 
 #[tokio::test]
@@ -314,4 +498,350 @@ async fn reserved_error_codes_are_used_for_protocol_failures() {
     )
     .await;
     assert_eq!(internal_error["error"]["code"], -32603);
+}
+
+#[tokio::test]
+async fn scan_buffer_returns_mid_edit_diagnostics_without_disk_read() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/auth/client.ts",
+            "text": "import { sdk } from './client';\nconst config = { api_key: 'abcdEFGH1234567890' };\nsdk.connect(config);\n",
+            "version": 7,
+            "mode": "midEdit"
+        },
+        "id": "scan-secret"
+    }))
+    .await;
+
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "scan-secret");
+    assert_eq!(response["result"]["version"], 7);
+    assert_eq!(response["result"]["truncated"], false);
+    let diagnostics = response["result"]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0]["source"]["rule_id"], "secret-detection");
+    assert_eq!(diagnostics[0]["mode"], "mid-edit");
+    assert!(response.get("error").is_none());
+}
+
+#[tokio::test]
+async fn scan_buffer_in_batch_is_rejected_without_scanning() {
+    let response = request(json!([{
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/auth/client.ts",
+            "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": "scan-batch"
+    }]))
+    .await;
+
+    let responses = response.as_array().expect("batch response array");
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["id"], "scan-batch");
+    assert_eq!(responses[0]["error"]["code"], -32600);
+    assert!(
+        responses[0]["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("not supported in JSON-RPC batches")
+    );
+}
+
+#[tokio::test]
+async fn scan_buffer_rejects_unknown_top_level_fields() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/auth/client.ts",
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "padding": "not allowed",
+        "id": "scan-extra-top"
+    }))
+    .await;
+
+    assert_eq!(response["id"], "scan-extra-top");
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("only allow jsonrpc")
+    );
+}
+
+#[tokio::test]
+async fn scan_buffer_rejects_unknown_param_fields() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/auth/client.ts",
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit",
+            "padding": "not allowed"
+        },
+        "id": "scan-extra-param"
+    }))
+    .await;
+
+    assert_eq!(response["id"], "scan-extra-param");
+    assert_eq!(response["error"]["code"], -32602);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("params only allow")
+    );
+}
+
+#[tokio::test]
+async fn oversized_jsonrpc_id_is_rejected_without_echo() {
+    let large_id = "a".repeat(257);
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "session.list",
+        "id": large_id
+    }))
+    .await;
+
+    assert!(response["id"].is_null());
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        !response.to_string().contains(&"a".repeat(128)),
+        "response must not echo oversized id"
+    );
+}
+
+#[tokio::test]
+async fn scan_buffer_rejects_over_cap_content_as_invalid_params() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/large.ts",
+            "text": "a".repeat(CONTENT_SIZE_CAP_BYTES_USIZE + 1),
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": "scan-large"
+    }))
+    .await;
+
+    assert_eq!(response["error"]["code"], -32602);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("content exceeds")
+    );
+}
+
+#[tokio::test]
+async fn scan_buffer_rejects_over_cap_path_as_invalid_params() {
+    let long_path = "a".repeat(MAX_SCAN_BUFFER_PATH_BYTES + 1);
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": long_path,
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": "scan-long-path"
+    }))
+    .await;
+
+    assert_eq!(response["id"], "scan-long-path");
+    assert_eq!(response["error"]["code"], -32602);
+    let response_text = response.to_string();
+    assert!(response_text.contains("path exceeds"));
+    assert!(
+        !response_text.contains(&"a".repeat(256)),
+        "error response must not echo attacker-controlled path"
+    );
+}
+
+#[tokio::test]
+async fn scan_buffer_busy_returns_structured_server_error() {
+    struct BlockingRule {
+        started: Arc<AtomicUsize>,
+        barrier: Arc<Barrier>,
+    }
+
+    impl InterceptRule for BlockingRule {
+        fn rule_id(&self) -> &'static str {
+            "blocking-rule"
+        }
+
+        fn needs_content(&self) -> bool {
+            true
+        }
+
+        fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+            RuleDecision::Allow
+        }
+
+        fn diagnostics_with_limit(
+            &self,
+            _input: &RuleInput<'_>,
+            _mode: &Mode,
+            _limit: usize,
+        ) -> Vec<Diagnostic> {
+            self.started.fetch_add(1, Ordering::SeqCst);
+            self.barrier.wait();
+            Vec::new()
+        }
+    }
+
+    let started = Arc::new(AtomicUsize::new(0));
+    let barrier = Arc::new(Barrier::new(MAX_CONCURRENT_SCAN_BUFFERS + 1));
+    let registry = RuleRegistry::with_rules(vec![Box::new(BlockingRule {
+        started: Arc::clone(&started),
+        barrier: Arc::clone(&barrier),
+    })])
+    .expect("unique rule");
+    let scan_buffer = ScanBufferService::new(EnforcementPipeline::new(registry));
+    let (shutdown, handle, first_client, tmp) =
+        with_dispatcher_and_scan_buffer(NoopDispatcher, scan_buffer).await;
+    let socket = tmp.path().join("intercept.sock");
+    let second_client = UnixStream::connect(&socket).await.expect("second connect");
+
+    let first = tokio::spawn(async move { scan_buffer_request(first_client, "scan-first").await });
+    let second =
+        tokio::spawn(async move { scan_buffer_request(second_client, "scan-second").await });
+
+    for _ in 0..50 {
+        if started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(started.load(Ordering::SeqCst), MAX_CONCURRENT_SCAN_BUFFERS);
+
+    let busy_client = UnixStream::connect(&socket).await.expect("busy connect");
+    let busy = scan_buffer_request(busy_client, "scan-busy").await;
+    assert_eq!(busy["id"], "scan-busy");
+    assert_eq!(busy["error"]["code"], -32000);
+    assert_eq!(busy["error"]["message"], "Server busy");
+
+    barrier.wait();
+    assert_eq!(
+        first.await.expect("first join")["result"]["diagnostics"],
+        json!([])
+    );
+    assert_eq!(
+        second.await.expect("second join")["result"]["diagnostics"],
+        json!([])
+    );
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(1), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+}
+
+#[tokio::test]
+async fn scan_buffer_accepts_worst_case_escaped_content_under_cap() {
+    let scan_buffer = ScanBufferService::new(EnforcementPipeline::new(RuleRegistry::new()));
+    let response = request_with_scan_buffer_service(
+        json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": "src/escaped.ts",
+                "text": "\u{0001}".repeat(CONTENT_SIZE_CAP_BYTES_USIZE),
+                "version": 3,
+                "mode": "midEdit"
+            },
+            "id": "scan-escaped"
+        }),
+        scan_buffer,
+    )
+    .await;
+
+    assert_eq!(response["id"], "scan-escaped");
+    assert!(
+        response.get("error").is_none(),
+        "unexpected response: {response}"
+    );
+    assert_eq!(response["result"]["diagnostics"], json!([]));
+}
+
+#[tokio::test]
+async fn scan_buffer_uses_listener_configured_rule_set() {
+    let scan_buffer = ScanBufferService::new(EnforcementPipeline::new(RuleRegistry::new()));
+    let response = request_with_scan_buffer_service(
+        json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": "src/auth/client.ts",
+                "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                "version": 8,
+                "mode": "midEdit"
+            },
+            "id": "scan-empty-registry"
+        }),
+        scan_buffer,
+    )
+    .await;
+
+    assert_eq!(response["id"], "scan-empty-registry");
+    assert_eq!(response["result"]["diagnostics"], json!([]));
+    assert_eq!(response["result"]["truncated"], false);
+}
+
+#[tokio::test]
+async fn scan_buffer_short_circuits_binary_content() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "assets/generated.bin",
+            "text": "api_key='abcdEFGH1234567890'\u{0000}",
+            "version": 2,
+            "mode": "midEdit"
+        },
+        "id": "scan-binary"
+    }))
+    .await;
+
+    assert_eq!(response["result"]["version"], 2);
+    assert_eq!(response["result"]["diagnostics"], json!([]));
+}
+
+#[tokio::test]
+async fn scan_buffer_malformed_request_returns_structured_error() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/auth/client.ts",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": "scan-malformed"
+    }))
+    .await;
+
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "scan-malformed");
+    assert_eq!(response["error"]["code"], -32602);
+    assert_eq!(response["error"]["message"], "Invalid params");
+    assert!(response["error"].get("data").is_some());
 }

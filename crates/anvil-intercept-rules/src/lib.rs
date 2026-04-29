@@ -23,6 +23,8 @@ pub mod secret;
 
 use std::path::Path;
 
+use anvil_kernel_types::diagnostics::KnownMode;
+use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use serde::{Deserialize, Serialize};
 
 pub use reasoning::LaunchReasoningPatternRule;
@@ -177,6 +179,70 @@ pub trait InterceptRule: Send + Sync + 'static {
     /// malformed input — return `Allow` and let a higher layer log if
     /// rule data is unusable.
     fn evaluate(&self, input: &RuleInput<'_>) -> RuleDecision;
+
+    /// Return canonical diagnostics for `input` in `mode`.
+    ///
+    /// Rules with richer diagnostic metadata should override this. The
+    /// default preserves the existing interrupt semantics and maps the
+    /// first interrupt into a generic diagnostic so all rules can take
+    /// part in diagnostic-returning surfaces without a parallel trait.
+    fn diagnostics(&self, input: &RuleInput<'_>, mode: &Mode) -> Vec<Diagnostic> {
+        self.diagnostics_with_limit(input, mode, usize::MAX)
+    }
+
+    /// Return at most `limit` canonical diagnostics for `input` in `mode`.
+    ///
+    /// The default maps the first interrupt into one diagnostic. Rules that
+    /// can emit many diagnostics should override this so callers can enforce
+    /// response-size budgets before allocating the full finding set.
+    fn diagnostics_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        match self.evaluate(input) {
+            RuleDecision::Allow => Vec::new(),
+            RuleDecision::Interrupt(reason) => {
+                vec![interrupt_reason_to_diagnostic(
+                    input.path,
+                    reason,
+                    mode.clone(),
+                )]
+            }
+        }
+    }
+}
+
+fn interrupt_reason_to_diagnostic(path: &Path, reason: InterruptReason, mode: Mode) -> Diagnostic {
+    let path = path.to_string_lossy();
+    Diagnostic::new(
+        format!(
+            "diag_intercept_{}_{}_{}_{}",
+            mode_id_part(&mode),
+            sanitise_id_part(path.as_ref()),
+            reason.line.unwrap_or(0),
+            sanitise_id_part(&reason.rule_id)
+        ),
+        Severity::Error,
+        reason.message,
+        Location {
+            file: path.into_owned(),
+            line: reason.line,
+            column: None,
+            end_line: None,
+            end_column: None,
+        },
+        Category::Other,
+        DiagnosticSource {
+            rule_id: reason.rule_id,
+            source_module: "anvil-intercept-rules".to_string(),
+        },
+        mode,
+    )
 }
 
 pub(crate) fn sanitise_id_part(value: &str) -> String {
@@ -197,6 +263,16 @@ pub(crate) fn sanitise_id_part(value: &str) -> String {
         "unknown".to_string()
     } else {
         sanitised
+    }
+}
+
+pub(crate) fn mode_id_part(mode: &Mode) -> String {
+    match mode {
+        Mode::Known(KnownMode::SaveTime) => "save_time".to_owned(),
+        Mode::Known(KnownMode::MidEdit) => "mid_edit".to_owned(),
+        Mode::Known(KnownMode::Gate) => "gate".to_owned(),
+        Mode::Known(KnownMode::Watch) => "watch".to_owned(),
+        Mode::Unknown(value) => sanitise_id_part(value),
     }
 }
 

@@ -10,6 +10,8 @@ use anvil_intercept::Shutdown;
 #[cfg(unix)]
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher, handle_jsonrpc_value_for_benchmark};
 #[cfg(unix)]
+use anvil_intercept::midedit::ScanBufferService;
+#[cfg(unix)]
 use serde_json::json;
 #[cfg(unix)]
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -24,6 +26,7 @@ fn main() {
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     runtime.block_on(async {
         let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
         let mut service_samples = Vec::with_capacity(SAMPLES);
         for _ in 0..SAMPLES {
             let request = json!({
@@ -32,8 +35,9 @@ fn main() {
                 "id": "service",
             });
             let started = Instant::now();
-            let response =
-                handle_jsonrpc_value_for_benchmark(request, &dispatcher).expect("service response");
+            let response = handle_jsonrpc_value_for_benchmark(request, &dispatcher, &scan_buffer)
+                .await
+                .expect("service response");
             service_samples.push(started.elapsed());
             assert!(
                 response.get("result").is_some(),

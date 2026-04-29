@@ -47,6 +47,8 @@
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
+use anvil_kernel_types::{Diagnostic, Mode};
+
 use crate::{InterceptRule, InterruptReason, RuleDecision, RuleInput};
 
 /// The decision the registry produces for a single [`RuleInput`].
@@ -280,6 +282,66 @@ impl RuleRegistry {
             }
         }
         RegistryDecision::Allow
+    }
+
+    /// Evaluate `input` and return canonical diagnostics using the same
+    /// ordering, content-skip, panic-isolation, and short-circuit rules
+    /// as [`Self::evaluate`].
+    #[must_use]
+    pub fn diagnostics(&self, input: &RuleInput<'_>, mode: &Mode) -> Vec<Diagnostic> {
+        self.diagnostics_with_limit(input, mode, usize::MAX)
+    }
+
+    /// Evaluate `input` and return at most `limit` canonical diagnostics.
+    #[must_use]
+    pub fn diagnostics_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        let mut observe_only = Vec::new();
+        let mut remaining = limit;
+        for entry in &self.rules {
+            let cached_id = entry.id.as_str();
+            if input.content.is_none() && entry.rule.needs_content() {
+                continue;
+            }
+            let Ok(mut diagnostics) = catch_unwind(AssertUnwindSafe(|| {
+                entry.rule.diagnostics_with_limit(input, mode, remaining)
+            })) else {
+                eprintln!(
+                    "anvil-intercept-rules: rule {cached_id:?} panicked during diagnostics; \
+                     treating as no diagnostics (rule contract violation)",
+                );
+                continue;
+            };
+            if diagnostics.is_empty() {
+                continue;
+            }
+            diagnostics.truncate(remaining);
+            for diagnostic in &mut diagnostics {
+                if diagnostic.source.rule_id != cached_id {
+                    diagnostic.source.rule_id.clear();
+                    diagnostic.source.rule_id.push_str(cached_id);
+                }
+            }
+
+            match self.mode {
+                RegistryMode::Enforce => return diagnostics,
+                RegistryMode::ObserveOnly => {
+                    remaining = remaining.saturating_sub(diagnostics.len());
+                    observe_only.extend(diagnostics);
+                    if remaining == 0 {
+                        return observe_only;
+                    }
+                }
+            }
+        }
+        observe_only
     }
 }
 

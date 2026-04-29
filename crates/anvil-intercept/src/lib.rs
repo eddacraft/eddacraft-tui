@@ -31,6 +31,7 @@
 pub mod enforcement;
 pub mod fence;
 pub mod ipc;
+pub mod midedit;
 pub mod registry;
 pub mod telemetry;
 
@@ -133,6 +134,7 @@ impl DaemonState {
 pub struct ForegroundOpts {
     pid_file: Option<PathBuf>,
     fence_store: Option<PathBuf>,
+    scan_buffer: midedit::ScanBufferService,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -147,6 +149,7 @@ impl ForegroundOpts {
         Self {
             pid_file: Some(pid_file.into()),
             fence_store: None,
+            scan_buffer: midedit::ScanBufferService::default(),
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -165,6 +168,7 @@ impl ForegroundOpts {
         Self {
             pid_file: Some(pid_file.into()),
             fence_store: None,
+            scan_buffer: midedit::ScanBufferService::default(),
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -180,6 +184,7 @@ impl ForegroundOpts {
         Self {
             pid_file: Some(pid_file.into()),
             fence_store: None,
+            scan_buffer: midedit::ScanBufferService::default(),
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -189,6 +194,15 @@ impl ForegroundOpts {
     #[must_use]
     pub fn with_fence_store_file(mut self, fence_store: impl Into<PathBuf>) -> Self {
         self.fence_store = Some(fence_store.into());
+        self
+    }
+
+    /// Override the scan-buffer service used by the IPC listener for the
+    /// `scan_buffer` mid-edit RPC. Tests inject a fixture-shaped service
+    /// with a known rule registry.
+    #[must_use]
+    pub fn with_scan_buffer_service(mut self, scan_buffer: midedit::ScanBufferService) -> Self {
+        self.scan_buffer = scan_buffer;
         self
     }
 
@@ -734,20 +748,21 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             Arc::clone(&daemon_state.registry),
             Arc::clone(&daemon_state.fence_store),
         );
+        let scan_buffer = opts.scan_buffer.clone();
 
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
-            ipc::IpcListener::bind(socket_path, dispatcher)
+            ipc::IpcListener::bind_with_scan_buffer_service(socket_path, dispatcher, scan_buffer)
         } else {
-            ipc::IpcListener::bind_default(dispatcher)
+            ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
         .context("failed to bind intercept IPC listener")?;
 
         #[cfg(windows)]
         let listener = if let Some(pipe_name) = opts.ipc_pipe_name() {
-            ipc::IpcListener::bind(pipe_name, dispatcher)
+            ipc::IpcListener::bind_with_scan_buffer_service(pipe_name, dispatcher, scan_buffer)
         } else {
-            ipc::IpcListener::bind_default(dispatcher)
+            ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
         .context("failed to bind intercept IPC listener")?;
 
@@ -1131,6 +1146,66 @@ mod tests {
             .register(&SessionId::new("sess-unblocked"), &worktree)
             .expect("explicit unblock must affect running dispatcher");
         assert_eq!(registry.active_sessions().len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_uses_configured_scan_buffer_service() {
+        use anvil_intercept_rules::RuleRegistry;
+        use serde_json::json;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        use tokio::net::UnixStream;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        let socket = test_ipc_socket(&tmp);
+        let scan_buffer = midedit::ScanBufferService::new(enforcement::EnforcementPipeline::new(
+            RuleRegistry::new(),
+        ));
+
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(
+            ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket)
+                .with_scan_buffer_service(scan_buffer),
+            token,
+        ));
+
+        wait_for_pid_file(&pid_file).await;
+        wait_for_socket(&socket).await;
+
+        let mut stream = UnixStream::connect(&socket).await.expect("connect");
+        let frame = json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": "src/auth/client.ts",
+                "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                "version": 9,
+                "mode": "midEdit"
+            },
+            "id": "foreground-scan"
+        });
+        stream
+            .write_all(format!("{frame}\n").as_bytes())
+            .await
+            .expect("write scan");
+
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        timeout(Duration::from_secs(5), reader.read_line(&mut line))
+            .await
+            .expect("scan response timeout")
+            .expect("read scan response");
+        let response: serde_json::Value = serde_json::from_str(line.trim_end()).expect("json");
+        assert_eq!(response["id"], "foreground-scan");
+        assert_eq!(response["result"]["diagnostics"], json!([]));
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
     }
 
     #[tokio::test(flavor = "current_thread")]

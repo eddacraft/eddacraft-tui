@@ -1,7 +1,7 @@
-use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content};
+use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content_with_limit};
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 
-use crate::{InterceptRule, RuleDecision, RuleInput, sanitise_id_part};
+use crate::{InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
 
 pub const SECRET_RULE_ID: &str = "secret-detection";
 
@@ -23,13 +23,29 @@ impl SecretDetectionRule {
 
     #[must_use]
     pub fn diagnostics(&self, input: &RuleInput<'_>, mode: &Mode) -> Vec<Diagnostic> {
-        self.findings(input)
+        self.diagnostics_with_limit(input, mode, usize::MAX)
+    }
+
+    #[must_use]
+    pub fn diagnostics_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        self.findings_with_limit(input, limit)
             .into_iter()
             .map(|finding| finding_to_diagnostic(&finding, mode.clone()))
             .collect()
     }
 
-    fn findings(&self, input: &RuleInput<'_>) -> Vec<SecretFinding> {
+    fn findings_with_limit(&self, input: &RuleInput<'_>, limit: usize) -> Vec<SecretFinding> {
+        if limit == 0 {
+            return Vec::new();
+        }
         if self.should_skip_path(input) {
             return Vec::new();
         }
@@ -38,7 +54,7 @@ impl SecretDetectionRule {
         };
         let content = String::from_utf8_lossy(content);
         let path = input.path.to_string_lossy();
-        scan_content(content.as_ref(), path.as_ref(), &self.config)
+        scan_content_with_limit(content.as_ref(), path.as_ref(), &self.config, limit)
     }
 
     fn should_skip_path(&self, input: &RuleInput<'_>) -> bool {
@@ -66,7 +82,7 @@ impl InterceptRule for SecretDetectionRule {
     }
 
     fn evaluate(&self, input: &RuleInput<'_>) -> RuleDecision {
-        let findings = self.findings(input);
+        let findings = self.findings_with_limit(input, 1);
         let Some(first) = findings.first() else {
             return RuleDecision::Allow;
         };
@@ -77,12 +93,26 @@ impl InterceptRule for SecretDetectionRule {
             _ => RuleDecision::interrupt(SECRET_RULE_ID, message),
         }
     }
+
+    fn diagnostics(&self, input: &RuleInput<'_>, mode: &Mode) -> Vec<Diagnostic> {
+        SecretDetectionRule::diagnostics(self, input, mode)
+    }
+
+    fn diagnostics_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+        limit: usize,
+    ) -> Vec<Diagnostic> {
+        SecretDetectionRule::diagnostics_with_limit(self, input, mode, limit)
+    }
 }
 
 fn finding_to_diagnostic(finding: &SecretFinding, mode: Mode) -> Diagnostic {
     Diagnostic::new(
         format!(
-            "diag_prewrite_{}_{}_{}",
+            "diag_secret_{}_{}_{}_{}",
+            mode_id_part(&mode),
             sanitise_id_part(&finding.file),
             finding.line,
             sanitise_id_part(&finding.pattern_name)
@@ -202,7 +232,10 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         let diagnostic = &diagnostics[0];
         assert_eq!(diagnostic.schema_version, "anvil.diagnostic.v1");
-        assert_eq!(diagnostic.id, "diag_prewrite_src_auth_client_ts_1_api_key");
+        assert_eq!(
+            diagnostic.id,
+            "diag_secret_pre_write_src_auth_client_ts_1_api_key"
+        );
         assert_eq!(diagnostic.severity, Severity::Error);
         assert_eq!(diagnostic.category, Category::Secret);
         assert_eq!(diagnostic.location.file, "src/auth/client.ts");

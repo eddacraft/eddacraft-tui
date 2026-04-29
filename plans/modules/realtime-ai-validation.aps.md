@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| RTAI | —     | Ready    | 1/9      |
+| RTAI | —     | In Progress | 1/9      |
 
 **Last reviewed:** 2026-04-30
 
@@ -133,7 +133,7 @@ convention" section). Concretely:
 **In scope:**
 
 - A **mid-edit RPC surface** on the intercept daemon
-  (`anvil/validate.midEdit` or similar — naming pinned in RTAI-002)
+  (`scan_buffer`, per the RTAI-001 spike decision)
   that accepts unsaved buffer content and a path, runs the
   configured rule set without touching disk, and returns
   diagnostics. Distinct from the save-time path.
@@ -290,32 +290,34 @@ convention" section). Concretely:
   validation RPC that accepts unsaved buffer content and returns
   diagnostics without touching disk.
 - **Expected Outcome:** A new JSON-RPC method
-  (`anvil/validate.midEdit` — final name chosen during DRVR-002
-  protocol sign-off) accepts `{ uri, version, content,
-  workspaceRoot, sessionId? }` and returns `{ diagnostics: [...] }`
-  or `{ error: { code, message, data? } }`. The enforcement
+  (`scan_buffer`, per the RTAI-001 spike decision) accepts
+  `{ path, text, version, mode }` with `mode = midEdit` and returns
+  `{ version, diagnostics: [...], truncated }` or a JSON-RPC
+  `{ error: { code, message, data? } }`. The enforcement
   pipeline grows a content-injection variant that bypasses the
   disk-read step in INTD-005 but reuses the same rule registry,
   the 1 MB content cap, the binary-detection short-circuit, and
-  the existing rule short-circuit semantics. The new path is
-  conformance-tested as JSON-RPC 2.0 alongside INTD-014.
+  the existing rule short-circuit semantics. The IPC listener carries
+  the configured scan service instead of a static registry and caps
+  each response with `truncated = true` when extra diagnostics are
+  dropped. The new path is conformance-tested as JSON-RPC 2.0
+  alongside INTD-014.
 - **Blocks on:** INTD-002, INTD-005, RTAI-001 (decision on
   extend-vs-new-method).
 - **Coordinates with:** DRVR-002 (the method must appear in the
   protocol's method table).
-- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib
-  midedit` covers (a) happy-path diagnostics, (b) over-cap
+- **Validation:** `cargo test -p eddacraft-anvil-intercept midedit &&
+  cargo test -p eddacraft-anvil-intercept --test jsonrpc_conformance
+  scan_buffer` covers (a) happy-path diagnostics, (b) over-cap
   rejection, (c) binary content short-circuit, (d) malformed
   request returns structured error, (e) rule-registry parity
-  with the on-disk path against a fixture matrix.
-- **Confidence:** medium
-- **Status:** Ready — INTD-002, INTD-005, and RTAI-001 are complete.
-- **Reconciliation note (2026-04-30):** Local branch
-  `feat/RTAI-002-midedit-rpc` points at the merged INTD-005 enforcement
-  pipeline (`48efb870`) and has no unique RTAI diff against `dev`. The
-  production code has the proposed-content evaluation helper needed by this
-  task, but not the daemon JSON-RPC method, `IpcCommand` variant, cap/error
-  contract, or `midedit` conformance tests. This task remains unimplemented.
+  with the on-disk path against a fixture matrix, (f) configured
+  listener rule-set injection, and (g) worst-case JSON escaping for a
+  valid 1 MB buffer.
+- **Status:** In Progress — landed on `feat/RTAI-002-midedit-rpc` (PR #1186):
+  daemon `scan_buffer` JSON-RPC method, content-injection enforcement variant,
+  1 MiB cap + binary short-circuit, `ScanBufferService` semaphore + truncation,
+  conformance fixtures alongside INTD-014.
 
 ---
 

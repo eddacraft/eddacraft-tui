@@ -11,7 +11,7 @@
 //!   `0700` directories, `0600` socket files. None of this is left to
 //!   umask.
 //! - **NDJSON framing** — a custom line reader (see [`read_one_line`])
-//!   so the 1 MiB per-line cap is enforced byte-by-byte before UTF-8
+//!   so the per-line cap is enforced byte-by-byte before UTF-8
 //!   conversion. Malformed lines are logged and skipped without
 //!   tearing the connection down. The stock
 //!   `tokio::io::AsyncBufReadExt::lines()` API has no size cap, which
@@ -43,13 +43,24 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::task::JoinSet;
 
 use crate::ShutdownToken;
+use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
+use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService};
 use crate::registry::SessionDispatcher;
 
 /// Maximum size of a single NDJSON line, in bytes. Lines larger than
 /// this cause the connection to be torn down with [`IpcError::OversizedLine`]
 /// — protects the daemon from a same-UID peer streaming an unbounded
-/// blob into one line.
-pub const MAX_LINE_BYTES: usize = 1 << 20; // 1 MiB
+/// blob into one line. The cap allows a 1 MiB validation buffer in
+/// worst-case JSON string encoding plus JSON-RPC framing overhead so
+/// `scan_buffer` can reject over-cap content as a structured protocol
+/// error instead of transport EOF.
+pub const MAX_LINE_BYTES: usize = (CONTENT_SIZE_CAP_BYTES_USIZE * 6) + (64 << 10);
+pub const LEGACY_MAX_LINE_BYTES: usize = 1 << 20;
+pub const MAX_JSONRPC_BATCH_ITEMS: usize = 32;
+pub const MAX_ACTIVE_CONNECTIONS: usize = 32;
+pub const CONNECTION_READ_TIMEOUT: Duration = Duration::from_mins(1);
+const MAX_JSONRPC_ID_BYTES: usize = 256;
+const MAX_SCAN_BUFFER_MODE_BYTES: usize = 32;
 
 /// How long [`IpcListener::shutdown`] waits for in-flight handler tasks
 /// to drain before aborting them. Kept small so a misbehaving handler
@@ -304,12 +315,16 @@ pub struct IpcListener<D: SessionDispatcher> {
     socket_path: PathBuf,
     #[cfg(unix)]
     dispatcher: Arc<D>,
+    #[cfg(unix)]
+    scan_buffer: ScanBufferService,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
     pipe_name: String,
     #[cfg(windows)]
     dispatcher: Arc<D>,
+    #[cfg(windows)]
+    scan_buffer: ScanBufferService,
     #[cfg(not(any(unix, windows)))]
     _marker: std::marker::PhantomData<D>,
 }
@@ -320,8 +335,16 @@ impl<D: SessionDispatcher> IpcListener<D> {
     /// permission ladder.
     #[cfg(unix)]
     pub fn bind_default(dispatcher: D) -> Result<Self, IpcError> {
+        Self::bind_default_with_scan_buffer_service(dispatcher, ScanBufferService::default())
+    }
+
+    #[cfg(unix)]
+    pub fn bind_default_with_scan_buffer_service(
+        dispatcher: D,
+        scan_buffer: ScanBufferService,
+    ) -> Result<Self, IpcError> {
         let socket_path = resolve_socket_path()?;
-        Self::bind(&socket_path, dispatcher)
+        Self::bind_with_scan_buffer_service(&socket_path, dispatcher, scan_buffer)
     }
 
     /// Bind a fresh listener at `path`. The path's parent directory
@@ -330,6 +353,15 @@ impl<D: SessionDispatcher> IpcListener<D> {
     /// are accepted.
     #[cfg(unix)]
     pub fn bind(path: &Path, dispatcher: D) -> Result<Self, IpcError> {
+        Self::bind_with_scan_buffer_service(path, dispatcher, ScanBufferService::default())
+    }
+
+    #[cfg(unix)]
+    pub fn bind_with_scan_buffer_service(
+        path: &Path,
+        dispatcher: D,
+        scan_buffer: ScanBufferService,
+    ) -> Result<Self, IpcError> {
         use nix::sys::stat::{Mode, fchmod};
         use nix::unistd::Uid;
         use std::os::unix::fs::{FileTypeExt, PermissionsExt};
@@ -407,6 +439,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             inner: listener,
             socket_path: path.to_path_buf(),
             dispatcher: Arc::new(dispatcher),
+            scan_buffer,
         })
     }
 
@@ -419,6 +452,8 @@ impl<D: SessionDispatcher> IpcListener<D> {
     pub async fn serve(self, mut token: ShutdownToken) -> Result<(), IpcError> {
         let mut joinset: JoinSet<()> = JoinSet::new();
         let dispatcher = Arc::clone(&self.dispatcher);
+        let scan_buffer = self.scan_buffer.clone();
+        let connection_permits = Arc::new(tokio::sync::Semaphore::new(MAX_ACTIVE_CONNECTIONS));
 
         loop {
             tokio::select! {
@@ -446,10 +481,17 @@ impl<D: SessionDispatcher> IpcListener<D> {
                 accepted = self.inner.accept() => {
                     match accepted {
                         Ok((stream, _addr)) => {
+                            let Ok(connection_permit) = connection_permits.clone().try_acquire_owned() else {
+                                tracing::warn!(target: "anvil_intercept::ipc", "dropping ipc connection: active connection limit reached");
+                                eprintln!("anvil-intercept: dropping ipc connection: active connection limit reached");
+                                continue;
+                            };
                             let dispatcher = Arc::clone(&dispatcher);
+                            let scan_buffer = scan_buffer.clone();
                             let conn_token = token.clone();
                             joinset.spawn(async move {
-                                if let Err(err) = handle_connection(stream, dispatcher, conn_token).await {
+                                let _connection_permit = connection_permit;
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_token).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -492,12 +534,27 @@ impl<D: SessionDispatcher> IpcListener<D> {
 impl<D: SessionDispatcher> IpcListener<D> {
     /// Bind a Windows named pipe at the platform-default name.
     pub fn bind_default(dispatcher: D) -> Result<Self, IpcError> {
+        Self::bind_default_with_scan_buffer_service(dispatcher, ScanBufferService::default())
+    }
+
+    pub fn bind_default_with_scan_buffer_service(
+        dispatcher: D,
+        scan_buffer: ScanBufferService,
+    ) -> Result<Self, IpcError> {
         let pipe_name = resolve_pipe_name()?;
-        Self::bind(&pipe_name, dispatcher)
+        Self::bind_with_scan_buffer_service(&pipe_name, dispatcher, scan_buffer)
     }
 
     /// Bind a Windows named pipe using an owner-only DACL and local-only clients.
     pub fn bind(pipe_name: &str, dispatcher: D) -> Result<Self, IpcError> {
+        Self::bind_with_scan_buffer_service(pipe_name, dispatcher, ScanBufferService::default())
+    }
+
+    pub fn bind_with_scan_buffer_service(
+        pipe_name: &str,
+        dispatcher: D,
+        scan_buffer: ScanBufferService,
+    ) -> Result<Self, IpcError> {
         let server = anvil_intercept_win32::create_owner_only_pipe_server(
             pipe_name,
             anvil_intercept_win32::PipeInstance::First,
@@ -506,6 +563,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             inner: server,
             pipe_name: pipe_name.to_owned(),
             dispatcher: Arc::new(dispatcher),
+            scan_buffer,
         })
     }
 
@@ -514,7 +572,9 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let mut server = self.inner;
         let pipe_name = self.pipe_name;
         let dispatcher = self.dispatcher;
+        let scan_buffer = self.scan_buffer;
         let mut joinset: JoinSet<()> = JoinSet::new();
+        let connection_permits = Arc::new(tokio::sync::Semaphore::new(MAX_ACTIVE_CONNECTIONS));
 
         loop {
             tokio::select! {
@@ -540,10 +600,18 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 &pipe_name,
                                 anvil_intercept_win32::PipeInstance::Additional,
                             )?;
+                            let Ok(connection_permit) = connection_permits.clone().try_acquire_owned() else {
+                                tracing::warn!(target: "anvil_intercept::ipc", "dropping named-pipe connection: active connection limit reached");
+                                eprintln!("anvil-intercept: dropping named-pipe connection: active connection limit reached");
+                                drop(connected_server);
+                                continue;
+                            };
                             let dispatcher = Arc::clone(&dispatcher);
+                            let scan_buffer = scan_buffer.clone();
                             let conn_token = token.clone();
                             joinset.spawn(async move {
-                                if let Err(err) = handle_connection(connected_server, dispatcher, conn_token).await {
+                                let _connection_permit = connection_permit;
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_token).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -583,6 +651,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
 async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unpin>(
     stream: R,
     dispatcher: Arc<D>,
+    scan_buffer: ScanBufferService,
     mut token: ShutdownToken,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
@@ -590,29 +659,10 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
 
     loop {
         buf.clear();
-        let read = tokio::select! {
-            biased;
-            () = token.cancelled() => return Ok(()),
-            res = read_one_line(&mut reader, &mut buf) => match res {
-                Ok(n) => n,
-                Err(IpcError::InvalidUtf8 { len }) => {
-                    // Per the module doc: malformed-frame errors are
-                    // logged and skipped, the connection stays open.
-                    // Invalid UTF-8 is a malformed frame too — not a
-                    // reason to disconnect a long-lived client mid
-                    // stream.
-                    tracing::warn!(
-                        target: "anvil_intercept::ipc",
-                        bytes = len,
-                        "skipping NDJSON line: invalid UTF-8",
-                    );
-                    eprintln!(
-                        "anvil-intercept: skipping NDJSON line ({len} bytes): invalid UTF-8",
-                    );
-                    continue;
-                }
-                Err(err) => return Err(err),
-            },
+        let read = match read_connection_line(&mut reader, &mut buf, &mut token).await? {
+            ConnectionRead::Line(read) => read,
+            ConnectionRead::Skip => continue,
+            ConnectionRead::Closed => return Ok(()),
         };
         if read == 0 {
             // Peer closed cleanly.
@@ -623,15 +673,24 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
         if line.is_empty() {
             continue;
         }
+        if line.len() > LEGACY_MAX_LINE_BYTES
+            && let Err(reason) = validate_oversized_scan_buffer_frame(line)
+        {
+            write_json_response(
+                reader.get_mut(),
+                &oversized_frame_response(reason),
+                "size error",
+            )
+            .await?;
+            continue;
+        }
         match serde_json::from_str::<Value>(line) {
             Ok(value) => {
                 if is_jsonrpc_frame(&value) {
-                    if let Some(response) = handle_jsonrpc_value(value, &dispatcher) {
-                        let mut response = serde_json::to_string(&response).map_err(|err| {
-                            io::Error::other(format!("serialise JSON-RPC response: {err}"))
-                        })?;
-                        response.push('\n');
-                        reader.get_mut().write_all(response.as_bytes()).await?;
+                    if let Some(response) =
+                        handle_jsonrpc_value(value, &dispatcher, &scan_buffer).await
+                    {
+                        write_json_response(reader.get_mut(), &response, "response").await?;
                     }
                 } else {
                     match serde_json::from_value::<IpcEnvelope>(value) {
@@ -663,11 +722,7 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                     "Parse error",
                     json!({"reason": err.to_string()}),
                 );
-                let mut response = serde_json::to_string(&response).map_err(|err| {
-                    io::Error::other(format!("serialise JSON-RPC parse error: {err}"))
-                })?;
-                response.push('\n');
-                reader.get_mut().write_all(response.as_bytes()).await?;
+                write_json_response(reader.get_mut(), &response, "parse error").await?;
                 tracing::warn!(
                     target: "anvil_intercept::ipc",
                     error = %err,
@@ -684,13 +739,80 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     }
 }
 
+enum ConnectionRead {
+    Line(usize),
+    Skip,
+    Closed,
+}
+
+async fn read_connection_line<R: AsyncRead + Unpin>(
+    reader: &mut BufReader<R>,
+    buf: &mut String,
+    token: &mut ShutdownToken,
+) -> Result<ConnectionRead, IpcError> {
+    tokio::select! {
+        biased;
+        () = token.cancelled() => Ok(ConnectionRead::Closed),
+        res = tokio::time::timeout(
+            CONNECTION_READ_TIMEOUT,
+            read_one_line(reader, buf),
+        ) => match res {
+            Ok(Ok(read)) => Ok(ConnectionRead::Line(read)),
+            Ok(Err(IpcError::InvalidUtf8 { len })) => {
+                log_invalid_utf8_line(len);
+                Ok(ConnectionRead::Skip)
+            }
+            Ok(Err(err)) => Err(err),
+            Err(_) => {
+                log_idle_connection_timeout();
+                Ok(ConnectionRead::Closed)
+            }
+        },
+    }
+}
+
+fn log_invalid_utf8_line(len: usize) {
+    tracing::warn!(
+        target: "anvil_intercept::ipc",
+        bytes = len,
+        "skipping NDJSON line: invalid UTF-8",
+    );
+    eprintln!("anvil-intercept: skipping NDJSON line ({len} bytes): invalid UTF-8");
+}
+
+fn log_idle_connection_timeout() {
+    tracing::warn!(
+        target: "anvil_intercept::ipc",
+        timeout_ms = CONNECTION_READ_TIMEOUT.as_millis(),
+        "closing idle ipc connection",
+    );
+    eprintln!("anvil-intercept: closing idle ipc connection after {CONNECTION_READ_TIMEOUT:?}");
+}
+
+async fn write_json_response<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    response: &Value,
+    context: &str,
+) -> Result<(), IpcError> {
+    let mut response = serde_json::to_string(response)
+        .map_err(|err| io::Error::other(format!("serialise JSON-RPC {context}: {err}")))?;
+    response.push('\n');
+    writer.write_all(response.as_bytes()).await?;
+    Ok(())
+}
+
+fn oversized_frame_response(reason: &str) -> Value {
+    jsonrpc_error(None, -32600, "Invalid Request", json!({ "reason": reason }))
+}
+
 #[doc(hidden)]
 #[cfg(feature = "bench-internals")]
-pub fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
+pub async fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
+    scan_buffer: &ScanBufferService,
 ) -> Option<Value> {
-    handle_jsonrpc_value(value, dispatcher)
+    handle_jsonrpc_value(value, dispatcher, scan_buffer).await
 }
 
 fn is_jsonrpc_frame(value: &Value) -> bool {
@@ -701,7 +823,336 @@ fn is_jsonrpc_frame(value: &Value) -> bool {
     }
 }
 
-fn handle_jsonrpc_value<D: SessionDispatcher>(value: Value, dispatcher: &Arc<D>) -> Option<Value> {
+fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), &'static str> {
+    let bytes = line.as_bytes();
+    let mut index = skip_json_whitespace(bytes, 0);
+    if bytes.get(index) == Some(&b'[') {
+        return Err(
+            "frames above the legacy cap must be a single scan_buffer request; batches are unsupported",
+        );
+    }
+    if bytes.get(index) != Some(&b'{') {
+        return Err("frame exceeds the legacy cap for non-scan_buffer methods");
+    }
+    index += 1;
+
+    let mut saw_jsonrpc = false;
+    let mut saw_method = false;
+    let mut saw_params = false;
+    let mut saw_id = false;
+
+    loop {
+        index = skip_json_whitespace(bytes, index);
+        if bytes.get(index) == Some(&b'}') {
+            index += 1;
+            break;
+        }
+        if bytes.get(index) != Some(&b'"') {
+            return Err("oversized scan_buffer frame is malformed");
+        }
+        let Some(key) = parse_simple_json_string(bytes, &mut index) else {
+            return Err("oversized scan_buffer frame uses escaped or malformed field names");
+        };
+        index = skip_json_whitespace(bytes, index);
+        if bytes.get(index) != Some(&b':') {
+            return Err("oversized scan_buffer frame is malformed");
+        }
+        index += 1;
+        index = skip_json_whitespace(bytes, index);
+
+        match key {
+            "jsonrpc" => {
+                if saw_jsonrpc {
+                    return Err("oversized scan_buffer frame contains duplicate jsonrpc fields");
+                }
+                saw_jsonrpc = true;
+                if parse_simple_json_string(bytes, &mut index) != Some("2.0") {
+                    return Err("oversized scan_buffer frame must declare jsonrpc 2.0");
+                }
+            }
+            "method" => {
+                if saw_method {
+                    return Err("oversized scan_buffer frame contains duplicate method fields");
+                }
+                saw_method = true;
+                if parse_simple_json_string(bytes, &mut index) != Some(midedit::SCAN_BUFFER_METHOD)
+                {
+                    return Err("frame exceeds the legacy cap for non-scan_buffer methods");
+                }
+            }
+            "params" => {
+                if saw_params {
+                    return Err("oversized scan_buffer frame contains duplicate params fields");
+                }
+                saw_params = true;
+                validate_oversized_scan_buffer_params(bytes, &mut index)?;
+            }
+            "id" => {
+                if saw_id {
+                    return Err("oversized scan_buffer frame contains duplicate id fields");
+                }
+                saw_id = true;
+                if !skip_bounded_jsonrpc_id(bytes, &mut index) {
+                    return Err("oversized scan_buffer frame id is missing or too large");
+                }
+            }
+            _ => return Err("oversized scan_buffer frame contains unsupported top-level fields"),
+        }
+
+        if consume_json_object_end_or_comma(bytes, &mut index)? {
+            break;
+        }
+    }
+
+    index = skip_json_whitespace(bytes, index);
+    if index != bytes.len() {
+        return Err("oversized scan_buffer frame has trailing data");
+    }
+    if !saw_jsonrpc || !saw_method || !saw_params || !saw_id {
+        return Err("oversized scan_buffer frame must include jsonrpc, method, params, and id");
+    }
+
+    Ok(())
+}
+
+fn validate_oversized_scan_buffer_params(
+    bytes: &[u8],
+    index: &mut usize,
+) -> Result<(), &'static str> {
+    if bytes.get(*index) != Some(&b'{') {
+        return Err("oversized scan_buffer params must be an object");
+    }
+    *index += 1;
+
+    let mut saw_path = false;
+    let mut saw_text = false;
+    let mut saw_version = false;
+    let mut saw_mode = false;
+
+    loop {
+        *index = skip_json_whitespace(bytes, *index);
+        if bytes.get(*index) == Some(&b'}') {
+            *index += 1;
+            break;
+        }
+        if bytes.get(*index) != Some(&b'"') {
+            return Err("oversized scan_buffer params are malformed");
+        }
+        let Some(key) = parse_simple_json_string(bytes, index) else {
+            return Err("oversized scan_buffer params use escaped or malformed field names");
+        };
+        *index = skip_json_whitespace(bytes, *index);
+        if bytes.get(*index) != Some(&b':') {
+            return Err("oversized scan_buffer params are malformed");
+        }
+        *index += 1;
+        *index = skip_json_whitespace(bytes, *index);
+
+        match key {
+            "path" => {
+                if saw_path {
+                    return Err("oversized scan_buffer params contain duplicate path fields");
+                }
+                saw_path = true;
+                if !skip_bounded_json_string(bytes, index, midedit::MAX_SCAN_BUFFER_PATH_BYTES) {
+                    return Err("oversized scan_buffer path is missing or too large");
+                }
+            }
+            "text" => {
+                if saw_text {
+                    return Err("oversized scan_buffer params contain duplicate text fields");
+                }
+                saw_text = true;
+                if !skip_bounded_json_string(bytes, index, MAX_LINE_BYTES) {
+                    return Err("oversized scan_buffer text is malformed");
+                }
+            }
+            "version" => {
+                if saw_version {
+                    return Err("oversized scan_buffer params contain duplicate version fields");
+                }
+                saw_version = true;
+                if !skip_bounded_json_number(bytes, index, 20) {
+                    return Err("oversized scan_buffer version is missing or too large");
+                }
+            }
+            "mode" => {
+                if saw_mode {
+                    return Err("oversized scan_buffer params contain duplicate mode fields");
+                }
+                saw_mode = true;
+                if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_MODE_BYTES) {
+                    return Err("oversized scan_buffer mode is missing or too large");
+                }
+            }
+            _ => return Err("oversized scan_buffer params contain unsupported fields"),
+        }
+
+        if consume_json_object_end_or_comma(bytes, index)? {
+            break;
+        }
+    }
+
+    if !saw_path || !saw_text || !saw_version || !saw_mode {
+        return Err("oversized scan_buffer params must include path, text, version, and mode");
+    }
+
+    Ok(())
+}
+
+fn skip_json_whitespace(bytes: &[u8], mut index: usize) -> usize {
+    while matches!(bytes.get(index), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+        index += 1;
+    }
+    index
+}
+
+fn parse_simple_json_string<'a>(bytes: &'a [u8], index: &mut usize) -> Option<&'a str> {
+    if bytes.get(*index) != Some(&b'"') {
+        return None;
+    }
+    *index += 1;
+    let start = *index;
+    let mut escaped = false;
+    while let Some(byte) = bytes.get(*index) {
+        match *byte {
+            b'\\' => {
+                escaped = true;
+                *index += 2;
+            }
+            b'"' => {
+                let end = *index;
+                *index += 1;
+                if escaped {
+                    return None;
+                }
+                return std::str::from_utf8(&bytes[start..end]).ok();
+            }
+            _ => *index += 1,
+        }
+    }
+    None
+}
+
+fn skip_bounded_json_string(bytes: &[u8], index: &mut usize, max_raw_bytes: usize) -> bool {
+    if bytes.get(*index) != Some(&b'"') {
+        return false;
+    }
+    *index += 1;
+    let start = *index;
+    let mut escaped = false;
+
+    while let Some(byte) = bytes.get(*index) {
+        if escaped {
+            escaped = false;
+            *index += 1;
+            continue;
+        }
+        match *byte {
+            b'\\' => {
+                escaped = true;
+                *index += 1;
+            }
+            b'"' => {
+                if *index - start > max_raw_bytes {
+                    return false;
+                }
+                *index += 1;
+                return true;
+            }
+            _ => *index += 1,
+        }
+    }
+
+    false
+}
+
+fn skip_bounded_json_number(bytes: &[u8], index: &mut usize, max_bytes: usize) -> bool {
+    let start = *index;
+    if bytes.get(*index) == Some(&b'-') {
+        *index += 1;
+    }
+
+    let digit_start = *index;
+    while bytes.get(*index).is_some_and(u8::is_ascii_digit) {
+        *index += 1;
+    }
+    if *index == digit_start {
+        *index = start;
+        return false;
+    }
+
+    if bytes.get(*index) == Some(&b'.') {
+        *index += 1;
+        let fraction_start = *index;
+        while bytes.get(*index).is_some_and(u8::is_ascii_digit) {
+            *index += 1;
+        }
+        if *index == fraction_start {
+            *index = start;
+            return false;
+        }
+    }
+
+    if matches!(bytes.get(*index), Some(b'e' | b'E')) {
+        *index += 1;
+        if matches!(bytes.get(*index), Some(b'+' | b'-')) {
+            *index += 1;
+        }
+        let exponent_start = *index;
+        while bytes.get(*index).is_some_and(u8::is_ascii_digit) {
+            *index += 1;
+        }
+        if *index == exponent_start {
+            *index = start;
+            return false;
+        }
+    }
+
+    *index - start <= max_bytes
+}
+
+fn skip_bounded_jsonrpc_id(bytes: &[u8], index: &mut usize) -> bool {
+    match bytes.get(*index) {
+        Some(b'"') => skip_bounded_json_string(bytes, index, MAX_JSONRPC_ID_BYTES),
+        Some(b'n') if bytes.get(*index..*index + 4) == Some(b"null") => {
+            *index += 4;
+            true
+        }
+        Some(b'-' | b'0'..=b'9') => skip_bounded_json_number(bytes, index, 64),
+        _ => false,
+    }
+}
+
+fn consume_json_object_end_or_comma(bytes: &[u8], index: &mut usize) -> Result<bool, &'static str> {
+    *index = skip_json_whitespace(bytes, *index);
+    match bytes.get(*index) {
+        Some(b',') => {
+            *index += 1;
+            Ok(false)
+        }
+        Some(b'}') => {
+            *index += 1;
+            Ok(true)
+        }
+        _ => Err("oversized scan_buffer frame is malformed"),
+    }
+}
+
+fn is_valid_jsonrpc_notification(value: &Value) -> bool {
+    let Value::Object(map) = value else {
+        return false;
+    };
+    !map.contains_key("id")
+        && map.get("jsonrpc") == Some(&Value::String("2.0".to_owned()))
+        && map.get("method").and_then(Value::as_str).is_some()
+}
+
+async fn handle_jsonrpc_value<D: SessionDispatcher>(
+    value: Value,
+    dispatcher: &Arc<D>,
+    scan_buffer: &ScanBufferService,
+) -> Option<Value> {
     match value {
         Value::Array(items) => {
             if items.is_empty() {
@@ -714,23 +1165,82 @@ fn handle_jsonrpc_value<D: SessionDispatcher>(value: Value, dispatcher: &Arc<D>)
                     }),
                 ));
             }
-            let responses: Vec<Value> = items
-                .into_iter()
-                .filter_map(|item| handle_jsonrpc_request(item, dispatcher))
-                .collect();
+            if items.len() > MAX_JSONRPC_BATCH_ITEMS {
+                if items.iter().all(is_valid_jsonrpc_notification) {
+                    return None;
+                }
+                return Some(jsonrpc_error(
+                    None,
+                    -32600,
+                    "Invalid Request",
+                    json!({
+                        "reason": format!(
+                            "batch must not contain more than {MAX_JSONRPC_BATCH_ITEMS} items"
+                        )
+                    }),
+                ));
+            }
+            let mut responses = Vec::new();
+            for item in items {
+                if jsonrpc_method_name(&item) == Some(midedit::SCAN_BUFFER_METHOD) {
+                    if let JsonRpcBatchResponseId::Request(response_id) =
+                        jsonrpc_batch_response_id(&item)
+                    {
+                        responses.push(scan_buffer_batch_error(response_id));
+                    }
+                    continue;
+                }
+                if let Some(response) = handle_jsonrpc_request(item, dispatcher, scan_buffer).await
+                {
+                    responses.push(response);
+                }
+            }
             if responses.is_empty() {
                 None
             } else {
                 Some(Value::Array(responses))
             }
         }
-        item => handle_jsonrpc_request(item, dispatcher),
+        item => handle_jsonrpc_request(item, dispatcher, scan_buffer).await,
     }
 }
 
-fn handle_jsonrpc_request<D: SessionDispatcher>(
+fn jsonrpc_method_name(value: &Value) -> Option<&str> {
+    let Value::Object(map) = value else {
+        return None;
+    };
+    map.get("method").and_then(Value::as_str)
+}
+
+enum JsonRpcBatchResponseId {
+    Request(Option<Value>),
+    Notification,
+}
+
+fn jsonrpc_batch_response_id(value: &Value) -> JsonRpcBatchResponseId {
+    let Value::Object(map) = value else {
+        return JsonRpcBatchResponseId::Notification;
+    };
+    if map.contains_key("id") {
+        JsonRpcBatchResponseId::Request(valid_jsonrpc_id(map.get("id")))
+    } else {
+        JsonRpcBatchResponseId::Notification
+    }
+}
+
+fn scan_buffer_batch_error(response_id: Option<Value>) -> Value {
+    jsonrpc_error(
+        response_id,
+        -32600,
+        "Invalid Request",
+        json!({"reason": "scan_buffer is not supported in JSON-RPC batches"}),
+    )
+}
+
+async fn handle_jsonrpc_request<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
+    scan_buffer: &ScanBufferService,
 ) -> Option<Value> {
     let Value::Object(map) = value else {
         return Some(jsonrpc_error(
@@ -752,7 +1262,7 @@ fn handle_jsonrpc_request<D: SessionDispatcher>(
             -32600,
             "Invalid Request",
             json!({
-                "reason": "id must be a string, number, or null"
+                "reason": "id must be a string, number, or null within size limits"
             }),
         ));
     }
@@ -776,6 +1286,33 @@ fn handle_jsonrpc_request<D: SessionDispatcher>(
     };
     let is_notification = !has_id;
     let params = map.get("params").unwrap_or(&Value::Null);
+
+    if method == midedit::SCAN_BUFFER_METHOD {
+        if let Err(JsonRpcFailure {
+            code,
+            message,
+            data,
+        }) = validate_scan_buffer_request_shape(&map, method)
+        {
+            return jsonrpc_request_error(response_id, is_notification, code, message, data);
+        }
+        if is_notification {
+            tracing::warn!(
+                target: "anvil_intercept::ipc",
+                "ignoring scan_buffer notification: request id required"
+            );
+            eprintln!("anvil-intercept: ignoring scan_buffer notification: request id required");
+            return None;
+        }
+        return match scan_buffer_from_jsonrpc(params, method, scan_buffer).await {
+            Ok(result) => Some(json!({"jsonrpc": "2.0", "result": result, "id": response_id})),
+            Err(JsonRpcFailure {
+                code,
+                message,
+                data,
+            }) => jsonrpc_request_error(response_id, is_notification, code, message, data),
+        };
+    }
 
     let command = match command_from_jsonrpc(method, params) {
         Ok(command) => command,
@@ -807,10 +1344,15 @@ fn handle_jsonrpc_request<D: SessionDispatcher>(
 }
 
 fn valid_jsonrpc_id(id: Option<&Value>) -> Option<Value> {
-    if let Some(value @ (Value::Null | Value::String(_) | Value::Number(_))) = id {
-        Some(value.clone())
-    } else {
-        None
+    match id {
+        Some(Value::Null) => Some(Value::Null),
+        Some(Value::String(value)) if value.len() <= MAX_JSONRPC_ID_BYTES => {
+            Some(Value::String(value.clone()))
+        }
+        Some(Value::Number(value)) if value.to_string().len() <= 64 => {
+            Some(Value::Number(value.clone()))
+        }
+        _ => None,
     }
 }
 
@@ -903,6 +1445,94 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
     }
 }
 
+fn validate_scan_buffer_request_shape(
+    map: &serde_json::Map<String, Value>,
+    method: &str,
+) -> Result<(), JsonRpcFailure> {
+    for key in map.keys() {
+        if !matches!(key.as_str(), "jsonrpc" | "method" | "params" | "id") {
+            return Err(invalid_request(
+                "scan_buffer requests only allow jsonrpc, method, params, and id fields",
+            ));
+        }
+    }
+
+    let params = params_object(map.get("params").unwrap_or(&Value::Null), method)?;
+    for key in params.keys() {
+        if !matches!(key.as_str(), "path" | "text" | "version" | "mode") {
+            return Err(invalid_params(
+                method,
+                "scan_buffer params only allow path, text, version, and mode fields",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+async fn scan_buffer_from_jsonrpc(
+    params: &Value,
+    method: &str,
+    scan_buffer: &ScanBufferService,
+) -> Result<Value, JsonRpcFailure> {
+    let request = {
+        let params = params_object(params, method)?;
+        let path = required_string(params, "path", method)?;
+        midedit::validate_scan_buffer_path(&path)
+            .map_err(|err| invalid_params(method, err.to_string()))?;
+        let text = required_string(params, "text", method)?;
+        let version = required_u64(params, "version", method)?;
+        let mode = required_string(params, "mode", method)?;
+        let mode =
+            ScanBufferMode::parse(&mode).map_err(|err| invalid_params(method, err.to_string()))?;
+
+        ScanBufferRequest {
+            path: PathBuf::from(path),
+            text,
+            version,
+            mode,
+        }
+    };
+
+    let result = scan_buffer
+        .scan_buffer(request)
+        .await
+        .map_err(|err| scan_buffer_failure(method, &err))?;
+
+    serde_json::to_value(result).map_err(|err| JsonRpcFailure {
+        code: -32603,
+        message: "Internal error",
+        data: json!({"error": err.to_string()}),
+    })
+}
+
+fn scan_buffer_failure(method: &str, err: &midedit::ScanBufferError) -> JsonRpcFailure {
+    match err {
+        midedit::ScanBufferError::UnsupportedMode
+        | midedit::ScanBufferError::PathTooLong { .. }
+        | midedit::ScanBufferError::InvalidPath
+        | midedit::ScanBufferError::ContentTooLarge { .. } => {
+            invalid_params(method, err.to_string())
+        }
+        midedit::ScanBufferError::Busy => JsonRpcFailure {
+            code: -32000,
+            message: "Server busy",
+            data: json!({"error": err.to_string()}),
+        },
+        midedit::ScanBufferError::TimedOut => JsonRpcFailure {
+            code: -32001,
+            message: "Scan timed out",
+            data: json!({"error": err.to_string()}),
+        },
+        midedit::ScanBufferError::ServiceUnavailable
+        | midedit::ScanBufferError::WorkerFailed(_) => JsonRpcFailure {
+            code: -32603,
+            message: "Internal error",
+            data: json!({"error": err.to_string()}),
+        },
+    }
+}
+
 fn params_object<'a>(
     params: &'a Value,
     method: &str,
@@ -924,11 +1554,30 @@ fn required_string(
         .ok_or_else(|| invalid_params(method, format!("{field} must be a string")))
 }
 
+fn required_u64(
+    params: &serde_json::Map<String, Value>,
+    field: &str,
+    method: &str,
+) -> Result<u64, JsonRpcFailure> {
+    params
+        .get(field)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| invalid_params(method, format!("{field} must be an unsigned integer")))
+}
+
 fn invalid_params(method: &str, reason: impl Into<String>) -> JsonRpcFailure {
     JsonRpcFailure {
         code: -32602,
         message: "Invalid params",
         data: json!({"method": method, "reason": reason.into()}),
+    }
+}
+
+fn invalid_request(reason: impl Into<String>) -> JsonRpcFailure {
+    JsonRpcFailure {
+        code: -32600,
+        message: "Invalid Request",
+        data: json!({"reason": reason.into()}),
     }
 }
 
@@ -1146,6 +1795,64 @@ mod tests {
     fn resolve_pipe_name_uses_user_suffix() {
         let name = resolve_pipe_name().expect("resolve");
         assert!(name.starts_with(r"\\.\pipe\anvil-intercept-"), "got {name}");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn named_pipe_scan_buffer_smoke_uses_injected_service() {
+        use anvil_intercept_rules::RuleRegistry;
+        use serde_json::json;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-scan-buffer-test-{}",
+            std::process::id(),
+        );
+        let listener = IpcListener::bind_with_scan_buffer_service(
+            &pipe_name,
+            NoopDispatcher,
+            ScanBufferService::new(crate::enforcement::EnforcementPipeline::new(
+                RuleRegistry::new(),
+            )),
+        )
+        .expect("bind listener");
+        let (shutdown, token) = crate::Shutdown::new();
+        let handle = tokio::spawn(async move { listener.serve(token).await });
+
+        let mut client = ClientOptions::new().open(&pipe_name).expect("open pipe");
+        let frame = json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": "src/auth/client.ts",
+                "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                "version": 1,
+                "mode": "midEdit"
+            },
+            "id": "windows-scan"
+        });
+        client
+            .write_all(format!("{frame}\n").as_bytes())
+            .await
+            .expect("write request");
+
+        let mut reader = BufReader::new(client);
+        let mut line = String::new();
+        tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+            .await
+            .expect("response timeout")
+            .expect("read response");
+        let response: Value = serde_json::from_str(line.trim_end()).expect("response json");
+        assert_eq!(response["id"], "windows-scan");
+        assert_eq!(response["result"]["diagnostics"], json!([]));
+
+        shutdown.trigger();
+        tokio::time::timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("listener timeout")
+            .expect("listener join")
+            .expect("listener ok");
     }
 
     // ----- Unix permission and bind tests. --------------------------
@@ -1544,10 +2251,10 @@ mod tests {
             let (shutdown, handle) =
                 spawn_listener_with_dispatcher(&path, Arc::clone(&dispatcher)).await;
 
-            // First connection: send a line larger than 1 MiB. The
+            // First connection: send a line larger than the transport cap. The
             // connection should be torn down with OversizedLine.
             let mut stream = UnixStream::connect(&path).await.expect("connect");
-            // 1 MiB + 1 byte of payload, no newline yet.
+            // Cap + 1 byte of payload, no newline yet.
             let blob = vec![b'x'; MAX_LINE_BYTES + 1];
             // The peer closing on its side is fine — what we care
             // about is that the second connection still works.

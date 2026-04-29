@@ -256,9 +256,11 @@ And as the response payload of the mid-edit RPC:
   "jsonrpc": "2.0",
   "id": "req-42",
   "result": {
+    "version": 17,
     "diagnostics": [
       { /* canonical Diagnostic, mode: "mid-edit" */ }
-    ]
+    ],
+    "truncated": false
   }
 }
 ```
@@ -273,6 +275,9 @@ And as the response payload of the mid-edit RPC:
   diagnostics array. An empty `diagnostics: []` means "rule set ran,
   found nothing"; a structured `error` means "the run itself
   failed".
+- The mid-edit response echoes `version` so clients can drop stale
+  replies, and sets `truncated` when the daemon capped the diagnostic
+  set for a single scan.
 - The mapping from `Diagnostic.severity` to control decision
   (`allow`/`warn`/`block`/`interrupt`) is performed by INTD-013 per
   the project's enforcement config. Drivers must not infer it from
@@ -332,7 +337,7 @@ Concretely:
    and is **not** a field on `Diagnostic` — it's an outer-envelope
    field on the notification mirror.
 4. **DRVR-002 imports, does not redefine.** The editor-driver
-   protocol's `anvil/publishDiagnostics` and `anvil/validate.midEdit`
+   protocol's `anvil/publishDiagnostics` and `scan_buffer`
    methods use the same payload type. The shared TS/Rust contracts
    package generates TS bindings from the canonical Rust struct;
    editors and the MCP driver consume those bindings, not bespoke

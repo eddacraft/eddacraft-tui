@@ -13,6 +13,7 @@ pub mod types;
 
 pub use appeal_to_authority::{
     RULE_ID as APPEAL_TO_AUTHORITY_RULE_ID, scan_file as scan_appeal_to_authority,
+    scan_file_with_limit as scan_appeal_to_authority_with_limit,
 };
 pub use types::{ReasoningCheckConfig, ReasoningCheckResult};
 
@@ -29,6 +30,15 @@ pub fn run_reasoning_check(
     files: &[(&str, &str)],
     config: &ReasoningCheckConfig,
 ) -> ReasoningCheckResult {
+    run_reasoning_check_with_limit(files, config, usize::MAX)
+}
+
+#[must_use]
+pub fn run_reasoning_check_with_limit(
+    files: &[(&str, &str)],
+    config: &ReasoningCheckConfig,
+    limit: usize,
+) -> ReasoningCheckResult {
     let want_appeal = config.rule_ids.is_empty()
         || config
             .rule_ids
@@ -36,9 +46,18 @@ pub fn run_reasoning_check(
             .any(|id| id == APPEAL_TO_AUTHORITY_RULE_ID);
 
     let mut findings: Vec<Diagnostic> = Vec::new();
+    if limit == 0 {
+        return ReasoningCheckResult::clean();
+    }
     for (file, content) in files {
         if want_appeal {
-            findings.extend(scan_appeal_to_authority(file, content));
+            let remaining = limit.saturating_sub(findings.len());
+            findings.extend(scan_appeal_to_authority_with_limit(
+                file, content, remaining,
+            ));
+            if findings.len() == limit {
+                break;
+            }
         }
     }
 
@@ -82,6 +101,26 @@ mod tests {
         assert!(!result.passed);
         assert_eq!(result.findings.len(), 2);
         assert_eq!(result.score, 80);
+    }
+
+    #[test]
+    fn run_reasoning_check_with_limit_stops_after_requested_findings() {
+        let files = [
+            (
+                "src/a.rs",
+                "// the lead said to skip this branch\nfn a() {}\n",
+            ),
+            (
+                "src/b.rs",
+                "// the manager wants this disabled\nfn b() {}\n",
+            ),
+        ];
+        let result =
+            super::run_reasoning_check_with_limit(&files, &ReasoningCheckConfig::default(), 1);
+
+        assert!(!result.passed);
+        assert_eq!(result.findings.len(), 1);
+        assert_eq!(result.findings[0].location.file, "src/a.rs");
     }
 
     #[test]
