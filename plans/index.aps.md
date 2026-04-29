@@ -277,13 +277,13 @@ data contract, alert thresholds, runbook pack. 5 tasks (post-launch
 hardening). The cross-cutting tracing baseline originally scoped as OBS-006
 moved to TRACE on 2026-04-30 per Planning Council session plan-b00c16c7;
 see [ADR-035](./decisions/035-three-pipe-observability-rule.md) for the
-three-pipe rule and [Tracing Foundation](#tracing-foundation-ready) below.
+three-pipe rule and [Tracing Foundation](#tracing-foundation-draft) below.
 
 | Module                                                                | Scope | Status | Progress | Dependencies                                                                                                                  |
 | --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/5      | kindling-integration, dashboard-ops-views; tracing scope migrated to TRACE on 2026-04-30 (OBS-006 superseded by TRACE-001)    |
 
-### Tracing Foundation (Ready)
+### Tracing Foundation (Draft)
 
 Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
 daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
@@ -296,15 +296,15 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 
 | Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
 | --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | Ready  | 0/3      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views; cites ADR-019 (namespace freedom), ADR-034 (cross-cutting primitive), ADR-035 (three-pipe rule); precondition: LAUNCH-003 callout sweep |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | Draft  | 0/3      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views; cites ADR-019 (flags observability alignment), ADR-034 (cross-cutting primitive), ADR-035 (three-pipe rule); blocked on precondition: LAUNCH-003 callout sweep |
 | [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
 
-> **Precondition before TRACE goes Ready in the next reviewer pass:**
+> **Precondition before TRACE goes Ready:**
 > LAUNCH-003 carries an open `Coordinates with: TUIDASH-009` callout in
 > Complete state. Per ADR-034 rule 3, that callout must be swept by
 > LAUNCH's closer (confirm, downgrade, or document-and-close). It is
-> **not** a TRACE-001 sub-task — it is owned by LAUNCH and gates TRACE
-> staying Ready in good standing.
+> **not** a TRACE-001 sub-task — it is owned by LAUNCH and blocks TRACE
+> from being marked Ready until the sweep is complete.
 
 ### Infrastructure as Code (In Progress)
 
@@ -1276,7 +1276,7 @@ potential (spec §8.2).
 | Intercept v1 scope creep          | medium     | medium     | Strict out-of-scope list; binary allow/interrupt; no driver framework in v1 |
 | Shell wrapper bypass              | medium     | medium     | Hook side-channel + fence-on-unknown fallback (D-015 AD-2)                  |
 | Secret content via `notification.context` (TRACE R1) | medium | low | Risk **accepted pre-launch** (Planning Council session plan-b00c16c7); revisit when INTD-015 reaches Ready OR first secret-detection rule ships, whichever first; TRACE-003 is the tracing-pipe side of the mitigation |
-| `anvil.<domain>.*` namespace fragmentation (TRACE R2) | medium | medium | Namespace registry doc (TRACE-001 stub at `docs/observability/namespace-registry.md`) + founder-reviewed PR-to-add gate; ADR-019 governs namespace freedom, ADR-035 governs pipe allocation |
+| `anvil.<domain>.*` namespace fragmentation (TRACE R2) | medium | medium | Namespace registry doc (TRACE-001 stub at `docs/observability/namespace-registry.md`) + founder-reviewed PR-to-add gate; ADR-035 governs pipe allocation |
 | Dashboard cannot join traces day one (TRACE R3) | low | high | Documented in Known Gaps section of namespace registry; closes when TRACE-002 lands the TS-side `traceparent` parser |
 
 ## Decisions

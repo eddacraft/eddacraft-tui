@@ -9,8 +9,8 @@
 
 **Last reviewed:** 2026-04-30
 
-> **Scope reduction (2026-04-30, Planning Council session
-> [plan-b00c16c7](../decisions/034-cross-cutting-modules-as-aps-primitive.md)):**
+> **Scope reduction (2026-04-30,
+> [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md)):**
 > Cross-cutting tracing scope (originally OBS-006) migrated to
 > [`tracing-foundation.aps.md`](./tracing-foundation.aps.md) (TRACE) on
 > 2026-04-30 per [ADR-035](../decisions/035-three-pipe-observability-rule.md)

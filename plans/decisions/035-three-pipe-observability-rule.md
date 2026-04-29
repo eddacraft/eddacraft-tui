@@ -40,8 +40,9 @@ and is not source-of-truth.
 
 This ADR records that rule and ratifies it as a decision the next domain
 modules (TRACE, EXPORT, the eventual OBS Ready promotion, future RTAI tracing
-attributes, and any new `anvil.<domain>.*` namespace contribution under
-ADR-019) cite by reference instead of re-litigating.
+attributes, and any new `anvil.<domain>.*` namespace contribution following
+ADR-019's `anvil.flags.*` precedent) cite by reference instead of
+re-litigating.
 
 ## Decision
 
@@ -104,8 +105,8 @@ unknown one.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| Three-pipe rule with explicit matrix (chosen) | One short reference each domain module cites; pins durability, role, source-of-truth per pipe; aligns with ADR-019's namespace freedom and inverts FLAGS' "ratify, not design" pattern at the pipe level | Codifies a hard line that may have edge cases (e.g. dashboard wanting span-level data for a power-user view) — handled by routing through EXPORT, not by mixing pipes |
-| Single observability pipe | Maximum simplicity | Conflates governance facts, live UI state, and ephemeral debugging; violates already-accepted ADR-019 boundaries; would force re-architecture of NOTIFY and Kindling |
+| Three-pipe rule with explicit matrix (chosen) | One short reference each domain module cites; pins durability, role, source-of-truth per pipe; aligns with ADR-019's domain-owned `anvil.flags.*` precedent and inverts FLAGS' "ratify, not design" pattern at the pipe level | Codifies a hard line that may have edge cases (e.g. dashboard wanting span-level data for a power-user view) — handled by routing through EXPORT, not by mixing pipes |
+| Single observability pipe | Maximum simplicity | Conflates governance facts, live UI state, and ephemeral debugging; erases ADR-019's separation between routine flag telemetry and Kindling governance facts; would force re-architecture of NOTIFY and Kindling |
 | Two pipes (Kindling + tracing) and put live-state on tracing | One fewer pipe shape | Notifications are not ephemeral debugging context; the dashboard cannot tolerate sampled retention; Kindling does not have the live-feed shape needed by the dashboard |
 | Defer the rule until an incident forces it | Zero upfront writing | Drift is invisible right up to the incident; the cost of pulling a fact back from a stale span when audit asks for it is exactly the cost this rule avoids |
 
@@ -118,9 +119,10 @@ Each pipe already exists for a reason that the others do not satisfy:
   consumes.
 - Tracing/OTEL is the only place developer debugging breadcrumbs land.
 
-A rule that pins those roles in writing is cheap to publish, expensive to
-violate later, and is the missing peer to ADR-019: ADR-019 says namespaces
-are free to contribute, this ADR says where each kind of attribute lives.
+A rule that pins those roles in writing is cheap to publish and expensive to
+violate later. ADR-019 demonstrates that a domain can contribute a narrow
+`anvil.flags.*` convention without waiting for OBS to design every field; this
+ADR says where each kind of attribute lives once a domain contributes one.
 
 The redaction-risk acceptance is documented here rather than buried in the
 TRACE module body so that future contributors, including the people writing
@@ -135,8 +137,9 @@ INTD-015, see one canonical statement of the gap.
 - **Positive:** The dashboard cannot drift into reading from spans by
   accident; that path is now an explicit rule violation, surfaced in
   review.
-- **Positive:** Aligns with and generalises ADR-019: ADR-019 set the
-  namespace-contribution pattern, this ADR sets the pipe-allocation pattern.
+- **Positive:** Aligns with and generalises ADR-019's FLAGS precedent:
+  domain modules may contribute small namespaced conventions, and this ADR
+  sets the pipe-allocation pattern those conventions must follow.
 - **Negative:** Edge cases that genuinely need span-level data on the
   dashboard now require an EXPORT-driven pathway rather than a quick
   notification-envelope shortcut. Acceptable — that is the path that scales.
@@ -160,7 +163,8 @@ INTD-015, see one canonical statement of the gap.
 ## References
 
 - Related ADRs:
-  - ADR-019 (namespace freedom — this ADR is the pipe-allocation peer)
+  - ADR-019 (feature flag telemetry alignment — established the
+    domain-owned `anvil.flags.*` precedent and Kindling boundary)
   - ADR-034 (cross-cutting modules — TRACE is the cross-cutting module
     that ratifies this rule)
 - Related modules: `plans/modules/tracing-foundation.aps.md` (TRACE),

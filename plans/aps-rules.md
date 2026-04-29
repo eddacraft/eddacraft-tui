@@ -39,9 +39,11 @@ owning a single product surface. Such modules MUST follow these rules:
 1. **Owns its own work items** — every cross-cutting task is owned and counted
    by the cross-cutting module, never by the surfaces it touches.
 2. **Cross-references via prose callouts** — use `Coordinates with:`,
-   `Blocks on:`, `Supersedes:` in task bodies. No typed relations, no
-   separate dependency graph. (`Blocks on:` is currently provisional — to be
-   hardened once exercised in a completed task.)
+   `Blocks on:`, `Supersedes:`, and `Superseded by:` in task bodies. Use
+   `Supersedes:` when the current task replaces an older item; use
+   `Superseded by:` when the current task is replaced by a newer item. No
+   typed relations, no separate dependency graph. (`Blocks on:` is currently
+   provisional — to be hardened once exercised in a completed task.)
 3. **Closer sweeps callouts on task completion** — whoever closes a task with
    cross-ref callouts MUST read each one in the body and either resolve it
    (reference is now correct), downgrade it (e.g. `Blocks on:` →

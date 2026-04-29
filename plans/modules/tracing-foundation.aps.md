@@ -13,17 +13,16 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TRACE | @eddacraft | Ready  | 0/3      |
+| TRACE | @eddacraft | Draft  | 0/3      |
 
 **Last reviewed:** 2026-04-30
 
-> **Provenance:** Planning Council session
-> [plan-b00c16c7](../decisions/034-cross-cutting-modules-as-aps-primitive.md)
+> **Provenance:** Architecture decision record
+> [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md)
 > (2026-04-30) split observability into three modules (OBS / TRACE / EXPORT)
 > and promoted the cross-cutting module convention to a first-class APS
 > primitive. This module is the **second trial** of that convention. See
-> [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md)
-> and [ADR-035](../decisions/035-three-pipe-observability-rule.md).
+> [ADR-035](../decisions/035-three-pipe-observability-rule.md).
 
 ## Cross-cutting convention
 
@@ -55,8 +54,8 @@ Give Anvil a runtime tracing baseline that:
 - Stops every binary inventing its own subscriber init.
 - Pins tracing as **debugging context, not source-of-truth** (per ADR-035)
   so future modules know which observability pipe to use.
-- Carves out `anvil.*` namespace governance under ADR-019 (namespace
-  freedom) without designing every domain's attributes for them.
+- Turns ADR-019's `anvil.flags.*` precedent into a registry-based
+  contribution model without designing every domain's attributes for them.
 
 The narrow launch-blocker scope is **TRACE-001 only**. Everything else
 (TS-side mirror, redaction hardening, EXPORT sink choice, the OBS module's
@@ -71,7 +70,8 @@ domain ops work) is post-launch.
 - Threading `traceparent` through the JSON-RPC envelope, the HTTP header
   surface, and the notification envelope per ADR-035.
 - A namespace registry stub that domain modules append to when they
-  contribute their `anvil.<domain>.*` attributes per ADR-019.
+  contribute their `anvil.<domain>.*` attributes, using ADR-019's
+  `anvil.flags.*` convention as the first registered precedent.
 - An ADR ratifying the three-pipe observability rule (ADR-035, landed as
   part of TRACE-001's PR).
 - Updating INTD-014's JSON-RPC conformance fixture so `traceparent`
@@ -104,8 +104,9 @@ domain ops work) is post-launch.
 - INTD-014 (JSON-RPC conformance, Committed) — TRACE-001 adds an assertion
   to its conformance fixture (`crates/anvil-intercept/tests/jsonrpc_conformance.rs`);
   the fixture itself is the integration point.
-- ADR-019 (namespace freedom) — the `anvil.*` namespace policy this
-  module's registry stub implements.
+- ADR-019 (flags observability alignment) — TRACE-001 keeps tracing naming
+  and emitted observability fields aligned with the repository's approved
+  observability/flags conventions.
 - ADR-035 (three-pipe rule) — the tracing-pipe role TRACE codifies.
 
 **Coordinates with:**
@@ -144,14 +145,15 @@ This module is **Ready** when:
       callout (currently in Complete state with unresolved reference) is
       swept per ADR-034 rule 3 — confirm TUIDASH-009 still applies,
       downgrade, or document-and-close. This is **not** a TRACE-001
-      sub-task; it is owned by LAUNCH and gates TRACE going Ready in the
-      next reviewer pass. Tracked here so the gate is visible to anyone
-      picking the module up.
+      sub-task; it is owned by LAUNCH and blocks TRACE from being marked
+      Ready until the sweep is complete. Tracked here so the gate is visible
+      to anyone picking the module up.
 
 ## Tasks
 
-> Status: Ready. TRACE-001 is launch-blocker. TRACE-002 and TRACE-003 are
-> post-launch hardening and stay Draft until picked up.
+> Status: Draft until the LAUNCH-003 callout sweep above closes. TRACE-001 is
+> launch-blocker scope; TRACE-002 and TRACE-003 are post-launch hardening and
+> stay Draft until picked up.
 
 ### TRACE-001: Tracing baseline crate, propagation, and namespace registry
 
@@ -167,8 +169,8 @@ This module is **Ready** when:
   `anvil-intercept` binary entrypoint) calls `init_tracing` once. Library
   crates emit spans but never initialise the global subscriber. ADR-035
   is published in the same PR. A namespace registry stub exists at
-  `docs/observability/namespace-registry.md` listing `anvil.*`,
-  `kindling.*`, `rtai.*` entries, the founder-reviewed PR-to-add
+  `docs/observability/namespace-registry.md` listing `anvil.flags.*`,
+  `kindling.*`, `anvil.rtai.*` entries, the founder-reviewed PR-to-add
   instruction, and a **Known Gaps** subsection that reads: *"Day-one
   limitation: dashboard cannot join traces across producers until
   TS-side `traceparent` parsing lands (tracked under TRACE-002)."* The
@@ -189,7 +191,7 @@ This module is **Ready** when:
 - **Validation:**
   `cargo test -p anvil-observability && rg -n "traceparent" crates/anvil-intercept/tests/jsonrpc_conformance.rs`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Draft
 
 ---
 

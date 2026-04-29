@@ -55,9 +55,12 @@ section reads as follows:
 > 1. **Owns its own work items** — every cross-cutting task is owned and
 >    counted by the cross-cutting module, never by the surfaces it touches.
 > 2. **Cross-references via prose callouts** — use `Coordinates with:`,
->    `Blocks on:`, `Supersedes:` in task bodies. No typed relations, no
->    separate dependency graph. (`Blocks on:` is currently provisional — to
->    be hardened once exercised in a completed task.)
+>    `Blocks on:`, `Supersedes:`, and `Superseded by:` in task bodies. Use
+>    `Supersedes:` when the current task replaces an older item; use
+>    `Superseded by:` when the current task is replaced by a newer item. No
+>    typed relations, no separate dependency graph. (`Blocks on:` is
+>    currently provisional — to be hardened once exercised in a completed
+>    task.)
 > 3. **Closer sweeps callouts on task completion** — whoever closes a task
 >    with cross-ref callouts MUST read each one in the body and either
 >    resolve it (reference is now correct), downgrade it (e.g. `Blocks on:`
@@ -94,10 +97,11 @@ and must not silently absorb cleanup work owned by LAUNCH.
 ### `Blocks on:` provisional clause
 
 LAUNCH originally introduced three callout types: `Coordinates with:`,
-`Blocks on:`, and `Superseded by:`. In the LAUNCH trial only
-`Coordinates with:` and `Supersedes:` (the inverse direction of
-`Superseded by:`) saw use in completed tasks. `Blocks on:` was declared but
-never exercised through a close.
+`Blocks on:`, and `Superseded by:`. The promoted vocabulary also accepts
+`Supersedes:` for the inverse direction so newer tasks can say they replace an
+older item without editing the older item first. In the LAUNCH trial only
+supersession callouts and `Coordinates with:` saw use in completed tasks.
+`Blocks on:` was declared but never exercised through a close.
 
 The promoted spec retains `Blocks on:` because it captures an obvious
 coordination shape (this work cannot land until the referenced item lands),
@@ -164,9 +168,9 @@ closed, and they survive directly into the spec.
 
 ## References
 
-- Related ADRs: ADR-019 (namespace freedom — domain modules contribute
-  `anvil.<domain>.*` conventions; cross-cutting modules ratify rather than
-  design)
+- Related context: ADR-019 (feature flag telemetry alignment) introduced the
+  domain-owned `anvil.flags.*` convention; cross-cutting modules ratify rather
+  than design naming schemes
 - Origin convention: `plans/modules/launch-flow-readiness.aps.md`
   (Cross-cutting convention section, lines 33–67)
 - Spec home: `plans/aps-rules.md` (`## Cross-Cutting Modules` section added
