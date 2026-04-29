@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 4 committed (INTD-002, INTD-005, INTD-007, INTD-014) |
+| INTD | @aneki | In Progress | 2/16 complete, 4 committed (INTD-002, INTD-005, INTD-007, INTD-014), 1 in progress (INTD-013) |
 
 **Last reviewed:** 2026-04-29
 
@@ -387,7 +387,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib telemetry`
   — tests assert the mapping table, schema value, mirror population, and
   fence-transition grouping
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTD-014: JSON-RPC 2.0 Conformance + Round-Trip Latency Benchmark
 

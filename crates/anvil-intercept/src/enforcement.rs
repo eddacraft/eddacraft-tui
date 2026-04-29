@@ -47,11 +47,15 @@ impl EnforcementPipeline {
         Self { registry }
     }
 
+    /// Pure evaluation only. Control-lane callers emit delivered telemetry after
+    /// their decision send succeeds.
     #[must_use]
     pub fn evaluate_filesystem_changes(&self, changes: &[FileChange]) -> EnforcementDecision {
         evaluate_filesystem_changes(&self.registry, changes)
     }
 
+    /// Pure evaluation only. Control-lane callers emit delivered telemetry after
+    /// their decision send succeeds.
     #[must_use]
     pub fn evaluate_proposed_changes(&self, changes: &[ProposedChange<'_>]) -> EnforcementDecision {
         evaluate_proposed_changes(&self.registry, changes)

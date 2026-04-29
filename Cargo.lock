@@ -1010,10 +1010,12 @@ name = "eddacraft-anvil-intercept"
 version = "0.4.0-beta"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
  "eddacraft-anvil-intercept-win32",
+ "eddacraft-anvil-kernel-types",
  "nix 0.30.1",
  "serde",
  "serde_json",

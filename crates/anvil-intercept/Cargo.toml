@@ -24,7 +24,9 @@ bench-internals = []
 [dependencies]
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 anyhow = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

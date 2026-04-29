@@ -32,6 +32,7 @@ pub mod enforcement;
 pub mod fence;
 pub mod ipc;
 pub mod registry;
+pub mod telemetry;
 
 pub use registry::{
     DEFAULT_HEARTBEAT_TTL, ProcessInfo, RegistryError, SessionDispatcher, SessionRegistry,
