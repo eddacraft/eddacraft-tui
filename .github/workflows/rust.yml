@@ -229,18 +229,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-      - name: Setup workspace for Nx affected
-        if: github.event_name == 'pull_request'
-        uses: ./.github/actions/setup-workspace
-      - name: Detect Rust Nx projects
-        if: github.event_name == 'pull_request'
-        id: rust-projects
-        shell: bash
-        run: |
-          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
-          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: clippy
@@ -248,21 +236,7 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
-      - name: Run clippy (affected on PRs, all on push)
-        env:
-          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
-              echo "No affected Rust projects detected"
-              exit 0
-            fi
-            pnpm exec nx run-many -t clippy --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
-          else
-            cargo clippy --workspace --all-targets -- -D warnings
-          fi
-      - name: Run clippy --all-targets gate (PRs)
-        if: github.event_name == 'pull_request'
+      - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
   format:
