@@ -13,7 +13,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TRACE | @eddacraft | Draft  | 0/3      |
+| TRACE | @eddacraft | Ready  | 0/3      |
 
 **Last reviewed:** 2026-04-30
 
@@ -141,17 +141,18 @@ This module is **Ready** when:
       plan-b00c16c7, 2026-04-30; owner @eddacraft).
 - [x] Three-pipe rule ratified (ADR-035).
 - [x] Cross-cutting convention promoted to `aps-rules.md` (ADR-034).
-- [ ] **Precondition:** LAUNCH-003's open `Coordinates with: TUIDASH-009`
-      callout (currently in Complete state with unresolved reference) is
-      swept per ADR-034 rule 3 — confirm TUIDASH-009 still applies,
-      downgrade, or document-and-close. This is **not** a TRACE-001
-      sub-task; it is owned by LAUNCH and blocks TRACE from being marked
-      Ready until the sweep is complete. Tracked here so the gate is visible
-      to anyone picking the module up.
+- [x] **Precondition (resolved 2026-04-30):** LAUNCH-003's open
+      `Coordinates with: TUIDASH-009` callout was swept per ADR-034 rule 3.
+      LAUNCH-003 shipped first; the conditional "Superseded by" branch did
+      not fire and is closed. The named `WatchStats` contract remains the
+      inheritance TUIDASH-009 will consume when the dashboard surface lands.
+      This was the first real exercise of rule 3 against a live cross-
+      reference, satisfying the "tried in anger" bar adversarial-reviewer
+      raised during planning council session plan-b00c16c7.
 
 ## Tasks
 
-> Status: Draft until the LAUNCH-003 callout sweep above closes. TRACE-001 is
+> Status: Ready (LAUNCH-003 callout sweep closed 2026-04-30). TRACE-001 is
 > launch-blocker scope; TRACE-002 and TRACE-003 are post-launch hardening and
 > stay Draft until picked up.
 

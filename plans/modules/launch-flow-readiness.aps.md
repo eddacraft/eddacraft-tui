@@ -208,11 +208,12 @@ new primitive, this module follows three rules:
   location) that is the only consumer-visible surface for stat data.
   The bespoke `WatchData` struct depends on that type, not the other
   way around.
-- **Coordinates with:** TUIDASH-009. The named type above is the
-  inheritance contract — TUIDASH-009's json-render data binding for
-  the watch dashboard consumes it, so the rollup work survives the
-  surface swap. If TUIDASH-009 lands first and defines its own data
-  model, this task should be **Superseded by:** TUIDASH-009 instead.
+- **Coordinates with:** TUIDASH-009 — *callout swept and closed
+  2026-04-30 per ADR-034 rule 3.* LAUNCH-003 shipped first, so the
+  conditional "Superseded by" branch did not fire. The named
+  `WatchStats` contract above is the inheritance TUIDASH-009 will
+  consume when the dashboard surface lands; no rework expected on
+  that seam.
 - **Supersedes:** RTVS Phase 3 ("Terminal TUI Dashboard") — that work
   now lives here.
 - **Validation:** TUI snapshot test (insta) covering populated panes
@@ -293,13 +294,11 @@ new primitive, this module follows three rules:
 
 ## Risks
 
-- **TUIDASH supersession of LAUNCH-003.** LAUNCH-003 invests in the
-  bespoke watch surface; if TUIDASH lands quickly, that surface goes
-  away. Mitigation is the named adapter type required by LAUNCH-003
-  — TUIDASH consumes it instead of re-implementing the rollup. If
-  TUIDASH is well advanced before LAUNCH-003 starts, mark LAUNCH-003
-  **Superseded by:** TUIDASH-009 rather than building the bespoke
-  surface twice.
+- **TUIDASH supersession of LAUNCH-003.** *Resolved 2026-04-30:*
+  LAUNCH-003 shipped first; the bespoke watch surface stays. The
+  named `WatchStats` adapter is the contract TUIDASH-009 will
+  consume when the dashboard surface lands. The supersession
+  branch is closed.
 - **LAUNCH-001 scope expansion.** The glob filter is a feature build
   with several reasonable shapes (which library, where matching runs,
   how it composes with the internal denylist). Confidence is already

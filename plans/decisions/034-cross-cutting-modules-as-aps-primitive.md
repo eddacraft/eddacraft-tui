@@ -78,21 +78,29 @@ section reads as follows:
 > `plans/modules/tracing-foundation.aps.md` headers in the same PR. New
 > cross-cutting modules cite this section by anchor link.
 
-### Precondition before adoption
+### Precondition before adoption — RESOLVED 2026-04-30
 
-LAUNCH-003 currently carries an open `Coordinates with: TUIDASH-009` callout
-in its body and is in `Complete` state. Per rule 3 above, that callout should
-have been resolved at close time. Before TRACE adoption is fully ratified
-under the new convention, the LAUNCH-003 callout must be **closed** —
-resolved (the reference is now correct), downgraded (e.g. to a less-binding
-callout), or document-and-closed-in-the-same-edit (rationale recorded inline
-and the callout marked closed). **Document-and-defer is not an acceptable
-resolution**: a callout that is documented but left open in the archive
-violates rule 3 and reopens the precondition.
+LAUNCH-003 carried an open `Coordinates with: TUIDASH-009` callout in its
+body whilst in `Complete` state. Per rule 3 above, that callout should have
+been resolved at close time and was not. The promotion of this convention
+to a first-class APS primitive was gated on resolving it — not as a TRACE
+sub-task, but as proof that rule 3 is exercisable against a live artefact.
 
-This is tracked as the gating precondition on the TRACE module's `Ready`
-status, **not** as a TRACE-001 sub-task — TRACE-001 is launch-blocker scope
-and must not silently absorb cleanup work owned by LAUNCH.
+**Resolution (2026-04-30):** the callout was swept and closed. LAUNCH-003
+shipped first, so the conditional "Superseded by: TUIDASH-009" branch did
+not fire and is closed. The named `WatchStats` contract LAUNCH-003 produced
+remains the inheritance TUIDASH-009 will consume when the dashboard surface
+lands. Both the LAUNCH-003 task body and the TUIDASH-supersession risk
+entry in the LAUNCH module Risks section were updated in the same edit.
+This is the first real exercise of rule 3 against a live cross-reference;
+the convention is now "tried in anger" rather than theoretical.
+
+The shape of an acceptable resolution is preserved here for reference: a
+callout must be **closed** at close time — resolved (the reference is now
+correct), downgraded (to a less-binding callout type), or document-and-
+closed-in-the-same-edit (rationale recorded inline and the callout marked
+closed). **Document-and-defer is not an acceptable resolution**: a callout
+that is documented but left open in the archive violates rule 3.
 
 ### `Blocks on:` provisional clause
 
