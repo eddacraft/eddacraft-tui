@@ -13,6 +13,7 @@ name = "anvil_intercept_rules"
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
+thiserror = { workspace = true }
 workspace-hack.workspace = true
 
 [dev-dependencies]

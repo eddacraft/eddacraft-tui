@@ -88,11 +88,11 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
 | ------------- | -------- | -------- | --------- | ----------- | ----------------- | ------- |
-| INTD | -001, -002, -003, -005, -013, -014 | -002, -003 | — | -001 | -014 | -005, -013 |
-| INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -008 | — | — | -006 | — |
+| INTD | -001, -002, -003, -005, -013, -014 | -002, -003 | — | -001 | -005, -014 | -013 |
+| INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -006, -008 | — | — | — | — |
 | RMCP | -001..-008 | -001..-007 | -008 | — | — | — |
 | RTAI | -001 (spike), -002, -003, -006, -008 | -001 | — | — | — | -002, -003, -006, -008 |
-| **Total** | **23** | **13** | **1** | **1** | **2** | **6** |
+| **Total** | **23** | **14** | **1** | **1** | **2** | **5** |
 
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 

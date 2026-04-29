@@ -18,6 +18,7 @@
 #![forbid(unsafe_code)]
 
 pub mod reasoning;
+pub mod registry;
 pub mod secret;
 
 use std::path::Path;
@@ -25,6 +26,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 pub use reasoning::LaunchReasoningPatternRule;
+pub use registry::{RegistryDecision, RegistryError, RegistryMode, RuleRegistry};
 pub use secret::SecretDetectionRule;
 
 /// The kind of file change being evaluated. Mirrors the kernel watcher's

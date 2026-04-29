@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress |
 | ---- | ------ | ----------- | -------- |
-| INTR | @aneki | In Progress | 3/8      |
+| INTR | @aneki | In Progress | 4/8      |
 
 **Last reviewed:** 2026-04-28
 
@@ -153,7 +153,19 @@ daemon hot path.
   decision (or allow if all pass); supports observe-only mode where interrupt
   decisions are logged but not enforced
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib registry`
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTR-006`):** `RuleRegistry` landed in
+  `crates/anvil-intercept-rules/src/registry.rs` with `RegistryDecision`
+  (Allow / Interrupt) and `RegistryMode` (Enforce / ObserveOnly).
+  Enforce mode short-circuits on first Interrupt; observe-only logs
+  every would-be-interrupt and keeps evaluating, returning Allow.
+  Per-rule `catch_unwind` isolation enforces the trait's pinned
+  panic-policy — a panicking rule is treated as Allow with a loud
+  stderr/tracing line. Duplicate rule_ids rejected at register /
+  with_rules via `RegistryError::DuplicateRuleId`.
+  `any_needs_content` lets INTD-005 skip content reads when no
+  content-bearing rule is registered. 13 registry tests pass:
+  `cargo test -p eddacraft-anvil-intercept-rules --lib registry`.
 
 ### INTR-007: Rule Configuration
 
