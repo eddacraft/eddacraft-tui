@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 3 committed (INTD-002, INTD-005, INTD-014), 1 in progress (INTD-007) |
+| INTD | @aneki | In Progress | 2/16 complete, 4 committed (INTD-002, INTD-005, INTD-007, INTD-014) |
 
 **Last reviewed:** 2026-04-29
 
@@ -303,7 +303,7 @@ a new lane.
   restart, fences are loaded from disk and re-asserted before accepting
   connections
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib fence`
-- **Status:** In Progress
+- **Status:** Committed
 
 ### INTD-008: Configuration Loading
 
