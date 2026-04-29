@@ -79,7 +79,7 @@ class reaches across architectural contexts.
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
-### A1 — RTAI Spike Slice (launch-blocker, ~23 items)
+### A1 — RTAI Spike Slice (launch-blocker, ~24 items)
 
 The A1 cut is a **virtual slice** cherry-picked across four modules
 (INTD, INTR, RMCP, RTAI). Status reconciled on 2026-04-29 after INTD-002 /
@@ -113,8 +113,9 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 5. **Build enforcement pipeline:** land **INTD-005** now that INTR-006 is
    complete and after the complete INTD-002/-003 IPC + registry work is
    available.
-6. **Persist fences:** land **INTD-007** before telemetry mirroring so fence
-   transitions have durable daemon state.
+6. **Persist fences:** land **INTD-007** after INTD-005; fence persistence is
+   required so INTD-013 can populate `grouping.transition` for `active ↔ fenced`
+   events.
 7. **Mirror decisions:** land **INTD-013** after INTD-005, INTD-007, and the
    already-complete NOTIFY-008 telemetry contract.
 8. **Finish RTAI:** land **RTAI-002** after INTD-005, then **RTAI-003**,

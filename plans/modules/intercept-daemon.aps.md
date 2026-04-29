@@ -302,6 +302,9 @@ a new lane.
   regardless of session liveness -- auto-clear is never performed; on daemon
   restart, fences are loaded from disk and re-asserted before accepting
   connections
+- **Dependencies:** INTD-005 (fence machinery)
+- **Required by:** INTD-013 (`grouping.transition` mirror for
+  `active ↔ fenced` events)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib fence`
 - **Status:** Committed
 

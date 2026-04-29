@@ -65,8 +65,9 @@ that is locked for the release.
 3. **Pin daemon conformance:** land INTD-014 now that INTD-002 is complete.
 4. **Build enforcement pipeline:** land INTD-005 now that INTR-006 and the
    complete INTD-002/-003 IPC + registry work are available.
-5. **Persist fences:** land INTD-007 before telemetry mirroring so fence
-   transitions have durable daemon state.
+5. **Persist fences:** land INTD-007 after INTD-005; fence persistence is
+   required so INTD-013 can populate `grouping.transition` for `active ↔ fenced`
+   events.
 6. **Mirror decisions:** land INTD-013 after INTD-005, INTD-007, and the
    already-complete NOTIFY-008 telemetry contract.
 7. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
@@ -184,7 +185,8 @@ warn or block before the write hits disk.
 **Modules / work items (~24 items):**
 
 - **INTD subset** (7 of 16): INTD-001, INTD-002, INTD-003, INTD-005, INTD-007,
-  INTD-013, INTD-014
+  INTD-013, INTD-014 (INTD-007 fence persistence is required by INTD-013's
+  `grouping.transition` mirror)
 - **INTR subset** (4 of 8): INTR-001 (rule trait), INTR-002 (secret detection
   wrapper), INTR-006 (registry), INTR-008 (launch reasoning-pattern wrapper)
 - **RMCP subset** (8 of 8): RMCP-001..RMCP-008 — Rust MCP launch shim only:
@@ -215,7 +217,8 @@ warn or block before the write hits disk.
 **Out-of-scope (protect the slice):**
 
 - INTD-008/-010/-011/-016 (full config, unregistered handling, diagnostics, DoS
-  budgets)
+  budgets) — INTD-007 was previously listed here but has been pulled in as a
+  prerequisite for INTD-013's fence-transition mirror
 - DRVR-003 (full VSCode cutover) — RTAI-005 mid-edit can demo without it
 - DRVR-004 full MCP cutover and TS `DriverClient` bridge — replaced for A1 by
   RMCP; full parity moves to RMCPF in the next release
