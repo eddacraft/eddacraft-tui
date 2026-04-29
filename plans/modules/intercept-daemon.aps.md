@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 2 committed (INTD-002, INTD-005) |
+| INTD | @aneki | In Progress | 2/16 complete, 3 committed (INTD-002, INTD-005, INTD-014) |
 
 **Last reviewed:** 2026-04-29
 
@@ -414,13 +414,21 @@ a new lane.
   `crates/anvil-intercept/benches/ipc_roundtrip.rs` (new)
 - **Dependencies:** INTD-002
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --test
-  jsonrpc_conformance` passes against a published JSON-RPC 2.0 test
-  fixture set; `cargo bench -p eddacraft-anvil-intercept --bench
-  ipc_roundtrip` records baseline numbers in the workspace bench
+  jsonrpc_conformance` passes the local fixture-style JSON-RPC 2.0 conformance
+  suite (no published fixture set is present in the workspace); `cargo bench -p
+  eddacraft-anvil-intercept --features bench-internals --bench ipc_roundtrip`
+  records baseline numbers with ADR-031 dimensions in the workspace bench
   dashboard.
 - **Source:** 2026-04-24 council review M1 (adversarial reviewer) —
   tracked in PR #1063.
-- **Status:** Draft
+- **Status:** Committed
+- **Progress (2026-04-29, `feat/INTD-014-jsonrpc`):** JSON-RPC 2.0 request /
+  notification / batch response handling is pinned at the daemon IPC boundary,
+  with local fixture-style conformance coverage for parse errors, error object
+  shape, invalid request handling, id semantics including `id: null`, request-only
+  batch responses, all-notification batches, and reserved `-32700` /
+  `-32600`..`-32603` error codes. `ipc_roundtrip` records `validation.service` separately
+  from Unix-socket `validation.roundtrip` and prints ADR-031-style dimensions.
 
 ### INTD-015: Daemon-Enforced Telemetry Subscription Scoping
 
