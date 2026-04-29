@@ -10,9 +10,23 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| DRVR | —     | Draft  | 0/6 active (2 superseded/deferred) |
+| DRVR | —     | Draft  | 0/4 active (2 superseded, 1 deferred under ADR-033) |
 
 **Last reviewed:** 2026-04-28
+
+> **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
+> The IDE/MCP surfaces this module integrates are **archived**
+> (`archive/anvil-vscode-extension/`,
+> `archive/anvil-mcp-server/`). DRVR-003 (VSCode editor driver) is
+> **deferred until a new extension package is created** on the
+> daemon-driver path; the rest of the module — DRVR-001 (shared
+> client), DRVR-002 (editor protocol), DRVR-005 (architecture doc
+> cross-links) — continues against its existing INTD dependencies
+> and remains the intended return path for surfaces. DRVR-004 was
+> already superseded by RMCP/RMCPF; DRVR-006 was already deferred
+> to RMCPF. TSRET-005 (archive TS scanner) **no longer blocks on
+> DRVR-003/-004** — under ADR-033 it executes against the
+> archived-surfaces state.
 
 ## Purpose
 
@@ -252,12 +266,17 @@ define graph schema.
 
 ---
 
-### DRVR-003: VSCode extension cut over to editor driver
+### DRVR-003: VSCode extension cut over to editor driver — **Deferred (ADR-033)**
 
-- **Intent:** Every scanner-adjacent call path in the extension
+- **Status:** Deferred until the VSCode extension resumes (per
+  [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)).
+  The extension is archived — there is no consumer to cut over today.
+  Re-enter when a return-path ADR un-pauses
+  `archive/anvil-vscode-extension/`.
+- **Intent (held):** Every scanner-adjacent call path in the extension
   (`embeddedAnalysis.ts`, diagnostics service, nudge code actions) goes
   through the driver client instead of `@eddacraft/anvil-core/antipattern`.
-- **Expected Outcome:** `packages/vscode-extension/src/services/embeddedAnalysis.ts`
+- **Expected Outcome (held):** `archive/anvil-vscode-extension/src/services/embeddedAnalysis.ts`
   no longer imports `@eddacraft/anvil-core/antipattern`. Diagnostics,
   code actions, and pattern-registry queries route through
   `DriverClient`. The ADR-031 interactive save-time SLO is held or
@@ -265,16 +284,16 @@ define graph schema.
   save-to-visible UX claim reports `validation.visible` separately.
   Existing extension tests pass after refactor; one new test covers
   the fallback path when the daemon is unreachable.
-- **Scope:** `packages/vscode-extension/`
+- **Scope:** `archive/anvil-vscode-extension/`
 - **Dependencies:** DRVR-001, DRVR-002, INTD-002 (IPC Listener),
-  INTD-013 (telemetry mirror — the canonical violation stream)
+  INTD-013 (telemetry mirror — the canonical violation stream),
+  **and** an extension un-pause decision (post-ADR-033).
 - **Validation:** `pnpm --filter anvil-vscode test` passes; manual
   scan in VSCode matches `anvil check` output on the same fixture;
   fallback test asserts no diagnostics appear and a status-bar item
   surfaces the degraded state.
 - **Confidence:** medium
-- **Priority:** High
-- **Status:** Draft
+- **Priority:** Medium (was High; lowered while archived)
 
 ---
 

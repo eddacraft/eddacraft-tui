@@ -13,8 +13,13 @@ merge that changes strategic shape.
 
 # Anvil — Next Steps
 
-> **Last refreshed:** 2026-04-26 (v0.4.0-beta release prep — three
-> council rounds, V041F module captures the deferred hardening items).
+> **Last refreshed:** 2026-04-29 (ADR-033 lands — IDE/MCP surfaces
+> archived under `archive/anvil-vscode-extension/` and
+> `archive/anvil-mcp-server/`; TSRET-005 (engine archive) is
+> **unblocked** by ADR-033 but execution is **out of scope for
+> this PR** and lands separately on `chore/TSRET-005`; TSRET-006
+> superseded; DRVR-003 deferred until a new extension package is
+> created on the daemon-driver path; module/index docs reconciled).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
@@ -256,7 +261,7 @@ The headline-capability work and everything that gates it.
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | Rule trait + initial rule set. RTAI evaluates whatever INTR registers. Cannot ship the headline demo without at least the secret-detection and antipattern wrappers running on the hot path. |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | The driver framework. DRVR-001/-002 plus one of DRVR-003/-004 is the H2 minimum. |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | The headline. Spike (RTAI-001) starts against partial INTD; the rest blocks on INTD + DRVR reaching the pinned deliverables. |
-| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | Closes out trivially once DRVR ships (TSRET-005). Carries the parity harness cost until then — accepted in ADR-030. |
+| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | TSRET-005 unblocked under ADR-033 — IDE/MCP surfaces archived under `archive/anvil-vscode-extension/` and `archive/anvil-mcp-server/`; TS scanner + TS suppression parser + parity harness move to `archive/anvil-ts-scanner/` (no longer blocking on DRVR). TSRET-006 superseded — transition window collapses. Module reaches terminal state once -005 lands. |
 | [notification-framework cross-link] (telemetry stream contract) | n/a | Complete | Already merged; called out so future readers do not re-open it. RTAI-007 rides on INTD-013 which rides on this contract. |
 | `LAUNCH-002` / `-003` / `-006` (within LAUNCH) | LAUNCH | Draft | Watch polish that does not block H1 but should land in the H1→H2 window so the watch flow is solid by the time the headline demo ships against it. LAUNCH-003 watches for TUIDASH supersession. |
 
@@ -505,6 +510,78 @@ not need to be made in advance.
 
 > Append-only. Newest entry first. A future session reads this to
 > see what has moved since the last refresh.
+
+### 2026-04-29 (ADR-033 — archive IDE/MCP, retire TS scanner now)
+
+- ADR-033 authored
+  ([`plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`](./decisions/033-park-ide-mcp-retire-ts-scanner.md)),
+  Status Proposed. Archives the VSCode extension and TS MCP
+  server under the project's `archive/<name>/` convention
+  (precedent: `archive/anvil-cli-node/` ADR-012,
+  `archive/anvil-tui-ink/` ADR-011a); retires TS scanner / TS
+  suppression parser / parity harness under TSRET-005 to
+  `archive/anvil-ts-scanner/` rather than waiting on
+  DRVR-003/-004; CI for archived packages switches off via the
+  existing `'!archive/**'` workspace exclusion; napi crate stays
+  as a build canary; surfaces return as **new** active packages
+  via DRVR / RMCPF / a future return-path ADR.
+- ADR-026, 028, 029, 030 carry append-only Status notes pointing
+  at ADR-033. Decisions in those ADRs are unchanged; only the
+  carve-outs and sequencing referencing TS-stays-alive are
+  amended/moot.
+- DECISION-LOG updated: new ADR-033 row under Rust Migration;
+  amendment markers on 026/028/029/030 rows.
+- TSRET module re-pointed: TSRET-005 unblocked (no longer waits
+  on DRVR; rewritten as "Archive the TS scanner" with explicit
+  `archive/anvil-ts-scanner/` destination); TSRET-006 superseded
+  (transition window collapses); module reaches terminal state
+  once -005 lands.
+- DRVR module re-pointed: DRVR-003 (VSCode editor driver)
+  deferred until a new extension package is created on the
+  daemon-driver path; DRVR-001/-002/-005 continue against
+  existing INTD dependencies.
+- RMCPF module re-pointed: starts from "TS MCP server is
+  archived" rather than "active migration source"; Decision #4
+  amended; RMCPF-031 partially executed by ADR-033 (package
+  already in `archive/`).
+- Index updated for TSRET / DRVR / RMCPF rows; ADR-033 added to
+  the Intercept and Drivers section's Architecture Decisions.
+- *Open Decisions §1 (the X5 contradiction) is unaffected — ADR-033
+  is about TS engine code, not about INTD sequencing relative to
+  the H1 cut.*
+- **Surface packages physically archived:**
+  `packages/vscode-extension/` → `archive/anvil-vscode-extension/`;
+  `packages/mcp-server/` → `archive/anvil-mcp-server/` (both via
+  `git mv`). READMEs rewritten to the Archived banner shape
+  matching `archive/anvil-cli-node/`. Workspace glob
+  `'!archive/**'` already excludes them from build/test/publish.
+  `pnpm-lock.yaml` regenerated to drop the stale workspace
+  references (Vercel deployments use `--frozen-lockfile` and
+  failed on the original commit).
+- **Root configs reconciled:**
+  `pnpm-workspace.yaml` — `packages/mcp-server` and
+  `packages/vscode-extension` lines removed (replaced by an
+  archive-pointer comment).
+  `tsconfig.json` — `./packages/mcp-server` project reference
+  dropped.
+  `tsconfig.base.json` — `@eddacraft/anvil-mcp-server` path
+  mapping dropped.
+  `vitest.config.ts` — `@eddacraft/anvil-mcp-server` and
+  `vscode` mock aliases dropped (with archive-pointer comments).
+- All active-plan cross-refs (`plans/index.aps.md`,
+  `plans/modules/{anvil-ts-scanner-retirement,surface-drivers,rust-mcp-launch-shim,rust-mcp-full-port}.aps.md`,
+  `plans/specs/{rust-mcp-launch-shim,anvil-driver-framework/editor-and-mcp-driver-design}.md`)
+  updated from `packages/{vscode-extension,mcp-server}/` to the
+  `archive/anvil-{vscode-extension,mcp-server}/` paths.
+- **Still untouched:** CI workflow disabling for the parity
+  harness job; TSRET-005 execution proper (move
+  `packages/anvil/core/src/antipattern/`,
+  `packages/anvil/core/src/suppression/parser.ts`,
+  `tests/scanner-parity/` to `archive/anvil-ts-scanner/` and rip
+  out inbound imports across `packages/`); deletion of the
+  Rust-side `crates/anvil-checks/tests/scanner_parity.rs`. These
+  are real refactors that need build-green verification —
+  pending approval of ADR-033 before execution.
 
 ### 2026-04-26 (v0.4.0-beta release prep)
 

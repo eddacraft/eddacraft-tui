@@ -52,7 +52,7 @@ critical flow.
 
 ## Out of Scope
 
-- Porting all existing `packages/mcp-server` tools, resources, and prompts
+- Porting all existing `archive/anvil-mcp-server` tools, resources, and prompts
 - Streamable HTTP transport for the Rust MCP server
 - Full DRVR-004 GateRunner replacement
 - Building a TS `packages/anvil-driver-client/` bridge only for MCP
@@ -88,7 +88,7 @@ critical flow.
 
 - UK English spelling in all plan text and user-facing docs
 - The command must live in the Rust binary shipped by the current release
-- The launch path must not require Node.js, pnpm, or `packages/mcp-server`
+- The launch path must not require Node.js, pnpm, or `archive/anvil-mcp-server`
 - Stdio framing must be deterministic and must never print human logs to stdout
 - The server must fail closed for validation errors when a write would otherwise
   proceed unsafely; operational errors return structured retriable errors
@@ -313,7 +313,7 @@ starting implementation:
    daemon when present, but the release path may call the shared Rust validation
    pipeline directly if daemon scope would slip A1.
 4. **Canonical diagnostics only** — MCP responses do not invent their own schema.
-5. **Full port next release** — full parity with `packages/mcp-server` is planned
+5. **Full port next release** — full parity with `archive/anvil-mcp-server` is planned
    separately in RMCPF.
 
 ## Stats

@@ -5,6 +5,14 @@
 Accepted (2026-04-26)
 
 > Accepted at minimum bar per Council D recommendation; refinements to land on first implementation.
+>
+> **Rationale strengthened (2026-04-29) by [ADR-033](./033-park-ide-mcp-retire-ts-scanner.md).**
+> This ADR's Rationale referred to the TS scanner as
+> "soon-to-be-retired". Under ADR-033 the TS scanner is retired
+> outright (the in-process surfaces that justified it are archived
+> under `archive/`). The decision below is unchanged; the "do not
+> anchor new analysis in retiring TS code" argument is reinforced,
+> not revised.
 
 ## Date
 

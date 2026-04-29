@@ -181,5 +181,6 @@ daemon hot path.
   launch fixture, or LLM-based classification.
 - **Validation:** Unit test triggers the rule on a fixture planning/code comment
   payload and asserts the RMCP/RTAI response contains a canonical diagnostic with
-  no dependency on Node.js or `packages/mcp-server`
+  no dependency on Node.js or the archived TS MCP server
+  (`archive/anvil-mcp-server/`)
 - **Status:** Complete

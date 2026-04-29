@@ -16,15 +16,13 @@
     "test:api": "vitest run api",
     "test:core": "vitest run core",
     "test:contracts": "vitest run contracts",
-    "test:adapters": "vitest run adapters",
-    "test:mcp": "vitest run mcp"
+    "test:adapters": "vitest run adapters"
   },
   "dependencies": {
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-runtime": "workspace:*",
     "@eddacraft/anvil-aps": "workspace:*",
     "@eddacraft/anvil-adapters": "workspace:*",
-    "@eddacraft/anvil-mcp-server": "workspace:*",
     "@eddacraft/anvil-edda-stack": "workspace:*",
     "hono": "^4.12.14",
     "zod": "^4.3.6"

@@ -4,6 +4,15 @@
 
 Proposed
 
+> **Partially superseded (2026-04-29) by [ADR-033](./033-park-ide-mcp-retire-ts-scanner.md).**
+> The "Distribution Targets" table and 2026-04-02 README audit
+> below list `packages/mcp-server` and `packages/vscode-extension`
+> as user-facing shippable packages. Both are now archived under
+> `archive/anvil-mcp-server/` and
+> `archive/anvil-vscode-extension/` per ADR-033 and no longer ship
+> from npm or the VS Code Marketplace. The rest of this ADR's
+> shared-packages restructure decision is unaffected.
+
 ## Date
 
 2026-04-02

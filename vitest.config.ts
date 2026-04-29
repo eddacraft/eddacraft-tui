@@ -48,7 +48,10 @@ export default defineConfig({
       '@eddacraft/anvil-policy': resolve(__dirname, './packages/anvil/policy/src'),
       '@eddacraft/anvil-adapters': resolve(__dirname, './packages/adapters/src'),
       '@eddacraft/anvil-aps': resolve(__dirname, './packages/aps/src'),
-      '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
+      // @eddacraft/anvil-mcp-server archived under ADR-033 (2026-04-29)
+      // → archive/anvil-mcp-server/. Intentionally not aliased here;
+      // pnpm-workspace.yaml's '!archive/**' glob already excludes it
+      // from package resolution.
       '@eddacraft/anvil-edda-stack': resolve(__dirname, './packages/edda-stack/src'),
       '@eddacraft/anvil-kindling-integration': resolve(
         __dirname,
@@ -56,7 +59,8 @@ export default defineConfig({
       ),
       '@eddacraft/shared-storage': resolve(__dirname, './packages/shared/storage/src'),
       '@eddacraft/render': resolve(__dirname, './packages/libs/render/src'),
-      vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
+      // vscode-extension archived under ADR-033 (2026-04-29)
+      // → archive/anvil-vscode-extension/. Intentionally not aliased here.
     },
   },
 });

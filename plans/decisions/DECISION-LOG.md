@@ -34,7 +34,8 @@ These define how Anvil behaves by default. All features must align.
 | [011a](011a-rust-core-engine.md) | Rust core engine for performance-critical paths (watch mode, analysis, policy) | Superseded |
 | [012](012-rust-cli-replacement.md) | Single `anvil` Rust binary replaces Node.js CLI; big bang, no hybrid period | Accepted |
 | [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
-| [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted |
+| [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted (amended by ADR-033) |
+| [033](033-park-ide-mcp-retire-ts-scanner.md) | Archive VSCode extension and TS MCP server (`archive/anvil-vscode-extension/`, `archive/anvil-mcp-server/`); archive TS scanner, TS suppression parser, and parity harness to `archive/anvil-ts-scanner/`; CI excluded via `'!archive/**'`; napi crate stays as build canary; surfaces return as new active packages via DRVR / RMCPF / future ADR | Proposed |
 
 ## Product and Distribution
 
@@ -84,9 +85,9 @@ Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Accepted |
-| [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Accepted |
-| [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Accepted |
-| [030](030-surface-drivers-supersede-napi-cutover.md) | Surface drivers (editor + MCP) on the intercept daemon supersede TSRET-003/-004; TSRET-005 retargeted; napi publication no longer required | Proposed |
+| [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Accepted (rationale strengthened by ADR-033) |
+| [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Accepted (amended by ADR-033 — TS parser retired) |
+| [030](030-surface-drivers-supersede-napi-cutover.md) | Surface drivers (editor + MCP) on the intercept daemon supersede TSRET-003/-004; TSRET-005 retargeted; napi publication no longer required | Proposed (sequencing amended by ADR-033) |
 
 ## Superseded
 

@@ -357,7 +357,7 @@ by the daemon (transitional). The editor never runs those directly.
 
 ### 4.1 What the mcp-driver is
 
-The mcp-driver is how the existing `packages/mcp-server/` keeps
+The mcp-driver is how the existing `archive/anvil-mcp-server/` keeps
 working — unchanged wire contract with agents, different internals.
 Instead of importing `@eddacraft/anvil-runtime`'s `GateRunner`
 directly, the MCP server is an **mcp-driver** that makes JSON-RPC
@@ -421,7 +421,7 @@ the error at least names the problem clearly.
 
 ### 4.5 Distribution
 
-MCP driver ships as part of the existing `packages/mcp-server/`
+MCP driver ships as part of the existing `archive/anvil-mcp-server/`
 package, consuming the shared `packages/anvil-driver-client/` library
 (DRVR-001). Its npm publication story is unchanged from today.
 

@@ -28,7 +28,6 @@
       "@eddacraft/anvil-runtime/*": ["./packages/anvil/runtime/dist/*/index.d.ts"],
       "@eddacraft/anvil-policy": ["./packages/anvil/policy/dist/index.d.ts"],
       "@eddacraft/anvil-edda-stack": ["./packages/edda-stack/dist/index.d.ts"],
-      "@eddacraft/anvil-mcp-server": ["./packages/mcp-server/dist/index.d.ts"],
       "@eddacraft/anvil-api": ["./apps/anvil-api/dist/index.d.ts"],
       "@eddacraft/transactional": ["./packages/transactional/dist/emails/index.d.ts"],
       "@eddacraft/anvil-eslint-config": ["./packages/tooling/eslint-config/index.mjs"],

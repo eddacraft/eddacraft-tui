@@ -1,4 +1,38 @@
-# @eddacraft/anvil-mcp-server
+# @eddacraft/anvil-mcp-server (Archived)
+
+> **Archived (2026-04-29) under [ADR-033](../../plans/decisions/033-park-ide-mcp-retire-ts-scanner.md).**
+> This package was moved from `packages/mcp-server/` to
+> `archive/anvil-mcp-server/`. It is **not built, tested,
+> released, or published to npm**. The
+> `pnpm-workspace.yaml` `'!archive/**'` glob excludes it from the
+> active workspace. RMCPF reads `archive/anvil-mcp-server/src/`
+> as frozen contract source for the Rust port.
+>
+> **Use this instead.** The launch-critical MCP path ships in the
+> single Rust `anvil` binary via
+> [RMCP](../../plans/modules/rust-mcp-launch-shim.aps.md):
+>
+> ```bash
+> anvil mcp install --client cursor      # or claude-code
+> # editor / agent then launches:  anvil mcp serve --stdio
+> ```
+>
+> RMCP covers pre-write validation against Anvil's authoritative
+> rule set with the canonical diagnostic envelope. Full feature
+> parity with this TS server is queued under
+> [RMCPF](../../plans/modules/rust-mcp-full-port.aps.md), executed
+> against the Rust binary — not by reviving this package.
+>
+> **Why archived rather than evolved in place:** The TS server
+> imports the TS scanner; carrying both alive while RMCP already
+> covers the launch path is dual-engine cost without realised
+> benefit. ADR-033 archives this package and retires the TS
+> scanner in the same change.
+>
+> The documentation below describes the pre-archive feature set
+> and is preserved for historical context.
+
+---
 
 MCP (Model Context Protocol) server that exposes Anvil's validation, analysis,
 and configuration as tools and resources for AI coding assistants. Supports
@@ -6,7 +40,11 @@ Claude Code, Cursor, Windsurf, and VS Code via generated configuration.
 
 ## Status
 
-Active -- shippable
+Archived 2026-04-29 per ADR-033. Replaced for the launch path by the Rust
+shim ([RMCP](../../plans/modules/rust-mcp-launch-shim.aps.md));
+parity port queued under
+[RMCPF](../../plans/modules/rust-mcp-full-port.aps.md). Pre-archive
+status was *Active -- shippable*.
 
 ## Installation
 

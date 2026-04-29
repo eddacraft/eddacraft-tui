@@ -132,7 +132,7 @@ Ensure clean working tree, then update version strings on `dev`:
   - `packages/anvil/ports`
   - `packages/anvil/runtime`
   - `packages/aps`
-  - `packages/mcp-server`
+  - `archive/anvil-mcp-server`
   - `packages/edda-stack`
   - `packages/kindling-integration`
   - `packages/shared/storage`
