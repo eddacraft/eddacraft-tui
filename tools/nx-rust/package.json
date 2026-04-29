@@ -45,9 +45,9 @@
     "@nx/devkit": ">=22.0.0"
   },
   "devDependencies": {
-    "@nx/devkit": "^22.6.5",
+    "@nx/devkit": "^22.7.1",
     "@types/node": "^25.6.0",
-    "nx": "^22.6.5",
+    "nx": "^22.7.1",
     "typescript": "~6.0.3",
     "vitest": "^4.1.5"
   },
