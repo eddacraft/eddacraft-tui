@@ -70,8 +70,8 @@ that is locked for the release.
    their RMCP-004/-005/-006 dependencies are already complete.
 
 **RTAI reconciliation note (2026-04-30):** Local branch
-`feat/RTAI-002-midedit-rpc` points at merged INTD-005 work, not a completed
-RTAI implementation. RTAI-002 remains the next unimplemented daemon RPC item;
+`feat/RTAI-002-midedit-rpc` points at merged INTD-005 work, not a completed RTAI
+implementation. RTAI-002 remains the next unimplemented daemon RPC item;
 RTAI-003/-006/-008 remain downstream of it.
 
 **Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
