@@ -340,10 +340,7 @@ convention" section). Concretely:
   midedit_roundtrip` records baseline; CI compares against
   baseline with documented tolerance.
 - **Confidence:** medium
-- **Status:** Blocked — waits for RTAI-002.
-- **Reconciliation note (2026-04-30):** The only intercept benchmark currently
-  present is `crates/anvil-intercept/benches/ipc_roundtrip.rs`, which measures
-  `session.list` with `mode=watch`; no `midedit_roundtrip` benchmark exists.
+- **Status:** In Progress
 
 ---
 
