@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 3/16 complete |
+| INTD | @aneki | In Progress | 2/16 complete, 1 committed (INTD-002) |
 
 **Last reviewed:** 2026-04-29
 
@@ -188,7 +188,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
   plus permission-creation unit tests on each platform (Linux/macOS
   permission bits; Windows ACL).
-- **Status:** Complete
+- **Status:** Committed
 - **Progress (2026-04-29, `feat/INTD-002`):** `crates/anvil-intercept/src/ipc.rs`
   ships the `SessionDispatcher` trait, `NoopDispatcher`, the Unix
   socket-dir resolution + permission ladder (lstat-based symlink
@@ -205,7 +205,7 @@ a new lane.
   contract, including Windows named-pipe binding with an owner-only
   security descriptor and foreground daemon integration with the IPC
   listener and session registry.
-- **Completed (2026-04-29, `feat/INTD-002-cross-platform`):** Foreground
+- **Committed (2026-04-29, `feat/INTD-002-cross-platform`):** Foreground
   daemon startup now owns a `SessionRegistry`, binds the IPC listener,
   dispatches registration frames into the registry, ticks stale-session
   eviction, and shuts the listener down with bounded drain. Windows
