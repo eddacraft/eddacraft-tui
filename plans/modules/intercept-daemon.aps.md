@@ -2,13 +2,14 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 3 committed (INTD-002, INTD-005, INTD-014) |
+| INTD | @aneki | In Progress | 2/16 complete, 3 committed (INTD-002, INTD-005, INTD-014), 1 in progress (INTD-007) |
 
 **Last reviewed:** 2026-04-29
 
 > **A1 launch slice (cherry-picked, not the whole module):** INTD-001,
-> INTD-002, INTD-003, INTD-005, INTD-013, INTD-014. The remaining INTD work
-> items (INTD-004, -006..-012, -015, -016) ship after A1 alongside DRVR.
+> INTD-002, INTD-003, INTD-005, INTD-007, INTD-013, INTD-014. The remaining
+> INTD work items (INTD-004, INTD-006, INTD-008..-012, -015, -016) ship after
+> A1 alongside DRVR.
 > No `crates/anvil-intercept` crate exists yet on `dev`; A1 kickoff begins
 > with INTD-001 scaffolding (and the parser-concurrency decision recorded
 > inline at INTD-001 review per the LANGTS K3 deferral).
@@ -302,7 +303,7 @@ a new lane.
   restart, fences are loaded from disk and re-asserted before accepting
   connections
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib fence`
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTD-008: Configuration Loading
 

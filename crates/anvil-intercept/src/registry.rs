@@ -64,6 +64,15 @@ pub enum RegistryError {
     /// caller must `unregister` the old id first or pick a fresh one.
     #[error("session already registered: {0:?}")]
     SessionAlreadyExists(SessionId),
+
+    /// The worktree is under a persisted fence and must be explicitly
+    /// unblocked before a new session can own it.
+    #[error("worktree is fenced until explicit unblock: {worktree:?}")]
+    WorktreeFenced { worktree: PathBuf },
+
+    /// Fence state could not be loaded, so registration fails closed.
+    #[error("fence state unavailable: {message}")]
+    FenceStateUnavailable { message: String },
 }
 
 impl PartialEq for RegistryError {
@@ -85,6 +94,11 @@ impl PartialEq for RegistryError {
             )
             | (Self::UnknownSession(a), Self::UnknownSession(b))
             | (Self::SessionAlreadyExists(a), Self::SessionAlreadyExists(b)) => a == b,
+            (Self::WorktreeFenced { worktree: a }, Self::WorktreeFenced { worktree: b }) => a == b,
+            (
+                Self::FenceStateUnavailable { message: a },
+                Self::FenceStateUnavailable { message: b },
+            ) => a == b,
             _ => false,
         }
     }
