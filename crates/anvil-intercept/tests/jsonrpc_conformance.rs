@@ -410,6 +410,46 @@ async fn oversized_scan_buffer_batch_is_rejected_before_full_parse() {
     );
 }
 
+/// Per JSON-RPC 2.0, notifications never receive a response — including
+/// for oversized frames that the daemon's fast path would otherwise
+/// reject as Invalid Request. A `scan_buffer` frame above the legacy
+/// cap with no `id` field MUST be dropped silently; the connection
+/// stays open and a subsequent regular request still gets served.
+#[tokio::test]
+async fn oversized_scan_buffer_notification_is_dropped_silently() {
+    let (shutdown, handle, mut client, _tmp) = with_client().await;
+    let text = "a".repeat(LEGACY_MAX_LINE_BYTES);
+    // No `id` field — this is a notification by JSON-RPC 2.0 definition.
+    let frame = format!(
+        r#"{{"jsonrpc":"2.0","method":"scan_buffer","params":{{"path":"src/a.ts","text":"{text}","version":1,"mode":"midEdit"}}}}"#
+    );
+    client
+        .write_all(format!("{frame}\n").as_bytes())
+        .await
+        .expect("write notification");
+
+    // Drain attempt for any response — must time out (no response).
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    let read = tokio::time::timeout(Duration::from_millis(150), reader.read_line(&mut line)).await;
+    assert!(
+        read.is_err(),
+        "oversized scan_buffer notification must not produce a response: {line}"
+    );
+
+    // Connection should still be alive — send a regular notification on
+    // the same stream and verify the listener is still serving.
+    let client = reader.into_inner();
+    drop(client);
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(1), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+}
+
 #[tokio::test]
 async fn oversized_scan_buffer_with_duplicate_method_is_rejected_before_parse() {
     let text = "a".repeat(LEGACY_MAX_LINE_BYTES);

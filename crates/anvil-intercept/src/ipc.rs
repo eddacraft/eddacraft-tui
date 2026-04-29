@@ -674,11 +674,24 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
             continue;
         }
         if line.len() > LEGACY_MAX_LINE_BYTES
-            && let Err(reason) = validate_oversized_scan_buffer_frame(line)
+            && let Err(rejection) = validate_oversized_scan_buffer_frame(line)
         {
+            // JSON-RPC 2.0: notifications never receive a response,
+            // including for invalid request errors. Drop silently when
+            // we've parsed enough of the frame to know it carries no
+            // id; otherwise reply with an Invalid Request error so a
+            // caller waiting on a correlation id is not left hanging.
+            if rejection.is_notification {
+                tracing::warn!(
+                    target: "anvil_intercept::ipc",
+                    reason = rejection.reason,
+                    "dropping oversized scan_buffer notification without response",
+                );
+                continue;
+            }
             write_json_response(
                 reader.get_mut(),
-                &oversized_frame_response(reason),
+                &oversized_frame_response(rejection.reason),
                 "size error",
             )
             .await?;
@@ -823,16 +836,47 @@ fn is_jsonrpc_frame(value: &Value) -> bool {
     }
 }
 
-fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), &'static str> {
+/// Rejection from the oversized-frame fast path. `is_notification` is
+/// `true` only when the validator parsed the full object structure and
+/// confirmed no `id` field is present; for early parse errors (where
+/// the frame might still have an `id` further in) it stays `false` so
+/// the caller defaults to writing an error response. Per JSON-RPC 2.0
+/// the daemon MUST NOT reply to a notification, even on Invalid
+/// Request — see the call site in `handle_connection`.
+struct OversizedFrameRejection {
+    reason: &'static str,
+    is_notification: bool,
+}
+
+impl OversizedFrameRejection {
+    const fn request(reason: &'static str) -> Self {
+        Self {
+            reason,
+            is_notification: false,
+        }
+    }
+
+    const fn notification(reason: &'static str) -> Self {
+        Self {
+            reason,
+            is_notification: true,
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)] // Inline parser; splitting obscures the field-by-field flow.
+fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), OversizedFrameRejection> {
     let bytes = line.as_bytes();
     let mut index = skip_json_whitespace(bytes, 0);
     if bytes.get(index) == Some(&b'[') {
-        return Err(
+        return Err(OversizedFrameRejection::request(
             "frames above the legacy cap must be a single scan_buffer request; batches are unsupported",
-        );
+        ));
     }
     if bytes.get(index) != Some(&b'{') {
-        return Err("frame exceeds the legacy cap for non-scan_buffer methods");
+        return Err(OversizedFrameRejection::request(
+            "frame exceeds the legacy cap for non-scan_buffer methods",
+        ));
     }
     index += 1;
 
@@ -848,14 +892,20 @@ fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), &'static str> 
             break;
         }
         if bytes.get(index) != Some(&b'"') {
-            return Err("oversized scan_buffer frame is malformed");
+            return Err(OversizedFrameRejection::request(
+                "oversized scan_buffer frame is malformed",
+            ));
         }
         let Some(key) = parse_simple_json_string(bytes, &mut index) else {
-            return Err("oversized scan_buffer frame uses escaped or malformed field names");
+            return Err(OversizedFrameRejection::request(
+                "oversized scan_buffer frame uses escaped or malformed field names",
+            ));
         };
         index = skip_json_whitespace(bytes, index);
         if bytes.get(index) != Some(&b':') {
-            return Err("oversized scan_buffer frame is malformed");
+            return Err(OversizedFrameRejection::request(
+                "oversized scan_buffer frame is malformed",
+            ));
         }
         index += 1;
         index = skip_json_whitespace(bytes, index);
@@ -863,53 +913,87 @@ fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), &'static str> 
         match key {
             "jsonrpc" => {
                 if saw_jsonrpc {
-                    return Err("oversized scan_buffer frame contains duplicate jsonrpc fields");
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame contains duplicate jsonrpc fields",
+                    ));
                 }
                 saw_jsonrpc = true;
                 if parse_simple_json_string(bytes, &mut index) != Some("2.0") {
-                    return Err("oversized scan_buffer frame must declare jsonrpc 2.0");
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame must declare jsonrpc 2.0",
+                    ));
                 }
             }
             "method" => {
                 if saw_method {
-                    return Err("oversized scan_buffer frame contains duplicate method fields");
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame contains duplicate method fields",
+                    ));
                 }
                 saw_method = true;
                 if parse_simple_json_string(bytes, &mut index) != Some(midedit::SCAN_BUFFER_METHOD)
                 {
-                    return Err("frame exceeds the legacy cap for non-scan_buffer methods");
+                    return Err(OversizedFrameRejection::request(
+                        "frame exceeds the legacy cap for non-scan_buffer methods",
+                    ));
                 }
             }
             "params" => {
                 if saw_params {
-                    return Err("oversized scan_buffer frame contains duplicate params fields");
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame contains duplicate params fields",
+                    ));
                 }
                 saw_params = true;
-                validate_oversized_scan_buffer_params(bytes, &mut index)?;
+                validate_oversized_scan_buffer_params(bytes, &mut index)
+                    .map_err(OversizedFrameRejection::request)?;
             }
             "id" => {
                 if saw_id {
-                    return Err("oversized scan_buffer frame contains duplicate id fields");
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame contains duplicate id fields",
+                    ));
                 }
                 saw_id = true;
                 if !skip_bounded_jsonrpc_id(bytes, &mut index) {
-                    return Err("oversized scan_buffer frame id is missing or too large");
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame id is missing or too large",
+                    ));
                 }
             }
-            _ => return Err("oversized scan_buffer frame contains unsupported top-level fields"),
+            _ => {
+                return Err(OversizedFrameRejection::request(
+                    "oversized scan_buffer frame contains unsupported top-level fields",
+                ));
+            }
         }
 
-        if consume_json_object_end_or_comma(bytes, &mut index)? {
+        if consume_json_object_end_or_comma(bytes, &mut index)
+            .map_err(OversizedFrameRejection::request)?
+        {
             break;
         }
     }
 
     index = skip_json_whitespace(bytes, index);
     if index != bytes.len() {
-        return Err("oversized scan_buffer frame has trailing data");
+        return Err(OversizedFrameRejection::request(
+            "oversized scan_buffer frame has trailing data",
+        ));
     }
-    if !saw_jsonrpc || !saw_method || !saw_params || !saw_id {
-        return Err("oversized scan_buffer frame must include jsonrpc, method, params, and id");
+    if !saw_jsonrpc || !saw_method || !saw_params {
+        return Err(OversizedFrameRejection::request(
+            "oversized scan_buffer frame must include jsonrpc, method, and params",
+        ));
+    }
+    if !saw_id {
+        // We have parsed the full object and no `id` is present, so the
+        // frame is a notification by JSON-RPC definition. The caller
+        // drops these silently — the request is structurally too large
+        // to honour, and there is no caller to send an error to.
+        return Err(OversizedFrameRejection::notification(
+            "oversized scan_buffer notification dropped (no id)",
+        ));
     }
 
     Ok(())

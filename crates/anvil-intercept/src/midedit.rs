@@ -76,12 +76,14 @@ pub enum ScanBufferError {
 pub struct ScanBufferService {
     pipeline: Arc<EnforcementPipeline>,
     permits: Arc<Semaphore>,
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for ScanBufferService {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScanBufferService")
             .field("pipeline", &self.pipeline)
+            .field("timeout", &self.timeout)
             .finish_non_exhaustive()
     }
 }
@@ -89,9 +91,18 @@ impl std::fmt::Debug for ScanBufferService {
 impl ScanBufferService {
     #[must_use]
     pub fn new(pipeline: EnforcementPipeline) -> Self {
+        Self::with_timeout(pipeline, SCAN_BUFFER_TIMEOUT)
+    }
+
+    /// Build a service with a custom timeout. Reserved for tests that
+    /// need permit-release behaviour observable inside a few hundred
+    /// milliseconds; production callers stick with [`Self::new`].
+    #[must_use]
+    pub fn with_timeout(pipeline: EnforcementPipeline, timeout: Duration) -> Self {
         Self {
             pipeline: Arc::new(pipeline),
             permits: Arc::new(Semaphore::new(MAX_CONCURRENT_SCAN_BUFFERS)),
+            timeout,
         }
     }
 
@@ -99,7 +110,14 @@ impl ScanBufferService {
         &self,
         request: ScanBufferRequest,
     ) -> Result<ScanBufferResponse, ScanBufferError> {
-        let permit = self
+        // The permit is held by the *caller* for the lifetime of this
+        // future, NOT by the worker thread. If the caller times out,
+        // the permit is released here on return so a runaway rule
+        // cannot wedge the service into permanent `Busy`. The worker
+        // thread keeps running until its pipeline call finishes (sync
+        // rules cannot be cancelled mid-flight) and its result is
+        // discarded once the caller has dropped the receiver.
+        let _permit = self
             .permits
             .clone()
             .try_acquire_owned()
@@ -112,18 +130,15 @@ impl ScanBufferService {
         std::thread::Builder::new()
             .name("anvil-scan-buffer".to_owned())
             .spawn(move || {
-                let _ = sender.send({
-                    let _permit = permit;
-                    scan_buffer_with_pipeline(&request, &pipeline)
-                });
+                let _ = sender.send(scan_buffer_with_pipeline(&request, &pipeline));
             })
             .map_err(|err| ScanBufferError::WorkerFailed(err.to_string()))?;
 
-        match tokio::time::timeout(SCAN_BUFFER_TIMEOUT, receiver).await {
+        match tokio::time::timeout(self.timeout, receiver).await {
             Ok(Ok(result)) => result,
             Ok(Err(err)) => Err(ScanBufferError::WorkerFailed(err.to_string())),
             Err(_) => {
-                eprintln!("anvil-intercept: scan_buffer timed out after {SCAN_BUFFER_TIMEOUT:?}");
+                eprintln!("anvil-intercept: scan_buffer timed out after {:?}", self.timeout);
                 Err(ScanBufferError::TimedOut)
             }
         }
@@ -405,5 +420,70 @@ mod tests {
         barrier.wait();
         first.await.expect("first task").expect("first scan");
         second.await.expect("second task").expect("second scan");
+    }
+
+    /// A runaway rule that outlives the caller's timeout MUST NOT
+    /// keep its semaphore permit. The permit is held by the caller's
+    /// future and dropped on return — including on `TimedOut` — so
+    /// `scan_buffer` cannot be wedged into permanent `Busy` by stuck
+    /// worker threads. The straggler thread keeps running until its
+    /// pipeline call completes; only the permit is freed.
+    #[tokio::test]
+    async fn scan_buffer_releases_permit_when_caller_times_out() {
+        struct SleepingRule;
+
+        impl InterceptRule for SleepingRule {
+            fn rule_id(&self) -> &'static str {
+                "sleeping-rule"
+            }
+
+            fn needs_content(&self) -> bool {
+                true
+            }
+
+            fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+                RuleDecision::Allow
+            }
+
+            fn diagnostics_with_limit(
+                &self,
+                _input: &RuleInput<'_>,
+                _mode: &Mode,
+                _limit: usize,
+            ) -> Vec<Diagnostic> {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                Vec::new()
+            }
+        }
+
+        let registry =
+            RuleRegistry::with_rules(vec![Box::new(SleepingRule)]).expect("unique rule");
+        let service = ScanBufferService::with_timeout(
+            EnforcementPipeline::new(registry),
+            std::time::Duration::from_millis(50),
+        );
+
+        // Saturate every permit with calls that will time out.
+        let mut tasks = Vec::with_capacity(MAX_CONCURRENT_SCAN_BUFFERS);
+        for _ in 0..MAX_CONCURRENT_SCAN_BUFFERS {
+            let svc = service.clone();
+            tasks.push(tokio::spawn(async move { svc.scan_buffer(secret_request()).await }));
+        }
+        for task in tasks {
+            let outcome = task.await.expect("join");
+            assert!(
+                matches!(outcome, Err(ScanBufferError::TimedOut)),
+                "expected TimedOut, got {outcome:?}",
+            );
+        }
+
+        // After the timeouts fire, the permits must be available
+        // again. The next scan must reach the worker thread (and
+        // also time out), not be rejected as Busy.
+        let outcome = service.scan_buffer(secret_request()).await;
+        assert!(
+            matches!(outcome, Err(ScanBufferError::TimedOut)),
+            "permit must release on caller timeout; got {outcome:?}",
+        );
     }
 }
