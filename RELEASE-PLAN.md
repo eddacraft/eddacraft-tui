@@ -29,20 +29,20 @@ that is locked for the release.
 
 | Slice  | Locked state                                                                                                         |
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| **A1** | 14 Complete, 5 Committed, 1 In Progress, 0 Ready / unblocked, 4 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
+| **A1** | 14 Complete, 6 Committed, 0 In Progress, 0 Ready / unblocked, 4 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
 | **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                        |
 | **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                    |
 | **A4** | Mixed state: LANGTS audit/checklist and SURFENV complete; OPSUP slice 1 remains outstanding                          |
 
 **A1 source-module state:**
 
-| Source module | A1 items                                 | Complete               | Committed              | In Progress | Ready / unblocked | Blocked                |
-| ------------- | ---------------------------------------- | ---------------------- | ---------------------- | ----------- | ----------------- | ---------------------- |
-| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -003             | -002, -005, -007, -014 | -013        | —                 | —                      |
-| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008 | —                      | —           | —                 | —                      |
-| RMCP          | -001..-008                               | -001..-007             | -008                   | —           | —                 | —                      |
-| RTAI          | -001, -002, -003, -006, -008             | -001                   | —                      | —           | —                 | -002, -003, -006, -008 |
-| **Total**     | **24**                                   | **14**                 | **5**                  | **1**       | **0**             | **4**                  |
+| Source module | A1 items                                 | Complete               | Committed                    | In Progress | Ready / unblocked | Blocked                |
+| ------------- | ---------------------------------------- | ---------------------- | ---------------------------- | ----------- | ----------------- | ---------------------- |
+| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -003             | -002, -005, -007, -013, -014 | —           | —                 | —                      |
+| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008 | —                            | —           | —                 | —                      |
+| RMCP          | -001..-008                               | -001..-007             | -008                         | —           | —                 | —                      |
+| RTAI          | -001, -002, -003, -006, -008             | -001                   | —                            | —           | —                 | -002, -003, -006, -008 |
+| **Total**     | **24**                                   | **14**                 | **6**                        | **0**       | **0**             | **4**                  |
 
 **A2-A4 source-module state:**
 
