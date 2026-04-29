@@ -1,6 +1,6 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-04-28 (Graph v2 + Rust MCP launch-shim planning update)
+**Last updated:** 2026-04-29 (locked-release state + A1 dependency order)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
@@ -20,6 +20,58 @@ slices.
 | **A3** Release Engineering        | GHOOK + ATTRIB + SCAN smallest viable cut                                       | 7     |
 | **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV                      | 3     |
 
+### Locked release state (2026-04-29)
+
+The locked release now tracks the live delivery state here, not only in the
+candidate menu below. APS module status remains authoritative in
+[`plans/index.aps.md`](./plans/index.aps.md); this section mirrors the subset
+that is locked for the release.
+
+| Slice  | Locked state                                                                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------------------- |
+| **A1** | 13 Complete, 1 Committed, 1 In Progress, 2 Ready / unblocked, 6 Blocked across the 23-item RTAI/RMCP/INTD/INTR slice |
+| **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                        |
+| **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                    |
+| **A4** | Mixed state: LANGTS audit/checklist complete; OPSUP slice 1 and SURFENV structural rules remain outstanding          |
+
+**A1 source-module state:**
+
+| Source module | A1 items                           | Complete         | Committed | In Progress | Ready / unblocked | Blocked                |
+| ------------- | ---------------------------------- | ---------------- | --------- | ----------- | ----------------- | ---------------------- |
+| INTD          | -001, -002, -003, -005, -013, -014 | -002, -003       | —         | -001        | -014              | -005, -013             |
+| INTR          | -001, -002, -006, -008             | -001, -002, -008 | —         | —           | -006              | —                      |
+| RMCP          | -001..-008                         | -001..-007       | -008      | —           | —                 | —                      |
+| RTAI          | -001, -002, -003, -006, -008       | -001             | —         | —           | —                 | -002, -003, -006, -008 |
+| **Total**     | **23**                             | **13**           | **1**     | **1**       | **2**             | **6**                  |
+
+**A2-A4 source-module state:**
+
+| Slice  | Source module | Locked items                        | Complete               | Remaining state                                                        |
+| ------ | ------------- | ----------------------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| **A2** | AIGUARD       | AIGUARD-001..-004                   | AIGUARD-001..-004      | —                                                                      |
+| **A3** | GHOOK         | GHOOK-001                           | GHOOK-001              | —                                                                      |
+| **A3** | ATTRIB        | ATTRIB-001, ATTRIB-002, ATTRIB-003  | ATTRIB-001..-003       | ATTRIB-004..-011 remain outside this release cut                       |
+| **A3** | SCAN          | SCAN-001, SCAN-002, SCAN-003        | SCAN-001..-003         | SCAN-004/-005 remain outside this release cut                          |
+| **A4** | LANGTS        | LANGTS-001, LANGTS-003              | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped  |
+| **A4** | OPSUP         | OPSUP-001 (check-ID registry slice) | —                      | Draft; needs owner, check-ID scheme, and Ready flip before execution   |
+| **A4** | SURFENV       | SURFENV-001..-006                   | SURFENV-001            | SURFENV-002..-006 outstanding for `.env` structural governance surface |
+
+**Locked A1 development / dependency order:**
+
+1. **Close committed / started work:** finish RMCP-008's Cursor / Claude Code
+   GUI dry-run and merge PR #1154; finish INTD-001 closure items (PID file,
+   parser-concurrency decision, demo runbook §4.1 refresh).
+2. **Unblock daemon-backed rule composition:** land INTR-006 after the complete
+   INTR-001/-002/-008 rule wrappers.
+3. **Pin daemon conformance while INTR closes:** land INTD-014 now that INTD-002
+   is complete; it can run alongside INTR-006.
+4. **Build enforcement pipeline:** land INTD-005 after INTR-006 and the complete
+   INTD-002/-003 IPC + registry work.
+5. **Mirror decisions:** land INTD-013 after INTD-005 and the already-complete
+   NOTIFY-008 telemetry contract.
+6. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
+   RTAI-008 after the daemon-backed mid-edit surface exists.
+
 **Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
 GV2/GCTX (Graph v2 foundation and graph context delivery), and full DRVR editor
 / MCP driver cutover. The current release ships the Rust MCP launch shim only.
@@ -31,24 +83,26 @@ These are **not slices** — they're glue items that the locked candidates need.
 Some now have work-item homes after the 2026-04-28 MCP-path update; any
 remaining unclaimed glue must be claimed before the slice it supports starts.
 
-- [ ] **Reasoning-pattern rule** in `crates/anvil-checks` — minimum-viable
+- [x] **Reasoning-pattern rule** in `crates/anvil-checks` — minimum-viable
       AI-pattern check (e.g. AI-001 appeal-to-authority). Required by **A1**;
-      tracked as INTR-008. Without it, the demo headline is "secret detection
-      mid-edit."
+      tracked as INTR-008 and complete for the daemon-path wrapper. Without it,
+      the demo headline is "secret detection mid-edit."
 - [ ] **Single latency rubric ADR** — INTD-014 / RTAI / RMCP must cite one
       rubric rather than inventing per-surface numbers. Required by **A1**.
 - [ ] **Demo runbook** — `anvil init` → `anvil mcp install` → open Cursor /
       Claude Code → paste known-bad pattern → Anvil flags before save. LAUNCH
       polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
-      MCP launch path; nobody yet owns the user journey. Required by **A1**.
+      MCP launch path. RMCP-008 has the headless smoke + runbook refresh in
+      Committed state; GUI dry-run remains before Complete. Required by **A1**.
 - [ ] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
       writes config pointing at `anvil mcp serve --stdio`; **RMCP** makes that
-      command real in Rust for the A1 path. Do not port the whole TS MCP server
-      in this release.
-- [ ] **Diagnostic envelope coordination** — AIGUARD-002 ↔ RMCP-006 ↔ RTAI-006 /
+      command real in Rust for the A1 path. RMCP-001..-007 are complete and
+      RMCP-008 is Committed; do not port the whole TS MCP server in this
+      release.
+- [x] **Diagnostic envelope coordination** — AIGUARD-002 ↔ RMCP-006 ↔ RTAI-006 /
       RTAI-008 ↔ INTD-013 must agree for the launch path. DRVR-002 consumes the
-      same shape later. Decide envelope shape _before_ AIGUARD-001 starts.
-      Required by **A2**.
+      same shape later. Resolved by the canonical diagnostic-envelope spec and
+      AIGUARD-002 / RMCP-006. Required by **A2**.
 - [ ] **ADR-027 / ADR-028 / ADR-029 acceptance** — currently Proposed; Council
       D: "their continued Proposed status is procedural debt, not technical
       debt. Resolve in a single review session." Required by **A4**.
@@ -130,7 +184,7 @@ warn or block before the write hits disk.
 - **INTD subset** (6 of 16): INTD-001, INTD-002, INTD-003, INTD-005, INTD-013,
   INTD-014
 - **INTR subset** (4 of 8): INTR-001 (rule trait), INTR-002 (secret detection
-  wrapper), INTR-006 (config), INTR-008 (launch reasoning-pattern wrapper)
+  wrapper), INTR-006 (registry), INTR-008 (launch reasoning-pattern wrapper)
 - **RMCP subset** (8 of 8): RMCP-001..RMCP-008 — Rust MCP launch shim only:
   stdio server, minimal pre-write validation tool, daemon-preferred validation
   adapter, canonical diagnostics, Cursor / Claude Code install verification,
@@ -195,6 +249,9 @@ The shape AI tools consume when they invoke Anvil — launch-aligned with RTAI's
 - AIGUARD-003 — `anvil gate --profile ai` CLI flag wiring
 - AIGUARD-004 — docs guide for AI workflows
 
+**Locked status:** Complete 4/4. The canonical `anvil.diagnostic.v1` envelope is
+the release shape that RMCP/RTAI/INTD/DRVR consume or wrap.
+
 **Prerequisites:**
 
 - Coordinate AIGUARD-002 envelope shape with **RMCP-006** (Rust MCP launch
@@ -213,8 +270,7 @@ RMCP-006 / RTAI-006 / RTAI-008 / INTD-013 lock down their shapes, the envelope
 diverges and consumers branch. Coordinate the schema decision _before_
 AIGUARD-001 starts.
 
-**Recommendation: PICK or CONSIDER. Small (4 items), high RTAI/RMCP-alignment,
-low contention. Strong "consider" if RMCP-006 is on the slice anyway.**
+**Recommendation: LOCKED + COMPLETE.**
 
 ---
 
@@ -230,6 +286,9 @@ without expanding product surface. None depends on RTAI/INTD/DRVR.
   kit at `tools/starters/acknowledgements/`)
 - **SCAN-001/002/003** — scan performance: parallel rollout, ReDoS guard, bound
   rayon thread count
+
+**Locked status:** Complete 7/7 for the selected release slice. ATTRIB and SCAN
+retain follow-up items outside this release cut.
 
 **Prerequisites:**
 
@@ -247,8 +306,7 @@ without expanding product surface. None depends on RTAI/INTD/DRVR.
 say "no" to ATTRIB's downstream-port milestone, to SCAN's WalkParallel spike,
 etc. The hype phase is funding for the launch-blocker, not engineering polish.
 
-**Recommendation: PICK. Cleanest cross-cutting slice in the audit. Independent
-of RTAI bandwidth. Ships releasable polish.**
+**Recommendation: LOCKED + COMPLETE for the selected slice.**
 
 ---
 
@@ -485,7 +543,6 @@ cataloguing; promote on signal.
 | **OPAE** (opa-enhancements)                                                                     | 36 tasks is a programme. Only policy-library + bundle inheritance pieces are launch-relevant; defer until a "policy library beats gate" slice (post-RTAI v0.5+).                       |
 | **CPACKS** (compliance-policy-packs)                                                            | Shippable as ecosystem content after OPAE library + POLVAL. Compliance-pack effort scales by framework count.                                                                          |
 | **AGOV** (agent-governance-patterns)                                                            | Signal-producer module for CPACKS/MDGOV. Promote when CPACKS POLVAL prep lands. AGOV-002 → CPACKS migration pending.                                                                   |
-| **AIGUARD**                                                                                     | If not picked for Tier A, parks here as "small but coherent."                                                                                                                          |
 | **OPAG** (opa-agent-orchestration)                                                              | Orchestration on a policy stack that does not exist yet. Park until OPAE library lands.                                                                                                |
 | **EVAL** (eval-harness-integration)                                                             | Adapter contract is small, useful for RTAI regression once RTAI ships; revisit post-launch.                                                                                            |
 | **CPOL** (contextual-policy-assertions)                                                         | Isolated, complements OPAE; small scope (3 tasks) — Tier B/C boundary.                                                                                                                 |

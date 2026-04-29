@@ -1071,6 +1071,7 @@ dependencies = [
  "eddacraft-anvil-kernel-types",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "workspace-hack",
 ]
 
