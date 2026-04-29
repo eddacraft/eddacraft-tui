@@ -88,11 +88,11 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
 | ------------- | -------- | -------- | --------- | ----------- | ----------------- | ------- |
-| INTD | -001, -002, -003, -005, -007, -013, -014 | -001, -003 | -002, -005, -014 | — | — | -007, -013 |
+| INTD | -001, -002, -003, -005, -007, -013, -014 | -001, -003 | -002, -005, -007, -014 | — | — | -013 |
 | INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -006, -008 | — | — | — | — |
 | RMCP | -001..-008 | -001..-007 | -008 | — | — | — |
 | RTAI | -001 (spike), -002, -003, -006, -008 | -001 | — | — | — | -002, -003, -006, -008 |
-| **Total** | **24** | **14** | **4** | **0** | **0** | **6** |
+| **Total** | **24** | **14** | **5** | **0** | **0** | **5** |
 
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 
@@ -113,11 +113,12 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 5. **Build enforcement pipeline:** land **INTD-005** now that INTR-006 is
    complete and after the complete INTD-002/-003 IPC + registry work is
    available.
-5. **Mirror decisions:** land **INTD-007** (fence persistence — required so
-   INTD-013 can populate `grouping.transition` for `active ↔ fenced` events)
-   after INTD-005, then land **INTD-013** after INTD-007 and the
+6. **Persist fences:** land **INTD-007** after INTD-005; fence persistence is
+   required so INTD-013 can populate `grouping.transition` for `active ↔ fenced`
+   events.
+7. **Mirror decisions:** land **INTD-013** after INTD-005, INTD-007, and the
    already-complete NOTIFY-008 telemetry contract.
-6. **Finish RTAI:** land **RTAI-002** after INTD-005, then **RTAI-003**,
+8. **Finish RTAI:** land **RTAI-002** after INTD-005, then **RTAI-003**,
    **RTAI-006**, and **RTAI-008** after the daemon-backed mid-edit surface
    exists.
 

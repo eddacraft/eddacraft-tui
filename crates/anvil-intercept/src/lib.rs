@@ -29,6 +29,7 @@
 #![forbid(unsafe_code)]
 
 pub mod enforcement;
+pub mod fence;
 pub mod ipc;
 pub mod registry;
 
@@ -60,11 +61,15 @@ use tokio::task::JoinHandle;
 #[derive(Clone)]
 struct RegistryDispatcher {
     registry: Arc<SessionRegistry>,
+    fence_store: Arc<fence::FenceStore>,
 }
 
 impl RegistryDispatcher {
-    fn new(registry: Arc<SessionRegistry>) -> Self {
-        Self { registry }
+    fn new(registry: Arc<SessionRegistry>, fence_store: Arc<fence::FenceStore>) -> Self {
+        Self {
+            registry,
+            fence_store,
+        }
     }
 }
 
@@ -74,6 +79,17 @@ impl SessionDispatcher for RegistryDispatcher {
         id: &anvil_intercept_proto::SessionId,
         worktree: &Path,
     ) -> Result<(), RegistryError> {
+        let fences =
+            self.fence_store
+                .load()
+                .map_err(|err| RegistryError::FenceStateUnavailable {
+                    message: err.to_string(),
+                })?;
+        if fences.is_fenced(worktree) {
+            return Err(RegistryError::WorktreeFenced {
+                worktree: worktree.to_path_buf(),
+            });
+        }
         SessionDispatcher::register(self.registry.as_ref(), id, worktree)
     }
 
@@ -90,11 +106,32 @@ impl SessionDispatcher for RegistryDispatcher {
     }
 }
 
+struct DaemonState {
+    registry: Arc<SessionRegistry>,
+    fence_store: Arc<fence::FenceStore>,
+    fences: Arc<fence::FenceState>,
+}
+
+impl DaemonState {
+    fn new(fence_store: fence::FenceStore, fences: fence::FenceState) -> Self {
+        Self {
+            registry: Arc::new(SessionRegistry::new()),
+            fence_store: Arc::new(fence_store),
+            fences: Arc::new(fences),
+        }
+    }
+
+    fn active_fence_count(&self) -> usize {
+        self.fences.active_fences().len()
+    }
+}
+
 /// Options accepted by [`run_foreground`]. Future tasks add the socket
 /// path, config path, and observe-only flag here.
 #[derive(Debug, Default, Clone)]
 pub struct ForegroundOpts {
     pid_file: Option<PathBuf>,
+    fence_store: Option<PathBuf>,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -108,6 +145,7 @@ impl ForegroundOpts {
     pub fn with_pid_file(pid_file: impl Into<PathBuf>) -> Self {
         Self {
             pid_file: Some(pid_file.into()),
+            fence_store: None,
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -125,6 +163,7 @@ impl ForegroundOpts {
     ) -> Self {
         Self {
             pid_file: Some(pid_file.into()),
+            fence_store: None,
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -139,12 +178,28 @@ impl ForegroundOpts {
     ) -> Self {
         Self {
             pid_file: Some(pid_file.into()),
+            fence_store: None,
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
 
+    /// Override the persistent fence state file. Tests use this to keep
+    /// daemon startup away from the caller's real user-state directory.
+    #[must_use]
+    pub fn with_fence_store_file(mut self, fence_store: impl Into<PathBuf>) -> Self {
+        self.fence_store = Some(fence_store.into());
+        self
+    }
+
     fn pid_file_path(&self) -> Result<PathBuf> {
         self.pid_file.clone().map_or_else(default_pid_file_path, Ok)
+    }
+
+    fn fence_store_path(&self) -> Result<PathBuf> {
+        self.fence_store
+            .clone()
+            .map_or_else(fence::default_fence_state_path, Ok)
+            .context("failed to resolve intercept fence store path")
     }
 
     #[cfg(unix)]
@@ -655,12 +710,29 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
 /// registry, serves the IPC listener, and ticks stale-session eviction.
 pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
     let pid_file_path = opts.pid_file_path()?;
+    let fence_store_path = opts.fence_store_path()?;
     let _pid_file = PidFileGuard::acquire(&pid_file_path)?;
+    let fence_store = fence::FenceStore::at_path(&fence_store_path);
+    let daemon_state = DaemonState::new(
+        fence_store.clone(),
+        fence_store.load().with_context(|| {
+            format!("failed to load fence state {}", fence_store_path.display())
+        })?,
+    );
+    if daemon_state.active_fence_count() > 0 {
+        tracing::info!(
+            target: "anvil_intercept::fence",
+            count = daemon_state.active_fence_count(),
+            "loaded persisted intercept fences before accepting connections",
+        );
+    }
 
     #[cfg(any(unix, windows))]
     {
-        let registry = Arc::new(SessionRegistry::new());
-        let dispatcher = RegistryDispatcher::new(Arc::clone(&registry));
+        let dispatcher = RegistryDispatcher::new(
+            Arc::clone(&daemon_state.registry),
+            Arc::clone(&daemon_state.fence_store),
+        );
 
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
@@ -694,7 +766,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     return Ok(());
                 }
                 _ = tick.tick() => {
-                    let evicted = registry.evict_stale(Instant::now());
+                    let evicted = daemon_state.registry.evict_stale(Instant::now());
                     if !evicted.is_empty() {
                         tracing::debug!(
                             target: "anvil_intercept::registry",
@@ -754,7 +826,12 @@ mod tests {
             .parent()
             .expect("pid file has parent")
             .join("intercept.sock");
+        let fence_store = pid_file
+            .parent()
+            .expect("pid file has parent")
+            .join("intercept-fences.json");
         ForegroundOpts::with_pid_file_and_ipc_socket(pid_file, ipc_socket)
+            .with_fence_store_file(fence_store)
     }
 
     #[cfg(windows)]
@@ -763,12 +840,22 @@ mod tests {
         let suffix =
             format!("{}-{}", std::process::id(), pid_file.display()).replace(['/', '\\', ':'], "-");
         let pipe_name = format!(r"\\.\pipe\anvil-intercept-test-{suffix}");
+        let fence_store = pid_file
+            .parent()
+            .expect("pid file has parent")
+            .join("intercept-fences.json");
         ForegroundOpts::with_pid_file_and_ipc_pipe_name(pid_file, pipe_name)
+            .with_fence_store_file(fence_store)
     }
 
     #[cfg(not(any(unix, windows)))]
     fn test_opts(pid_file: impl Into<PathBuf>) -> ForegroundOpts {
-        ForegroundOpts::with_pid_file(pid_file)
+        let pid_file = pid_file.into();
+        let fence_store = pid_file
+            .parent()
+            .expect("pid file has parent")
+            .join("intercept-fences.json");
+        ForegroundOpts::with_pid_file(pid_file).with_fence_store_file(fence_store)
     }
 
     fn test_pid_file(tmp: &tempfile::TempDir) -> PathBuf {
@@ -934,12 +1021,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let pid_file = test_pid_file(&tmp);
         let socket = test_ipc_socket(&tmp);
+        let fence_store = tmp.path().join("state/intercept-fences.json");
         let worktree = tmp.path().join("worktree");
         fs::create_dir(&worktree).expect("create worktree");
 
         let (shutdown, token) = Shutdown::new();
         let handle = tokio::spawn(run_foreground(
-            ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket),
+            ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket)
+                .with_fence_store_file(&fence_store),
             token,
         ));
 
@@ -967,6 +1056,80 @@ mod tests {
             .expect("foreground loop reported error");
         assert!(!pid_file.exists(), "pid file should be removed on shutdown");
         assert!(!socket.exists(), "ipc socket should be removed on shutdown");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_loads_fences_before_binding_ipc() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        let socket = test_ipc_socket(&tmp);
+        let fence_store = tmp.path().join("state/intercept-fences.json");
+        fs::create_dir_all(fence_store.parent().expect("fence store parent"))
+            .expect("create fence store parent");
+        fs::write(&fence_store, "not json").expect("write corrupt fence store");
+        let (_shutdown, token) = Shutdown::new();
+
+        let err = run_foreground(
+            ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket)
+                .with_fence_store_file(&fence_store),
+            token,
+        )
+        .await
+        .expect_err("corrupt fence store should stop startup");
+
+        assert!(
+            format!("{err:#}").contains("failed to load fence state"),
+            "unexpected error: {err:#}",
+        );
+        assert!(
+            !socket.exists(),
+            "ipc socket should not bind before fences load"
+        );
+    }
+
+    #[test]
+    fn persisted_fence_blocks_session_registration_after_restart() {
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("worktree");
+        fs::create_dir(&worktree).expect("create worktree");
+        let store = fence::FenceStore::at_path(tmp.path().join("state/intercept-fences.json"));
+        store
+            .fence_worktree(&worktree, "restart fence")
+            .expect("fence worktree");
+        let registry = Arc::new(SessionRegistry::new());
+        let dispatcher = RegistryDispatcher::new(Arc::clone(&registry), Arc::new(store));
+
+        let err = dispatcher
+            .register(&SessionId::new("sess-fenced"), &worktree)
+            .expect_err("fenced worktree must reject registration");
+
+        assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
+        assert!(registry.active_sessions().is_empty());
+    }
+
+    #[test]
+    fn dispatcher_observes_live_fence_store_updates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("worktree");
+        fs::create_dir(&worktree).expect("create worktree");
+        let store = fence::FenceStore::at_path(tmp.path().join("state/intercept-fences.json"));
+        let registry = Arc::new(SessionRegistry::new());
+        let dispatcher = RegistryDispatcher::new(Arc::clone(&registry), Arc::new(store.clone()));
+
+        store
+            .fence_worktree(&worktree, "live fence")
+            .expect("fence worktree");
+        let err = dispatcher
+            .register(&SessionId::new("sess-fenced"), &worktree)
+            .expect_err("new fence must affect running dispatcher");
+        assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
+
+        store.unblock_worktree(&worktree).expect("unblock worktree");
+        dispatcher
+            .register(&SessionId::new("sess-unblocked"), &worktree)
+            .expect("explicit unblock must affect running dispatcher");
+        assert_eq!(registry.active_sessions().len(), 1);
     }
 
     #[tokio::test(flavor = "current_thread")]

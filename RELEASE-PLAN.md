@@ -29,20 +29,20 @@ that is locked for the release.
 
 | Slice  | Locked state                                                                                                         |
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| **A1** | 14 Complete, 2 Committed, 0 In Progress, 2 Ready / unblocked, 6 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
+| **A1** | 14 Complete, 5 Committed, 0 In Progress, 0 Ready / unblocked, 5 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
 | **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                        |
 | **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                    |
 | **A4** | Mixed state: LANGTS audit/checklist and SURFENV complete; OPSUP slice 1 remains outstanding                          |
 
 **A1 source-module state:**
 
-| Source module | A1 items                                 | Complete               | Committed | In Progress | Ready / unblocked | Blocked                |
-| ------------- | ---------------------------------------- | ---------------------- | --------- | ----------- | ----------------- | ---------------------- |
-| INTD          | -001, -002, -003, -005, -007, -013, -014 | -002, -003             | -001      | —           | -005, -014        | -007, -013             |
-| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008 | —         | —           | —                 | —                      |
-| RMCP          | -001..-008                               | -001..-007             | -008      | —           | —                 | —                      |
-| RTAI          | -001, -002, -003, -006, -008             | -001                   | —         | —           | —                 | -002, -003, -006, -008 |
-| **Total**     | **24**                                   | **14**                 | **2**     | **0**       | **2**             | **6**                  |
+| Source module | A1 items                                 | Complete               | Committed              | In Progress | Ready / unblocked | Blocked                |
+| ------------- | ---------------------------------------- | ---------------------- | ---------------------- | ----------- | ----------------- | ---------------------- |
+| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -003             | -002, -005, -007, -014 | —           | —                 | -013                   |
+| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008 | —                      | —           | —                 | —                      |
+| RMCP          | -001..-008                               | -001..-007             | -008                   | —           | —                 | —                      |
+| RTAI          | -001, -002, -003, -006, -008             | -001                   | —                      | —           | —                 | -002, -003, -006, -008 |
+| **Total**     | **24**                                   | **14**                 | **5**                  | **0**       | **0**             | **5**                  |
 
 **A2-A4 source-module state:**
 
@@ -65,11 +65,12 @@ that is locked for the release.
 3. **Pin daemon conformance:** land INTD-014 now that INTD-002 is complete.
 4. **Build enforcement pipeline:** land INTD-005 now that INTR-006 and the
    complete INTD-002/-003 IPC + registry work are available.
-5. **Mirror decisions:** land INTD-007 (fence persistence — required so INTD-013
-   can populate `grouping.transition` for `active ↔ fenced` events) after
-   INTD-005, then land INTD-013 after INTD-007 and the already-complete
-   NOTIFY-008 telemetry contract.
-6. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
+5. **Persist fences:** land INTD-007 after INTD-005; fence persistence is
+   required so INTD-013 can populate `grouping.transition` for `active ↔ fenced`
+   events.
+6. **Mirror decisions:** land INTD-013 after INTD-005, INTD-007, and the
+   already-complete NOTIFY-008 telemetry contract.
+7. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
    RTAI-008 after the daemon-backed mid-edit surface exists.
 
 **Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
