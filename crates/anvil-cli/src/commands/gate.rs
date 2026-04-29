@@ -2773,6 +2773,17 @@ rules: []
     }
 
     #[test]
+    fn normalize_gate_check_set_accepts_stable_ids_and_aliases() {
+        let names: std::collections::HashSet<&str> =
+            ["ANV-CORE-001", "architecture"].into_iter().collect();
+
+        let normalised = normalize_gate_check_set(&names).unwrap();
+
+        assert!(normalised.contains("secret"));
+        assert!(normalised.contains("architecture"));
+    }
+
+    #[test]
     fn validate_check_names_rejects_unknown() {
         let names: std::collections::HashSet<&str> = ["lint", "bogus"].into_iter().collect();
         let err = validate_check_names(&names).unwrap_err();
@@ -2945,6 +2956,22 @@ rules: []
         )
         .unwrap();
         let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert_eq!(checks.len(), 2);
+        assert!(checks.contains("secret-detection"));
+        assert!(checks.contains("import-boundaries"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_parses_stable_ids() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"checks": ["ANV-CORE-001", "ANV-CORE-002"]}"#,
+        )
+        .unwrap();
+
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+
         assert_eq!(checks.len(), 2);
         assert!(checks.contains("secret-detection"));
         assert!(checks.contains("import-boundaries"));
