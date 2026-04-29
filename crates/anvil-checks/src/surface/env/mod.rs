@@ -10,8 +10,21 @@
 //! integration). Suppressions reuse the Rust antipattern parser per
 //! [ADR-029](../../../../plans/decisions/029-suppression-parser-authority.md).
 
+pub mod check;
+pub mod drift;
+pub mod gitignore;
 pub mod parser;
+pub mod prod_value;
 pub mod scanner;
+pub mod suppression;
 
+pub use check::{SurfenvCheckResult, run_surfenv_check};
+pub use drift::{DriftFinding, DriftKind, SURFENV_004_RULE_ID, check_env_drift};
+pub use gitignore::{
+    GitignoreFinding, GitignoreFindingKind, SURFENV_002_RULE_ID, check_gitignore_hygiene,
+    check_gitignore_hygiene_for_paths,
+};
 pub use parser::{EnvEntry, EnvParseError, parse_env};
-pub use scanner::{EnvFinding, is_env_file, scan_env_file};
+pub use prod_value::{ProdIndicator, ProdValueFinding, SURFENV_003_RULE_ID, scan_prod_values};
+pub use scanner::{EnvFinding, SURFENV_001_RULE_ID, is_env_file, scan_env_file};
+pub use suppression::{resolve_file_header_suppression, resolve_line_suppression};

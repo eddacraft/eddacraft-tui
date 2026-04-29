@@ -12,11 +12,13 @@
 
 use std::path::Path;
 
-use crate::antipattern::parse_suppression;
+use serde::{Deserialize, Serialize};
+
 use crate::secret::patterns::{DEFAULT_COMPILED_PATTERNS, PatternMatcher};
 use crate::secret::types::FindingType;
 use crate::secret::{SecretCheckConfig, SecretFinding};
-use crate::surface::env::parser::{EnvEntry, parse_env};
+use crate::surface::env::parser::parse_env;
+use crate::surface::env::suppression::resolve_line_suppression;
 
 /// Rule ID for the SURFENV-001 secret-detected-in-`.env`-file check.
 ///
@@ -32,7 +34,7 @@ pub const SURFENV_001_RULE_ID: &str = "SURFENV-001";
 /// Suppression status mirrors the antipattern scanner's `Suppression` —
 /// suppressed findings still appear in the result so the TUI / CLI can
 /// show "1 suppressed" counts rather than silently dropping them.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvFinding {
     pub finding: SecretFinding,
     pub key: String,
@@ -106,7 +108,8 @@ pub fn scan_env_file(
             // Skip the filter here — the parser already isolated the
             // value, so we don't need a second-line "is this code?" guard.
 
-            let (suppressed, reason) = resolve_suppression(&lines, entry, SURFENV_001_RULE_ID);
+            let (suppressed, reason) =
+                resolve_line_suppression(&lines, entry.line, SURFENV_001_RULE_ID);
 
             // Compute the redaction range against the *raw source line*,
             // not the decoded value. `matched_range` indexes into
@@ -150,20 +153,6 @@ pub fn scan_env_file(
     }
 
     findings
-}
-
-fn resolve_suppression(lines: &[&str], entry: &EnvEntry, rule_id: &str) -> (bool, Option<String>) {
-    if entry.line <= 1 {
-        return (false, None);
-    }
-    let previous = lines.get(entry.line - 2).copied().unwrap_or("");
-    let Some((id, reason)) = parse_suppression(previous) else {
-        return (false, None);
-    };
-    if id != rule_id {
-        return (false, None);
-    }
-    (true, Some(reason))
 }
 
 #[cfg(test)]

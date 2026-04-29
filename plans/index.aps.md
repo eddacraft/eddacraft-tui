@@ -442,7 +442,7 @@ radius × strategic per spec §8.3.
 | [surface-github-actions](./modules/surface-github-actions.aps.md) | SURFGHA  | GitHub Actions YAML | T2          | Draft       | 2     |
 | [surface-dockerfile](./modules/surface-dockerfile.aps.md)         | SURFDOCK | Dockerfile          | T2          | Draft       | 3     |
 | [surface-shell](./modules/surface-shell.aps.md)                   | SURFSH   | Shell scripts       | T1          | Draft       | 3     |
-| [surface-env-files](./modules/surface-env-files.aps.md)           | SURFENV  | `.env` files        | T1          | In Progress | 3     |
+| [surface-env-files](./modules/surface-env-files.aps.md)           | SURFENV  | `.env` files        | T1          | Complete    | 6     |
 
 Mostly deferred: Terraform / HCL (T1, demand=1 indirect via Pulumi), k8s YAML /
 Helm (T1, no demand) — promotion gated on direct user demand.
@@ -1194,7 +1194,7 @@ Authoritative source:
 | SURFGHA  | [surface-github-actions](./modules/surface-github-actions.aps.md) | T2          | Draft       | 2     |
 | SURFDOCK | [surface-dockerfile](./modules/surface-dockerfile.aps.md)         | T2          | Draft       | 3     |
 | SURFSH   | [surface-shell](./modules/surface-shell.aps.md)                   | T1          | Draft       | 3     |
-| SURFENV  | [surface-env-files](./modules/surface-env-files.aps.md)           | T1          | In Progress | 3     |
+| SURFENV  | [surface-env-files](./modules/surface-env-files.aps.md)           | T1          | Complete    | 6     |
 
 **Track 4 — Semantic packs**
 

@@ -3,16 +3,17 @@
 
 # `.env` Files Governance Surface (Track 3)
 
-| ID      | Owner | Status      | Progress |
-| ------- | ----- | ----------- | -------- |
-| SURFENV | —     | In Progress | 1/6      |
+| ID      | Owner | Status   | Progress |
+| ------- | ----- | -------- | -------- |
+| SURFENV | —     | Complete | 6/6      |
 
-**Last reviewed:** 2026-04-27
+**Last reviewed:** 2026-04-29
 
-> Hygiene note (2026-04-27): SURFENV-001 has landed in
-> `crates/anvil-checks/src/surface/env/` with parser, scanner, ADR-029
-> suppression support, and integration tests. The remaining work is the
-> structural catalogue and validation pass below.
+> Hygiene note (2026-04-29): All six SURFENV slices have landed in
+> `crates/anvil-checks/src/surface/env/`. The structural catalogue is
+> wired through the shared `suppression` helper (ADR-029), each rule
+> has unit + integration coverage, and a baseline test pins the anvil
+> repo to a clean state so regressions surface in CI.
 
 ## Purpose
 
@@ -76,8 +77,12 @@ Change status to **Ready** when:
 - [ ] OPSUP slices landed.
 - [x] ADR-029 Accepted.
 - [x] Secret-scanner contract clear — what SURFENV adds vs. defers.
-- [ ] Anvil's own `.env*` files baselined.
-- [ ] External codebase validation candidate identified.
+- [x] Anvil's own `.env*` files baselined (see
+      `crates/anvil-checks/tests/surfenv_anvil_baseline.rs`).
+- [x] External codebase validation candidate exercised via the
+      synthetic-repo smoke test in the same file; a real third-party
+      candidate is the next follow-up if SURFENV gains a CLI surface
+      (Phase 4 work).
 - [ ] Owner named.
 
 ## Tasks
@@ -97,31 +102,59 @@ Change status to **Ready** when:
 
 - **Intent:** Repositories get actionable warnings when sensitive
   `.env` files are not protected by ignore rules.
-- **Status:** Todo
+- **Expected Outcome:** Each unprotected `.env` file produces one
+  finding with a suggested gitignore pattern; intentionally-committed
+  filenames (`.env.example`, `.envrc`, …) are skipped; file-header
+  `# @anvil-ignore SURFENV-002` directives suppress.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --test surfenv_gitignore_hygiene`
+- **Status:** Complete
 
 ### SURFENV-003: Production-value heuristic for non-prod files
 
 - **Intent:** Development env files flag production-shaped values with
   conservative defaults.
-- **Status:** Todo
+- **Expected Outcome:** Three indicators fire on non-prod env
+  filenames (`production` word at boundaries, `prod-` host segment in
+  multi-part hostnames, `_PROD` key suffix) with staging/local/test
+  short-circuits; line-level `# @anvil-ignore SURFENV-003` directives
+  suppress.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --test surfenv_prod_value`
+- **Status:** Complete
 
 ### SURFENV-004: `.env.example` drift detection
 
 - **Intent:** Template env files and concrete env files report
   structural drift without duplicating secret detection.
-- **Status:** Todo
+- **Expected Outcome:** Per-key findings in both directions
+  (`MissingFromExample`, `MissingFromConcrete`); file-header
+  `# @anvil-ignore SURFENV-004` directives suppress on the relevant
+  side without leaking across directions.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --test surfenv_drift`
+- **Status:** Complete
 
 ### SURFENV-005: Structural rule suppression wiring
 
 - **Intent:** Structural SURFENV findings use the Rust ADR-029
   suppression parser consistently.
-- **Status:** Todo
+- **Expected Outcome:** Every rule routes through the shared
+  `surface::env::suppression` helpers (`resolve_line_suppression`,
+  `resolve_file_header_suppression`); cross-rule audit test enforces
+  that a directive for one rule never silences another.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --test surfenv_suppression_audit`
+- **Status:** Complete
 
 ### SURFENV-006: Anvil and external validation runs
 
 - **Intent:** Validate SURFENV findings against this repository and
   one external candidate before broadening the surface.
-- **Status:** Todo
+- **Expected Outcome:** Baseline test runs all four rules against
+  anvil's committed `.env*` files (currently template-only) and a
+  synthetic external repo; both must produce zero unsuppressed
+  findings on anvil and the expected interaction findings on the
+  synthetic case. A regression flips the test red and names the file
+  + rule that drifted.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --test surfenv_anvil_baseline`
+- **Status:** Complete
 
 ## Risks
 
