@@ -32,6 +32,9 @@ workspace-hack.workspace = true
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.30", default-features = false, features = ["fs", "process", "signal", "user"] }
 
+[target.'cfg(windows)'.dependencies]
+anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
+
 [dev-dependencies]
 tempfile = "3"
 
