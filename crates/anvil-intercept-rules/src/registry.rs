@@ -11,11 +11,32 @@
 //!   [`RegistryDecision::Allow`]. Useful for "shadow" rollouts where
 //!   an operator wants to see what would have fired without breaking
 //!   anyone's flow.
-//! - **Panic isolation** — every `evaluate` call is wrapped in
-//!   [`std::panic::catch_unwind`]. The trait contract says rules MUST
-//!   NOT panic; the registry is the layer that *enforces* that
-//!   contract so a misbehaving rule cannot abort the daemon's tokio
-//!   task. A panicking rule is treated as if it returned `Allow`.
+//! - **Panic isolation (unwind builds only)** — every `evaluate` call
+//!   is wrapped in [`std::panic::catch_unwind`]. The trait contract
+//!   says rules MUST NOT panic; the registry is the layer that
+//!   *enforces* that contract under unwind builds, so a misbehaving
+//!   rule cannot abort the daemon's tokio task. A panicking rule is
+//!   treated as if it returned `Allow`.
+//!
+//!   **Important:** `catch_unwind` only works when the binary is built
+//!   with `panic="unwind"`. The Anvil workspace's `[profile.release]`
+//!   sets `panic="abort"` (see top-level `Cargo.toml`), which means
+//!   release-build rule panics still terminate the process. The
+//!   isolation here is best-effort safety net for development /
+//!   debug / test builds; release-mode crash-safety would require
+//!   either flipping the daemon binary's profile to `panic="unwind"`
+//!   or hardening the rules themselves to be panic-free by
+//!   construction. The trait contract makes the latter the supported
+//!   long-term answer.
+//! - **Cached rule ids** — every rule's [`InterceptRule::rule_id`] is
+//!   sampled once at registration time and stored alongside the rule.
+//!   The hot path never calls `rule_id()` again, so a misbehaving
+//!   rule that panics in `rule_id` cannot crash evaluation. The
+//!   cached id is also the canonical answer for dedup checks, the
+//!   `rule_ids()` accessor, log output, and the `InterruptReason`
+//!   normalisation step (a rule that returns an `InterruptReason`
+//!   with a mismatched `rule_id` has its id rewritten to the cached
+//!   one — observability invariants are non-negotiable).
 //! - **Duplicate detection** — registering two rules with the same
 //!   [`InterceptRule::rule_id`] is a programmer error and surfaces as
 //!   [`RegistryError::DuplicateRuleId`] rather than silently
@@ -69,20 +90,29 @@ pub enum RegistryMode {
     ObserveOnly,
 }
 
+/// A registered rule plus the id we sampled from it at registration.
+/// Holding the cached id alongside the trait object means the hot path
+/// never has to call `rule_id()` again — see the module-level note on
+/// cached rule ids for why that matters.
+struct RegisteredRule {
+    id: String,
+    rule: Box<dyn InterceptRule>,
+}
+
 /// Ordered pipeline of [`InterceptRule`] instances. Cheap to iterate;
 /// not internally synchronised — callers needing shared ownership wrap
 /// it in `Arc<RuleRegistry>`. The registry is read-only after
 /// construction in v1; reload-on-change lands with INTR-007.
 pub struct RuleRegistry {
-    rules: Vec<Box<dyn InterceptRule>>,
+    rules: Vec<RegisteredRule>,
     mode: RegistryMode,
 }
 
 impl std::fmt::Debug for RuleRegistry {
     /// `Box<dyn InterceptRule>` is not `Debug`, so the auto-derive is
-    /// out. We surface the mode and the rule ids (which stand in for
-    /// the trait objects); `finish_non_exhaustive` documents that the
-    /// `rules` storage isn't printed verbatim.
+    /// out. We surface the mode and the cached rule ids (which stand
+    /// in for the trait objects); `finish_non_exhaustive` documents
+    /// that the `rules` storage isn't printed verbatim.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuleRegistry")
             .field("mode", &self.mode)
@@ -131,12 +161,17 @@ impl RuleRegistry {
 
     /// Append a rule to the pipeline. Order of registration is the
     /// order of evaluation.
+    ///
+    /// `rule_id()` is sampled once here and cached. The hot path never
+    /// calls back into `rule_id()`, so even if a misbehaving rule
+    /// panics in `rule_id()` later (against the trait contract), the
+    /// registry's cached value keeps observability and dedup intact.
     pub fn register(&mut self, rule: Box<dyn InterceptRule>) -> Result<(), RegistryError> {
         let id = rule.rule_id().to_owned();
-        if self.rules.iter().any(|existing| existing.rule_id() == id) {
+        if self.rules.iter().any(|existing| existing.id == id) {
             return Err(RegistryError::DuplicateRuleId(id));
         }
-        self.rules.push(rule);
+        self.rules.push(RegisteredRule { id, rule });
         Ok(())
     }
 
@@ -164,14 +199,15 @@ impl RuleRegistry {
     /// if no rule needs content, the read is skipped entirely.
     #[must_use]
     pub fn any_needs_content(&self) -> bool {
-        self.rules.iter().any(|r| r.needs_content())
+        self.rules.iter().any(|r| r.rule.needs_content())
     }
 
     /// Registered rule ids, in evaluation order. Cheap helper for
-    /// status surfaces (`anvil intercept status`, INTD-011).
+    /// status surfaces (`anvil intercept status`, INTD-011). Returns
+    /// the ids cached at registration, not live `rule_id()` calls.
     #[must_use]
     pub fn rule_ids(&self) -> Vec<&str> {
-        self.rules.iter().map(|r| r.rule_id()).collect()
+        self.rules.iter().map(|r| r.id.as_str()).collect()
     }
 
     /// Evaluate `input` against the pipeline.
@@ -180,17 +216,29 @@ impl RuleRegistry {
     /// first rule that fires; later rules are not called.
     ///
     /// Observe-only mode: every rule is called regardless. Interrupts
-    /// are emitted on `tracing` (and stderr as a fallback) but the
-    /// returned decision is always [`RegistryDecision::Allow`]. This
-    /// is the "shadow rollout" path.
+    /// are emitted on `stderr` and the returned decision is always
+    /// [`RegistryDecision::Allow`]. This is the "shadow rollout"
+    /// path. (`tracing` is intentionally not a dep of this crate; if
+    /// you wire one in, both this path and the panic path become
+    /// `tracing::warn!` candidates — the eprintln calls are the
+    /// minimum-dep fallback.)
     ///
-    /// Panicking rules are isolated: a panic from `evaluate` is caught,
-    /// logged, and treated as if the rule had returned `Allow`. This
-    /// matches the trait's pinned panic-policy.
+    /// Panicking rules are isolated under `panic="unwind"`: a panic
+    /// from `evaluate` is caught, reported on stderr, and treated as
+    /// if the rule had returned `Allow`. Under `panic="abort"` (the
+    /// workspace's release profile) this isolation is a no-op — the
+    /// process aborts before unwinding starts. See the module-level
+    /// note for the broader story.
+    ///
+    /// `InterruptReason.rule_id` is normalised to the registry's
+    /// cached id for the firing rule before returning or logging. If
+    /// the rule emitted a different id, the registry's cached value
+    /// wins — observability and dedup invariants must not depend on
+    /// the rule getting its own id right.
     pub fn evaluate(&self, input: &RuleInput<'_>) -> RegistryDecision {
-        for rule in &self.rules {
-            let id = rule.rule_id();
-            let Ok(decision) = catch_unwind(AssertUnwindSafe(|| rule.evaluate(input))) else {
+        for entry in &self.rules {
+            let cached_id = entry.id.as_str();
+            let Ok(decision) = catch_unwind(AssertUnwindSafe(|| entry.rule.evaluate(input))) else {
                 // The trait contract says rules MUST NOT panic.
                 // Surface the violation loudly and treat as Allow —
                 // escalating a buggy rule into an Interrupt would
@@ -198,19 +246,28 @@ impl RuleRegistry {
                 // payload is consumed here; reconstructing the
                 // message portably across types is fraught.
                 eprintln!(
-                    "anvil-intercept-rules: rule {id:?} panicked during evaluate; \
+                    "anvil-intercept-rules: rule {cached_id:?} panicked during evaluate; \
                      treating as Allow (rule contract violation)",
                 );
                 continue;
             };
-            if let RuleDecision::Interrupt(reason) = decision {
+            if let RuleDecision::Interrupt(mut reason) = decision {
+                // Normalise: the registry is the canonical source for
+                // the firing rule's id. A rule that emits a mismatched
+                // id (accident or otherwise) gets its id overwritten
+                // with the cached value so dedup and log output stay
+                // correct.
+                if reason.rule_id != cached_id {
+                    reason.rule_id.clear();
+                    reason.rule_id.push_str(cached_id);
+                }
                 match self.mode {
                     RegistryMode::Enforce => return RegistryDecision::Interrupt(reason),
                     RegistryMode::ObserveOnly => {
                         eprintln!(
-                            "anvil-intercept-rules: observe-only — rule {:?} would interrupt: \
-                             {} (line: {:?})",
-                            reason.rule_id, reason.message, reason.line,
+                            "anvil-intercept-rules: observe-only — rule {cached_id:?} \
+                             would interrupt: {} (line: {:?})",
+                            reason.message, reason.line,
                         );
                         // Carry on evaluating so every violation is
                         // observable. Final decision is still Allow.
@@ -647,6 +704,59 @@ mod tests {
         ];
         let registry = RuleRegistry::with_rules(rules).expect("no dups");
         assert_eq!(registry.rule_ids(), vec!["first", "second", "third"]);
+    }
+
+    /// A rule that emits an `InterruptReason` with a mismatched
+    /// `rule_id` (against its own registered id) gets its id
+    /// overwritten with the cached value — observability and dedup
+    /// invariants don't trust the rule to get its own id right.
+    #[test]
+    fn interrupt_reason_rule_id_normalised_to_registered_id() {
+        struct LiarRule;
+        impl InterceptRule for LiarRule {
+            fn rule_id(&self) -> &'static str {
+                "liar"
+            }
+            fn needs_content(&self) -> bool {
+                false
+            }
+            fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+                // Lie about which rule fired — the registry must
+                // overwrite this with the cached "liar" id.
+                RuleDecision::interrupt("imposter", "i am not who i claim to be")
+            }
+        }
+
+        let mut registry = RuleRegistry::new();
+        registry.register(Box::new(LiarRule)).unwrap();
+        let path = PathBuf::from("src/lib.rs");
+        let decision = registry.evaluate(&input(&path));
+        match decision {
+            RegistryDecision::Interrupt(reason) => {
+                assert_eq!(
+                    reason.rule_id, "liar",
+                    "registry must normalise to the cached id, not trust the rule",
+                );
+                assert_eq!(reason.message, "i am not who i claim to be");
+            }
+            RegistryDecision::Allow => panic!("expected Interrupt, got Allow"),
+        }
+    }
+
+    /// `rule_ids()` returns the cached ids — even after a rule's
+    /// `rule_id()` would (in principle) drift. We can't easily inject
+    /// drift on a `Box<dyn InterceptRule>` without unsafe, but the
+    /// API contract is "registered ids, not live `rule_id()` calls",
+    /// so this test documents the surface guarantee.
+    #[test]
+    fn rule_ids_returns_cached_values_in_registration_order() {
+        let registry = RuleRegistry::with_rules(vec![
+            Box::new(StubRule::new("alpha", RuleDecision::allow())),
+            Box::new(StubRule::new("beta", RuleDecision::allow())),
+            Box::new(StubRule::new("gamma", RuleDecision::allow())),
+        ])
+        .expect("no dups");
+        assert_eq!(registry.rule_ids(), vec!["alpha", "beta", "gamma"]);
     }
 
     #[test]

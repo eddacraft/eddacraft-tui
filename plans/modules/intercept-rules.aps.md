@@ -157,14 +157,23 @@ daemon hot path.
 - **Progress (2026-04-29, `feat/INTR-006`):** `RuleRegistry` landed in
   `crates/anvil-intercept-rules/src/registry.rs` with `RegistryDecision`
   (Allow / Interrupt) and `RegistryMode` (Enforce / ObserveOnly).
-  Enforce mode short-circuits on first Interrupt; observe-only logs
-  every would-be-interrupt and keeps evaluating, returning Allow.
-  Per-rule `catch_unwind` isolation enforces the trait's pinned
-  panic-policy — a panicking rule is treated as Allow with a loud
-  stderr/tracing line. Duplicate rule_ids rejected at register /
-  with_rules via `RegistryError::DuplicateRuleId`.
+  Enforce mode short-circuits on first Interrupt; observe-only emits
+  each would-be interrupt to stderr and keeps evaluating, returning
+  Allow. (`tracing` is intentionally not a dep; the eprintln calls
+  are the minimum-dep fallback until a wider observability story
+  picks a logger.) Per-rule `catch_unwind` maps a panicking rule to
+  Allow under `panic="unwind"` builds — best-effort safety net for
+  dev / debug / test. The workspace's `[profile.release]` sets
+  `panic="abort"`, so release-build rule panics still terminate the
+  process; the long-term answer is rules that don't panic by
+  construction, per the trait contract. Rule ids are sampled once at
+  registration and cached — the hot path never calls `rule_id()`
+  again, and `InterruptReason.rule_id` is normalised to the cached
+  id before returning so a rule that emits a mismatched id can't
+  break dedup or observability. Duplicate rule_ids rejected at
+  register / with_rules via `RegistryError::DuplicateRuleId`.
   `any_needs_content` lets INTD-005 skip content reads when no
-  content-bearing rule is registered. 13 registry tests pass:
+  content-bearing rule is registered. 15 registry tests pass:
   `cargo test -p eddacraft-anvil-intercept-rules --lib registry`.
 
 ### INTR-007: Rule Configuration
