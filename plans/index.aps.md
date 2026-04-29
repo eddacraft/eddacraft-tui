@@ -88,22 +88,21 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
 | ------------- | -------- | -------- | --------- | ----------- | ----------------- | ------- |
-| INTD | -001, -002, -003, -005, -013, -014 | -002, -003 | — | -001 | -005, -014 | -013 |
+| INTD | -001, -002, -003, -005, -013, -014 | -001, -002, -003 | — | — | -005, -014 | -013 |
 | INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -006, -008 | — | — | — | — |
 | RMCP | -001..-008 | -001..-007 | -008 | — | — | — |
 | RTAI | -001 (spike), -002, -003, -006, -008 | -001 | — | — | — | -002, -003, -006, -008 |
-| **Total** | **23** | **14** | **1** | **1** | **2** | **5** |
+| **Total** | **23** | **15** | **1** | **0** | **2** | **5** |
 
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 
-> Already complete as of 2026-04-29: RMCP-001/-002/-003/-004/-005/-006/-007,
-> RTAI-001, INTR-001/-002/-008, INTD-002/-003. Committed but not Complete:
+> Already complete as of 2026-04-29: INTD-001/-002/-003,
+> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001, INTR-001/-002/-008.
+> Committed but not Complete:
 > RMCP-008 (headless smoke + runbook refresh in PR #1154; Cursor / Claude Code
 > GUI dry-run remains).
 
-1. **Close committed / started work:** finish RMCP-008's GUI dry-run and merge;
-   finish INTD-001 closure items (PID file, parser-concurrency decision, demo
-   runbook §4.1 refresh).
+1. **Close committed work:** finish RMCP-008's GUI dry-run and merge.
 2. **Unblock daemon-backed rule composition:** land **INTR-006** after the
    complete INTR-001/-002/-008 rule wrappers.
 3. **Pin daemon conformance while INTR closes:** land **INTD-014** now that
@@ -564,7 +563,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 | [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | In Progress | 7/8 (RMCP-001..-007 Complete; RMCP-008 Committed in PR #1154 pending Cursor / Claude Code GUI dry-run before Complete) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
 
-### Intercept Loop (In Progress — A1 scaffold landed)
+### Intercept Loop (In Progress — INTD-001 complete)
 
 Host-local enforcement daemon that detects policy violations from AI agent file
 changes and interrupts the correct session via process-group control.
@@ -576,10 +575,10 @@ vision.
 `crates/anvil-intercept-proto/` (wire types),
 `crates/anvil-intercept-rules/` (`InterceptRule` trait plus secret/reasoning
 wrappers), and `crates/anvil-intercept/` (lib + bin with `run_foreground` +
-cooperative shutdown). CLI surface `anvil intercept start --foreground` is wired
-up. INTD-002 (IPC listener) and INTD-003 (session registry) are complete;
-INTD-001 remains In Progress for PID-file, parser-concurrency, Windows CI, and
-demo-runbook closure items. The current release pulls the A1 subset from INTD
+cooperative shutdown plus PID-file single-instance guard). CLI surface
+`anvil intercept start --foreground` is wired up. INTD-001 (daemon scaffold),
+INTD-002 (IPC listener), and INTD-003 (session registry) are complete. The
+current release pulls the A1 subset from INTD
 and INTR to support RMCP pre-write validation; the remaining INTD/INTR/INTL/DRVR
 work is queued after the launch shim.
 
@@ -600,7 +599,7 @@ work is queued after the launch shim.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 2/16 (INTD-002 + INTD-003 landed 2026-04-29; INTD-001 remains In Progress for closure items) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 3/16 (INTD-001/-002/-003 complete) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 3/8 | anvil-checks, GV2 later for hot-read rules only |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/4 active (2 superseded, 1 deferred under ADR-033) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-006 deferred to RMCPF; DRVR-003 deferred per ADR-033 |

@@ -353,12 +353,14 @@ Symptom: `anvil intercept status` reports `daemon: not running` after
 Triage:
 
 ```bash
-anvil intercept start --foreground   # surfaces the real error to stdout
+anvil intercept start --foreground   # surfaces startup/PID errors to stdout
 ```
 
 Common causes:
 
-- **Stale socket / PID.** Run §3.2 hard reset and retry.
+- **Stale socket / PID.** The foreground daemon writes the same PID file as the
+  normal daemon path and refuses a second instance. Run §3.2 hard reset and
+  retry.
 - **Permissions on `$XDG_RUNTIME_DIR/anvil`.** INTD-002 refuses if the dir
   is not 0700-owned-by-current-user; fix with `chmod 0700 $XDG_RUNTIME_DIR/anvil`
   or hard-reset.
@@ -524,9 +526,9 @@ items in the appropriate module:
   Feedback to: INTD-011 / RCLI3 — confirm the unblock CLI ships with
   INTD-011 or carve out a dedicated item.
 - **`anvil intercept start --foreground`** — used in §4.1. INTD-001
-  (daemon binary scaffold) covers start; the foreground / debug-mode
-  flag is implementation choice but the runbook depends on it.
-  Feedback to: INTD-001.
+  (daemon binary scaffold) covers start and the PID-file guard; the
+  foreground / debug-mode flag is implementation choice but the runbook
+  depends on it. Feedback to: INTD-001.
 - **AI-001 reasoning-pattern rule** — required by Scenario B. Already
   flagged in RELEASE-PLAN.md `Required prerequisites`. RTAI Open
   Question 3 needs answering (which crate owns it). Until that lands,

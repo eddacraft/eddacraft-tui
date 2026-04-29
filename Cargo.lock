@@ -1045,6 +1045,7 @@ dependencies = [
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
  "nix 0.30.1",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",
