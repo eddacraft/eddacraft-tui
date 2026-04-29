@@ -497,7 +497,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
 
     /// Bind a Windows named pipe using an owner-only DACL and local-only clients.
     pub fn bind(pipe_name: &str, dispatcher: D) -> Result<Self, IpcError> {
-        let server = anvil_intercept_win32::create_owner_only_pipe_server(pipe_name, true)?;
+        let server = anvil_intercept_win32::create_owner_only_pipe_server(
+            pipe_name,
+            anvil_intercept_win32::PipeInstance::First,
+        )?;
         Ok(Self {
             inner: server,
             pipe_name: pipe_name.to_owned(),
@@ -532,7 +535,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
                     match connected {
                         Ok(()) => {
                             let connected_server = server;
-                            server = anvil_intercept_win32::create_owner_only_pipe_server(&pipe_name, false)?;
+                            server = anvil_intercept_win32::create_owner_only_pipe_server(
+                                &pipe_name,
+                                anvil_intercept_win32::PipeInstance::Additional,
+                            )?;
                             let dispatcher = Arc::clone(&dispatcher);
                             let conn_token = token.clone();
                             joinset.spawn(async move {
@@ -547,7 +553,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             eprintln!("anvil-intercept: named-pipe connect failed: {err}");
                             drop(server);
                             tokio::time::sleep(Duration::from_millis(25)).await;
-                            server = anvil_intercept_win32::create_owner_only_pipe_server(&pipe_name, false)?;
+                            server = anvil_intercept_win32::create_owner_only_pipe_server(
+                                &pipe_name,
+                                anvil_intercept_win32::PipeInstance::Additional,
+                            )?;
                         }
                     }
                 }

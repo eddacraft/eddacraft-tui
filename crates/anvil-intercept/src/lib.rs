@@ -664,62 +664,79 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
     let pid_file_path = opts.pid_file_path()?;
     let _pid_file = PidFileGuard::acquire(&pid_file_path)?;
 
-    let registry = Arc::new(SessionRegistry::new());
-    let dispatcher = RegistryDispatcher::new(Arc::clone(&registry));
+    #[cfg(any(unix, windows))]
+    {
+        let registry = Arc::new(SessionRegistry::new());
+        let dispatcher = RegistryDispatcher::new(Arc::clone(&registry));
 
-    #[cfg(unix)]
-    let listener = if let Some(socket_path) = opts.ipc_socket_path() {
-        ipc::IpcListener::bind(socket_path, dispatcher)
-    } else {
-        ipc::IpcListener::bind_default(dispatcher)
-    }
-    .context("failed to bind intercept IPC listener")?;
+        #[cfg(unix)]
+        let listener = if let Some(socket_path) = opts.ipc_socket_path() {
+            ipc::IpcListener::bind(socket_path, dispatcher)
+        } else {
+            ipc::IpcListener::bind_default(dispatcher)
+        }
+        .context("failed to bind intercept IPC listener")?;
 
-    #[cfg(windows)]
-    let listener = if let Some(pipe_name) = opts.ipc_pipe_name() {
-        ipc::IpcListener::bind(pipe_name, dispatcher)
-    } else {
-        ipc::IpcListener::bind_default(dispatcher)
-    }
-    .context("failed to bind intercept IPC listener")?;
+        #[cfg(windows)]
+        let listener = if let Some(pipe_name) = opts.ipc_pipe_name() {
+            ipc::IpcListener::bind(pipe_name, dispatcher)
+        } else {
+            ipc::IpcListener::bind_default(dispatcher)
+        }
+        .context("failed to bind intercept IPC listener")?;
 
-    let listener_token = token.clone();
-    let mut listener_handle =
-        AbortOnDropJoinHandle::new(tokio::spawn(
-            async move { listener.serve(listener_token).await },
-        ));
-    let mut tick = tokio::time::interval(Duration::from_millis(250));
-    loop {
-        tokio::select! {
-            biased;
-            () = token.cancelled() => break,
-            result = listener_handle.join() => {
-                result
-                    .context("intercept IPC listener task panicked")?
-                    .context("intercept IPC listener failed")?;
-                return Ok(());
-            }
-            _ = tick.tick() => {
-                let evicted = registry.evict_stale(Instant::now());
-                if !evicted.is_empty() {
-                    tracing::debug!(
-                        target: "anvil_intercept::registry",
-                        count = evicted.len(),
-                        "evicted stale intercept sessions",
-                    );
+        let listener_token = token.clone();
+        let mut listener_handle = AbortOnDropJoinHandle::new(tokio::spawn(async move {
+            listener.serve(listener_token).await
+        }));
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        loop {
+            tokio::select! {
+                biased;
+                () = token.cancelled() => break,
+                result = listener_handle.join() => {
+                    result
+                        .context("intercept IPC listener task panicked")?
+                        .context("intercept IPC listener failed")?;
+                    return Ok(());
+                }
+                _ = tick.tick() => {
+                    let evicted = registry.evict_stale(Instant::now());
+                    if !evicted.is_empty() {
+                        tracing::debug!(
+                            target: "anvil_intercept::registry",
+                            count = evicted.len(),
+                            "evicted stale intercept sessions",
+                        );
+                    }
                 }
             }
         }
+
+        if let Ok(result) =
+            tokio::time::timeout(Duration::from_secs(1), listener_handle.join()).await
+        {
+            result
+                .context("intercept IPC listener task panicked")?
+                .context("intercept IPC listener failed")?;
+        } else {
+            listener_handle.abort();
+        }
+        Ok(())
     }
 
-    if let Ok(result) = tokio::time::timeout(Duration::from_secs(1), listener_handle.join()).await {
-        result
-            .context("intercept IPC listener task panicked")?
-            .context("intercept IPC listener failed")?;
-    } else {
-        listener_handle.abort();
+    #[cfg(not(any(unix, windows)))]
+    {
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        loop {
+            tokio::select! {
+                biased;
+                () = token.cancelled() => break,
+                _ = tick.tick() => {}
+            }
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]

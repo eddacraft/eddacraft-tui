@@ -36,17 +36,30 @@ const OWNER_PIPE_RIGHTS: &str = "0x12019f";
 /// Create a local-only named-pipe server with an explicit owner-only DACL.
 pub fn create_owner_only_pipe_server(
     pipe_name: &str,
-    first_pipe_instance: bool,
+    instance: PipeInstance,
 ) -> io::Result<NamedPipeServer> {
     let mut security = OwnerOnlySecurityAttributes::new()?;
     let mut options = ServerOptions::new();
     options
-        .first_pipe_instance(first_pipe_instance)
+        .first_pipe_instance(instance.is_first())
         .reject_remote_clients(true);
 
     // SAFETY: `security.as_mut_ptr()` points at a valid SECURITY_ATTRIBUTES
     // whose security descriptor remains alive until CreateNamedPipeW returns.
     unsafe { options.create_with_security_attributes_raw(pipe_name, security.as_mut_ptr()) }
+}
+
+/// Whether this named-pipe server is the singleton-claiming first instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PipeInstance {
+    First,
+    Additional,
+}
+
+impl PipeInstance {
+    const fn is_first(self) -> bool {
+        matches!(self, Self::First)
+    }
 }
 
 /// Stable SID string for the current process token's user.
@@ -309,7 +322,8 @@ mod tests {
             r"\\.\pipe\anvil-intercept-win32-test-{}",
             std::process::id(),
         );
-        let server = create_owner_only_pipe_server(&pipe_name, true).expect("create pipe");
+        let server =
+            create_owner_only_pipe_server(&pipe_name, PipeInstance::First).expect("create pipe");
         assert!(server.info().is_ok());
     }
 }
