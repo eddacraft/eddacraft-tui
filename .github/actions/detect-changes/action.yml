@@ -77,6 +77,20 @@ runs:
             fi
 
             DOCS_ONLY=false
+
+            # Rust-only paths — covered by rust.yml (and napi.yml where
+            # relevant). Set rust-changed and skip the rest so they
+            # don't flip code-changed and force Node CI's
+            # lint/typecheck/test/build jobs to run on pure-Rust PRs.
+            if [[ "$file" =~ ^crates/ ]] || \
+               [[ "$file" == "Cargo.toml" ]] || \
+               [[ "$file" == "Cargo.lock" ]] || \
+               [[ "$file" == "rust-toolchain.toml" ]] || \
+               [[ "$file" == "dist-workspace.toml" ]]; then
+              RUST_CHANGED=true
+              continue
+            fi
+
             CODE_CHANGED=true
 
             # Source code or dependencies
@@ -94,15 +108,6 @@ runs:
             if [[ "$file" =~ ^apps/e2e/ ]] || \
                [[ "$file" == "playwright.config.ts" ]]; then
               E2E_CHANGED=true
-            fi
-
-            # Rust patterns
-            if [[ "$file" =~ ^crates/ ]] || \
-               [[ "$file" == "Cargo.toml" ]] || \
-               [[ "$file" == "Cargo.lock" ]] || \
-               [[ "$file" == "rust-toolchain.toml" ]] || \
-               [[ "$file" == "dist-workspace.toml" ]]; then
-              RUST_CHANGED=true
             fi
           fi
         done <<< "$CHANGED_FILES"
