@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 3/16 (INTD-001, INTD-002, and INTD-003 complete) |
+| INTD | @aneki | In Progress | 2/16 complete, 1 committed (INTD-001 in PR #1165) |
 
 **Last reviewed:** 2026-04-29
 
@@ -126,8 +126,8 @@ a new lane.
   runbook §4.1 falls back to when the backgrounded daemon fails to start
   and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
-- **Status:** Complete
-- **Completed (2026-04-29, `feat/INTD`):** Three crates scaffolded —
+- **Status:** Committed
+- **Committed (2026-04-29, PR #1165):** Three crates scaffolded —
   `crates/anvil-intercept-proto/` (NDJSON envelope, `SessionId`,
   `IpcCommand` enum: register/heartbeat/unregister/list),
   `crates/anvil-intercept/` (lib + bin with `run_foreground`,
