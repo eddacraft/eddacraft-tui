@@ -299,6 +299,22 @@ mod tests {
     }
 
     #[test]
+    fn toggle_accepts_stable_check_id() {
+        let dir = tempfile::tempdir().unwrap();
+        save_config(dir.path(), &default_config()).unwrap();
+
+        run_toggle(dir.path(), "ANV-CORE-001", false, OutputMode::Plain).unwrap();
+
+        let reloaded = load_config(dir.path()).unwrap();
+        let check = reloaded
+            .checks
+            .iter()
+            .find(|c| c.name == "secret-detection")
+            .unwrap();
+        assert!(!check.enabled);
+    }
+
+    #[test]
     fn normalize_check_names_refreshes_canonical_descriptions() {
         let mut config = GateConfig {
             version: 1,
