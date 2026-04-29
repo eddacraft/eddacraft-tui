@@ -1,6 +1,6 @@
 # RTAI Launch Demo Runbook
 
-**Last updated:** 2026-04-28
+**Last updated:** 2026-04-29
 **Owner:** TBD (see [Owner & cadence](#owner--cadence))
 **Status:** Draft — pending RTAI-001 spike numbers (latency rubric pinned in [ADR-031](../decisions/031-validation-latency-rubric.md)).
 
@@ -19,6 +19,12 @@
 > INTD, RMCP, or DRVR. It assumes the engine works. Latency budget references defer
 > to **ADR-031** — the single latency rubric ADR being drafted in
 > parallel. Do not duplicate budget numbers here.
+>
+> **MCP launch path.** The headline path uses the shipped Rust `anvil` binary:
+> `anvil mcp install` writes a client entry that launches
+> `anvil mcp serve --stdio`. Do not run `packages/mcp-server`, a Node.js sidecar,
+> or any TypeScript MCP server for this launch demo unless the operator has
+> explicitly switched to a post-launch RMCPF parity test.
 
 ---
 
@@ -105,6 +111,21 @@ Restart cursor to pick up the new server.
 Operator restarts Cursor / Claude Code now. After restart, the AI agent
 window should list `anvil` as an available MCP server (Cursor: settings →
 MCP; Claude Code: `/mcp` slash command).
+
+Before any customer-facing run, the release engineer also runs the headless
+RMCP smoke from the repo checkout that produced the demo binary:
+
+```bash
+cargo build -p eddacraft-anvil
+pnpm --filter @eddacraft/anvil-e2e test:smoke
+```
+
+Expected: the `Smoke › Rust MCP launch shim` case starts
+`anvil mcp serve --stdio`, receives `tools/list`, calls
+`anvil_validate_write` on one safe proposed write and one blocked secret
+fixture, and exits cleanly. This proves the Rust launch shim without opening a
+GUI client; it does **not** replace the Cursor / Claude Code dry-run required by
+[Cadence](#owner--cadence).
 
 **LSP path (VSCode, fallback / advisory-only demo):**
 
@@ -484,7 +505,7 @@ items in the appropriate module:
 
 - **`anvil mcp install` + `anvil mcp serve --stdio`** — used in §1.4.
   RCLI3-016 writes config pointing at `anvil mcp serve --stdio`; RMCP
-  now owns making that Rust stdio server real for the locked release.
+  owns keeping that Rust stdio server as the locked-release MCP path.
   The runbook depends on `--client cursor` and `--client claude-code`
   shipping in A1. Feedback to: RMCP / RCLI3.
 - **`anvil mcp install --verify` flag** — used in §4.2. Covered by
@@ -532,6 +553,19 @@ items in the appropriate module:
 When ADR-031 lands, **update §1.5 and §4.4 to reference the
 specific p95 number**. Until then, the runbook is operationally
 correct but quantitatively soft.
+
+---
+
+## 8. RMCP Launch Validation Log
+
+Use this table for the release-signoff trail. Headless smoke may be recorded by
+an agent or release engineer; GUI rows must be recorded by the human operator who
+ran Cursor or Claude Code.
+
+| Date | Client | Build / tag | Operator | Result | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 2026-04-29 | Headless Rust MCP smoke | local `feat/rust-mcp-launch-shim-rmcp-008` build | OpenCode | Passed | `cargo build -p eddacraft-anvil`; `pnpm --filter @eddacraft/anvil-e2e test:smoke` |
+| TBD | Cursor or Claude Code | release candidate | Demo owner | Pending | Required before RMCP-008 can be called demo-ready |
 
 ---
 
