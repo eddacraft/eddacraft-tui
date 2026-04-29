@@ -3,7 +3,7 @@
 
 # Anvil — Save-time Trust
 
-> **🔒 Current release locked 2026-04-26; state updated 2026-04-29:** A1
+> **🔒 Current release locked 2026-04-26; state updated 2026-04-30:** A1
 > (RTAI Spike + Rust MCP launch shim) + A2 (AIGUARD) + A3 (Release
 > Engineering) + A4 (Language Credibility Floor). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
@@ -32,7 +32,7 @@
 - [Config Intelligence](#config-intelligence-draft)
 - [Graph Substrate](#graph-substrate-draft)
 - [Rust MCP Launch Path](#rust-mcp-launch-path-in-progressdraft)
-- [Intercept Loop](#intercept-loop-in-progress--a1-scaffold-landed)
+- [Intercept Loop](#intercept-loop-in-progress--a1-intd-slice-complete)
 - [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
 
 Anvil makes AI-generated code safe to merge by catching architecture boundary
@@ -83,51 +83,46 @@ Individual packages still use semantic versioning for npm/cargo publishes.
 ### A1 — RTAI Spike Slice (launch-blocker, ~24 items)
 
 The A1 cut is a **virtual slice** cherry-picked across four modules
-(INTD, INTR, RMCP, RTAI). Status reconciled on 2026-04-29 after INTD-002 /
-INTD-003 landed and RMCP-008 reached Committed. The locked release state and
-dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
+(INTD, INTR, RMCP, RTAI). Status reconciled on 2026-04-30 after the A1 INTD
+slice and OPSUP-001 reached merged + green, and the RMCP-008 agent-runnable
+post-merge checks passed. The locked release state and dependency order are
+mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
 | ------------- | -------- | -------- | --------- | ----------- | ----------------- | ------- |
-| INTD | -001, -002, -003, -005, -007, -013, -014 | -001, -003 | -002, -005, -007, -013, -014 | — | — | — |
+| INTD | -001, -002, -003, -005, -007, -013, -014 | -001, -002, -003, -005, -007, -013, -014 | — | — | — | — |
 | INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -006, -008 | — | — | — | — |
 | RMCP | -001..-008 | -001..-007 | -008 | — | — | — |
-| RTAI | -001 (spike), -002, -003, -006, -008 | -001 | — | — | — | -002, -003, -006, -008 |
-| **Total** | **24** | **14** | **6** | **0** | **0** | **4** |
+| RTAI | -001 (spike), -002, -003, -006, -008 | -001 | — | — | -002 | -003, -006, -008 |
+| **Total** | **24** | **19** | **1** | **0** | **1** | **3** |
 
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 
-> Already complete as of 2026-04-29: INTD-003,
-> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001,
+> Already complete as of 2026-04-30: INTD-001/-002/-003/-005/-007/-013/-014,
+> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001, and
 > INTR-001/-002/-006/-008.
-> Committed but not Complete: INTD-002 (full cross-platform IPC) and RMCP-008
-> (headless smoke and runbook refresh in PR #1154; Cursor / Claude Code GUI
-> dry-run remains).
+> Post-merge validation pending: RMCP-008 (PR #1154 merged; agent checks passed;
+> Cursor / Claude Code GUI dry-run remains).
 
-1. **Close committed work:** finish RMCP-008's GUI dry-run and merge.
-2. **Rule composition is complete:** INTR-001/-002/-008 wrappers are complete,
-   and **INTR-006** is now complete, closing the A1 INTR slice.
-3. **Complete cross-platform IPC cleanup:** merge **INTD-002** and let the
-   cleanup agent advance it after CI / merge verification.
-4. **Pin daemon conformance:** land **INTD-014** after the full cross-platform
-   INTD-002 contract is Complete.
-5. **Build enforcement pipeline:** land **INTD-005** now that INTR-006 is
-   complete and after the complete INTD-002/-003 IPC + registry work is
-   available.
-6. **Persist fences:** land **INTD-007** after INTD-005; fence persistence is
-   required so INTD-013 can populate `grouping.transition` for `active ↔ fenced`
-   events.
-7. **Mirror decisions:** land **INTD-013** after INTD-005, INTD-007, and the
-   already-complete NOTIFY-008 telemetry contract.
-8. **Finish RTAI:** land **RTAI-002** after INTD-005, then **RTAI-003**,
-   **RTAI-006**, and **RTAI-008** after the daemon-backed mid-edit surface
-   exists.
+1. **Close RMCP-008 post-merge validation:** run the human Cursor / Claude Code
+   GUI dry-run and record the result before marking RMCP-008 Complete.
+2. **Start RTAI-002:** the daemon mid-edit RPC surface is now the next unblocked
+   code item.
+3. **Measure the production path:** RTAI-003 follows RTAI-002 and extends the
+   INTD-014 latency harness with mid-edit measurements.
+4. **Lock MCP pre-write semantics:** land RTAI-006 and RTAI-008 after RTAI-002;
+   their RMCP-004/-005/-006 dependencies are already complete.
+
+**RTAI reconciliation note (2026-04-30):** Local branch
+`feat/RTAI-002-midedit-rpc` is not evidence of completed RTAI work; it points at
+the merged INTD-005 enforcement pipeline with no unique diff against `dev`.
+RTAI-002 remains the next unimplemented daemon RPC item.
 
 **Daemon-path note:** RMCP-005's `DaemonValidationClient` ships with a
 default impl that returns `Unavailable`, falling back to the embedded
-`anvil-checks` rule pipeline. Until INTD-002 + RTAI-002 wire the real
-RPC, every MCP `tools/call` runs through the embedded path — INTR-001/
--002/-006/-008 are required for the eventual daemon-backed pipeline,
+`anvil-checks` rule pipeline. Until RTAI-002 wires the real validation RPC over
+the INTD-002 listener, every MCP `tools/call` runs through the embedded path —
+INTR-001/-002/-006/-008 are required for the eventual daemon-backed pipeline,
 but not for the launch shim shipping today.
 
 **Outstanding A1 ambiguities to resolve at kickoff:**
@@ -153,7 +148,7 @@ module state remains in the detailed module tables below.
 | A3 | ATTRIB | ATTRIB-001, ATTRIB-002, ATTRIB-003 | ATTRIB-001..-003 | ATTRIB-004..-011 remain outside this release cut |
 | A3 | SCAN | SCAN-001, SCAN-002, SCAN-003 | SCAN-001..-003 | SCAN-004/-005 remain outside this release cut |
 | A4 | LANGTS | LANGTS-001, LANGTS-003 | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped |
-| A4 | OPSUP | OPSUP-001 (check-ID registry slice) | OPSUP-001 | OPSUP-002..-007 remain Draft |
+| A4 | OPSUP | OPSUP-001 (check-ID registry slice) | OPSUP-001 | OPSUP-002..-007 remain outside this release cut |
 | A4 | SURFENV | SURFENV-001..-006 | SURFENV-001..-006 | — |
 
 ### Edda Stack — Memory System (Done)
@@ -594,10 +589,10 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | In Progress | 7/8 (RMCP-001..-007 Complete; RMCP-008 Committed in PR #1154 pending Cursor / Claude Code GUI dry-run before Complete) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
+| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | In Progress | 7/8 (RMCP-001..-007 Complete; RMCP-008 Committed / post-merge validation — PR #1154 merged, agent checks passed, Cursor / Claude Code GUI dry-run remains before Complete) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
 
-### Intercept Loop (In Progress — INTD-001 complete)
+### Intercept Loop (In Progress — A1 INTD slice complete)
 
 Host-local enforcement daemon that detects policy violations from AI agent file
 changes and interrupts the correct session via process-group control.
@@ -605,17 +600,13 @@ Shell-first, single-host initially, proving the core enforcement thesis. See
 [design spec](./specs/anvil-driver-framework/) for the broader driver framework
 vision.
 
-**Implementation state (2026-04-29):** Three intercept scaffold crates landed —
-`crates/anvil-intercept-proto/` (wire types),
-`crates/anvil-intercept-rules/` (`InterceptRule` trait plus secret/reasoning
-wrappers), and `crates/anvil-intercept/` (lib + bin with `run_foreground` +
-cooperative shutdown plus PID-file single-instance guard). CLI surface
-`anvil intercept start --foreground` is wired up. INTD-001 (daemon scaffold)
-merged in PR #1165; INTD-003 (session registry) is complete. INTD-002 is
-committed for the full cross-platform IPC contract for A1 rather than the
-previous Unix-only slice. The current release pulls the A1 subset from INTD
-and INTR to support RMCP pre-write validation; the remaining INTD/INTR/INTL/DRVR
-work is queued after the launch shim.
+**Implementation state (2026-04-30):** The A1 INTD slice is merged and green:
+INTD-001 (daemon scaffold), INTD-002 (full cross-platform IPC), INTD-003
+(session registry), INTD-005 (enforcement pipeline), INTD-007 (fence
+persistence), INTD-013 (telemetry mirror), and INTD-014 (JSON-RPC conformance +
+latency harness). The current release now pulls the completed A1 subset from
+INTD and INTR to support RMCP/RTAI pre-write validation; the remaining
+INTD/INTR/INTL/DRVR work is queued after the launch shim.
 
 <!--
   INTD count history:
@@ -634,9 +625,9 @@ work is queued after the launch shim.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 2/16 complete, 3 committed (INTD-002, INTD-005, INTD-014) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 7/16 complete (A1 INTD slice complete: INTD-001/-002/-003/-005/-007/-013/-014) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 3/8 | anvil-checks, GV2 later for hot-read rules only |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 4/8 | anvil-checks, GV2 later for hot-read rules only |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/4 active (2 superseded, 1 deferred under ADR-033) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-006 deferred to RMCPF; DRVR-003 deferred per ADR-033 |
 
 **Architecture Decisions:**

@@ -3,13 +3,13 @@
 PR: #1154
 Branch: `feat/rust-mcp-launch-shim-rmcp-008`
 APS: RMCP-008
-Merged: <!-- filled by cleanup agent -->
-Verified: <!-- filled by cleanup agent -->
+Merged: 2026-04-28 via PR #1154
+Verified: partial — agent-runnable checks passed 2026-04-30; human GUI dry-run remains
 
 ## Steps
 
-- [ ] Run `cargo build -p eddacraft-anvil` (agent: yes)
-- [ ] Run `pnpm --filter @eddacraft/anvil-e2e test:smoke` (agent: yes)
+- [x] Run `cargo build -p eddacraft-anvil` (agent: yes) — passed 2026-04-30
+- [x] Run `pnpm --filter @eddacraft/anvil-e2e test:smoke` (agent: yes) — passed 2026-04-30
 - [ ] Run the Cursor or Claude Code MCP dry-run from `plans/specs/2026-04-26-rtai-demo-runbook.md` and record the result in the RMCP Launch Validation Log (human required)
 
 ## Notes

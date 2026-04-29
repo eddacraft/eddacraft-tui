@@ -254,16 +254,16 @@ Backend selection is deterministic:
 
 1. If a future daemon pre-write validation RPC is available and compatible,
    call it through the adapter seam.
-2. For the launch slice, no concrete daemon IPC listener or pre-write RPC exists
-   yet, so the default daemon client reports `Unavailable` and MCP uses the
-   embedded Rust validation fallback.
+2. For the launch slice, no concrete daemon pre-write RPC exists yet, so the
+   default daemon client reports `Unavailable` and MCP uses the embedded Rust
+   validation fallback.
 3. Return the same tool response schema from both paths.
 
 The response includes `correlation.backend = "daemon"` or `"embedded"`.
 
-The concrete daemon client belongs to RTAI-002 plus INTD-002 once the RPC
-contract and IPC listener are pinned. RMCP-005 only ships the adapter seam and
-the embedded fallback path.
+The concrete daemon client belongs to RTAI-002 now that the INTD-002 IPC
+listener is pinned. RMCP-005 only ships the adapter seam and the embedded
+fallback path.
 
 The embedded fallback exists only for the launch slice. It may call the shared
 Rust rule pipeline directly, starting with secret detection and any available A1

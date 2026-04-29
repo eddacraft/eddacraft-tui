@@ -4,14 +4,15 @@
 | ---- | ----- | ----------- | -------- |
 | RMCP | —     | In Progress | 7/8      |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-04-30
 
 > **A1 launch slice:** RMCP-001..RMCP-008 are the entire A1 RMCP scope.
 > Done (7/8): RMCP-001 (spec), RMCP-002 (`anvil mcp serve --stdio`),
 > RMCP-003 (MCP protocol subset), RMCP-004 (validate-write tool),
 > RMCP-005 (validation backend adapter + embedded fallback against
 > `anvil-checks` reasoning + secret rules; daemon client returns
-> `Unavailable` until INTD-002 / RTAI-002 land the IPC RPC), RMCP-006
+> `Unavailable` until RTAI-002 lands the daemon validation RPC over the
+> INTD-002 listener), RMCP-006
 > (canonical decision shape), and RMCP-007 (`anvil mcp install --client X`
 > wrapper). Remaining: RMCP-008 (E2E smoke tests + demo runbook refresh).
 
@@ -206,9 +207,9 @@ starting implementation:
   TypeScript bridge.
 - **Expected Outcome:** Adapter exposes a `DaemonValidationClient` trait. The
   default implementation returns `Unavailable` for the launch slice because no
-  concrete daemon IPC listener or pre-write RPC exists yet; MCP then falls back
-  to the embedded Rust rule pipeline. The concrete daemon client lands with
-  RTAI-002 and INTD-002 once the RPC contract and IPC listener are pinned.
+  concrete daemon pre-write RPC exists yet; MCP then falls back to the embedded
+  Rust rule pipeline. The concrete daemon client lands with RTAI-002 now that
+  the INTD-002 IPC listener is pinned.
 - **Validation:** Tests run the same fixture through daemon-backed and
   embedded-fallback validation and assert matching diagnostics
 - **Files:** `crates/anvil-cli/src/mcp/validation.rs`,
@@ -218,8 +219,7 @@ starting implementation:
 - **Dependencies:** RMCP-004, RTAI validation semantics
 - **Notes:** 2026-04-28 council review narrowed RMCP-005 to the launch-slice
   daemon seam plus embedded fallback; the concrete daemon client, RPC contract,
-  and IPC listener remain deferred follow-up work owned by `RTAI-002` and
-  `INTD-002`.
+  and validation method remain deferred follow-up work owned by `RTAI-002`.
 
 ---
 
@@ -285,9 +285,10 @@ starting implementation:
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RMCP-007
-- **Notes (2026-04-29):** Headless Rust MCP smoke coverage and runbook refresh
-  are in PR #1154 on `feat/rust-mcp-launch-shim-rmcp-008`; Cursor / Claude Code
-  GUI dry-run remains pending before the item can be marked Complete.
+- **Notes (2026-04-30):** PR #1154 is merged. Agent-runnable post-merge checks
+  passed (`cargo build -p eddacraft-anvil`, `pnpm --filter @eddacraft/anvil-e2e
+  test:smoke`). Cursor / Claude Code GUI dry-run remains pending before the item
+  can be marked Complete.
 
 ---
 

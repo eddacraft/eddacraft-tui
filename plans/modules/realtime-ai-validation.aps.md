@@ -15,7 +15,7 @@ See: plans/aps-rules.md
 | ---- | ----- | -------- | -------- |
 | RTAI | —     | Ready    | 1/9      |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-04-30
 
 > **A1 launch slice:** RTAI-001 (Done), RTAI-002, RTAI-003, RTAI-006, RTAI-008.
 > RTAI-004 (TS `DriverClient` envelope) and RTAI-005 (VSCode editor-driver
@@ -309,7 +309,13 @@ convention" section). Concretely:
   request returns structured error, (e) rule-registry parity
   with the on-disk path against a fixture matrix.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Ready — INTD-002, INTD-005, and RTAI-001 are complete.
+- **Reconciliation note (2026-04-30):** Local branch
+  `feat/RTAI-002-midedit-rpc` points at the merged INTD-005 enforcement
+  pipeline (`48efb870`) and has no unique RTAI diff against `dev`. The
+  production code has the proposed-content evaluation helper needed by this
+  task, but not the daemon JSON-RPC method, `IpcCommand` variant, cap/error
+  contract, or `midedit` conformance tests. This task remains unimplemented.
 
 ---
 
@@ -332,7 +338,10 @@ convention" section). Concretely:
   midedit_roundtrip` records baseline; CI compares against
   baseline with documented tolerance.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Blocked — waits for RTAI-002.
+- **Reconciliation note (2026-04-30):** The only intercept benchmark currently
+  present is `crates/anvil-intercept/benches/ipc_roundtrip.rs`, which measures
+  `session.list` with `mode=watch`; no `midedit_roundtrip` benchmark exists.
 
 ---
 
@@ -414,7 +423,13 @@ convention" section). Concretely:
   content known to trigger the secret-detection rule; asserts the tool response
   carries structured diagnostics and honours the configured enforcement mode.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Blocked — waits for RTAI-002.
+- **Reconciliation note (2026-04-30):** RMCP-004/-005/-006 implement the launch
+  shim's embedded `anvil_validate_write` path and structured MCP response, but
+  the default daemon client still returns `Unavailable` and the write decision
+  is hard-coded from diagnostic severity rather than the INTD-008 enforcement
+  block. Treat that as RMCP launch-path progress, not completion of this RTAI
+  semantic contract.
 
 ---
 
@@ -463,7 +478,10 @@ convention" section). Concretely:
   side) and is consumed by RMCP. A TS consumer fixture is added later when
   RTAI-004/DRVR-001 land; CI fails if any active consumer drifts.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Blocked — waits for RTAI-002.
+- **Reconciliation note (2026-04-30):** RMCP unit tests cover several
+  structured pre-write errors, but the shared `midedit_contract.rs` fixture does
+  not exist and there is no daemon mid-edit response to pin yet.
 
 ---
 

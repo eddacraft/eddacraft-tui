@@ -1,6 +1,6 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-04-29 (A1/A4 release-state reconciliation)
+**Last updated:** 2026-04-30 (A1/A4 release-state reconciliation)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
@@ -20,29 +20,29 @@ slices.
 | **A3** Release Engineering        | GHOOK + ATTRIB + SCAN smallest viable cut                                       | 7     |
 | **A4** Language Credibility Floor | LANGTS audit + OPSUP slice 1 (check-ID registry) + SURFENV                      | 9     |
 
-### Locked release state (2026-04-29)
+### Locked release state (2026-04-30)
 
 The locked release now tracks the live delivery state here, not only in the
 candidate menu below. APS module status remains authoritative in
 [`plans/index.aps.md`](./plans/index.aps.md); this section mirrors the subset
 that is locked for the release.
 
-| Slice  | Locked state                                                                                                         |
-| ------ | -------------------------------------------------------------------------------------------------------------------- |
-| **A1** | 14 Complete, 6 Committed, 0 In Progress, 0 Ready / unblocked, 4 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
-| **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                        |
-| **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                    |
-| **A4** | Mixed state: LANGTS audit/checklist and SURFENV complete; OPSUP slice 1 remains outstanding                          |
+| Slice  | Locked state                                                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A1** | 19 Complete, 1 Committed / post-merge validation, 0 In Progress, 1 Ready / unblocked, 3 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
+| **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                                                |
+| **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                                            |
+| **A4** | Complete 9/9: LANGTS audit/checklist, OPSUP check-ID registry slice, and SURFENV                                                             |
 
 **A1 source-module state:**
 
-| Source module | A1 items                                 | Complete               | Committed                    | In Progress | Ready / unblocked | Blocked                |
-| ------------- | ---------------------------------------- | ---------------------- | ---------------------------- | ----------- | ----------------- | ---------------------- |
-| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -003             | -002, -005, -007, -013, -014 | —           | —                 | —                      |
-| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008 | —                            | —           | —                 | —                      |
-| RMCP          | -001..-008                               | -001..-007             | -008                         | —           | —                 | —                      |
-| RTAI          | -001, -002, -003, -006, -008             | -001                   | —                            | —           | —                 | -002, -003, -006, -008 |
-| **Total**     | **24**                                   | **14**                 | **6**                        | **0**       | **0**             | **4**                  |
+| Source module | A1 items                                 | Complete                                 | Committed | In Progress | Ready / unblocked | Blocked          |
+| ------------- | ---------------------------------------- | ---------------------------------------- | --------- | ----------- | ----------------- | ---------------- |
+| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -002, -003, -005, -007, -013, -014 | —         | —           | —                 | —                |
+| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008                   | —         | —           | —                 | —                |
+| RMCP          | -001..-008                               | -001..-007                               | -008      | —           | —                 | —                |
+| RTAI          | -001, -002, -003, -006, -008             | -001                                     | —         | —           | -002              | -003, -006, -008 |
+| **Total**     | **24**                                   | **19**                                   | **1**     | **0**       | **1**             | **3**            |
 
 **A2-A4 source-module state:**
 
@@ -53,25 +53,26 @@ that is locked for the release.
 | **A3** | ATTRIB        | ATTRIB-001, ATTRIB-002, ATTRIB-003  | ATTRIB-001..-003       | ATTRIB-004..-011 remain outside this release cut                      |
 | **A3** | SCAN          | SCAN-001, SCAN-002, SCAN-003        | SCAN-001..-003         | SCAN-004/-005 remain outside this release cut                         |
 | **A4** | LANGTS        | LANGTS-001, LANGTS-003              | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped |
-| **A4** | OPSUP         | OPSUP-001 (check-ID registry slice) | —                      | Draft; needs owner, check-ID scheme, and Ready flip before execution  |
+| **A4** | OPSUP         | OPSUP-001 (check-ID registry slice) | OPSUP-001              | OPSUP-002..-007 remain outside this release cut                       |
 | **A4** | SURFENV       | SURFENV-001..-006                   | SURFENV-001..-006      | —                                                                     |
 
-**Locked A1 development / dependency order:**
+**Locked A1 remaining / dependency order:**
 
-1. **Close committed work:** finish RMCP-008's Cursor / Claude Code GUI dry-run
-   and merge PR #1154; follow through on INTD-001's PR #1165 cleanup path.
-2. **Rule composition is complete:** INTR-001/-002/-008 wrappers and INTR-006
-   registry composition are complete, closing the A1 INTR slice.
-3. **Pin daemon conformance:** land INTD-014 now that INTD-002 is complete.
-4. **Build enforcement pipeline:** land INTD-005 now that INTR-006 and the
-   complete INTD-002/-003 IPC + registry work are available.
-5. **Persist fences:** land INTD-007 after INTD-005; fence persistence is
-   required so INTD-013 can populate `grouping.transition` for `active ↔ fenced`
-   events.
-6. **Mirror decisions:** land INTD-013 after INTD-005, INTD-007, and the
-   already-complete NOTIFY-008 telemetry contract.
-7. **Finish RTAI:** land RTAI-002 after INTD-005, then RTAI-003, RTAI-006, and
-   RTAI-008 after the daemon-backed mid-edit surface exists.
+1. **Close RMCP-008 post-merge validation:** PR #1154 is merged and the
+   agent-runnable checks passed on 2026-04-30 (`cargo build -p eddacraft-anvil`,
+   `pnpm --filter @eddacraft/anvil-e2e test:smoke`). Cursor / Claude Code GUI
+   dry-run remains before RMCP-008 can be Complete.
+2. **Start RTAI-002:** INTD-002, INTD-005, and RTAI-001 are now complete, so the
+   daemon mid-edit RPC surface is the next unblocked code item.
+3. **Measure the production path:** RTAI-003 follows RTAI-002 and extends the
+   INTD-014 latency harness with mid-edit measurements.
+4. **Lock the MCP pre-write semantics:** RTAI-006 and RTAI-008 follow RTAI-002;
+   their RMCP-004/-005/-006 dependencies are already complete.
+
+**RTAI reconciliation note (2026-04-30):** Local branch
+`feat/RTAI-002-midedit-rpc` points at merged INTD-005 work, not a completed
+RTAI implementation. RTAI-002 remains the next unimplemented daemon RPC item;
+RTAI-003/-006/-008 remain downstream of it.
 
 **Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
 GV2/GCTX (Graph v2 foundation and graph context delivery), and full DRVR editor
@@ -94,12 +95,13 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       Claude Code → paste known-bad pattern → Anvil flags before save. LAUNCH
       polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
       MCP launch path. RMCP-008 has the headless smoke + runbook refresh in
-      Committed state; GUI dry-run remains before Complete. Required by **A1**.
+      Committed / post-merge-validation state; agent checks passed 2026-04-30;
+      GUI dry-run remains before Complete. Required by **A1**.
 - [ ] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
       writes config pointing at `anvil mcp serve --stdio`; **RMCP** makes that
       command real in Rust for the A1 path. RMCP-001..-007 are complete and
-      RMCP-008 is Committed; do not port the whole TS MCP server in this
-      release.
+      RMCP-008 is Committed / post-merge validation; do not port the whole TS
+      MCP server in this release.
 - [x] **Diagnostic envelope coordination** — AIGUARD-002 ↔ RMCP-006 ↔ RTAI-006 /
       RTAI-008 ↔ INTD-013 must agree for the launch path. DRVR-002 consumes the
       same shape later. Resolved by the canonical diagnostic-envelope spec and
@@ -108,7 +110,9 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       on 2026-04-26; ADR-028 and ADR-029 were strengthened / amended by ADR-033.
       Required by **A4**.
 - [ ] **Anchor re-scoring process owner** — currently no permanent owner named
-      in the L&C spec. Required by **A4**.
+      in the L&C spec. The locked A4 code/docs slice is complete, but decide
+      before tagging whether this remains a release prerequisite or moves to
+      post-release process hardening.
 
 ### Adversarial risks for this release
 
@@ -120,9 +124,9 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
    A1 locks down RTAI/INTD/RMCP shapes, consumers branch.
 3. **Cross-cutting expansion.** A3 wants to grow (downstream-port, WalkParallel
    spike). Be willing to say no.
-4. **A4 can read unevenly while OPSUP remains outstanding.** Frame it as the
-   Phase 0 floor: TS audit and `.env` governance landed; durable check IDs are
-   the remaining operational supplement.
+4. **A4 still has a process loose end.** The code/docs slice is complete, but
+   the permanent anchor re-scoring owner remains unnamed; decide before tagging
+   whether that is release-blocking or post-release hardening.
 
 ### What ships next (after this release)
 
@@ -341,11 +345,10 @@ operational floor.
 - MDGOV
 - All surfaces beyond `.env` (SURFSQL, SURFGHA, SURFDOCK, SURFSH)
 
-**Adversarial risk:** The value can read as uneven while OPSUP-001 is still
-Draft and LANGTS / SURFENV have landed. Counter-narrative: "Phase 0" or
-"foundation slice" framing makes it the credible-by-design floor — we shipped
-the audit and the `.env` operational surface; the remaining check-ID registry
-queues against RTAI bandwidth.
+**Adversarial risk:** The value can read process-light unless the anchor
+re-scoring owner question is resolved. Counter-narrative: "Phase 0" or
+"foundation slice" framing makes it the credible-by-design floor — the audit,
+check-ID registry, and `.env` operational surface have all landed.
 
 **Recommendation: PICK. Three small deliverables. Zero RTAI contention. Each
 independent.**

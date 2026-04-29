@@ -2,9 +2,9 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 5 committed (INTD-002, INTD-005, INTD-007, INTD-013, INTD-014) |
+| INTD | @aneki | In Progress | 7/16 complete |
 
-**Last reviewed:** 2026-04-29
+**Last reviewed:** 2026-04-30
 
 > **A1 launch slice (cherry-picked, not the whole module):** INTD-001,
 > INTD-002, INTD-003, INTD-005, INTD-007, INTD-013, INTD-014. The remaining
@@ -189,7 +189,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
   plus permission-creation unit tests on each platform (Linux/macOS
   permission bits; Windows ACL).
-- **Status:** Committed
+- **Status:** Complete
 - **Progress (2026-04-29, `feat/INTD-002`):** `crates/anvil-intercept/src/ipc.rs`
   ships the `SessionDispatcher` trait, `NoopDispatcher`, the Unix
   socket-dir resolution + permission ladder (lstat-based symlink
@@ -206,7 +206,7 @@ a new lane.
   contract, including Windows named-pipe binding with an owner-only
   security descriptor and foreground daemon integration with the IPC
   listener and session registry.
-- **Committed (2026-04-29, `feat/INTD-002-cross-platform`):** Foreground
+- **Complete (2026-04-30, PR #1167 merged with green checks):** Foreground
   daemon startup now owns a `SessionRegistry`, binds the IPC listener,
   dispatches registration frames into the registry, ticks stale-session
   eviction, and shuts the listener down with bounded drain. Windows
@@ -269,7 +269,7 @@ a new lane.
   proposed content through the same rule pipeline without duplicating rule
   semantics; the daemon's file-change path still reads from disk for v1.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib enforcement`
-- **Status:** Committed
+- **Status:** Complete
 - **Progress (2026-04-29, `feat/INTD-005-enforcement`):** Added the shared
   enforcement pipeline in `crates/anvil-intercept/src/enforcement.rs` and the
   content-unavailable skip in `anvil-intercept-rules`. Proposed-content callers
@@ -306,7 +306,7 @@ a new lane.
 - **Required by:** INTD-013 (`grouping.transition` mirror for
   `active ↔ fenced` events)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib fence`
-- **Status:** Committed
+- **Status:** Complete
 
 ### INTD-008: Configuration Loading
 
@@ -387,7 +387,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib telemetry`
   — tests assert the mapping table, schema value, mirror population, and
   fence-transition grouping
-- **Status:** Committed
+- **Status:** Complete
 
 ### INTD-014: JSON-RPC 2.0 Conformance + Round-Trip Latency Benchmark
 
@@ -425,7 +425,7 @@ a new lane.
   dashboard.
 - **Source:** 2026-04-24 council review M1 (adversarial reviewer) —
   tracked in PR #1063.
-- **Status:** Committed
+- **Status:** Complete
 - **Progress (2026-04-29, `feat/INTD-014-jsonrpc`):** JSON-RPC 2.0 request /
   notification / batch response handling is pinned at the daemon IPC boundary,
   with local fixture-style conformance coverage for parse errors, error object
