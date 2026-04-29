@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 1 committed (INTD-002) |
+| INTD | @aneki | In Progress | 2/16 complete, 2 committed (INTD-002, INTD-005) |
 
 **Last reviewed:** 2026-04-29
 
@@ -268,7 +268,16 @@ a new lane.
   proposed content through the same rule pipeline without duplicating rule
   semantics; the daemon's file-change path still reads from disk for v1.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib enforcement`
-- **Status:** Draft
+- **Status:** Committed
+- **Progress (2026-04-29, `feat/INTD-005-enforcement`):** Added the shared
+  enforcement pipeline in `crates/anvil-intercept/src/enforcement.rs` and the
+  content-unavailable skip in `anvil-intercept-rules`. Proposed-content callers
+  and the daemon file-change path now share `RuleRegistry` semantics; the daemon
+  path reads changed file content from disk with a hard 1 MiB cap, null-byte
+  binary detection, removed-file content suppression, and fail-closed read
+  errors. Decisions return allow/interrupt outcomes with triggering rule
+  metadata and the affected batch paths. Watcher-to-daemon event consumption
+  remains INTD-004 scope.
 
 ### INTD-006: Process-Group Interrupt
 

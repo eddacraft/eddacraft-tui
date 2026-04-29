@@ -238,6 +238,9 @@ impl RuleRegistry {
     pub fn evaluate(&self, input: &RuleInput<'_>) -> RegistryDecision {
         for entry in &self.rules {
             let cached_id = entry.id.as_str();
+            if input.content.is_none() && entry.rule.needs_content() {
+                continue;
+            }
             let Ok(decision) = catch_unwind(AssertUnwindSafe(|| entry.rule.evaluate(input))) else {
                 // The trait contract says rules MUST NOT panic.
                 // Surface the violation loudly and treat as Allow —
@@ -449,6 +452,24 @@ mod tests {
         let path = PathBuf::from("src/lib.rs");
         assert_eq!(registry.evaluate(&input(&path)), RegistryDecision::Allow);
         assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn content_rules_are_skipped_when_content_is_unavailable() {
+        let content_rule: &'static StubRule = Box::leak(Box::new(
+            StubRule::new("content", RuleDecision::interrupt("content", "blocked"))
+                .needing_content(),
+        ));
+
+        let mut registry = RuleRegistry::new();
+        registry
+            .register(Box::new(StubRefRule(content_rule)))
+            .expect("register content rule");
+
+        let path = PathBuf::from("src/lib.rs");
+
+        assert_eq!(registry.evaluate(&input(&path)), RegistryDecision::Allow);
+        assert_eq!(content_rule.calls(), 0);
     }
 
     #[test]
