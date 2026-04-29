@@ -98,14 +98,14 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 > Already complete as of 2026-04-29: INTD-002/-003,
 > RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001,
-> INTR-001/-002/-006/-008. Committed but not Complete:
-> INTD-001 (PR #1165) and RMCP-008 (headless smoke + runbook refresh in PR
-> #1154; Cursor / Claude Code GUI dry-run remains).
+> INTR-001/-002/-006/-008.
+> Committed but not Complete: INTD-001 (PR #1165) and RMCP-008 (headless smoke
+> and runbook refresh in PR #1154; Cursor / Claude Code GUI dry-run remains).
 
 1. **Close committed work:** finish RMCP-008's GUI dry-run and merge; follow
    through on INTD-001's PR #1165 cleanup path.
-2. **Rule composition is unblocked:** **INTR-006** is complete after the
-   complete INTR-001/-002/-008 rule wrappers and closes the A1 INTR slice.
+2. **Rule composition is complete:** INTR-001/-002/-008 wrappers are complete,
+   and **INTR-006** is now complete, closing the A1 INTR slice.
 3. **Pin daemon conformance:** land **INTD-014** now that INTD-002 is complete.
 4. **Build enforcement pipeline:** land **INTD-005** now that INTR-006 and the
    complete INTD-002/-003 IPC + registry work are available.

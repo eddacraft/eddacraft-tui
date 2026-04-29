@@ -60,8 +60,8 @@ that is locked for the release.
 
 1. **Close committed work:** finish RMCP-008's Cursor / Claude Code GUI dry-run
    and merge PR #1154; follow through on INTD-001's PR #1165 cleanup path.
-2. **Rule composition is unblocked:** INTR-006 is complete after the
-   INTR-001/-002/-008 rule wrappers and closes the A1 INTR slice.
+2. **Rule composition is complete:** INTR-001/-002/-008 wrappers and INTR-006
+   registry composition are complete, closing the A1 INTR slice.
 3. **Pin daemon conformance:** land INTD-014 now that INTD-002 is complete.
 4. **Build enforcement pipeline:** land INTD-005 now that INTR-006 and the
    complete INTD-002/-003 IPC + registry work are available.
