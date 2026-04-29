@@ -16,6 +16,10 @@ path = "src/main.rs"
 [[bench]]
 name = "ipc_roundtrip"
 harness = false
+required-features = ["bench-internals"]
+
+[features]
+bench-internals = []
 
 [dependencies]
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }

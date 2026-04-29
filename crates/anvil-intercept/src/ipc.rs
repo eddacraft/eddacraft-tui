@@ -624,35 +624,38 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
             continue;
         }
         match serde_json::from_str::<Value>(line) {
-            Ok(value) if is_jsonrpc_frame(&value) => {
-                if let Some(response) = handle_jsonrpc_value(value, &dispatcher) {
-                    let mut response = serde_json::to_string(&response).map_err(|err| {
-                        io::Error::other(format!("serialise JSON-RPC response: {err}"))
-                    })?;
-                    response.push('\n');
-                    reader.get_mut().write_all(response.as_bytes()).await?;
+            Ok(value) => {
+                if is_jsonrpc_frame(&value) {
+                    if let Some(response) = handle_jsonrpc_value(value, &dispatcher) {
+                        let mut response = serde_json::to_string(&response).map_err(|err| {
+                            io::Error::other(format!("serialise JSON-RPC response: {err}"))
+                        })?;
+                        response.push('\n');
+                        reader.get_mut().write_all(response.as_bytes()).await?;
+                    }
+                } else {
+                    match serde_json::from_value::<IpcEnvelope>(value) {
+                        Ok(envelope) => dispatch_envelope(&envelope, &dispatcher),
+                        Err(err) => {
+                            // Per the module doc: parse errors are logged and
+                            // skipped, the connection stays open. Unknown command
+                            // names take this branch too — see the proto crate's
+                            // `unknown_command_variant_fails_to_deserialise` test.
+                            tracing::warn!(
+                                target: "anvil_intercept::ipc",
+                                error = %err,
+                                line_len = line.len(),
+                                "skipping malformed NDJSON line"
+                            );
+                            eprintln!(
+                                "anvil-intercept: skipping malformed NDJSON line ({} bytes): {}",
+                                line.len(),
+                                err
+                            );
+                        }
+                    }
                 }
             }
-            Ok(_) => match serde_json::from_str::<IpcEnvelope>(line) {
-                Ok(envelope) => dispatch_envelope(&envelope, &dispatcher),
-                Err(err) => {
-                    // Per the module doc: parse errors are logged and
-                    // skipped, the connection stays open. Unknown command
-                    // names take this branch too — see the proto crate's
-                    // `unknown_command_variant_fails_to_deserialise` test.
-                    tracing::warn!(
-                        target: "anvil_intercept::ipc",
-                        error = %err,
-                        line_len = line.len(),
-                        "skipping malformed NDJSON line"
-                    );
-                    eprintln!(
-                        "anvil-intercept: skipping malformed NDJSON line ({} bytes): {}",
-                        line.len(),
-                        err
-                    );
-                }
-            },
             Err(err) => {
                 let response = jsonrpc_error(
                     None,
@@ -682,6 +685,7 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
 }
 
 #[doc(hidden)]
+#[cfg(feature = "bench-internals")]
 pub fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
@@ -797,7 +801,7 @@ fn handle_jsonrpc_request<D: SessionDispatcher>(
             is_notification,
             -32603,
             "Internal error",
-            json!({"error": err.to_string()}),
+            json!({"error": err.clone()}),
         ),
     }
 }
@@ -988,25 +992,31 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 fn dispatch_command<D: SessionDispatcher>(
     command: &IpcCommand,
     dispatcher: &Arc<D>,
-) -> Result<Value, crate::registry::RegistryError> {
+) -> Result<Value, String> {
     match command {
         IpcCommand::RegisterSession {
             session_id,
             worktree,
         } => {
-            dispatcher.register(session_id, worktree)?;
+            dispatcher
+                .register(session_id, worktree)
+                .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
         IpcCommand::Heartbeat { session_id } => {
-            dispatcher.heartbeat(session_id)?;
+            dispatcher
+                .heartbeat(session_id)
+                .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
         IpcCommand::UnregisterSession { session_id } => Ok(json!({
-            "removed": dispatcher.unregister(session_id)?,
+            "removed": dispatcher
+                .unregister(session_id)
+                .map_err(|err| err.to_string())?,
         })),
         IpcCommand::ListSessions => {
             let sessions = dispatcher.list();
-            Ok(serde_json::to_value(sessions).expect("session records serialise"))
+            serde_json::to_value(sessions).map_err(|err| err.to_string())
         }
     }
 }

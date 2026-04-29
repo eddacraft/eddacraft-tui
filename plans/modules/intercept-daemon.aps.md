@@ -407,8 +407,9 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --test
   jsonrpc_conformance` passes the local fixture-style JSON-RPC 2.0 conformance
   suite (no published fixture set is present in the workspace); `cargo bench -p
-  eddacraft-anvil-intercept --bench ipc_roundtrip` records baseline numbers with
-  ADR-031 dimensions in the workspace bench dashboard.
+  eddacraft-anvil-intercept --features bench-internals --bench ipc_roundtrip`
+  records baseline numbers with ADR-031 dimensions in the workspace bench
+  dashboard.
 - **Source:** 2026-04-24 council review M1 (adversarial reviewer) —
   tracked in PR #1063.
 - **Status:** Committed

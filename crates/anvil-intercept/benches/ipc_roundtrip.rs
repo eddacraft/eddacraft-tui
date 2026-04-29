@@ -25,11 +25,11 @@ fn main() {
     runtime.block_on(async {
         let dispatcher = Arc::new(NoopDispatcher);
         let mut service_samples = Vec::with_capacity(SAMPLES);
-        for index in 0..SAMPLES {
+        for _ in 0..SAMPLES {
             let request = json!({
                 "jsonrpc": "2.0",
                 "method": "session.list",
-                "id": format!("service-{index}"),
+                "id": "service",
             });
             let started = Instant::now();
             let response =
@@ -52,12 +52,10 @@ fn main() {
         let handle = tokio::spawn(async move { listener.serve(token).await });
 
         let mut roundtrip_samples = Vec::with_capacity(SAMPLES);
-        for index in 0..SAMPLES {
+        for _ in 0..SAMPLES {
             let client = UnixStream::connect(&socket).await.expect("connect client");
             let mut client = BufReader::new(client);
-            let request = format!(
-                "{{\"jsonrpc\":\"2.0\",\"method\":\"session.list\",\"id\":\"bench-{index}\"}}\n"
-            );
+            let request = "{\"jsonrpc\":\"2.0\",\"method\":\"session.list\",\"id\":\"bench\"}\n";
             let started = Instant::now();
             client
                 .get_mut()
