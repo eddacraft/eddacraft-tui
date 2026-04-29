@@ -37,8 +37,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
+use serde_json::{Value, json};
 use thiserror::Error;
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::task::JoinSet;
 
 use crate::ShutdownToken;
@@ -579,7 +580,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
 // Per-connection handler.
 // --------------------------------------------------------------------
 
-async fn handle_connection<D: SessionDispatcher, R: AsyncRead + Unpin>(
+async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unpin>(
     stream: R,
     dispatcher: Arc<D>,
     mut token: ShutdownToken,
@@ -622,13 +623,48 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + Unpin>(
         if line.is_empty() {
             continue;
         }
-        match serde_json::from_str::<IpcEnvelope>(line) {
-            Ok(envelope) => dispatch_envelope(&envelope, &dispatcher),
+        match serde_json::from_str::<Value>(line) {
+            Ok(value) if is_jsonrpc_frame(&value) => {
+                if let Some(response) = handle_jsonrpc_value(value, &dispatcher) {
+                    let mut response = serde_json::to_string(&response).map_err(|err| {
+                        io::Error::other(format!("serialise JSON-RPC response: {err}"))
+                    })?;
+                    response.push('\n');
+                    reader.get_mut().write_all(response.as_bytes()).await?;
+                }
+            }
+            Ok(_) => match serde_json::from_str::<IpcEnvelope>(line) {
+                Ok(envelope) => dispatch_envelope(&envelope, &dispatcher),
+                Err(err) => {
+                    // Per the module doc: parse errors are logged and
+                    // skipped, the connection stays open. Unknown command
+                    // names take this branch too — see the proto crate's
+                    // `unknown_command_variant_fails_to_deserialise` test.
+                    tracing::warn!(
+                        target: "anvil_intercept::ipc",
+                        error = %err,
+                        line_len = line.len(),
+                        "skipping malformed NDJSON line"
+                    );
+                    eprintln!(
+                        "anvil-intercept: skipping malformed NDJSON line ({} bytes): {}",
+                        line.len(),
+                        err
+                    );
+                }
+            },
             Err(err) => {
-                // Per the module doc: parse errors are logged and
-                // skipped, the connection stays open. Unknown command
-                // names take this branch too — see the proto crate's
-                // `unknown_command_variant_fails_to_deserialise` test.
+                let response = jsonrpc_error(
+                    None,
+                    -32700,
+                    "Parse error",
+                    json!({"reason": err.to_string()}),
+                );
+                let mut response = serde_json::to_string(&response).map_err(|err| {
+                    io::Error::other(format!("serialise JSON-RPC parse error: {err}"))
+                })?;
+                response.push('\n');
+                reader.get_mut().write_all(response.as_bytes()).await?;
                 tracing::warn!(
                     target: "anvil_intercept::ipc",
                     error = %err,
@@ -642,6 +678,253 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + Unpin>(
                 );
             }
         }
+    }
+}
+
+#[doc(hidden)]
+pub fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
+    value: Value,
+    dispatcher: &Arc<D>,
+) -> Option<Value> {
+    handle_jsonrpc_value(value, dispatcher)
+}
+
+fn is_jsonrpc_frame(value: &Value) -> bool {
+    match value {
+        Value::Array(_) => true,
+        Value::Object(map) => map.contains_key("jsonrpc") || map.contains_key("method"),
+        _ => false,
+    }
+}
+
+fn handle_jsonrpc_value<D: SessionDispatcher>(value: Value, dispatcher: &Arc<D>) -> Option<Value> {
+    match value {
+        Value::Array(items) => {
+            if items.is_empty() {
+                return Some(jsonrpc_error(
+                    None,
+                    -32600,
+                    "Invalid Request",
+                    json!({
+                        "reason": "batch must not be empty"
+                    }),
+                ));
+            }
+            let responses: Vec<Value> = items
+                .into_iter()
+                .filter_map(|item| handle_jsonrpc_request(item, dispatcher))
+                .collect();
+            if responses.is_empty() {
+                None
+            } else {
+                Some(Value::Array(responses))
+            }
+        }
+        item => handle_jsonrpc_request(item, dispatcher),
+    }
+}
+
+fn handle_jsonrpc_request<D: SessionDispatcher>(
+    value: Value,
+    dispatcher: &Arc<D>,
+) -> Option<Value> {
+    let Value::Object(map) = value else {
+        return Some(jsonrpc_error(
+            None,
+            -32600,
+            "Invalid Request",
+            json!({
+                "reason": "request must be an object"
+            }),
+        ));
+    };
+
+    let id = map.get("id").cloned();
+    let has_id = map.contains_key("id");
+    let response_id = valid_jsonrpc_id(id.as_ref());
+    if response_id.is_none() && id.is_some() {
+        return Some(jsonrpc_error(
+            None,
+            -32600,
+            "Invalid Request",
+            json!({
+                "reason": "id must be a string, number, or null"
+            }),
+        ));
+    }
+
+    if map.get("jsonrpc") != Some(&Value::String("2.0".to_owned())) {
+        return Some(jsonrpc_error(
+            response_id,
+            -32600,
+            "Invalid Request",
+            json!({"reason": "jsonrpc must be \"2.0\""}),
+        ));
+    }
+
+    let Some(method) = map.get("method").and_then(Value::as_str) else {
+        return Some(jsonrpc_error(
+            response_id,
+            -32600,
+            "Invalid Request",
+            json!({"reason": "method must be a string"}),
+        ));
+    };
+    let is_notification = !has_id;
+    let params = map.get("params").unwrap_or(&Value::Null);
+
+    let command = match command_from_jsonrpc(method, params) {
+        Ok(command) => command,
+        Err(JsonRpcFailure {
+            code,
+            message,
+            data,
+        }) => {
+            return jsonrpc_request_error(response_id, is_notification, code, message, data);
+        }
+    };
+
+    match dispatch_command(&command, dispatcher) {
+        Ok(result) => {
+            if is_notification {
+                None
+            } else {
+                Some(json!({"jsonrpc": "2.0", "result": result, "id": response_id}))
+            }
+        }
+        Err(err) => jsonrpc_request_error(
+            response_id,
+            is_notification,
+            -32603,
+            "Internal error",
+            json!({"error": err.to_string()}),
+        ),
+    }
+}
+
+fn valid_jsonrpc_id(id: Option<&Value>) -> Option<Value> {
+    if let Some(value @ (Value::Null | Value::String(_) | Value::Number(_))) = id {
+        Some(value.clone())
+    } else {
+        None
+    }
+}
+
+fn jsonrpc_request_error(
+    id: Option<Value>,
+    is_notification: bool,
+    code: i64,
+    message: &'static str,
+    data: impl serde::Serialize,
+) -> Option<Value> {
+    if is_notification {
+        None
+    } else {
+        Some(jsonrpc_error(id, code, message, data))
+    }
+}
+
+fn jsonrpc_error(
+    id: Option<Value>,
+    code: i64,
+    message: &'static str,
+    data: impl serde::Serialize,
+) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "error": {
+            "code": code,
+            "message": message,
+            "data": data,
+        },
+        "id": id.unwrap_or(Value::Null),
+    })
+}
+
+struct JsonRpcFailure {
+    code: i64,
+    message: &'static str,
+    data: Value,
+}
+
+fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, JsonRpcFailure> {
+    match method {
+        "list-sessions" | "session.list" => {
+            if matches!(params, Value::Null) {
+                Ok(IpcCommand::ListSessions)
+            } else {
+                Err(invalid_params(
+                    method,
+                    "list-sessions does not accept params",
+                ))
+            }
+        }
+        "heartbeat" | "session.heartbeat" => params_object(params, method).and_then(|params| {
+            let session_id = anvil_intercept_proto::SessionId::new(required_string(
+                params,
+                "session_id",
+                method,
+            )?);
+            Ok(IpcCommand::Heartbeat { session_id })
+        }),
+        "register-session" | "session.register" => {
+            params_object(params, method).and_then(|params| {
+                let session_id = anvil_intercept_proto::SessionId::new(required_string(
+                    params,
+                    "session_id",
+                    method,
+                )?);
+                let worktree = required_string(params, "worktree", method)?;
+                Ok(IpcCommand::RegisterSession {
+                    session_id,
+                    worktree: PathBuf::from(worktree.as_str()),
+                })
+            })
+        }
+        "unregister-session" | "session.unregister" => {
+            params_object(params, method).and_then(|params| {
+                let session_id = anvil_intercept_proto::SessionId::new(required_string(
+                    params,
+                    "session_id",
+                    method,
+                )?);
+                Ok(IpcCommand::UnregisterSession { session_id })
+            })
+        }
+        _ => Err(JsonRpcFailure {
+            code: -32601,
+            message: "Method not found",
+            data: json!({"method": method}),
+        }),
+    }
+}
+
+fn params_object<'a>(
+    params: &'a Value,
+    method: &str,
+) -> Result<&'a serde_json::Map<String, Value>, JsonRpcFailure> {
+    params
+        .as_object()
+        .ok_or_else(|| invalid_params(method, "params must be an object"))
+}
+
+fn required_string(
+    params: &serde_json::Map<String, Value>,
+    field: &str,
+    method: &str,
+) -> Result<String, JsonRpcFailure> {
+    params
+        .get(field)
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| invalid_params(method, format!("{field} must be a string")))
+}
+
+fn invalid_params(method: &str, reason: impl Into<String>) -> JsonRpcFailure {
+    JsonRpcFailure {
+        code: -32602,
+        message: "Invalid params",
+        data: json!({"method": method, "reason": reason.into()}),
     }
 }
 
@@ -695,23 +978,36 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
     // `id: None`. We do not branch on `id.is_some()` to distinguish
     // dispatch behaviour — only response routing (a future task)
     // would consult the field, and only after dispatch.
-    let result: Result<(), crate::registry::RegistryError> = match &envelope.command {
-        IpcCommand::RegisterSession {
-            session_id,
-            worktree,
-        } => dispatcher.register(session_id, worktree),
-        IpcCommand::Heartbeat { session_id } => dispatcher.heartbeat(session_id),
-        IpcCommand::UnregisterSession { session_id } => {
-            dispatcher.unregister(session_id).map(|_| ())
-        }
-        IpcCommand::ListSessions => {
-            let _ = dispatcher.list();
-            Ok(())
-        }
-    };
+    let result = dispatch_command(&envelope.command, dispatcher).map(|_| ());
     if let Err(err) = result {
         tracing::warn!(target: "anvil_intercept::ipc", error = %err, "dispatcher returned error");
         eprintln!("anvil-intercept: dispatcher returned error: {err}");
+    }
+}
+
+fn dispatch_command<D: SessionDispatcher>(
+    command: &IpcCommand,
+    dispatcher: &Arc<D>,
+) -> Result<Value, crate::registry::RegistryError> {
+    match command {
+        IpcCommand::RegisterSession {
+            session_id,
+            worktree,
+        } => {
+            dispatcher.register(session_id, worktree)?;
+            Ok(json!({"ok": true}))
+        }
+        IpcCommand::Heartbeat { session_id } => {
+            dispatcher.heartbeat(session_id)?;
+            Ok(json!({"ok": true}))
+        }
+        IpcCommand::UnregisterSession { session_id } => Ok(json!({
+            "removed": dispatcher.unregister(session_id)?,
+        })),
+        IpcCommand::ListSessions => {
+            let sessions = dispatcher.list();
+            Ok(serde_json::to_value(sessions).expect("session records serialise"))
+        }
     }
 }
 
