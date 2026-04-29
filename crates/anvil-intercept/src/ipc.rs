@@ -416,6 +416,25 @@ impl<D: SessionDispatcher> IpcListener<D> {
             tokio::select! {
                 biased;
                 () = token.cancelled() => break,
+                // Reap finished handler tasks as they complete so the
+                // JoinSet only ever tracks live connections. The `if`
+                // guard disables this arm when the JoinSet is empty,
+                // because `join_next` on an empty set returns `None`
+                // immediately and would busy-loop the select. This
+                // also surfaces handler-task panics (via JoinError) at
+                // the moment they happen rather than at shutdown.
+                Some(res) = joinset.join_next(), if !joinset.is_empty() => {
+                    if let Err(err) = res
+                        && !err.is_cancelled()
+                    {
+                        tracing::warn!(
+                            target: "anvil_intercept::ipc",
+                            error = %err,
+                            "ipc handler task panicked",
+                        );
+                        eprintln!("anvil-intercept: ipc handler task panicked: {err}");
+                    }
+                }
                 accepted = self.inner.accept() => {
                     match accepted {
                         Ok((stream, _addr)) => {
