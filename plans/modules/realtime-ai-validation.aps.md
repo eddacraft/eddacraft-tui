@@ -501,10 +501,16 @@ convention" section). Concretely:
   side) and is consumed by RMCP. A TS consumer fixture is added later when
   RTAI-004/DRVR-001 land; CI fails if any active consumer drifts.
 - **Confidence:** medium
-- **Status:** Blocked — waits for RTAI-002.
-- **Reconciliation note (2026-04-30):** RMCP unit tests cover several
-  structured pre-write errors, but the shared `midedit_contract.rs` fixture does
-  not exist and there is no daemon mid-edit response to pin yet.
+- **Status:** In Progress — landed the Rust contract fixture on
+  `feat/RTAI-008-errors-contract`. Public fixtures pin the response
+  envelope for over-cap content (`-32602`), malformed request (`-32602`),
+  daemon-side rule panic (isolated to empty diagnostics on
+  `panic="unwind"` builds), transport timeout (`-32001` / `-32603`),
+  and a busy invariant check (`-32000`). The cross-session-rejection
+  fixture is gated behind `#[ignore]` because `scan_buffer` does not
+  yet take a `sessionId`; resume when session-scoped enforcement is
+  wired. RMCP imports these fixtures as the consumer-of-record; future
+  TS / VSCode drivers port the same shapes when they land.
 
 ---
 
