@@ -53,7 +53,7 @@ export function HeroSection() {
                   }
                 }}
               >
-                <span className="text-anvil">$ npm i -g @eddacraft/anvil</span>
+                <span className="text-anvil">$ brew install eddacraft/tap/anvil</span>
                 <span className="text-text-muted ml-4"># early-access</span>
               </button>
 
@@ -69,21 +69,21 @@ export function HeroSection() {
             {/* Stats */}
             <div className="flex gap-4 sm:gap-8 pt-4 border-t border-structure">
               <div>
-                <div className="font-mono text-xl sm:text-2xl text-text-primary">{'<'}50ms</div>
+                <div className="font-mono text-xl sm:text-2xl text-text-primary">10µs</div>
                 <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  gate latency
+                  save-time check
                 </div>
               </div>
               <div>
-                <div className="font-mono text-xl sm:text-2xl text-text-primary">100%</div>
+                <div className="font-mono text-xl sm:text-2xl text-text-primary">800ns</div>
                 <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  deterministic
+                  policy eval
                 </div>
               </div>
               <div>
-                <div className="font-mono text-xl sm:text-2xl text-edda">0</div>
+                <div className="font-mono text-xl sm:text-2xl text-edda">14.5ms</div>
                 <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  config drift
+                  cold graph build
                 </div>
               </div>
             </div>
