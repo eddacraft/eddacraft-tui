@@ -215,13 +215,14 @@ impl RuleRegistry {
     /// Enforce mode: returns [`RegistryDecision::Interrupt`] from the
     /// first rule that fires; later rules are not called.
     ///
-    /// Observe-only mode: every rule is called regardless. Interrupts
-    /// are emitted on `stderr` and the returned decision is always
-    /// [`RegistryDecision::Allow`]. This is the "shadow rollout"
-    /// path. (`tracing` is intentionally not a dep of this crate; if
-    /// you wire one in, both this path and the panic path become
-    /// `tracing::warn!` candidates — the eprintln calls are the
-    /// minimum-dep fallback.)
+    /// Rules that require content are skipped when `input.content` is
+    /// unavailable. Observe-only mode calls every remaining applicable
+    /// rule regardless of interrupts. Interrupts are emitted on `stderr`
+    /// and the returned decision is always [`RegistryDecision::Allow`].
+    /// This is the "shadow rollout" path. (`tracing` is intentionally
+    /// not a dep of this crate; if you wire one in, both this path and
+    /// the panic path become `tracing::warn!` candidates — the eprintln
+    /// calls are the minimum-dep fallback.)
     ///
     /// Panicking rules are isolated under `panic="unwind"`: a panic
     /// from `evaluate` is caught, reported on stderr, and treated as
@@ -238,6 +239,9 @@ impl RuleRegistry {
     pub fn evaluate(&self, input: &RuleInput<'_>) -> RegistryDecision {
         for entry in &self.rules {
             let cached_id = entry.id.as_str();
+            if input.content.is_none() && entry.rule.needs_content() {
+                continue;
+            }
             let Ok(decision) = catch_unwind(AssertUnwindSafe(|| entry.rule.evaluate(input))) else {
                 // The trait contract says rules MUST NOT panic.
                 // Surface the violation loudly and treat as Allow —
@@ -449,6 +453,24 @@ mod tests {
         let path = PathBuf::from("src/lib.rs");
         assert_eq!(registry.evaluate(&input(&path)), RegistryDecision::Allow);
         assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn content_rules_are_skipped_when_content_is_unavailable() {
+        let content_rule: &'static StubRule = Box::leak(Box::new(
+            StubRule::new("content", RuleDecision::interrupt("content", "blocked"))
+                .needing_content(),
+        ));
+
+        let mut registry = RuleRegistry::new();
+        registry
+            .register(Box::new(StubRefRule(content_rule)))
+            .expect("register content rule");
+
+        let path = PathBuf::from("src/lib.rs");
+
+        assert_eq!(registry.evaluate(&input(&path)), RegistryDecision::Allow);
+        assert_eq!(content_rule.calls(), 0);
     }
 
     #[test]

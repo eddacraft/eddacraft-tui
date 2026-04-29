@@ -28,20 +28,13 @@
 
 #![forbid(unsafe_code)]
 
+pub mod enforcement;
 pub mod ipc;
 pub mod registry;
 
 pub use registry::{
     DEFAULT_HEARTBEAT_TTL, ProcessInfo, RegistryError, SessionDispatcher, SessionRegistry,
 };
-
-// The rules crate is part of the daemon's eventual surface area but
-// the scaffold body does not call it yet. Importing as `_` silences
-// `unused-crate-dependencies` without pretending to consume it —
-// INTD-005 wires rule evaluation into the enforcement pipeline.
-// `ipc` and `registry` consume `anvil_intercept_proto` directly.
-// Removing this line should be INTD-005's first edit.
-use anvil_intercept_rules as _;
 
 use std::env;
 use std::fs::{self, File, OpenOptions};

@@ -88,11 +88,11 @@ dependency order are mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
 | ------------- | -------- | -------- | --------- | ----------- | ----------------- | ------- |
-| INTD | -001, -002, -003, -005, -013, -014 | -001, -003 | -002, -014 | — | -005 | -013 |
+| INTD | -001, -002, -003, -005, -013, -014 | -001, -003 | -002, -005, -014 | — | — | -013 |
 | INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -006, -008 | — | — | — | — |
 | RMCP | -001..-008 | -001..-007 | -008 | — | — | — |
 | RTAI | -001 (spike), -002, -003, -006, -008 | -001 | — | — | — | -002, -003, -006, -008 |
-| **Total** | **23** | **14** | **3** | **0** | **1** | **5** |
+| **Total** | **23** | **14** | **4** | **0** | **0** | **5** |
 
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 
@@ -604,7 +604,7 @@ work is queued after the launch shim.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 2/16 complete, 2 committed (INTD-002, INTD-014) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress | 2/16 complete, 3 committed (INTD-002, INTD-005, INTD-014) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
 | [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 3/8 | anvil-checks, GV2 later for hot-read rules only |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | 0/4 active (2 superseded, 1 deferred under ADR-033) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-006 deferred to RMCPF; DRVR-003 deferred per ADR-033 |
