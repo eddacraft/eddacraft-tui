@@ -138,7 +138,10 @@ impl ScanBufferService {
             Ok(Ok(result)) => result,
             Ok(Err(err)) => Err(ScanBufferError::WorkerFailed(err.to_string())),
             Err(_) => {
-                eprintln!("anvil-intercept: scan_buffer timed out after {:?}", self.timeout);
+                eprintln!(
+                    "anvil-intercept: scan_buffer timed out after {:?}",
+                    self.timeout
+                );
                 Err(ScanBufferError::TimedOut)
             }
         }
@@ -456,8 +459,7 @@ mod tests {
             }
         }
 
-        let registry =
-            RuleRegistry::with_rules(vec![Box::new(SleepingRule)]).expect("unique rule");
+        let registry = RuleRegistry::with_rules(vec![Box::new(SleepingRule)]).expect("unique rule");
         let service = ScanBufferService::with_timeout(
             EnforcementPipeline::new(registry),
             std::time::Duration::from_millis(50),
@@ -467,7 +469,9 @@ mod tests {
         let mut tasks = Vec::with_capacity(MAX_CONCURRENT_SCAN_BUFFERS);
         for _ in 0..MAX_CONCURRENT_SCAN_BUFFERS {
             let svc = service.clone();
-            tasks.push(tokio::spawn(async move { svc.scan_buffer(secret_request()).await }));
+            tasks.push(tokio::spawn(async move {
+                svc.scan_buffer(secret_request()).await
+            }));
         }
         for task in tasks {
             let outcome = task.await.expect("join");
