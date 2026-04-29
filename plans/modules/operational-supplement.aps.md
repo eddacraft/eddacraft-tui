@@ -1,13 +1,13 @@
 <!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
-<!-- Executable only if tasks exist and status is Ready. -->
+<!-- Executable only if tasks exist and status is Ready or In Progress. -->
 
 # Operational Supplement (Cross-Track Infrastructure)
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| OPSUP | —     | Draft  |
+| ID    | Owner   | Status      | Progress |
+| ----- | ------- | ----------- | -------- |
+| OPSUP | OpenCode | In Progress | 1/7      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-04-29
 
 > Note (2026-04-27): the old spec-level reference to a hardcoded
 > `AVAILABLE_CHECKS` array in `gate.rs` is stale. The current Rust CLI
@@ -114,30 +114,71 @@ Specifically owns:
 
 None — this module unblocks others, not vice versa.
 
-## Ready Checklist
+## Registry Slice Readiness
 
-Change status to **Ready** when:
+- [x] Owner named for OPSUP-001.
+- [x] Check-ID scheme drafted and reviewed for the registry slice.
 
-- [ ] Owner named.
-- [ ] Check-ID scheme drafted and reviewed.
+## Remaining Slice Readiness
+
+Remaining non-registry slices move to **Ready** when:
+
 - [ ] Drift schema migration policy drafted and reviewed.
 - [ ] Per-track flag taxonomy aligns with existing flag governance.
 - [ ] FP reporting destination confirmed (Kindling vs other).
 
 ## Tasks
 
-Tasks will be defined when this module moves to Ready. Anticipated:
+### OPSUP-001 — Check-ID registry
 
-- OPSUP-001: Check-ID registry — schema, ID assignment, aliases, and
-  migration of existing check catalogue entries.
-- OPSUP-002: Skip/disable resolution against the registry; replace
-  name-only catalogue lookups where durable IDs are required.
-- OPSUP-003: Drift baseline schema versioning — versioned enum + per-field
-  declarations.
-- OPSUP-004: `anvil drift migrate` command + on-upgrade migration path.
-- OPSUP-005: Per-track feature flag taxonomy + governance integration.
-- OPSUP-006: File-presence guard helpers + per-check wall-time caps.
-- OPSUP-007: FP reporting CLI + telemetry destination.
+- **Status:** Complete
+- **Intent:** Promote the existing Rust check catalogue into a durable
+  check-ID registry with stable IDs, aliases, and migrated metadata for current
+  checks.
+- **Expected Outcome:** Every current check has a stable `ANV-*` ID, current
+  user-facing names continue to resolve, legacy aliases are explicit, and the
+  registry has tests guarding uniqueness and lookup behaviour.
+- **Files:** `crates/anvil-cli/src/commands/check_catalog.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-cli/src/commands/gate_config.rs`,
+  `plans/modules/operational-supplement.aps.md`, `plans/index.aps.md`
+- **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate_config && cargo test -p eddacraft-anvil commands::gate::tests::normalize_gate_check_set_accepts_stable_ids_and_aliases && cargo test -p eddacraft-anvil commands::gate::tests::read_anvilrc_checks_parses_stable_ids`
+
+### OPSUP-002 — Registry-backed skip and disable resolution
+
+- **Status:** Draft
+- **Intent:** Resolve skip and disable paths against the stable check registry
+  wherever durable IDs are required.
+
+### OPSUP-003 — Drift baseline schema versioning
+
+- **Status:** Draft
+- **Intent:** Replace ad hoc schema constants with a versioned drift baseline
+  schema model and per-field declarations.
+
+### OPSUP-004 — Drift migration command
+
+- **Status:** Draft
+- **Intent:** Add `anvil drift migrate` and an on-upgrade migration path for
+  existing baselines.
+
+### OPSUP-005 — Per-track feature flag taxonomy
+
+- **Status:** Draft
+- **Intent:** Define per-track flag naming, defaults, and governance alignment
+  for new surfaces and packs.
+
+### OPSUP-006 — File-presence guards and wall-time caps
+
+- **Status:** Draft
+- **Intent:** Provide reusable check guards and runtime budgets so absent file
+  shapes short-circuit before expensive work.
+
+### OPSUP-007 — False-positive reporting channel
+
+- **Status:** Draft
+- **Intent:** Define the CLI and telemetry path for users to report false
+  positives without shipping source content by default.
 
 ## Risks
 

@@ -146,7 +146,7 @@ module state remains in the detailed module tables below.
 | A3 | ATTRIB | ATTRIB-001, ATTRIB-002, ATTRIB-003 | ATTRIB-001..-003 | ATTRIB-004..-011 remain outside this release cut |
 | A3 | SCAN | SCAN-001, SCAN-002, SCAN-003 | SCAN-001..-003 | SCAN-004/-005 remain outside this release cut |
 | A4 | LANGTS | LANGTS-001, LANGTS-003 | LANGTS-001, LANGTS-003 | LANGTS-002/-004/-005 remain outside the locked floor unless re-scoped |
-| A4 | OPSUP | OPSUP-001 (check-ID registry slice) | — | Draft; needs owner, check-ID scheme, and Ready flip before execution |
+| A4 | OPSUP | OPSUP-001 (check-ID registry slice) | OPSUP-001 | OPSUP-002..-007 remain Draft |
 | A4 | SURFENV | SURFENV-001..-006 | SURFENV-001 | SURFENV-002..-006 outstanding for `.env` structural governance surface |
 
 ### Edda Stack — Memory System (Done)
@@ -486,7 +486,7 @@ it, each new module would re-design the same plumbing.
 
 | Module                                                            | Scope | Status | Notes                                                                                                                                                                                                                                                                                          |
 | ----------------------------------------------------------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | Draft  | Stable check-ID registry building on `check_catalog.rs`, drift schema versioning + `anvil drift migrate`, per-track feature flags, CI wall-time budget + file-presence guards, FP reporting channel. Council §16.5 #7. Delivered in slices — surfaces can move to Ready against partial OPSUP. |
+| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | In Progress | 1/7 — OPSUP-001 check-ID registry slice complete; OPSUP-002..-007 Draft. Stable check-ID registry building on `check_catalog.rs`, drift schema versioning + `anvil drift migrate`, per-track feature flags, CI wall-time budget + file-presence guards, FP reporting channel. Council §16.5 #7. Delivered in slices — surfaces can move to Ready against partial OPSUP. |
 
 #### Supporting decisions
 
@@ -1218,7 +1218,7 @@ Authoritative source:
 
 | Scope ID | Module                                                            | Status | Notes                                                                                                                                                                                                   |
 | -------- | ----------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPSUP    | [operational-supplement](./modules/operational-supplement.aps.md) | Draft  | Owns stable check-ID registry building on `check_catalog.rs`, drift schema versioning, per-track flags, FP reporting. Delivered in slices — surfaces and packs may move to Ready against partial OPSUP. |
+| OPSUP    | [operational-supplement](./modules/operational-supplement.aps.md) | In Progress | 1/7 — owns stable check-ID registry building on `check_catalog.rs`, drift schema versioning, per-track flags, file-presence guards + wall-time caps, FP reporting. OPSUP-002..-007 remain Draft; surfaces and packs may move to Ready against partial OPSUP. |
 
 The previous Multi-Language Task Status table (PYLAN / RSTLAN / DNLAN with
 HTMLCSS-001 prerequisites) is fully superseded. .NET/C# is folded into Track 2's
