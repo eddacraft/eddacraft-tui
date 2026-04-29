@@ -37,11 +37,11 @@ need to `cd` into a package directory — use the patterns below instead.
 ```bash
 pnpm build          # Build all packages (Nx orchestrated, honours dependency graph)
 pnpm test           # Run all unit tests (excludes E2E)
-pnpm lint           # ESLint + markdownlint (markdownlint auto-fixes; ESLint does not)
+pnpm lint           # oxlint + ESLint + Rust lint + markdownlint auto-fix
 pnpm lint:check     # Same as lint but without auto-fix (CI mode)
 pnpm typecheck      # TypeScript strict mode across all packages (excludes anvil-vscode)
-pnpm format         # Prettier format (write mode)
-pnpm format:check   # Prettier format (check mode, CI)
+pnpm format         # oxfmt format (write mode)
+pnpm format:check   # oxfmt format (check mode, CI)
 ```
 
 ### Build Before Test
@@ -124,7 +124,7 @@ export type MyType = z.infer<typeof MySchema>;
 
 ### Formatting
 
-- **Prettier**: Single quotes, trailing commas (es5), 100 char width
+- **oxfmt**: Single quotes, trailing commas (es5), 100 char width
 - **Line endings**: LF (Unix-style)
 
 ## Testing

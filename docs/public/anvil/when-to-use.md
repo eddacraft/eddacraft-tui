@@ -90,7 +90,7 @@ anvil integrates with your existing workflow, not replaces it:
 | Tool           | anvil's role                         |
 | -------------- | ------------------------------------ |
 | ESLint         | anvil runs ESLint as a gate check    |
-| Prettier       | anvil doesn't touch formatting       |
+| Formatter      | anvil doesn't touch formatting       |
 | Jest/Vitest    | anvil can gate on test pass/coverage |
 | GitHub Actions | anvil provides a GitHub Action       |
 | VS Code        | anvil provides an extension          |
