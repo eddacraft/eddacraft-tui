@@ -144,8 +144,8 @@ impl PidFileGuard {
 
     fn create(path: &Path) -> std::io::Result<Self> {
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-        write_pid_record(&mut file)?;
-        let identity = PidFileIdentity::from_file(&file)?;
+        let record = write_pid_record(&mut file)?;
+        let identity = PidFileIdentity::from_file(&file, record)?;
         Ok(Self {
             path: path.to_path_buf(),
             identity,
@@ -247,12 +247,16 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
     Ok(())
 }
 
-fn write_pid_record(file: &mut File) -> std::io::Result<()> {
-    writeln!(file, "{}", process::id())?;
+fn write_pid_record(file: &mut File) -> std::io::Result<String> {
+    let mut record = format!("{}\n", process::id());
     if let Some(start_time) = process_start_time(process::id()) {
-        writeln!(file, "start_time={start_time}")?;
+        record.push_str("start_time=");
+        record.push_str(&start_time.to_string());
+        record.push('\n');
     }
-    file.sync_all()
+    file.write_all(record.as_bytes())?;
+    file.sync_all()?;
+    Ok(record)
 }
 
 fn recover_stale_pid_file(path: &Path) -> Result<()> {
@@ -346,6 +350,7 @@ fn process_start_time(_pid: u32) -> Option<u64> {
 
 #[derive(Debug)]
 struct PidFileIdentity {
+    record: String,
     #[cfg(unix)]
     dev: u64,
     #[cfg(unix)]
@@ -355,25 +360,36 @@ struct PidFileIdentity {
 }
 
 impl PidFileIdentity {
-    fn from_file(file: &File) -> std::io::Result<Self> {
+    fn from_file(file: &File, record: String) -> std::io::Result<Self> {
         let metadata = file.metadata()?;
-        Ok(Self::from_metadata(&metadata))
+        Ok(Self::from_metadata(&metadata, record))
     }
 
     #[cfg(unix)]
-    fn from_metadata(metadata: &fs::Metadata) -> Self {
+    fn from_metadata(metadata: &fs::Metadata, record: String) -> Self {
         Self {
+            record,
             dev: metadata.dev(),
             ino: metadata.ino(),
         }
     }
 
     #[cfg(not(unix))]
-    fn from_metadata(_metadata: &fs::Metadata) -> Self {
-        Self { pid: process::id() }
+    fn from_metadata(_metadata: &fs::Metadata, record: String) -> Self {
+        Self {
+            record,
+            pid: process::id(),
+        }
     }
 
     fn matches_path(&self, path: &Path) -> bool {
+        let Ok(record) = fs::read_to_string(path) else {
+            return false;
+        };
+        if record != self.record {
+            return false;
+        }
+
         #[cfg(unix)]
         {
             let Ok(metadata) = fs::metadata(path) else {
@@ -384,9 +400,10 @@ impl PidFileIdentity {
 
         #[cfg(not(unix))]
         {
-            fs::read_to_string(path)
-                .ok()
-                .and_then(|record| record.lines().next()?.trim().parse::<u32>().ok())
+            record
+                .lines()
+                .next()
+                .and_then(|line| line.trim().parse::<u32>().ok())
                 == Some(self.pid)
         }
     }
