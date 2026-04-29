@@ -54,14 +54,21 @@ pub enum GitignoreFindingKind {
 }
 
 /// Filenames that do **not** belong in `.gitignore` even though they
-/// match `is_env_file`. `.env.example` is the canonical "commit me"
-/// template; `.envrc` is a direnv shell script that's almost always
-/// committed and would never leak secrets if used as documented.
+/// match `is_env_file`. The canonical "commit me" templates
+/// (`.env.example`, `.env.sample`, `.env.template`) are joined here
+/// by Next.js-style `.env*.example` (e.g. `.env.local.example`,
+/// `.env.production.example`) — these are documentation templates,
+/// not real env files. `.envrc` is a direnv shell script that's
+/// almost always committed and would never leak secrets if used as
+/// documented.
 fn is_intentionally_committed(filename: &str) -> bool {
-    filename == ".env.example"
-        || filename == ".env.sample"
-        || filename == ".env.template"
-        || filename == ".envrc"
+    if filename == ".envrc" || filename == ".env.sample" || filename == ".env.template" {
+        return true;
+    }
+    // `.env*.example` covers `.env.example`, `.env.local.example`,
+    // `.env.production.example`, etc. Any filename that starts with
+    // `.env` and ends with `.example` is treated as a template.
+    filename.starts_with(".env") && filename.ends_with(".example")
 }
 
 /// Check `.gitignore` hygiene for a set of `.env`-shaped files.
@@ -92,8 +99,7 @@ pub fn check_gitignore_hygiene(
             continue;
         }
 
-        let covered = patterns.iter().any(|pattern| pattern.matches(path));
-        if covered {
+        if path_is_effectively_ignored(path, &patterns) {
             continue;
         }
 
@@ -102,8 +108,7 @@ pub fn check_gitignore_hygiene(
         } else {
             GitignoreFindingKind::MissingGitignore
         };
-        let (suppressed, reason) =
-            resolve_file_header_suppression(content, SURFENV_002_RULE_ID);
+        let (suppressed, reason) = resolve_file_header_suppression(content, SURFENV_002_RULE_ID);
         findings.push(GitignoreFinding {
             file: path.clone(),
             suggested_pattern: suggest_pattern(filename),
@@ -136,6 +141,11 @@ fn suggest_pattern(filename: &str) -> String {
 /// - `**`-bearing patterns (`**/.env.local`, `apps/**/.env.local`)
 ///   match path-component sequences correctly — `**` matches zero or
 ///   more components, `*` matches within one component.
+/// - Negation (`!.env.staging`) is preserved — copilot review caught
+///   that dropping it produced false-negatives on rules like
+///   `.env*\n!.env.staging` that re-include a specific file. Coverage
+///   is now resolved by walking patterns in source order with
+///   last-match-wins, matching the gitignore spec.
 ///
 /// Council review caught two false-negatives in the prior hand-rolled
 /// matcher (multi-glob patterns like `.env.*.local`, and any pattern
@@ -150,7 +160,25 @@ struct GitignorePattern {
     /// drives whether the regex matches against the full relative
     /// path or just the basename.
     has_path_segments: bool,
+    /// `true` for `!`-prefixed patterns. A negated match flips a
+    /// previously-ignored path back to "not ignored" per gitignore
+    /// last-match-wins semantics.
+    negated: bool,
     regex: Regex,
+}
+
+/// Walk `patterns` in source order against `path` and resolve final
+/// ignore state per gitignore last-match-wins semantics. Returns
+/// `true` when the path is effectively ignored — i.e. a positive
+/// pattern matched and no later negation re-included it.
+fn path_is_effectively_ignored(path: &Path, patterns: &[GitignorePattern]) -> bool {
+    let mut ignored = false;
+    for pattern in patterns {
+        if pattern.matches(path) {
+            ignored = !pattern.negated;
+        }
+    }
+    ignored
 }
 
 impl GitignorePattern {
@@ -182,15 +210,22 @@ fn extract_ignore_patterns(gitignore: &str) -> Vec<GitignorePattern> {
         .lines()
         .filter_map(|raw| {
             let line = raw.trim();
-            if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
+            if line.is_empty() || line.starts_with('#') {
                 return None;
             }
+            // Negation: `!`-prefixed lines re-include a previously
+            // ignored path. We keep them as `negated: true` so the
+            // last-match-wins resolver can flip the state back.
+            let (negated, after_bang) = match line.strip_prefix('!') {
+                Some(rest) => (true, rest),
+                None => (false, line),
+            };
             // Strip the trailing `/` directory marker (we match files,
             // not dirs). Leading `/` (root anchor) is preserved as a
             // signal that the pattern is path-anchored — the regex
             // builder treats the leading-slash form as "match from
             // root only" rather than basename-anywhere.
-            let trimmed_dir = line.trim_end_matches('/');
+            let trimmed_dir = after_bang.trim_end_matches('/');
             let (body, root_anchored) = match trimmed_dir.strip_prefix('/') {
                 Some(rest) => (rest, true),
                 None => (trimmed_dir, false),
@@ -198,12 +233,12 @@ fn extract_ignore_patterns(gitignore: &str) -> Vec<GitignorePattern> {
             if body.is_empty() {
                 return None;
             }
-            compile_pattern(body, root_anchored)
+            compile_pattern(body, root_anchored, negated)
         })
         .collect()
 }
 
-fn compile_pattern(body: &str, root_anchored: bool) -> Option<GitignorePattern> {
+fn compile_pattern(body: &str, root_anchored: bool, negated: bool) -> Option<GitignorePattern> {
     // A pattern is "path-segmented" when it contains a `/` after the
     // anchor strip — that means it's expressing a path constraint, and
     // the matcher should run against the full relative path.
@@ -211,6 +246,7 @@ fn compile_pattern(body: &str, root_anchored: bool) -> Option<GitignorePattern> 
     let regex = build_regex(body, has_path_segments, root_anchored)?;
     Some(GitignorePattern {
         has_path_segments,
+        negated,
         regex,
     })
 }
@@ -255,8 +291,7 @@ fn build_regex(body: &str, has_path_segments: bool, root_anchored: bool) -> Opti
                 i += 1;
             }
             // Regex metachars that need escaping.
-            b'.' | b'+' | b'(' | b')' | b'|' | b'[' | b']' | b'{' | b'}' | b'^' | b'$'
-            | b'\\' => {
+            b'.' | b'+' | b'(' | b')' | b'|' | b'[' | b']' | b'{' | b'}' | b'^' | b'$' | b'\\' => {
                 pattern.push('\\');
                 pattern.push(c as char);
                 i += 1;
@@ -293,11 +328,26 @@ pub fn check_gitignore_hygiene_for_paths(
         } else {
             repo_root.join(path)
         };
-        let content = std::fs::read_to_string(&absolute).unwrap_or_default();
+        // Distinguish "file gone" (discovery list is stale — skip it,
+        // surfacing nothing is correct because there's nothing to
+        // warn about) from real I/O failures (permission denied,
+        // symlink loop). The latter must propagate so callers can
+        // surface them to the operator instead of silently treating
+        // an unreadable file as empty content (which would also
+        // disable any SURFENV-002 header-suppression directive
+        // inside it). Council + copilot review both flagged this.
+        let content = match std::fs::read_to_string(&absolute) {
+            Ok(content) => content,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(err),
+        };
         env_files.push((path.clone(), content));
     }
 
-    Ok(check_gitignore_hygiene(&env_files, gitignore_text.as_deref()))
+    Ok(check_gitignore_hygiene(
+        &env_files,
+        gitignore_text.as_deref(),
+    ))
 }
 
 #[cfg(test)]
@@ -371,7 +421,10 @@ mod tests {
         assert_eq!(findings.len(), 1);
         let f = &findings[0];
         assert!(f.suppressed);
-        assert_eq!(f.suppression_reason.as_deref(), Some("frozen replay fixture"));
+        assert_eq!(
+            f.suppression_reason.as_deref(),
+            Some("frozen replay fixture")
+        );
     }
 
     #[test]
@@ -408,6 +461,50 @@ mod tests {
         let gitignore = "!.env\n";
         let findings = check_gitignore_hygiene(&files, Some(gitignore));
         assert_eq!(findings.len(), 1);
+    }
+
+    #[test]
+    fn negation_re_includes_path_after_broad_ignore() {
+        // Real-world pattern: ignore all `.env*` then re-include
+        // `.env.staging` because that one is committed deliberately.
+        // The .env.staging IS effectively unignored (the negation
+        // wins — last-match-wins gitignore semantics), so SURFENV-002
+        // must still fire on it. Copilot review caught the prior
+        // matcher silently dropping `!`-lines, which made this case a
+        // false negative.
+        let files = vec![
+            env_file(".env.staging", "FOO=bar\n"),
+            env_file(".env.local", "FOO=bar\n"),
+        ];
+        let gitignore = ".env*\n!.env.staging\n";
+        let findings = check_gitignore_hygiene(&files, Some(gitignore));
+        assert_eq!(findings.len(), 1, "got {findings:?}");
+        assert_eq!(findings[0].file, std::path::Path::new(".env.staging"));
+    }
+
+    #[test]
+    fn last_match_wins_ordering() {
+        // If a later positive pattern follows a negation, the file
+        // is again effectively ignored. Confirms last-match-wins.
+        let files = vec![env_file(".env.staging", "FOO=bar\n")];
+        let gitignore = ".env*\n!.env.staging\n.env.staging\n";
+        let findings = check_gitignore_hygiene(&files, Some(gitignore));
+        assert!(findings.is_empty(), "got {findings:?}");
+    }
+
+    #[test]
+    fn dot_env_local_example_is_intentionally_committed() {
+        // Next.js convention: `.env.local.example` documents the
+        // shape of `.env.local` for new contributors. Treat it as a
+        // template (no SURFENV-002 finding) even when no broad
+        // gitignore covers it. Copilot review flagged the earlier
+        // hard-coded allowlist as incomplete here.
+        let files = vec![
+            env_file(".env.local.example", "FOO=\n"),
+            env_file(".env.production.example", "FOO=\n"),
+        ];
+        let findings = check_gitignore_hygiene(&files, Some(""));
+        assert!(findings.is_empty(), "got {findings:?}");
     }
 
     #[test]
@@ -463,7 +560,10 @@ mod tests {
         // Anchored to `apps/web/` only.
         let findings = check_gitignore_hygiene(&files, Some("/apps/web/.env.local\n"));
         assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].file, std::path::Path::new("apps/api/.env.local"));
+        assert_eq!(
+            findings[0].file,
+            std::path::Path::new("apps/api/.env.local")
+        );
     }
 
     #[test]

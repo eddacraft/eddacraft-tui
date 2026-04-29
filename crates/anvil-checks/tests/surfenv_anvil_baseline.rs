@@ -143,33 +143,42 @@ fn surfenv_003_prod_value_scan_is_clean_on_anvil() {
 }
 
 #[test]
-fn surfenv_004_drift_check_handles_template_only_repo() {
-    // Anvil only commits templates — there's no concrete `.env`-side
-    // to compare against. The drift rule must therefore report
-    // nothing when handed a template against an empty concrete file.
-    // (The "concrete file is missing entirely" case is left to
-    // discovery — SURFENV-004 itself is a pure pair-comparison.)
-    for relative in ANVIL_ENV_FILES {
+fn surfenv_004_drift_check_template_only_pairwise_run_is_missing_from_concrete_only() {
+    // Anvil only commits templates; the higher-level repo walk
+    // (`run_surfenv_check::pair_template_with_concrete`) avoids
+    // pairing those against a missing concrete sibling — so the
+    // aggregator surfaces zero drift findings here. This test
+    // exercises the lower-level pairwise helper directly and records
+    // its narrower contract: when given a committed template and an
+    // empty concrete file, every unsuppressed finding must be
+    // `MissingFromConcrete` (every example-side key is "missing"
+    // from the empty concrete). Copilot review caught the prior
+    // version asserting nothing useful — fixed by filtering to
+    // template files and tripping if zero templates are checked.
+    let mut checked_templates = 0;
+    for relative in ANVIL_ENV_FILES
+        .iter()
+        .copied()
+        .filter(|relative| relative.ends_with(".example"))
+    {
         let Some(content) = read_repo_file(relative) else {
             continue;
         };
+        checked_templates += 1;
         let findings = check_env_drift(relative, &content, "<no-concrete>", "");
         let unsuppressed: Vec<_> = findings.iter().filter(|f| !f.suppressed).collect();
-        // Every key in the example is "missing from concrete" — that
-        // is the *correct* behaviour, but it would be noisy if surfaced
-        // for every template-only repo. Real CLI integration will gate
-        // this rule on "a concrete file actually exists alongside the
-        // template" — see SURFENV-004's discovery hand-off (Phase 4
-        // work). Here we just record the contract: the rule itself does
-        // produce findings, all of kind MissingFromConcrete.
         for finding in &unsuppressed {
             assert_eq!(
                 finding.kind,
                 anvil_checks::surface::env::DriftKind::MissingFromConcrete,
-                "unexpected drift kind on a template-only run"
+                "unexpected drift kind on a template-only pairwise run"
             );
         }
     }
+    assert!(
+        checked_templates > 0,
+        "expected at least one committed template file in ANVIL_ENV_FILES"
+    );
 }
 
 #[test]
@@ -186,10 +195,7 @@ fn external_validation_smoke_against_synthetic_repo() {
     // SURFENV-002: the .env.local must be flagged.
     let env_files = vec![
         (PathBuf::from(".env.local"), env_local.to_string()),
-        (
-            PathBuf::from(".env.example"),
-            env_example.to_string(),
-        ),
+        (PathBuf::from(".env.example"), env_example.to_string()),
     ];
     let gitignore_findings = check_gitignore_hygiene(&env_files, Some(gitignore));
     assert!(
@@ -214,9 +220,7 @@ fn external_validation_smoke_against_synthetic_repo() {
     // concrete; nothing should be missing from the example.
     let drift_findings = check_env_drift(".env.example", env_example, ".env.local", env_local);
     assert!(
-        drift_findings
-            .iter()
-            .any(|f| f.key == "LEGACY_FLAG"),
+        drift_findings.iter().any(|f| f.key == "LEGACY_FLAG"),
         "expected LEGACY_FLAG drift finding"
     );
 }

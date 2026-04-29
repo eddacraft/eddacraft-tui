@@ -133,10 +133,7 @@ FOO=bar\n";
         ];
         let (suppressed, reason) = resolve_line_suppression(&lines, 2, "SURFENV-003");
         assert!(suppressed);
-        assert!(
-            reason.is_none(),
-            "expected None, got Some({reason:?})"
-        );
+        assert!(reason.is_none(), "expected None, got Some({reason:?})");
     }
 
     #[test]

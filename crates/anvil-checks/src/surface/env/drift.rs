@@ -16,19 +16,22 @@
 //!   that's absent from the concrete file. The example is stale or the
 //!   concrete file was forgotten when adding a new variable.
 //!
-//! Per-key, per-finding granularity makes this rule's output paste-
-//! ready for an operator: each finding names the file pair, the key,
-//! and a one-line direction ("add this key to `.env.example`" / "set
-//! this key in `.env.local`").
+//! Findings are still reported per key: each one names the file pair,
+//! the key, and a one-line direction ("add this key to `.env.example`"
+//! / "set this key in `.env.local`").
 //!
 //! Suppression follows [ADR-029](../../../../plans/decisions/029-suppression-parser-authority.md):
 //! a `# @anvil-ignore SURFENV-004 -- <reason>` directive in the file
-//! that *should* be updated suppresses the finding for that file pair.
-//! For [`DriftKind::MissingFromExample`] the directive lives in the
+//! that *should* be updated suppresses matching SURFENV-004 findings
+//! for that file in that direction. For
+//! [`DriftKind::MissingFromExample`] the directive lives in the
 //! example; for [`DriftKind::MissingFromConcrete`] it lives in the
-//! concrete file. File-header (top-of-file) suppression is enough — a
-//! key-by-key directive would clutter `.env.example` and miss the
-//! point of "we're choosing to ignore drift in this file pair".
+//! concrete file. Because suppression is resolved from a file-header
+//! (top-of-file) directive, one directive applies to every relevant
+//! finding for that file across every pairing — not to a single key
+//! or single file pair. A key-by-key directive would clutter
+//! `.env.example` and miss the point of "we're choosing to ignore
+//! drift in this file".
 
 use std::collections::BTreeSet;
 
@@ -136,9 +139,7 @@ pub fn check_env_drift(
     // Stable order: by kind first (MissingFromExample before
     // MissingFromConcrete — that's the order callers iterate above),
     // then by key. Makes test assertions and CLI output predictable.
-    findings.sort_by(|a, b| {
-        (a.kind as u8, a.key.as_str()).cmp(&(b.kind as u8, b.key.as_str()))
-    });
+    findings.sort_by(|a, b| (a.kind as u8, a.key.as_str()).cmp(&(b.kind as u8, b.key.as_str())));
 
     findings
 }
@@ -208,9 +209,8 @@ mod tests {
     #[test]
     fn directive_in_concrete_suppresses_missing_from_concrete_findings() {
         let example = "OLD_FLAG=\nKEEP=\n";
-        let concrete = format!(
-            "# @anvil-ignore {SURFENV_004_RULE_ID} -- legacy concrete\nKEEP=value\n"
-        );
+        let concrete =
+            format!("# @anvil-ignore {SURFENV_004_RULE_ID} -- legacy concrete\nKEEP=value\n");
         let findings = check_env_drift(".env.example", example, ".env.local", &concrete);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].kind, DriftKind::MissingFromConcrete);

@@ -108,7 +108,9 @@ pub fn run_surfenv_check(
     // SURFENV-003 — prod-shaped values in non-prod env files.
     for (path, content) in env_files {
         let display = path.to_string_lossy();
-        result.prod_values.extend(scan_prod_values(&display, content));
+        result
+            .prod_values
+            .extend(scan_prod_values(&display, content));
     }
 
     // SURFENV-004 — drift between sibling template/concrete pairs.
@@ -128,13 +130,33 @@ pub fn run_surfenv_check(
     result
 }
 
-/// True when `path`'s filename is a template (`.env.example`,
-/// `.env.sample`, `.env.template`).
+/// True when `path`'s filename is a template — `.env.sample`,
+/// `.env.template`, or any `.env*.example` form (covers the bare
+/// `.env.example` and Next.js' `.env.local.example`,
+/// `.env.production.example`, etc).
 fn is_template_filename(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
-    matches!(name, ".env.example" | ".env.sample" | ".env.template")
+    if matches!(name, ".env.sample" | ".env.template") {
+        return true;
+    }
+    name.starts_with(".env") && name.ends_with(".example")
+}
+
+/// True when `path`'s filename is a key/value `.env*` file the drift
+/// rule can sensibly compare against a template — i.e. anything
+/// matched by `is_env_file` *except* `.envrc` (a direnv shell script,
+/// not a `KEY=value` file) and template forms (handled by
+/// [`is_template_filename`]).
+fn is_drift_concrete_filename(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    if name == ".envrc" {
+        return false;
+    }
+    !is_template_filename(path)
 }
 
 /// Pair each template file with sibling concrete `.env*` files in the
@@ -157,10 +179,20 @@ fn pair_template_with_concrete<'a>(
 
     let mut pairings = Vec::new();
     for siblings in by_dir.values() {
-        let templates: Vec<&&(PathBuf, String)> =
-            siblings.iter().filter(|e| is_template_filename(&e.0)).collect();
-        let concretes: Vec<&&(PathBuf, String)> =
-            siblings.iter().filter(|e| !is_template_filename(&e.0)).collect();
+        let templates: Vec<&&(PathBuf, String)> = siblings
+            .iter()
+            .filter(|e| is_template_filename(&e.0))
+            .collect();
+        // Concrete drift candidates exclude `.envrc` — a direnv
+        // shell script that isn't a `KEY=value` file and so would
+        // produce noise when compared to an env template. Copilot
+        // review flagged this; the pair-with-everything default
+        // would have surfaced spurious drift findings on any repo
+        // that ships a `.envrc` alongside an `.env.example`.
+        let concretes: Vec<&&(PathBuf, String)> = siblings
+            .iter()
+            .filter(|e| is_drift_concrete_filename(&e.0))
+            .collect();
         for template in &templates {
             for concrete in &concretes {
                 pairings.push((&template.0, &template.1, &concrete.0, &concrete.1));
@@ -172,7 +204,7 @@ fn pair_template_with_concrete<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{run_surfenv_check, SurfenvCheckResult};
+    use super::{SurfenvCheckResult, run_surfenv_check};
     use crate::secret::SecretCheckConfig;
     use std::path::PathBuf;
 
@@ -241,6 +273,47 @@ mod tests {
             + result.prod_values.len()
             + result.drift.len();
         assert_eq!(result.total_findings(), manual_total);
+    }
+
+    #[test]
+    fn drift_pairing_treats_next_js_local_example_as_template() {
+        // Real-world Next.js layout: `.env.local.example` documents
+        // the shape of `.env.local` for new contributors. Copilot
+        // review caught the prior allowlist missing this — drift
+        // pairing must still recognise it as a template.
+        let example = "FOO=\nAPI_KEY=\n".to_string();
+        let local = "FOO=val\nAPI_KEY=val\nNEW=set\n".to_string();
+        let env_files = vec![
+            (PathBuf::from("apps/web/.env.local.example"), example),
+            (PathBuf::from("apps/web/.env.local"), local),
+        ];
+        let result = run_surfenv_check(&env_files, Some(""), &config_no_entropy());
+        assert!(
+            result.drift.iter().any(|f| f.key == "NEW"),
+            "expected drift finding for NEW; got {:?}",
+            result.drift
+        );
+    }
+
+    #[test]
+    fn drift_pairing_excludes_envrc_from_concrete_set() {
+        // `.envrc` is a direnv shell script, not a key/value env
+        // file. Pairing it with an `.env.example` template would
+        // produce noisy "every example key is missing" findings
+        // since `.envrc` parses as zero entries. Copilot review
+        // flagged this.
+        let example = "FOO=\n".to_string();
+        let envrc = "export FOO=val\n".to_string();
+        let env_files = vec![
+            (PathBuf::from(".env.example"), example),
+            (PathBuf::from(".envrc"), envrc),
+        ];
+        let result = run_surfenv_check(&env_files, Some(""), &config_no_entropy());
+        assert!(
+            result.drift.is_empty(),
+            ".envrc must not pair with .env.example; got {:?}",
+            result.drift
+        );
     }
 
     #[test]

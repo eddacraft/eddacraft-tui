@@ -103,7 +103,8 @@ pub fn scan_prod_values(file_path: &str, content: &str) -> Vec<ProdValueFinding>
         let Some(indicator) = classify_entry(entry) else {
             continue;
         };
-        let (suppressed, reason) = resolve_line_suppression(&lines, entry.line, SURFENV_003_RULE_ID);
+        let (suppressed, reason) =
+            resolve_line_suppression(&lines, entry.line, SURFENV_003_RULE_ID);
         findings.push(ProdValueFinding {
             file: file_path.to_string(),
             line: entry.line,
@@ -238,15 +239,20 @@ fn redact_excerpt(value: &str) -> String {
         return "[redacted]".to_string();
     }
     let head: String = chars.iter().take(4).collect();
-    let tail: String = chars.iter().rev().take(4).collect::<String>().chars().rev().collect();
+    let tail: String = chars
+        .iter()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
     format!("{head}…{tail}")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ProdIndicator, SURFENV_003_RULE_ID, is_non_prod_env_file, scan_prod_values,
-    };
+    use super::{ProdIndicator, SURFENV_003_RULE_ID, is_non_prod_env_file, scan_prod_values};
     use std::path::Path;
 
     #[test]
@@ -276,12 +282,12 @@ mod tests {
 
     #[test]
     fn flags_value_mentioning_production_word() {
-        let findings = scan_prod_values(
-            ".env.local",
-            "FEATURE_FLAGS_ENV=production\n",
-        );
+        let findings = scan_prod_values(".env.local", "FEATURE_FLAGS_ENV=production\n");
         assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].indicator, ProdIndicator::ValueMentionsProduction);
+        assert_eq!(
+            findings[0].indicator,
+            ProdIndicator::ValueMentionsProduction
+        );
         assert_eq!(findings[0].key, "FEATURE_FLAGS_ENV");
     }
 
@@ -321,10 +327,7 @@ mod tests {
         );
         assert!(findings.is_empty(), "got {findings:?}");
 
-        let findings = scan_prod_values(
-            ".env.local",
-            "API_HOST=https://api.dev.acme.io/v1\n",
-        );
+        let findings = scan_prod_values(".env.local", "API_HOST=https://api.dev.acme.io/v1\n");
         assert!(findings.is_empty(), "got {findings:?}");
     }
 
@@ -343,10 +346,7 @@ mod tests {
     #[test]
     fn does_not_match_reproduction() {
         // Word boundary check: `reproduction` must NOT trip the rule.
-        let findings = scan_prod_values(
-            ".env.local",
-            "DOC_TITLE=reproduction-of-bug\n",
-        );
+        let findings = scan_prod_values(".env.local", "DOC_TITLE=reproduction-of-bug\n");
         assert!(findings.is_empty());
     }
 
@@ -367,10 +367,7 @@ mod tests {
         // an `example.com` host short-circuits the rule even when a
         // `production` segment is present (intentional carve-out for
         // IETF-reserved docs domains).
-        let findings = scan_prod_values(
-            ".env.local",
-            "API_HOST=api.production.acme.io\n",
-        );
+        let findings = scan_prod_values(".env.local", "API_HOST=api.production.acme.io\n");
         assert_eq!(findings.len(), 1);
         // Host-segment check fires first (higher precedence than the
         // word check) — but both should agree on "this is prod".
@@ -379,10 +376,8 @@ mod tests {
 
     #[test]
     fn flags_key_suffix_prod_with_value() {
-        let findings = scan_prod_values(
-            ".env.local",
-            "DATABASE_URL_PROD=postgres://elsewhere/db\n",
-        );
+        let findings =
+            scan_prod_values(".env.local", "DATABASE_URL_PROD=postgres://elsewhere/db\n");
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].indicator, ProdIndicator::KeySuffixProd);
     }
@@ -426,7 +421,10 @@ mod tests {
         assert_eq!(findings.len(), 1);
         let f = &findings[0];
         assert!(f.suppressed);
-        assert_eq!(f.suppression_reason.as_deref(), Some("intentional prod replay"));
+        assert_eq!(
+            f.suppression_reason.as_deref(),
+            Some("intentional prod replay")
+        );
     }
 
     #[test]
@@ -442,10 +440,7 @@ DATABASE_URL=postgres://prod-db.internal/app
 
     #[test]
     fn redaction_does_not_leak_full_value() {
-        let findings = scan_prod_values(
-            ".env.local",
-            "SECRET_PROD=ABCDEFGHIJKLMNOPQRSTUVWXYZ\n",
-        );
+        let findings = scan_prod_values(".env.local", "SECRET_PROD=ABCDEFGHIJKLMNOPQRSTUVWXYZ\n");
         assert_eq!(findings.len(), 1);
         let excerpt = &findings[0].redacted_excerpt;
         assert!(!excerpt.contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));

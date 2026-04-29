@@ -81,9 +81,8 @@ fn surfenv_003_line_directive_suppresses() {
 
 #[test]
 fn surfenv_004_header_directive_suppresses_example_side() {
-    let example = format!(
-        "# @anvil-ignore {SURFENV_004_RULE_ID} -- audit fixture\nDATABASE_URL=\n"
-    );
+    let example =
+        format!("# @anvil-ignore {SURFENV_004_RULE_ID} -- audit fixture\nDATABASE_URL=\n");
     let concrete = "DATABASE_URL=postgres://x\nNEW_FLAG=true\n";
     let findings = check_env_drift(".env.example", &example, ".env.local", concrete);
     assert_eq!(findings.len(), 1);

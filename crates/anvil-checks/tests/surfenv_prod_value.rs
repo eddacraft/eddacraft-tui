@@ -35,10 +35,7 @@ fn prod_in_local_fixture_yields_expected_findings() {
     assert_eq!(suppressed[0].key, "LEGACY_HOST");
 
     let staging_finding = findings.iter().find(|f| f.key == "SECONDARY_HOST");
-    assert!(
-        staging_finding.is_none(),
-        "staging host must short-circuit"
-    );
+    assert!(staging_finding.is_none(), "staging host must short-circuit");
 
     let key_suffix = findings
         .iter()
@@ -46,7 +43,9 @@ fn prod_in_local_fixture_yields_expected_findings() {
         .expect("SECRET_PROD key-suffix finding");
     assert_eq!(key_suffix.key, "SECRET_PROD");
     assert!(
-        !key_suffix.redacted_excerpt.contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+        !key_suffix
+            .redacted_excerpt
+            .contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
         "redaction must hide the raw value"
     );
 }
