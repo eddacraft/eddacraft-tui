@@ -137,9 +137,9 @@ a new lane.
   `InterceptRule` trait surface for downstream INTR work). CLI
   surface `anvil intercept start --foreground` is wired through
   `crates/anvil-cli/src/commands/intercept.rs`. Foreground startup
-  writes an atomic PID file at the daemon runtime path, refuses a
-  second daemon against the same PID file, and removes the PID file on
-  clean shutdown. Proto, daemon, and CLI intercept tests pass locally;
+  creates the PID file exclusively at the daemon runtime path, refuses
+  a second daemon against the same PID file, and removes the PID file
+  on clean shutdown. Proto, daemon, and CLI intercept tests pass locally;
   Windows coverage is provided by the existing `rust.yml` workspace
   build/test matrix because the intercept crates are workspace members.
 - **Trigger flag (parser concurrency ADR):** The LANGTS audit

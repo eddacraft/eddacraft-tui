@@ -51,6 +51,12 @@ use std::process;
 use std::time::Duration;
 
 #[cfg(unix)]
+use nix::errno::Errno;
+#[cfg(unix)]
+use nix::sys::signal::kill;
+#[cfg(unix)]
+use nix::unistd::{Pid, geteuid};
+#[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 
 use anyhow::{Context, Result};
@@ -219,7 +225,7 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
         anyhow::bail!("PID file directory is not a directory: {}", path.display());
     }
 
-    let expected_uid = rustix::process::geteuid().as_raw();
+    let expected_uid = geteuid().as_raw();
     if metadata.uid() != expected_uid {
         anyhow::bail!(
             "PID file directory {} is owned by uid {}, expected {}",
@@ -256,29 +262,40 @@ fn recover_stale_pid_file(path: &Path) -> Result<()> {
         anyhow::bail!("refusing symlink PID file {}", path.display());
     }
 
-    let record = fs::read_to_string(path).unwrap_or_default();
-    if existing_pid_is_live(&record) {
-        anyhow::bail!(
-            "anvil intercept daemon is already running or stale PID file exists at {}",
-            path.display(),
-        );
+    let record = fs::read_to_string(path)
+        .with_context(|| format!("failed to read existing PID file {}", path.display()))?;
+    match existing_pid_status(&record) {
+        ExistingPidStatus::Stale => {}
+        ExistingPidStatus::Live | ExistingPidStatus::Unknown => {
+            anyhow::bail!(
+                "anvil intercept daemon is already running or PID file cannot be proven stale at {}",
+                path.display(),
+            );
+        }
     }
 
     fs::remove_file(path)
         .with_context(|| format!("failed to remove stale PID file {}", path.display()))
 }
 
-fn existing_pid_is_live(record: &str) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExistingPidStatus {
+    Live,
+    Stale,
+    Unknown,
+}
+
+fn existing_pid_status(record: &str) -> ExistingPidStatus {
     let Some(pid) = record
         .lines()
         .next()
         .and_then(|line| line.trim().parse::<u32>().ok())
     else {
-        return false;
+        return ExistingPidStatus::Unknown;
     };
 
     if pid == process::id() {
-        return true;
+        return ExistingPidStatus::Live;
     }
 
     let recorded_start_time = record
@@ -286,14 +303,33 @@ fn existing_pid_is_live(record: &str) -> bool {
         .find_map(|line| line.strip_prefix("start_time="))
         .and_then(|value| value.parse::<u64>().ok());
 
-    match (recorded_start_time, process_start_time(pid)) {
-        (Some(expected), Some(actual)) => expected == actual,
-        (None, Some(_)) => true,
-        #[cfg(target_os = "linux")]
-        (_, None) => false,
-        #[cfg(not(target_os = "linux"))]
-        _ => true,
+    if !process_exists(pid) {
+        return ExistingPidStatus::Stale;
     }
+
+    if let (Some(expected), Some(actual)) = (recorded_start_time, process_start_time(pid)) {
+        if expected == actual {
+            ExistingPidStatus::Live
+        } else {
+            ExistingPidStatus::Stale
+        }
+    } else {
+        ExistingPidStatus::Live
+    }
+}
+
+#[cfg(unix)]
+fn process_exists(pid: u32) -> bool {
+    let Ok(pid) = i32::try_from(pid) else {
+        return false;
+    };
+
+    !matches!(kill(Pid::from_raw(pid), None), Err(Errno::ESRCH))
+}
+
+#[cfg(not(unix))]
+fn process_exists(_pid: u32) -> bool {
+    true
 }
 
 #[cfg(target_os = "linux")]
@@ -754,6 +790,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[tokio::test(flavor = "current_thread")]
     async fn run_foreground_recovers_stale_pid_file() {
         let tmp = tempfile::tempdir().unwrap();
@@ -776,6 +813,28 @@ mod tests {
             .expect("foreground loop did not return after shutdown")
             .expect("join failure")
             .expect("foreground loop reported error");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_foreground_preserves_unparseable_existing_pid_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        create_secure_test_pid_dir(pid_file.parent().expect("pid parent"));
+        fs::write(&pid_file, "not-a-pid\n").expect("write malformed pid");
+        let (_, token) = Shutdown::new();
+
+        let err = run_foreground(test_opts(&pid_file), token)
+            .await
+            .expect_err("malformed pid record should not be deleted as stale");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("cannot be proven stale"),
+            "error should refuse unproven stale records, got: {message}",
+        );
+        assert_eq!(
+            fs::read_to_string(&pid_file).expect("malformed pid file should remain"),
+            "not-a-pid\n",
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
