@@ -295,7 +295,7 @@ mod tests {
                     definition.canonical_name,
                     alias
                 );
-                assert!(aliases.insert(*alias), "duplicate alias '{}',", alias);
+                assert!(aliases.insert(*alias), "duplicate alias '{}'", alias);
             }
         }
     }
