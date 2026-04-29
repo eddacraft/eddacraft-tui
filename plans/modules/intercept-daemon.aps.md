@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 2/16 complete, 1 committed (INTD-001 in PR #1165) |
+| INTD | @aneki | In Progress | 2/16 complete, 1 committed (INTD-002) |
 
 **Last reviewed:** 2026-04-29
 
@@ -126,7 +126,7 @@ a new lane.
   runbook §4.1 falls back to when the backgrounded daemon fails to start
   and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
-- **Status:** Committed
+- **Status:** Complete
 - **Committed (2026-04-29, PR #1165):** Three crates scaffolded —
   `crates/anvil-intercept-proto/` (NDJSON envelope, `SessionId`,
   `IpcCommand` enum: register/heartbeat/unregister/list),
@@ -188,7 +188,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
   plus permission-creation unit tests on each platform (Linux/macOS
   permission bits; Windows ACL).
-- **Status:** Complete
+- **Status:** Committed
 - **Progress (2026-04-29, `feat/INTD-002`):** `crates/anvil-intercept/src/ipc.rs`
   ships the `SessionDispatcher` trait, `NoopDispatcher`, the Unix
   socket-dir resolution + permission ladder (lstat-based symlink
@@ -201,6 +201,23 @@ a new lane.
   resolution + DACL binding are scaffolded behind `#[cfg(windows)]`
   with `unimplemented!()` stubs; pipe-name helper is unit-tested on
   Windows builds. PID-file guarding is covered by INTD-001.
+- **Reopened (2026-04-29):** A1 now requires the full cross-platform
+  contract, including Windows named-pipe binding with an owner-only
+  security descriptor and foreground daemon integration with the IPC
+  listener and session registry.
+- **Committed (2026-04-29, `feat/INTD-002-cross-platform`):** Foreground
+  daemon startup now owns a `SessionRegistry`, binds the IPC listener,
+  dispatches registration frames into the registry, ticks stale-session
+  eviction, and shuts the listener down with bounded drain. Windows
+  named-pipe binding is implemented through the Windows-only
+  `anvil-intercept-win32` helper crate so `anvil-intercept` remains
+  `#![forbid(unsafe_code)]`; the helper creates a local-only pipe with
+  `PIPE_REJECT_REMOTE_CLIENTS` and an explicit current-user owner-only
+  DACL. Validation: `cargo test -p eddacraft-anvil-intercept` (51 pass),
+  `cargo clippy -p eddacraft-anvil-intercept --all-targets -- -D warnings`,
+  `cargo clippy -p eddacraft-anvil-intercept --target x86_64-pc-windows-msvc --all-targets -- -D warnings`,
+  `cargo clippy -p eddacraft-anvil-intercept-win32 --target x86_64-pc-windows-msvc --all-targets -- -D warnings`,
+  `cargo fmt --check`, and `cargo hakari verify`.
 - **Council review (2026-04-24):** M8 (security-analyst) pinned the
   end-to-end creation sequence above; see
   PR #1063.
