@@ -3,18 +3,35 @@
 
 # Observability Foundation
 
-| ID  | Owner      | Status | Progress |
-| --- | ---------- | ------ | -------- |
-| OBS | @eddacraft | Draft  | 0/6      |
+| ID  | Owner      | Status | Progress                                                  |
+| --- | ---------- | ------ | --------------------------------------------------------- |
+| OBS | @eddacraft | Draft  | 0/5 (was 0/6 before OBS-006 migrated to TRACE-001 on 2026-04-30) |
 
-**Last reviewed:** 2026-04-29
+**Last reviewed:** 2026-04-30
+
+> **Scope reduction (2026-04-30, Planning Council session
+> [plan-b00c16c7](../decisions/034-cross-cutting-modules-as-aps-primitive.md)):**
+> Cross-cutting tracing scope (originally OBS-006) migrated to
+> [`tracing-foundation.aps.md`](./tracing-foundation.aps.md) (TRACE) on
+> 2026-04-30 per [ADR-035](../decisions/035-three-pipe-observability-rule.md)
+> / Planning Council session plan-b00c16c7. OBS-001..005 remain Draft and
+> deferred to post-launch hardening. The new
+> [observability-export](./observability-export.aps.md) module (EXPORT)
+> owns the deferred production sink choice. See
+> [ADR-035](../decisions/035-three-pipe-observability-rule.md) for the
+> three-pipe rule (Kindling = governance facts; Notification =
+> user-visible state; tracing/OTEL = ephemeral debugging) that pins each
+> pipe's role.
 
 > **Audit note (2026-04-26):** Several upstream dependencies named below
 > (`kindling-integration`, `edda-stack-integration`, `cli-hardening`) now live
 > in `plans/archive/modules/`. They predate the TS→Rust migration and are not
 > part of active scope. Re-derive concrete observability requirements from
 > the live Rust crates (`anvil-cli`, `anvil-kernel`, `anvil-tui`) and the
-> `dashboard-ops-views` module before promoting OBS to Ready.
+> `dashboard-ops-views` module before promoting OBS to Ready. The
+> tracing-baseline portion of that re-derivation moved to TRACE on
+> 2026-04-30 (see scope reduction note above); OBS-001..005 remain
+> domain-ops scope and stay Draft.
 
 ## Purpose
 
@@ -28,8 +45,9 @@ Unify Anvil observability into one executable foundation so incidents can be det
 - Dashboard data contract for operational views (including real-time update feed)
 - Alert thresholds + severity mapping for production support
 - Runbooks for common operational failures and recovery actions
-- Runtime tracing baseline across Rust services, CLI entry points, and hosted API
-  paths
+- ~~Runtime tracing baseline across Rust services, CLI entry points, and hosted
+  API paths~~ — **migrated to TRACE on 2026-04-30** (see scope reduction note
+  at top); now owned by [`tracing-foundation`](./tracing-foundation.aps.md)
 
 ## Out of Scope
 
@@ -55,8 +73,11 @@ Unify Anvil observability into one executable foundation so incidents can be det
 - Neon health checklist + query diagnostics model
 - Dashboard/live-feed data requirements for ops pages
 - Runbook set for support + engineering responders
-- Tracing conventions for spans, correlation IDs, redaction, and exporter
-  boundaries
+- ~~Tracing conventions for spans, correlation IDs, redaction, and exporter
+  boundaries~~ — **migrated to TRACE on 2026-04-30**; tracing conventions are
+  now exposed by [`tracing-foundation`](./tracing-foundation.aps.md) (the
+  `anvil-observability` Rust crate, the `traceparent` propagation surface,
+  and the namespace registry stub)
 
 ## Ready Checklist
 
@@ -99,24 +120,17 @@ Change status to **Ready** when:
 - **Expected Outcome:** Published runbooks for Neon DB ops, waitlist email delivery, and observability triage.
 - **Validation:** `test -f docs/runbooks/neon-db-operations.md && test -f docs/runbooks/observability-triage.md && test -f docs/runbooks/waitlist-email-operations.md`
 
-### OBS-006: Runtime tracing baseline
+### ~~OBS-006~~ — superseded by TRACE-001
 
-- **Intent:** Make request, command, daemon, and validation flows traceable
-  without inventing a second telemetry vocabulary.
-- **Expected Outcome:** Rust CLI / daemon paths and hosted API routes emit
-  structured spans with correlation IDs, bounded fields, and documented redaction
-  rules. Tracing integrates with the existing notification / telemetry envelope
-  where events cross surface boundaries, while low-level spans remain diagnostic
-  context rather than user-facing notifications. Exporter boundaries are explicit:
-  local development can log spans, production can forward spans to the chosen
-  observability sink, and no secret-bearing content is exported by default.
-- **Files:** `crates/anvil-cli/src/main.rs`, `crates/anvil-intercept/src/main.rs`,
-  `crates/anvil-intercept/src/lib.rs`, `apps/anvil-api/src/index.ts`,
-  `docs/runbooks/observability-triage.md`
-- **Dependencies:** OBS-001, INTD-013, NOTIFY telemetry contract, ADR-023
-- **Validation:** `rg -n "tracing|span|correlation|redact" crates/anvil-cli crates/anvil-intercept apps/anvil-api docs/runbooks/observability-triage.md`
-- **Confidence:** medium
-- **Status:** Draft
+Originally scoped as the runtime tracing baseline. Migrated to
+[`tracing-foundation`](./tracing-foundation.aps.md) on 2026-04-30 per
+Planning Council session plan-b00c16c7 and
+[ADR-035](../decisions/035-three-pipe-observability-rule.md). The full
+launch-blocker scope (subscriber init, W3C `traceparent` propagation,
+redaction layer, namespace registry stub, INTD-014 fixture update) now
+lives under TRACE-001. The deferred follow-ups (TS mirror, redaction
+hardening) are TRACE-002 and TRACE-003. The deferred production sink
+choice is the EXPORT module.
 
 ## Execution
 

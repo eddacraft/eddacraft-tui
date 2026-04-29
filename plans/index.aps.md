@@ -22,6 +22,7 @@
 - [Auth & Access](#auth--access-complete)
 - [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
 - [Observability Foundation](#observability-foundation-draft)
+- [Tracing Foundation](#tracing-foundation-ready)
 - [Infrastructure as Code](#infrastructure-as-code-complete)
 - [Web Dashboard](#web-dashboard-ready)
 - [Policy Governance](#policy-governance-draftready)
@@ -271,13 +272,39 @@ format. Discovery-first: understand the interface before building.
 
 ### Observability Foundation (Draft)
 
-Unified observability: telemetry contracts, Neon health instrumentation,
-dashboard ops data contract, tracing baseline, alert thresholds, runbook pack. 6
-tasks.
+Domain ops: telemetry contracts, Neon health instrumentation, dashboard ops
+data contract, alert thresholds, runbook pack. 5 tasks (post-launch
+hardening). The cross-cutting tracing baseline originally scoped as OBS-006
+moved to TRACE on 2026-04-30 per Planning Council session plan-b00c16c7;
+see [ADR-035](./decisions/035-three-pipe-observability-rule.md) for the
+three-pipe rule and [Tracing Foundation](#tracing-foundation-ready) below.
 
-| Module                                                                | Scope | Status | Progress | Dependencies                              |
-| --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------- |
-| [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/6      | kindling-integration, dashboard-ops-views |
+| Module                                                                | Scope | Status | Progress | Dependencies                                                                                                                  |
+| --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/5      | kindling-integration, dashboard-ops-views; tracing scope migrated to TRACE on 2026-04-30 (OBS-006 superseded by TRACE-001)    |
+
+### Tracing Foundation (Ready)
+
+Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
+daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
+surface. Second trial of the cross-cutting module convention promoted to
+APS under [ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md).
+Pre-launch scope is **TRACE-001 only** (subscriber init, W3C `traceparent`
+propagation, redaction layer, namespace registry stub, INTD-014 fixture
+update). TRACE-002 (TS mirror) and TRACE-003 (redaction hardening) are
+post-launch. Production sink choice is deferred to the EXPORT module.
+
+| Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
+| --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | Ready  | 0/3      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views; cites ADR-019 (namespace freedom), ADR-034 (cross-cutting primitive), ADR-035 (three-pipe rule); precondition: LAUNCH-003 callout sweep |
+| [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
+
+> **Precondition before TRACE goes Ready in the next reviewer pass:**
+> LAUNCH-003 carries an open `Coordinates with: TUIDASH-009` callout in
+> Complete state. Per ADR-034 rule 3, that callout must be swept by
+> LAUNCH's closer (confirm, downgrade, or document-and-close). It is
+> **not** a TRACE-001 sub-task — it is owned by LAUNCH and gates TRACE
+> staying Ready in good standing.
 
 ### Infrastructure as Code (In Progress)
 
@@ -709,7 +736,7 @@ Active module themes:
 | Continuous Improvement  | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Rust Engine             | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Beta Auth               | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Observability           | [observability-foundation](./modules/observability-foundation.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Observability           | [observability-foundation](./modules/observability-foundation.aps.md), [tracing-foundation](./modules/tracing-foundation.aps.md), [observability-export](./modules/observability-export.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Infrastructure as Code  | [pulumi-iac](./archive/modules/pulumi-iac.aps.md), [database-consolidation](./archive/modules/database-consolidation.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Web Dashboard           | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Policy Governance       | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -1248,6 +1275,9 @@ potential (spec §8.2).
 | PGID TOCTOU race in intercept     | high       | medium     | Verify PGID ownership before signalling; fence on failure (D-015 AD-7)      |
 | Intercept v1 scope creep          | medium     | medium     | Strict out-of-scope list; binary allow/interrupt; no driver framework in v1 |
 | Shell wrapper bypass              | medium     | medium     | Hook side-channel + fence-on-unknown fallback (D-015 AD-2)                  |
+| Secret content via `notification.context` (TRACE R1) | medium | low | Risk **accepted pre-launch** (Planning Council session plan-b00c16c7); revisit when INTD-015 reaches Ready OR first secret-detection rule ships, whichever first; TRACE-003 is the tracing-pipe side of the mitigation |
+| `anvil.<domain>.*` namespace fragmentation (TRACE R2) | medium | medium | Namespace registry doc (TRACE-001 stub at `docs/observability/namespace-registry.md`) + founder-reviewed PR-to-add gate; ADR-019 governs namespace freedom, ADR-035 governs pipe allocation |
+| Dashboard cannot join traces day one (TRACE R3) | low | high | Documented in Known Gaps section of namespace registry; closes when TRACE-002 lands the TS-side `traceparent` parser |
 
 ## Decisions
 
@@ -1287,6 +1317,17 @@ potential (spec §8.2).
 - **D-015:** Intercept Loop Enforcement — driver-based host-local enforcement
   daemon with process-group control, configurable enforcement policy, and fence
   persistence ([ADR](./decisions/015-intercept-loop-enforcement.md))
+- **D-034:** Cross-cutting modules as APS primitive — promoted from LAUNCH's
+  local convention block to a normative `## Cross-Cutting Modules` section in
+  `aps-rules.md`; LAUNCH (first trial) and TRACE (second trial) cite by anchor;
+  `Blocks on:` callout type carried as provisional until exercised through a
+  real close ([ADR](./decisions/034-cross-cutting-modules-as-aps-primitive.md))
+  — **Accepted**
+- **D-035:** Three-pipe observability rule — Kindling = governance facts (write
+  -once, source-of-truth); Notification envelope = user-visible state (live
+  feed, source-of-truth for the dashboard); tracing/OTEL = ephemeral debugging
+  context (never source-of-truth); `traceparent` is the cross-pipe correlation
+  key ([ADR](./decisions/035-three-pipe-observability-rule.md)) — **Accepted**
 
 ## Open Questions
 
@@ -1307,3 +1348,8 @@ potential (spec §8.2).
 - [ ] Which entry points define "public API" for boundary detection?
 - [ ] Should drift reports include team/author attribution? (Privacy concern)
 - [ ] How to handle monorepos with multiple architecture baselines?
+- [ ] **OQ1 (EXPORT):** Production tracing sink choice — Tempo / Honeycomb /
+      Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel — to be decided
+      when first paying customer or first production incident motivates it.
+      EXPORT module stays Draft until then. (Planning Council session
+      plan-b00c16c7, 2026-04-30)

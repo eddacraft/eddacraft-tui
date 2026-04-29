@@ -31,6 +31,45 @@ Modules progress through these statuses:
 
 > Note: "Proposed" and "Done" are the current spec values; "Draft" and "Complete" are supported for backwards compatibility.
 
+## Cross-Cutting Modules
+
+A cross-cutting module coordinates work that touches multiple domains without
+owning a single product surface. Such modules MUST follow these rules:
+
+1. **Owns its own work items** — every cross-cutting task is owned and counted
+   by the cross-cutting module, never by the surfaces it touches.
+2. **Cross-references via prose callouts** — use `Coordinates with:`,
+   `Blocks on:`, `Supersedes:` in task bodies. No typed relations, no
+   separate dependency graph. (`Blocks on:` is currently provisional — to be
+   hardened once exercised in a completed task.)
+3. **Closer sweeps callouts on task completion** — whoever closes a task with
+   cross-ref callouts MUST read each one in the body and either resolve it
+   (reference is now correct), downgrade it (e.g. `Blocks on:` →
+   `Coordinates with:`), or document the rationale and **close the callout
+   in the same edit**. Documenting MUST NOT defer the callout into the
+   archive. If the reference cannot be resolved or downgraded at close
+   time, document the rationale inline and mark the callout as closed in
+   the same edit ("document-and-close"). This is distinct from deferring —
+   the callout is resolved by being explicitly closed, not carried forward.
+4. **Closer sweeps all open callouts at archive time** — when a cross-cutting
+   module is archived (via `git mv` to `plans/archive/modules/`), the closer
+   sweeps every remaining open callout in the module body and
+   resolves/downgrades/documents-and-closes each. None may carry into archive
+   unresolved.
+
+**Anti-drift hook:** Changes to this section update
+`plans/modules/launch-flow-readiness.aps.md` and
+`plans/modules/tracing-foundation.aps.md` headers in the same PR. New
+cross-cutting modules cite this section by anchor link.
+
+> Provenance: this section was promoted from the LAUNCH module's local
+> convention block (the first trial) under
+> [ADR-034](decisions/034-cross-cutting-modules-as-aps-primitive.md). The
+> second trial is [`tracing-foundation`](modules/tracing-foundation.aps.md).
+> When LAUNCH archives, sweep its remaining callouts per rule 4 and revisit
+> the still-provisional `Blocks on:` clause based on whatever close cycles
+> have happened in the meantime.
+
 ## Actions: The Lean Rule
 
 Actions translate task intent into **observable checkpoints**. They are NOT implementation guides.
