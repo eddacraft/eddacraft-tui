@@ -7,14 +7,16 @@
 //! - [`BinaryKind`] names the binary doing the initialisation so a single
 //!   call to [`init_tracing`] sets the global subscriber for `anvil-cli`,
 //!   the `anvil-intercept` daemon, and any future Rust binary.
-//! - [`init_tracing`] installs a `tracing-subscriber` JSON formatter with
-//!   the [`redaction`] layer applied, an `EnvFilter` honouring
-//!   `RUST_LOG` and `ANVIL_LOG`, and a sensible per-binary default
-//!   directive.
-//! - [`redaction`] holds the redaction deny-list shared by every
-//!   subscriber init so secret-bearing field names stay out of formatted
-//!   spans (the tracing-pipe side of the DA-OBS-004 risk acceptance —
-//!   TRACE-003 hardens this end-to-end across binary boundaries).
+//! - [`init_tracing`] installs a `tracing-subscriber` JSON formatter,
+//!   an `EnvFilter` honouring `RUST_LOG` and `ANVIL_LOG`, and a
+//!   sensible per-binary default directive. **No redaction layer is
+//!   wired in TRACE-001** — see below.
+//! - [`redaction`] holds an **advisory-only** deny-list of sensitive
+//!   field names. The runtime subscriber installed by [`init_tracing`]
+//!   does NOT consult it; secret-bearing span attributes will appear in
+//!   plain text in JSON output. TRACE-003 wires the actual layer
+//!   against this same constant table (DA-OBS-004 risk acceptance per
+//!   ADR-035 R1).
 //!
 //! Per ADR-035 spans are **never** source-of-truth; consumers that need
 //! durable governance facts go through Kindling, and live state belongs

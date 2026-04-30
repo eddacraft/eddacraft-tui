@@ -17,8 +17,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
-
 const VERSION_BYTES: usize = 2;
 const TRACE_ID_BYTES: usize = 32;
 const PARENT_ID_BYTES: usize = 16;
@@ -36,7 +34,14 @@ const RESERVED_VERSION: &str = "ff";
 /// Hex strings are stored in lower-case canonical form; `Display` /
 /// [`as_header`](TraceContext::as_header) emit the exact bytes the spec
 /// defines.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// Intentionally does **not** derive `Serialize` / `Deserialize`. A
+/// derived deserialiser would let callers construct a `TraceContext`
+/// without going through [`TraceContext::parse`] and bypass the
+/// canonical-form invariants. Callers that need to round-trip a
+/// `TraceContext` over the wire serialise [`as_header`] and parse on
+/// the receiving end.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraceContext {
     trace_id: String,
     parent_id: String,

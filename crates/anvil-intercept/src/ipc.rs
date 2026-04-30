@@ -989,12 +989,16 @@ fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), OversizedFrame
                 saw_traceparent = true;
                 // `parse_simple_json_string` returns `None` for any
                 // string containing escape sequences, so `value` here
-                // is raw ASCII whose `.len()` equals the decoded
-                // length. The `>` (not `==`) is intentional: full
-                // format validation is re-done in `extract_traceparent`
-                // after deserialisation. This guard only prevents an
-                // attacker padding kilobytes of bytes through the
-                // `traceparent` key on an over-cap frame.
+                // is the raw bytes between the JSON quotes. Its
+                // `.len()` is byte length (the same length the W3C
+                // header is measured in), so the cap below is
+                // meaningful even before any further validation runs.
+                // The `>` (not `==`) is intentional: full format /
+                // ASCII / hex validation is re-done in
+                // `extract_traceparent` after deserialisation. This
+                // guard only prevents an attacker padding kilobytes of
+                // bytes through the `traceparent` key on an over-cap
+                // frame.
                 let Some(value) = parse_simple_json_string(bytes, &mut index) else {
                     return Err(OversizedFrameRejection::request(
                         "oversized scan_buffer frame traceparent is missing or malformed",
