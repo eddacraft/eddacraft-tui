@@ -8,7 +8,7 @@ Shared types for the Anvil Rust kernel — events, graph nodes, and trust levels
   violations)
 - **`graph`** — graph node and edge type definitions
 - **`trust`** — trust level enums and scoring
-- **`diagnostic`** — the canonical `anvil.diagnostic.v1` envelope (see below)
+- **`diagnostics`** — the canonical `anvil.diagnostic.v1` envelope (see below)
 
 ## Canonical Diagnostic Envelope (`anvil.diagnostic.v1`)
 

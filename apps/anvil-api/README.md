@@ -34,7 +34,7 @@ REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
 | `RESEND_API_KEY`              | Yes      | Resend API key for transactional emails                                      |
 | `ADMIN_KEY`                   | Yes      | Shared admin bearer token (legacy fallback when per-operator mode is off)    |
 | `ADMIN_PER_OPERATOR_KEYS`     | No       | Set to `1` to enable per-operator admin key resolution                       |
-| `ADMIN_KEY_PEPPER`            | If above | 32-byte hex pepper for the per-operator peppered-hash lookup                 |
+| `ADMIN_KEY_PEPPER`            | If above | Non-empty pepper string (recommended: 32-byte hex) for per-operator lookup   |
 | `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | Token for waitlist resend endpoint                                           |
 | `ANVIL_CORS_ORIGINS`          | Yes      | Comma-separated allowed origins                                              |
 | `LICENSE_SIGNING_KEY`         | Yes      | ES256 private key (PKCS#8 PEM) for JWTs                                      |
