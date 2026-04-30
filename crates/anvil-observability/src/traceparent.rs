@@ -280,11 +280,26 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_ascii_input() {
+    fn rejects_non_ascii_input_over_length() {
         // 55 displayed chars but >55 bytes once a multi-byte char is in.
-        // The is_ascii guard rejects before length is consulted.
+        // Could be caught by either the is_ascii guard or the length
+        // check; the guard fires first by construction.
         let non_ascii = "00-0af7651916cd43dd8448eb211c80319é-b7ad6b7169203331-01";
         assert!(!non_ascii.is_ascii());
+        assert!(non_ascii.len() > TRACEPARENT_LEN);
+        assert_eq!(TraceContext::parse(non_ascii), Err(TraceContextError::Shape));
+    }
+
+    #[test]
+    fn rejects_non_ascii_input_at_exact_length() {
+        // 55 bytes exactly: the trailing "01" (2 bytes) is replaced
+        // with "é" (2 bytes in UTF-8). Length check passes; only the
+        // is_ascii guard fires before the per-field hex check is
+        // reached. Pins the guard as the primary defence for inputs
+        // that satisfy the length check but smuggle non-ASCII bytes.
+        let non_ascii = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-é";
+        assert!(!non_ascii.is_ascii());
+        assert_eq!(non_ascii.len(), TRACEPARENT_LEN);
         assert_eq!(TraceContext::parse(non_ascii), Err(TraceContextError::Shape));
     }
 

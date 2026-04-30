@@ -892,6 +892,36 @@ async fn traceparent_round_trips_through_jsonrpc_envelope_unchanged() {
     );
 }
 
+/// JSON-RPC notifications never receive a response. A notification
+/// carrying a malformed `traceparent` is still a notification, and the
+/// daemon must silently drop it rather than emit a rejection — emitting
+/// would violate the JSON-RPC notification contract.
+#[tokio::test]
+async fn invalid_traceparent_on_notification_is_dropped_silently() {
+    let (shutdown, handle, mut client, _tmp) = with_client().await;
+    client
+        .write_all(
+            b"{\"jsonrpc\":\"2.0\",\"method\":\"list-sessions\",\"traceparent\":\"00-not-a-real-traceparent\"}\n",
+        )
+        .await
+        .expect("write notification");
+
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    let read = tokio::time::timeout(Duration::from_millis(150), reader.read_line(&mut line)).await;
+    assert!(
+        read.is_err(),
+        "notification with invalid traceparent must not produce a response: {line}"
+    );
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(1), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+}
+
 #[tokio::test]
 async fn invalid_traceparent_is_rejected_as_invalid_request() {
     let response = request(json!({
