@@ -48,12 +48,24 @@
 //!
 //! # Documented gaps
 //!
-//! Cross-session subscription rejection is **not** enforced today —
-//! `scan_buffer` carries no `sessionId` parameter. The fixture for that
-//! case is gated behind `#[ignore = "RTAI-XXX cross-session rejection
-//! not yet implemented"]` so it stays visible without breaking CI.
-//! Wire it in when the daemon grows session-scoped `scan_buffer`
-//! enforcement.
+//! - **Cross-session subscription rejection** is **not** enforced today
+//!   — `scan_buffer` carries no `sessionId` parameter. The fixture for
+//!   that case is gated behind `#[ignore = "RTAI-008 gap cross-session
+//!   rejection not yet implemented"]` so it stays visible without
+//!   breaking CI. Wire it in when the daemon grows session-scoped
+//!   `scan_buffer` enforcement.
+//! - **`WorkerFailed` (-32603)** is currently exercised only via the
+//!   `ServiceUnavailable` cousin. The remaining branch — a failure of
+//!   `std::thread::Builder::spawn` — is not portably reproducible from
+//!   a test (it requires forcing the OS to refuse a thread, which is
+//!   platform-specific and racy). The contract therefore pins the code
+//!   mapping (`-32603`) but does not yet have a dedicated fixture for
+//!   the spawn-failure path. Wire one in if a portable hook lands.
+//! - **Rule panic in `panic="abort"` builds** — see
+//!   [`assert_rule_panic_response`] for the full caveat. The current
+//!   fixture pins ONLY the `panic="unwind"` behaviour. A second
+//!   contract — `daemon_aborts_on_rule_panic_in_release` — is a
+//!   follow-up requiring a multi-process harness.
 
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -63,7 +75,9 @@ use std::time::Duration;
 use anvil_intercept::Shutdown;
 use anvil_intercept::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipeline};
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
-use anvil_intercept::midedit::{MAX_CONCURRENT_SCAN_BUFFERS, ScanBufferService};
+use anvil_intercept::midedit::{
+    MAX_CONCURRENT_SCAN_BUFFERS, MAX_SCAN_BUFFER_PATH_BYTES, ScanBufferService,
+};
 use anvil_intercept_rules::{InterceptRule, RuleDecision, RuleInput, RuleRegistry};
 use anvil_kernel_types::{Diagnostic, Mode};
 use serde_json::{Value, json};
@@ -83,8 +97,12 @@ use tokio::net::UnixStream;
 pub const FIXTURE_NAMES: &[&str] = &[
     "over_cap_content",
     "malformed_request",
+    "invalid_path",
+    "path_too_long",
+    "unsupported_mode",
     "rule_panic_isolated",
     "transport_timeout",
+    "server_busy",
     "cross_session_rejection",
 ];
 
@@ -176,6 +194,133 @@ pub fn assert_malformed_response(response: &Value) {
     );
 }
 
+/// Build the JSON-RPC request for the invalid-path case.
+///
+/// Sends an empty path string, which `validate_scan_buffer_path`
+/// rejects as `ScanBufferError::InvalidPath`. The daemon must reject
+/// with `Invalid params` (-32602).
+#[must_use]
+pub fn invalid_path_request() -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "",
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": "contract-invalid-path"
+    })
+}
+
+/// Assert the invalid-path response shape.
+pub fn assert_invalid_path_response(response: &Value) {
+    assert_envelope_is_error_or_diagnostics(response);
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "contract-invalid-path");
+    assert_eq!(
+        response["error"]["code"], -32602,
+        "invalid path must map to Invalid params (-32602): {response}",
+    );
+    assert_eq!(response["error"]["message"], "Invalid params");
+    let reason = response["error"]["data"]["reason"]
+        .as_str()
+        .expect("invalid-path reason string");
+    assert!(
+        reason.contains("path"),
+        "invalid-path reason must mention the path, got: {reason}",
+    );
+    assert!(
+        response.get("result").is_none(),
+        "invalid path must NOT silently pass with a result: {response}",
+    );
+}
+
+/// Build the JSON-RPC request for the path-too-long case.
+///
+/// Sends a path string whose byte length exceeds
+/// `MAX_SCAN_BUFFER_PATH_BYTES`. The daemon must reject with
+/// `Invalid params` (-32602) before any rule runs.
+#[must_use]
+pub fn path_too_long_request() -> Value {
+    let oversized_path = "a".repeat(MAX_SCAN_BUFFER_PATH_BYTES + 1);
+    json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": oversized_path,
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": "contract-path-too-long"
+    })
+}
+
+/// Assert the path-too-long response shape.
+pub fn assert_path_too_long_response(response: &Value) {
+    assert_envelope_is_error_or_diagnostics(response);
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "contract-path-too-long");
+    assert_eq!(
+        response["error"]["code"], -32602,
+        "path-too-long must map to Invalid params (-32602): {response}",
+    );
+    assert_eq!(response["error"]["message"], "Invalid params");
+    let reason = response["error"]["data"]["reason"]
+        .as_str()
+        .expect("path-too-long reason string");
+    assert!(
+        reason.contains("path"),
+        "path-too-long reason must mention the path, got: {reason}",
+    );
+    assert!(
+        response.get("result").is_none(),
+        "path-too-long must NOT silently pass with a result: {response}",
+    );
+}
+
+/// Build the JSON-RPC request for the unsupported-mode case.
+///
+/// Sends `mode: "saveTime"`, which `ScanBufferMode::parse` rejects as
+/// `ScanBufferError::UnsupportedMode`. The daemon must reject with
+/// `Invalid params` (-32602).
+#[must_use]
+pub fn unsupported_mode_request() -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/contract/unsupported-mode.ts",
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "saveTime"
+        },
+        "id": "contract-unsupported-mode"
+    })
+}
+
+/// Assert the unsupported-mode response shape.
+pub fn assert_unsupported_mode_response(response: &Value) {
+    assert_envelope_is_error_or_diagnostics(response);
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "contract-unsupported-mode");
+    assert_eq!(
+        response["error"]["code"], -32602,
+        "unsupported mode must map to Invalid params (-32602): {response}",
+    );
+    assert_eq!(response["error"]["message"], "Invalid params");
+    assert!(
+        response["error"].get("data").is_some(),
+        "unsupported-mode error must carry structured data: {response}",
+    );
+    assert!(
+        response.get("result").is_none(),
+        "unsupported mode must NOT silently pass with a result: {response}",
+    );
+}
+
 /// Build the JSON-RPC request that drives the rule-panic-isolated case.
 ///
 /// The fixture itself is just a normal `scan_buffer` call; the
@@ -198,16 +343,27 @@ pub fn rule_panic_request() -> Value {
 
 /// Assert the rule-panic response shape.
 ///
-/// Pinned behaviour (see `RuleRegistry::diagnostics_with_limit` and the
-/// module-level note in `crates/anvil-intercept-rules/src/registry.rs`):
-/// `catch_unwind` swallows the panic on `panic="unwind"` builds and the
-/// rule is treated as if it returned no diagnostics. The daemon
-/// responds with `result.diagnostics = []` and `result.truncated =
-/// false`. There is **no** structured error — the panic isolation
-/// contract is "rules cannot crash the daemon", not "panics surface as
-/// errors". A driver MUST therefore treat empty diagnostics as a valid
-/// outcome and not assume the daemon would have flagged a panicking
-/// rule's would-be findings.
+/// **Scope of this contract.** This fixture pins ONLY the
+/// `panic="unwind"` behaviour:
+///
+/// - In `panic="unwind"` builds (debug / `cargo test` by default), the
+///   registry's `catch_unwind` swallows the panic and emits
+///   `result.diagnostics: []` with `result.truncated = false`. There is
+///   no structured error — the panic isolation contract is "rules
+///   cannot crash the daemon", not "panics surface as errors". A driver
+///   MUST therefore treat empty diagnostics as a valid outcome and not
+///   assume the daemon would have flagged a panicking rule's would-be
+///   findings.
+/// - In `panic="abort"` builds (the workspace release profile per the
+///   root `Cargo.toml`), the daemon process aborts on the panicking
+///   thread. There is no JSON-RPC response at all; the driver MUST
+///   treat this as a transport disconnect, NOT as `diagnostics: []`.
+///   This fixture does NOT exercise that path. Verifying it requires a
+///   multi-process harness — tracked as a follow-up contract
+///   (`daemon_aborts_on_rule_panic_in_release`).
+///
+/// The assertion below is correct for unwind builds. Do not weaken it
+/// to accommodate the abort path; that path needs its own contract.
 pub fn assert_rule_panic_response(response: &Value) {
     assert_envelope_is_error_or_diagnostics(response);
     assert_eq!(response["jsonrpc"], "2.0");
@@ -248,10 +404,15 @@ pub fn transport_timeout_request() -> Value {
 
 /// Assert the transport-timeout response shape.
 ///
-/// `ScanBufferError::TimedOut` maps to JSON-RPC code `-32001`
-/// ("Scan timed out", a server-defined error per JSON-RPC 2.0 §5.1
-/// reserved range). `ServiceUnavailable` would map to `-32603`; the
-/// timeout path specifically uses `-32001`.
+/// `ScanBufferError::TimedOut` maps specifically to JSON-RPC code
+/// `-32001` ("Scan timed out", a server-defined error per JSON-RPC 2.0
+/// §5.1 reserved range). Only `-32001` is accepted here.
+///
+/// Note: `ServiceUnavailable` and `WorkerFailed` both map to `-32603`
+/// (Internal error). Those are different setups (semaphore closed,
+/// thread spawn failure, channel hang-up) — intentionally NOT asserted
+/// here. A bespoke fixture for those would have to force the failure
+/// path, and that is out of scope for the timeout contract.
 pub fn assert_transport_timeout_response(response: &Value) {
     assert_envelope_is_error_or_diagnostics(response);
     assert_eq!(response["jsonrpc"], "2.0");
@@ -263,14 +424,58 @@ pub fn assert_transport_timeout_response(response: &Value) {
     let code = response["error"]["code"]
         .as_i64()
         .expect("timeout error code");
-    assert!(
-        code == -32001 || code == -32603,
-        "timeout must map to -32001 (TimedOut) or -32603 (ServiceUnavailable), got {code}: \
-         {response}",
+    assert_eq!(
+        code, -32001,
+        "timeout must map to -32001 (TimedOut). -32603 is \
+         ServiceUnavailable / WorkerFailed — a different setup, not \
+         asserted here. Got code {code}: {response}",
     );
     assert!(
         response["error"]["message"].is_string(),
         "timeout error must carry a message: {response}",
+    );
+}
+
+/// Build the JSON-RPC request that drives the busy fixture for slot
+/// `idx`.
+///
+/// The consumer must saturate `MAX_CONCURRENT_SCAN_BUFFERS` blocking
+/// requests first; the next request fails fast with a structured
+/// `Server busy` (-32000). See [`saturating_rule_service`].
+#[must_use]
+pub fn busy_request(idx: usize) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": format!("src/contract/busy-{idx}.ts"),
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit"
+        },
+        "id": format!("contract-busy-{idx}")
+    })
+}
+
+/// Assert the busy response shape.
+///
+/// Pins:
+/// - JSON-RPC envelope (`jsonrpc = "2.0"`, id echoed by the consumer).
+/// - `error.code = -32000` (Server busy, server-defined per JSON-RPC
+///   2.0 §5.1).
+/// - `error.message = "Server busy"`.
+/// - No silent pass: `result` MUST NOT be present.
+pub fn assert_busy_response(response: &Value) {
+    assert_envelope_is_error_or_diagnostics(response);
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(
+        response["error"]["code"], -32000,
+        "busy must map to -32000 (Server busy): {response}",
+    );
+    assert_eq!(response["error"]["message"], "Server busy");
+    assert!(
+        response.get("result").is_none(),
+        "busy must NOT silently pass with a result: {response}",
     );
 }
 
@@ -350,36 +555,90 @@ pub fn assert_envelope_is_error_or_diagnostics(response: &Value) {
     }
 }
 
-/// Drive every fixture through `transport`, applying the matching
-/// assertion to each response.
+/// Drive a single fixture by name through `transport`, applying the
+/// matching assertion to the response.
+///
+/// Centralised dispatch so consumers iterate [`FIXTURE_NAMES`] and call
+/// this helper rather than hard-coding the request/assertion pairs.
+/// Returns `true` if the name maps to a transport-agnostic fixture
+/// (over-cap, malformed, invalid-path, path-too-long, unsupported-mode);
+/// returns `false` for fixtures that need bespoke transport wiring
+/// (rule-panic, transport-timeout, server-busy, cross-session). This
+/// lets [`run_full_contract`] iterate every name and skip the bespoke
+/// ones in one place.
+fn run_named_fixture<F>(name: &str, transport: &mut F) -> bool
+where
+    F: FnMut(Value) -> Value,
+{
+    match name {
+        "over_cap_content" => {
+            let response = transport(over_cap_content_request());
+            assert_over_cap_response(&response);
+            true
+        }
+        "malformed_request" => {
+            let response = transport(malformed_request());
+            assert_malformed_response(&response);
+            true
+        }
+        "invalid_path" => {
+            let response = transport(invalid_path_request());
+            assert_invalid_path_response(&response);
+            true
+        }
+        "path_too_long" => {
+            let response = transport(path_too_long_request());
+            assert_path_too_long_response(&response);
+            true
+        }
+        "unsupported_mode" => {
+            let response = transport(unsupported_mode_request());
+            assert_unsupported_mode_response(&response);
+            true
+        }
+        // Bespoke setup required — consumer wires these via the
+        // helper services (`panicking_rule_service`,
+        // `timing_out_rule_service`, `saturating_rule_service`) or the
+        // `#[ignore]`d cross-session test.
+        "rule_panic_isolated" | "transport_timeout" | "server_busy" | "cross_session_rejection" => {
+            false
+        }
+        other => panic!("run_named_fixture: unknown fixture name {other:?}"),
+    }
+}
+
+/// Drive every transport-agnostic fixture through `transport`,
+/// applying the matching assertion to each response.
 ///
 /// `transport` is a synchronous closure that takes a JSON-RPC frame and
 /// returns the daemon's response. Async consumers wrap their async
-/// transport in a `block_on` shim. Consumers that need per-fixture
-/// transport setup (e.g. a different rule registry for the panic case)
-/// should call the fixture-specific helpers directly instead of this
-/// catch-all.
+/// transport in a `block_on` shim. The helper iterates
+/// [`FIXTURE_NAMES`] via [`run_named_fixture`], so omitting any new
+/// fixture name from the central match arm becomes visibly wrong (the
+/// helper panics on unknown names).
+///
+/// Fixtures that need bespoke transport wiring (rule-panic via
+/// [`panicking_rule_service`], transport-timeout via
+/// [`timing_out_rule_service`], server-busy via
+/// [`saturating_rule_service`], and the still-`#[ignore]`d
+/// cross-session case) are intentionally NOT driven here; consumers
+/// must run them via the dedicated helpers.
 pub fn run_full_contract<F>(mut transport: F)
 where
     F: FnMut(Value) -> Value,
 {
-    let response = transport(over_cap_content_request());
-    assert_over_cap_response(&response);
-
-    let response = transport(malformed_request());
-    assert_malformed_response(&response);
-
-    // Note: rule_panic, transport_timeout, and cross_session require
-    // bespoke transport wiring (panicking rule, slow rule, multi-session
-    // setup respectively). They are not driven through the catch-all
-    // closure — consumers run them via the fixture-specific helpers
-    // (`panicking_rule_service` etc.) so they can install the right
-    // pipeline before the call.
+    for name in FIXTURE_NAMES {
+        // `run_named_fixture` returns `false` for bespoke-setup
+        // fixtures; we skip them so callers wire them up explicitly
+        // with the right service.
+        let _ = run_named_fixture(name, &mut transport);
+    }
 }
 
 // ---------------------------------------------------------------------
 // Public test-rule helpers. Consumers of this contract import these to
-// build a transport that exercises panic-isolation and timeout.
+// build a transport that exercises panic-isolation, timeout, and
+// busy-saturation paths.
 // ---------------------------------------------------------------------
 
 /// Build a `ScanBufferService` whose registry contains a single rule
@@ -389,7 +648,8 @@ where
 /// **Caveat:** panic isolation only works on `panic="unwind"` builds —
 /// the workspace's release profile is `panic="abort"`, which means a
 /// release-mode panic kills the process. See
-/// `crates/anvil-intercept-rules/src/registry.rs` module docs.
+/// `crates/anvil-intercept-rules/src/registry.rs` module docs and the
+/// scope note on [`assert_rule_panic_response`].
 #[must_use]
 pub fn panicking_rule_service() -> ScanBufferService {
     struct PanickingRule;
@@ -433,12 +693,69 @@ pub fn panicking_rule_service() -> ScanBufferService {
 pub fn timing_out_rule_service() -> (ScanBufferService, Arc<Barrier>) {
     struct BlockingRule {
         barrier: Arc<Barrier>,
-        started: Arc<AtomicUsize>,
     }
 
     impl InterceptRule for BlockingRule {
         fn rule_id(&self) -> &'static str {
             "contract-blocking-rule"
+        }
+
+        fn needs_content(&self) -> bool {
+            true
+        }
+
+        fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+            RuleDecision::Allow
+        }
+
+        fn diagnostics_with_limit(
+            &self,
+            _input: &RuleInput<'_>,
+            _mode: &Mode,
+            _limit: usize,
+        ) -> Vec<Diagnostic> {
+            self.barrier.wait();
+            Vec::new()
+        }
+    }
+
+    // Two participants: the worker thread and the test that releases it
+    // after the timeout assertion has fired.
+    let barrier = Arc::new(Barrier::new(2));
+    let registry = RuleRegistry::with_rules(vec![Box::new(BlockingRule {
+        barrier: Arc::clone(&barrier),
+    })])
+    .expect("contract blocking rule has a unique id");
+    let service = ScanBufferService::new(EnforcementPipeline::new(registry));
+    (service, barrier)
+}
+
+/// Build a `ScanBufferService` that lets the consumer saturate the
+/// permit pool, exercising the server-busy fixture.
+///
+/// The returned service holds a single rule that blocks on the
+/// returned [`Barrier`] until the consumer calls `wait()` to release
+/// it. The barrier is sized for `MAX_CONCURRENT_SCAN_BUFFERS + 1`
+/// participants (the in-flight workers plus the consumer thread); the
+/// consumer is expected to:
+///
+/// 1. Saturate the service with [`MAX_CONCURRENT_SCAN_BUFFERS`]
+///    blocking requests built via [`busy_request`], confirming each
+///    worker has entered `diagnostics_with_limit` by polling the
+///    returned `started` counter.
+/// 2. Send one more request and assert
+///    [`assert_busy_response`] on the response (code `-32000`).
+/// 3. Call `barrier.wait()` to release the blocked workers.
+#[must_use]
+pub fn saturating_rule_service() -> (ScanBufferService, Arc<Barrier>, Arc<AtomicUsize>) {
+    struct BlockingRule {
+        started: Arc<AtomicUsize>,
+        barrier: Arc<Barrier>,
+    }
+
+    impl InterceptRule for BlockingRule {
+        fn rule_id(&self) -> &'static str {
+            "contract-busy-rule"
         }
 
         fn needs_content(&self) -> bool {
@@ -461,16 +778,15 @@ pub fn timing_out_rule_service() -> (ScanBufferService, Arc<Barrier>) {
         }
     }
 
-    // Two participants: the worker thread and the test that releases it
-    // after the timeout assertion has fired.
-    let barrier = Arc::new(Barrier::new(2));
+    let started = Arc::new(AtomicUsize::new(0));
+    let barrier = Arc::new(Barrier::new(MAX_CONCURRENT_SCAN_BUFFERS + 1));
     let registry = RuleRegistry::with_rules(vec![Box::new(BlockingRule {
+        started: Arc::clone(&started),
         barrier: Arc::clone(&barrier),
-        started: Arc::new(AtomicUsize::new(0)),
     })])
-    .expect("contract blocking rule has a unique id");
+    .expect("contract busy rule has a unique id");
     let service = ScanBufferService::new(EnforcementPipeline::new(registry));
-    (service, barrier)
+    (service, barrier, started)
 }
 
 // ---------------------------------------------------------------------
@@ -537,18 +853,40 @@ async fn send_frame(client: &mut UnixStream, frame: &Value) -> Value {
 // live IPC listener.
 // ---------------------------------------------------------------------
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rust_consumer_runs_full_contract() {
-    // Default service (default registry: secret + reasoning) covers the
-    // over-cap and malformed cases — neither reaches a rule.
+    // Default service (default registry: secret + reasoning) covers
+    // the transport-agnostic cases — none reach a rule. We drive
+    // every name in FIXTURE_NAMES via run_full_contract; bespoke
+    // fixtures (rule_panic_isolated, transport_timeout, server_busy,
+    // cross_session_rejection) are run by their own dedicated tests
+    // below using the helper services. This guarantees every entry in
+    // FIXTURE_NAMES has a live consumer in this file.
     let harness = Harness::start(ScanBufferService::default());
     let mut client = harness.connect().await;
+    let runtime = tokio::runtime::Handle::current();
+    let mut driver = |frame: Value| -> Value {
+        let mut buf = String::new();
+        // We are inside a multi-threaded runtime (see attribute
+        // above). `block_in_place` yields the current worker thread so
+        // the nested `block_on` does not deadlock the executor.
+        tokio::task::block_in_place(|| {
+            runtime.block_on(async {
+                client
+                    .write_all(format!("{frame}\n").as_bytes())
+                    .await
+                    .expect("write frame");
+                let mut reader = BufReader::new(&mut client);
+                tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut buf))
+                    .await
+                    .expect("response timeout")
+                    .expect("read response");
+            });
+        });
+        serde_json::from_str(buf.trim_end()).expect("response json")
+    };
 
-    let response = send_frame(&mut client, &over_cap_content_request()).await;
-    assert_over_cap_response(&response);
-
-    let response = send_frame(&mut client, &malformed_request()).await;
-    assert_malformed_response(&response);
+    run_full_contract(&mut driver);
 
     drop(client);
     harness.shutdown().await;
@@ -587,12 +925,70 @@ async fn rust_consumer_surfaces_transport_timeout() {
 }
 
 #[tokio::test]
-async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
+async fn rust_consumer_surfaces_server_busy() {
     // The busy path is covered in detail by jsonrpc_conformance.rs; the
-    // contract only needs to assert that a `Server busy` response also
-    // satisfies the universal "error or diagnostics, never silent"
-    // envelope invariant. We piggy-back on the same blocking-rule
-    // pattern.
+    // contract pins the wire shape (`-32000` / "Server busy") and
+    // confirms every entry in FIXTURE_NAMES has a live exerciser. We
+    // use the shared `saturating_rule_service` helper so external
+    // consumers can drive the same scenario.
+    let (service, barrier, started) = saturating_rule_service();
+    let harness = Harness::start(service);
+
+    // Saturate the worker permits with `MAX_CONCURRENT_SCAN_BUFFERS`
+    // blocking requests built from the public `busy_request` fixture.
+    let mut blockers = Vec::new();
+    for idx in 0..MAX_CONCURRENT_SCAN_BUFFERS {
+        let mut blocker = harness.connect().await;
+        let frame = busy_request(idx);
+        blocker
+            .write_all(format!("{frame}\n").as_bytes())
+            .await
+            .expect("write blocker");
+        blockers.push(blocker);
+    }
+    // 100 × 10ms = 1s ceiling; widened from 500ms because the IPC
+    // round-trip plus thread spawn can take >500ms on shared CI
+    // hardware. If 1s is still not enough, the daemon is not actually
+    // saturating — fail loudly.
+    for _ in 0..100 {
+        if started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(
+        started.load(Ordering::SeqCst),
+        MAX_CONCURRENT_SCAN_BUFFERS,
+        "expected {MAX_CONCURRENT_SCAN_BUFFERS} blocking workers to enter the rule within 1s; \
+         the busy fixture cannot exercise the saturation path until they do",
+    );
+
+    // The next request fails fast with a structured `Server busy`. The
+    // shared assertion pins the wire shape (`-32000` / "Server busy")
+    // for every consumer.
+    let mut busy_client = harness.connect().await;
+    let busy_response = send_frame(&mut busy_client, &busy_request(99)).await;
+    assert_busy_response(&busy_response);
+    assert_eq!(busy_response["id"], "contract-busy-99");
+
+    // Release blockers and tidy up.
+    barrier.wait();
+    for mut blocker in blockers {
+        let mut reader = BufReader::new(&mut blocker);
+        let mut line = String::new();
+        let _ = tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await;
+    }
+    drop(busy_client);
+    harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
+    // Belt-and-braces: re-run the saturation flow with an inline
+    // blocking rule and assert ONLY the universal envelope invariant.
+    // This catches regressions where the busy path stops emitting an
+    // `error` and starts returning a silent `result` — independent of
+    // whether the code mapping changes.
     struct BlockingRule {
         started: Arc<AtomicUsize>,
         barrier: Arc<Barrier>,
@@ -600,7 +996,7 @@ async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
 
     impl InterceptRule for BlockingRule {
         fn rule_id(&self) -> &'static str {
-            "contract-busy-rule"
+            "contract-busy-rule-envelope"
         }
 
         fn needs_content(&self) -> bool {
@@ -654,13 +1050,19 @@ async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
             .expect("write blocker");
         blockers.push(blocker);
     }
-    for _ in 0..50 {
+    // 100 × 10ms = 1s ceiling, matching the public busy contract test.
+    for _ in 0..100 {
         if started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS {
             break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert_eq!(started.load(Ordering::SeqCst), MAX_CONCURRENT_SCAN_BUFFERS);
+    assert_eq!(
+        started.load(Ordering::SeqCst),
+        MAX_CONCURRENT_SCAN_BUFFERS,
+        "expected {MAX_CONCURRENT_SCAN_BUFFERS} blocking workers to enter the rule within 1s; \
+         the envelope fixture cannot exercise the saturation path until they do",
+    );
 
     // Third connection fails fast with a structured `Server busy`. We
     // assert the universal envelope invariant first, then pin the
@@ -709,44 +1111,6 @@ async fn rust_consumer_rejects_cross_session_subscription() {
 }
 
 // ---------------------------------------------------------------------
-// Catch-all closure transport. Pins that consumers using
-// `run_full_contract` see the same pass for the transport-agnostic
-// cases (over-cap + malformed).
-// ---------------------------------------------------------------------
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn run_full_contract_drives_transport_agnostic_cases() {
-    let harness = Harness::start(ScanBufferService::default());
-    let mut client = harness.connect().await;
-    let runtime = tokio::runtime::Handle::current();
-    let mut driver = |frame: Value| -> Value {
-        let mut buf = String::new();
-        // We are inside a multi-threaded runtime (see attribute above).
-        // `block_in_place` yields the current worker thread so the
-        // nested `block_on` does not deadlock the executor.
-        tokio::task::block_in_place(|| {
-            runtime.block_on(async {
-                client
-                    .write_all(format!("{frame}\n").as_bytes())
-                    .await
-                    .expect("write frame");
-                let mut reader = BufReader::new(&mut client);
-                tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut buf))
-                    .await
-                    .expect("response timeout")
-                    .expect("read response");
-            });
-        });
-        serde_json::from_str(buf.trim_end()).expect("response json")
-    };
-
-    run_full_contract(&mut driver);
-
-    drop(client);
-    harness.shutdown().await;
-}
-
-// ---------------------------------------------------------------------
 // Sanity: every fixture name in FIXTURE_NAMES has an exposed pair.
 // ---------------------------------------------------------------------
 
@@ -773,5 +1137,34 @@ fn over_cap_request_has_expected_id() {
 fn malformed_request_omits_text_field() {
     let frame = malformed_request();
     assert!(frame["params"].get("text").is_none());
+    assert_eq!(frame["method"], "scan_buffer");
+}
+
+#[test]
+fn invalid_path_request_uses_empty_path() {
+    let frame = invalid_path_request();
+    assert_eq!(frame["params"]["path"], "");
+    assert_eq!(frame["method"], "scan_buffer");
+}
+
+#[test]
+fn path_too_long_request_exceeds_path_cap() {
+    let frame = path_too_long_request();
+    let path = frame["params"]["path"].as_str().expect("path string");
+    assert!(path.len() > MAX_SCAN_BUFFER_PATH_BYTES);
+}
+
+#[test]
+fn unsupported_mode_request_uses_unknown_mode() {
+    let frame = unsupported_mode_request();
+    assert_eq!(frame["params"]["mode"], "saveTime");
+    assert_eq!(frame["method"], "scan_buffer");
+}
+
+#[test]
+fn busy_request_has_expected_shape() {
+    let frame = busy_request(7);
+    assert_eq!(frame["id"], "contract-busy-7");
+    assert_eq!(frame["params"]["path"], "src/contract/busy-7.ts");
     assert_eq!(frame["method"], "scan_buffer");
 }
