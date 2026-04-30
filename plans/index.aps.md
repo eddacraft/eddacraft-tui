@@ -188,7 +188,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [v041-release-followups](./modules/v041-release-followups.aps.md)               | V041F  | In Progress | 5/16 (16 hardening items: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — 1 from the copilot PR #1090 review tracking the svix>uuid override exception, and 1 private-release Latest promotion fix; non-blocking for the H1 tag, slot into v0.4.1) |
 
 **Design doc (Forge & Temper — archived):**
-[docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+[docs/archive/2026-02-24-forge-temper-review-pipeline.md](../docs/archive/2026-02-24-forge-temper-review-pipeline.md)
 
 ### Continuous Improvement (Complete)
 

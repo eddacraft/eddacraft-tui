@@ -15,9 +15,8 @@ Document
 6. [Hybrid Policy Engine](#hybrid-policy-engine)
 7. [State and Configuration](#state-and-configuration)
 8. [Memory Stack (Edda Stack)](#memory-stack-edda-stack)
-9. [Forge Pipeline](#forge-pipeline)
-10. [Technology Stack](#technology-stack)
-11. [Key Architectural Decisions](#key-architectural-decisions)
+9. [Technology Stack](#technology-stack)
+10. [Key Architectural Decisions](#key-architectural-decisions)
 
 ---
 

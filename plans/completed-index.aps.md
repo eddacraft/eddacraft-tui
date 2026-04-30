@@ -111,7 +111,7 @@ release must deliver both the core value AND a friction-free first experience.
 | Code Review Backlog        | 29 architectural recommendations from code review        | Complete | 29/29    |
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete | 8/8      |
 
-**Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (Forge & Temper — archived):** [docs/archive/2026-02-24-forge-temper-review-pipeline.md](../docs/archive/2026-02-24-forge-temper-review-pipeline.md)
 
 ### 0.4.0 — Edda Stack (Memory System)
 
@@ -679,6 +679,8 @@ Architectural recommendations from the 2026-02-16 code review.
   concept being surfaced as a feature; full task-level history lives in:
     - plans/archive/modules/01-forge-hook-agent.aps.md
     - plans/archive/modules/02-forge-negotiation.aps.md
+    - plans/archive/modules/03-deferred-finding-filing.aps.md
+    - plans/archive/modules/04-temper-workflow.aps.md
     - plans/archive/modules/05-forge-temper-config.aps.md
   Design doc archived at docs/archive/2026-02-24-forge-temper-review-pipeline.md.
 -->
