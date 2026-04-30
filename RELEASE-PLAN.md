@@ -63,7 +63,10 @@ that is locked for the release.
 RMCP-008 closed against the GUI dry-run recorded in
 [`plans/specs/2026-04-26-rtai-demo-runbook.md`](./plans/specs/2026-04-26-rtai-demo-runbook.md)
 §8 (Claude Code, `target/release/anvil`, AI-001 reasoning rule exercised
-end-to-end through `anvil_validate_write`). Three follow-up gaps surfaced during
+end-to-end through `anvil_validate_write`). The release validation backend is
+recorded as **embedded-fallback-backed, not daemon-backed**: RMCP-005's default
+`DaemonValidationClient` returned `Unavailable`, so the shim used the embedded
+`anvil-checks` pipeline during the dry-run. Three follow-up gaps surfaced during
 the dry-run and are tracked separately because none affect the RMCP-008 contract
 or block the slice from shipping:
 
@@ -112,7 +115,8 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
       MCP launch path. RMCP-008 closed 2026-04-30: headless smoke green; Claude
       Code GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md`
-      §8. Required by **A1**.
+      §8; release backend status recorded as embedded-fallback-backed, not
+      daemon-backed. Required by **A1**.
 - [x] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
       writes config pointing at `anvil mcp serve --stdio`; **RMCP** makes that
       command real in Rust for the A1 path. RMCP-001..-008 are all Complete; do

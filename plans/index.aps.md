@@ -100,7 +100,9 @@ and dependency order are mirrored in
 
 **Locked A1 — Complete.** All 24 items shipped and validated. The next
 slice for RMCP/RMCPF, captured here so it does not get lost between
-release cuts:
+release cuts. The current release was explicitly validated as
+**embedded-fallback-backed, not daemon-backed**; this follow-up is not a
+current-release blocker:
 
 1. **Wire the daemon validation client:** RMCP-005's `DaemonValidationClient`
    default impl still returns `Unavailable`; the daemon `scan_buffer` RPC

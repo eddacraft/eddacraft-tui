@@ -17,6 +17,9 @@
 > RMCP-006 (canonical decision shape), RMCP-007 (`anvil mcp install --client X`
 > wrapper), and RMCP-008 (E2E smoke + demo runbook refresh + Cursor / Claude
 > Code GUI dry-run recorded in the runbook validation log on 2026-04-30).
+> The RMCP-008 release dry-run is recorded as **embedded-fallback-backed, not
+> daemon-backed**: `DaemonValidationClient` returned `Unavailable`, and the
+> embedded `anvil-checks` pipeline produced the observed AI-001 diagnostic.
 >
 > Three follow-up gaps surfaced during the GUI dry-run and are tracked
 > separately because none of them affect the shim's contract: #1194
@@ -124,11 +127,16 @@ as a record of the kickoff conditions; all items have been resolved through
 the shipped slice. Re-read before opening any RMCP follow-up work (e.g. the
 daemon-client wiring task or RMCPF):
 
-- [ ] Tool name and request shape agreed with RTAI owner
+- [x] Tool name and request shape agreed with RTAI owner —
+      `anvil_validate_write` carrying proposed content.
 - [x] Canonical diagnostic envelope fields agreed via `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
-- [ ] Cursor and Claude Code config paths verified by RCLI3-016/RCLI3-016b
-- [ ] Decision recorded on daemon-first vs embedded-fallback validation order
-- [ ] Demo runbook updated to name this module as the MCP launch path
+- [x] Cursor and Claude Code config paths verified by RCLI3-016/RCLI3-016b —
+      Claude Code default path gap tracked as #1195; release dry-run used
+      `claude mcp add` workaround.
+- [x] Decision recorded on daemon-first vs embedded-fallback validation order —
+      current release is embedded-fallback-backed; daemon-backed MCP client
+      wiring is a post-A1 RMCP/RMCPF follow-up.
+- [x] Demo runbook updated to name this module as the MCP launch path.
 
 ---
 
@@ -304,10 +312,13 @@ daemon-client wiring task or RMCPF):
   (`plans/specs/2026-04-26-rtai-demo-runbook.md` §8). The dry-run exercised the
   AI-001 reasoning rule end-to-end through `anvil_validate_write`; the shim
   returned a structured `decision: warn` with one `info` AI-001 diagnostic when
-  consulted. Three follow-up gaps surfaced during the dry-run (#1194, #1195,
-  #1197) but none affect the RMCP-008 contract — the shim's tools/list,
-  tools/call, and validation-pipeline behaviour are all correct when the client
-  invokes the validate tool.
+  consulted. Backend status for the release is explicitly recorded as
+  embedded-fallback-backed, not daemon-backed: `DaemonValidationClient` returned
+  `Unavailable`, so validation ran through the embedded `anvil-checks` pipeline.
+  Three follow-up gaps surfaced during the dry-run (#1194, #1195, #1197) but
+  none affect the RMCP-008 contract — the shim's tools/list, tools/call, and
+  validation-pipeline behaviour are all correct when the client invokes the
+  validate tool.
 
 ---
 
