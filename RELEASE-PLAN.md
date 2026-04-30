@@ -1,6 +1,6 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-04-30 (A1/A4 release-state reconciliation)
+**Last updated:** 2026-04-30 (A1 closed — RMCP-008 GUI dry-run recorded)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
@@ -29,20 +29,20 @@ that is locked for the release.
 
 | Slice  | Locked state                                                                                                                                 |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A1** | 19 Complete, 1 Committed / post-merge validation, 0 In Progress, 1 Ready / unblocked, 3 Blocked across the 24-item RTAI/RMCP/INTD/INTR slice |
+| **A1** | 24 Complete / 24 (slice closed 2026-04-30) — RMCP-008 GUI dry-run recorded in the RTAI demo runbook validation log |
 | **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                                                |
 | **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                                            |
 | **A4** | Complete 9/9: LANGTS audit/checklist, OPSUP check-ID registry slice, and SURFENV                                                             |
 
 **A1 source-module state:**
 
-| Source module | A1 items                                 | Complete                                 | Committed | In Progress | Ready / unblocked | Blocked          |
-| ------------- | ---------------------------------------- | ---------------------------------------- | --------- | ----------- | ----------------- | ---------------- |
-| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -002, -003, -005, -007, -013, -014 | —         | —           | —                 | —                |
-| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008                   | —         | —           | —                 | —                |
-| RMCP          | -001..-008                               | -001..-007                               | -008      | —           | —                 | —                |
-| RTAI          | -001, -002, -003, -006, -008             | -001                                     | —         | —           | -002              | -003, -006, -008 |
-| **Total**     | **24**                                   | **19**                                   | **1**     | **0**       | **1**             | **3**            |
+| Source module | A1 items                                 | Complete                                 | Committed | In Progress | Ready / unblocked | Blocked |
+| ------------- | ---------------------------------------- | ---------------------------------------- | --------- | ----------- | ----------------- | ------- |
+| INTD          | -001, -002, -003, -005, -007, -013, -014 | -001, -002, -003, -005, -007, -013, -014 | —         | —           | —                 | —       |
+| INTR          | -001, -002, -006, -008                   | -001, -002, -006, -008                   | —         | —           | —                 | —       |
+| RMCP          | -001..-008                               | -001..-008                               | —         | —           | —                 | —       |
+| RTAI          | -001, -002, -003, -006, -008             | -001, -002, -003, -006, -008             | —         | —           | —                 | —       |
+| **Total**     | **24**                                   | **24**                                   | **0**     | **0**       | **0**             | **0**   |
 
 **A2-A4 source-module state:**
 
@@ -56,23 +56,32 @@ that is locked for the release.
 | **A4** | OPSUP         | OPSUP-001 (check-ID registry slice) | OPSUP-001              | OPSUP-002..-007 remain outside this release cut                       |
 | **A4** | SURFENV       | SURFENV-001..-006                   | SURFENV-001..-006      | —                                                                     |
 
-**Locked A1 remaining / dependency order:**
+**Locked A1 — Complete.** All 24 items shipped and validated as of 2026-04-30.
+RMCP-008 closed against the GUI dry-run recorded in
+[`plans/specs/2026-04-26-rtai-demo-runbook.md`](./plans/specs/2026-04-26-rtai-demo-runbook.md)
+§8 (Claude Code, `target/release/anvil`, AI-001 reasoning rule exercised
+end-to-end through `anvil_validate_write`). Three follow-up gaps surfaced
+during the dry-run and are tracked separately because none affect the
+RMCP-008 contract or block the slice from shipping:
 
-1. **Close RMCP-008 post-merge validation:** PR #1154 is merged and the
-   agent-runnable checks passed on 2026-04-30 (`cargo build -p eddacraft-anvil`,
-   `pnpm --filter @eddacraft/anvil-e2e test:smoke`). Cursor / Claude Code GUI
-   dry-run remains before RMCP-008 can be Complete.
-2. **Start RTAI-002:** INTD-002, INTD-005, and RTAI-001 are now complete, so the
-   daemon mid-edit RPC surface is the next unblocked code item.
-3. **Measure the production path:** RTAI-003 follows RTAI-002 and extends the
-   INTD-014 latency harness with mid-edit measurements.
-4. **Lock the MCP pre-write semantics:** RTAI-006 and RTAI-008 follow RTAI-002;
-   their RMCP-004/-005/-006 dependencies are already complete.
+- **#1194** — `anvil mcp install` lacks the `--command` override the underlying
+  `mcp-config` exposes; `--verify` is over-strict against non-default command
+  values.
+- **#1195** — `anvil mcp install --client claude-code` writes to a path Claude
+  Code does not read (`~/.claude/mcp.json` vs `~/.claude.json`); the documented
+  install path is non-functional today. Workaround: `claude mcp add`.
+- **#1197** — aligned MCP clients (Claude Code observed; Cursor likely) do not
+  invoke `anvil_validate_write` without explicit prompt instruction. Proposed
+  fix is the MCP `instructions` field on the initialise response plus stronger
+  directive language in the tool description.
 
-**RTAI reconciliation note (2026-04-30):** Local branch
-`feat/RTAI-002-midedit-rpc` points at merged INTD-005 work, not a completed RTAI
-implementation. RTAI-002 remains the next unimplemented daemon RPC item;
-RTAI-003/-006/-008 remain downstream of it.
+**Carried-forward note for the next slice (RMCP/RMCPF):** RMCP-005's
+`DaemonValidationClient` default impl returns `Unavailable`, so MCP
+`tools/call` runs through the embedded `anvil-checks` rule pipeline. The
+daemon side (`scan_buffer` RPC, INTD-002 listener) is in place; the next
+slice replaces the `Unavailable` stub with a live JSON-RPC client and
+graduates `tools/call` to the daemon-backed path. The embedded path remains
+the correctness-equivalent fallback when the daemon is not running.
 
 **Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
 GV2/GCTX (Graph v2 foundation and graph context delivery), and full DRVR editor
@@ -91,17 +100,17 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       the demo headline is "secret detection mid-edit."
 - [ ] **Single latency rubric ADR** — INTD-014 / RTAI / RMCP must cite one
       rubric rather than inventing per-surface numbers. Required by **A1**.
-- [ ] **Demo runbook** — `anvil init` → `anvil mcp install` → open Cursor /
+- [x] **Demo runbook** — `anvil init` → `anvil mcp install` → open Cursor /
       Claude Code → paste known-bad pattern → Anvil flags before save. LAUNCH
       polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
-      MCP launch path. RMCP-008 has the headless smoke + runbook refresh in
-      Committed / post-merge-validation state; agent checks passed 2026-04-30;
-      GUI dry-run remains before Complete. Required by **A1**.
-- [ ] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
+      MCP launch path. RMCP-008 closed 2026-04-30: headless smoke green; Claude
+      Code GUI dry-run recorded in
+      `plans/specs/2026-04-26-rtai-demo-runbook.md` §8. Required by **A1**.
+- [x] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
       writes config pointing at `anvil mcp serve --stdio`; **RMCP** makes that
-      command real in Rust for the A1 path. RMCP-001..-007 are complete and
-      RMCP-008 is Committed / post-merge validation; do not port the whole TS
-      MCP server in this release.
+      command real in Rust for the A1 path. RMCP-001..-008 are all Complete; do
+      not port the whole TS MCP server in this release. Three follow-up gaps
+      tracked outside the contract: #1194, #1195, #1197.
 - [x] **Diagnostic envelope coordination** — AIGUARD-002 ↔ RMCP-006 ↔ RTAI-006 /
       RTAI-008 ↔ INTD-013 must agree for the launch path. DRVR-002 consumes the
       same shape later. Resolved by the canonical diagnostic-envelope spec and
@@ -116,10 +125,14 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
 
 ### Adversarial risks for this release
 
-1. **RTAI production-path latency budget is unverified.** RTAI-001's in-process
-   spike measured p95 1.4 ms against an 80 ms ADR-031 mid-edit budget, but
-   RTAI-003 / INTD-014 still need daemon/RMCP production-path evidence before
-   tagging.
+1. **RTAI production-path latency CI gating not yet wired.** RTAI-001's
+   in-process spike measured p95 1.4 ms against an 80 ms ADR-031 mid-edit
+   budget; RTAI-003 (PR #1189) shipped the criterion harness with a recorded
+   7-case ADR-031 corpus and the manual percentile sampler, so local baselines
+   exist. CI baseline-comparison gating is the still-open piece, deferred to
+   issue #1191. Until #1191 lands, latency regressions will not fail CI; manual
+   re-runs of `cargo bench -p eddacraft-anvil-intercept --bench
+   midedit_roundtrip` are the safety net.
 2. **Envelope coordination drift.** If A2 ships its diagnostic envelope before
    A1 locks down RTAI/INTD/RMCP shapes, consumers branch.
 3. **Cross-cutting expansion.** A3 wants to grow (downstream-port, WalkParallel
