@@ -27,12 +27,12 @@ candidate menu below. APS module status remains authoritative in
 [`plans/index.aps.md`](./plans/index.aps.md); this section mirrors the subset
 that is locked for the release.
 
-| Slice  | Locked state                                                                                                                                 |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slice  | Locked state                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------------------------------ |
 | **A1** | 24 Complete / 24 (slice closed 2026-04-30) — RMCP-008 GUI dry-run recorded in the RTAI demo runbook validation log |
-| **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                                                |
-| **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                                            |
-| **A4** | Complete 9/9: LANGTS audit/checklist, OPSUP check-ID registry slice, and SURFENV                                                             |
+| **A2** | Complete 4/4: AIGUARD profile, stable diagnostic envelope, CLI flag, and docs                                      |
+| **A3** | Complete 7/7: GHOOK-001, ATTRIB-001/-002/-003, SCAN-001/-002/-003                                                  |
+| **A4** | Complete 9/9: LANGTS audit/checklist, OPSUP check-ID registry slice, and SURFENV                                   |
 
 **A1 source-module state:**
 
@@ -60,9 +60,9 @@ that is locked for the release.
 RMCP-008 closed against the GUI dry-run recorded in
 [`plans/specs/2026-04-26-rtai-demo-runbook.md`](./plans/specs/2026-04-26-rtai-demo-runbook.md)
 §8 (Claude Code, `target/release/anvil`, AI-001 reasoning rule exercised
-end-to-end through `anvil_validate_write`). Three follow-up gaps surfaced
-during the dry-run and are tracked separately because none affect the
-RMCP-008 contract or block the slice from shipping:
+end-to-end through `anvil_validate_write`). Three follow-up gaps surfaced during
+the dry-run and are tracked separately because none affect the RMCP-008 contract
+or block the slice from shipping:
 
 - **#1194** — `anvil mcp install` lacks the `--command` override the underlying
   `mcp-config` exposes; `--verify` is over-strict against non-default command
@@ -76,12 +76,12 @@ RMCP-008 contract or block the slice from shipping:
   directive language in the tool description.
 
 **Carried-forward note for the next slice (RMCP/RMCPF):** RMCP-005's
-`DaemonValidationClient` default impl returns `Unavailable`, so MCP
-`tools/call` runs through the embedded `anvil-checks` rule pipeline. The
-daemon side (`scan_buffer` RPC, INTD-002 listener) is in place; the next
-slice replaces the `Unavailable` stub with a live JSON-RPC client and
-graduates `tools/call` to the daemon-backed path. The embedded path remains
-the correctness-equivalent fallback when the daemon is not running.
+`DaemonValidationClient` default impl returns `Unavailable`, so MCP `tools/call`
+runs through the embedded `anvil-checks` rule pipeline. The daemon side
+(`scan_buffer` RPC, INTD-002 listener) is in place; the next slice replaces the
+`Unavailable` stub with a live JSON-RPC client and graduates `tools/call` to the
+daemon-backed path. The embedded path remains the correctness-equivalent
+fallback when the daemon is not running.
 
 **Out of this release:** A5 (Dashboard MVP), RMCPF (full Rust MCP parity port),
 GV2/GCTX (Graph v2 foundation and graph context delivery), and full DRVR editor
@@ -104,8 +104,8 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       Claude Code → paste known-bad pattern → Anvil flags before save. LAUNCH
       polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
       MCP launch path. RMCP-008 closed 2026-04-30: headless smoke green; Claude
-      Code GUI dry-run recorded in
-      `plans/specs/2026-04-26-rtai-demo-runbook.md` §8. Required by **A1**.
+      Code GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md`
+      §8. Required by **A1**.
 - [x] **Rust MCP launch shim for Cursor / Claude Code** — RCLI3-016 already
       writes config pointing at `anvil mcp serve --stdio`; **RMCP** makes that
       command real in Rust for the A1 path. RMCP-001..-008 are all Complete; do
@@ -131,8 +131,9 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
    7-case ADR-031 corpus and the manual percentile sampler, so local baselines
    exist. CI baseline-comparison gating is the still-open piece, deferred to
    issue #1191. Until #1191 lands, latency regressions will not fail CI; manual
-   re-runs of `cargo bench -p eddacraft-anvil-intercept --bench
-   midedit_roundtrip` are the safety net.
+   re-runs of
+   `cargo bench -p eddacraft-anvil-intercept --bench midedit_roundtrip` are the
+   safety net.
 2. **Envelope coordination drift.** If A2 ships its diagnostic envelope before
    A1 locks down RTAI/INTD/RMCP shapes, consumers branch.
 3. **Cross-cutting expansion.** A3 wants to grow (downstream-port, WalkParallel
