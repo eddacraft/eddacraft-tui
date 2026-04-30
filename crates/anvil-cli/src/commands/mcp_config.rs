@@ -52,7 +52,7 @@ pub struct McpConfigArgs {
     verify: bool,
 
     /// Override the workspace root used to resolve target-local config
-    /// paths (`.claude/`, `.cursor/`, `.windsurf/`, `.vscode/`). Defaults to
+    /// paths (`.claude.json`, `.cursor/`, `.windsurf/`, `.vscode/`). Defaults to
     /// the current working directory.
     #[arg(long)]
     workspace: Option<PathBuf>,
@@ -71,7 +71,7 @@ pub struct McpConfigArgs {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Target {
-    /// Anthropic Claude Code (`.claude/mcp.json`).
+    /// Anthropic Claude Code (`.claude.json`).
     ClaudeCode,
     /// Cursor (`.cursor/mcp.json`).
     Cursor,
@@ -92,17 +92,13 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
         Some(p) => p.clone(),
         None => std::env::current_dir().context("resolving current directory")?,
     };
+    let command_override = validate_command_override(args.command.as_deref())?;
 
     if args.verify {
         return run_verify(args, global, &workspace);
     }
 
-    let value = build_config(
-        args.target,
-        args.transport,
-        args.port,
-        args.command.as_deref(),
-    );
+    let value = build_config(args.target, args.transport, args.port, command_override);
     let entry_json = serde_json::to_string_pretty(&value)?;
 
     let config_path = workspace.join(relative_path_for(args.target));
@@ -142,7 +138,19 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Result<()> {
-    let (config_path, entry) = verify_target_config(args.target, global, workspace, false)?;
+    let require_rust_stdio = args.transport == Transport::Stdio;
+    let expected_command = if require_rust_stdio {
+        validate_command_override(args.command.as_deref())?
+    } else {
+        None
+    };
+    let (config_path, entry) = verify_target_config(
+        args.target,
+        global,
+        workspace,
+        require_rust_stdio,
+        expected_command,
+    )?;
 
     if global.json {
         println!(
@@ -166,9 +174,11 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
 pub(crate) fn install_rust_stdio_target(
     target: Target,
     config_root: &Path,
+    command: Option<&str>,
     global: &GlobalArgs,
 ) -> Result<RustStdioInstall> {
-    let value = build_config(target, Transport::Stdio, DEFAULT_HTTP_PORT, Some("anvil"));
+    let command = validate_command_override(command)?.unwrap_or("anvil");
+    let value = build_config(target, Transport::Stdio, DEFAULT_HTTP_PORT, Some(command));
     let config_path = config_root.join(relative_path_for(target));
     let expected_entry = extract_entry(target, &value).unwrap_or(Value::Null);
     let existing_entry = read_existing_entry(target, &config_path)?;
@@ -203,9 +213,19 @@ pub(crate) fn default_client_config_root() -> Result<PathBuf> {
 pub(crate) fn verify_rust_stdio_target(
     target: Target,
     workspace: &Path,
+    expected_command: Option<&str>,
     global: &GlobalArgs,
 ) -> Result<(PathBuf, Value)> {
-    verify_target_config(target, global, workspace, true)
+    let expected_command = validate_command_override(expected_command)?;
+    verify_target_config(target, global, workspace, true, expected_command)
+}
+
+fn validate_command_override(command: Option<&str>) -> Result<Option<&str>> {
+    if command.is_some_and(|command| command.trim().is_empty()) {
+        bail!("--command must not be empty");
+    }
+
+    Ok(command)
 }
 
 fn write_target_config(
@@ -238,6 +258,7 @@ fn verify_target_config(
     global: &GlobalArgs,
     workspace: &Path,
     require_rust_stdio: bool,
+    expected_command: Option<&str>,
 ) -> Result<(PathBuf, Value)> {
     let config_path = workspace.join(relative_path_for(target));
     if !config_path.exists() {
@@ -288,7 +309,7 @@ fn verify_target_config(
     };
 
     if require_rust_stdio {
-        validate_rust_stdio_entry(target, &config_path, &entry, global)?;
+        validate_rust_stdio_entry(target, &config_path, &entry, expected_command, global)?;
     }
 
     Ok((config_path, entry))
@@ -298,12 +319,22 @@ fn validate_rust_stdio_entry(
     target: Target,
     config_path: &Path,
     entry: &Value,
+    expected_command: Option<&str>,
     global: &GlobalArgs,
 ) -> Result<()> {
-    let command_ok = entry.get("command").and_then(Value::as_str) == Some("anvil");
+    let command_ok = entry
+        .get("command")
+        .and_then(Value::as_str)
+        .is_some_and(|command| command_matches_expected(command, expected_command));
     let args_ok = entry.get("args") == Some(&json!(["mcp", "serve", "--stdio",]));
+    let type_ok = match (target, entry.get("type")) {
+        (Target::ClaudeCode | Target::Vscode, Some(value)) => value.as_str() == Some("stdio"),
+        (Target::ClaudeCode | Target::Vscode, None) => false,
+        (_, Some(value)) => value.as_str() == Some("stdio"),
+        (_, None) => true,
+    };
 
-    if command_ok && args_ok {
+    if command_ok && args_ok && type_ok {
         return Ok(());
     }
 
@@ -315,21 +346,43 @@ fn validate_rust_stdio_entry(
                 "path": config_path.display().to_string(),
                 "error": "malformed-entry",
                 "expected": {
-                    "command": "anvil",
-                    "args": ["mcp", "serve", "--stdio"]
+                    "command": expected_command.unwrap_or("anvil"),
+                    "args": ["mcp", "serve", "--stdio"],
+                    "type": expected_type_label(target)
                 },
                 "entry": entry,
             })
         );
     } else {
         eprintln!(
-            "{} config at {} has a malformed `{SERVER_NAME}` entry; expected command `anvil` with args `mcp serve --stdio`.",
+            "{} config at {} has a malformed `{SERVER_NAME}` entry; expected command {} with args `mcp serve --stdio` and type {}.",
             target_label(target),
-            config_path.display()
+            config_path.display(),
+            expected_command.unwrap_or("`anvil`"),
+            expected_type_label(target)
         );
     }
 
     Err(AlreadyReported.into())
+}
+
+fn expected_type_label(target: Target) -> &'static str {
+    match target {
+        Target::ClaudeCode | Target::Vscode => "`stdio`",
+        Target::Cursor | Target::Windsurf => "`stdio` when present",
+    }
+}
+
+fn command_matches_expected(command: &str, expected_command: Option<&str>) -> bool {
+    if command.trim().is_empty() {
+        return false;
+    }
+
+    if let Some(expected_command) = expected_command {
+        return command == expected_command;
+    }
+
+    command == "anvil"
 }
 
 fn read_existing_entry(target: Target, config_path: &Path) -> Result<Option<Value>> {
@@ -358,8 +411,9 @@ fn read_existing_entry(target: Target, config_path: &Path) -> Result<Option<Valu
 /// with a `type` field (`stdio`/`streamable-http`) per the `VSCode` MCP
 /// convention. `streamable-http` superseded the legacy `sse` type from VS
 /// Code 1.99 onwards; older builds still parse it via the same code path.
-/// The other targets share a `mcpServers` map keyed by server name with
-/// `command` / `args` (for stdio) or `url` (for http).
+/// Other targets share a `mcpServers` map keyed by server name with
+/// `command` / `args` (for stdio) or `url` (for http); Claude Code also
+/// carries `type: "stdio"` in the same map for its user-scope config.
 pub(crate) fn build_config(
     target: Target,
     transport: Transport,
@@ -390,6 +444,12 @@ pub(crate) fn build_config(
 
 fn build_entry(target: Target, transport: Transport, port: u16, command: &str) -> Value {
     match (target, transport) {
+        (Target::ClaudeCode, Transport::Stdio) => json!({
+            "type": "stdio",
+            "command": command,
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        }),
         (Target::Vscode, Transport::Stdio) => json!({
             "type": "stdio",
             "command": command,
@@ -453,11 +513,14 @@ fn merge_into_existing(target: Target, config_path: &Path, fresh: &Value) -> Res
     let merged = match existing {
         None => fresh.clone(),
         Some(mut base) => {
+            if !base.is_object() {
+                bail!("existing config root is not an object; refusing to overwrite");
+            }
             // Only merge the leaf we own. Preserve every other key in the
             // user's editor config — they may have other MCP servers
             // configured, settings unrelated to MCP, etc.
             let entry = extract_entry(target, fresh).unwrap_or(Value::Null);
-            insert_entry(target, &mut base, entry);
+            insert_entry(target, &mut base, entry)?;
             base
         }
     };
@@ -465,32 +528,37 @@ fn merge_into_existing(target: Target, config_path: &Path, fresh: &Value) -> Res
     Ok(serde_json::to_string_pretty(&merged)?)
 }
 
-fn insert_entry(target: Target, root: &mut Value, entry: Value) {
+fn insert_entry(target: Target, root: &mut Value, entry: Value) -> Result<()> {
     match target {
         Target::ClaudeCode | Target::Cursor | Target::Windsurf => {
             let obj = ensure_object(root);
             let servers = obj
                 .entry("mcpServers".to_string())
                 .or_insert_with(|| Value::Object(Map::new()));
-            if let Value::Object(map) = servers {
-                map.insert(SERVER_NAME.to_string(), entry);
-            }
+            let Value::Object(map) = servers else {
+                bail!("existing config has non-object `mcpServers`; refusing to overwrite");
+            };
+            map.insert(SERVER_NAME.to_string(), entry);
         }
         Target::Vscode => {
             let obj = ensure_object(root);
             let mcp = obj
                 .entry("mcp".to_string())
                 .or_insert_with(|| Value::Object(Map::new()));
-            if let Value::Object(mcp_map) = mcp {
-                let servers = mcp_map
-                    .entry("servers".to_string())
-                    .or_insert_with(|| Value::Object(Map::new()));
-                if let Value::Object(map) = servers {
-                    map.insert(SERVER_NAME.to_string(), entry);
-                }
-            }
+            let Value::Object(mcp_map) = mcp else {
+                bail!("existing config has non-object `mcp`; refusing to overwrite");
+            };
+            let servers = mcp_map
+                .entry("servers".to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            let Value::Object(map) = servers else {
+                bail!("existing config has non-object `mcp.servers`; refusing to overwrite");
+            };
+            map.insert(SERVER_NAME.to_string(), entry);
         }
     }
+
+    Ok(())
 }
 
 fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
@@ -599,7 +667,7 @@ fn normalise(path: &Path) -> PathBuf {
 
 fn relative_path_for(target: Target) -> PathBuf {
     match target {
-        Target::ClaudeCode => PathBuf::from(".claude").join("mcp.json"),
+        Target::ClaudeCode => PathBuf::from(".claude.json"),
         Target::Cursor => PathBuf::from(".cursor").join("mcp.json"),
         Target::Windsurf => PathBuf::from(".windsurf").join("mcp.json"),
         Target::Vscode => PathBuf::from(".vscode").join("settings.json"),
@@ -632,9 +700,9 @@ mod tests {
         let v = build_config(Target::ClaudeCode, Transport::Stdio, 0, Some("anvil"));
         assert!(v.get("mcpServers").is_some(), "claude-code uses mcpServers");
         let entry = extract_entry(Target::ClaudeCode, &v).unwrap();
+        assert_eq!(entry["type"], "stdio");
         assert_eq!(entry["command"], "anvil");
         assert_eq!(entry["args"][0], "mcp");
-        assert!(entry.get("type").is_none(), "claude-code has no type field");
         // Round-trip parse — the file we write must be valid JSON.
         let raw = serde_json::to_string_pretty(&v).unwrap();
         let _: Value = serde_json::from_str(&raw).unwrap();
@@ -752,7 +820,7 @@ mod tests {
     fn relative_paths_per_target() {
         assert_eq!(
             relative_path_for(Target::ClaudeCode),
-            PathBuf::from(".claude").join("mcp.json"),
+            PathBuf::from(".claude.json"),
         );
         assert_eq!(
             relative_path_for(Target::Cursor),

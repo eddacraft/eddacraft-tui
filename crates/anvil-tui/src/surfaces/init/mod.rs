@@ -98,7 +98,7 @@ impl ConfigFormat {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Yaml => "YAML (.anvil.yaml)",
+            Self::Yaml => "YAML (.anvil.yaml) (default)",
             Self::Json => "JSON (.anvil.json)",
             Self::Toml => "TOML (.anvil.toml)",
         }

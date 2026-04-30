@@ -22,7 +22,7 @@ const MAX_PROPOSED_CONTENT_BYTES: usize = 1024 * 1024;
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Validate a proposed file write before the MCP client applies it.",
+        "description": "Pre-write validation gate. Call this tool before EVERY file write to verify the proposed content does not introduce secrets, anti-patterns, or boundary violations. Honour `block` decisions; do not write files the tool refuses.",
         "inputSchema": {
             "type": "object",
             "properties": {

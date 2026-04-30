@@ -57,6 +57,12 @@ fn mcp_serve_stdio_initialise_returns_json_rpc_response() {
     assert_eq!(parsed["id"], 1);
     assert_eq!(parsed["result"]["serverInfo"]["name"], "anvil");
     assert_eq!(parsed["result"]["capabilities"]["tools"], json!({}));
+    let instructions = parsed["result"]["instructions"]
+        .as_str()
+        .expect("initialize result must include server instructions");
+    assert!(instructions.contains("anvil_validate_write"));
+    assert!(instructions.contains("Before applying any file write"));
+    assert!(instructions.contains("block"));
 }
 
 #[test]
@@ -142,6 +148,11 @@ fn mcp_serve_stdio_tools_list_returns_validate_write_tool() {
         .expect("tools/list result must include a tools array");
     assert_eq!(tools.len(), 1);
     assert_eq!(tools[0]["name"], "anvil_validate_write");
+    let description = tools[0]["description"]
+        .as_str()
+        .expect("tool descriptor must include a description");
+    assert!(description.contains("before EVERY file write"));
+    assert!(description.contains("Honour `block` decisions"));
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
 }
 

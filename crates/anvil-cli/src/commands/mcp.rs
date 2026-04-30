@@ -10,6 +10,7 @@ use crate::commands::mcp_config::{self, Target};
 use crate::mcp::tools::validate_write;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
+const SERVER_INSTRUCTIONS: &str = "This server provides a write-validation tool (anvil_validate_write). Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content and respect a `block` decision. Treat blocks as authoritative; do not bypass them via alternate write tools.";
 // Keep the stdio frame ceiling comfortably above the largest accepted tool
 // payload. validate-write caps `proposedContent` at 1 MiB of UTF-8 source.
 // JSON string escaping can grow that almost 2x in the worst case (every byte
@@ -42,6 +43,10 @@ struct McpInstallArgs {
     #[arg(long)]
     verify: bool,
 
+    /// Override the command path written into stdio configs. Defaults to `anvil`.
+    #[arg(long)]
+    command: Option<String>,
+
     /// Override the client config root. Defaults to the user's home directory.
     #[arg(long)]
     workspace: Option<PathBuf>,
@@ -51,7 +56,7 @@ struct McpInstallArgs {
 enum McpClient {
     /// Cursor (`.cursor/mcp.json`).
     Cursor,
-    /// Anthropic Claude Code (`.claude/mcp.json`).
+    /// Anthropic Claude Code (`.claude.json`).
     ClaudeCode,
 }
 
@@ -75,9 +80,21 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
         None => mcp_config::default_client_config_root()?,
     };
     let target = args.client.target();
+    if args
+        .command
+        .as_deref()
+        .is_some_and(|command| command.trim().is_empty())
+    {
+        bail!("--command must not be empty");
+    }
 
     if args.verify {
-        let (path, entry) = mcp_config::verify_rust_stdio_target(target, &config_root, global)?;
+        let (path, entry) = mcp_config::verify_rust_stdio_target(
+            target,
+            &config_root,
+            args.command.as_deref(),
+            global,
+        )?;
         if global.json {
             println!(
                 "{}",
@@ -99,7 +116,13 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
         return Ok(());
     }
 
-    let install = mcp_config::install_rust_stdio_target(target, &config_root, global)?;
+    let command = args.command.as_deref().unwrap_or("anvil");
+    let install = mcp_config::install_rust_stdio_target(
+        target,
+        &config_root,
+        args.command.as_deref(),
+        global,
+    )?;
     if global.json {
         println!(
             "{}",
@@ -108,7 +131,7 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
                 "path": install.path.display().to_string(),
                 "wrote": install.wrote,
                 "drifted": install.drifted,
-                "command": "anvil",
+                "command": command,
                 "args": ["mcp", "serve", "--stdio"],
             })
         );
@@ -280,6 +303,7 @@ fn initialize_response(id: &Value, message: &Value) -> Value {
         "capabilities": {
             "tools": {}
         },
+        "instructions": SERVER_INSTRUCTIONS,
         "serverInfo": {
             "name": "anvil",
             "version": env!("CARGO_PKG_VERSION")
