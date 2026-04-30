@@ -23,6 +23,7 @@ anvil-policy = { path = "../anvil-policy", package = "eddacraft-anvil-policy" }
 anvil-architecture = { path = "../anvil-architecture", package = "eddacraft-anvil-architecture" }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-intercept = { path = "../anvil-intercept", package = "eddacraft-anvil-intercept" }
+anvil-observability = { path = "../anvil-observability", package = "eddacraft-anvil-observability" }
 eddacraft-tui = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true }

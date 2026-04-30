@@ -452,6 +452,16 @@ fn wants_json() -> bool {
 }
 
 fn main() -> ExitCode {
+    // TRACE-001: install the cross-cutting tracing subscriber once at
+    // process start. `Err` means a global subscriber was already
+    // registered (test harness, parent context, or a misbehaving
+    // dependency); the CLI continues on that subscriber but surfaces
+    // the condition to stderr so an operator can diagnose missing
+    // spans rather than silently losing observability.
+    if let Err(err) = anvil_observability::init_tracing(anvil_observability::BinaryKind::Cli) {
+        eprintln!("anvil: tracing subscriber init skipped: {err}");
+    }
+
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) => {

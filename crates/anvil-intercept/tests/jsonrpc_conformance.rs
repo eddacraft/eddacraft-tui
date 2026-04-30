@@ -865,6 +865,57 @@ async fn scan_buffer_short_circuits_binary_content() {
     assert_eq!(response["result"]["diagnostics"], json!([]));
 }
 
+/// TRACE-001 / ADR-035: a valid W3C `traceparent` placed on the
+/// JSON-RPC envelope must round-trip onto the matching response
+/// unchanged, so a downstream consumer can correlate a notification or
+/// error back to its originating span without re-deriving the trace
+/// context. The producer is the source-of-truth for the header bytes;
+/// the daemon's job is to validate (reject malformed values) and echo.
+#[tokio::test]
+async fn traceparent_round_trips_through_jsonrpc_envelope_unchanged() {
+    let traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "session.list",
+        "id": "trace-1",
+        "traceparent": traceparent,
+    }))
+    .await;
+
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "trace-1");
+    assert_eq!(response["result"], json!([]));
+    assert_eq!(
+        response["traceparent"], traceparent,
+        "traceparent must round-trip byte-for-byte through the envelope"
+    );
+}
+
+#[tokio::test]
+async fn invalid_traceparent_is_rejected_as_invalid_request() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "session.list",
+        "id": "trace-bad",
+        "traceparent": "00-not-a-real-trace-context-value",
+    }))
+    .await;
+
+    assert_eq!(response["id"], "trace-bad");
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["data"]["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("traceparent is invalid"),
+        "expected traceparent rejection, got {response}"
+    );
+    // Round-trip is only contracted for valid headers; reject responses
+    // must not echo an invalid value back.
+    assert!(response.get("traceparent").is_none());
+}
+
 #[tokio::test]
 async fn scan_buffer_malformed_request_returns_structured_error() {
     let response = request(json!({

@@ -36,6 +36,21 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    // TRACE-001: install the daemon's tracing subscriber before any
+    // request paths spin up. `Err` means a global subscriber is
+    // already registered (test harness, parent context, or a
+    // misbehaving dependency); the daemon stays up on that subscriber
+    // but surfaces the condition so operators can diagnose missing
+    // spans rather than silently dropping all daemon observability.
+    // Deployment note: stderr must be captured by the supervising
+    // process manager (systemd / launchd) — INTD-002 owns the
+    // background-launch capture story.
+    if let Err(err) =
+        anvil_observability::init_tracing(anvil_observability::BinaryKind::InterceptDaemon)
+    {
+        eprintln!("anvil-intercept: tracing subscriber init skipped: {err}");
+    }
+
     let cli = Cli::parse();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

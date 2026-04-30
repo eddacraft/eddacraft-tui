@@ -11,9 +11,9 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 # Tracing Foundation
 
-| ID    | Owner      | Status | Progress |
-| ----- | ---------- | ------ | -------- |
-| TRACE | @eddacraft | Ready  | 0/3      |
+| ID    | Owner      | Status      | Progress |
+| ----- | ---------- | ----------- | -------- |
+| TRACE | @eddacraft | In Progress | 1/3      |
 
 **Last reviewed:** 2026-04-30
 
@@ -158,6 +158,20 @@ This module is **Ready** when:
 
 ### TRACE-001: Tracing baseline crate, propagation, and namespace registry
 
+> **Status update (2026-04-30):** Complete. `anvil-observability` crate
+> shipped with `TraceContext` (W3C `traceparent` v00 parse/generate),
+> `BinaryKind`, `init_tracing`, JSON formatter, and an advisory-only
+> redaction deny-list (TRACE-003 wires the layer). Both binary
+> entrypoints call `init_tracing` once and surface install errors to
+> stderr. The JSON-RPC envelope validates `traceparent` on every
+> request and round-trips it on every response (success and error);
+> the INTD-014 conformance fixture pins the contract with two new
+> assertions. Council session `council-666d6e65` converged
+> (4 critical, 10 major, 14 minor, 0 nit; 22 fixed, 4 deferred,
+> 1 dismissed). ADR-035 + namespace registry doc updated with
+> known-gaps callouts so operators are not misled about redaction
+> enforcement.
+
 - **Intent:** Anvil's Rust binaries share one tracing crate, propagate
   `traceparent` across the three observability surfaces, and publish a
   namespace registry domain modules can append to.
@@ -190,9 +204,9 @@ This module is **Ready** when:
   `docs/observability/namespace-registry.md`,
   `plans/decisions/035-three-pipe-observability-rule.md`.
 - **Validation:**
-  `cargo test -p anvil-observability && rg -n "traceparent" crates/anvil-intercept/tests/jsonrpc_conformance.rs`
+  `cargo test -p eddacraft-anvil-observability -p eddacraft-anvil-intercept && rg -n "traceparent" crates/anvil-intercept/tests/jsonrpc_conformance.rs`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 

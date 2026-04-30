@@ -37,6 +37,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
+use anvil_observability::TraceContext;
 use serde_json::{Value, json};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
@@ -731,6 +732,7 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
             Err(err) => {
                 let response = jsonrpc_error(
                     None,
+                    None,
                     -32700,
                     "Parse error",
                     json!({"reason": err.to_string()}),
@@ -815,7 +817,15 @@ async fn write_json_response<W: AsyncWrite + Unpin>(
 }
 
 fn oversized_frame_response(reason: &str) -> Value {
-    jsonrpc_error(None, -32600, "Invalid Request", json!({ "reason": reason }))
+    // Pre-parse rejection — the frame was too large to safely deserialise,
+    // so we never recover a `traceparent` to echo here.
+    jsonrpc_error(
+        None,
+        None,
+        -32600,
+        "Invalid Request",
+        json!({ "reason": reason }),
+    )
 }
 
 #[doc(hidden)]
@@ -884,6 +894,7 @@ fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), OversizedFrame
     let mut saw_method = false;
     let mut saw_params = false;
     let mut saw_id = false;
+    let mut saw_traceparent = false;
 
     loop {
         index = skip_json_whitespace(bytes, index);
@@ -958,6 +969,40 @@ fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), OversizedFrame
                 if !skip_bounded_jsonrpc_id(bytes, &mut index) {
                     return Err(OversizedFrameRejection::request(
                         "oversized scan_buffer frame id is missing or too large",
+                    ));
+                }
+            }
+            "traceparent" => {
+                // TRACE-001: `traceparent` is a fixed-shape ASCII header
+                // (W3C Trace Context). The fast path here only checks
+                // it is a bounded simple string — full validation is
+                // re-done after deserialisation in
+                // `extract_traceparent`. Keeping this check tight
+                // prevents an attacker from smuggling kilobytes of
+                // padding through a "traceparent" key on an over-cap
+                // frame.
+                if saw_traceparent {
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame contains duplicate traceparent fields",
+                    ));
+                }
+                saw_traceparent = true;
+                // `parse_simple_json_string` returns `None` for any
+                // string containing escape sequences, so `value` here
+                // is raw ASCII whose `.len()` equals the decoded
+                // length. The `>` (not `==`) is intentional: full
+                // format validation is re-done in `extract_traceparent`
+                // after deserialisation. This guard only prevents an
+                // attacker padding kilobytes of bytes through the
+                // `traceparent` key on an over-cap frame.
+                let Some(value) = parse_simple_json_string(bytes, &mut index) else {
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame traceparent is missing or malformed",
+                    ));
+                };
+                if value.len() > anvil_observability::traceparent::TRACEPARENT_LEN {
+                    return Err(OversizedFrameRejection::request(
+                        "oversized scan_buffer frame traceparent exceeds W3C length",
                     ));
                 }
             }
@@ -1091,6 +1136,18 @@ fn skip_json_whitespace(bytes: &[u8], mut index: usize) -> usize {
     index
 }
 
+/// Parse a JSON string with NO escape sequences, advancing `index`
+/// past the closing quote on success.
+///
+/// Returns `None` for any string containing a backslash escape (so the
+/// returned `&str` is always raw bytes between the quotes whose length
+/// equals the decoded length), for non-UTF-8 input, and for malformed /
+/// unterminated strings. Callers that need escape-decoded content must
+/// use a full JSON parser instead.
+///
+/// On `None`, the position of `index` is undefined — callers must treat
+/// the frame as malformed and stop scanning, not retry from the next
+/// byte.
 fn parse_simple_json_string<'a>(bytes: &'a [u8], index: &mut usize) -> Option<&'a str> {
     if bytes.get(*index) != Some(&b'"') {
         return None;
@@ -1242,6 +1299,7 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
             if items.is_empty() {
                 return Some(jsonrpc_error(
                     None,
+                    None,
                     -32600,
                     "Invalid Request",
                     json!({
@@ -1254,6 +1312,7 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                     return None;
                 }
                 return Some(jsonrpc_error(
+                    None,
                     None,
                     -32600,
                     "Invalid Request",
@@ -1270,7 +1329,15 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                     if let JsonRpcBatchResponseId::Request(response_id) =
                         jsonrpc_batch_response_id(&item)
                     {
-                        responses.push(scan_buffer_batch_error(response_id));
+                        // Echo a valid traceparent on the rejection so
+                        // batch consumers can still correlate per-item.
+                        // Invalid headers fall through to None and are
+                        // silently ignored (the request is being rejected
+                        // anyway).
+                        let traceparent = item
+                            .as_object()
+                            .and_then(|map| extract_traceparent(map).ok().flatten());
+                        responses.push(scan_buffer_batch_error(response_id, traceparent));
                     }
                     continue;
                 }
@@ -1312,9 +1379,10 @@ fn jsonrpc_batch_response_id(value: &Value) -> JsonRpcBatchResponseId {
     }
 }
 
-fn scan_buffer_batch_error(response_id: Option<Value>) -> Value {
+fn scan_buffer_batch_error(response_id: Option<Value>, traceparent: Option<&str>) -> Value {
     jsonrpc_error(
         response_id,
+        traceparent,
         -32600,
         "Invalid Request",
         json!({"reason": "scan_buffer is not supported in JSON-RPC batches"}),
@@ -1328,6 +1396,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
 ) -> Option<Value> {
     let Value::Object(map) = value else {
         return Some(jsonrpc_error(
+            None,
             None,
             -32600,
             "Invalid Request",
@@ -1343,6 +1412,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     if response_id.is_none() && id.is_some() {
         return Some(jsonrpc_error(
             None,
+            None,
             -32600,
             "Invalid Request",
             json!({
@@ -1351,9 +1421,29 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         ));
     }
 
+    // TRACE-001 / ADR-035: `traceparent` is the cross-pipe correlation
+    // key. Extract and validate before any other shape check so a
+    // malformed header is rejected with a deterministic error code, and
+    // a valid one round-trips through every response (success or error)
+    // unchanged.
+    let traceparent = match extract_traceparent(&map) {
+        Ok(tp) => tp,
+        Err(JsonRpcFailure {
+            code,
+            message,
+            data,
+        }) => {
+            // Header was unparseable — we deliberately do NOT echo it
+            // on the rejection response (round-trip is only contracted
+            // for valid headers).
+            return jsonrpc_request_error(response_id, None, !has_id, code, message, data);
+        }
+    };
+
     if map.get("jsonrpc") != Some(&Value::String("2.0".to_owned())) {
         return Some(jsonrpc_error(
             response_id,
+            traceparent,
             -32600,
             "Invalid Request",
             json!({"reason": "jsonrpc must be \"2.0\""}),
@@ -1363,6 +1453,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     let Some(method) = map.get("method").and_then(Value::as_str) else {
         return Some(jsonrpc_error(
             response_id,
+            traceparent,
             -32600,
             "Invalid Request",
             json!({"reason": "method must be a string"}),
@@ -1372,32 +1463,36 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     let params = map.get("params").unwrap_or(&Value::Null);
 
     if method == midedit::SCAN_BUFFER_METHOD {
-        if let Err(JsonRpcFailure {
-            code,
-            message,
-            data,
-        }) = validate_scan_buffer_request_shape(&map, method)
-        {
-            return jsonrpc_request_error(response_id, is_notification, code, message, data);
-        }
-        if is_notification {
-            tracing::warn!(
-                target: "anvil_intercept::ipc",
-                "ignoring scan_buffer notification: request id required"
-            );
-            eprintln!("anvil-intercept: ignoring scan_buffer notification: request id required");
-            return None;
-        }
-        return match scan_buffer_from_jsonrpc(params, method, scan_buffer).await {
-            Ok(result) => Some(json!({"jsonrpc": "2.0", "result": result, "id": response_id})),
-            Err(JsonRpcFailure {
-                code,
-                message,
-                data,
-            }) => jsonrpc_request_error(response_id, is_notification, code, message, data),
-        };
+        return handle_scan_buffer_jsonrpc(
+            &map,
+            method,
+            params,
+            response_id,
+            traceparent,
+            is_notification,
+            scan_buffer,
+        )
+        .await;
     }
 
+    dispatch_session_jsonrpc(
+        method,
+        params,
+        response_id,
+        traceparent,
+        is_notification,
+        dispatcher,
+    )
+}
+
+fn dispatch_session_jsonrpc<D: SessionDispatcher>(
+    method: &str,
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    dispatcher: &Arc<D>,
+) -> Option<Value> {
     let command = match command_from_jsonrpc(method, params) {
         Ok(command) => command,
         Err(JsonRpcFailure {
@@ -1405,7 +1500,14 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             message,
             data,
         }) => {
-            return jsonrpc_request_error(response_id, is_notification, code, message, data);
+            return jsonrpc_request_error(
+                response_id,
+                traceparent,
+                is_notification,
+                code,
+                message,
+                data,
+            );
         }
     };
 
@@ -1414,17 +1516,83 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             if is_notification {
                 None
             } else {
-                Some(json!({"jsonrpc": "2.0", "result": result, "id": response_id}))
+                Some(jsonrpc_success(response_id, traceparent, result))
             }
         }
         Err(err) => jsonrpc_request_error(
             response_id,
+            traceparent,
             is_notification,
             -32603,
             "Internal error",
             json!({"error": err.clone()}),
         ),
     }
+}
+
+async fn handle_scan_buffer_jsonrpc(
+    map: &serde_json::Map<String, Value>,
+    method: &str,
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    scan_buffer: &ScanBufferService,
+) -> Option<Value> {
+    if let Err(JsonRpcFailure {
+        code,
+        message,
+        data,
+    }) = validate_scan_buffer_request_shape(map, method)
+    {
+        return jsonrpc_request_error(response_id, traceparent, is_notification, code, message, data);
+    }
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::ipc",
+            "ignoring scan_buffer notification: request id required"
+        );
+        eprintln!("anvil-intercept: ignoring scan_buffer notification: request id required");
+        return None;
+    }
+    match scan_buffer_from_jsonrpc(params, method, scan_buffer).await {
+        Ok(result) => Some(jsonrpc_success(response_id, traceparent, result)),
+        Err(JsonRpcFailure {
+            code,
+            message,
+            data,
+        }) => jsonrpc_request_error(response_id, traceparent, is_notification, code, message, data),
+    }
+}
+
+/// Parse the optional `traceparent` field from a JSON-RPC envelope.
+///
+/// TRACE-001 contract (see ADR-035): when present the value MUST be a
+/// W3C `traceparent` header (version 00). On success the function
+/// returns the borrowed raw string; the **producer is the source of
+/// truth** for the bytes, and they round-trip onto the response
+/// unchanged. The strict parser guarantees only canonical forms reach
+/// the round-trip echo, so reflecting `raw` (rather than
+/// re-serialising via `TraceContext::as_header`) is safe.
+///
+/// Absent is the default — `traceparent` is optional on every method.
+///
+/// Same-UID peers can supply any valid context: the daemon does not
+/// mint trace IDs and cannot detect ID-fixation. Trace integrity for
+/// exported spans is the exporter's concern, not the envelope's
+/// (accepted risk per ADR-035).
+fn extract_traceparent(
+    map: &serde_json::Map<String, Value>,
+) -> Result<Option<&str>, JsonRpcFailure> {
+    let Some(value) = map.get("traceparent") else {
+        return Ok(None);
+    };
+    let Some(raw) = value.as_str() else {
+        return Err(invalid_request("traceparent must be a string"));
+    };
+    TraceContext::parse(raw)
+        .map_err(|err| invalid_request(format!("traceparent is invalid: {err}")))?;
+    Ok(Some(raw))
 }
 
 fn valid_jsonrpc_id(id: Option<&Value>) -> Option<Value> {
@@ -1442,6 +1610,7 @@ fn valid_jsonrpc_id(id: Option<&Value>) -> Option<Value> {
 
 fn jsonrpc_request_error(
     id: Option<Value>,
+    traceparent: Option<&str>,
     is_notification: bool,
     code: i64,
     message: &'static str,
@@ -1450,25 +1619,44 @@ fn jsonrpc_request_error(
     if is_notification {
         None
     } else {
-        Some(jsonrpc_error(id, code, message, data))
+        Some(jsonrpc_error(id, traceparent, code, message, data))
     }
 }
 
 fn jsonrpc_error(
     id: Option<Value>,
+    traceparent: Option<&str>,
     code: i64,
     message: &'static str,
     data: impl serde::Serialize,
 ) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "error": {
-            "code": code,
-            "message": message,
-            "data": data,
-        },
-        "id": id.unwrap_or(Value::Null),
-    })
+    let capacity = 3 + usize::from(traceparent.is_some());
+    let mut response = serde_json::Map::with_capacity(capacity);
+    response.insert("jsonrpc".to_owned(), Value::String("2.0".to_owned()));
+    response.insert(
+        "error".to_owned(),
+        json!({"code": code, "message": message, "data": data}),
+    );
+    response.insert("id".to_owned(), id.unwrap_or(Value::Null));
+    if let Some(tp) = traceparent {
+        response.insert("traceparent".to_owned(), Value::String(tp.to_owned()));
+    }
+    Value::Object(response)
+}
+
+/// TRACE-001 round-trip helper: build the canonical success envelope and
+/// echo `traceparent` when the producer sent one. Consumes `result` so
+/// the caller does not pay for a clone in the hot path.
+fn jsonrpc_success(id: Option<Value>, traceparent: Option<&str>, result: Value) -> Value {
+    let capacity = 3 + usize::from(traceparent.is_some());
+    let mut map = serde_json::Map::with_capacity(capacity);
+    map.insert("jsonrpc".to_owned(), Value::String("2.0".to_owned()));
+    map.insert("result".to_owned(), result);
+    map.insert("id".to_owned(), id.unwrap_or(Value::Null));
+    if let Some(tp) = traceparent {
+        map.insert("traceparent".to_owned(), Value::String(tp.to_owned()));
+    }
+    Value::Object(map)
 }
 
 struct JsonRpcFailure {
@@ -1534,9 +1722,12 @@ fn validate_scan_buffer_request_shape(
     method: &str,
 ) -> Result<(), JsonRpcFailure> {
     for key in map.keys() {
-        if !matches!(key.as_str(), "jsonrpc" | "method" | "params" | "id") {
+        if !matches!(
+            key.as_str(),
+            "jsonrpc" | "method" | "params" | "id" | "traceparent"
+        ) {
             return Err(invalid_request(
-                "scan_buffer requests only allow jsonrpc, method, params, and id fields",
+                "scan_buffer requests only allow jsonrpc, method, params, id, and traceparent fields",
             ));
         }
     }
