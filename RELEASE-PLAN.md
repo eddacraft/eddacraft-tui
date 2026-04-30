@@ -1,10 +1,13 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-04-30 (A1 closed — RMCP-008 GUI dry-run recorded)
+**Last updated:** 2026-05-01 (locked slate shipped as 0.4.1)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
 ---
+
+> **Shipped:** the locked slate (A1 + A2 + A3 + A4) shipped as **0.4.1** on
+> 2026-05-01.
 
 ## 🔒 CURRENT RELEASE — Locked 2026-04-26
 

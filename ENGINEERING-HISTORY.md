@@ -9,6 +9,8 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-01
+
 ### Git Hook Compatibility (GHOOK)
 
 - **Git 2.54 config-hook baseline** — compatibility policy added for native
