@@ -43,6 +43,23 @@ Run a single bench:
 cargo bench -p anvil-bench --bench antipattern_scan
 ```
 
+### v0.5.0 baseline summary
+
+The 0.5.0 release captures two new headline numbers in this harness:
+
+- **SCAN parallel scan** — 7.39× wall-time improvement on a synthetic 3,000-file
+  surface over the previous serial baseline. The benchmark exercises the shared
+  gitignore-aware discovery walk plus the rayon scan pattern that `gate`,
+  `audit`, `check`, `drift`, policy, architecture validation, and the watcher
+  all consume.
+- **RTAI-001 mid-edit secret-detection roundtrip** — measured at about 1.4 ms
+  p95 over 1024 iterations, roughly 60× under the ADR-031 warm-path budget. The
+  benchmark exercises a single `scan_buffer` method with a mode discriminator
+  selecting save-time versus mid-edit validation.
+
+The per-bench detail below is the dev-box baseline that produced these
+release-level numbers; future releases extend the table the same way.
+
 ### antipattern_scan baseline
 
 Collected on an Ubuntu 25.04 / Linux 6.17 / rayon default thread pool (recorded
