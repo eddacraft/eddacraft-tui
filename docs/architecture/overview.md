@@ -415,7 +415,8 @@ Inline annotations and the suppressions store both follow the same schema
 ## Memory Stack (Edda Stack)
 
 The Edda Stack is a three-layer architecture governing how activity becomes
-institutional memory. Planned for delivery in v0.4.0. (See
+institutional memory. Initial integration delivered through the v0.4.0-beta
+cycle and refined since. (See
 [edda-stack-integration.aps.md](../../plans/archive/modules/edda-stack-integration.aps.md))
 
 ### Three Layers

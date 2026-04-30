@@ -184,6 +184,6 @@ fresh token".
 
 ## Cross-references
 
-- Module: `plans/modules/v041-release-followups.aps.md` §V041F-012
+- Module: `plans/modules/v050-release-followups.aps.md` §V050F-012
 - Release workflow: `.github/workflows/release.yml` (`scoop` and `winget` jobs)
 - v0.4.0-beta manual recovery commit: `eddacraft/scoop-bucket@4f3becf6`

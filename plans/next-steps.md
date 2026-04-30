@@ -597,17 +597,17 @@ not need to be made in advance.
   in total; 18 fixed in-flight across rounds 1–3 (commits
   `eae47b3d`, `f9961b28`, `6f16b059`, `907af5f2` plus the bench
   refresh and CI-unblock commits). 10 hardening items consciously
-  deferred to V041F (see new module).
-- V041F module created
-  ([`plans/modules/v041-release-followups.aps.md`](./modules/v041-release-followups.aps.md))
+  deferred to V050F (see new module).
+- V050F module created
+  ([`plans/modules/v050-release-followups.aps.md`](./modules/v050-release-followups.aps.md))
   with 10 work items, status Ready. Captures the 10 deferred items
   so the deferral does not silently rot:
-  cargo-dist installer pin (V041F-001), per-operator audit attribution
-  (V041F-002), family-theft cascade revoke (V041F-003), `/admin/approve`
-  flag-gate (V041F-004), graded-scope regression tests (V041F-005),
-  allowlist regex compile cache (V041F-006), eager rayon pool init
-  (V041F-007), CI-class bench baseline (V041F-008), `release/*` push
-  filter (V041F-009), `WAITLIST_PAUSED` runbook (V041F-010).
+  cargo-dist installer pin (V050F-001), per-operator audit attribution
+  (V050F-002), family-theft cascade revoke (V050F-003), `/admin/approve`
+  flag-gate (V050F-004), graded-scope regression tests (V050F-005),
+  allowlist regex compile cache (V050F-006), eager rayon pool init
+  (V050F-007), CI-class bench baseline (V050F-008), `release/*` push
+  filter (V050F-009), `WAITLIST_PAUSED` runbook (V050F-010).
 - Bench baselines refreshed on `release/v0.4.0-beta`:
   `antipattern_scan` ≈ 11.2 ms (~28.6 K artefacts/s), 23% faster than
   the 2026-04-22 pre-RUSTNX-008 baseline. Kernel hot-path rewrite

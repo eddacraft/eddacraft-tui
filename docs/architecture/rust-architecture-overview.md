@@ -423,6 +423,31 @@ dated 2026-03-05 (not included in this repository):
 
 ---
 
+## 0.5.0 Surface Deliveries
+
+The following surfaces landed during the 0.5.0 cycle and are now part of the
+shipped Rust architecture:
+
+- **AI-001 reasoning rule** in `anvil-checks` — flags appeal-to-authority
+  comments via the registry-backed pattern catalogue, runs only inside comment
+  regions, honours `// @anvil-ignore AI-001`, and emits at info severity through
+  the shared `Notification` envelope.
+- **`anvil-checks` rule registry** — every shipped rule (anti-pattern, secret,
+  AI-001, SURFENV-001, command safety) now flows through the compiled `.anvil`
+  registry, with rule provenance attached to every finding.
+- **Parallel scan rollout** — `gate`, `audit`, `check`, `drift`, policy,
+  architecture validation, and the watcher all share the gitignore-aware
+  discovery walk plus the rayon scan pattern; first-run scans cap their pool via
+  `ANVIL_SCAN_THREADS` (default `min(num_cpus, 4)`).
+- **`anvil mcp-config` Rust CLI command** — generates Claude Code, Cursor,
+  Windsurf, and VS Code configurations with stdio/http transports, `--write`,
+  `--verify`, workspace overrides, path-safety prompts, and atomic writes. Lives
+  in `anvil-cli` and reuses the rest of the workspace for path resolution and
+  config generation.
+- **`validate_write` MCP tool** — exposes save-time and mid-edit validation
+  through the MCP server, backed by the canonical `anvil.diagnostic.v1` envelope
+  owned by `anvil-kernel-types`.
+
 ## Total Work Item Count
 
 | Module                         | Items   | Done   | Status       |

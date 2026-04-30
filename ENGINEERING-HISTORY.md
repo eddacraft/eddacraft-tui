@@ -106,7 +106,7 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **Portable attribution kit** — acknowledgement generation moved into a starter
   template set with `about.toml`, `about.hbs`, CI freshness snippet, and project
   example config
-- **APS freshness** — GHOOK completed and archived; v0.4.1 release-follow-up,
+- **APS freshness** — GHOOK completed and archived; v0.5.0 release-follow-up,
   language audit, RTAI, AIGUARD, SCAN, RCLI2/RCLI3, and surface modules were
   reconciled against the current release plan
 

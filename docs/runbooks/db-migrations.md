@@ -188,6 +188,6 @@ After backfill, the next runner invocation should report
 
 ## Cross-references
 
-- Module: `plans/modules/v041-release-followups.aps.md` §V041F-014
+- Module: `plans/modules/v050-release-followups.aps.md` §V050F-014
 - Smoke check: `docs/runbooks/post-deploy-smoke-check.md`
 - DB operations: `docs/runbooks/neon-db-operations.md`

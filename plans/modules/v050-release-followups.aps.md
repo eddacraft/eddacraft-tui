@@ -3,8 +3,8 @@ APS Module: v0.4.0-beta Release Follow-Ups
 ===========================================
 Hardening items consciously deferred from the v0.4.0-beta release council
 process (three rounds, six reviewers, one external Codex CLI). All items
-are non-blocking for the H1 hype-builder tag but should ride a v0.4.1
-patch or the next sweep so they don't accumulate as silent debt.
+are non-blocking for the H1 hype-builder tag but should ride the v0.5.0
+release or the next sweep so they don't accumulate as silent debt.
 
 Each work item carries the reviewer that flagged it and the original
 finding ID where applicable, so the rationale is traceable.
@@ -16,22 +16,22 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status |
 | ----- | ----- | ------ |
-| V041F | —     | In Progress |
+| V050F | —     | In Progress |
 
 16 work items. Items 001–010 captured from the three council rounds +
-Codex CLI external review during release prep; V041F-011 added 2026-04-26
+Codex CLI external review during release prep; V050F-011 added 2026-04-26
 from the copilot review on PR #1081 (`scan_content` recompile / silent-
-error); V041F-012 + V041F-013 + V041F-014 added from the v0.4.0-beta
+error); V050F-012 + V050F-013 + V050F-014 added from the v0.4.0-beta
 tag run (workflow 24937011902) and post-tag prod deploy (run 24937001778)
 — scoop PAT scope failure, winget gh CLI arg-count regression, and the
 absence of a migration runner. All three v0.4.0-beta surface gaps were
 closed manually (scoop bucket commit `4f3becf6`, winget PR
 microsoft/winget-pkgs#365186, prod migrations applied by hand);
 CI / deploy pipelines must be repaired before the next tag.
-V041F-015 added 2026-04-26 from the copilot review on PR #1090 — track
+V050F-015 added 2026-04-26 from the copilot review on PR #1090 — track
 the `svix → uuid` override exception so the global `uuid >=14.0.0`
 security floor is restored uniformly when the upstream dependency
-chain ships ESM-aware uuid. V041F-016 added 2026-04-27 after the private
+chain ships ESM-aware uuid. V050F-016 added 2026-04-27 after the private
 `eddacraft/anvil-001` v0.4.0-beta release was published as a prerelease,
 leaving v0.3.3-beta marked Latest.
 
@@ -44,14 +44,14 @@ produced ~25 findings; 18 were fixed in-flight, and the remaining
 follow-ups here were judged non-blocking against the H1 gate criterion
 ("no first-touch papercuts that would make a wait-listed viewer close
 the tab") or were discovered by the subsequent tag/deploy path. They
-are tracked here for v0.4.1 / next sweep.
+are tracked here for v0.5.0 / next sweep.
 
 This module exists so the deferral does not silently rot. None of these
 require a coordinated bundle — pick them off in any order.
 
 ## Work items
 
-### V041F-001: Pin cargo-dist installer by SHA256 in the release workflow
+### V050F-001: Pin cargo-dist installer by SHA256 in the release workflow
 
 - **Surface:** `.github/workflows/release.yml:69-79`
 - **Flagged by:** security-analyst (round 2 + round 3), operations-reviewer
@@ -81,7 +81,7 @@ require a coordinated bundle — pick them off in any order.
   closed.
 - **Status:** Done
 
-### V041F-002: Correct auth_method attribution for rejected admin tokens when per-operator mode is active
+### V050F-002: Correct auth_method attribution for rejected admin tokens when per-operator mode is active
 
 - **Surface:** `apps/anvil-api/src/middleware/admin-auth.ts:181-182`
 - **Flagged by:** security-analyst (round 2), pragmatic-lead (round 3
@@ -97,7 +97,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-003: Cascade access_tokens revoke when refresh family is revoked on theft detection
+### V050F-003: Cascade access_tokens revoke when refresh family is revoked on theft detection
 
 - **Surface:** `apps/anvil-api/src/routes/auth-session.ts:53,80`
 - **Flagged by:** security-analyst (round 2)
@@ -108,11 +108,11 @@ require a coordinated bundle — pick them off in any order.
 - **Expected outcome:** On family-theft detection, also revoke the
   corresponding `access_tokens` rows for the user (or at minimum
   bound the leaked JWT's lifetime by tracking refresh-revoked users
-  and refusing to verify their tokens). Pairs with V041F-008 below.
+  and refusing to verify their tokens). Pairs with V050F-008 below.
 - **Confidence:** medium
 - **Status:** Todo
 
-### V041F-004: Flag-gate `/admin/approve` granted scopes via `resolveApiScope`
+### V050F-004: Flag-gate `/admin/approve` granted scopes via `resolveApiScope`
 
 - **Surface:** `apps/anvil-api/src/routes/admin.ts:295-303` (the new
   scope-preservation block landed in commit `f9961b28`)
@@ -131,7 +131,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-005: Regression tests for graded-scope preservation across `/admin/approve` and `/auth/otp`
+### V050F-005: Regression tests for graded-scope preservation across `/admin/approve` and `/auth/otp`
 
 - **Surface:**
   `apps/anvil-api/src/__tests__/admin.test.ts:556-668`,
@@ -150,7 +150,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-006: Cache compiled allowlist regexes in `is_file_allowlisted`
+### V050F-006: Cache compiled allowlist regexes in `is_file_allowlisted`
 
 - **Surface:** `crates/anvil-checks/src/antipattern/scanner.rs:176-184`
 - **Flagged by:** kernel-maintainer (round 2)
@@ -166,7 +166,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-007: Initialise rayon pool eagerly in the binary entry point
+### V050F-007: Initialise rayon pool eagerly in the binary entry point
 
 - **Surface:** `crates/anvil-kernel/src/watch.rs:160-170` (`POOL_INIT`),
   `crates/anvil-checks/src/antipattern/scanner.rs:630-635`
@@ -184,7 +184,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-008: Bench baselines collected on a CI-class machine
+### V050F-008: Bench baselines collected on a CI-class machine
 
 - **Surface:** `crates/anvil-bench/README.md:46-89`
 - **Flagged by:** kernel-maintainer (round 2 + round 3)
@@ -204,7 +204,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** medium — needs a stable runner cadence
 - **Status:** Todo
 
-### V041F-009: Add `release/*` to the Rust CI push filter
+### V050F-009: Add `release/*` to the Rust CI push filter
 
 - **Surface:** `.github/workflows/rust.yml:5`
 - **Flagged by:** operations-reviewer (round 2)
@@ -221,7 +221,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-011: Refactor `scan_content` to surface custom-pattern compile errors
+### V050F-011: Refactor `scan_content` to surface custom-pattern compile errors
 
 - **Surface:** `crates/anvil-checks/src/secret/scanner.rs:17`
 - **Flagged by:** copilot reviewer (PR #1081 review, 2026-04-26)
@@ -236,13 +236,13 @@ require a coordinated bundle — pick them off in any order.
   check run and pass the compiled slice into `scan_content`, or
   (b) change `scan_content` to return both findings and pattern errors
   so the error-reporting contract is enforced by the function
-  signature. Pairs naturally with V041F-006 (allowlist regex caching)
+  signature. Pairs naturally with V050F-006 (allowlist regex caching)
   since both are in the secret/scanner hot path.
 - **Confidence:** medium — signature change touches every direct
   caller of `scan_content`
 - **Status:** Todo
 
-### V041F-012: Fix CI scoop publisher PAT scope
+### V050F-012: Fix CI scoop publisher PAT scope
 
 - **Surface:** `.github/workflows/release.yml` `scoop` job; `ANVIL_RELEASES_TOKEN` PAT
 - **Flagged by:** v0.4.0-beta release run (workflow run 24937011902)
@@ -272,7 +272,7 @@ require a coordinated bundle — pick them off in any order.
   release tag will exercise the full path.
 - **Status:** Done
 
-### V041F-013: Fix CI winget publisher `gh` arg-count regression
+### V050F-013: Fix CI winget publisher `gh` arg-count regression
 
 - **Surface:** `.github/workflows/release.yml` `winget` job (lines ~570–660,
   the manifest-generation + fork + PR step)
@@ -309,7 +309,7 @@ require a coordinated bundle — pick them off in any order.
   to unblock the next tag.
 - **Status:** Done
 
-### V041F-014: Wire a database-migration runner into the deploy pipeline
+### V050F-014: Wire a database-migration runner into the deploy pipeline
 
 - **Surface:** `apps/anvil-api/src/db/migrations/`,
   `apps/anvil-api/src/db/migrate.ts`,
@@ -348,7 +348,7 @@ require a coordinated bundle — pick them off in any order.
   reuse Drizzle Kit (already in the workspace), `node-pg-migrate`, or
   ship a minimal first-party runner. Per-migration transaction +
   `_migrations` tracking are the non-negotiable parts.
-- **Action plan:** [`plans/execution/V041F-014.steps.md`](../execution/V041F-014.steps.md)
+- **Action plan:** [`plans/execution/V050F-014.steps.md`](../execution/V050F-014.steps.md)
 - **Resolution:** First-party runner shipped in PR #1099. Lib at
   `apps/anvil-api/src/db/migrate.ts`, CLI at
   `apps/anvil-api/scripts/migrate.mjs`, runbook at
@@ -361,7 +361,7 @@ require a coordinated bundle — pick them off in any order.
   dry-run reports `0 pending`.
 - **Status:** Done
 
-### V041F-015: Remove `svix>uuid` override exception once dependency chain ships ESM-aware uuid
+### V050F-015: Remove `svix>uuid` override exception once dependency chain ships ESM-aware uuid
 
 - **Surface:** `package.json` (`overrides.svix.uuid` and
   `pnpm.overrides["svix>uuid"]`), introduced in PR #1090
@@ -387,7 +387,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** medium — depends on upstream cadence
 - **Status:** Todo
 
-### V041F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
+### V050F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
 
 - **Surface:** `docs/runbooks/waitlist-email-operations.md`,
   `docs/runbooks/post-deploy-smoke-check.md`
@@ -405,7 +405,7 @@ require a coordinated bundle — pick them off in any order.
 - **Confidence:** high
 - **Status:** Todo
 
-### V041F-016: Promote private beta releases to Latest
+### V050F-016: Promote private beta releases to Latest
 
 - **Surface:** `.github/workflows/release.yml`,
   `docs/guides/release-doc-checklist.md`
@@ -421,11 +421,11 @@ require a coordinated bundle — pick them off in any order.
 
 ## Cross-cutting notes
 
-- V041F-002, V041F-003, V041F-004 share the same auth surface and
+- V050F-002, V050F-003, V050F-004 share the same auth surface and
   could land as a single PR if you want to pay the test-rebuild once.
-- V041F-006 + V041F-007 are kernel hot-path hardening; pair if a
+- V050F-006 + V050F-007 are kernel hot-path hardening; pair if a
   bench rerun is on the calendar anyway.
-- V041F-009 + V041F-010 are pure ops; pair with the `release/*` CI
+- V050F-009 + V050F-010 are pure ops; pair with the `release/*` CI
   filter since a documentation-only branch wouldn't otherwise need a
   rust.yml run.
 

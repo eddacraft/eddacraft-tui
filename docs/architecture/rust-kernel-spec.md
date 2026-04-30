@@ -351,6 +351,17 @@ struct EngineEvent {
   mode).
 - `timestamp` uses ISO 8601 with millisecond precision.
 
+### 8.1.1 Canonical Diagnostic Envelope (`anvil.diagnostic.v1`)
+
+`crates/anvil-kernel-types` owns the canonical `anvil.diagnostic.v1` diagnostic
+shape used by gate, save-time, watch, and mid-edit validation surfaces. The AI
+guardrail profile (`anvil gate --profile ai`), the RTAI-001 mid-edit
+secret-detection loop, and the MCP `validate_write` tool all emit diagnostics in
+this envelope so agent and editor consumers can parse results without bespoke
+per-surface plumbing. The envelope coordination spec (in `docs/architecture/`)
+records how AIGUARD, RTAI, INTD, and DRVR share it and how the schema version is
+rolled forward.
+
 ### 8.2 Required Event Types
 
 - `Progress` — parsing/evaluation progress

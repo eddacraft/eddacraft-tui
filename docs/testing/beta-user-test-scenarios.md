@@ -34,7 +34,7 @@ Ask each tester to prepare:
 
 Before the session:
 
-- Confirm the current target version is `0.4.0-beta` or newer.
+- Confirm the current target version is `0.5.0` or newer.
 - Confirm the tester is invited and can access the docs.
 - Keep the public guide open for reference.
 - Create a notes file using the capture template below.
@@ -253,7 +253,8 @@ Capture:
 
 ## Scenario 6: Watch Mode and Filters
 
-Purpose: test the save-time loop and the 0.4.0-beta watch-filter behaviour.
+Purpose: test the save-time loop and the watch-filter behaviour shipped in
+0.4.0-beta and refined since.
 
 Steps for the tester:
 
@@ -319,7 +320,95 @@ Capture:
 - Gate profile confusion.
 - External tool requirements that surprised the tester.
 
-## Scenario 8: Optional Architecture and Drift
+## Scenario 8: AI Guardrail Profile (0.5.0)
+
+Purpose: validate the headline 0.5.0 surface — the AI-focused gate profile — on
+a real project, especially for testers who use anvil from agentic workflows.
+
+Steps for the tester:
+
+1. Run `anvil gate --profile ai`.
+2. If the run blocks on missing or invalid governance config, read the JSON
+   envelope and try to interpret which key needs fixing.
+3. Open a source file and add a comment such as `// ChatGPT said this was fine`
+   near a real change.
+4. Re-run `anvil gate --profile ai` (or `anvil check --all`) and confirm
+   `AI-001` flags the comment at info severity.
+5. Suppress the finding with `// @anvil-ignore AI-001 -- <reason>` and re-run;
+   confirm the suppression is honoured.
+
+Expected result:
+
+- The AI guardrail profile produces deterministic JSON output by default, not
+  human-readable text.
+- AI-001 fires only on the new comment, not on string literals or unrelated
+  code.
+- Suppression with a reason silences AI-001; bare suppression is itself a
+  finding.
+
+Capture:
+
+- Whether the strict-config error message identifies the offending key.
+- Whether the JSON envelope is the same shape the tester would expect to parse
+  from an agent.
+- Any false positives in comments that look reasoning-shaped but are not appeals
+  to authority.
+
+## Scenario 9: Editor MCP Configuration (0.5.0)
+
+Purpose: validate `anvil mcp-config` end-to-end against a real editor.
+
+Steps for the tester:
+
+1. Run `anvil mcp-config --client claude-code` (or the tester's editor) and read
+   the printed config.
+2. Run `anvil mcp-config --client claude-code --verify` against an existing
+   editor config; observe drift, if any.
+3. Run `anvil mcp-config --client claude-code --write` and confirm the
+   path-safety prompt appears before any overwrite.
+4. Open the editor and confirm the anvil MCP server is reachable.
+
+Expected result:
+
+- The generated config is correct for the chosen client.
+- `--verify` cleanly reports drift or "in sync" without writing.
+- `--write` prompts before overwriting; the atomic write leaves no partial file
+  behind on cancel.
+
+Capture:
+
+- Editors where the generated path was wrong or required `--workspace`.
+- Drift the tester would not have noticed without `--verify`.
+- Path-safety prompts that felt either too aggressive or too quiet.
+
+## Scenario 10: Config-Mode Git Hooks (0.5.0, Git 2.54+)
+
+Purpose: validate the opt-in config-mode hook flow on Git 2.54 or newer.
+
+Steps for the tester:
+
+1. Confirm `git --version` is 2.54+; otherwise skip the scenario.
+2. Run `anvil hooks install --config`.
+3. Run `anvil hooks status` and `anvil doctor`; confirm both surface the
+   config-mode entries and any third-party hook manager (Husky, Lefthook).
+4. Make a small commit and confirm Anvil hooks fire.
+5. Run `anvil hooks uninstall --config` and confirm the entries are removed
+   without disturbing Husky or `core.hooksPath`.
+
+Expected result:
+
+- Install/uninstall touches only Anvil-owned `hook.<event>.command` entries.
+- Doctor and status warn when file-mode hooks and config-mode hooks would both
+  fire for the same event.
+- Husky-driven contributor flow is unaffected.
+
+Capture:
+
+- Whether coexistence warnings are clear and actionable.
+- Any third-party hook manager that anvil failed to detect.
+- Whether the uninstall path leaves the repo's contributor bootstrap working.
+
+## Scenario 11: Optional Architecture and Drift
 
 Purpose: test higher-value features only when the project has clear boundaries
 or the tester is interested in architecture governance.
@@ -352,7 +441,7 @@ Capture:
 - Validation wording that does not identify the broken layer or pattern.
 - Whether drift output has a clear audience and use case.
 
-## Scenario 9: Feedback Report Dry Run
+## Scenario 12: Feedback Report Dry Run
 
 Purpose: make sure testers know how to report issues after the session.
 

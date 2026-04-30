@@ -43,6 +43,29 @@ conditions. They run in CI on every PR to detect regressions.
 | `policy_evaluation`  | All H1 invariants on one delta        | 1 delta, 4 invariants |
 | `event_emission`     | 1000 progress events through mpsc     | 1000 events           |
 
+### 1.1.1 0.5.0 Scanner & Real-Time Validation Results
+
+Two new benchmark surfaces landed during the 0.5.0 cycle:
+
+- **SCAN parallel scan** — measured a **7.39× wall-time improvement** on a
+  synthetic 3,000-file surface over the previous serial scan baseline. The
+  benchmark exercises the shared gitignore-aware discovery walk plus the rayon
+  scan pattern that `gate`, `audit`, `check`, `drift`, policy, architecture
+  validation, and the watcher all consume. First-run scans cap their pool via
+  `ANVIL_SCAN_THREADS` (default `min(num_cpus, 4)`) to keep the speedup without
+  starving TUI or editor work.
+- **RTAI-001 mid-edit secret-detection** — the phase-0 spike measured the
+  mid-edit secret-detection loop at **about 1.4 ms p95** over 1024 iterations,
+  roughly 60× under the ADR-031 warm-path budget. The benchmark exercises a
+  single `scan_buffer` method with a mode discriminator selecting save-time
+  versus mid-edit validation, and is wired into the standard Criterion harness
+  so regressions are visible on every PR that touches `anvil-checks` secret
+  scanning.
+
+ADR-031 pins the latency budgets these benchmarks gate against (save-time,
+mid-edit, gate paths) so future real-time validation work has an explicit
+performance envelope.
+
 ### 1.2 Extensions Needed
 
 | Group                         | What it measures                           | Scale                            |
