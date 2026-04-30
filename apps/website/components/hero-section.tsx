@@ -11,19 +11,33 @@ type AccessStatus = 'idle' | 'loading' | 'success' | 'error';
 
 interface InstallUnlockResponse {
   command?: string;
+  error?: string;
 }
 
-async function unlockInstallCommand(accessKey: string): Promise<string | null> {
+type UnlockResult =
+  | { ok: true; command: string }
+  | { ok: false; reason: 'invalid_key' | 'service_unavailable' | 'unknown' };
+
+async function unlockInstallCommand(accessKey: string): Promise<UnlockResult> {
   const response = await fetch('/api/early-access/install', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ accessKey }),
   });
 
-  if (!response.ok) return null;
-
   const data = (await response.json().catch(() => ({}))) as InstallUnlockResponse;
-  return typeof data.command === 'string' ? data.command : null;
+
+  if (response.ok && typeof data.command === 'string') {
+    return { ok: true, command: data.command };
+  }
+
+  if (response.status === 503 || data.error === 'access_service_unavailable') {
+    return { ok: false, reason: 'service_unavailable' };
+  }
+  if (response.status === 400 || response.status === 401 || data.error === 'invalid_key') {
+    return { ok: false, reason: 'invalid_key' };
+  }
+  return { ok: false, reason: 'unknown' };
 }
 
 export function HeroSection() {
@@ -55,14 +69,18 @@ export function HeroSection() {
     setErrorMessage('');
 
     try {
-      const command = await unlockInstallCommand(trimmedKey);
-      if (!command) {
+      const result = await unlockInstallCommand(trimmedKey);
+      if (!result.ok) {
         setStatus('error');
-        setErrorMessage('Invalid or expired early-access key');
+        setErrorMessage(
+          result.reason === 'service_unavailable'
+            ? 'Access service is temporarily unavailable. Try again in a moment.'
+            : 'Invalid or expired early-access key'
+        );
         return;
       }
 
-      setInstallCommand(command);
+      setInstallCommand(result.command);
       setStatus('success');
     } catch {
       setStatus('error');
@@ -132,8 +150,14 @@ export function HeroSection() {
                             Enter your early-access key to reveal the install address.
                           </Dialog.Description>
                         </div>
-                        <Dialog.Close className="text-text-muted transition-colors hover:text-text-primary">
-                          [x]
+                        <Dialog.Close asChild>
+                          <button
+                            type="button"
+                            aria-label="Close"
+                            className="text-text-muted transition-colors hover:text-text-primary"
+                          >
+                            [x]
+                          </button>
                         </Dialog.Close>
                       </div>
 
