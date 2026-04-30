@@ -43,9 +43,9 @@ Run a single bench:
 cargo bench -p anvil-bench --bench antipattern_scan
 ```
 
-### v0.5.0 baseline summary
+### v0.5.0-beta baseline summary
 
-The 0.5.0 release captures two new headline numbers in this harness:
+The 0.5.0-beta release captures two new headline numbers in this harness:
 
 - **SCAN parallel scan** — 7.39× wall-time improvement on a synthetic 3,000-file
   surface over the previous serial baseline. The benchmark exercises the shared

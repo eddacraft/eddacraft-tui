@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.5.0
+**Current version:** 0.5.0-beta
 
 anvil is a native CLI that analyses your codebase for architectural drift,
 AI-generated anti-patterns, and project convention violations. It is designed to
@@ -117,7 +117,7 @@ winget upgrade eddacraft.anvil
 scoop update anvil
 ```
 
-For 0.5.0 upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
+For 0.5.0-beta upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
 
 ## Sign In
 
@@ -209,7 +209,7 @@ anvil watch --source
 Save a TypeScript or JavaScript file. Watch should print the active scope and
 respond when files change.
 
-Try the watch filters introduced in 0.4.0-beta and still active in 0.5.0:
+Try the watch filters introduced in 0.4.0-beta and still active in 0.5.0-beta:
 
 ```bash
 anvil watch --patterns "src/**/*.ts,src/**/*.tsx"
@@ -250,9 +250,9 @@ anvil gate --profile ci
 
 Record whether gate failures clearly explain what failed and what to do next.
 
-### 7. Try the 0.5.0 AI Guardrail and MCP Surfaces
+### 7. Try the 0.5.0-beta AI Guardrail and MCP Surfaces
 
-These are the headline 0.5.0 surfaces and the most useful test focus this cycle.
+These are the headline 0.5.0-beta surfaces and the most useful test focus this cycle.
 
 ```bash
 # AI guardrail profile — strict config, JSON envelope by default

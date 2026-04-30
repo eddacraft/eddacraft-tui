@@ -8,7 +8,7 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-05-01 — AI Guardrails & Mid-Edit Validation
+## [0.5.0-beta] — AI Guardrails & Mid-Edit Validation
 
 ### Added
 
@@ -64,7 +64,7 @@ engineering maintenance are recorded in the
 - The real-time AI validation spike measured mid-edit secret detection at about
   1.4 ms p95, comfortably inside the draft latency budget
 - Portable acknowledgement starter templates, release token runbooks, and APS
-  release-follow-up tracking were added for the next release cycle
+  release-follow-up tracking were added ahead of this release
 
 ## [0.4.0-beta] — First-Run Polish & Native Scanner
 

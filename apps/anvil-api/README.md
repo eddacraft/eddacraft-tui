@@ -55,13 +55,13 @@ server-side; CLI requests will not see the misconfiguration directly. Provision
 both via your secret manager (Pulumi handles this for the EddaCraft-managed
 deployment).
 
-### CORS and Vercel hardening (post-0.5.0 deploy)
+### CORS and Vercel hardening (post-0.5.0-beta deploy)
 
 The post-release Vercel/CORS hardening lowered the CORS preflight cache
 lifetime, restored the Hono/Vercel entrypoint after the post-tag deploy break,
 scoped the API tsconfig, controlled Nx framework detection, and added the
 `svix>uuid` runtime override exception so production deploys do not trip on
-dependency drift. Operators upgrading their `anvil-api` deployment for the 0.5.0
+dependency drift. Operators upgrading their `anvil-api` deployment for the 0.5.0-beta
 release should redeploy from the current `dev` or `main` branch rather than
 cherry-picking individual fixes.
 
@@ -87,7 +87,7 @@ Run `src/db/schema.sql` against your Neon Postgres database to create the
 required tables (`beta_users`, `access_tokens`, `audit_log`, `device_codes`,
 `otp_codes`, `refresh_tokens`).
 
-### SQL Migration Runner (0.5.0)
+### SQL Migration Runner (0.5.0-beta)
 
 `anvil-api` ships a first-party SQL migration runner that drives schema changes
 on every deploy. It supports:

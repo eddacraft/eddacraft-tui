@@ -43,9 +43,9 @@ conditions. They run in CI on every PR to detect regressions.
 | `policy_evaluation`  | All H1 invariants on one delta        | 1 delta, 4 invariants |
 | `event_emission`     | 1000 progress events through mpsc     | 1000 events           |
 
-### 1.1.1 0.5.0 Scanner & Real-Time Validation Results
+### 1.1.1 0.5.0-beta Scanner & Real-Time Validation Results
 
-Two new benchmark surfaces landed during the 0.5.0 cycle:
+Two new benchmark surfaces landed during the 0.5.0-beta cycle:
 
 - **SCAN parallel scan** — measured a **7.39× wall-time improvement** on a
   synthetic 3,000-file surface over the previous serial scan baseline. The

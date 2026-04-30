@@ -423,9 +423,9 @@ dated 2026-03-05 (not included in this repository):
 
 ---
 
-## 0.5.0 Surface Deliveries
+## 0.5.0-beta Surface Deliveries
 
-The following surfaces landed during the 0.5.0 cycle and are now part of the
+The following surfaces landed during the 0.5.0-beta cycle and are now part of the
 shipped Rust architecture:
 
 - **AI-001 reasoning rule** in `anvil-checks` — flags appeal-to-authority

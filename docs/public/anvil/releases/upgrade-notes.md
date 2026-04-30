@@ -9,9 +9,9 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.5.0
+## Current Version: 0.5.0-beta
 
-## Upgrading to 0.5.0
+## Upgrading to 0.5.0-beta
 
 Drop-in upgrade from `0.4.0-beta`. There are no breaking changes; every new
 behaviour below is opt-in.
@@ -38,7 +38,7 @@ winget upgrade eddacraft.anvil
 scoop update anvil
 ```
 
-### What's New in 0.5.0
+### What's New in 0.5.0-beta
 
 - **Git config-mode hooks (opt-in)** — install Anvil-owned hook commands through
   Git 2.54 native config with `anvil hooks install --config` and remove them

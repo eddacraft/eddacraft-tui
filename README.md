@@ -351,12 +351,12 @@ so cross-release numbers stay honest.
 | --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
 | pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                              |
 | **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
-| **v0.5.0**      | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)  |
+| **v0.5.0-beta**      | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)  |
 
 ```mermaid
 xychart-beta
     title "antipattern_scan throughput (artifacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0 (2026-05-01)"]
+    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)"]
     y-axis "artifacts / sec" 0 --> 44000
     bar [21900, 28600, 39900]
     line [21900, 28600, 39900]

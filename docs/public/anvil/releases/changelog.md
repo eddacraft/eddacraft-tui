@@ -11,7 +11,7 @@ All notable changes to anvil are documented here.
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-05-01 — AI Guardrails & Mid-Edit Validation
+## [0.5.0-beta] — 2026-05-01 — AI Guardrails & Mid-Edit Validation
 
 ### Added
 

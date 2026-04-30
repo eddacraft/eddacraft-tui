@@ -34,7 +34,7 @@ Ask each tester to prepare:
 
 Before the session:
 
-- Confirm the current target version is `0.5.0` or newer.
+- Confirm the current target version is `0.5.0-beta` or newer.
 - Confirm the tester is invited and can access the docs.
 - Keep the public guide open for reference.
 - Create a notes file using the capture template below.
@@ -320,9 +320,9 @@ Capture:
 - Gate profile confusion.
 - External tool requirements that surprised the tester.
 
-## Scenario 8: AI Guardrail Profile (0.5.0)
+## Scenario 8: AI Guardrail Profile (0.5.0-beta)
 
-Purpose: validate the headline 0.5.0 surface — the AI-focused gate profile — on
+Purpose: validate the headline 0.5.0-beta surface — the AI-focused gate profile — on
 a real project, especially for testers who use anvil from agentic workflows.
 
 Steps for the tester:
@@ -354,7 +354,7 @@ Capture:
 - Any false positives in comments that look reasoning-shaped but are not appeals
   to authority.
 
-## Scenario 9: Editor MCP Configuration (0.5.0)
+## Scenario 9: Editor MCP Configuration (0.5.0-beta)
 
 Purpose: validate `anvil mcp-config` end-to-end against a real editor.
 
@@ -381,7 +381,7 @@ Capture:
 - Drift the tester would not have noticed without `--verify`.
 - Path-safety prompts that felt either too aggressive or too quiet.
 
-## Scenario 10: Config-Mode Git Hooks (0.5.0, Git 2.54+)
+## Scenario 10: Config-Mode Git Hooks (0.5.0-beta, Git 2.54+)
 
 Purpose: validate the opt-in config-mode hook flow on Git 2.54 or newer.
 

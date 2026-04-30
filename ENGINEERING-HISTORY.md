@@ -9,7 +9,7 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-05-01
+## [0.5.0-beta]
 
 ### Git Hook Compatibility (GHOOK)
 
@@ -106,9 +106,9 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **Portable attribution kit** — acknowledgement generation moved into a starter
   template set with `about.toml`, `about.hbs`, CI freshness snippet, and project
   example config
-- **APS freshness** — GHOOK completed and archived; v0.5.0 release-follow-up,
-  language audit, RTAI, AIGUARD, SCAN, RCLI2/RCLI3, and surface modules were
-  reconciled against the current release plan
+- **APS freshness** — GHOOK completed and archived; v0.5.0-beta
+  release-follow-up, language audit, RTAI, AIGUARD, SCAN, RCLI2/RCLI3, and
+  surface modules were reconciled against the current release plan
 
 ## [0.4.0-beta]
 

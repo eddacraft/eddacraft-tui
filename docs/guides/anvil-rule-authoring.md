@@ -120,7 +120,7 @@ Y", not "this is bad".
 
 ### Example: AI-001 reasoning rule
 
-The 0.5.0 cycle introduced the `AI-` prefix for the AI reasoning category.
+The 0.5.0-beta cycle introduced the `AI-` prefix for the AI reasoning category.
 `AI-001` flags source comments that justify code with authority, social proof,
 or deflection ("ChatGPT said this was fine", "Claude wrote this") rather than
 technical reasoning. It is registry-authored just like every other rule:

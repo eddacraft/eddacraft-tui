@@ -3,7 +3,7 @@ APS Module: v0.4.0-beta Release Follow-Ups
 ===========================================
 Hardening items consciously deferred from the v0.4.0-beta release council
 process (three rounds, six reviewers, one external Codex CLI). All items
-are non-blocking for the H1 hype-builder tag but should ride the v0.5.0
+are non-blocking for the H1 hype-builder tag but should ride the v0.5.0-beta
 release or the next sweep so they don't accumulate as silent debt.
 
 Each work item carries the reviewer that flagged it and the original
@@ -44,7 +44,7 @@ produced ~25 findings; 18 were fixed in-flight, and the remaining
 follow-ups here were judged non-blocking against the H1 gate criterion
 ("no first-touch papercuts that would make a wait-listed viewer close
 the tab") or were discovered by the subsequent tag/deploy path. They
-are tracked here for v0.5.0 / next sweep.
+are tracked here for v0.5.0-beta / next sweep.
 
 This module exists so the deferral does not silently rot. None of these
 require a coordinated bundle — pick them off in any order.
