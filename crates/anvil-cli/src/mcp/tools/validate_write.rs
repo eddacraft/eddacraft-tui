@@ -9,9 +9,9 @@ use sha2::{Digest, Sha256};
 
 use crate::mcp::enforcement::{self, EnforcementMode};
 use crate::mcp::validation::{
-    DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient, PRE_WRITE_MODE,
-    PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure, sanitise_id_part,
-    validate_pre_write,
+    DaemonStatus, DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient,
+    PRE_WRITE_MODE, PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure,
+    sanitise_id_part, validate_pre_write,
 };
 
 pub const TOOL_NAME: &str = "anvil_validate_write";
@@ -63,7 +63,29 @@ pub fn descriptor() -> Value {
 }
 
 pub fn call(arguments: &Value) -> Value {
-    let default_workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // The MCP launch contract requires the server cwd to resolve to a
+    // real workspace directory: trust checks, `.anvil.yaml` lookups,
+    // and symlink-escape rejection all read from this path. If the cwd
+    // has been deleted out from under the running process (e.g.
+    // `rm -rf` of the project dir while the agent is mid-flight), we
+    // must surface a structured error rather than papering over with
+    // `PathBuf::from(".")`, which would silently rebind every check
+    // against an unrelated relative root and trigger spurious
+    // workspace-escape errors with confusing messages.
+    let default_workspace_root = match std::env::current_dir() {
+        Ok(root) => root,
+        Err(err) => {
+            let problem = ToolProblem::new(
+                "server-cwd-unavailable",
+                "MCP server cwd is not accessible.",
+            );
+            // The cwd is gone, so we have no path context; report the
+            // OS error verbatim in the diagnostic message via the
+            // structured payload. The enforcement mode defaults to
+            // Block (we have no `.anvil.yaml` to read).
+            return tool_result(&server_cwd_unavailable_payload(problem, &err));
+        }
+    };
     call_with_workspace(arguments, &default_workspace_root)
 }
 
@@ -120,6 +142,10 @@ fn call_with_validation_client(
     }
 
     let mut backend = ValidationBackend::Embedded;
+    // No content path means we never invoked the validation backend;
+    // reflect that with `NotWired` (no daemon was consulted) rather
+    // than implying "available" by default.
+    let mut daemon_status = DaemonStatus::NotWired;
     let mut diagnostics = Vec::new();
     if let Some(content) = request.content.as_deref() {
         let validation = validate_pre_write(
@@ -140,6 +166,7 @@ fn call_with_validation_client(
             }
         };
         backend = validation.backend;
+        daemon_status = validation.daemon_status;
         diagnostics = validation.diagnostics;
     }
 
@@ -149,6 +176,7 @@ fn call_with_validation_client(
         &request.relative_path,
         &diagnostics,
         backend,
+        daemon_status,
         None,
         enforcement_mode,
     ))
@@ -179,10 +207,15 @@ fn problem_payload(
     // enforcement mode controls whether *rule* diagnostics block; a
     // malformed request is still rejected so the client cannot proceed
     // with content the server could not parse.
+    //
+    // Input problems never reach the validation backend, so the
+    // daemon status is `NotWired`: we never consulted the daemon for
+    // this request.
     validation_payload_with_decision(
         path,
         &[diagnostic],
         ValidationBackend::Embedded,
+        DaemonStatus::NotWired,
         Some(problem),
         enforcement_mode,
         ControlDecision::Block,
@@ -194,8 +227,17 @@ fn backend_failure_payload(
     failure: ValidationBackendFailure,
     enforcement_mode: EnforcementMode,
 ) -> Value {
+    // The `decision` field is set explicitly to `block` so the
+    // response shape stays consistent with every other path through
+    // the tool: a backend failure is a hard stop regardless of
+    // enforcement mode (the operator cannot choose to "warn-through"
+    // a failure to validate at all). An `OperationalFailure` here
+    // means the daemon was wired and tried to answer but failed —
+    // hence `daemonStatus: "unavailable"` (distinct from `not-wired`,
+    // which is "no daemon was ever consulted").
     json!({
         "schema": RESPONSE_SCHEMA,
+        "decision": ControlDecision::Block,
         "error": {
             "code": failure.code,
             "message": failure.message,
@@ -207,8 +249,35 @@ fn backend_failure_payload(
             "surface": "mcp",
             "mode": "preWrite",
             "backend": ValidationBackend::Daemon.as_str(),
+            "daemonStatus": DaemonStatus::Unavailable.as_str(),
             "path": path,
             "enforcementMode": enforcement_mode.as_str()
+        }
+    })
+}
+
+fn server_cwd_unavailable_payload(problem: ToolProblem, err: &std::io::Error) -> Value {
+    // The cwd is gone, so we have no workspace path to anchor the
+    // correlation ID against. Use a static fallback path string so
+    // the agent can still correlate this response with its request.
+    let path = "<server-cwd>";
+    json!({
+        "schema": RESPONSE_SCHEMA,
+        "decision": ControlDecision::Block,
+        "error": {
+            "code": problem.code,
+            "message": format!("{}: {err}", problem.message),
+            "retriable": false
+        },
+        "safeDefault": "do-not-write",
+        "correlation": {
+            "id": correlation_id(path),
+            "surface": "mcp",
+            "mode": "preWrite",
+            "backend": ValidationBackend::Embedded.as_str(),
+            "daemonStatus": DaemonStatus::NotWired.as_str(),
+            "path": path,
+            "enforcementMode": EnforcementMode::default().as_str()
         }
     })
 }
@@ -217,21 +286,37 @@ fn validation_payload(
     path: &str,
     diagnostics: &[Diagnostic],
     backend: ValidationBackend,
+    daemon_status: DaemonStatus,
     problem: Option<ToolProblem>,
     enforcement_mode: EnforcementMode,
 ) -> Value {
     let decision = enforcement::decision_for(diagnostics, enforcement_mode);
-    validation_payload_with_decision(path, diagnostics, backend, problem, enforcement_mode, decision)
+    validation_payload_with_decision(
+        path,
+        diagnostics,
+        backend,
+        daemon_status,
+        problem,
+        enforcement_mode,
+        decision,
+    )
 }
 
 fn validation_payload_with_decision(
     path: &str,
     diagnostics: &[Diagnostic],
     backend: ValidationBackend,
+    daemon_status: DaemonStatus,
     problem: Option<ToolProblem>,
     enforcement_mode: EnforcementMode,
     decision: ControlDecision,
 ) -> Value {
+    // The `enforcementMode` and `daemonStatus` correlation fields are
+    // part of the `anvil.mcp.validate-write.v1` schema and are
+    // currently tool-local. RTAI-007 / DRVR-002 may promote them to
+    // the canonical correlation envelope in `anvil-kernel-types`; we
+    // leave them here for now so the launch shim can ship without
+    // committing the wider envelope to a stable shape.
     let mut payload = json!({
         "schema": RESPONSE_SCHEMA,
         "decision": decision,
@@ -242,6 +327,7 @@ fn validation_payload_with_decision(
             "surface": "mcp",
             "mode": "preWrite",
             "backend": backend.as_str(),
+            "daemonStatus": daemon_status.as_str(),
             "path": path,
             "enforcementMode": enforcement_mode.as_str()
         }
@@ -696,7 +782,25 @@ mod tests {
     use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
     use serde_json::{Value, json};
     use std::path::Path;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    /// Global lock for tests that mutate the process cwd. Cargo runs
+    /// unit tests in parallel; without serialisation here, the
+    /// deleted-cwd test could race against any other test that calls
+    /// `current_dir` (e.g. embedded validation paths that resolve
+    /// relative file lookups).
+    static CWD_GUARD: Mutex<()> = Mutex::new(());
+
+    /// RAII helper for the `deleted_server_cwd_*` test: restores the
+    /// captured cwd on drop so the test runner's working directory is
+    /// always reinstated, even if the test body panics.
+    struct CwdRestore(std::path::PathBuf);
+    impl Drop for CwdRestore {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.0);
+        }
+    }
 
     struct FixtureDaemon {
         outcome: DaemonValidationOutcome,
@@ -764,6 +868,7 @@ mod tests {
                     "surface": "mcp",
                     "mode": "preWrite",
                     "backend": "embedded",
+                    "daemonStatus": "not-wired",
                     "path": "src/example.ts",
                     "enforcementMode": "block",
                 }
@@ -942,6 +1047,13 @@ mod tests {
         assert_eq!(payload["error"]["retriable"], true);
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["correlation"]["backend"], "daemon");
+        // The response shape now carries `decision: "block"` on the
+        // backend-failure path so callers can pattern-match the same
+        // field across every response branch (council finding 1).
+        assert_eq!(payload["decision"], "block");
+        // The daemon was wired and failed operationally — distinct
+        // from `not-wired`, where no daemon was consulted.
+        assert_eq!(payload["correlation"]["daemonStatus"], "unavailable");
         assert!(payload.get("diagnostics").is_none());
         assert!(payload.get("summary").is_none());
     }
@@ -1289,6 +1401,102 @@ mod tests {
         assert_eq!(payload["correlation"]["enforcementMode"], "warn");
         assert!(payload.get("safeDefault").is_none());
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+    }
+
+    /// RTAI-006: the `Unavailable` daemon path silently demotes to
+    /// the embedded validator. Without an explicit signal in the
+    /// response, callers can't tell "embedded by design" from
+    /// "daemon was expected and unavailable". `correlation.daemonStatus`
+    /// surfaces the demotion regardless of the configured enforcement
+    /// mode — `warn` here. Council finding 3.
+    #[test]
+    fn unavailable_daemon_under_warn_mode_carries_demotion_signal() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::Unavailable,
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Warn),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["decision"], "warn");
+        assert_eq!(payload["correlation"]["enforcementMode"], "warn");
+        assert_eq!(payload["correlation"]["backend"], "embedded");
+        assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+    }
+
+    /// Same demotion-signal contract as the warn-mode test, but
+    /// exercised under `off`. Council finding 3.
+    #[test]
+    fn unavailable_daemon_under_off_mode_carries_demotion_signal() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::Unavailable,
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Off),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["correlation"]["enforcementMode"], "off");
+        assert_eq!(payload["correlation"]["backend"], "embedded");
+        assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+    }
+
+    /// RTAI-006: a deleted server cwd surfaces a structured
+    /// `server-cwd-unavailable` error rather than silently rebinding
+    /// to a relative `.` path that would confuse downstream checks.
+    /// Council finding 4.
+    #[test]
+    fn deleted_server_cwd_surfaces_structured_error() {
+        // `set_current_dir` is process-global. Hold the cwd mutex for
+        // the duration of the test so concurrent unit tests cannot
+        // observe each other's directory state. The guard is released
+        // when `_lock` drops at the end of the function.
+        let _lock = CWD_GUARD
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let original_cwd = std::env::current_dir().expect("test runner has a cwd");
+        // Drop order matters: `_restore` drops before `_lock`, so the
+        // cwd is back before any other test grabs the lock.
+
+        let scratch = tempdir().expect("scratch workspace exists");
+        let scratch_path = scratch.path().to_path_buf();
+        std::env::set_current_dir(&scratch_path).expect("cd into scratch dir");
+        let _restore = CwdRestore(original_cwd);
+        // Drop the TempDir so the directory is removed while the
+        // process cwd still points at it. `std::env::current_dir`
+        // will now return an error.
+        drop(scratch);
+
+        let result = super::call(&json!({
+            "path": "src/example.ts",
+            "operation": "create",
+            "proposedContent": "export const value = 1;\n"
+        }));
+
+        let payload = parse_payload(&result);
+        assert_eq!(result["isError"], true);
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["safeDefault"], "do-not-write");
+        assert_eq!(payload["error"]["code"], "server-cwd-unavailable");
+        assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
     }
 
     fn parse_payload(result: &Value) -> Value {

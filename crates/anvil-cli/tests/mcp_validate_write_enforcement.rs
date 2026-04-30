@@ -20,8 +20,7 @@ use tempfile::TempDir;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const CHILD_TIMEOUT: Duration = Duration::from_secs(5);
-const SECRET_PROPOSED_CONTENT: &str =
-    "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
+const SECRET_PROPOSED_CONTENT: &str = "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
 
 #[test]
 fn enforcement_mode_block_rejects_secret_write_e2e() {
@@ -136,9 +135,8 @@ fn run_validate_write_against(workspace_root: &Path, proposed_content: &str) -> 
         "mcp server must exit cleanly after tools/call and EOF; status: {status:?}",
     );
 
-    serde_json::from_str(line.trim()).unwrap_or_else(|err| {
-        panic!("response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
-    })
+    serde_json::from_str(line.trim())
+        .unwrap_or_else(|err| panic!("response must be JSON-RPC JSON, got {line:?}\nerror: {err}"))
 }
 
 fn spawn_mcp_server(workspace_root: &Path) -> Child {

@@ -12,12 +12,17 @@
 //! | Mode    | Diagnostics observed         | Tool decision | `safeDefault`     |
 //! | ------- | ---------------------------- | ------------- | ----------------- |
 //! | `block` | Any `error`                  | `block`       | `do-not-write`    |
+//! | `block` | Mix of `error` and lower     | `block`       | `do-not-write`    |
 //! | `block` | Only `warning` / `info`      | `warn`        | (none)            |
 //! | `block` | None                         | `allow`       | (none)            |
 //! | `warn`  | Any (any severity)           | `warn`        | (none)            |
 //! | `warn`  | None                         | `allow`       | (none)            |
 //! | `off`   | Any (any severity)           | `allow`       | (none)            |
 //! | `off`   | None                         | `allow`       | (none)            |
+//!
+//! The mixed-severity row makes the `any(Error)` short-circuit explicit:
+//! in `block` mode, a single `error` rejects the write even when other
+//! diagnostics are lower severity. This matches `decision_for` below.
 //!
 //! Diagnostics are always returned to the caller verbatim, regardless of
 //! mode — only the decision flag changes. This matches RTAI's
@@ -27,9 +32,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use anvil_kernel_types::Diagnostic;
 use anvil_kernel_types::Severity;
 use anvil_kernel_types::diagnostics::ControlDecision;
-use anvil_kernel_types::Diagnostic;
 use serde::Deserialize;
 
 /// Workspace-level enforcement mode for the MCP `validate_write` tool.
@@ -64,6 +69,17 @@ impl EnforcementMode {
     /// JSON-RPC frames, so config drift is communicated by the agent
     /// observing the `correlation.enforcementMode` field on the
     /// response rather than by a side-channel warning.
+    ///
+    /// Canonical RTAI-006 terms are `block` / `warn` / `off`; the
+    /// aliases `interrupt` / `fence` (→ `Block`) and `advisory` /
+    /// `proceed` (→ `Off`) are accepted for forward compatibility with
+    /// INTD-008's planned vocabulary (per AD-3 / INTD-008 plan). When
+    /// INTD-008 lands and a shared loader replaces this stub, the
+    /// canonical-term direction may invert (i.e. `interrupt` becomes
+    /// the canonical name and `block` the alias). The alias-direction
+    /// reversal will be picked up by the shared loader; callers of
+    /// `EnforcementMode` see no churn because the variants stay the
+    /// same.
     #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
@@ -105,12 +121,27 @@ pub fn decision_for(diagnostics: &[Diagnostic], mode: EnforcementMode) -> Contro
 /// Subset of the `.anvil.yaml` config we read. INTD-008 will eventually
 /// own this struct in a shared crate; until then we duplicate just the
 /// fields RTAI-006 needs.
+///
+/// TODO(INTD-008): replace this stub with the shared loader. When that
+/// lands, the canonical mode term may flip from `block` to `interrupt`
+/// (see `EnforcementMode::parse` doc); callers of `EnforcementMode` are
+/// unaffected because the variants stay the same.
+///
+/// Intentionally **not** `#[serde(deny_unknown_fields)]`: INTD-008 will
+/// extend this section with fields like `on_ambiguous_ownership` and
+/// `observe_only`. We want a forwards-compatible loader that ignores
+/// unknown keys silently rather than tripping over future config that
+/// the INTD-008 daemon understands but this stub does not.
 #[derive(Debug, Default, Deserialize)]
 struct AnvilConfig {
     #[serde(default)]
     enforcement: EnforcementSection,
 }
 
+/// See `AnvilConfig` for the rationale around omitting
+/// `deny_unknown_fields`. INTD-008 will add sibling keys (e.g.
+/// `on_ambiguous_ownership`, `observe_only`) and we must not break the
+/// loader when a workspace already carries them.
 #[derive(Debug, Default, Deserialize)]
 struct EnforcementSection {
     #[serde(default)]
@@ -179,14 +210,20 @@ mod tests {
 
     #[test]
     fn parses_canonical_mode_strings() {
-        assert_eq!(EnforcementMode::parse("block"), Some(EnforcementMode::Block));
+        assert_eq!(
+            EnforcementMode::parse("block"),
+            Some(EnforcementMode::Block)
+        );
         assert_eq!(EnforcementMode::parse("warn"), Some(EnforcementMode::Warn));
         assert_eq!(EnforcementMode::parse("off"), Some(EnforcementMode::Off));
     }
 
     #[test]
     fn parse_is_case_insensitive_and_trims_whitespace() {
-        assert_eq!(EnforcementMode::parse("  BLOCK  "), Some(EnforcementMode::Block));
+        assert_eq!(
+            EnforcementMode::parse("  BLOCK  "),
+            Some(EnforcementMode::Block)
+        );
         assert_eq!(EnforcementMode::parse("Warn"), Some(EnforcementMode::Warn));
     }
 
@@ -194,14 +231,48 @@ mod tests {
     fn parse_accepts_intd_008_aliases() {
         // INTD-008's enforcement vocabulary uses `interrupt`/`fence`
         // for stop-the-write semantics; map them onto our `block`.
-        assert_eq!(EnforcementMode::parse("interrupt"), Some(EnforcementMode::Block));
-        assert_eq!(EnforcementMode::parse("fence"), Some(EnforcementMode::Block));
+        assert_eq!(
+            EnforcementMode::parse("interrupt"),
+            Some(EnforcementMode::Block)
+        );
+        assert_eq!(
+            EnforcementMode::parse("fence"),
+            Some(EnforcementMode::Block)
+        );
+        // `advisory` / `proceed` are the Off-direction aliases. They
+        // map to `Off` so an INTD-008 config using these terms still
+        // resolves to "report findings, never block" semantics.
+        assert_eq!(
+            EnforcementMode::parse("advisory"),
+            Some(EnforcementMode::Off)
+        );
+        assert_eq!(
+            EnforcementMode::parse("proceed"),
+            Some(EnforcementMode::Off)
+        );
+        // The parse is case-folded and trimmed (see
+        // `parse_is_case_insensitive_and_trims_whitespace`); confirm
+        // the alias direction inherits that property.
+        assert_eq!(
+            EnforcementMode::parse("ADVISORY"),
+            Some(EnforcementMode::Off)
+        );
+        assert_eq!(
+            EnforcementMode::parse("  Interrupt  "),
+            Some(EnforcementMode::Block)
+        );
     }
 
     #[test]
     fn parse_unknown_returns_none() {
         assert_eq!(EnforcementMode::parse("nope"), None);
         assert_eq!(EnforcementMode::parse(""), None);
+        // Typo near-misses must not silently match. `interupt` (single
+        // `r`) is a common misspelling of the `interrupt` alias; it
+        // returns None and the caller falls back to the default
+        // (`block`) per `load_for_workspace`.
+        assert_eq!(EnforcementMode::parse("interupt"), None);
+        assert_eq!(EnforcementMode::parse("blok"), None);
     }
 
     #[test]
@@ -272,10 +343,7 @@ mod tests {
     #[test]
     fn missing_anvil_yaml_falls_back_to_block() {
         let workspace = tempdir().expect("workspace exists");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Block
-        );
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Block);
     }
 
     #[test]
@@ -286,10 +354,7 @@ mod tests {
             "enforcement:\n  mode: block\n",
         )
         .expect("write fixture");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Block
-        );
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Block);
     }
 
     #[test]
@@ -300,10 +365,7 @@ mod tests {
             "enforcement:\n  mode: warn\n",
         )
         .expect("write fixture");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Warn
-        );
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Warn);
     }
 
     #[test]
@@ -314,10 +376,7 @@ mod tests {
             "enforcement:\n  mode: off\n",
         )
         .expect("write fixture");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Off
-        );
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Off);
     }
 
     #[test]
@@ -328,10 +387,7 @@ mod tests {
             "enforcement:\n  mode: lenient\n",
         )
         .expect("write fixture");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Block
-        );
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Block);
     }
 
     #[test]
@@ -339,20 +395,13 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         fs::write(workspace.path().join(".anvil.yaml"), "this is not: yaml: [")
             .expect("write fixture");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Block
-        );
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Block);
     }
 
     #[test]
     fn missing_enforcement_section_falls_back_to_block() {
         let workspace = tempdir().expect("workspace exists");
-        fs::write(workspace.path().join(".anvil.yaml"), "version: 1\n")
-            .expect("write fixture");
-        assert_eq!(
-            load_for_workspace(workspace.path()),
-            EnforcementMode::Block
-        );
+        fs::write(workspace.path().join(".anvil.yaml"), "version: 1\n").expect("write fixture");
+        assert_eq!(load_for_workspace(workspace.path()), EnforcementMode::Block);
     }
 }

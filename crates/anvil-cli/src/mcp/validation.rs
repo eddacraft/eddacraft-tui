@@ -26,9 +26,39 @@ impl ValidationBackend {
     }
 }
 
+/// Observable state of the daemon backend at the moment a request was
+/// served. Distinguishes the three demotion paths so the MCP response
+/// can carry an explicit signal rather than implying state by absence:
+///
+/// - `Available`: the daemon answered with structured diagnostics.
+/// - `NotWired`: the daemon client reported `Unavailable` (the current
+///   stub state — no daemon is wired up yet); the embedded validator
+///   served the response.
+/// - `Unavailable`: the daemon was expected but failed operationally
+///   (e.g. socket timeout, IPC parse error). No diagnostics were
+///   produced; the response carries an `error` payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaemonStatus {
+    Available,
+    NotWired,
+    Unavailable,
+}
+
+impl DaemonStatus {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::NotWired => "not-wired",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ValidationResult {
     pub backend: ValidationBackend,
+    pub daemon_status: DaemonStatus,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -72,9 +102,19 @@ pub fn validate_pre_write(
     match daemon.validate_pre_write(request) {
         DaemonValidationOutcome::Diagnostics(diagnostics) => Ok(ValidationResult {
             backend: ValidationBackend::Daemon,
+            daemon_status: DaemonStatus::Available,
             diagnostics,
         }),
-        DaemonValidationOutcome::Unavailable => Ok(embedded_validate_pre_write(request)),
+        DaemonValidationOutcome::Unavailable => {
+            // `Unavailable` is the stub-default path: no daemon is
+            // wired in yet, so we silently demote to embedded. The
+            // response surfaces this via `daemon_status: NotWired`
+            // so the agent can observe the demotion without parsing
+            // backend strings.
+            let mut result = embedded_validate_pre_write(request);
+            result.daemon_status = DaemonStatus::NotWired;
+            Ok(result)
+        }
         DaemonValidationOutcome::OperationalFailure(failure) => Err(failure),
     }
 }
@@ -105,6 +145,12 @@ fn embedded_validate_pre_write(request: &PreWriteValidationRequest<'_>) -> Valid
 
     ValidationResult {
         backend: ValidationBackend::Embedded,
+        // The default for an embedded result is `NotWired` — the
+        // function is only reached when the daemon path could not
+        // serve the request. Callers that want to express "embedded
+        // by design" (rather than "demoted from Unavailable") can
+        // override `daemon_status` after construction.
+        daemon_status: DaemonStatus::NotWired,
         diagnostics,
     }
 }
@@ -194,7 +240,9 @@ pub(crate) fn sanitise_id_part(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest};
+    use super::{
+        DaemonStatus, DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
+    };
     use super::{ValidationBackend, ValidationBackendFailure};
     use super::{embedded_validate_pre_write, validate_pre_write};
 
@@ -222,6 +270,7 @@ mod tests {
         let result = validate_pre_write(&request, &daemon).expect("daemon result is valid");
 
         assert_eq!(result.backend, ValidationBackend::Daemon);
+        assert_eq!(result.daemon_status, DaemonStatus::Available);
         assert_eq!(result.diagnostics, embedded.diagnostics);
     }
 
@@ -235,6 +284,11 @@ mod tests {
         let result = validate_pre_write(&request, &daemon).expect("embedded fallback succeeds");
 
         assert_eq!(result.backend, ValidationBackend::Embedded);
+        // The demotion is observable via `daemon_status`: callers
+        // can distinguish "embedded by design" (would set this to
+        // `Available` if they ever wired such a path) from
+        // "stub-default not-wired" (the current state).
+        assert_eq!(result.daemon_status, DaemonStatus::NotWired);
         assert_eq!(result.diagnostics[0].source.rule_id, "secret-detection");
     }
 
