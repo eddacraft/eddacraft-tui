@@ -328,19 +328,29 @@ convention" section). Concretely:
 - **Expected Outcome:** A criterion benchmark measures the
   daemon-side cost of a single mid-edit RPC against a
   representative fixture set labelled with ADR-031's required
-  dimensions, including a small, a medium, and a near-cap buffer.
-  Recorded baseline numbers establish the `mode = midEdit`
-  `validation.service` and `validation.roundtrip` p50 / p95 / p99
-  values against ADR-031's interactive buffer SLO. CI enforces the
-  SLO and may add stricter baseline-relative regression gates.
-- **Blocks on:** RTAI-002. **Coordinates with:** INTD-014
-  (extends the existing RPC benchmark with a mid-edit case
-  rather than living separately).
+  dimensions, including small, medium, near-cap, binary,
+  Unicode-heavy, and dirty-secret buffers. Recorded baseline
+  numbers establish the `mode = midEdit` `validation.service` and
+  `validation.roundtrip` p50 / p95 / p99 values against ADR-031's
+  interactive buffer SLO. **CI baseline-comparison gating is split
+  off as a follow-up** (eddacraft/anvil-001#1191) so this slice
+  ships the harness and recorded numbers without taking on the
+  workflow-wiring scope.
+- **Blocks on:** RTAI-002 (Done — landed as PR #1186).
+  **Coordinates with:** INTD-014. The benchmark lives at
+  `crates/anvil-intercept/benches/midedit_roundtrip.rs` as a
+  standalone harness rather than extending `ipc_roundtrip.rs`,
+  because the mid-edit harness needs its own ADR-031 corpus,
+  warm-up, and percentile sampler that would have bloated the
+  generic IPC bench. Production drivers reuse a persistent
+  connection — the round-trip harness mirrors that and references
+  `ipc_roundtrip.rs` for the cold-connect cost.
 - **Validation:** `cargo bench -p eddacraft-anvil-intercept --bench
-  midedit_roundtrip` records baseline; CI compares against
-  baseline with documented tolerance.
+  midedit_roundtrip` records baseline locally; CI baseline-comparison
+  is tracked under #1191.
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** In Progress (PR #1189 — bench + corpus landed; CI
+  gating deferred to #1191)
 
 ---
 

@@ -35,8 +35,11 @@
 //!
 //! 1. A `criterion` benchmark group (`midedit_service` /
 //!    `midedit_roundtrip`) that records per-iteration timings for
-//!    regression tracking. This is what `cargo bench` consumes and what CI
-//!    feeds into the existing benchmark workflow.
+//!    regression tracking. This is what `cargo bench` consumes locally.
+//!    CI wiring into `.github/workflows/bench.yml` is a follow-up
+//!    (eddacraft/anvil-001#1191) — the workflow's `paths:` filter does
+//!    not yet include `crates/anvil-intercept/**`, so this bench is
+//!    not run on push to `main` today.
 //! 2. A manual percentile sampler that prints `p50` / `p95` / `p99` and the
 //!    ADR-031 dimension labels alongside the criterion run. The percentile
 //!    sampler mirrors `ipc_roundtrip.rs` so the round-trip SLO can be
