@@ -36,10 +36,9 @@
 //! 1. A `criterion` benchmark group (`midedit_service` /
 //!    `midedit_roundtrip`) that records per-iteration timings for
 //!    regression tracking. This is what `cargo bench` consumes locally.
-//!    CI wiring into `.github/workflows/bench.yml` is a follow-up
-//!    (eddacraft/anvil-001#1191) — the workflow's `paths:` filter does
-//!    not yet include `crates/anvil-intercept/**`, so this bench is
-//!    not run on push to `main` today.
+//!    The `midedit-baseline` job in `.github/workflows/bench.yml` runs the
+//!    bench on push to `main` and feeds its percentile-sampler output to
+//!    `scripts/check-midedit-baseline.sh` for regression gating.
 //! 2. A manual percentile sampler that prints `p50` / `p95` / `p99` and the
 //!    ADR-031 dimension labels alongside the criterion run. The percentile
 //!    sampler mirrors `ipc_roundtrip.rs` so the round-trip SLO can be
@@ -60,13 +59,33 @@
 //! - **Date:** 2026-04-30
 //! - **Daemon state:** warm
 //! - **Rule set:** `default-v1` (the `EnforcementPipeline::default()` set)
+//! - **Samples:** 500 per case (override via `ANVIL_MIDEDIT_BENCH_SAMPLES`)
 //!
-//! Future readers comparing numbers from a different runner class should
-//! re-baseline rather than expect parity.
+//! The recorded p50/p95/p99 per ADR-031 case live in
+//! `crates/anvil-intercept/benches/baselines/midedit_roundtrip.json` and are
+//! compared against by `scripts/check-midedit-baseline.sh` from the
+//! `midedit-baseline` job in `.github/workflows/bench.yml`. The hard-fail
+//! gate is the ADR-031 interactive-buffer SLO above; baseline drift past
+//! ±15% is a soft warning. Future readers comparing numbers from a different
+//! runner class should re-baseline rather than expect parity — the SLO gate
+//! is runner-independent and remains the authoritative pass/fail criterion.
+//! See `plans/decisions/031-validation-latency-rubric.md`.
 //!
-//! The bench file documents these inline; automated CI gating against the
-//! SLO is a follow-up task and is intentionally not invented here. See
-//! `plans/decisions/031-validation-latency-rubric.md`.
+//! ### Re-baselining
+//!
+//! After an intentional latency change ships (or after the runner class
+//! changes) re-record the baseline by running the bench locally:
+//!
+//! ```bash
+//! cargo bench -p eddacraft-anvil-intercept --bench midedit_roundtrip \
+//!     --features bench-internals 2>&1 | tee midedit-bench.txt
+//! ```
+//!
+//! Copy the seven `validation.service` and seven `validation.roundtrip`
+//! `pNN=Xms` rows from the `--- ADR-031 mid-edit warm percentile sampler ---`
+//! block into `baselines/midedit_roundtrip.json`, bump
+//! `calibration.date`, note the runner class in `calibration.runner`, and
+//! commit alongside the change that justifies the new numbers.
 //!
 //! Run locally with:
 //!
@@ -75,18 +94,6 @@
 //!     --features bench-internals
 //! ```
 
-// TODO(RTAI-003-CI): wire CI baseline-comparison for this bench. Tracked in
-// eddacraft/anvil-001#1191 ("RTAI-003 follow-up: wire CI baseline comparison
-// for midedit_roundtrip"). Concrete work items:
-//   (a) extend `.github/workflows/bench.yml` `paths:` filter to include
-//       `crates/anvil-intercept/**` so this bench runs on push to main.
-//   (b) commit a baseline JSON at
-//       `crates/anvil-intercept/benches/baselines/midedit_roundtrip.json`
-//       (path documented; file owned by the follow-up).
-//   (c) add a comparison step that diffs current p95 vs baseline within a
-//       documented tolerance (e.g. ±15% drift, hard fail if SLO exceeded).
-// See ADR-031 § SLO enforcement / Regression policy.
-//
 // TODO(INTR-followup): observed during benchmarking — `PatternMatcher::new`
 // recompiles the 11 default allowlist regexes on every `scan_buffer` call via
 // `SecretDetectionRule::evaluate` -> `scan_content_with_limit`. This is real
