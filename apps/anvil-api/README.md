@@ -61,9 +61,9 @@ The post-release Vercel/CORS hardening lowered the CORS preflight cache
 lifetime, restored the Hono/Vercel entrypoint after the post-tag deploy break,
 scoped the API tsconfig, controlled Nx framework detection, and added the
 `svix>uuid` runtime override exception so production deploys do not trip on
-dependency drift. Operators upgrading their `anvil-api` deployment for the 0.5.0-beta
-release should redeploy from the current `dev` or `main` branch rather than
-cherry-picking individual fixes.
+dependency drift. Operators upgrading their `anvil-api` deployment for the
+0.5.0-beta release should redeploy from the current `dev` or `main` branch
+rather than cherry-picking individual fixes.
 
 ## Development
 

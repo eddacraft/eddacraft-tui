@@ -252,15 +252,16 @@ Record whether gate failures clearly explain what failed and what to do next.
 
 ### 7. Try the 0.5.0-beta AI Guardrail and MCP Surfaces
 
-These are the headline 0.5.0-beta surfaces and the most useful test focus this cycle.
+These are the headline 0.5.0-beta surfaces and the most useful test focus this
+cycle.
 
 ```bash
 # AI guardrail profile — strict config, JSON envelope by default
 anvil gate --profile ai
 
 # Generate (and verify) editor MCP configuration
-anvil mcp-config --client claude-code --verify
-anvil mcp-config --client cursor --write
+anvil mcp-config --target claude-code --verify
+anvil mcp-config --target cursor --write
 ```
 
 Record:

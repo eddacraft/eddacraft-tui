@@ -426,9 +426,9 @@ gh release delete vX.Y.Z --repo eddacraft/anvil-001 --yes
 - **Scoop / WinGet pre-flight:** the Scoop publisher runs a token-reachability
   pre-flight before submitting a manifest, and the WinGet publisher checks the
   fork is up to date and that the `gh` CLI invocation parses. Both hardenings
-  landed during the 0.5.0-beta cycle after the v0.4.0-beta tag run surfaced silent
-  403s. If either pre-flight fails, fix the underlying token/fork issue before
-  re-running the publisher.
+  landed during the 0.5.0-beta cycle after the v0.4.0-beta tag run surfaced
+  silent 403s. If either pre-flight fails, fix the underlying token/fork issue
+  before re-running the publisher.
 
 ---
 

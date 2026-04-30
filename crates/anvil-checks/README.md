@@ -31,8 +31,8 @@ and default to `min(num_cpus, 4)` so the parallel walk does not starve TUI or
 editor work. Raise the cap on dedicated CI runners; lower it on shared laptops
 if you see contention.
 
-The 0.5.0-beta SCAN benchmark recorded a 7.39× wall-time improvement on a synthetic
-3,000-file surface over the previous serial scan baseline.
+The 0.5.0-beta SCAN benchmark recorded a 7.39× wall-time improvement on a
+synthetic 3,000-file surface over the previous serial scan baseline.
 
 ## Benchmarks
 

@@ -208,17 +208,24 @@ and tooling.
 
 ### Crates (Rust)
 
-| Directory                   | Description                                               |
-| --------------------------- | --------------------------------------------------------- |
-| `crates/anvil-cli`          | Native CLI binary (cross-platform: macOS, Linux, Windows) |
-| `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy     |
-| `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust)   |
-| `crates/anvil-architecture` | Architecture rule evaluation                              |
-| `crates/anvil-bench`        | Stress-test harness for capacity discovery                |
-| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)    |
-| `crates/anvil-policy`       | OPA/policy evaluation engine                              |
-| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer)   |
-| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph    |
+| Directory                      | Description                                                    |
+| ------------------------------ | -------------------------------------------------------------- |
+| `crates/anvil-cli`             | Native CLI binary (cross-platform: macOS, Linux, Windows)      |
+| `crates/anvil-kernel`          | Rust kernel — watcher, parser, semantic graph, policy          |
+| `crates/anvil-kernel-types`    | Shared types for the Rust kernel (events, graph, trust)        |
+| `crates/anvil-architecture`    | Architecture rule evaluation                                   |
+| `crates/anvil-bench`           | Stress-test harness for capacity discovery                     |
+| `crates/anvil-checks`          | Gate checks ported to Rust (secret scan, anti-pattern, AI-001) |
+| `crates/anvil-checks-napi`     | Node bindings build canary for the checks crate (ADR-033)      |
+| `crates/anvil-intercept`       | Mid-edit intercept daemon (RTAI launch path)                   |
+| `crates/anvil-intercept-proto` | Wire protocol types shared with the intercept daemon           |
+| `crates/anvil-intercept-rules` | Rule set evaluated by the intercept daemon                     |
+| `crates/anvil-intercept-win32` | Windows-specific intercept transport bits                      |
+| `crates/anvil-observability`   | Tracing baseline, traceparent envelope, redaction (TRACE)      |
+| `crates/anvil-policy`          | OPA/policy evaluation engine                                   |
+| `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)        |
+| `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph         |
+| `crates/workspace-hack`        | Hakari-managed feature unifier for build times                 |
 
 ### Infrastructure
 

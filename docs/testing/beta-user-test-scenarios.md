@@ -322,8 +322,9 @@ Capture:
 
 ## Scenario 8: AI Guardrail Profile (0.5.0-beta)
 
-Purpose: validate the headline 0.5.0-beta surface — the AI-focused gate profile — on
-a real project, especially for testers who use anvil from agentic workflows.
+Purpose: validate the headline 0.5.0-beta surface — the AI-focused gate profile
+— on a real project, especially for testers who use anvil from agentic
+workflows.
 
 Steps for the tester:
 
@@ -360,11 +361,11 @@ Purpose: validate `anvil mcp-config` end-to-end against a real editor.
 
 Steps for the tester:
 
-1. Run `anvil mcp-config --client claude-code` (or the tester's editor) and read
+1. Run `anvil mcp-config --target claude-code` (or the tester's editor) and read
    the printed config.
-2. Run `anvil mcp-config --client claude-code --verify` against an existing
+2. Run `anvil mcp-config --target claude-code --verify` against an existing
    editor config; observe drift, if any.
-3. Run `anvil mcp-config --client claude-code --write` and confirm the
+3. Run `anvil mcp-config --target claude-code --write` and confirm the
    path-safety prompt appears before any overwrite.
 4. Open the editor and confirm the anvil MCP server is reachable.
 

@@ -75,11 +75,18 @@ crates/
         watch/                      # PORT-030 + RATS-002
         wizard/                     # RATS-004
         tutorial/                   # PORT-040–044
-  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, command safety)
+  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, AI-001, SURFENV-001, command safety)
+  anvil-checks-napi/                # Node bindings build canary for anvil-checks (ADR-033)
+  anvil-intercept/                  # INTD — mid-edit intercept daemon (RTAI launch path)
+  anvil-intercept-proto/            # Wire-protocol types shared with the intercept daemon
+  anvil-intercept-rules/            # Rule set evaluated by the intercept daemon
+  anvil-intercept-win32/            # Windows-specific intercept transport bits
+  anvil-observability/              # TRACE — tracing baseline, traceparent envelope, redaction
   anvil-policy/                     # OPA policy evaluation engine
   anvil-architecture/               # Architecture enforcement (boundaries, drift)
   anvil-bench/                      # Stress-test harness and benchmarks
   spike/                            # Phase 0 validation spikes (done)
+  workspace-hack/                   # Hakari-managed feature unifier (build-time only)
 ```
 
 ### External Dependencies
@@ -425,8 +432,8 @@ dated 2026-03-05 (not included in this repository):
 
 ## 0.5.0-beta Surface Deliveries
 
-The following surfaces landed during the 0.5.0-beta cycle and are now part of the
-shipped Rust architecture:
+The following surfaces landed during the 0.5.0-beta cycle and are now part of
+the shipped Rust architecture:
 
 - **AI-001 reasoning rule** in `anvil-checks` — flags appeal-to-authority
   comments via the registry-backed pattern catalogue, runs only inside comment
@@ -447,6 +454,11 @@ shipped Rust architecture:
 - **`validate_write` MCP tool** — exposes save-time and mid-edit validation
   through the MCP server, backed by the canonical `anvil.diagnostic.v1` envelope
   owned by `anvil-kernel-types`.
+- **Tracing baseline (`anvil-observability`)** — TRACE-001 lands the
+  `anvil-observability` crate with a traceparent envelope, redaction helpers,
+  and the cross-cutting namespace registry consumed by `anvil-intercept` and
+  `anvil-cli`. Subsequent TRACE work items wire it through the daemon and the TS
+  surfaces; the foundation is now part of the shipped Rust architecture.
 
 ## Total Work Item Count
 

@@ -68,20 +68,20 @@ contracts (zero deps)
 
 ### Packages
 
-| Package                          | npm Name                      | Purpose                                                                                            |
-| -------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `packages/anvil/contracts/`      | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                     |
-| `packages/anvil/ports/`          | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                  |
-| `packages/anvil/core/`           | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance. |
-| `packages/anvil/runtime/`        | `@eddacraft/anvil-runtime`    | GateRunner orchestration, cache, watch, export, concurrency.                                       |
-| `packages/anvil/policy/`         | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                           |
-| `packages/adapters/`             | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                            |
-| `packages/aps/`                  | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                 |
-| `packages/mcp-server/`           | `@eddacraft/anvil-mcp-server` | MCP tools, resources, and prompts.                                                                 |
-| `packages/vscode-extension/`     | --                            | VS Code extension for real-time diagnostics.                                                       |
-| `packages/eslint-plugin-anvil/`  | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                         |
-| `packages/edda-stack/`           | --                            | Kindling, Ember, Edda memory layers (planned).                                                     |
-| `packages/kindling-integration/` | --                            | Kindling memory contracts and emitters.                                                            |
+| Package                           | npm Name                      | Purpose                                                                                                |
+| --------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `packages/anvil/contracts/`       | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                         |
+| `packages/anvil/ports/`           | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                      |
+| `packages/anvil/core/`            | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance.     |
+| `packages/anvil/runtime/`         | `@eddacraft/anvil-runtime`    | GateRunner orchestration, cache, watch, export, concurrency.                                           |
+| `packages/anvil/policy/`          | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                               |
+| `packages/adapters/`              | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                                |
+| `packages/aps/`                   | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                     |
+| `archive/anvil-mcp-server/`       | `@eddacraft/anvil-mcp-server` | Legacy MCP tools/resources/prompts (archived per ADR-033; live MCP path is `anvil mcp serve --stdio`). |
+| `archive/anvil-vscode-extension/` | --                            | Legacy VS Code extension (archived per ADR-033; returns via DRVR-003).                                 |
+| `packages/eslint-plugin-anvil/`   | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                             |
+| `packages/edda-stack/`            | --                            | Kindling, Ember, Edda memory layers (planned).                                                         |
+| `packages/kindling-integration/`  | --                            | Kindling memory contracts and emitters.                                                                |
 
 ### Apps
 

@@ -73,8 +73,12 @@ Only update packages that changed in this release.
 - [ ] `packages/anvil/README.md` — core/runtime API changes
 - [ ] `packages/edda-stack/README.md` — Edda/Ember contract changes
 - [ ] `packages/aps/README.md` — APS format changes
-- [ ] `packages/vscode-extension/README.md` — extension changes
 - [ ] `apps/anvil-api/README.md` — API route changes
+
+> The Node MCP server and VS Code extension were archived per ADR-033
+> (`archive/anvil-mcp-server/`, `archive/anvil-vscode-extension/`); they no
+> longer participate in release cuts. The live MCP path is the Rust shim under
+> `crates/anvil-cli/src/commands/mcp.rs`.
 
 ### Pre-release: CI and deployment
 

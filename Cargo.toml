@@ -65,7 +65,12 @@ thiserror = "2"
 
 # Observability (TRACE-001 / ADR-035)
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "json", "registry"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "env-filter",
+  "fmt",
+  "json",
+  "registry",
+] }
 
 # Async
 tokio = { version = "1", features = ["full"] }

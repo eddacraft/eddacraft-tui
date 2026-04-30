@@ -22,9 +22,9 @@
 >
 > **MCP launch path.** The headline path uses the shipped Rust `anvil` binary:
 > `anvil mcp install` writes a client entry that launches
-> `anvil mcp serve --stdio`. Do not run `packages/mcp-server`, a Node.js sidecar,
-> or any TypeScript MCP server for this launch demo unless the operator has
-> explicitly switched to a post-launch RMCPF parity test.
+> `anvil mcp serve --stdio`. Do not run the archived `archive/anvil-mcp-server/`
+> Node.js sidecar or any TypeScript MCP server for this launch demo unless the
+> operator has explicitly switched to a post-launch RMCPF parity test.
 
 ---
 
