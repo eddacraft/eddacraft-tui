@@ -1,12 +1,12 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-05-01 (locked slate shipped as 0.4.1)
+**Last updated:** 2026-05-01 (locked slate shipped as 0.5.0)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons.
 
 ---
 
-> **Shipped:** the locked slate (A1 + A2 + A3 + A4) shipped as **0.4.1** on
+> **Shipped:** the locked slate (A1 + A2 + A3 + A4) shipped as **0.5.0** on
 > 2026-05-01.
 
 ## 🔒 CURRENT RELEASE — Locked 2026-04-26

@@ -8,7 +8,7 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-## [0.4.1] — 2026-05-01 — AI Guardrails & Mid-Edit Validation
+## [0.5.0] — 2026-05-01 — AI Guardrails & Mid-Edit Validation
 
 ### Added
 
