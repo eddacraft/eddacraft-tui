@@ -1549,7 +1549,14 @@ async fn handle_scan_buffer_jsonrpc(
         data,
     }) = validate_scan_buffer_request_shape(map, method)
     {
-        return jsonrpc_request_error(response_id, traceparent, is_notification, code, message, data);
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            is_notification,
+            code,
+            message,
+            data,
+        );
     }
     if is_notification {
         tracing::warn!(
@@ -1565,7 +1572,14 @@ async fn handle_scan_buffer_jsonrpc(
             code,
             message,
             data,
-        }) => jsonrpc_request_error(response_id, traceparent, is_notification, code, message, data),
+        }) => jsonrpc_request_error(
+            response_id,
+            traceparent,
+            is_notification,
+            code,
+            message,
+            data,
+        ),
     }
 }
 

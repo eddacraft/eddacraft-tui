@@ -118,7 +118,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 255 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 260 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1040,6 +1040,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `lock_api` | 0.4.14 | MIT License | https://github.com/Amanieu/parking_lot |
 | `parking_lot` | 0.12.5 | MIT License | https://github.com/Amanieu/parking_lot |
 | `parking_lot_core` | 0.9.12 | MIT License | https://github.com/Amanieu/parking_lot |
+| `thread_local` | 1.1.9 | MIT License | https://github.com/Amanieu/thread_local-rs |
 | `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
@@ -1065,8 +1066,12 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `getrandom` | 0.4.2 | MIT License | https://github.com/rust-random/getrandom |
 | `unicode-truncate` | 2.0.1 | MIT License | https://github.com/Aetf/unicode-truncate |
 | `slab` | 0.4.12 | MIT License | https://github.com/tokio-rs/slab |
+| `sharded-slab` | 0.1.7 | MIT License | https://github.com/hawkw/sharded-slab |
+| `matchers` | 0.2.0 | MIT License | https://github.com/hawkw/matchers |
 | `tracing-attributes` | 0.1.31 | MIT License | https://github.com/tokio-rs/tracing |
 | `tracing-core` | 0.1.36 | MIT License | https://github.com/tokio-rs/tracing |
+| `tracing-serde` | 0.2.0 | MIT License | https://github.com/tokio-rs/tracing |
+| `tracing-subscriber` | 0.3.23 | MIT License | https://github.com/tokio-rs/tracing |
 | `tracing` | 0.1.44 | MIT License | https://github.com/tokio-rs/tracing |
 | `tower-layer` | 0.3.3 | MIT License | https://github.com/tower-rs/tower |
 | `tower-service` | 0.3.3 | MIT License | https://github.com/tower-rs/tower |

@@ -23,7 +23,8 @@ const PARENT_ID_BYTES: usize = 16;
 const FLAGS_BYTES: usize = 2;
 
 /// Total length of a version-`00` `traceparent` header value.
-pub const TRACEPARENT_LEN: usize = VERSION_BYTES + 1 + TRACE_ID_BYTES + 1 + PARENT_ID_BYTES + 1 + FLAGS_BYTES;
+pub const TRACEPARENT_LEN: usize =
+    VERSION_BYTES + 1 + TRACE_ID_BYTES + 1 + PARENT_ID_BYTES + 1 + FLAGS_BYTES;
 
 const ZERO_TRACE_ID: &str = "00000000000000000000000000000000";
 const ZERO_PARENT_ID: &str = "0000000000000000";
@@ -227,7 +228,10 @@ mod tests {
     fn rejects_upper_case_hex() {
         let upper = "00-0AF7651916CD43DD8448EB211C80319C-b7ad6b7169203331-01";
         let err = TraceContext::parse(upper).expect_err("upper-case must be rejected");
-        assert!(matches!(err, TraceContextError::NotHex { field: "trace-id" }));
+        assert!(matches!(
+            err,
+            TraceContextError::NotHex { field: "trace-id" }
+        ));
     }
 
     #[test]
@@ -292,7 +296,10 @@ mod tests {
         let non_ascii = "00-0af7651916cd43dd8448eb211c80319é-b7ad6b7169203331-01";
         assert!(!non_ascii.is_ascii());
         assert!(non_ascii.len() > TRACEPARENT_LEN);
-        assert_eq!(TraceContext::parse(non_ascii), Err(TraceContextError::Shape));
+        assert_eq!(
+            TraceContext::parse(non_ascii),
+            Err(TraceContextError::Shape)
+        );
     }
 
     #[test]
@@ -305,7 +312,10 @@ mod tests {
         let non_ascii = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-é";
         assert!(!non_ascii.is_ascii());
         assert_eq!(non_ascii.len(), TRACEPARENT_LEN);
-        assert_eq!(TraceContext::parse(non_ascii), Err(TraceContextError::Shape));
+        assert_eq!(
+            TraceContext::parse(non_ascii),
+            Err(TraceContextError::Shape)
+        );
     }
 
     #[test]
