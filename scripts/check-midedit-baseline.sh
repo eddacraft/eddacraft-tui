@@ -30,10 +30,19 @@
 #   scripts/check-midedit-baseline.sh <bench-output-log> <baseline.json>
 #
 # Exit codes:
-#   0  all p95s within tolerance and SLO
-#   1  at least one p95 exceeded the ADR-031 SLO (hard fail)
-#   2  malformed input (bench log missing the percentile sampler block,
-#      baseline JSON missing a referenced (boundary, case) pair, etc.)
+#   0  all p95s within SLO. Soft warnings (drift past tolerance, orphaned
+#      baseline rows) do not affect the exit code.
+#   1  hard fail. Any of:
+#        * a measured p95 exceeded the ADR-031 SLO for its boundary,
+#        * the bench produced a (boundary, case) row with no matching
+#          baseline entry — typically a new bench case that needs the
+#          baseline JSON re-recorded,
+#        * the baseline JSON is missing the SLO entry for a boundary the
+#          bench produced.
+#   2  unrecoverable input error: missing/unreadable bench log or
+#      baseline JSON, missing jq, missing tolerance.drift_pct, or the
+#      bench log contains no ADR-031 percentile sampler block (the bench
+#      did not run to completion).
 
 set -euo pipefail
 

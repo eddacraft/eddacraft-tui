@@ -97,8 +97,11 @@ jobs:
               --features bench-internals \
               | tee midedit-bench.txt
       - name: Compare against baseline
+        # Invoke via `bash` rather than relying on the executable bit so the
+        # job is robust against checkout actions or runner filesystems that
+        # don't preserve mode bits.
         run: |
-          scripts/check-midedit-baseline.sh \
+          bash scripts/check-midedit-baseline.sh \
               midedit-bench.txt \
               crates/anvil-intercept/benches/baselines/midedit_roundtrip.json
       - name: Upload midedit benchmark log (partial if cancelled)
