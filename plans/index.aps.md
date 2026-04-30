@@ -264,13 +264,13 @@ data contract, alert thresholds, runbook pack. 5 tasks (post-launch
 hardening). The cross-cutting tracing baseline originally scoped as OBS-006
 moved to TRACE on 2026-04-30 per Planning Council session plan-b00c16c7;
 see [ADR-035](./decisions/035-three-pipe-observability-rule.md) for the
-three-pipe rule and [Tracing Foundation](#tracing-foundation-draft) below.
+three-pipe rule and [Tracing Foundation](#tracing-foundation-ready) below.
 
 | Module                                                                | Scope | Status | Progress | Dependencies                                                                                                                  |
 | --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/5      | kindling-integration, dashboard-ops-views; tracing scope migrated to TRACE on 2026-04-30 (OBS-006 superseded by TRACE-001)    |
 
-### Tracing Foundation (Draft)
+### Tracing Foundation (Ready)
 
 Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
 daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
@@ -283,15 +283,14 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 
 | Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
 | --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | Draft  | 0/3      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views; cites ADR-019 (flags observability alignment), ADR-034 (cross-cutting primitive), ADR-035 (three-pipe rule); blocked on precondition: LAUNCH-003 callout sweep |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | Ready  | 0/3      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views; cites ADR-019 (flags observability alignment), ADR-034 (cross-cutting primitive), ADR-035 (three-pipe rule); precondition resolved 2026-04-30 (LAUNCH-003 callout swept per ADR-034 rule 3) |
 | [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
 
-> **Precondition before TRACE goes Ready:**
-> LAUNCH-003 carries an open `Coordinates with: TUIDASH-009` callout in
-> Complete state. Per ADR-034 rule 3, that callout must be swept by
-> LAUNCH's closer (confirm, downgrade, or document-and-close). It is
-> **not** a TRACE-001 sub-task — it is owned by LAUNCH and blocks TRACE
-> from being marked Ready until the sweep is complete.
+> **Precondition resolved 2026-04-30:** LAUNCH-003's open
+> `Coordinates with: TUIDASH-009` callout was swept per ADR-034 rule 3.
+> LAUNCH-003 shipped first; the conditional "Superseded by" branch did not
+> fire. The named `WatchStats` contract is the inheritance TUIDASH-009 will
+> consume when the dashboard surface lands. TRACE is now **Ready**.
 
 ### Infrastructure as Code (In Progress)
 
