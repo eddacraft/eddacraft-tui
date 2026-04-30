@@ -672,47 +672,16 @@ Architectural recommendations from the 2026-02-16 code review.
 | MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
 
-### Task Status — 0.1.x (Forge & Temper: Autonomous Code Review Pipeline)
-
-Pre-commit review (Forge) and post-push self-healing (Temper) pipeline.
-Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
-
-#### Forge Hook & Agent
-
-| Task      | Module | Description                          | Status   | Priority |
-| --------- | ------ | ------------------------------------ | -------- | -------- |
-| FORGE-001 | forge  | Create forge.sh PreToolUse hook      | Complete | high     |
-| FORGE-002 | forge  | Create forge-reviewer agent spec     | Complete | high     |
-| FORGE-004 | forge  | Implement Forge report logging       | Complete | medium   |
-
-#### Forge Negotiation Protocol
-
-| Task     | Module | Description                              | Status   | Priority |
-| -------- | ------ | ---------------------------------------- | -------- | -------- |
-| FNEG-002 | fneg   | Implement round cap enforcement          | Complete | high     |
-| FNEG-003 | fneg   | Implement scoped re-review for rounds 2+ | Complete | medium   |
-| FNEG-004 | fneg   | Implement severity-action matrix         | Complete | high     |
-| FNEG-005 | fneg   | Implement fix-and-restage flow           | Complete | medium   |
-
-#### Temper Workflow
-
-| Task       | Module | Description                            | Status   | Priority |
-| ---------- | ------ | -------------------------------------- | -------- | -------- |
-| TEMPER-001 | temper | Create temper.yml workflow scaffold    | Complete | high     |
-| TEMPER-002 | temper | Implement cycle 1 full review          | Complete | high     |
-| TEMPER-003 | temper | Implement cycle 2 scoped re-review     | Complete | medium   |
-| TEMPER-004 | temper | Implement cycle cap enforcement        | Complete | high     |
-| TEMPER-005 | temper | Implement manual dispatch trigger      | Complete | medium   |
-| TEMPER-006 | temper | Implement PR summary comments          | Complete | medium   |
-
-#### Forge & Temper Configuration & Documentation
-
-| Task      | Module | Description                               | Status   | Priority |
-| --------- | ------ | ----------------------------------------- | -------- | -------- |
-| FTCFG-002 | ftcfg  | Document Temper GitHub repo variables     | Complete | medium   |
-| FTCFG-003 | ftcfg  | Update CLAUDE.md hook behavior table      | Complete | high     |
-| FTCFG-004 | ftcfg  | Update CLAUDE.md env var table            | Complete | high     |
-| FTCFG-005 | ftcfg  | Document pipeline overview in CLAUDE.md   | Complete | high     |
+<!--
+  Task Status — 0.1.x (Forge & Temper) was the parked internal pre-commit /
+  post-push code-review tooling. It was superseded by the Council review system
+  and is not a product feature. Per-task tables removed 2026-04-30 to stop the
+  concept being surfaced as a feature; full task-level history lives in:
+    - plans/archive/modules/01-forge-hook-agent.aps.md
+    - plans/archive/modules/02-forge-negotiation.aps.md
+    - plans/archive/modules/05-forge-temper-config.aps.md
+  Design doc archived at docs/archive/2026-02-24-forge-temper-review-pipeline.md.
+-->
 
 ## Decisions
 

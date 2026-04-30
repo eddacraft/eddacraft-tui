@@ -6,9 +6,9 @@
 
 ## APS + GH execution context
 
-APS Module: <!-- e.g. FORGE, CRB, DASH --> APS Task(s):
+APS Module: <!-- e.g. INTD, RTAI, TRACE --> APS Task(s):
 
-<!-- e.g. FORGE-003, CRB-012 --> GH Project Status:
+<!-- e.g. INTD-013, TRACE-001 --> GH Project Status:
 <!-- Backlog | Ready | In Progress | In Review | Blocked | Done -->
 
 Acceptance criteria checked:
