@@ -820,8 +820,9 @@ impl Harness {
         }
     }
 
-    async fn connect(&self) -> UnixStream {
-        UnixStream::connect(&self.socket).await.expect("connect")
+    async fn connect(&self) -> Conn {
+        let stream = UnixStream::connect(&self.socket).await.expect("connect");
+        Conn::new(stream)
     }
 
     async fn shutdown(self) {
@@ -834,18 +835,55 @@ impl Harness {
     }
 }
 
-async fn send_frame(client: &mut UnixStream, frame: &Value) -> Value {
-    client
-        .write_all(format!("{frame}\n").as_bytes())
-        .await
-        .expect("write frame");
-    let mut reader = BufReader::new(client);
-    let mut line = String::new();
-    tokio::time::timeout(Duration::from_secs(10), reader.read_line(&mut line))
-        .await
-        .expect("response timeout")
-        .expect("read response");
-    serde_json::from_str(line.trim_end()).expect("response json")
+/// A reusable JSON-RPC connection over the test Unix socket.
+///
+/// Holds a single `BufReader<UnixStream>` for the lifetime of the
+/// connection. Creating a fresh `BufReader` per request would discard
+/// any bytes the buffered reader had read past the newline, which would
+/// silently corrupt subsequent frames on the same connection.
+struct Conn {
+    reader: BufReader<UnixStream>,
+}
+
+impl Conn {
+    fn new(stream: UnixStream) -> Self {
+        Self {
+            reader: BufReader::new(stream),
+        }
+    }
+
+    async fn send(&mut self, frame: &Value) -> Value {
+        self.write(frame).await;
+        let mut line = String::new();
+        tokio::time::timeout(Duration::from_secs(10), self.reader.read_line(&mut line))
+            .await
+            .expect("response timeout")
+            .expect("read response");
+        serde_json::from_str(line.trim_end()).expect("response json")
+    }
+
+    /// Send a frame without waiting for the response. Pairs with
+    /// [`Conn::drain_pending`] for tests that want to saturate workers
+    /// before reading.
+    async fn write(&mut self, frame: &Value) {
+        self.reader
+            .get_mut()
+            .write_all(format!("{frame}\n").as_bytes())
+            .await
+            .expect("write frame");
+    }
+
+    /// Drain any pending response line, ignoring timeouts. Used during
+    /// teardown to release blocked workers without leaking threads.
+    async fn drain_pending(&mut self) {
+        let mut line = String::new();
+        let _ =
+            tokio::time::timeout(Duration::from_secs(5), self.reader.read_line(&mut line)).await;
+    }
+}
+
+async fn send_frame(client: &mut Conn, frame: &Value) -> Value {
+    client.send(frame).await
 }
 
 // ---------------------------------------------------------------------
@@ -865,25 +903,15 @@ async fn rust_consumer_runs_full_contract() {
     let harness = Harness::start(ScanBufferService::default());
     let mut client = harness.connect().await;
     let runtime = tokio::runtime::Handle::current();
+    // The connection's `BufReader` is held for the lifetime of the
+    // closure; rebuilding one per call would risk discarding any bytes
+    // the buffered reader read ahead past the newline, silently
+    // corrupting the next frame.
     let mut driver = |frame: Value| -> Value {
-        let mut buf = String::new();
         // We are inside a multi-threaded runtime (see attribute
         // above). `block_in_place` yields the current worker thread so
         // the nested `block_on` does not deadlock the executor.
-        tokio::task::block_in_place(|| {
-            runtime.block_on(async {
-                client
-                    .write_all(format!("{frame}\n").as_bytes())
-                    .await
-                    .expect("write frame");
-                let mut reader = BufReader::new(&mut client);
-                tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut buf))
-                    .await
-                    .expect("response timeout")
-                    .expect("read response");
-            });
-        });
-        serde_json::from_str(buf.trim_end()).expect("response json")
+        tokio::task::block_in_place(|| runtime.block_on(async { client.send(&frame).await }))
     };
 
     run_full_contract(&mut driver);
@@ -939,11 +967,7 @@ async fn rust_consumer_surfaces_server_busy() {
     let mut blockers = Vec::new();
     for idx in 0..MAX_CONCURRENT_SCAN_BUFFERS {
         let mut blocker = harness.connect().await;
-        let frame = busy_request(idx);
-        blocker
-            .write_all(format!("{frame}\n").as_bytes())
-            .await
-            .expect("write blocker");
+        blocker.write(&busy_request(idx)).await;
         blockers.push(blocker);
     }
     // 100 × 10ms = 1s ceiling; widened from 500ms because the IPC
@@ -974,9 +998,7 @@ async fn rust_consumer_surfaces_server_busy() {
     // Release blockers and tidy up.
     barrier.wait();
     for mut blocker in blockers {
-        let mut reader = BufReader::new(&mut blocker);
-        let mut line = String::new();
-        let _ = tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await;
+        blocker.drain_pending().await;
     }
     drop(busy_client);
     harness.shutdown().await;
@@ -1044,10 +1066,7 @@ async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
             },
             "id": format!("contract-busy-blocker-{idx}")
         });
-        blocker
-            .write_all(format!("{frame}\n").as_bytes())
-            .await
-            .expect("write blocker");
+        blocker.write(&frame).await;
         blockers.push(blocker);
     }
     // 100 × 10ms = 1s ceiling, matching the public busy contract test.
@@ -1087,9 +1106,7 @@ async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
     // Release blockers and tidy up.
     barrier.wait();
     for mut blocker in blockers {
-        let mut reader = BufReader::new(&mut blocker);
-        let mut line = String::new();
-        let _ = tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await;
+        blocker.drain_pending().await;
     }
     drop(busy_client);
     harness.shutdown().await;
