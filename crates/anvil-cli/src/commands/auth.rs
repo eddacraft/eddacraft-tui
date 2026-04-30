@@ -19,6 +19,10 @@ pub enum AuthCommand {
         /// Use email OTP instead of device code flow
         #[arg(long)]
         otp: bool,
+
+        /// Redeem a revokable early-access edict
+        #[arg(long, conflicts_with = "otp")]
+        edict: bool,
     },
     /// Remove stored credentials
     Logout,
@@ -40,9 +44,11 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
 
     match &args.command {
-        AuthCommand::Login { otp } => {
+        AuthCommand::Login { otp, edict } => {
             if *otp {
                 rt.block_on(device_flow::login_otp_flow())
+            } else if *edict {
+                rt.block_on(device_flow::login_edict_flow())
             } else {
                 rt.block_on(device_flow::login_device_flow())
             }
@@ -133,6 +139,10 @@ pub struct LoginArgs {
     /// Use email OTP instead of device code flow
     #[arg(long)]
     otp: bool,
+
+    /// Redeem a revokable early-access edict
+    #[arg(long, conflicts_with = "otp")]
+    edict: bool,
 }
 
 #[derive(Debug, Args)]
@@ -143,7 +153,10 @@ pub struct WhoamiArgs {}
 
 pub fn run_login(args: &LoginArgs, global: &GlobalArgs) -> Result<()> {
     let auth_args = AuthArgs {
-        command: AuthCommand::Login { otp: args.otp },
+        command: AuthCommand::Login {
+            otp: args.otp,
+            edict: args.edict,
+        },
     };
     run(&auth_args, global)
 }
@@ -186,6 +199,17 @@ mod tests {
     }
 
     #[test]
+    fn args_parses_login_edict() {
+        let w = Wrapper::try_parse_from(["test", "login", "--edict"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_rejects_login_otp_and_edict_together() {
+        assert!(Wrapper::try_parse_from(["test", "login", "--otp", "--edict"]).is_err());
+    }
+
+    #[test]
     fn args_parses_logout() {
         let w = Wrapper::try_parse_from(["test", "logout"]).unwrap();
         let _ = format!("{:?}", w.inner);
@@ -221,12 +245,19 @@ mod tests {
     fn alias_login_parses() {
         let w = LoginWrapper::try_parse_from(["test"]).unwrap();
         assert!(!w.inner.otp);
+        assert!(!w.inner.edict);
     }
 
     #[test]
     fn alias_login_otp_parses() {
         let w = LoginWrapper::try_parse_from(["test", "--otp"]).unwrap();
         assert!(w.inner.otp);
+    }
+
+    #[test]
+    fn alias_login_edict_parses() {
+        let w = LoginWrapper::try_parse_from(["test", "--edict"]).unwrap();
+        assert!(w.inner.edict);
     }
 
     #[test]

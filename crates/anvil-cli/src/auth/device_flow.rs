@@ -38,6 +38,19 @@ struct OtpVerifyResponse {
     expires_at: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EdictVerifyResponse {
+    valid: bool,
+    user: Option<EdictUser>,
+    expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EdictUser {
+    email: String,
+}
+
 #[derive(Debug, Serialize)]
 struct DeviceStartRequest<'a> {
     email: &'a str,
@@ -58,6 +71,11 @@ struct OtpSendRequest<'a> {
 struct OtpVerifyRequest<'a> {
     email: &'a str,
     code: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+struct EdictVerifyRequest<'a> {
+    token: &'a str,
 }
 
 fn api_url() -> anyhow::Result<String> {
@@ -210,6 +228,28 @@ async fn otp_verify(
         .context("Verification failed: unexpected response from the auth server.")
 }
 
+async fn edict_verify(
+    client: &reqwest::Client,
+    url: &str,
+    edict: &str,
+) -> Result<EdictVerifyResponse> {
+    let resp = client
+        .post(format!("{url}/api/v1/auth/verify"))
+        .json(&EdictVerifyRequest { token: edict })
+        .send()
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Could not reach the auth server ({}). Check your network connection.",
+                friendly_network_error(&e)
+            )
+        })?;
+    check_status(resp, "Edict verification failed")?
+        .json()
+        .await
+        .context("Edict verification failed: unexpected response from the auth server.")
+}
+
 // ── Public entry points (thin wrappers adding I/O) ────────────────────
 
 pub async fn login_device_flow() -> Result<()> {
@@ -319,6 +359,40 @@ pub async fn login_otp_flow() -> Result<()> {
     }
 
     bail!("Maximum attempts reached. Please try again.");
+}
+
+pub async fn login_edict_flow() -> Result<()> {
+    let url = api_url()?;
+    let edict = prompt_input("Early-access edict: ")?;
+    if edict.is_empty() {
+        bail!("Early-access edict is required");
+    }
+
+    eprintln!("Verifying edict...");
+
+    let client = build_client()?;
+    let result = edict_verify(&client, &url, &edict).await?;
+    if !result.valid {
+        bail!("Invalid or expired early-access edict");
+    }
+
+    let email = result.user.map(|user| user.email);
+    credentials::save(&Credentials {
+        license: edict,
+        refresh_token: None,
+        email: email.clone(),
+        expires_at: result.expires_at,
+    })?;
+
+    eprintln!();
+    if let Some(email) = email {
+        eprintln!("✓ Authenticated as {email}");
+    } else {
+        eprintln!("✓ Edict accepted");
+    }
+    let path = credentials::credentials_path()?;
+    eprintln!("  Credentials saved to {}", path.display());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -662,6 +736,31 @@ mod tests {
         assert_eq!(resp.license, "lic-otp-ok");
         assert_eq!(resp.refresh_token, "rt-otp-ok");
         assert_eq!(resp.expires_at, "2099-06-01T00:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn edict_verify_parses_valid_response() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .and(body_json(serde_json::json!({"token": "anvil_beta_edict"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": {"email": "early@example.com"},
+                "expiresAt": "2099-07-01T00:00:00Z"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let resp = edict_verify(&client, &server.uri(), "anvil_beta_edict")
+            .await
+            .unwrap();
+
+        assert!(resp.valid);
+        assert_eq!(resp.user.unwrap().email, "early@example.com");
+        assert_eq!(resp.expires_at.as_deref(), Some("2099-07-01T00:00:00Z"));
     }
 
     #[tokio::test]

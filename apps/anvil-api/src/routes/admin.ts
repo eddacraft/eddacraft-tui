@@ -91,8 +91,8 @@ function resolveAuthMethod(c: {
  * token returned exactly once. For CI/service accounts.
  */
 admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
-  const { email, name, notes, days, scopes, tokenOnly } = c.req.valid('json');
-  debug('POST /admin/invite', { email, scopes, days, tokenOnly });
+  const { email, name, notes, days, scopes, tokenOnly, edict } = c.req.valid('json');
+  debug('POST /admin/invite', { email, scopes, days, tokenOnly, edict });
   const sql = getClient();
   const actor = resolveAdminActor(c);
   const authMethod = resolveAuthMethod(c);
@@ -136,14 +136,14 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
             notes = COALESCE(${notes ?? null}, beta_users.notes),
             status = ${'active'}
           RETURNING *`,
-      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, is_edict, expires_at)
           VALUES (
             (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${hash}, ${scopes}, ${expiresAt.toISOString()}
+            ${hash}, ${scopes}, ${edict}, ${expiresAt.toISOString()}
           )
           RETURNING *`,
       sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-          VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })}, ${authMethod})
+          VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days, edict })}, ${authMethod})
           RETURNING *`,
     ]);
 
@@ -155,6 +155,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
         user: { email: user.email, id: user.id },
         expiresAt: expiresAt.toISOString(),
         scopes,
+        edict,
       },
       201
     );
@@ -486,6 +487,7 @@ admin.get('/user/:email', async (c) => {
     tokens: result.tokens.map((t) => ({
       id: t.id,
       scopes: t.scopes,
+      is_edict: t.is_edict,
       expires_at: t.expires_at,
       revoked_at: t.revoked_at,
       created_at: t.created_at,

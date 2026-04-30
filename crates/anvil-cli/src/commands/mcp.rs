@@ -6,7 +6,9 @@ use clap::{Args, Subcommand, ValueEnum};
 use serde_json::{Value, json};
 
 use crate::GlobalArgs;
+use crate::auth::credentials;
 use crate::commands::mcp_config::{self, Target};
+use crate::feature_flags;
 use crate::mcp::tools::validate_write;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
@@ -71,6 +73,13 @@ pub fn run(args: &McpArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         McpCommand::Install(install) => run_install(install, global),
         McpCommand::Serve(serve) => run_serve(serve),
+    }
+}
+
+pub fn auth_gate_name(args: &McpArgs) -> &'static str {
+    match &args.command {
+        McpCommand::Install(_) => "mcp-install",
+        McpCommand::Serve(_) => "mcp-serve",
     }
 }
 
@@ -350,7 +359,77 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
     let empty_arguments = json!({});
     let arguments = params.get("arguments").unwrap_or(&empty_arguments);
 
+    if !mcp_tool_auth_ok() {
+        return success_response(id, &mcp_auth_required_result(arguments));
+    }
+
     success_response(id, &validate_write::call(arguments))
+}
+
+fn mcp_tool_auth_ok() -> bool {
+    if feature_flags::cli_dev_bypass_active().is_some() {
+        return true;
+    }
+
+    let Ok(Some(creds)) = credentials::load() else {
+        return false;
+    };
+
+    if credentials::is_expired(&creds) {
+        return false;
+    }
+
+    if credentials::is_edict(&creds) {
+        return verify_mcp_edict_auth(&creds);
+    }
+
+    true
+}
+
+fn verify_mcp_edict_auth(creds: &credentials::Credentials) -> bool {
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return false;
+    };
+
+    let Ok(client) = crate::auth::client::AnvilClient::with_token(creds.license.clone()) else {
+        return false;
+    };
+
+    rt.block_on(client.whoami()).is_ok()
+}
+
+fn mcp_auth_required_result(arguments: &Value) -> Value {
+    let path = arguments
+        .get("path")
+        .and_then(Value::as_str)
+        .unwrap_or("<unknown>");
+    let payload = json!({
+        "schema": "anvil.mcp.validate-write.v1",
+        "decision": "block",
+        "error": {
+            "code": "authentication-required",
+            "message": "Authentication required. Run `anvil auth login` or `anvil auth login --edict`.",
+            "retriable": true
+        },
+        "safeDefault": "do-not-write",
+        "correlation": {
+            "id": "corr_mcp_auth_required",
+            "surface": "mcp",
+            "mode": "preWrite",
+            "backend": "embedded",
+            "daemonStatus": "not-wired",
+            "path": path,
+            "enforcementMode": "block"
+        }
+    });
+    let text = serde_json::to_string(&payload).expect("auth-required payload serialises");
+    json!({
+        "content": [{"type": "text", "text": text}],
+        "isError": true
+    })
 }
 
 fn success_response(id: &Value, result: &Value) -> Value {
@@ -399,7 +478,9 @@ fn write_message(stdout: &mut impl Write, message: &Value) -> Result<()> {
 mod tests {
     use std::io::Cursor;
 
-    use super::{Frame, MAX_STDIO_FRAME_BYTES, read_frame};
+    use serde_json::json;
+
+    use super::{Frame, MAX_STDIO_FRAME_BYTES, handle_message, read_frame};
 
     #[test]
     fn read_frame_rejects_oversize_line_without_returning_payload() {
@@ -425,5 +506,41 @@ mod tests {
 
         assert!(matches!(frame, Some(Frame::Message(frame)) if frame.len() == max_len + 1));
         assert!(matches!(next_frame, Some(Frame::Message(frame)) if frame == b"next\n"));
+    }
+
+    #[test]
+    fn validate_write_tool_call_requires_auth_without_credentials() {
+        temp_env::with_vars(
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
+            ],
+            || {
+                let response = handle_message(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "anvil_validate_write",
+                        "arguments": {
+                            "path": "src/example.ts",
+                            "operation": "create",
+                            "proposedContent": "export const value = 1;\n"
+                        }
+                    }
+                }))
+                .expect("request should produce a response");
+
+                let result = &response["result"];
+                assert_eq!(result["isError"], true);
+                let text = result["content"][0]["text"]
+                    .as_str()
+                    .expect("tool content text");
+                let payload: serde_json::Value = serde_json::from_str(text).unwrap();
+                assert_eq!(payload["decision"], "block");
+                assert_eq!(payload["error"]["code"], "authentication-required");
+            },
+        );
     }
 }

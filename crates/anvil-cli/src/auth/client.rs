@@ -150,6 +150,7 @@ impl AnvilClient {
         email: &str,
         name: Option<&str>,
         notes: Option<&str>,
+        edict: bool,
     ) -> Result<String> {
         #[derive(Serialize)]
         struct InviteBody<'a> {
@@ -160,6 +161,7 @@ impl AnvilClient {
             notes: Option<&'a str>,
             #[serde(rename = "tokenOnly")]
             token_only: bool,
+            edict: bool,
         }
         #[derive(Deserialize)]
         struct TokenResponse {
@@ -174,6 +176,7 @@ impl AnvilClient {
                     name,
                     notes,
                     token_only: true,
+                    edict,
                 },
             )
             .await?;
@@ -478,7 +481,8 @@ mod tests {
             .and(path("/api/v1/admin/invite"))
             .and(body_json(serde_json::json!({
                 "email": "ci@example.com",
-                "tokenOnly": true
+                "tokenOnly": true,
+                "edict": false
             })))
             .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
                 "token": "anvil_beta_abc123",
@@ -491,7 +495,7 @@ mod tests {
 
         let client = mock_client(&server.uri(), Some("admin-key"));
         let token = client
-            .invite_user_token("ci@example.com", None, None)
+            .invite_user_token("ci@example.com", None, None, false)
             .await
             .unwrap();
         assert_eq!(token, "anvil_beta_abc123");

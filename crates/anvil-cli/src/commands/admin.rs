@@ -41,6 +41,10 @@ enum AdminCommand {
         /// Use for CI/service accounts.
         #[arg(long)]
         token: bool,
+
+        /// Issue a revokable early-access edict.
+        #[arg(long)]
+        edict: bool,
     },
 }
 
@@ -129,12 +133,14 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
             name,
             notes,
             token: token_only,
+            edict,
         } => {
-            if *token_only {
+            if *token_only || *edict {
                 let raw_token = rt.block_on(client.invite_user_token(
                     email,
                     name.as_deref(),
                     notes.as_deref(),
+                    *edict,
                 ))?;
                 let result = InviteResult {
                     email: email.clone(),
@@ -144,11 +150,16 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                     crate::output::json::print(&result)?;
                 } else {
                     println!();
-                    println!("\u{2713} Invited {email} (token mode)");
+                    let mode = if *edict { "edict" } else { "token" };
+                    println!("\u{2713} Invited {email} ({mode} mode)");
                     println!();
-                    println!("Token: {raw_token}");
+                    if *edict {
+                        println!("Edict: {raw_token}");
+                    } else {
+                        println!("Token: {raw_token}");
+                    }
                     println!();
-                    println!("This token is shown once and cannot be retrieved.");
+                    println!("This value is shown once and cannot be retrieved.");
                 }
             } else {
                 rt.block_on(client.invite_user(email, name.as_deref(), notes.as_deref()))?;
@@ -230,6 +241,13 @@ mod tests {
     #[test]
     fn args_parses_invite_token_mode() {
         let w = Wrapper::try_parse_from(["test", "invite", "ci@example.com", "--token"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_invite_edict_mode() {
+        let w =
+            Wrapper::try_parse_from(["test", "invite", "early@example.com", "--edict"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
 

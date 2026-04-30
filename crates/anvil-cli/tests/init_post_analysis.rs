@@ -23,6 +23,7 @@ fn init_force_prints_post_init_analysis_section() {
         .current_dir(dir.path())
         // Skip the welcome chain so the run terminates cleanly.
         .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_DEV", "1")
         .output()
         .expect("failed to invoke anvil binary");
 
@@ -66,6 +67,7 @@ fn init_force_post_analysis_shows_empty_tree_hint() {
         .arg("--force")
         .current_dir(dir.path())
         .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_DEV", "1")
         .output()
         .expect("failed to invoke anvil binary");
 
@@ -114,6 +116,7 @@ fn init_json_mode_skips_post_analysis() {
         .arg("--force")
         .current_dir(dir.path())
         .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_DEV", "1")
         .output()
         .expect("failed to invoke anvil binary");
 

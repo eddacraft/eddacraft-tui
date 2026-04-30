@@ -16,6 +16,7 @@ fn run(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output {
     cmd.arg("--no-tui").arg("mcp-config");
     cmd.args(extra);
     cmd.arg("--workspace").arg(workspace);
+    cmd.env("ANVIL_DEV", "1");
     cmd.output().expect("failed to invoke anvil binary")
 }
 
@@ -24,6 +25,7 @@ fn run_mcp(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output 
     cmd.arg("--no-tui").arg("mcp");
     cmd.args(extra);
     cmd.arg("--workspace").arg(workspace);
+    cmd.env("ANVIL_DEV", "1");
     cmd.output().expect("failed to invoke anvil binary")
 }
 
@@ -32,6 +34,7 @@ fn run_mcp_json(workspace: &std::path::Path, extra: &[&str]) -> std::process::Ou
     cmd.arg("--no-tui").arg("--json").arg("mcp");
     cmd.args(extra);
     cmd.arg("--workspace").arg(workspace);
+    cmd.env("ANVIL_DEV", "1");
     cmd.output().expect("failed to invoke anvil binary")
 }
 
@@ -40,6 +43,7 @@ fn run_mcp_from(cwd: &std::path::Path, extra: &[&str]) -> std::process::Output {
     cmd.arg("--no-tui").arg("mcp");
     cmd.args(extra);
     cmd.current_dir(cwd);
+    cmd.env("ANVIL_DEV", "1");
     cmd.output().expect("failed to invoke anvil binary")
 }
 

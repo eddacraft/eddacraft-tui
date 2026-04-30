@@ -22,6 +22,7 @@ CREATE TABLE access_tokens (
   user_id    uuid NOT NULL REFERENCES beta_users(id) ON DELETE CASCADE,
   token_hash text UNIQUE NOT NULL,
   scopes     text[] NOT NULL DEFAULT '{beta}',
+  is_edict   boolean NOT NULL DEFAULT false,
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()

@@ -152,6 +152,7 @@ fn spawn_mcp_server(workspace_root: &Path) -> Child {
         // each enforcement mode without a per-call workspaceRoot field
         // (which the trust check rejects unless it matches the cwd).
         .current_dir(workspace_root)
+        .env("ANVIL_DEV", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

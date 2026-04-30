@@ -147,7 +147,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Intercept(_) => "intercept",
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
-        Commands::Mcp(_) => "mcp",
+        Commands::Mcp(args) => commands::mcp::auth_gate_name(args),
         Commands::New(_) => "new",
         Commands::Wizard(_) => "wizard",
         Commands::Admin(_) => "admin",
@@ -197,6 +197,16 @@ fn evaluate_auth(
             eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
             Err(EXIT_AUTH_REQUIRED)
         }
+        Ok(Some(creds)) if auth::credentials::is_edict(creds) => {
+            if verify_edict_auth(creds, verbose) {
+                Ok(())
+            } else {
+                eprintln!(
+                    "Early-access edict is invalid or revoked. Run `anvil auth login --edict` to authenticate."
+                );
+                Err(EXIT_AUTH_REQUIRED)
+            }
+        }
         Ok(Some(_)) => Ok(()),
         Ok(None) => {
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
@@ -215,6 +225,41 @@ fn evaluate_auth(
             eprintln!("[auth] credential load failed: {redacted}");
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
             Err(EXIT_AUTH_REQUIRED)
+        }
+    }
+}
+
+fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> bool {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] could not create edict verification runtime: {err:#}");
+            }
+            return false;
+        }
+    };
+
+    let client = match auth::client::AnvilClient::with_token(creds.license.clone()) {
+        Ok(client) => client,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] could not create edict verification client: {err:#}");
+            }
+            return false;
+        }
+    };
+
+    match rt.block_on(client.whoami()) {
+        Ok(_) => true,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] edict verification failed: {err:#}");
+            }
+            false
         }
     }
 }
@@ -346,10 +391,12 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
     if let Some(details) = feature_flags::cli_dev_bypass_active() {
-        eprintln!(
-            "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
-            details.flag_key, details.variant, details.reason
-        );
+        if !global.json {
+            eprintln!(
+                "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
+                details.flag_key, details.variant, details.reason
+            );
+        }
         return Ok(());
     }
 
@@ -597,13 +644,18 @@ mod tests {
     }
 
     #[test]
-    fn bypass_auth_welcome() {
-        assert!(!requires_auth(&parse_command(&["welcome"])));
+    fn requires_auth_welcome() {
+        assert!(requires_auth(&parse_command(&["welcome"])));
     }
 
     #[test]
-    fn bypass_auth_init() {
-        assert!(!requires_auth(&parse_command(&["init"])));
+    fn requires_auth_start_alias() {
+        assert!(requires_auth(&parse_command(&["start"])));
+    }
+
+    #[test]
+    fn requires_auth_init() {
+        assert!(requires_auth(&parse_command(&["init"])));
     }
 
     #[test]
@@ -625,13 +677,36 @@ mod tests {
     }
 
     #[test]
-    fn bypass_auth_new() {
-        assert!(!requires_auth(&parse_command(&["new"])));
+    fn requires_auth_new() {
+        assert!(requires_auth(&parse_command(&["new"])));
     }
 
     #[test]
-    fn bypass_auth_wizard() {
-        assert!(!requires_auth(&parse_command(&["wizard"])));
+    fn requires_auth_wizard() {
+        assert!(requires_auth(&parse_command(&["wizard"])));
+    }
+
+    #[test]
+    fn requires_auth_mcp_config() {
+        assert!(requires_auth(&parse_command(&[
+            "mcp-config",
+            "--target",
+            "cursor",
+        ])));
+    }
+
+    #[test]
+    fn requires_auth_mcp_install() {
+        assert!(requires_auth(&parse_command(&[
+            "mcp", "install", "--client", "cursor",
+        ])));
+    }
+
+    #[test]
+    fn bypass_auth_mcp_serve() {
+        assert!(!requires_auth(&parse_command(
+            &["mcp", "serve", "--stdio",]
+        )));
     }
 
     #[test]

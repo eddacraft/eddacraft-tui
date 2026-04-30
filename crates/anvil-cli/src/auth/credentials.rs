@@ -166,6 +166,10 @@ pub fn is_expired(creds: &Credentials) -> bool {
     }
 }
 
+pub fn is_edict(creds: &Credentials) -> bool {
+    creds.license.starts_with("anvil_beta_")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,6 +187,12 @@ mod tests {
     fn not_expired_when_no_expiry() {
         let creds = make_creds("tok");
         assert!(!is_expired(&creds));
+    }
+
+    #[test]
+    fn recognises_edict_tokens() {
+        assert!(is_edict(&make_creds("anvil_beta_abc")));
+        assert!(!is_edict(&make_creds("jwt.header.payload")));
     }
 
     #[test]
