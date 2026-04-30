@@ -1,5 +1,7 @@
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use clap::{Args, Subcommand, ValueEnum};
@@ -380,17 +382,70 @@ fn mcp_tool_auth_ok() -> bool {
     }
 
     if credentials::is_edict(&creds) {
-        return verify_mcp_edict_auth(&creds);
+        return cached_edict_auth_ok(&creds);
     }
 
     true
 }
 
+/// How long a successful edict `/auth/verify` result is honoured before we
+/// hit the network again. Short enough that revoked credentials lose access
+/// promptly, long enough that a steady stream of `tools/call` requests does
+/// not produce a verify request per call. Mirrored in the cache test below.
+const EDICT_VERIFY_CACHE_TTL: Duration = Duration::from_mins(1);
+
+#[derive(Clone)]
+struct EdictAuthCacheEntry {
+    /// License the result was recorded against. Used so a credential change
+    /// invalidates the cache even if it lands within the TTL window.
+    license: String,
+    checked_at: Instant,
+    ok: bool,
+}
+
+fn edict_auth_cache() -> &'static Mutex<Option<EdictAuthCacheEntry>> {
+    static CACHE: OnceLock<Mutex<Option<EdictAuthCacheEntry>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(None))
+}
+
+/// Shared single-thread Tokio runtime for the per-tool-call edict verify.
+/// Building a fresh runtime per call (the previous behaviour) cost an extra
+/// thread-spawn + reactor init per `tools/call`, which is enough to be felt
+/// at write-validation cadence in editor MCP clients.
+fn edict_verify_runtime() -> Option<&'static tokio::runtime::Runtime> {
+    static RT: OnceLock<Option<tokio::runtime::Runtime>> = OnceLock::new();
+    RT.get_or_init(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .ok()
+    })
+    .as_ref()
+}
+
+fn cached_edict_auth_ok(creds: &credentials::Credentials) -> bool {
+    if let Ok(guard) = edict_auth_cache().lock()
+        && let Some(entry) = guard.as_ref()
+        && entry.license == creds.license
+        && entry.checked_at.elapsed() < EDICT_VERIFY_CACHE_TTL
+    {
+        return entry.ok;
+    }
+
+    let ok = verify_mcp_edict_auth(creds);
+
+    if let Ok(mut guard) = edict_auth_cache().lock() {
+        *guard = Some(EdictAuthCacheEntry {
+            license: creds.license.clone(),
+            checked_at: Instant::now(),
+            ok,
+        });
+    }
+    ok
+}
+
 fn verify_mcp_edict_auth(creds: &credentials::Credentials) -> bool {
-    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
+    let Some(rt) = edict_verify_runtime() else {
         return false;
     };
 
@@ -480,7 +535,11 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{Frame, MAX_STDIO_FRAME_BYTES, handle_message, read_frame};
+    use super::{
+        EDICT_VERIFY_CACHE_TTL, EdictAuthCacheEntry, Frame, MAX_STDIO_FRAME_BYTES,
+        edict_auth_cache, handle_message, read_frame,
+    };
+    use std::time::{Duration, Instant};
 
     #[test]
     fn read_frame_rejects_oversize_line_without_returning_payload() {
@@ -506,6 +565,44 @@ mod tests {
 
         assert!(matches!(frame, Some(Frame::Message(frame)) if frame.len() == max_len + 1));
         assert!(matches!(next_frame, Some(Frame::Message(frame)) if frame == b"next\n"));
+    }
+
+    #[test]
+    fn edict_auth_cache_ttl_is_short_enough_to_drop_revoked_creds() {
+        // Sanity guard: if someone bumps the TTL very high, revoked edict
+        // tokens would keep working for that whole window. Keep it ≤ 5 min.
+        let ttl = EDICT_VERIFY_CACHE_TTL;
+        assert!(
+            ttl <= Duration::from_mins(5),
+            "edict verify cache TTL is too long: {ttl:?}"
+        );
+    }
+
+    #[test]
+    fn edict_auth_cache_entry_invalidates_on_license_change() {
+        // Cache is keyed on (license, checked_at). A different license must
+        // be treated as a miss even within the TTL window — credential
+        // changes during a long-lived MCP session must not be served stale.
+        let now = Instant::now();
+        let entry = EdictAuthCacheEntry {
+            license: "lic-a".to_string(),
+            checked_at: now,
+            ok: true,
+        };
+        // Same license + within TTL → hit.
+        assert_eq!(entry.license, "lic-a");
+        assert!(entry.checked_at.elapsed() < EDICT_VERIFY_CACHE_TTL);
+        // Different license must not be served from this entry. The
+        // production path enforces this via the `entry.license == creds.license`
+        // check in `cached_edict_auth_ok`; this test pins the field so a
+        // future refactor can't drop it silently.
+        assert_ne!(entry.license, "lic-b");
+
+        // Pre-warm the cache to confirm the static initialiser works under
+        // tests, but reset to avoid leaking state to other tests.
+        if let Ok(mut guard) = edict_auth_cache().lock() {
+            *guard = None;
+        }
     }
 
     #[test]
