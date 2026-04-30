@@ -9,7 +9,72 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.4.0-beta
+## Current Version: 0.5.0
+
+## Upgrading to 0.5.0
+
+Drop-in upgrade from `0.4.0-beta`. There are no breaking changes; every new
+behaviour below is opt-in.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.5.0
+
+- **Git config-mode hooks (opt-in)** — install Anvil-owned hook commands through
+  Git 2.54 native config with `anvil hooks install --config` and remove them
+  with `anvil hooks uninstall --config`. File-mode hooks remain the default and
+  Husky stays as the contributor bootstrap; both surfaces detect and warn about
+  file/config coexistence and `core.hooksPath` overrides.
+- **AI guardrail profile** — `anvil gate --profile ai` runs the AI-focused check
+  set, treats missing or invalid governance configuration as blocking, and emits
+  the canonical `anvil.diagnostic.v1` JSON envelope by default for agent and MCP
+  consumers.
+- **AI-001 reasoning rule** — a new info-severity rule that flags source
+  comments justifying code with authority, social proof, or deflection rather
+  than technical reasoning. Suppress per occurrence with
+  `// @anvil-ignore AI-001` and a short reason.
+- **`.env` and `.envrc` scanning (`SURFENV-001`)** — `.env`, `.env.*`, and
+  `.envrc` files are parsed as key/value files; leaked secret values are
+  reported with the variable name and source line. Suppress with
+  `# @anvil-ignore SURFENV-001`.
+- **`anvil mcp-config`** — generates, verifies, and writes Claude Code, Cursor,
+  Windsurf, and VS Code MCP server configuration. Use `--write` to apply
+  changes, `--verify` to diff against the on-disk config, and rely on the
+  path-safety prompts before atomic writes overwrite an existing file. See
+  [MCP Integration](../integrations/mcp.md) for the supported transports and
+  per-client paths.
+- **Scan performance cap** — first-run scans honour `ANVIL_SCAN_THREADS`
+  (default `min(num_cpus, 4)`) so the parallel walk does not starve TUI or
+  editor work; oversized lines are skipped before regex evaluation to eliminate
+  the previous ReDoS risk.
+- **Doctor outside git repos** — running `anvil doctor` outside a Git repository
+  now produces a structured `git-repo` warning instead of failing the whole run.
+
+### Operator-side: API migration runner
+
+Anvil API deploys now ship with a first-party SQL migration runner with dry-run
+support and drift detection. Operators running `anvil-api` should review the
+migration runbook before the next deploy; CLI users do not need to take action.
 
 ## Upgrading to 0.4.0-beta
 

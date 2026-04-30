@@ -28,7 +28,46 @@ exposes:
 - Validation tools for files, gates, and boundaries
 - Prompts for architecture review and violation fixes
 
-## Configuration
+## Generate Configuration with `anvil mcp-config`
+
+The fastest way to wire anvil into Claude Code, Cursor, Windsurf, or VS Code is
+the `anvil mcp-config` Rust CLI command. It generates the right configuration
+shape for each client, supports stdio and HTTP transports, and can write or
+verify the on-disk file directly.
+
+```bash
+# Print the generated config for inspection
+anvil mcp-config --client claude-code
+
+# Write it to the client's expected path (with a path-safety prompt)
+anvil mcp-config --client claude-code --write
+
+# Verify the on-disk config matches what anvil expects
+anvil mcp-config --client claude-code --verify
+```
+
+Supported clients:
+
+| Client      | `--client`    | Default transport |
+| ----------- | ------------- | ----------------- |
+| Claude Code | `claude-code` | stdio             |
+| Cursor      | `cursor`      | stdio             |
+| Windsurf    | `windsurf`    | stdio             |
+| VS Code     | `vscode`      | stdio             |
+
+Pass `--transport http` to switch a client to HTTP transport when the editor
+supports it; stdio remains the default.
+
+Use `--workspace <path>` to override the project root that anvil records in the
+generated config. If `--write` would overwrite an existing config, anvil prompts
+before performing an atomic write so you can review the change. Use `--verify`
+in CI or pre-commit to fail when a checked-in config has drifted from what
+`anvil mcp-config` would generate today.
+
+## Manual Configuration
+
+If you'd rather wire anvil up by hand, the configuration shapes below are what
+`anvil mcp-config` writes for each client.
 
 Add anvil to your MCP configuration:
 

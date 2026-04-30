@@ -360,11 +360,17 @@ anvil gate --profile production   # All checks
 anvil gate --list-profiles        # Show available profiles
 ```
 
-| Profile      | Skips                | Use case           |
-| ------------ | -------------------- | ------------------ |
-| `dev`        | coverage, dependency | Local development  |
-| `ci`         | (none)               | CI pipelines       |
-| `production` | (none)               | Release validation |
+| Profile      | Skips                | Use case                     |
+| ------------ | -------------------- | ---------------------------- |
+| `dev`        | coverage, dependency | Local development            |
+| `ci`         | (none)               | CI pipelines                 |
+| `production` | (none)               | Release validation           |
+| `ai`         | (none)               | AI guardrail / agent surface |
+
+The `ai` profile selects the curated AI guardrail check set, treats missing or
+invalid governance config as blocking, and emits the canonical
+`anvil.diagnostic.v1` JSON envelope by default so agent and MCP consumers can
+parse results without bespoke flag plumbing.
 
 Additional runtime flags:
 
@@ -383,6 +389,25 @@ anvil --json gate                                # JSON output (global flag)
 
 :::
 
+## Git Hooks
+
+`anvil hooks install` installs file-mode Git hooks under `.git/hooks/` (the
+default). On Git 2.54 or newer you can opt into config-mode hooks instead, which
+appends Anvil-owned `hook.<event>.command` entries to your local Git config
+without writing files:
+
+```bash
+anvil hooks install --config
+anvil hooks uninstall --config
+anvil hooks status
+```
+
+`anvil hooks status` and `anvil doctor` detect file-mode hooks, config-mode
+hooks, third-party hook managers (Husky, Lefthook, pre-commit), and
+`core.hooksPath` overrides, and warn when the same event would fire twice. Husky
+remains the recommended contributor bootstrap inside this repository; `--config`
+is an explicit opt-in for power users.
+
 ## Environment Variables
 
 :::note
@@ -398,6 +423,9 @@ configuration, including:
 - `ANVIL_LICENSE` — licence key for CI environments
 - `ANVIL_ADMIN_KEY` — admin command authentication
 - `ANVIL_TEMPLATES_DIR` — custom template directory
+- `ANVIL_SCAN_THREADS` — cap on the parallel-scan thread pool used by first-run
+  scans, `check`, `gate`, and `audit` (default `min(num_cpus, 4)`); raise this
+  when running on a dedicated CI runner
 
 Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
 not supported.

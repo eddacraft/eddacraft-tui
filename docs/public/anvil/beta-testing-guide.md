@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.4.0-beta
+**Current version:** 0.5.0
 
 anvil is a native CLI that analyses your codebase for architectural drift,
 AI-generated anti-patterns, and project convention violations. It is designed to
@@ -117,7 +117,7 @@ winget upgrade eddacraft.anvil
 scoop update anvil
 ```
 
-For 0.4.0-beta upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
+For 0.5.0 upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
 
 ## Sign In
 
@@ -209,7 +209,7 @@ anvil watch --source
 Save a TypeScript or JavaScript file. Watch should print the active scope and
 respond when files change.
 
-Try the 0.4.0-beta watch filters:
+Try the watch filters introduced in 0.4.0-beta and still active in 0.5.0:
 
 ```bash
 anvil watch --patterns "src/**/*.ts,src/**/*.tsx"
@@ -249,6 +249,40 @@ anvil gate --profile ci
 ```
 
 Record whether gate failures clearly explain what failed and what to do next.
+
+### 7. Try the 0.5.0 AI Guardrail and MCP Surfaces
+
+These are the headline 0.5.0 surfaces and the most useful test focus this cycle.
+
+```bash
+# AI guardrail profile — strict config, JSON envelope by default
+anvil gate --profile ai
+
+# Generate (and verify) editor MCP configuration
+anvil mcp-config --client claude-code --verify
+anvil mcp-config --client cursor --write
+```
+
+Record:
+
+- Whether the AI guardrail run produces actionable output, including when
+  governance config is missing or invalid.
+- Whether `anvil mcp-config` produces correct config for your editor, and
+  whether `--verify` cleanly diffs against an existing setup.
+- Whether `--write` path-safety prompts behave the way you'd expect when a
+  config already exists.
+
+Optionally try the new config-mode Git hooks on Git 2.54+:
+
+```bash
+anvil hooks install --config
+anvil hooks status
+anvil hooks uninstall --config
+```
+
+Record whether the install/uninstall flow leaves Husky and any third-party hook
+manager untouched, and whether `anvil doctor` correctly flags coexistence or
+`core.hooksPath` overrides.
 
 ## Optional Deeper Areas
 
