@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| RTAI | —     | In Progress | 1/9      |
+| RTAI | —     | In Progress | 5/9      |
 
 **Last reviewed:** 2026-04-30
 
@@ -314,7 +314,7 @@ convention" section). Concretely:
   with the on-disk path against a fixture matrix, (f) configured
   listener rule-set injection, and (g) worst-case JSON escaping for a
   valid 1 MB buffer.
-- **Status:** In Progress — landed on `feat/RTAI-002-midedit-rpc` (PR #1186):
+- **Status:** Complete — merged 2026-04-29 via PR #1186 (`feat/RTAI-002-midedit-rpc`):
   daemon `scan_buffer` JSON-RPC method, content-injection enforcement variant,
   1 MiB cap + binary short-circuit, `ScanBufferService` semaphore + truncation,
   conformance fixtures alongside INTD-014.
@@ -349,8 +349,10 @@ convention" section). Concretely:
   midedit_roundtrip` records baseline locally; CI baseline-comparison
   is tracked under #1191.
 - **Confidence:** medium
-- **Status:** In Progress (PR #1189 — bench + corpus landed; CI
-  gating deferred to #1191)
+- **Status:** Complete — merged 2026-04-30 via PR #1189; bench + corpus
+  landed (7-case canonical corpus including dirty-secret, binary,
+  Unicode, near-cap). CI baseline-comparison gating deferred to
+  follow-up issue #1191.
 
 ---
 
@@ -432,7 +434,7 @@ convention" section). Concretely:
   content known to trigger the secret-detection rule; asserts the tool response
   carries structured diagnostics and honours the configured enforcement mode.
 - **Confidence:** medium
-- **Status:** In Progress — landing on `feat/RTAI-006-mcp-prewrite`. The MCP
+- **Status:** Complete — merged 2026-04-30 via PR #1190 (`feat/RTAI-006-mcp-prewrite`). The MCP
   `validate_write` tool now consults a workspace-level `EnforcementMode`
   (`block` | `warn` | `off`) loaded from `.anvil.yaml` and applies the
   RTAI-006 mapping table (see
@@ -501,8 +503,8 @@ convention" section). Concretely:
   side) and is consumed by RMCP. A TS consumer fixture is added later when
   RTAI-004/DRVR-001 land; CI fails if any active consumer drifts.
 - **Confidence:** medium
-- **Status:** In Progress — landed the Rust contract fixture on
-  `feat/RTAI-008-errors-contract`. Public fixtures pin the response
+- **Status:** Complete — merged 2026-04-30 via PR #1188 (`feat/RTAI-008-errors-contract`).
+  Public fixtures pin the response
   envelope for over-cap content (`-32602`), malformed request (`-32602`),
   daemon-side rule panic (isolated to empty diagnostics on
   `panic="unwind"` builds), transport timeout (`-32001` / `-32603`),
