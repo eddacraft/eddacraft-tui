@@ -98,8 +98,12 @@ remaining unclaimed glue must be claimed before the slice it supports starts.
       AI-pattern check (e.g. AI-001 appeal-to-authority). Required by **A1**;
       tracked as INTR-008 and complete for the daemon-path wrapper. Without it,
       the demo headline is "secret detection mid-edit."
-- [ ] **Single latency rubric ADR** — INTD-014 / RTAI / RMCP must cite one
-      rubric rather than inventing per-surface numbers. Required by **A1**.
+- [x] **Single latency rubric ADR** — INTD-014 / RTAI / RMCP all cite
+      [ADR-031](./plans/decisions/031-validation-latency-rubric.md), the single
+      latency-measurement rubric, rather than inventing per-surface numbers.
+      ADR-031 currently sits at status `Proposed`; formal acceptance
+      ratification is post-A1 process work and does not block the slice.
+      Required by **A1**.
 - [x] **Demo runbook** — `anvil init` → `anvil mcp install` → open Cursor /
       Claude Code → paste known-bad pattern → Anvil flags before save. LAUNCH
       polishes save-time, RTAI defines validation semantics, RMCP owns the Rust
