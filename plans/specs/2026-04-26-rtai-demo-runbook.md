@@ -257,7 +257,7 @@ shaped like:
   delete the file.
 ```
 
-The AI then re-plans aloud - "I'll use a placeholder instead" - and
+The AI then re-plans aloud — "I'll use a placeholder instead" — and
 issues a new write with a fake value. Anvil allows that one through.
 This is useful when it happens, but it is no longer the lead scenario because
 upstream model alignment may avoid the bad write before Anvil gets a turn.
@@ -301,7 +301,7 @@ buffer; rule matches the staff-engineer appeal in the comment; daemon returns
 **Message displayed:**
 
 ```
-[anvil] write warning: AI-001 - appeal-to-authority justifying null
+[anvil] write warning: AI-001 — appeal-to-authority justifying null
   handling ("staff engineer said") at src/auth/null_handler.ts:1.
   Someone else's say-so is not a design reason; state the invariant,
   link the decision, or implement explicit null handling.

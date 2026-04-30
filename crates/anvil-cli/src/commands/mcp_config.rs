@@ -221,11 +221,11 @@ pub(crate) fn verify_rust_stdio_target(
 }
 
 fn validate_command_override(command: Option<&str>) -> Result<Option<&str>> {
-    if command.is_some_and(|command| command.trim().is_empty()) {
-        bail!("--command must not be empty");
+    match command.map(str::trim) {
+        Some("") => bail!("--command must not be empty"),
+        Some(command) => Ok(Some(command)),
+        None => Ok(None),
     }
-
-    Ok(command)
 }
 
 fn write_target_config(
@@ -336,6 +336,8 @@ fn validate_rust_stdio_entry(
         return Ok(());
     }
 
+    let expected_command = expected_command.unwrap_or("anvil");
+
     if global.json {
         eprintln!(
             "{}",
@@ -344,24 +346,29 @@ fn validate_rust_stdio_entry(
                 "path": config_path.display().to_string(),
                 "error": "malformed-entry",
                 "expected": {
-                    "command": expected_command.unwrap_or("anvil"),
+                    "command": expected_command,
                     "args": ["mcp", "serve", "--stdio"],
-                    "type": expected_type_label(target)
+                    "type": "stdio",
+                    "typeRequired": type_required(target),
                 },
                 "entry": entry,
             })
         );
     } else {
         eprintln!(
-            "{} config at {} has a malformed `{SERVER_NAME}` entry; expected command {} with args `mcp serve --stdio` and type {}.",
+            "{} config at {} has a malformed `{SERVER_NAME}` entry; expected command `{}` with args `mcp serve --stdio` and type {}.",
             target_label(target),
             config_path.display(),
-            expected_command.unwrap_or("`anvil`"),
+            expected_command,
             expected_type_label(target)
         );
     }
 
     Err(AlreadyReported.into())
+}
+
+fn type_required(target: Target) -> bool {
+    matches!(target, Target::ClaudeCode | Target::Vscode)
 }
 
 fn expected_type_label(target: Target) -> &'static str {

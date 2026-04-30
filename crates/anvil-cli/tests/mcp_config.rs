@@ -27,6 +27,14 @@ fn run_mcp(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output 
     cmd.output().expect("failed to invoke anvil binary")
 }
 
+fn run_mcp_json(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui").arg("--json").arg("mcp");
+    cmd.args(extra);
+    cmd.arg("--workspace").arg(workspace);
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
 fn run_mcp_from(cwd: &std::path::Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui").arg("mcp");
@@ -516,6 +524,27 @@ fn mcp_install_rejects_blank_command_override() {
 }
 
 #[test]
+fn mcp_install_trims_command_override() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let install = run_mcp(
+        dir.path(),
+        &[
+            "install",
+            "--client",
+            "claude-code",
+            "--command",
+            "  /tmp/fake/anvil  ",
+        ],
+    );
+
+    assert!(install.status.success());
+    let raw = fs::read_to_string(dir.path().join(".claude.json")).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert_claude_code_rust_stdio_entry(&parsed, "/tmp/fake/anvil");
+}
+
+#[test]
 fn mcp_install_verify_rejects_unrelated_command_even_with_valid_args() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".cursor").join("mcp.json");
@@ -703,6 +732,38 @@ fn mcp_install_verify_fails_when_rust_stdio_entry_is_malformed() {
 }
 
 #[test]
+fn mcp_install_verify_json_uses_machine_readable_expected_type() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".claude.json");
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": {
+                    "type": "pipe",
+                    "command": "anvil",
+                    "args": ["mcp", "serve", "--stdio"],
+                    "env": {}
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let verify = run_mcp_json(
+        dir.path(),
+        &["install", "--client", "claude-code", "--verify"],
+    );
+
+    assert!(!verify.status.success());
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    let parsed: Value = serde_json::from_str(stderr.trim()).expect("stderr is JSON");
+    assert_eq!(parsed["expected"]["type"], "stdio");
+    assert_eq!(parsed["expected"]["typeRequired"], true);
+}
+
+#[test]
 fn mcp_install_verify_fails_when_command_is_missing() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".claude.json");
@@ -755,7 +816,14 @@ fn mcp_install_verify_rejects_malformed_args_with_non_default_command() {
 
     let verify = run_mcp(
         dir.path(),
-        &["install", "--client", "claude-code", "--verify"],
+        &[
+            "install",
+            "--client",
+            "claude-code",
+            "--verify",
+            "--command",
+            "/opt/anvil/bin/anvil",
+        ],
     );
 
     assert!(
