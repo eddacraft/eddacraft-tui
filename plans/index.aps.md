@@ -22,7 +22,7 @@
 - [Auth & Access](#auth--access-complete)
 - [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
 - [Observability Foundation](#observability-foundation-draft)
-- [Tracing Foundation](#tracing-foundation-ready)
+- [Tracing Foundation](#tracing-foundation-in-progress)
 - [Infrastructure as Code](#infrastructure-as-code-complete)
 - [Web Dashboard](#web-dashboard-ready)
 - [Policy Governance](#policy-governance-draftready)
@@ -31,7 +31,7 @@
 - [Multi-Language Support](#multi-language-support-draft)
 - [Config Intelligence](#config-intelligence-draft)
 - [Graph Substrate](#graph-substrate-draft)
-- [Rust MCP Launch Path](#rust-mcp-launch-path-in-progressdraft)
+- [Rust MCP Launch Path](#rust-mcp-launch-path-completedraft)
 - [Intercept Loop](#intercept-loop-in-progress--a1-intd-slice-complete)
 - [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
 
@@ -266,13 +266,13 @@ data contract, alert thresholds, runbook pack. 5 tasks (post-launch
 hardening). The cross-cutting tracing baseline originally scoped as OBS-006
 moved to TRACE on 2026-04-30 per Planning Council session plan-b00c16c7;
 see [ADR-035](./decisions/035-three-pipe-observability-rule.md) for the
-three-pipe rule and [Tracing Foundation](#tracing-foundation-ready) below.
+three-pipe rule and [Tracing Foundation](#tracing-foundation-in-progress) below.
 
 | Module                                                                | Scope | Status | Progress | Dependencies                                                                                                                  |
 | --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/5      | kindling-integration, dashboard-ops-views; tracing scope migrated to TRACE on 2026-04-30 (OBS-006 superseded by TRACE-001)    |
 
-### Tracing Foundation (Ready)
+### Tracing Foundation (In Progress)
 
 Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
 daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
@@ -292,7 +292,7 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 > `Coordinates with: TUIDASH-009` callout was swept per ADR-034 rule 3.
 > LAUNCH-003 shipped first; the conditional "Superseded by" branch did not
 > fire. The named `WatchStats` contract is the inheritance TUIDASH-009 will
-> consume when the dashboard surface lands. TRACE is now **Ready**.
+> consume when the dashboard surface lands. TRACE is now **In Progress** (TRACE-001 Complete 2026-04-30).
 
 ### Infrastructure as Code (In Progress)
 
@@ -573,7 +573,7 @@ trusted model.
 | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | Draft | 0/12 | KERN, ADR-015, ADR-030, ADR-031, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
-### Rust MCP Launch Path (In Progress/Draft)
+### Rust MCP Launch Path (Complete/Draft)
 
 Current-release Rust MCP launch shim plus next-release full parity port. The
 current release ships only the narrow A1 path: `anvil mcp install` writes client
