@@ -83,30 +83,26 @@ Individual packages still use semantic versioning for npm/cargo publishes.
 ### A1 — RTAI Spike Slice (launch-blocker, ~24 items)
 
 The A1 cut is a **virtual slice** cherry-picked across four modules
-(INTD, INTR, RMCP, RTAI). Status reconciled on 2026-04-30 after the A1 INTD
-slice and OPSUP-001 reached merged + green, and the RMCP-008 agent-runnable
-post-merge checks passed. The locked release state and dependency order are
-mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
+(INTD, INTR, RMCP, RTAI). Status reconciled on 2026-04-30 after the RMCP-008
+Cursor / Claude Code GUI dry-run completed against `target/release/anvil` and
+was recorded in the RTAI demo runbook validation log
+(`plans/specs/2026-04-26-rtai-demo-runbook.md` §8). The locked release state
+and dependency order are mirrored in
+[`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
 | ------------- | -------- | -------- | --------- | ----------- | ----------------- | ------- |
 | INTD | -001, -002, -003, -005, -007, -013, -014 | -001, -002, -003, -005, -007, -013, -014 | — | — | — | — |
 | INTR | -001 (trait), -002 (secret), -006 (registry), -008 (reasoning) | -001, -002, -006, -008 | — | — | — | — |
-| RMCP | -001..-008 | -001..-007 | -008 | — | — | — |
+| RMCP | -001..-008 | -001..-008 | — | — | — | — |
 | RTAI | -001 (spike), -002, -003, -006, -008 | -001, -002, -003, -006, -008 | — | — | — | — |
-| **Total** | **24** | **23** | **1** | **0** | **0** | **0** |
+| **Total** | **24** | **24** | **0** | **0** | **0** | **0** |
 
-**Locked A1 development / dependency order (no waste-of-effort sequencing):**
+**Locked A1 — Complete.** All 24 items shipped and validated. The next
+slice for RMCP/RMCPF, captured here so it does not get lost between
+release cuts:
 
-> Already complete as of 2026-04-30: INTD-001/-002/-003/-005/-007/-013/-014,
-> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001/-002/-003/-006/-008, and
-> INTR-001/-002/-006/-008.
-> Post-merge validation pending: RMCP-008 (PR #1154 merged; agent checks passed;
-> Cursor / Claude Code GUI dry-run remains).
-
-1. **Close RMCP-008 post-merge validation:** run the human Cursor / Claude Code
-   GUI dry-run and record the result before marking RMCP-008 Complete.
-2. **Wire the daemon validation client:** RMCP-005's `DaemonValidationClient`
+1. **Wire the daemon validation client:** RMCP-005's `DaemonValidationClient`
    default impl still returns `Unavailable`; the daemon `scan_buffer` RPC
    (RTAI-002) and the INTD-002 listener are both shipped, so the next slice
    replaces the `Unavailable` stub with a live JSON-RPC call to the daemon and
@@ -585,7 +581,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | In Progress | 7/8 (RMCP-001..-007 Complete; RMCP-008 Committed / post-merge validation — PR #1154 merged, agent checks passed, Cursor / Claude Code GUI dry-run remains before Complete) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
+| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete | 8/8 (A1 launch slice closed 2026-04-30 — RMCP-001..-008 shipped; RMCP-008 GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md` §8; follow-up gaps tracked as #1194/#1195/#1197) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
 
 ### Intercept Loop (In Progress — A1 INTD slice complete)

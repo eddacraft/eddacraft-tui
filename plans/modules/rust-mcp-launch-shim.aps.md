@@ -1,20 +1,30 @@
 # Rust MCP Launch Shim
 
-| ID   | Owner | Status      | Progress |
-| ---- | ----- | ----------- | -------- |
-| RMCP | —     | In Progress | 7/8      |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| RMCP | —     | Complete | 8/8      |
 
 **Last reviewed:** 2026-04-30
 
-> **A1 launch slice:** RMCP-001..RMCP-008 are the entire A1 RMCP scope.
-> Done (7/8): RMCP-001 (spec), RMCP-002 (`anvil mcp serve --stdio`),
-> RMCP-003 (MCP protocol subset), RMCP-004 (validate-write tool),
-> RMCP-005 (validation backend adapter + embedded fallback against
-> `anvil-checks` reasoning + secret rules; daemon client returns
-> `Unavailable` until RTAI-002 lands the daemon validation RPC over the
-> INTD-002 listener), RMCP-006
-> (canonical decision shape), and RMCP-007 (`anvil mcp install --client X`
-> wrapper). Remaining: RMCP-008 (E2E smoke tests + demo runbook refresh).
+> **A1 launch slice complete.** RMCP-001..RMCP-008 are the entire A1 RMCP scope
+> and all eight items are now Complete. RMCP-001 (spec), RMCP-002
+> (`anvil mcp serve --stdio`), RMCP-003 (MCP protocol subset), RMCP-004
+> (validate-write tool), RMCP-005 (validation backend adapter + embedded
+> fallback against `anvil-checks` reasoning + secret rules; the default
+> `DaemonValidationClient` returns `Unavailable` so MCP `tools/call` runs
+> through the embedded path until the launch shim's daemon client is wired
+> to the shipped `scan_buffer` RPC — tracked as a follow-up RMCP/RMCPF task),
+> RMCP-006 (canonical decision shape), RMCP-007 (`anvil mcp install --client X`
+> wrapper), and RMCP-008 (E2E smoke + demo runbook refresh + Cursor / Claude
+> Code GUI dry-run recorded in the runbook validation log on 2026-04-30).
+>
+> Three follow-up gaps surfaced during the GUI dry-run and are tracked
+> separately because none of them affect the shim's contract: #1194
+> (`anvil mcp install` lacks `--command` override and `--verify` over-strict),
+> #1195 (`anvil mcp install --client claude-code` writes to a path Claude
+> Code does not read), #1197 (aligned MCP clients do not invoke
+> `anvil_validate_write` without explicit prompt instruction; proposed
+> fix is the MCP `instructions` field on the initialise response).
 
 ## Purpose
 
@@ -109,9 +119,10 @@ critical flow.
 
 ## Implementation Start Checklist
 
-This module is **In Progress** because the scope is intentionally narrow and the
-generated config already depends on this command existing. Re-check before
-starting implementation:
+This module is **Complete** as of 2026-04-30. The checklist below is retained
+as a record of the kickoff conditions; all items have been resolved through
+the shipped slice. Re-read before opening any RMCP follow-up work (e.g. the
+daemon-client wiring task or RMCPF):
 
 - [ ] Tool name and request shape agreed with RTAI owner
 - [x] Canonical diagnostic envelope fields agreed via `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
@@ -271,7 +282,7 @@ starting implementation:
 
 ### RMCP-008: Launch smoke tests and demo runbook update
 
-- **Status:** Committed
+- **Status:** Complete
 - **Intent:** Prove the release path end-to-end and keep the operator runbook
   aligned with the Rust server.
 - **Expected Outcome:** E2E smoke starts `anvil mcp serve --stdio`, lists tools,
@@ -286,9 +297,17 @@ starting implementation:
 - **Priority:** High
 - **Dependencies:** RMCP-007
 - **Notes (2026-04-30):** PR #1154 is merged. Agent-runnable post-merge checks
-  passed (`cargo build -p eddacraft-anvil`, `pnpm --filter @eddacraft/anvil-e2e
-  test:smoke`). Cursor / Claude Code GUI dry-run remains pending before the item
-  can be marked Complete.
+  passed (`cargo build -p eddacraft-anvil`,
+  `pnpm --filter @eddacraft/anvil-e2e test:smoke`). Cursor / Claude Code GUI
+  dry-run completed against `target/release/anvil` on 2026-04-30 and recorded
+  in the runbook validation log
+  (`plans/specs/2026-04-26-rtai-demo-runbook.md` §8). The dry-run exercised the
+  AI-001 reasoning rule end-to-end through `anvil_validate_write`; the shim
+  returned a structured `decision: warn` with one `info` AI-001 diagnostic when
+  consulted. Three follow-up gaps surfaced during the dry-run (#1194, #1195,
+  #1197) but none affect the RMCP-008 contract — the shim's tools/list,
+  tools/call, and validation-pipeline behaviour are all correct when the client
+  invokes the validate tool.
 
 ---
 
@@ -324,5 +343,5 @@ starting implementation:
 | 0 — Scope Lock | 1 | Complete |
 | 1 — Rust Stdio Server | 3 | Complete |
 | 2 — Validation Backend | 2 | Complete |
-| 3 — Install and Verification | 2 | In Progress |
-| **Total** | **8** | **7/8 Done** |
+| 3 — Install and Verification | 2 | Complete |
+| **Total** | **8** | **8/8 Done** |
