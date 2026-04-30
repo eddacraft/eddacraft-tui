@@ -27,7 +27,8 @@ Set these on the **Anvil API** deployment (not the website):
 - `DATABASE_URL`
 - `RESEND_API_KEY`
 - `WAITLIST_RESEND_ADMIN_TOKEN` (required for admin resend endpoint)
-- `ANVIL_CORS_ORIGINS` (must include `https://eddacraft.ai`)
+- `ANVIL_CORS_ORIGINS` (must include the live website origins:
+  `https://eddacraft.ai` and `https://www.eddacraft.ai`)
 
 The website only needs `NEXT_PUBLIC_API_URL` (defaults to
 `https://api.eddacraft.ai`).
@@ -95,7 +96,8 @@ curl -X POST https://api.eddacraft.ai/api/v1/waitlist/resend \
 2. `RESEND_API_KEY` missing or incorrect in API deployment
 3. Resend account restrictions/sandbox recipient limits
 4. DNS SPF/DKIM not fully propagated
-5. `ANVIL_CORS_ORIGINS` not including the website origin (CORS rejection)
+5. `ANVIL_CORS_ORIGINS` not including every live website origin, especially both
+   apex and `www` (CORS rejection)
 
 ## Ops notes
 

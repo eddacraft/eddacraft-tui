@@ -5,9 +5,9 @@
 ## Overview
 
 This is the public-facing marketing and landing page for anvil at
-`anvil.eddacraft.ai`. It is a **Next.js 16** application using the **App
-Router**, **React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The
-design follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
+`eddacraft.ai`. It is a **Next.js 16** application using the **App Router**,
+**React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The design
+follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
 
 This is _not_ the documentation site (that lives in `apps/docs-site`).
 
@@ -121,7 +121,7 @@ All interactive components use `'use client'` directive. Key patterns:
 
 ```
 Title: "anvil — Guardrails that ship with your code"
-URL: https://anvil.eddacraft.ai
+URL: https://eddacraft.ai
 Locale: en_GB
 OG: Site name "anvil by eddacraft", type "website"
 Twitter: @eddacraft, summary_large_image

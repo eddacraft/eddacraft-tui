@@ -22,9 +22,27 @@ Validate critical Anvil user flows immediately after deployment.
 ```bash
 curl -sS https://api.eddacraft.ai/api/v1/health
 curl -I https://eddacraft.ai/
+curl -I https://www.eddacraft.ai/
 ```
 
 Expected: API returns `{ "status": "ok" }`; website returns 200.
+
+### 1b) Waitlist CORS origins
+
+```bash
+curl -sS -X OPTIONS -D - -o /dev/null https://api.eddacraft.ai/api/v1/waitlist \
+  -H "Origin: https://eddacraft.ai" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type"
+
+curl -sS -X OPTIONS -D - -o /dev/null https://api.eddacraft.ai/api/v1/waitlist \
+  -H "Origin: https://www.eddacraft.ai" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type"
+```
+
+Expected: both responses include `access-control-allow-origin` matching the
+request origin.
 
 ### 2) Waitlist submission flow
 

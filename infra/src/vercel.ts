@@ -23,6 +23,8 @@ const docsUpstreamSecret = getSecret('docs-upstream-secret');
 // sync with the `name` fields on anvilDocsPrivate and docsPublic below.
 const ANVIL_DOCS_PRIVATE_HOST = 'eddacraft-anvil-docs-private.vercel.app';
 const DOCS_PUBLIC_HOST = 'eddacraft-docs-public.vercel.app';
+export const API_CORS_ORIGINS =
+  'https://eddacraft.ai,https://www.eddacraft.ai,https://docs.eddacraft.ai,https://*.vercel.app,http://localhost:3000';
 
 // IAC-003: Website (Next.js) — static frontend, no server-side email/DB
 export const website = new VercelApp('website', {
@@ -30,7 +32,7 @@ export const website = new VercelApp('website', {
   framework: 'nextjs',
   rootDirectory: 'apps/website',
   gitRepo,
-  domains: ['eddacraft.ai'],
+  domains: ['eddacraft.ai', 'www.eddacraft.ai'],
   skipPreviewDeploys: true,
   envVars: {
     NEXT_PUBLIC_API_URL: 'https://api.eddacraft.ai',
@@ -56,8 +58,7 @@ export const api = new VercelApp('anvil-api', {
     ADMIN_KEY_PEPPER: getSecret('admin-key-pepper'),
     ADMIN_PER_OPERATOR_KEYS: '1',
     WAITLIST_RESEND_ADMIN_TOKEN: getSecret('waitlist-resend-admin-token'),
-    ANVIL_CORS_ORIGINS:
-      'https://eddacraft.ai,https://docs.eddacraft.ai,https://*.vercel.app,http://localhost:3000',
+    ANVIL_CORS_ORIGINS: API_CORS_ORIGINS,
     // BAUTH: audience management + device code flow
     RESEND_WAITLIST_AUDIENCE_ID: getSecret('resend-waitlist-audience-id'),
     RESEND_BETA_AUDIENCE_ID: getSecret('resend-beta-audience-id'),
