@@ -128,14 +128,14 @@ the shipped slice. Re-read before opening any RMCP follow-up work (e.g. the
 daemon-client wiring task or RMCPF):
 
 - [x] Tool name and request shape agreed with RTAI owner —
-      `anvil_validate_write` carrying proposed content.
+  `anvil_validate_write` carrying proposed content.
 - [x] Canonical diagnostic envelope fields agreed via `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
 - [x] Cursor and Claude Code config paths verified by RCLI3-016/RCLI3-016b —
-      Claude Code default path gap tracked as #1195; release dry-run used
-      `claude mcp add` workaround.
+  Claude Code default path gap tracked as #1195; release dry-run used
+  `claude mcp add` workaround.
 - [x] Decision recorded on daemon-first vs embedded-fallback validation order —
-      current release is embedded-fallback-backed; daemon-backed MCP client
-      wiring is a post-A1 RMCP/RMCPF follow-up.
+  current release is embedded-fallback-backed; daemon-backed MCP client wiring
+  is a post-A1 RMCP/RMCPF follow-up.
 - [x] Demo runbook updated to name this module as the MCP launch path.
 
 ---
