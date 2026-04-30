@@ -327,11 +327,9 @@ fn validate_rust_stdio_entry(
         .and_then(Value::as_str)
         .is_some_and(|command| command_matches_expected(command, expected_command));
     let args_ok = entry.get("args") == Some(&json!(["mcp", "serve", "--stdio",]));
-    let type_ok = match (target, entry.get("type")) {
-        (Target::ClaudeCode | Target::Vscode, Some(value)) => value.as_str() == Some("stdio"),
-        (Target::ClaudeCode | Target::Vscode, None) => false,
-        (_, Some(value)) => value.as_str() == Some("stdio"),
-        (_, None) => true,
+    let type_ok = match entry.get("type") {
+        Some(value) => value.as_str() == Some("stdio"),
+        None => !matches!(target, Target::ClaudeCode | Target::Vscode),
     };
 
     if command_ok && args_ok && type_ok {
