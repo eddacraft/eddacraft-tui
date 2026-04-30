@@ -769,6 +769,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: Some("2099-01-01T00:00:00Z".into()),
+            is_edict: None,
         }
     }
 
@@ -778,6 +779,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: Some("2000-01-01T00:00:00Z".into()),
+            is_edict: None,
         }
     }
 
@@ -787,6 +789,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: None,
+            is_edict: None,
         }
     }
 

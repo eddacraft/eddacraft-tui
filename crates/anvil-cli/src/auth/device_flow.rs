@@ -42,6 +42,11 @@ struct OtpVerifyResponse {
 #[serde(rename_all = "camelCase")]
 struct EdictVerifyResponse {
     valid: bool,
+    /// Server-side assertion that this token is an early-access edict, not a
+    /// regular beta access token. Defaults to `false` for older servers that
+    /// do not yet expose the field — the CLI treats that as "not an edict".
+    #[serde(default)]
+    is_edict: bool,
     user: Option<EdictUser>,
     expires_at: Option<String>,
 }
@@ -293,6 +298,7 @@ pub async fn login_device_flow() -> Result<()> {
                     refresh_token: Some(refresh),
                     email: Some(email.clone()),
                     expires_at: Some(expires),
+                    is_edict: Some(false),
                 })?;
 
                 eprintln!();
@@ -341,6 +347,7 @@ pub async fn login_otp_flow() -> Result<()> {
                     refresh_token: Some(result.refresh_token),
                     email: Some(email.clone()),
                     expires_at: Some(result.expires_at),
+                    is_edict: Some(false),
                 })?;
 
                 eprintln!();
@@ -375,6 +382,16 @@ pub async fn login_edict_flow() -> Result<()> {
     if !result.valid {
         bail!("Invalid or expired early-access edict");
     }
+    if !result.is_edict {
+        // The token verified as a generic beta access token, not as an
+        // early-access edict. Reject it on the edict path so a regular
+        // service / CI token cannot be redeemed via `--edict` and gain
+        // edict-only privileges downstream.
+        bail!(
+            "That token is not an early-access edict. Use `anvil auth login` instead, \
+             or contact support if you believe this is wrong."
+        );
+    }
 
     let email = result.user.map(|user| user.email);
     credentials::save(&Credentials {
@@ -382,6 +399,7 @@ pub async fn login_edict_flow() -> Result<()> {
         refresh_token: None,
         email: email.clone(),
         expires_at: result.expires_at,
+        is_edict: Some(true),
     })?;
 
     eprintln!();
@@ -747,6 +765,7 @@ mod tests {
             .and(body_json(serde_json::json!({"token": "anvil_beta_edict"})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "valid": true,
+                "isEdict": true,
                 "user": {"email": "early@example.com"},
                 "expiresAt": "2099-07-01T00:00:00Z"
             })))
@@ -759,8 +778,35 @@ mod tests {
             .unwrap();
 
         assert!(resp.valid);
+        assert!(resp.is_edict);
         assert_eq!(resp.user.unwrap().email, "early@example.com");
         assert_eq!(resp.expires_at.as_deref(), Some("2099-07-01T00:00:00Z"));
+    }
+
+    #[tokio::test]
+    async fn edict_verify_defaults_is_edict_false_when_field_absent() {
+        // Older API servers do not return `isEdict`. The CLI must default
+        // to `false` so a non-edict token cannot be redeemed via the
+        // edict-login path against an outdated server.
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": {"email": "service@example.com"},
+                "expiresAt": "2099-07-01T00:00:00Z"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let resp = edict_verify(&client, &server.uri(), "anvil_beta_service")
+            .await
+            .unwrap();
+
+        assert!(resp.valid);
+        assert!(!resp.is_edict);
     }
 
     #[tokio::test]
@@ -800,6 +846,7 @@ mod tests {
             refresh_token: poll.refresh_token,
             email: Some("dev@example.com".to_string()),
             expires_at: poll.expires_at,
+            is_edict: Some(false),
         };
 
         assert_eq!(creds.license, "lic-dev");
@@ -821,6 +868,7 @@ mod tests {
             refresh_token: Some(verify.refresh_token),
             email: Some("otp@example.com".to_string()),
             expires_at: Some(verify.expires_at),
+            is_edict: Some(false),
         };
 
         assert_eq!(creds.license, "lic-otp");
