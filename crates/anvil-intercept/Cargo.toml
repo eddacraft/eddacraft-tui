@@ -51,6 +51,7 @@ nix = { version = "0.30", default-features = false, features = ["fs", "process",
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
 [dev-dependencies]
+anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
 tempfile = "3"
 

@@ -8,12 +8,28 @@
 //!   work from the transport.
 //! - `validation.roundtrip` — full Unix-socket round-trip from a synthetic
 //!   driver to [`IpcListener`] running the same `ScanBufferService` the
-//!   foreground daemon uses.
+//!   foreground daemon uses. The harness reuses a single persistent connection
+//!   across iterations to mirror production drivers (cold-connect cost is
+//!   documented in `ipc_roundtrip.rs` and not duplicated here).
 //!
-//! Three fixture sizes cover the mid-edit corpus laid out in ADR-031:
-//! a **small** buffer (~1 KiB), a **medium** buffer (~64 KiB), and a
-//! **near-cap** buffer just below the 1 MiB content cap
-//! ([`CONTENT_SIZE_CAP_BYTES_USIZE`]).
+//! ### Fixture corpus (ADR-031 § Corpus and harness requirements)
+//!
+//! ADR-031 mandates the canonical `latency-corpus-v1` cover the dimensions
+//! below. Each `BufferCase` entry pins one dimension and is exercised by both
+//! criterion groups and the percentile sampler:
+//!
+//! | Case label                  | Dimension (ADR-031)           | Notes                                   |
+//! | --------------------------- | ----------------------------- | --------------------------------------- |
+//! | `empty`                     | empty content                 | pins the zero-byte fast path            |
+//! | `small_1KiB`                | small representative content  | TypeScript-shaped lines                 |
+//! | `medium_64KiB`              | medium representative content | TypeScript-shaped lines                 |
+//! | `near_cap_1MiB_minus_1KiB`  | near-cap content              | exercises cap-adjacent slow path        |
+//! | `binary_short_circuit`      | binary / binary-like content  | embedded `\0`; expected O(1) at the     |
+//! |                             |                               | binary short-circuit in `midedit.rs`    |
+//! | `unicode_heavy`             | Unicode-heavy content         | mixed CJK + emoji at ~32 KiB            |
+//! | `dirty_secret_match`        | dirty diagnostic path         | embeds a fake AKIA key — exercises the  |
+//! |                             |                               | secret-detection rule's full diagnostic |
+//! |                             |                               | construction path                       |
 //!
 //! Two complementary harnesses live in this file:
 //!
@@ -33,6 +49,18 @@
 //! - `validation.service` p95 ≤ **50 ms**
 //! - `validation.roundtrip` p95 ≤ **80 ms**
 //!
+//! ### Recorded baseline machine class
+//!
+//! The baseline numbers committed alongside this bench are calibrated for:
+//!
+//! - **Platform:** Linux `x86_64`
+//! - **Date:** 2026-04-30
+//! - **Daemon state:** warm
+//! - **Rule set:** `default-v1` (the `EnforcementPipeline::default()` set)
+//!
+//! Future readers comparing numbers from a different runner class should
+//! re-baseline rather than expect parity.
+//!
 //! The bench file documents these inline; automated CI gating against the
 //! SLO is a follow-up task and is intentionally not invented here. See
 //! `plans/decisions/031-validation-latency-rubric.md`.
@@ -44,6 +72,26 @@
 //!     --features bench-internals
 //! ```
 
+// TODO(RTAI-003-CI): wire CI baseline-comparison for this bench. Tracked in
+// eddacraft/anvil-001#1191 ("RTAI-003 follow-up: wire CI baseline comparison
+// for midedit_roundtrip"). Concrete work items:
+//   (a) extend `.github/workflows/bench.yml` `paths:` filter to include
+//       `crates/anvil-intercept/**` so this bench runs on push to main.
+//   (b) commit a baseline JSON at
+//       `crates/anvil-intercept/benches/baselines/midedit_roundtrip.json`
+//       (path documented; file owned by the follow-up).
+//   (c) add a comparison step that diffs current p95 vs baseline within a
+//       documented tolerance (e.g. ±15% drift, hard fail if SLO exceeded).
+// See ADR-031 § SLO enforcement / Regression policy.
+//
+// TODO(INTR-followup): observed during benchmarking — `PatternMatcher::new`
+// recompiles the 11 default allowlist regexes on every `scan_buffer` call via
+// `SecretDetectionRule::evaluate` -> `scan_content_with_limit`. This is real
+// production cost but is owned by INTR / the secret rule, not by RTAI-003.
+// Suggested follow-up: cache `PatternMatcher` inside `SecretDetectionRule` (or
+// thread it through `SecretCheckConfig`) so the regex compile happens once at
+// rule construction.
+
 #[cfg(unix)]
 use std::hint::black_box;
 #[cfg(unix)]
@@ -53,8 +101,12 @@ use std::path::PathBuf;
 #[cfg(unix)]
 use std::sync::Arc;
 #[cfg(unix)]
+use std::sync::LazyLock;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
+use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
 #[cfg(unix)]
 use anvil_intercept::Shutdown;
 #[cfg(unix)]
@@ -63,7 +115,8 @@ use anvil_intercept::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipe
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 #[cfg(unix)]
 use anvil_intercept::midedit::{
-    ScanBufferMode, ScanBufferRequest, ScanBufferService, scan_buffer_with_pipeline,
+    MAX_CONCURRENT_SCAN_BUFFERS, ScanBufferMode, ScanBufferRequest, ScanBufferService,
+    scan_buffer_with_pipeline,
 };
 #[cfg(unix)]
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
@@ -83,30 +136,90 @@ const MEDIUM_BYTES: usize = 64 * 1024; // 64 KiB
 /// harness, but still exercises the cap-adjacent slow path.
 #[cfg(unix)]
 const NEAR_CAP_BYTES: usize = CONTENT_SIZE_CAP_BYTES_USIZE - 1024;
+/// Binary short-circuit fixture size — small enough to stay in the O(1) path
+/// since `midedit::scan_buffer_with_pipeline` returns the moment it sees a
+/// `\0` byte. The size is only relevant to the dimension label.
+#[cfg(unix)]
+const BINARY_BYTES: usize = 4 * 1024; // 4 KiB
+/// Unicode-heavy fixture size (~32 KiB of mixed CJK + emoji).
+#[cfg(unix)]
+const UNICODE_BYTES: usize = 32 * 1024;
+
+/// Default percentile sample count. Set high enough that p99 has at least
+/// 5 tail samples (`500 * 0.01 = 5`) and p95 is not noisy. Override via
+/// the `ANVIL_MIDEDIT_BENCH_SAMPLES` env var when CI wall-clock is tight.
+#[cfg(unix)]
+const DEFAULT_PERCENTILE_SAMPLES: usize = 500;
 
 #[cfg(unix)]
-const PERCENTILE_SAMPLES: usize = 200;
+fn percentile_sample_count() -> usize {
+    std::env::var("ANVIL_MIDEDIT_BENCH_SAMPLES")
+        .ok()
+        .and_then(|raw| raw.parse::<usize>().ok())
+        .filter(|n| *n >= 100)
+        .unwrap_or(DEFAULT_PERCENTILE_SAMPLES)
+}
 
 /// Buffer-size cases shared across both criterion and percentile harnesses.
+/// Each entry pins one ADR-031 corpus dimension; see the module-level table.
 #[cfg(unix)]
 struct BufferCase {
     label: &'static str,
     bytes: usize,
+    /// Builder for the fixture body. Held as a function pointer so a single
+    /// `BufferCase` slice can mix the TypeScript, binary, Unicode, and
+    /// dirty-path generators without runtime branching at call sites.
+    build: fn(usize) -> String,
 }
 
 #[cfg(unix)]
 const CASES: &[BufferCase] = &[
+    // ADR-031 dimension: empty content. Pins the zero-byte fast path.
+    BufferCase {
+        label: "empty",
+        bytes: 0,
+        build: make_typescript_fixture,
+    },
+    // ADR-031 dimension: small representative content.
     BufferCase {
         label: "small_1KiB",
         bytes: SMALL_BYTES,
+        build: make_typescript_fixture,
     },
+    // ADR-031 dimension: medium representative content.
     BufferCase {
         label: "medium_64KiB",
         bytes: MEDIUM_BYTES,
+        build: make_typescript_fixture,
     },
+    // ADR-031 dimension: near-cap content.
     BufferCase {
         label: "near_cap_1MiB_minus_1KiB",
         bytes: NEAR_CAP_BYTES,
+        build: make_typescript_fixture,
+    },
+    // ADR-031 dimension: binary / binary-like content. Exercises the
+    // `content.contains(&0)` short-circuit at `midedit.rs` line 169 and is
+    // expected to be O(1) regardless of `bytes`.
+    BufferCase {
+        label: "binary_short_circuit",
+        bytes: BINARY_BYTES,
+        build: make_binary_fixture,
+    },
+    // ADR-031 dimension: Unicode-heavy content (CJK + emoji mix).
+    BufferCase {
+        label: "unicode_heavy",
+        bytes: UNICODE_BYTES,
+        build: make_unicode_fixture,
+    },
+    // Dirty-path SLO: this fixture embeds a fake AWS access-key ID
+    // (`AKIA` + 16 alphanumerics) so the secret-detection rule produces a
+    // diagnostic. Pins the dirty-path SLO alongside the clean-path SLO and
+    // exercises the diagnostic-emission path that the other cases skip.
+    BufferCase {
+        label: "dirty_secret_match",
+        bytes: MEDIUM_BYTES,
+        build: make_dirty_secret_fixture,
     },
 ];
 
@@ -114,17 +227,95 @@ const CASES: &[BufferCase] = &[
 /// length. The content is deliberately rule-clean so we measure the steady
 /// scanning cost rather than diagnostic emission cost; mid-edit is dominated
 /// by the warm-path scan, not by diagnostic serialisation.
+// Roughly 80-byte lines keeps the fixture realistic and avoids degenerate
+// "single huge line" cases that distort scanner work.
 #[cfg(unix)]
-fn make_fixture(bytes: usize) -> String {
-    // Roughly 80-byte lines keeps the fixture realistic and avoids degenerate
-    // "single huge line" cases that distort scanner work.
-    const LINE: &str =
-        "const value: number = compute(left, right) + adjust(seed); // representative line\n";
-    let mut out = String::with_capacity(bytes + LINE.len());
+const TYPESCRIPT_LINE: &str =
+    "const value: number = compute(left, right) + adjust(seed); // representative line\n";
+
+#[cfg(unix)]
+fn make_typescript_fixture(bytes: usize) -> String {
+    if bytes == 0 {
+        return String::new();
+    }
+    let mut out = String::with_capacity(bytes + TYPESCRIPT_LINE.len());
     while out.len() < bytes {
-        out.push_str(LINE);
+        out.push_str(TYPESCRIPT_LINE);
     }
     out.truncate(bytes);
+    out
+}
+
+/// Build a binary-like fixture with embedded `\0` bytes. The first NUL is
+/// near the start so the binary short-circuit triggers immediately.
+#[cfg(unix)]
+fn make_binary_fixture(bytes: usize) -> String {
+    // Start with a short ASCII prefix, then a NUL, then non-NUL bytes. Using
+    // valid UTF-8 here (NUL is U+0000) keeps `String` happy.
+    let mut out = String::with_capacity(bytes);
+    let prefix = "header-bytes:";
+    out.push_str(prefix);
+    out.push('\0');
+    while out.len() < bytes {
+        out.push('a');
+    }
+    out.truncate(bytes);
+    out
+}
+
+/// Each `UNICODE_LINE` is ~80 bytes of UTF-8 (CJK is 3 bytes/char, the emoji
+/// is 4 bytes). The exact width is not load-bearing; the mix is.
+#[cfg(unix)]
+const UNICODE_LINE: &str = "// 日本語のコメント — 测试用例 — 한국어 주석 — \u{1F680} payload\n";
+
+/// `AKIA` prefix + 16 uppercase alphanumerics. `EXAMPLEKEYBENCH0` is exactly
+/// 16 chars and matches the secret-detection regex character class. Embedded
+/// in a `const` here for clippy compliance and to keep the fake at module
+/// scope so it is unambiguously a fixture and not a real credential.
+#[cfg(unix)]
+const FAKE_AWS_KEY_LINE: &str = "const AWS_KEY = \"AKIAEXAMPLEKEYBENCH0\";\n";
+
+/// Build a Unicode-heavy fixture mixing CJK ideographs and emoji. The base
+/// line is multi-byte throughout so byte-length and char-length diverge,
+/// exercising any UTF-8 boundary handling in the scan path.
+#[cfg(unix)]
+fn make_unicode_fixture(bytes: usize) -> String {
+    let mut out = String::with_capacity(bytes + UNICODE_LINE.len());
+    while out.len() < bytes {
+        out.push_str(UNICODE_LINE);
+    }
+    // Truncate on a UTF-8 boundary so we never produce invalid Unicode.
+    while !out.is_char_boundary(bytes.min(out.len())) {
+        out.pop();
+    }
+    out.truncate(bytes.min(out.len()));
+    out
+}
+
+/// Build a dirty fixture embedding a fake AWS access-key ID in otherwise
+/// clean TypeScript content. The key matches the `AKIA[0-9A-Z]{16}` pattern
+/// so it triggers the secret-detection rule's full diagnostic-construction
+/// path. The 20-char fake is not a real credential.
+#[cfg(unix)]
+fn make_dirty_secret_fixture(bytes: usize) -> String {
+    let mut out = make_typescript_fixture(bytes);
+    if out.len() >= FAKE_AWS_KEY_LINE.len() {
+        // Overwrite a slice in the middle of the fixture so the bytes count
+        // is preserved and the match is not at offset zero.
+        let mid = out.len() / 2;
+        // Snap to a UTF-8 boundary; `make_typescript_fixture` is ASCII so
+        // this is always already a boundary, but we stay defensive.
+        let start = (0..=mid)
+            .rev()
+            .find(|i| out.is_char_boundary(*i))
+            .unwrap_or(0);
+        let end = start + FAKE_AWS_KEY_LINE.len();
+        if end <= out.len() {
+            out.replace_range(start..end, FAKE_AWS_KEY_LINE);
+        }
+    } else {
+        out = FAKE_AWS_KEY_LINE.to_string();
+    }
     out
 }
 
@@ -176,6 +367,20 @@ fn report_percentiles(boundary: &str, case: &BufferCase, samples: &mut [Duration
     );
 }
 
+/// Force-initialise expensive lazies and warm the rule pipeline before the
+/// criterion harness starts measuring. Without this the first sample of the
+/// first case eats the `DEFAULT_COMPILED_PATTERNS` regex compile and the
+/// per-rule warm-up.
+#[cfg(unix)]
+fn warm_up(pipeline: &EnforcementPipeline) {
+    LazyLock::force(&DEFAULT_COMPILED_PATTERNS);
+    // One service-side scan per case shape so every code path is JIT-warm.
+    for case in CASES {
+        let request = make_request("src/realtime/buffer.ts", (case.build)(case.bytes));
+        let _ = scan_buffer_with_pipeline(&request, pipeline).expect("warm-up scan_buffer");
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Criterion harness
 // ---------------------------------------------------------------------------
@@ -183,13 +388,20 @@ fn report_percentiles(boundary: &str, case: &BufferCase, samples: &mut [Duration
 #[cfg(unix)]
 fn bench_validation_service(c: &mut Criterion) {
     let pipeline = EnforcementPipeline::default();
+    warm_up(&pipeline);
+
     let mut group = c.benchmark_group("midedit_service");
     group.measurement_time(Duration::from_secs(5));
     group.sample_size(60);
 
     for case in CASES {
-        let request = make_request("src/realtime/buffer.ts", make_fixture(case.bytes));
-        group.throughput(Throughput::Bytes(case.bytes as u64));
+        let request = make_request("src/realtime/buffer.ts", (case.build)(case.bytes));
+        // Throughput is in fixture bytes; criterion plots per-byte scan cost.
+        // The binary short-circuit case will look misleadingly fast on this
+        // axis — that is the point.
+        if case.bytes > 0 {
+            group.throughput(Throughput::Bytes(case.bytes as u64));
+        }
         group.bench_function(case.label, |b| {
             b.iter(|| {
                 let response = scan_buffer_with_pipeline(black_box(&request), black_box(&pipeline))
@@ -204,10 +416,21 @@ fn bench_validation_service(c: &mut Criterion) {
 
 #[cfg(unix)]
 fn bench_validation_roundtrip(c: &mut Criterion) {
-    let runtime = tokio::runtime::Builder::new_current_thread()
+    // Multi-thread runtime mirrors production: the foreground daemon runs on
+    // a multi-thread tokio runtime, and the listener accept loop + scan
+    // workers benefit from a real worker pool. 2 worker threads matches
+    // `MAX_CONCURRENT_SCAN_BUFFERS`, which is the daemon's concurrency cap
+    // for `scan_buffer`. Using `new_current_thread` would serialise accept
+    // and worker on a single OS thread and under-report production latency.
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(MAX_CONCURRENT_SCAN_BUFFERS)
         .enable_all()
         .build()
         .expect("tokio runtime");
+
+    // Warm the rule pipeline before timing anything. The harness's own scan
+    // service uses an independent pipeline, but the LazyLocks are global.
+    warm_up(&EnforcementPipeline::default());
 
     let mut group = c.benchmark_group("midedit_roundtrip");
     group.measurement_time(Duration::from_secs(8));
@@ -215,14 +438,23 @@ fn bench_validation_roundtrip(c: &mut Criterion) {
 
     for case in CASES {
         // Stand up a fresh daemon per case so the listener's `scan_buffer`
-        // semaphore and any criterion warm-up cost are isolated.
+        // semaphore and any criterion warm-up cost are isolated. The client
+        // connection is opened once per case and reused across iterations
+        // to mirror production drivers (cold-connect cost is documented in
+        // `ipc_roundtrip.rs` and not duplicated here).
         let harness = runtime.block_on(async { RoundtripHarness::start() });
         let frame = build_scan_buffer_frame(case);
+        let mut client = runtime.block_on(async { harness.connect().await });
 
-        group.throughput(Throughput::Bytes(case.bytes as u64));
+        // Warm-up RPC so the per-case first-iteration cost is amortised.
+        runtime.block_on(async { harness.run_one(&mut client, &frame).await });
+
+        if case.bytes > 0 {
+            group.throughput(Throughput::Bytes(case.bytes as u64));
+        }
         group.bench_function(case.label, |b| {
             b.iter(|| {
-                runtime.block_on(harness.run_one(&frame));
+                runtime.block_on(harness.run_one(&mut client, &frame));
             });
         });
 
@@ -239,7 +471,7 @@ fn build_scan_buffer_frame(case: &BufferCase) -> String {
         "method": "scan_buffer",
         "params": {
             "path": "src/realtime/buffer.ts",
-            "text": make_fixture(case.bytes),
+            "text": (case.build)(case.bytes),
             "version": 1,
             "mode": "midEdit",
         },
@@ -269,12 +501,9 @@ impl RoundtripHarness {
             .expect("secure tempdir permissions");
         let socket = tmp.path().join("intercept.sock");
         let scan_buffer = ScanBufferService::default();
-        let listener = IpcListener::bind_with_scan_buffer_service(
-            &socket,
-            NoopDispatcher,
-            scan_buffer,
-        )
-        .expect("bind listener");
+        let listener =
+            IpcListener::bind_with_scan_buffer_service(&socket, NoopDispatcher, scan_buffer)
+                .expect("bind listener");
         let (shutdown, token) = Shutdown::new();
         let handle = tokio::spawn(async move { listener.serve(token).await });
         Self {
@@ -285,11 +514,18 @@ impl RoundtripHarness {
         }
     }
 
-    async fn run_one(&self, frame: &str) {
+    /// Open a single persistent connection that the caller will reuse across
+    /// iterations. Production drivers hold a long-lived connection; baking
+    /// connect cost into every p95 number would over-report production
+    /// latency.
+    async fn connect(&self) -> BufReader<UnixStream> {
         let stream = UnixStream::connect(&self.socket)
             .await
             .expect("connect client");
-        let mut client = BufReader::new(stream);
+        BufReader::new(stream)
+    }
+
+    async fn run_one(&self, client: &mut BufReader<UnixStream>, frame: &str) {
         client
             .get_mut()
             .write_all(frame.as_bytes())
@@ -300,7 +536,9 @@ impl RoundtripHarness {
             .read_line(&mut response)
             .await
             .expect("read response");
-        debug_assert!(
+        // `assert!` (not `debug_assert!`) — criterion compiles in release and
+        // we want harness-validation failures to show up loudly.
+        assert!(
             response.contains("\"result\""),
             "unexpected scan_buffer response: {response}",
         );
@@ -329,19 +567,24 @@ impl RoundtripHarness {
 #[cfg(unix)]
 fn bench_percentile_sampler(_c: &mut Criterion) {
     let pipeline = Arc::new(EnforcementPipeline::default());
+    warm_up(&pipeline);
+    let samples_target = percentile_sample_count();
 
     println!();
     println!("--- ADR-031 mid-edit warm percentile sampler ---");
-    println!("interactive buffer SLO (p95): validation.service ≤ 50ms, validation.roundtrip ≤ 80ms");
+    println!(
+        "interactive buffer SLO (p95): validation.service ≤ 50ms, validation.roundtrip ≤ 80ms"
+    );
+    println!("samples per case: {samples_target} (override via ANVIL_MIDEDIT_BENCH_SAMPLES)");
 
     for case in CASES {
-        let request = make_request("src/realtime/buffer.ts", make_fixture(case.bytes));
+        let request = make_request("src/realtime/buffer.ts", (case.build)(case.bytes));
 
-        let mut service_samples = Vec::with_capacity(PERCENTILE_SAMPLES);
-        for _ in 0..PERCENTILE_SAMPLES {
+        let mut service_samples = Vec::with_capacity(samples_target);
+        for _ in 0..samples_target {
             let started = Instant::now();
-            let response = scan_buffer_with_pipeline(&request, &pipeline)
-                .expect("scan_buffer_with_pipeline");
+            let response =
+                scan_buffer_with_pipeline(&request, &pipeline).expect("scan_buffer_with_pipeline");
             service_samples.push(started.elapsed());
             black_box(response);
         }
@@ -349,7 +592,8 @@ fn bench_percentile_sampler(_c: &mut Criterion) {
         report_percentiles("validation.service", case, &mut service_samples);
     }
 
-    let runtime = tokio::runtime::Builder::new_current_thread()
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(MAX_CONCURRENT_SCAN_BUFFERS)
         .enable_all()
         .build()
         .expect("tokio runtime");
@@ -357,19 +601,21 @@ fn bench_percentile_sampler(_c: &mut Criterion) {
         for case in CASES {
             let frame = build_scan_buffer_frame(case);
             let harness = RoundtripHarness::start();
+            let mut client = harness.connect().await;
 
             // Single warm-up to amortise listener accept-loop priming.
-            harness.run_one(&frame).await;
+            harness.run_one(&mut client, &frame).await;
 
-            let mut samples = Vec::with_capacity(PERCENTILE_SAMPLES);
-            for _ in 0..PERCENTILE_SAMPLES {
+            let mut samples = Vec::with_capacity(samples_target);
+            for _ in 0..samples_target {
                 let started = Instant::now();
-                harness.run_one(&frame).await;
+                harness.run_one(&mut client, &frame).await;
                 samples.push(started.elapsed());
             }
             print_dimensions("validation.roundtrip", case);
             report_percentiles("validation.roundtrip", case, &mut samples);
 
+            drop(client);
             harness.shutdown().await;
         }
     });
@@ -388,7 +634,5 @@ criterion_main!(benches);
 
 #[cfg(not(unix))]
 fn main() {
-    println!(
-        "midedit_roundtrip benchmark currently runs on Unix only (mirrors ipc_roundtrip)."
-    );
+    println!("midedit_roundtrip benchmark currently runs on Unix only (mirrors ipc_roundtrip).");
 }

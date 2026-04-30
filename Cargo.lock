@@ -1013,6 +1013,7 @@ dependencies = [
  "chrono",
  "clap",
  "criterion",
+ "eddacraft-anvil-checks",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
  "eddacraft-anvil-intercept-win32",
