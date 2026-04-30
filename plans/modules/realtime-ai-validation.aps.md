@@ -453,8 +453,9 @@ convention" section). Concretely:
   the default daemon client still returns `Unavailable` and the write decision
   prior to RTAI-006 was hard-coded from diagnostic severity rather than the
   INTD-008 enforcement block. RTAI-006 closes that semantic gap on the
-  embedded path; the daemon-backed path takes over transparently when
-  RTAI-002's RPC lands.
+  embedded path; the daemon-backed path takes over transparently once the
+  launch shim's `DaemonValidationClient` is wired to the shipped `scan_buffer`
+  RPC (RTAI-002) — a follow-up RMCP/RMCPF task.
 
 ---
 
@@ -511,8 +512,13 @@ convention" section). Concretely:
   and a busy invariant check (`-32000`). The cross-session-rejection
   fixture is gated behind `#[ignore]` because `scan_buffer` does not
   yet take a `sessionId`; resume when session-scoped enforcement is
-  wired. RMCP imports these fixtures as the consumer-of-record; future
-  TS / VSCode drivers port the same shapes when they land.
+  wired. The fixture module exposes public `*_request` / `assert_*_response`
+  pairs and `FIXTURE_NAMES` so any future cross-crate consumer (the planned
+  `crates/anvil-rmcp/` once that crate is created, plus the TS / VSCode
+  drivers when their consumer crates land) can drive the same envelope shapes
+  through their own transport. As of merge there is no cross-crate consumer
+  yet — this contract is the standalone source of truth and the rust harness
+  is the only active driver.
 
 ---
 

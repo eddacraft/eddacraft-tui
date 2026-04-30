@@ -99,31 +99,27 @@ mirrored in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 **Locked A1 development / dependency order (no waste-of-effort sequencing):**
 
 > Already complete as of 2026-04-30: INTD-001/-002/-003/-005/-007/-013/-014,
-> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001, and
+> RMCP-001/-002/-003/-004/-005/-006/-007, RTAI-001/-002/-003/-006/-008, and
 > INTR-001/-002/-006/-008.
 > Post-merge validation pending: RMCP-008 (PR #1154 merged; agent checks passed;
 > Cursor / Claude Code GUI dry-run remains).
 
 1. **Close RMCP-008 post-merge validation:** run the human Cursor / Claude Code
    GUI dry-run and record the result before marking RMCP-008 Complete.
-2. **Start RTAI-002:** the daemon mid-edit RPC surface is now the next unblocked
-   code item.
-3. **Measure the production path:** RTAI-003 follows RTAI-002 and extends the
-   INTD-014 latency harness with mid-edit measurements.
-4. **Lock MCP pre-write semantics:** land RTAI-006 and RTAI-008 after RTAI-002;
-   their RMCP-004/-005/-006 dependencies are already complete.
-
-**RTAI reconciliation note (2026-04-30):** Local branch
-`feat/RTAI-002-midedit-rpc` is not evidence of completed RTAI work; it points at
-the merged INTD-005 enforcement pipeline with no unique diff against `dev`.
-RTAI-002 remains the next unimplemented daemon RPC item.
+2. **Wire the daemon validation client:** RMCP-005's `DaemonValidationClient`
+   default impl still returns `Unavailable`; the daemon `scan_buffer` RPC
+   (RTAI-002) and the INTD-002 listener are both shipped, so the next slice
+   replaces the `Unavailable` stub with a live JSON-RPC call to the daemon and
+   migrates MCP `tools/call` from the embedded fallback to the daemon-backed
+   path. Tracking belongs in a follow-up RMCP/RMCPF task.
 
 **Daemon-path note:** RMCP-005's `DaemonValidationClient` ships with a
 default impl that returns `Unavailable`, falling back to the embedded
-`anvil-checks` rule pipeline. Until RTAI-002 wires the real validation RPC over
-the INTD-002 listener, every MCP `tools/call` runs through the embedded path —
-INTR-001/-002/-006/-008 are required for the eventual daemon-backed pipeline,
-but not for the launch shim shipping today.
+`anvil-checks` rule pipeline. The daemon side (`scan_buffer` RPC, INTD-002
+listener) is in place; once the launch shim's daemon client is replaced with a
+live JSON-RPC implementation, MCP `tools/call` graduates from the embedded
+fallback to the daemon-backed pipeline. The embedded path remains the
+correctness-equivalent fallback when the daemon is not running.
 
 **Outstanding A1 ambiguities to resolve at kickoff:**
 
