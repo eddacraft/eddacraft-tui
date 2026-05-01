@@ -21,7 +21,8 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`widgets`] | 12 reusable Ratatui widgets (select, text input, progress, etc.) |
+//! | [`widgets`] | 13 reusable Ratatui widgets (select, text input, progress, pretext, etc.) |
+//! | [`pretext`] | Two-phase prepare/layout text engine — measure once, lay out cheaply |
 //! | [`theme`] | `Theme` trait + `EddaCraftTheme` implementation |
 //! | [`keyboard`] | `KeyHandler` mapping crossterm events to semantic `Action`s |
 //! | [`surface`] | `Surface` trait for multi-screen TUI applications |
@@ -31,6 +32,7 @@
 
 pub mod compat;
 pub mod keyboard;
+pub mod pretext;
 pub mod shell;
 pub mod surface;
 #[cfg(any(test, feature = "test-utils"))]
@@ -43,6 +45,7 @@ pub mod prelude {
 
     pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, KeyHandler};
+    pub use crate::pretext::{ExclusionZone, LayoutResult, PositionedWord, PreparedText};
     pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;
     pub use crate::theme::{EddaCraftTheme, Theme};
@@ -55,6 +58,7 @@ pub mod prelude {
     pub use crate::widgets::parallel_progress::{
         CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState,
     };
+    pub use crate::widgets::pretext::{PretextState, PretextWidget};
     pub use crate::widgets::progress_bar::{ProgressBar, ProgressBarState};
     pub use crate::widgets::select::{Select, SelectItem, SelectState};
     pub use crate::widgets::spinner::{Spinner, SpinnerPreset, SpinnerState, anvil, eddacraft};
