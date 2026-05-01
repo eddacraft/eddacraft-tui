@@ -41,14 +41,14 @@ sweep.
 
 What landed:
 
-- **A1 — RTAI Spike Slice** (24 items across INTD, INTR, RMCP, RTAI). Real-
-  time AI validation fires before save through `anvil mcp serve --stdio`. The
-  release was validated **embedded-fallback-backed, not daemon-backed**:
-  RMCP-005's `DaemonValidationClient` defaults to `Unavailable` and MCP
-  `tools/call` runs through the embedded `anvil-checks` pipeline. Three GUI-
-  dry-run gaps tracked outside the contract: #1194 (`mcp install --command`
-  override), #1195 (Claude Code path mismatch), #1197 (clients ignore
-  `anvil_validate_write` without explicit prompt instruction).
+- **A1 — RTAI Spike Slice** (24 items across INTD, INTR, RMCP, RTAI). Real-time
+  AI validation fires before save through `anvil mcp serve --stdio`. The release
+  was validated **embedded-fallback-backed, not daemon-backed**: RMCP-005's
+  `DaemonValidationClient` defaults to `Unavailable` and MCP `tools/call` runs
+  through the embedded `anvil-checks` pipeline. Three GUI-dry-run gaps tracked
+  outside the contract: #1194 (`mcp install --command` override), #1195 (Claude
+  Code path mismatch), #1197 (clients ignore `anvil_validate_write` without
+  explicit prompt instruction).
 - **A2 — AIGUARD** (4 items). `anvil gate --profile ai` with the stable
   `anvil.diagnostic.v1` envelope shared with RTAI / INTD / DRVR / RMCP.
 - **A3 — Release Engineering smallest-viable cut** (7 items): GHOOK-001,
@@ -56,15 +56,15 @@ What landed:
   remain outside this release.
 - **A4 — Language Credibility Floor** (9 items): LANGTS-001/-003, OPSUP-001
   check-ID registry slice, SURFENV-001..-006 (`.env` secret scanning).
-- **TRACE-001** — cross-cutting tracing baseline (anvil-observability crate,
-  W3C `traceparent` propagation, redaction layer, INTD-014 fixture). TRACE-002
-  (TS mirror) and TRACE-003 (redaction hardening) are post-launch.
+- **TRACE-001** — cross-cutting tracing baseline (anvil-observability crate, W3C
+  `traceparent` propagation, redaction layer, INTD-014 fixture). TRACE-002 (TS
+  mirror) and TRACE-003 (redaction hardening) are post-launch.
 
 Headline post-release follow-ups (foreground for the next release window):
 
 - **Daemon-backed RMCP path** — replace RMCP-005's `Unavailable` stub with a
-  live JSON-RPC client; graduate MCP `tools/call` from the embedded fallback
-  to the daemon-backed pipeline. The daemon side (`scan_buffer` RPC, INTD-002
+  live JSON-RPC client; graduate MCP `tools/call` from the embedded fallback to
+  the daemon-backed pipeline. The daemon side (`scan_buffer` RPC, INTD-002
   listener) is already in place.
 - **V050F** (`v050-release-followups`) — 5/16 done; 11 hardening items
   outstanding (per-operator audit attribution, family-theft cascade,
@@ -72,8 +72,8 @@ Headline post-release follow-ups (foreground for the next release window):
   init, CI-class bench baseline, `release/*` push filter, `WAITLIST_PAUSED`
   runbook, etc.).
 - **Latency CI gating** (#1191) — RTAI mid-edit baseline-comparison gating
-  against the recorded 7-case ADR-031 corpus. Until #1191 lands, regressions
-  are caught only by manual `cargo bench` runs.
+  against the recorded 7-case ADR-031 corpus. Until #1191 lands, regressions are
+  caught only by manual `cargo bench` runs.
 - **TSRET-005 execution** — archive the TS scanner / TS suppression parser /
   parity harness to `archive/anvil-ts-scanner/` per ADR-033. Unblocked but not
   executed pre-release.
@@ -84,23 +84,23 @@ Headline post-release follow-ups (foreground for the next release window):
 daemon-backed pipeline, and bring at least one editor / second-MCP surface
 online.**
 
-`v0.5.0-beta` proved the demo with the embedded `anvil-checks` pipeline
-behind the MCP launch shim. The next release closes the daemon path
-end-to-end and starts the driver-reach story:
+`v0.5.0-beta` proved the demo with the embedded `anvil-checks` pipeline behind
+the MCP launch shim. The next release closes the daemon path end-to-end and
+starts the driver-reach story:
 
 - **Daemon-backed RMCP** — wire the live JSON-RPC client; verify the
   daemon-backed `tools/call` matches the embedded fallback envelope (RTAI
   contract test, AIGUARD-002 envelope shape).
-- **DRVR-001 / DRVR-002** — shared driver client + editor-driver protocol;
-  the framework that lets a second surface attach.
+- **DRVR-001 / DRVR-002** — shared driver client + editor-driver protocol; the
+  framework that lets a second surface attach.
 - **RMCPF (Rust MCP Full Port)** — graduate the launch shim to feature parity
   with the archived TS MCP server; reuse the AIGUARD envelope.
 - **RTAI-004 / -005 / -007 / -009** — driver-side debouncer, editor mid-edit
   path, telemetry mirror, architecture doc + supersession links.
 - **Remaining INTD items** (-004, -006, -008..-012, -015, -016) — watcher
-  integration, process-group interrupt, configuration loading, embedded
-  mode, unregistered-change handling, status / diagnostics, Windows CI
-  matrix, telemetry subscription scoping, DoS protection budgets.
+  integration, process-group interrupt, configuration loading, embedded mode,
+  unregistered-change handling, status / diagnostics, Windows CI matrix,
+  telemetry subscription scoping, DoS protection budgets.
 - **ADR-031 latency CI gating** (#1191).
 
 Slate **not yet locked**. Cherry-pick verdict against this horizon lives in
@@ -108,15 +108,15 @@ Slate **not yet locked**. Cherry-pick verdict against this horizon lives in
 
 ### Horizon 2 — Credibility & Hygiene (carry-over from `v0.5.0-beta`)
 
-A3 and A4 shipped their **smallest-viable cuts** in `v0.5.0-beta`. The
-broader hygiene tracks remain queued, eligible to ride the next-release
-window without contending for RTAI engineering bandwidth:
+A3 and A4 shipped their **smallest-viable cuts** in `v0.5.0-beta`. The broader
+hygiene tracks remain queued, eligible to ride the next-release window without
+contending for RTAI engineering bandwidth:
 
 - **Release Engineering tail** — ATTRIB-004..-011 (full attribution pipeline
   v3), SCAN-004..-005 (parallel-scan rollout to remaining call-sites).
-- **Language Credibility tail** — LANGTS-002/-004/-005, OPSUP-002..-007
-  (drift schema versioning, per-track flags, file-presence guards, FP
-  reporting), SURFSQL Phase 1.
+- **Language Credibility tail** — LANGTS-002/-004/-005, OPSUP-002..-007 (drift
+  schema versioning, per-track flags, file-presence guards, FP reporting),
+  SURFSQL Phase 1.
 
 ### Horizon 3 — Team-Lead Surface (post-launch)
 
