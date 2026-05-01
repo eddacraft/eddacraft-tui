@@ -550,13 +550,18 @@ LAUNCH-005 (doctor remediation depth) shipped Complete in
   `core-explain-antipattern.{ts,test.ts}`, `runtime-gate/`,
   `runtime-export/`, `scanner-parity/` — all reachable from the
   archive's `README.md`.
-- Cascade resolution: drift detection and the antipattern
-  explainer were end-to-end coupled to the archived engine; the
-  TS gate runner, gate checks, constraint collector, and
-  formatters likewise. All archived together — they had no
-  active consumers outside the now-archived MCP server / VSCode
-  extension. The TS gate runner survives only as historical
-  reference under `archive/anvil-ts-scanner/runtime-gate/`.
+- Cascade resolution: the TS components that provided drift
+  detection and the antipattern explainer were end-to-end coupled
+  to the archived engine; the TS gate runner, gate checks,
+  constraint collector, and formatters likewise. All archived
+  together — they had no active consumers outside the now-archived
+  MCP server / VSCode extension. The capabilities split as
+  follows: anti-pattern detection, suppression handling, and gate
+  evaluation are served by the Rust scanner / RMCP; drift
+  snapshot/compare and the TS-side export pipeline have **no
+  active replacement** today and are deferred. The TS components
+  themselves survive only as historical reference under
+  `archive/anvil-ts-scanner/`.
 - A minimal `Warning` type was extracted to
   `packages/anvil/core/src/warnings/types.ts` so active
   consumers (`warnings/warning-id`, the boundary half of
