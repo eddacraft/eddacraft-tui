@@ -326,7 +326,12 @@ mod tests {
             .unwrap();
 
         let buf = terminal.backend().buffer().clone();
-        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+        let snapshot = crate::test_utils::snapshot::buffer_to_string(&buf)
+            .lines()
+            .map(str::trim_end)
+            .collect::<Vec<_>>()
+            .join("\n");
+        insta::assert_snapshot!(snapshot);
     }
 
     #[test]

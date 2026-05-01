@@ -1,8 +1,10 @@
 # Intercept Launcher
 
-| ID | Owner | Status |
-|----|-------|--------|
-| INTL | @aneki | Draft |
+| ID   | Owner  | Status | Progress |
+| ---- | ------ | ------ | -------- |
+| INTL | @aneki | Draft  | 0/9      |
+
+**Last reviewed:** 2026-04-26
 
 ## Purpose
 

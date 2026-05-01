@@ -73,8 +73,12 @@ Only update packages that changed in this release.
 - [ ] `packages/anvil/README.md` — core/runtime API changes
 - [ ] `packages/edda-stack/README.md` — Edda/Ember contract changes
 - [ ] `packages/aps/README.md` — APS format changes
-- [ ] `packages/vscode-extension/README.md` — extension changes
 - [ ] `apps/anvil-api/README.md` — API route changes
+
+> The Node MCP server and VS Code extension were archived per ADR-033
+> (`archive/anvil-mcp-server/`, `archive/anvil-vscode-extension/`); they no
+> longer participate in release cuts. The live MCP path is the Rust shim under
+> `crates/anvil-cli/src/commands/mcp.rs`.
 
 ### Pre-release: CI and deployment
 
@@ -169,10 +173,11 @@ affects install commands, supported targets, or project status.
       (cargo-dist auto-marks `-beta` tags as prerelease, which hides them from
       `/releases/latest/download/...`)
 - [ ] `eddacraft/anvil-001` GitHub Release created for the tag with CHANGELOG
-      excerpt and a pointer to the public binaries:
+      excerpt and a pointer to the public binaries, then marked
+      `--latest --prerelease=false`:
 
       ```bash
-      gh release create vX.Y.Z --repo eddacraft/anvil-001 --latest --notes-file <file>
+      gh release create vX.Y.Z --repo eddacraft/anvil-001 --latest --prerelease=false --notes-file <file>
       ```
 
 - [ ] `install.eddacraft.ai` serves `HTTP/2 200` with a valid cert and the

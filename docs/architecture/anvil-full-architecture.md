@@ -422,8 +422,6 @@ Ratatui. The Node.js CLI package (`@eddacraft/anvil-cli`) is deprecated.
 | VS Code Extension    | IDE integration                                  | **[CURRENT]** |
 | Kindling Integration | Capture AI tool observations                     | **[CURRENT]** |
 | Claude Code Hooks    | Pre/post tool-use hooks for Claude Code          | **[CURRENT]** |
-| Forge Pipeline       | Pre-commit cross-model review                    | **[CURRENT]** |
-| Temper Pipeline      | Post-push CI auto-healing                        | **[CURRENT]** |
 
 ---
 

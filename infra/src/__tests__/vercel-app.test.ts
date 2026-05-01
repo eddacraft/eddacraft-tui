@@ -33,7 +33,7 @@ describe('VercelApp component', () => {
       resources.length = 0;
       const { VercelApp } = await import('../../src/components/vercel-app.js');
 
-      new VercelApp('skip-preview', {
+      const app = new VercelApp('skip-preview', {
         name: 'skip-preview',
         framework: 'nextjs',
         rootDirectory: 'apps/web',
@@ -41,6 +41,7 @@ describe('VercelApp component', () => {
         domains: ['example.com'],
         skipPreviewDeploys: true,
       });
+      expect(app).toBeDefined();
 
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
@@ -48,6 +49,20 @@ describe('VercelApp component', () => {
     it('passes --skip-preview flag to the ignore script', () => {
       const cmd = getProjectIgnoreCommand('skip-preview');
       expect(cmd).toContain('vercel-ignore-build.sh --skip-preview apps/web');
+    });
+
+    it('disables Vercel preview deployments', () => {
+      const project = resources.find(
+        (r) => r.type === 'vercel:index/project:Project' && r.name === 'skip-preview'
+      );
+      expect(project?.inputs.previewDeploymentsDisabled).toBe(true);
+    });
+
+    it('sets the Vercel production branch to main', () => {
+      const project = resources.find(
+        (r) => r.type === 'vercel:index/project:Project' && r.name === 'skip-preview'
+      );
+      expect(project?.inputs.gitRepository).toMatchObject({ productionBranch: 'main' });
     });
 
     it('does not pass --prod-branch when using default (main)', () => {
@@ -66,13 +81,14 @@ describe('VercelApp component', () => {
       resources.length = 0;
       const { VercelApp } = await import('../../src/components/vercel-app.js');
 
-      new VercelApp('no-skip', {
+      const app = new VercelApp('no-skip', {
         name: 'no-skip',
         framework: 'nextjs',
         rootDirectory: 'apps/web',
         gitRepo: 'org/repo',
         domains: ['example.com'],
       });
+      expect(app).toBeDefined();
 
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
@@ -82,6 +98,46 @@ describe('VercelApp component', () => {
       expect(cmd).not.toContain('VERCEL_GIT_COMMIT_REF');
       expect(cmd).toContain('vercel-ignore-build.sh apps/web');
     });
+
+    it('leaves Vercel preview deployments enabled', () => {
+      const project = resources.find(
+        (r) => r.type === 'vercel:index/project:Project' && r.name === 'no-skip'
+      );
+      expect(project?.inputs.previewDeploymentsDisabled).toBeUndefined();
+    });
+
+    it('does not manage the Vercel production branch by default', () => {
+      const project = resources.find(
+        (r) => r.type === 'vercel:index/project:Project' && r.name === 'no-skip'
+      );
+      expect(project?.inputs.gitRepository).not.toHaveProperty('productionBranch');
+    });
+  });
+
+  describe('custom productionBranch without skipPreviewDeploys', () => {
+    beforeAll(async () => {
+      resources.length = 0;
+      const { VercelApp } = await import('../../src/components/vercel-app.js');
+
+      const app = new VercelApp('custom-branch-no-skip', {
+        name: 'custom-branch-no-skip',
+        framework: 'nextjs',
+        rootDirectory: 'apps/web',
+        gitRepo: 'org/repo',
+        domains: ['example.com'],
+        productionBranch: 'release/stable',
+      });
+      expect(app).toBeDefined();
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    it('sets the explicitly configured Vercel production branch', () => {
+      const project = resources.find(
+        (r) => r.type === 'vercel:index/project:Project' && r.name === 'custom-branch-no-skip'
+      );
+      expect(project?.inputs.gitRepository).toMatchObject({ productionBranch: 'release/stable' });
+    });
   });
 
   describe('custom productionBranch', () => {
@@ -89,7 +145,7 @@ describe('VercelApp component', () => {
       resources.length = 0;
       const { VercelApp } = await import('../../src/components/vercel-app.js');
 
-      new VercelApp('custom-branch', {
+      const app = new VercelApp('custom-branch', {
         name: 'custom-branch',
         framework: 'nextjs',
         rootDirectory: 'apps/web',
@@ -98,6 +154,7 @@ describe('VercelApp component', () => {
         skipPreviewDeploys: true,
         productionBranch: 'release/stable',
       });
+      expect(app).toBeDefined();
 
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
@@ -105,6 +162,13 @@ describe('VercelApp component', () => {
     it('passes --prod-branch flag with the custom branch', () => {
       const cmd = getProjectIgnoreCommand('custom-branch');
       expect(cmd).toContain('--skip-preview --prod-branch release/stable');
+    });
+
+    it('sets the Vercel production branch to the custom branch', () => {
+      const project = resources.find(
+        (r) => r.type === 'vercel:index/project:Project' && r.name === 'custom-branch'
+      );
+      expect(project?.inputs.gitRepository).toMatchObject({ productionBranch: 'release/stable' });
     });
   });
 

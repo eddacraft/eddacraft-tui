@@ -37,14 +37,16 @@ none fit, a new family is allowed — propose it in an ADR first.
 
 ## Rule ID conventions
 
-| Prefix | Meaning                                    |
-| ------ | ------------------------------------------ |
-| `AP-`  | Legacy numbering, still used where natural |
-| `GS-`  | Guardrail-suppression family (new rules)   |
-| `RL-`  | Responsibility-laundering                  |
-| `DD-`  | Deferred-debt                              |
-| `TE-`  | Type-system-evasion (reserved)             |
-| `EV-`  | Error-visibility (reserved)                |
+| Prefix     | Meaning                                                 |
+| ---------- | ------------------------------------------------------- |
+| `AP-`      | Legacy numbering, still used where natural              |
+| `GS-`      | Guardrail-suppression family (new rules)                |
+| `RL-`      | Responsibility-laundering                               |
+| `DD-`      | Deferred-debt                                           |
+| `TE-`      | Type-system-evasion (reserved)                          |
+| `EV-`      | Error-visibility (reserved)                             |
+| `AI-`      | AI reasoning category (e.g. AI-001 appeal-to-authority) |
+| `SURFENV-` | Surface scanning for `.env`/`.envrc` key-value parsing  |
 
 Pick the next free three-digit suffix within the prefix (`GS-002`, `RL-007`,
 etc.). Rule IDs are globally unique across the registry.
@@ -115,6 +117,53 @@ The markdown body is the _rich definition_ — what a reviewer should read when
 they want to understand the rule beyond the one-line title. The first short
 paragraph becomes the inline `nudge`. Keep it action-oriented: "Use X instead of
 Y", not "this is bad".
+
+### Example: AI-001 reasoning rule
+
+The 0.5.0-beta cycle introduced the `AI-` prefix for the AI reasoning category.
+`AI-001` flags source comments that justify code with authority, social proof,
+or deflection ("ChatGPT said this was fine", "Claude wrote this") rather than
+technical reasoning. It is registry-authored just like every other rule:
+
+```yaml
+---
+id: AI-001
+type: rule
+family: reasoning
+title: Appeal-to-authority justification in code comments
+version: 1
+
+severity: info # info — annotation, not a failure
+confidence: medium
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .rs]
+
+detection:
+  type: regex
+  pattern: '(ChatGPT|Claude|Copilot|Gemini)\s+(said|told|wrote|generated)'
+  flags: i
+
+enabled: true
+opt_in: false
+---
+```
+
+Two contracts matter for AI-001 specifically:
+
+- **Comment-region only.** The Rust scanner restricts AI-001 matching to comment
+  regions (line and block comments). It does not flag matches inside string
+  literals or normal code.
+- **`@anvil-ignore AI-001` semantics.** Per-occurrence suppression uses the
+  standard `// @anvil-ignore AI-001 -- <reason>` marker. The reason is required
+  — bare `// @anvil-ignore AI-001` is itself a finding, the same way it is for
+  every other rule. AI-001 emits at info severity, so it does not fail gates by
+  default; it is annotation.
+
+When you author a new reasoning-category rule, follow the same shape: scope to
+comment regions, keep severity at info or warning, and rely on the
+registry-authored detection rather than scanner-side special-casing.
 
 ## Compile and verify
 

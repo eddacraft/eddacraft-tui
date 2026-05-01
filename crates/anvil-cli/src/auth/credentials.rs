@@ -15,6 +15,12 @@ pub struct Credentials {
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
+    /// Explicit marker recorded when the credential was minted via the
+    /// early-access edict flow. `None` covers credentials saved before this
+    /// field existed; the `is_edict()` predicate falls back to the legacy
+    /// `anvil_beta_` prefix check in that case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_edict: Option<bool>,
 }
 
 /// Returns the canonical write directory for credentials.
@@ -105,6 +111,7 @@ pub fn load() -> Result<Option<Credentials>> {
                 refresh_token: None,
                 email: None,
                 expires_at: None,
+                is_edict: None,
             }));
         }
     }
@@ -166,6 +173,19 @@ pub fn is_expired(creds: &Credentials) -> bool {
     }
 }
 
+pub fn is_edict(creds: &Credentials) -> bool {
+    // Prefer the explicit marker recorded at edict-login time; that is the
+    // source of truth from `/auth/verify`'s `isEdict` field.
+    if let Some(is_edict) = creds.is_edict {
+        return is_edict;
+    }
+    // Legacy fallback for credentials saved before the marker existed. The
+    // `anvil_beta_` prefix is also the general access-token format, so this
+    // is a best-effort heuristic only and gets corrected the next time the
+    // user runs `anvil auth login --edict`.
+    creds.license.starts_with("anvil_beta_")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,6 +196,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: None,
+            is_edict: None,
         }
     }
 
@@ -183,6 +204,35 @@ mod tests {
     fn not_expired_when_no_expiry() {
         let creds = make_creds("tok");
         assert!(!is_expired(&creds));
+    }
+
+    #[test]
+    fn explicit_is_edict_flag_takes_precedence_over_prefix() {
+        // `anvil_beta_*` is the general access-token format; an explicit
+        // `is_edict: Some(false)` must win so a regular service token isn't
+        // misclassified as an edict by accident.
+        let creds = Credentials {
+            is_edict: Some(false),
+            ..make_creds("anvil_beta_service_token")
+        };
+        assert!(!is_edict(&creds));
+
+        // Conversely, an explicit `Some(true)` lets future credential
+        // formats register as edicts even if the license doesn't start with
+        // the `anvil_beta_` prefix.
+        let creds = Credentials {
+            is_edict: Some(true),
+            ..make_creds("future_edict_format")
+        };
+        assert!(is_edict(&creds));
+    }
+
+    #[test]
+    fn legacy_prefix_fallback_when_marker_missing() {
+        // Credentials saved before the explicit marker existed have
+        // `is_edict: None`; the predicate falls back to the prefix heuristic.
+        assert!(is_edict(&make_creds("anvil_beta_abc")));
+        assert!(!is_edict(&make_creds("jwt.header.payload")));
     }
 
     #[test]
@@ -219,6 +269,7 @@ mod tests {
             refresh_token: Some("refresh-456".to_string()),
             email: Some("user@example.com".to_string()),
             expires_at: Some("2099-12-31T23:59:59Z".to_string()),
+            is_edict: Some(true),
         };
         let json = serde_json::to_string(&creds).unwrap();
         let parsed: Credentials = serde_json::from_str(&json).unwrap();
@@ -234,6 +285,7 @@ mod tests {
             refresh_token: Some("rt".to_string()),
             email: None,
             expires_at: Some("2099-01-01T00:00:00Z".to_string()),
+            is_edict: Some(true),
         };
         let json = serde_json::to_string(&creds).unwrap();
         assert!(json.contains("refreshToken"), "should use camelCase");
@@ -248,6 +300,7 @@ mod tests {
         assert!(!json.contains("refreshToken"));
         assert!(!json.contains("email"));
         assert!(!json.contains("expiresAt"));
+        assert!(!json.contains("isEdict"));
     }
 
     #[test]
@@ -275,6 +328,7 @@ mod tests {
                     refresh_token: Some("test-refresh".to_string()),
                     email: Some("test@example.com".to_string()),
                     expires_at: Some("2099-01-01T00:00:00Z".to_string()),
+                    is_edict: None,
                 };
                 save(&creds).unwrap();
 
@@ -337,6 +391,7 @@ mod tests {
                     refresh_token: None,
                     email: None,
                     expires_at: None,
+                    is_edict: None,
                 };
                 save(&creds).unwrap();
 

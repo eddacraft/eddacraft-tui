@@ -1,11 +1,23 @@
 <!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
-<!-- Executable only if tasks exist and status is Ready. -->
+<!-- Executable only if tasks exist and status is Ready or In Progress. -->
 
 # Operational Supplement (Cross-Track Infrastructure)
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| OPSUP | —     | Draft  |
+| ID    | Owner   | Status      | Progress |
+| ----- | ------- | ----------- | -------- |
+| OPSUP | OpenCode | In Progress | 1/7      |
+
+**Last reviewed:** 2026-04-29
+
+> Note (2026-04-27): the old spec-level reference to a hardcoded
+> `AVAILABLE_CHECKS` array in `gate.rs` is stale. The current Rust CLI
+> has `crates/anvil-cli/src/commands/check_catalog.rs` as a central
+> catalogue for user-facing check names, but it is not yet the stable
+> check-ID registry OPSUP requires: it does not assign durable IDs,
+> alias renamed checks for a transition window, declare file-presence
+> guards or wall-time budgets, or cover drift schema migration.
+> `SCHEMA_VERSION` constants still live in `drift.rs`, `init.rs`, and
+> `doctor.rs`.
 
 ## Purpose
 
@@ -17,10 +29,11 @@ each new module would re-design the same operational story differently.
 
 Specifically owns:
 
-- **Check registry with stable IDs** (council C-008) — replaces the
-  hardcoded `AVAILABLE_CHECKS` array in `gate.rs`. `--skip_checks` must
-  resolve against the registry, and newly shipped checks must be skippable
-  without a binary downgrade.
+- **Check registry with stable IDs** (council C-008) — promotes the
+  current `check_catalog.rs` naming catalogue into a durable registry
+  with stable IDs, aliases, and per-check metadata. `--skip_checks` must
+  resolve against the registry, and newly shipped checks must be
+  skippable without a binary downgrade.
 - **Drift baseline schema versioning + `anvil drift migrate`** (council
   C-009) — the spec adds 7 new surfaces each with new baseline fields. The
   hardcoded `SCHEMA_VERSION = "1.0.0"` cannot absorb this silently. Owns
@@ -46,7 +59,7 @@ Specifically owns:
 - Stable check-ID registry crate or module, including:
   - ID assignment scheme (e.g. `ANV-SURF-SQL-001`)
   - Skip/disable resolution against the registry
-  - Migration of existing `AVAILABLE_CHECKS` entries to the registry
+  - Migration of existing `check_catalog.rs` entries to the registry
 - Drift baseline schema versioning:
   - `SCHEMA_VERSION` becomes a versioned enum
   - `anvil drift migrate` command for on-upgrade migration
@@ -73,17 +86,18 @@ Specifically owns:
   it, does not replace it.
 - Telemetry-data analytics dashboards (the channel exists; what gets done
   with the data is a separate dashboard module concern).
-- Backwards-compatibility of the legacy `AVAILABLE_CHECKS` API beyond a
+- Backwards-compatibility of legacy check-name aliases beyond a
   one-release transition window.
 
 ## Interfaces
 
 **Depends on:**
 
-- Existing `AVAILABLE_CHECKS` in `gate.rs` (migrates from).
+- Existing `check_catalog.rs` naming catalogue (migrates from).
 - Existing `SCHEMA_VERSION` in `drift.rs` (migrates from).
-- Existing feature-flag system per [`feature-flagging`](./feature-flagging.aps.md)
-  and [`feature-flag-migration`](./feature-flag-migration.aps.md).
+- Existing feature-flag system per
+  [`feature-flag-catalogue`](./feature-flag-catalogue.aps.md) (FLAGS and FLAGM
+  are archived; FLAGCAT is the live catalogue module).
 - Kindling pipeline (likely host for FP telemetry).
 
 **Exposes:**
@@ -100,30 +114,71 @@ Specifically owns:
 
 None — this module unblocks others, not vice versa.
 
-## Ready Checklist
+## Registry Slice Readiness
 
-Change status to **Ready** when:
+- [x] Owner named for OPSUP-001.
+- [x] Check-ID scheme drafted and reviewed for the registry slice.
 
-- [ ] Owner named.
-- [ ] Check-ID scheme drafted and reviewed.
+## Remaining Slice Readiness
+
+Remaining non-registry slices move to **Ready** when:
+
 - [ ] Drift schema migration policy drafted and reviewed.
 - [ ] Per-track flag taxonomy aligns with existing flag governance.
 - [ ] FP reporting destination confirmed (Kindling vs other).
 
 ## Tasks
 
-Tasks will be defined when this module moves to Ready. Anticipated:
+### OPSUP-001 — Check-ID registry
 
-- OPSUP-001: Check-ID registry — schema, ID assignment, migration of
-  existing entries.
-- OPSUP-002: Skip/disable resolution against the registry; replace
-  hardcoded array.
-- OPSUP-003: Drift baseline schema versioning — versioned enum + per-field
-  declarations.
-- OPSUP-004: `anvil drift migrate` command + on-upgrade migration path.
-- OPSUP-005: Per-track feature flag taxonomy + governance integration.
-- OPSUP-006: File-presence guard helpers + per-check wall-time caps.
-- OPSUP-007: FP reporting CLI + telemetry destination.
+- **Status:** Complete
+- **Intent:** Promote the existing Rust check catalogue into a durable
+  check-ID registry with stable IDs, aliases, and migrated metadata for current
+  checks.
+- **Expected Outcome:** Every current check has a stable `ANV-*` ID, current
+  user-facing names continue to resolve, legacy aliases are explicit, and the
+  registry has tests guarding uniqueness and lookup behaviour.
+- **Files:** `crates/anvil-cli/src/commands/check_catalog.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-cli/src/commands/gate_config.rs`,
+  `plans/modules/operational-supplement.aps.md`, `plans/index.aps.md`
+- **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate_config && cargo test -p eddacraft-anvil commands::gate::tests::normalize_gate_check_set_accepts_stable_ids_and_aliases && cargo test -p eddacraft-anvil commands::gate::tests::read_anvilrc_checks_parses_stable_ids`
+
+### OPSUP-002 — Registry-backed skip and disable resolution
+
+- **Status:** Draft
+- **Intent:** Resolve skip and disable paths against the stable check registry
+  wherever durable IDs are required.
+
+### OPSUP-003 — Drift baseline schema versioning
+
+- **Status:** Draft
+- **Intent:** Replace ad hoc schema constants with a versioned drift baseline
+  schema model and per-field declarations.
+
+### OPSUP-004 — Drift migration command
+
+- **Status:** Draft
+- **Intent:** Add `anvil drift migrate` and an on-upgrade migration path for
+  existing baselines.
+
+### OPSUP-005 — Per-track feature flag taxonomy
+
+- **Status:** Draft
+- **Intent:** Define per-track flag naming, defaults, and governance alignment
+  for new surfaces and packs.
+
+### OPSUP-006 — File-presence guards and wall-time caps
+
+- **Status:** Draft
+- **Intent:** Provide reusable check guards and runtime budgets so absent file
+  shapes short-circuit before expensive work.
+
+### OPSUP-007 — False-positive reporting channel
+
+- **Status:** Draft
+- **Intent:** Define the CLI and telemetry path for users to report false
+  positives without shipping source content by default.
 
 ## Risks
 
@@ -140,6 +195,6 @@ Tasks will be defined when this module moves to Ready. Anticipated:
 - [ ] Hosting the FP telemetry — Kindling pipeline reuse or new endpoint?
 - [ ] Per-track flag default policy — opt-in for one release then flip on,
       or opt-in until an explicit promotion decision?
-- [ ] How do legacy `AVAILABLE_CHECKS` IDs map to the new registry — via
+- [ ] How do legacy check names map to the new registry IDs — via
       alias table or one-shot rename in a major release?
 - [ ] Wall-time budget — global default, per-check, or per-track?

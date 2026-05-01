@@ -9,13 +9,18 @@ members = [
   "crates/anvil-checks-napi",
   "crates/anvil-bench",
   "crates/anvil-cli",
+  "crates/anvil-intercept",
+  "crates/anvil-intercept-proto",
+  "crates/anvil-observability",
+  "crates/anvil-intercept-rules",
+  "crates/anvil-intercept-win32",
   "crates/anvil-policy",
   "crates/anvil-architecture",
   "crates/workspace-hack",
 ]
 
 [workspace.package]
-version = "0.4.0-beta"
+version = "0.5.0-beta"
 edition = "2024"
 license = "LicenseRef-Proprietary"
 repository = "https://github.com/eddacraft/anvil-001"
@@ -57,6 +62,15 @@ dirs = "6"
 
 # Error handling
 thiserror = "2"
+
+# Observability (TRACE-001 / ADR-035)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "env-filter",
+  "fmt",
+  "json",
+  "registry",
+] }
 
 # Async
 tokio = { version = "1", features = ["full"] }

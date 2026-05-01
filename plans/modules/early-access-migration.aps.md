@@ -7,6 +7,8 @@
 | ----- | ----- | -------- | ------ |
 | EAMIG | —     | Medium   | Ready  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Track all outstanding and deferred council findings, design improvements, and
@@ -439,7 +441,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Intent:** `next_match`/`prev_match` treat `selected_index` as a match-list
   index while render treats it as a filtered-entries index. These diverge when
   the match set is a strict subset of filtered entries.
-- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Files:** `archive/eddacraft-tui-local/src/widgets/log_panel.rs` [archived local copy from before `eddacraft-tui` was extracted to a published crate (workspace dep `eddacraft-tui = "0.1.0"`); re-target before working — the live widget set in `crates/anvil-tui/src/widgets/` is Anvil-specific]
 
 ### EAMIG-040 — Remove render-time filter.search overwrite in LogPanel
 
@@ -449,7 +451,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Intent:** `LogPanel::render` overwrites `filter.search` with
   `search_input` every frame, making external writes to `filter.search`
   ineffective.
-- **Files:** `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Files:** `archive/eddacraft-tui-local/src/widgets/log_panel.rs` [archived local copy of the LogPanel implementation; the live `eddacraft-tui` is a published workspace dep, not a local crate]
 
 ---
 

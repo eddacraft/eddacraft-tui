@@ -40,8 +40,7 @@ pub fn is_first_run(marker_path: &Path) -> bool {
 /// Accepts `"1"`, `"true"`, or `"yes"` (case-insensitive).
 pub fn should_skip_welcome() -> bool {
     std::env::var("ANVIL_SKIP_WELCOME")
-        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false)
+        .is_ok_and(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
 }
 
 /// Remove the first-run marker so the next `welcome` invocation behaves as a

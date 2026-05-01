@@ -52,15 +52,11 @@ impl OnboardingWelcomeState {
             return;
         }
         match action {
-            Action::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                }
+            Action::Up if self.selected > 0 => {
+                self.selected -= 1;
             }
-            Action::Down => {
-                if self.selected < OnboardingChoice::ALL.len() - 1 {
-                    self.selected += 1;
-                }
+            Action::Down if self.selected < OnboardingChoice::ALL.len() - 1 => {
+                self.selected += 1;
             }
             Action::Select => {
                 self.chosen = Some(OnboardingChoice::ALL[self.selected]);

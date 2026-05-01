@@ -9,12 +9,19 @@ sidebar_position: 3
 
 anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
-:::info Node.js package required
+:::info Two MCP server paths
 
-The MCP server is a separate Node.js package (`@eddacraft/anvil-mcp-server`),
-not part of the Rust CLI binary. You need Node.js and npx (or a package manager)
-to run it. A built-in `anvil mcp serve` command is planned for a future release
-of the Rust CLI.
+As of 0.5.0-beta the Rust CLI ships `anvil mcp serve --stdio`, the launch path
+for the new write-validation surface. `anvil mcp install --client cursor` (or
+`--client claude-code`) wires the editor up in one step. Today the Rust shim
+exposes the `anvil_validate_write` tool — see
+[Available Tools](#available-tools) below.
+
+The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
+`0.4.0-beta`) still provides the broader tool surface — `anvil_check`,
+`anvil_gate`, `anvil_fix`, `anvil_suppress`, `anvil_status`,
+`anvil_query_boundary`, plus resources and prompts — and is the right choice
+when you need any of those today.
 
 :::
 
@@ -28,7 +35,66 @@ exposes:
 - Validation tools for files, gates, and boundaries
 - Prompts for architecture review and violation fixes
 
-## Configuration
+## One-Step Install with `anvil mcp install`
+
+For Cursor or Claude Code, the simplest path is the built-in installer in the
+Rust binary. It writes the editor config and points it at the bundled
+`anvil mcp serve --stdio` shim:
+
+```bash
+# Configure Cursor
+anvil mcp install --client cursor
+
+# Configure Claude Code
+anvil mcp install --client claude-code
+
+# Verify an existing entry instead of writing
+anvil mcp install --client cursor --verify
+```
+
+The installer is restricted to Cursor and Claude Code. For Windsurf, VS Code, or
+any setup that needs HTTP transport or workspace-scoped paths, use
+`anvil mcp-config` below.
+
+## Generate Configuration with `anvil mcp-config`
+
+`anvil mcp-config` generates the right configuration shape for each editor,
+supports stdio and HTTP transports, and can write or verify the on-disk file
+directly.
+
+```bash
+# Print the generated config for inspection
+anvil mcp-config --target claude-code
+
+# Write it to the client's expected path (with a path-safety prompt)
+anvil mcp-config --target claude-code --write
+
+# Verify the on-disk config matches what anvil expects
+anvil mcp-config --target claude-code --verify
+```
+
+Supported targets:
+
+| Client      | `--target`    | Default transport |
+| ----------- | ------------- | ----------------- |
+| Claude Code | `claude-code` | stdio             |
+| Cursor      | `cursor`      | stdio             |
+| Windsurf    | `windsurf`    | stdio             |
+| VS Code     | `vscode`      | stdio             |
+
+Pass `--transport http` to switch a client to HTTP transport when the editor
+supports it; stdio remains the default.
+
+Use `--workspace <path>` to override the project root that anvil records in the
+generated config. If `--write` would overwrite an existing config, anvil prompts
+before performing an atomic write so you can review the change. Use `--verify`
+in CI or pre-commit to fail when a checked-in config has drifted from what
+`anvil mcp-config` would generate today.
+
+## Manual Configuration
+
+If you'd rather wire anvil up by hand, the configuration shapes below are what
+`anvil mcp-config` writes for each client.
 
 Add anvil to your MCP configuration:
 
@@ -74,6 +140,29 @@ Configure the port and host with `ANVIL_MCP_PORT` (default: 3000) and
 `ANVIL_MCP_HOST` (default: localhost).
 
 ## Available Tools
+
+### anvil_validate_write
+
+Served by the Rust `anvil mcp serve --stdio` shim shipped with the CLI in
+0.5.0-beta. Validates a proposed file write before the agent applies it; the
+response carries a `decision` (`allow` or `block`) and the same
+`anvil.diagnostic.v1` envelope used by the gate output.
+
+```json
+{
+  "tool": "anvil_validate_write",
+  "arguments": {
+    "workspaceRoot": "/absolute/path/to/project",
+    "path": "src/auth/login.ts",
+    "operation": "create",
+    "proposedContent": "export const login = …"
+  }
+}
+```
+
+The remaining tools (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
+`anvil_status`, `anvil_query_boundary`) are served by the legacy Node MCP server
+(`@eddacraft/anvil-mcp-server`). The Rust shim does not expose them yet.
 
 ### anvil_check
 

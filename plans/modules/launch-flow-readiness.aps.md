@@ -10,9 +10,9 @@ See: plans/aps-rules.md
 
 # Launch Flow Readiness
 
-| ID     | Owner | Status      |
-| ------ | ----- | ----------- |
-| LAUNCH | —     | In Progress |
+| ID     | Owner | Status      | Progress |
+| ------ | ----- | ----------- | -------- |
+| LAUNCH | —     | In Progress | 5/7      |
 
 ## Purpose
 
@@ -92,8 +92,9 @@ new primitive, this module follows three rules:
   dispatch.
 - The watch TUI surface (`crates/anvil-tui/src/surfaces/watch/`) has a
   2x2 grid skeleton (Status / Queue / History / Stats) and an event
-  adapter, but `WatchData` stats are never rolled up from kernel
-  events. The rich-dashboard work lives in TUIDASH.
+  adapter. LAUNCH-003 now rolls up `WatchData` stats from kernel
+  events; the richer json-render dashboard work still lives in
+  TUIDASH.
 
 ### Audit findings (2026-04-24)
 
@@ -145,9 +146,9 @@ new primitive, this module follows three rules:
 
 ## Tasks
 
-> Status: Draft. Tasks are listed for review. Module is **not yet
-> Ready** — see open questions and confidence notes below before
-> promoting.
+> Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
+> LAUNCH-005, and LAUNCH-007 are complete; remaining work stays Todo
+> until picked up.
 
 ### LAUNCH-001: Implement user-facing glob filter for watch loop
 
@@ -207,18 +208,19 @@ new primitive, this module follows three rules:
   location) that is the only consumer-visible surface for stat data.
   The bespoke `WatchData` struct depends on that type, not the other
   way around.
-- **Coordinates with:** TUIDASH-009. The named type above is the
-  inheritance contract — TUIDASH-009's json-render data binding for
-  the watch dashboard consumes it, so the rollup work survives the
-  surface swap. If TUIDASH-009 lands first and defines its own data
-  model, this task should be **Superseded by:** TUIDASH-009 instead.
+- **Coordinates with:** TUIDASH-009 — *callout swept and closed
+  2026-04-30 per ADR-034 rule 3.* LAUNCH-003 shipped first, so the
+  conditional "Superseded by" branch did not fire. The named
+  `WatchStats` contract above is the inheritance TUIDASH-009 will
+  consume when the dashboard surface lands; no rework expected on
+  that seam.
 - **Supersedes:** RTVS Phase 3 ("Terminal TUI Dashboard") — that work
   now lives here.
 - **Validation:** TUI snapshot test (insta) covering populated panes
   on a fixture event stream; unit test asserting `WatchStats` (or
   equivalent) is the only public surface for stat data.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete
 
 ---
 
@@ -272,15 +274,31 @@ new primitive, this module follows three rules:
 - **Confidence:** high
 - **Status:** Todo
 
+---
+
+### LAUNCH-007: Unify interactive fix handling across start-flow surfaces
+
+- **Intent:** `f` means the same thing everywhere Anvil offers an
+  interactive fix in the welcome / tutorial / audit / doctor flows.
+- **Expected Outcome:** Start-flow surfaces emit one shared fix request
+  shape and route it through one shared CLI-side handler. Surfaces only
+  advertise `f` when the selected item has a deterministic fix behind
+  that handler; dead prompts are removed. `doctor`, tutorial scan
+  findings, and any fixable audit items all use the same dispatch path
+  instead of each surface carrying bespoke `wants_fix` wiring.
+- **Validation:** Targeted Rust tests prove the shared handler applies
+  supported fixes and that each participating surface only exposes `f`
+  when a request can actually be serviced.
+- **Confidence:** medium
+- **Status:** Complete
+
 ## Risks
 
-- **TUIDASH supersession of LAUNCH-003.** LAUNCH-003 invests in the
-  bespoke watch surface; if TUIDASH lands quickly, that surface goes
-  away. Mitigation is the named adapter type required by LAUNCH-003
-  — TUIDASH consumes it instead of re-implementing the rollup. If
-  TUIDASH is well advanced before LAUNCH-003 starts, mark LAUNCH-003
-  **Superseded by:** TUIDASH-009 rather than building the bespoke
-  surface twice.
+- **TUIDASH supersession of LAUNCH-003.** *Resolved 2026-04-30:*
+  LAUNCH-003 shipped first; the bespoke watch surface stays. The
+  named `WatchStats` adapter is the contract TUIDASH-009 will
+  consume when the dashboard surface lands. The supersession
+  branch is closed.
 - **LAUNCH-001 scope expansion.** The glob filter is a feature build
   with several reasonable shapes (which library, where matching runs,
   how it composes with the internal denylist). Confidence is already

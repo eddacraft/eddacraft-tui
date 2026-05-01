@@ -25,9 +25,9 @@ violations **before they ever leave the developer's machine.**
 0          perceptible delay
 ```
 
-Measured 2026-04-03 against the Rust kernel via Criterion (100 samples, release
-build). Governance overhead is effectively zero — anvil is in a different
-category from SAST, not a faster scanner.
+Measured 2026-04-28 against the Rust kernel via Criterion (release build).
+Previously measured 2026-04-03. Governance overhead is effectively zero — anvil
+is in a different category from SAST, not a faster scanner.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
@@ -186,18 +186,18 @@ and tooling.
 
 ### Packages — Ecosystem
 
-| Directory                       | Package                                 | Description                                       |
-| ------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
-| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                               |
-| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
-| `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                               |
-| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
-| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
-| `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
-| `packages/libs/render`          | `@eddacraft/render`                     | Shared render-layer utilities                     |
-| `packages/shared`               | —                                       | Shared cross-cutting utilities                    |
-| `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |
+| Directory                        | Package                                 | Description                                       |
+| -------------------------------- | --------------------------------------- | ------------------------------------------------- |
+| `packages/adapters`              | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
+| `packages/aps`                   | `@eddacraft/anvil-aps`                  | APS document parser                               |
+| `packages/eslint-plugin-anvil`   | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
+| `archive/anvil-vscode-extension` | `anvil-vscode`                          | VS Code integration                               |
+| `packages/kindling-integration`  | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
+| `packages/edda-stack`            | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
+| `archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
+| `packages/libs/render`           | `@eddacraft/render`                     | Shared render-layer utilities                     |
+| `packages/shared`                | —                                       | Shared cross-cutting utilities                    |
+| `packages/transactional`         | `@eddacraft/transactional`              | Shared transactional email templates              |
 
 ### Packages — Tooling
 
@@ -208,17 +208,24 @@ and tooling.
 
 ### Crates (Rust)
 
-| Directory                   | Description                                               |
-| --------------------------- | --------------------------------------------------------- |
-| `crates/anvil-cli`          | Native CLI binary (cross-platform: macOS, Linux, Windows) |
-| `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy     |
-| `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust)   |
-| `crates/anvil-architecture` | Architecture rule evaluation                              |
-| `crates/anvil-bench`        | Stress-test harness for capacity discovery                |
-| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)    |
-| `crates/anvil-policy`       | OPA/policy evaluation engine                              |
-| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer)   |
-| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph    |
+| Directory                      | Description                                                    |
+| ------------------------------ | -------------------------------------------------------------- |
+| `crates/anvil-cli`             | Native CLI binary (cross-platform: macOS, Linux, Windows)      |
+| `crates/anvil-kernel`          | Rust kernel — watcher, parser, semantic graph, policy          |
+| `crates/anvil-kernel-types`    | Shared types for the Rust kernel (events, graph, trust)        |
+| `crates/anvil-architecture`    | Architecture rule evaluation                                   |
+| `crates/anvil-bench`           | Stress-test harness for capacity discovery                     |
+| `crates/anvil-checks`          | Gate checks ported to Rust (secret scan, anti-pattern, AI-001) |
+| `crates/anvil-checks-napi`     | Node bindings build canary for the checks crate (ADR-033)      |
+| `crates/anvil-intercept`       | Mid-edit intercept daemon (RTAI launch path)                   |
+| `crates/anvil-intercept-proto` | Wire protocol types shared with the intercept daemon           |
+| `crates/anvil-intercept-rules` | Rule set evaluated by the intercept daemon                     |
+| `crates/anvil-intercept-win32` | Windows-specific intercept transport bits                      |
+| `crates/anvil-observability`   | Tracing baseline, traceparent envelope, redaction (TRACE)      |
+| `crates/anvil-policy`          | OPA/policy evaluation engine                                   |
+| `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)        |
+| `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph         |
+| `crates/workspace-hack`        | Hakari-managed feature unifier for build times                 |
 
 ### Infrastructure
 
@@ -351,14 +358,15 @@ so cross-release numbers stay honest.
 | --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
 | pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                              |
 | **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
+| **v0.5.0-beta** | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)  |
 
 ```mermaid
 xychart-beta
     title "antipattern_scan throughput (artifacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)"]
-    y-axis "artifacts / sec" 0 --> 32000
-    bar [21900, 28600]
-    line [21900, 28600]
+    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)"]
+    y-axis "artifacts / sec" 0 --> 44000
+    bar [21900, 28600, 39900]
+    line [21900, 28600, 39900]
 ```
 
 Each release adds a row so scan-path drift is visible over time. Per-run detail

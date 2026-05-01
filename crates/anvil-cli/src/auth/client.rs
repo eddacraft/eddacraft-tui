@@ -23,6 +23,25 @@ pub struct WhoamiResponse {
     pub created_at: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct VerifyResponse {
+    valid: bool,
+    #[serde(rename = "isEdict", default)]
+    is_edict: bool,
+    user: Option<WhoamiResponseUser>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WhoamiResponseUser {
+    email: String,
+    plan: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct VerifyBody<'a> {
+    token: &'a str,
+}
+
 impl AnvilClient {
     pub fn new() -> Result<Self> {
         let api_url = super::api_url()?;
@@ -52,6 +71,23 @@ impl AnvilClient {
         Ok(client)
     }
 
+    pub async fn verify_edict(&self) -> Result<()> {
+        let token = self
+            .token
+            .as_deref()
+            .context("Not authenticated. Run: anvil auth login")?;
+
+        let verify: VerifyResponse = self.post("/auth/verify", VerifyBody { token }).await?;
+        if !verify.valid {
+            bail!("Stored credentials are invalid or expired")
+        }
+        if !verify.is_edict {
+            bail!("Stored credentials are not edict credentials")
+        }
+
+        Ok(())
+    }
+
     #[allow(dead_code)]
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}/api/v1{}", self.api_url, path);
@@ -76,23 +112,6 @@ impl AnvilClient {
     }
 
     pub async fn whoami(&self) -> Result<WhoamiResponse> {
-        #[derive(Debug, Deserialize)]
-        struct VerifyResponse {
-            valid: bool,
-            user: Option<WhoamiResponseUser>,
-        }
-
-        #[derive(Debug, Deserialize)]
-        struct WhoamiResponseUser {
-            email: String,
-            plan: Option<String>,
-        }
-
-        #[derive(Debug, Serialize)]
-        struct VerifyBody<'a> {
-            token: &'a str,
-        }
-
         let token = self
             .token
             .as_deref()
@@ -150,6 +169,7 @@ impl AnvilClient {
         email: &str,
         name: Option<&str>,
         notes: Option<&str>,
+        edict: bool,
     ) -> Result<String> {
         #[derive(Serialize)]
         struct InviteBody<'a> {
@@ -160,6 +180,7 @@ impl AnvilClient {
             notes: Option<&'a str>,
             #[serde(rename = "tokenOnly")]
             token_only: bool,
+            edict: bool,
         }
         #[derive(Deserialize)]
         struct TokenResponse {
@@ -174,6 +195,7 @@ impl AnvilClient {
                     name,
                     notes,
                     token_only: true,
+                    edict,
                 },
             )
             .await?;
@@ -341,6 +363,58 @@ mod tests {
         assert_eq!(result.email, "a@b.com");
     }
 
+    #[tokio::test]
+    async fn verify_edict_accepts_valid_edict_token() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "isEdict": true
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("edict-token"));
+        client.verify_edict().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn verify_edict_rejects_valid_non_edict_token() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "isEdict": false
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("regular-token"));
+        let err = client.verify_edict().await.unwrap_err();
+        assert!(err.to_string().contains("not edict"));
+    }
+
+    #[tokio::test]
+    async fn verify_edict_treats_missing_marker_as_non_edict() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("legacy-token"));
+        let err = client.verify_edict().await.unwrap_err();
+        assert!(err.to_string().contains("not edict"));
+    }
+
     // --- approve_user ---
 
     #[tokio::test]
@@ -478,7 +552,8 @@ mod tests {
             .and(path("/api/v1/admin/invite"))
             .and(body_json(serde_json::json!({
                 "email": "ci@example.com",
-                "tokenOnly": true
+                "tokenOnly": true,
+                "edict": false
             })))
             .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
                 "token": "anvil_beta_abc123",
@@ -491,7 +566,7 @@ mod tests {
 
         let client = mock_client(&server.uri(), Some("admin-key"));
         let token = client
-            .invite_user_token("ci@example.com", None, None)
+            .invite_user_token("ci@example.com", None, None, false)
             .await
             .unwrap();
         assert_eq!(token, "anvil_beta_abc123");

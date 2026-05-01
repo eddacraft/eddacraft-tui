@@ -1,8 +1,28 @@
 # Intercept Rules
 
-| ID | Owner | Status |
-|----|-------|--------|
-| INTR | @aneki | Draft |
+| ID   | Owner  | Status      | Progress |
+| ---- | ------ | ----------- | -------- |
+| INTR | @aneki | In Progress | 4/8      |
+
+**Last reviewed:** 2026-04-28
+
+> **A1 launch slice (cherry-picked, not the whole module):** INTR-001 (rule
+> trait), INTR-002 (secret-detection wrapper), INTR-006 (rule registry —
+> required so the eventual daemon-backed validation path can compose multiple
+> rules through one pipeline), INTR-008 (launch reasoning-pattern wrapper).
+> INTR-003 (antipattern wrapper), INTR-004 (path-deny), INTR-005
+> (regex-content), and INTR-007 (rule configuration from `.anvil.yaml`) are
+> post-A1.
+>
+> *(If "INTR config" was meant to refer to INTR-007 rather than INTR-006,
+> flag at A1 kickoff — the launch shim runs on the embedded fallback today
+> without -007, but the daemon path cannot ship multi-rule validation
+> without -006.)*
+>
+> RMCP-005's embedded fallback currently calls `anvil-checks` rules directly.
+> INTR-002 and INTR-008 now provide the equivalent daemon-path adapters for the
+> **daemon-backed** path (RTAI-002 / INTD-005). INTR-006 closes the A1 slice by
+> composing those rules through the registry.
 
 ## Purpose
 
@@ -20,6 +40,8 @@ analysis.
   allow | interrupt with reason)
 - Wrapper rules for existing anvil-checks secret detection
 - Wrapper rules for existing anvil-checks antipattern scanning
+- Minimum launch reasoning-pattern rule wrapper for A1 / RMCP pre-write
+  validation
 - PathDenyList rule (configurable list of forbidden path patterns)
 - RegexContent rule (configurable regex patterns matched against changed file
   content)
@@ -29,7 +51,9 @@ analysis.
 
 ## Out of Scope
 
-- Graph-assisted checks (boundary membership, symbol ownership)
+- Graph-assisted checks in this module's current scope. Future boundary
+  membership, symbol ownership, known-edge, or architectural-index rules must
+  wait for GV2's hot-read API and stay within ADR-031 latency budgets.
 - OPA policy evaluation on the hot path
 - Per-rule enforcement granularity (all rules share the project enforcement mode)
 - Warn or block decisions (v1 is binary: allow | interrupt)
@@ -43,6 +67,18 @@ analysis.
 - **Exposes:** InterceptRule trait and rule registry for consumption by
   intercept-daemon (INTD) enforcement pipeline
 
+## Graph v2 Coordination
+
+INTR intentionally remains cheap and deterministic. Graph v2 does not change the
+current INTR scope: no graph recompute, transitive traversal, context slicing,
+or explanation work belongs in hot-path rule evaluation.
+
+After GV2-022 exposes bounded hot reads, a later INTR slice may add graph-backed
+rules for boundary membership, symbol ownership, known-edge existence, or
+precomputed architectural-index checks. Those rules must consume GV2 hot indexes
+only; they must not query the general graph registry or perform traversal on the
+daemon hot path.
+
 ## Tasks
 
 ### INTR-001: InterceptRule Trait
@@ -53,8 +89,22 @@ analysis.
   workspace; a trait accepting a change batch reference and optional file
   content, returning an allow or interrupt decision with reason metadata; trait
   is object-safe for dynamic dispatch in the rule registry
-- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib trait`
-- **Status:** Draft
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib`
+- **Status:** Complete
+- **Progress (2026-04-28):** Crate created at
+  `crates/anvil-intercept-rules/` and added to the workspace. `InterceptRule`
+  trait shipped with `rule_id`/`needs_content`/`evaluate(&RuleInput<'_>) ->
+  RuleDecision`, bound `Send + Sync + 'static`, dyn-compatible
+  (compile-time test asserts `Vec<Box<dyn InterceptRule>>` is constructible).
+  `RuleInput` carries path + change kind + optional borrowed content so
+  the daemon on-disk path and the RMCP/RTAI mid-edit path can both call
+  rules without copying. `RuleDecision` is `Allow |
+  Interrupt(InterruptReason{rule_id, message, line})`, serde-tagged
+  `decision`; convenience constructors `RuleDecision::allow()`,
+  `interrupt()`, and `interrupt_at()` cover the common cases. Unit tests
+  cover dyn-dispatch round-trip, allow/interrupt/interrupt_at, RuleInput
+  shape, serde shape, and `catch_unwind` panic-isolation contract for the
+  registry.
 
 ### INTR-002: Secret Detection Wrapper
 
@@ -63,7 +113,7 @@ analysis.
 - **Expected Outcome:** A thin adapter that calls anvil-checks secret scanning
   on changed file content and maps findings to interrupt decisions
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib secret`
-- **Status:** Draft
+- **Status:** Complete
 
 ### INTR-003: Antipattern Scanning Wrapper
 
@@ -103,7 +153,28 @@ analysis.
   decision (or allow if all pass); supports observe-only mode where interrupt
   decisions are logged but not enforced
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib registry`
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTR-006`):** `RuleRegistry` landed in
+  `crates/anvil-intercept-rules/src/registry.rs` with `RegistryDecision`
+  (Allow / Interrupt) and `RegistryMode` (Enforce / ObserveOnly).
+  Enforce mode short-circuits on first Interrupt; observe-only emits
+  each would-be interrupt to stderr and keeps evaluating, returning
+  Allow. (`tracing` is intentionally not a dep; the eprintln calls
+  are the minimum-dep fallback until a wider observability story
+  picks a logger.) Per-rule `catch_unwind` maps a panicking rule to
+  Allow under `panic="unwind"` builds — best-effort safety net for
+  dev / debug / test. The workspace's `[profile.release]` sets
+  `panic="abort"`, so release-build rule panics still terminate the
+  process; the long-term answer is rules that don't panic by
+  construction, per the trait contract. Rule ids are sampled once at
+  registration and cached — the hot path never calls `rule_id()`
+  again, and `InterruptReason.rule_id` is normalised to the cached
+  id before returning so a rule that emits a mismatched id can't
+  break dedup or observability. Duplicate rule_ids rejected at
+  register / with_rules via `RegistryError::DuplicateRuleId`.
+  `any_needs_content` lets INTD-005 skip content reads when no
+  content-bearing rule is registered. 15 registry tests pass:
+  `cargo test -p eddacraft-anvil-intercept-rules --lib registry`.
 
 ### INTR-007: Rule Configuration
 
@@ -116,3 +187,21 @@ analysis.
   of the rule instance
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib config`
 - **Status:** Draft
+
+### INTR-008: Launch reasoning-pattern rule wrapper
+
+- **Intent:** Give the A1 Rust MCP pre-write path at least one AI-output
+  reasoning-pattern rule beyond secret detection, without expanding INTR into a
+  full reasoning engine.
+- **Expected Outcome:** A minimum-viable rule from `anvil-checks` reasoning
+  patterns, such as AI-001 appeal-to-authority or unjustified precision, is
+  exposed as an `InterceptRule`. The rule evaluates proposed content supplied by
+  RMCP/RTAI the same way it evaluates file-backed content from INTD. Findings map
+  to the canonical diagnostic envelope and obey the project enforcement mode.
+- **Non-scope:** Full AI-001..AI-007 catalogue, false-positive tuning beyond the
+  launch fixture, or LLM-based classification.
+- **Validation:** Unit test triggers the rule on a fixture planning/code comment
+  payload and asserts the RMCP/RTAI response contains a canonical diagnostic with
+  no dependency on Node.js or the archived TS MCP server
+  (`archive/anvil-mcp-server/`)
+- **Status:** Complete

@@ -144,6 +144,13 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+Config-mode alternative on Git 2.54 or newer: `anvil hooks install --config`
+manages the same Git pre-commit hook entry point through native `[hook.<name>]`
+blocks instead of a file, but it installs Anvil's managed `anvil gate` hook
+rather than the exact `anvil check --changed --staged` script shown above. File
+mode remains the default; see [Git hook setup](/anvil/operations/git-hooks) for
+both modes and coexistence rules.
+
 ## Telemetry and Learning
 
 Track agent behaviour over time by reviewing validation results:
@@ -158,14 +165,15 @@ Use `anvil --json check --all` to capture structured results for analysis.
 
 The following features are planned to make agent harnesses more powerful:
 
-- **`anvil mcp serve`** — built-in MCP server in the Rust binary (currently
-  requires the separate `@eddacraft/anvil-mcp-server` Node.js package)
 - **Plan-first workflow** — `anvil plan create` and `anvil session start/end`
   commands for structured agent task scoping
 - **`@eddacraft/anvil-client` SDK** — TypeScript client for programmatic session
   management, constraint queries, and validation
 - **Evidence querying** — `anvil evidence list` for analysing agent behaviour
   patterns over time
+
+`anvil mcp serve --stdio` shipped in 0.5.0-beta — see
+[MCP Integration](/anvil/integrations/mcp) for the current tool surface.
 
 ---
 

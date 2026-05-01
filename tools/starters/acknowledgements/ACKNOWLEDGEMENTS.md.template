@@ -1,0 +1,24 @@
+# Acknowledgements
+
+<!-- Replace this paragraph with a project-specific intro. The hand-curated
+     content lives above the marker block; the generator only ever rewrites
+     content between the BEGIN/END markers. -->
+
+This project depends on open-source software. The block at the bottom of
+this file is regenerated automatically from `Cargo.lock`; the section
+above it is hand-curated.
+
+## Thanks
+
+<!-- Curate this section by hand. CI may require it exists, but its
+     contents are deliberately manual. -->
+
+- Project A — what it gives you
+- Project B — what it gives you
+
+---
+
+<!-- THIRD-PARTY ATTRIBUTION -->
+<!-- The block below is auto-generated. Do not edit by hand. -->
+<!-- BEGIN AUTO-GENERATED -->
+<!-- END AUTO-GENERATED -->

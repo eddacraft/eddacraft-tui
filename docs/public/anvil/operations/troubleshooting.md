@@ -71,6 +71,69 @@ If the updater still cannot see the release:
 - verify that the GitHub release exists for your platform
 - on Windows, try `winget upgrade eddacraft.anvil` or `scoop update anvil`
 
+## Diagnostics & AI Guardrail Issues
+
+### `anvil doctor` warns "git-repo: not a git repository"
+
+Running `anvil doctor` outside a Git repository now produces a structured
+warning rather than failing the whole run. This is expected when you point anvil
+at a non-Git directory.
+
+**Solutions:**
+
+- If the directory is intentionally not version-controlled (a scratch area,
+  artefact dump, or playground), the warning is informational and can be
+  ignored.
+- If the directory _should_ be a Git repository, run `git init` and re-run
+  `anvil doctor`.
+- If you're scripting against `anvil doctor --json`, branch on
+  `notifications[].class` rather than the process exit code; the warning is
+  surfaced as a notification and does not fail the run.
+
+### `anvil gate --profile ai` Fails with a Configuration Error
+
+The AI guardrail profile treats missing or invalid governance configuration as
+blocking on purpose, so agent and MCP consumers see a deterministic error rather
+than silently skipping checks.
+
+**Solutions:**
+
+- Inspect the JSON envelope: `anvil gate --profile ai` defaults to JSON, and the
+  diagnostic payload identifies the specific config key or file that failed
+  validation.
+- Make sure your project has the AI guardrail config in place. Run
+  `anvil doctor` to confirm `.anvilrc` and supporting config files parse
+  cleanly.
+- If you only need the legacy gate behaviour for now, run
+  `anvil gate --profile ci` instead while you fix the AI config.
+
+### `anvil mcp-config --write` Prompts Before Overwriting
+
+`anvil mcp-config --write` prompts before overwriting an existing client
+configuration. This is the path-safety layer; it is not a bug.
+
+**Solutions:**
+
+- Review the diff against your existing config, then confirm the prompt to apply
+  the atomic write.
+- In CI or non-interactive environments, run `anvil mcp-config --verify` instead
+  so the command exits non-zero on drift without trying to write.
+- Use `--workspace <path>` if the auto-detected workspace root is not the
+  project you want recorded in the generated config.
+
+### Scan Threads Saturating CPU
+
+By default, first-run scans, `check`, `gate`, and `audit` cap their thread pool
+at `min(num_cpus, 4)` so the parallel walk does not starve TUI, editor, or watch
+processes.
+
+**Solutions:**
+
+- On a dedicated CI runner, raise the cap with `ANVIL_SCAN_THREADS=8` (or the
+  number of cores you want to dedicate).
+- On a laptop, leave the default in place; if you still see contention, set
+  `ANVIL_SCAN_THREADS=2` or `1` to fall back to a smaller pool.
+
 ## Configuration Issues
 
 ### "Configuration file not found"

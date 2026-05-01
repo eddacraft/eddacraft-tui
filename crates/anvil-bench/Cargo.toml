@@ -16,6 +16,7 @@ rand = "0.10"
 workspace-hack.workspace = true
 
 [dev-dependencies]
+rayon = { workspace = true }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
 
@@ -25,6 +26,10 @@ harness = false
 
 [[bench]]
 name = "antipattern_scan"
+harness = false
+
+[[bench]]
+name = "secret_scan_parallel"
 harness = false
 
 [lints]

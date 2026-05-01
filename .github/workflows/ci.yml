@@ -60,11 +60,14 @@ jobs:
         run: pnpm run format:check
 
   # ── Job 1: Lint + Format ─────────────────────────────────────────
+  # Gated on source-changed (not code-changed): pure-Rust PRs are
+  # covered by rust.yml, while security.yml continues to run via
+  # code-changed. Same rationale applies to typecheck/test/build below.
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
@@ -117,7 +120,7 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
@@ -146,40 +149,41 @@ jobs:
             pnpm run typecheck
           fi
 
-  # ── Skip jobs for required checks on docs-only PRs ────────────────
+  # ── Skip jobs for required checks on docs-only / pure-Rust PRs ────
   # The branch ruleset requires these check names to report a status.
-  # When no code changes are detected, the real jobs are skipped, so these
-  # lightweight jobs fill the gap to unblock merges.
+  # When no Node/source changes are detected, the real jobs are skipped,
+  # so these lightweight jobs fill the gap to unblock merges. Mirrors
+  # the source-changed gate above.
   lint-skip:
     name: Lint & Format
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed != 'true'
+    if: needs.detect-changes.outputs.source-changed != 'true'
     steps:
-      - run: echo "Skipped — no code changes detected"
+      - run: echo "Skipped — no Node/source changes detected"
 
   typecheck-skip:
     name: Type Check
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed != 'true'
+    if: needs.detect-changes.outputs.source-changed != 'true'
     steps:
-      - run: echo "Skipped — no code changes detected"
+      - run: echo "Skipped — no Node/source changes detected"
 
   test-skip:
     name: Unit Tests (Node 22.x, ubuntu-latest)
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed != 'true'
+    if: needs.detect-changes.outputs.source-changed != 'true'
     steps:
-      - run: echo "Skipped — no code changes detected"
+      - run: echo "Skipped — no Node/source changes detected"
 
   # ── Job 3a: Unit Tests — Ubuntu ──────────────────────────────────
   test:
     name: Unit Tests (Node 22.x, ubuntu-latest)
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
@@ -208,7 +212,7 @@ jobs:
           nx-shas: true
 
       - name: Install OPA
-        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
           version: v0.60.0
@@ -339,7 +343,7 @@ jobs:
             }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Install OPA
-        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
           version: v0.60.0
@@ -364,7 +368,7 @@ jobs:
     name: Build (Node 22.x)
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.

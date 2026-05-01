@@ -38,7 +38,7 @@ function isUsableBinary(p: string): boolean {
   }
 }
 
-function resolveCliBinary(): string | undefined {
+export function resolveCliBinary(): string | undefined {
   return RUST_CANDIDATES.find(isUsableBinary);
 }
 

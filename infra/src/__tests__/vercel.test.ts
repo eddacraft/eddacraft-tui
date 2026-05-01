@@ -87,6 +87,18 @@ describe('Vercel resources', () => {
     expect(www!.name).toBe('website-www-eddacraft-ai');
   });
 
+  it('limits managed Vercel Git deployments to the main branch', () => {
+    const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
+
+    expect(projects).toHaveLength(6);
+    for (const project of projects) {
+      expect(project.inputs.previewDeploymentsDisabled, project.name).toBe(true);
+      expect(project.inputs.gitRepository, project.name).toMatchObject({
+        productionBranch: 'main',
+      });
+    }
+  });
+
   it('assigns docs.eddacraft.ai to docs-shell, not docs-site', () => {
     const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
 
@@ -116,6 +128,37 @@ describe('Vercel resources', () => {
 
     const flag = envVars.find((e) => e.inputs.key === 'ADMIN_PER_OPERATOR_KEYS');
     expect(flag).toBeDefined();
+  });
+
+  // Guards the NEXT_PUBLIC_ auto-public rule in components/vercel-app.ts.
+  // Marking NEXT_PUBLIC_* vars sensitive silently breaks Next.js builds
+  // because Vercel does not expose sensitive vars to the build environment.
+  it('marks NEXT_PUBLIC_* env vars as non-sensitive', () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    const apiUrl = envVars.find((e) => e.inputs.key === 'NEXT_PUBLIC_API_URL');
+    expect(apiUrl).toBeDefined();
+    expect(apiUrl!.inputs.sensitive).toBe(false);
+  });
+
+  it('keeps secret env vars sensitive', () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    for (const key of [
+      'DATABASE_URL',
+      'RESEND_API_KEY',
+      'ADMIN_KEY',
+      'ADMIN_KEY_PEPPER',
+      'TOKEN_PEPPER',
+      'LICENSE_SIGNING_KEY',
+      'GITHUB_CLIENT_SECRET',
+    ]) {
+      const v = envVars.find((e) => e.inputs.key === key);
+      expect(v, `expected ${key} to be configured`).toBeDefined();
+      expect(v!.inputs.sensitive, `expected ${key} to be sensitive`).toBe(true);
+    }
   });
 
   it('allows both live website origins in anvil-api CORS', async () => {

@@ -95,8 +95,7 @@ fn now_iso() -> String {
     use std::time::SystemTime;
     let secs = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs());
     super::snapshot::format_epoch_secs(secs)
 }
 

@@ -7,6 +7,8 @@
 | -------- | ----- | ------ |
 | LANGTAIL | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring a batched set of tail languages to **T1 (Parsed)** in a single sprint

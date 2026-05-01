@@ -7,6 +7,55 @@
 | ----- | ----- | -------- | ------ |
 | AGOV  | —     | Medium   | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Tier C (parking lot, post-launch). Council C
+> recommended dissolving this module into CPACKS + `crates/anvil-checks` —
+> that was overreach. AGOV is depended on by other live planning modules:
+> CPACKS cites AGOV-001/006/007 as upstream signal producers (trust scores,
+> hash-chained audit, capability manifest); MDGOV cites AGOV-007 for M3
+> capability-aware governance; the 2026-04-08 Language & Coverage spec
+> names AGOV-007 in the M3 dependency chain. Dissolving AGOV would break
+> all three.
+>
+> **Real overlap is narrow:** only **AGOV-002** (HIPAA/PCI-DSS compliance
+> pack stubs) overlaps CPACKS, which already covers SOC 2/ISO/GDPR/OWASP/AI
+> packs. AGOV-001/003/004/005/006/007 are distinct signal producers
+> (trust scoring, destructive-pattern detection, change-volume threshold,
+> metadata-secret scan, hash-chained audit, capability declaration) — they
+> belong in AGOV, not CPACKS.
+>
+> **Earlier audit pass conflated archived planning modules with archived
+> components.** EMBER and EDDA *planning modules* are archived because
+> their work-item lists completed; the components are live code in
+> `packages/edda-stack/src/ember/` and `packages/edda-stack/src/edda/`.
+> AGOV-001 (trust scoring) and AGOV-006 (hash-chained audit) extend live
+> code, not retired modules.
+>
+> **Rescope work pending** (tracked separately, see followup list):
+> 1. Migrate AGOV-002 → CPACKS as additional compliance pack stubs;
+>    retitle the AGOV slot or remove (CPACKS-NNN takes ownership).
+> 2. Retarget all task `Scope`/`Files` paths to Rust crates:
+>    - Gate checks (destructive-pattern, change-volume, metadata-secret,
+>      capability-declaration) → `crates/anvil-checks/src/checks/`
+>    - Trust-score and capability-manifest schemas →
+>      `crates/anvil-kernel-types`
+>    - CLI subcommands (`audit verify`, `capability validate`) →
+>      `crates/anvil-cli/src/commands/`
+>    - Compliance Rego packs (kept after AGOV-002 migration: only as
+>      cross-reference) → `crates/anvil-policy/policies/compliance/`
+> 3. Rewire Interfaces "Depends on" block to live components, not
+>    archived planning modules:
+>    - EMBER → `packages/edda-stack/src/ember/` (TS) or future Rust port
+>    - EDDA → `packages/edda-stack/src/edda/` (TS) or future Rust port
+>    - OPAE → `crates/anvil-policy` (live)
+>    - POLVAL → still planning, retains module-level dependency
+> 4. Confirm consumer refs in CPACKS, MDGOV, and the L&C spec stay
+>    valid after path retargeting.
+>
+> Not launch-blocker. Promote to Ready only after CPACKS POLVAL prep
+> work and a product decision on which signal producers actually ship.
+
 ## Purpose
 
 Adopt governance patterns from Microsoft's Agent Governance Toolkit and the

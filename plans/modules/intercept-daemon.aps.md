@@ -1,8 +1,18 @@
 # Intercept Daemon
 
-| ID | Owner | Status |
-|----|-------|--------|
-| INTD | @aneki | Draft |
+| ID   | Owner  | Status      | Progress                                                |
+| ---- | ------ | ----------- | ------------------------------------------------------- |
+| INTD | @aneki | In Progress | 7/16 complete |
+
+**Last reviewed:** 2026-04-30
+
+> **A1 launch slice (cherry-picked, not the whole module):** INTD-001,
+> INTD-002, INTD-003, INTD-005, INTD-007, INTD-013, INTD-014. The remaining
+> INTD work items (INTD-004, INTD-006, INTD-008..-012, -015, -016) ship after
+> A1 alongside DRVR.
+> No `crates/anvil-intercept` crate exists yet on `dev`; A1 kickoff begins
+> with INTD-001 scaffolding (and the parser-concurrency decision recorded
+> inline at INTD-001 review per the LANGTS K3 deferral).
 
 ## Purpose
 
@@ -37,7 +47,8 @@ persisted to disk to survive restarts.
 - Full driver framework or driver capability negotiation
 - Session leases with expiry and renewal
 - Dual-lane transport (control vs telemetry split)
-- Graph-assisted hot-path checks
+- Graph-assisted hot-path checks in v1; future graph reads must go through GV2's
+  warmed hot-read API and remain constant-time or near-constant-time
 - MCP as a control surface
 - Editor or web-session drivers
 - Per-rule enforcement granularity
@@ -53,6 +64,24 @@ persisted to disk to survive restarts.
 - **Exposes:** IPC interface for session lifecycle and worktree status; in-process
   API for embedded mode; disk-persisted fence state readable by launcher;
   telemetry-lane notification stream mirroring control-lane decisions
+
+## Graph v2 Coordination
+
+INTD is not blocked by Graph v2. For the current release it remains a
+deterministic daemon over sessions, file changes, rules, fences, and telemetry.
+
+When GV2 lands, INTD becomes the authoritative producer for the control/session
+graph: hosts, drivers, sessions, worktrees, leases/fences, attribution, and
+control decisions. INTD may later consume GV2 hot-path indexes for boundary
+membership, symbol ownership, known-edge existence, or architectural index
+checks, but only through the GV2-022 hot-read API and only within ADR-031
+latency budgets. Full graph recompute, transitive traversal, context slicing,
+and explanation workloads stay outside INTD's hot path.
+
+RMCP does not make MCP a control surface. For A1, the Rust MCP launch shim may
+call the daemon or the shared Rust validation path to validate proposed content,
+but session control, fencing, interruption, and attribution authority still live
+with INTD and the broader driver framework.
 
 ## Notification Model Integration
 
@@ -91,9 +120,46 @@ a new lane.
   PID file, handles SIGTERM/SIGINT, and exits cleanly on all three platforms;
   an `anvil-intercept-proto` library module (or sibling crate) is created first
   containing NDJSON message types, session model structs, and IPC command enum
-  shared by both daemon and launcher
+  shared by both daemon and launcher. `anvil intercept start --foreground`
+  runs the daemon in the current process for dev / demo / triage use — no
+  double-fork, no PID-file handoff, logs stream to stdout/stderr, SIGINT in
+  the controlling terminal stops it cleanly. This is the path the demo
+  runbook §4.1 falls back to when the backgrounded daemon fails to start
+  and the operator needs to see the real error
 - **Validation:** `cargo build -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-intercept`
-- **Status:** Draft
+- **Status:** Complete
+- **Committed (2026-04-29, PR #1165):** Three crates scaffolded —
+  `crates/anvil-intercept-proto/` (NDJSON envelope, `SessionId`,
+  `IpcCommand` enum: register/heartbeat/unregister/list),
+  `crates/anvil-intercept/` (lib + bin with `run_foreground`,
+  cooperative `Shutdown`/`ShutdownToken` watch handles, shared
+  `wait_for_shutdown_signal` helper that races SIGINT (Ctrl+C) and
+  Unix SIGTERM), and `crates/anvil-intercept-rules/` (initial
+  `InterceptRule` trait surface for downstream INTR work). CLI
+  surface `anvil intercept start --foreground` is wired through
+  `crates/anvil-cli/src/commands/intercept.rs`. Foreground startup
+  creates the PID file exclusively at the daemon runtime path, refuses
+  a second daemon against the same PID file, and removes the PID file
+  on clean shutdown. Proto, daemon, and CLI intercept tests pass locally;
+  Windows coverage is provided by the existing `rust.yml` workspace
+  build/test matrix because the intercept crates are workspace members.
+- **Trigger flag (parser concurrency ADR):** The LANGTS audit
+  (`plans/specs/2026-04-26-langts-audit-report.md` §5.3, K3) deferred
+  the parser thread-locality ADR conditionally. **At INTD-001 review,
+  decide the daemon's parser concurrency model.** If the choice is
+  obvious (likely `thread_local!` per option (1) in the audit) and no
+  disagreement surfaces, capture the decision inline in this task's
+  Notes — no ADR needed. If the choice is contentious, or multi-process
+  daemon scenarios materialise, **author the parser thread-locality ADR
+  before INTD-001 lands**. The audit's evaluation of the four options
+  is the starting point for this discussion.
+- **Notes (parser concurrency decision, 2026-04-29):** No ADR required for
+  INTD-001. The daemon's future parser-driven hot path will use the audit's
+  option (1): one parser pool per worker via `thread_local!`, keeping
+  `tree_sitter::Parser` thread-confined while allowing concurrent file
+  evaluation. Worker-scope parsing remains the escape hatch if a later
+  parser-backed rule proves the memory cost unacceptable; multi-process daemon
+  scenarios would re-open the ADR trigger.
 
 ### INTD-002: IPC Listener
 
@@ -123,7 +189,36 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib ipc`
   plus permission-creation unit tests on each platform (Linux/macOS
   permission bits; Windows ACL).
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTD-002`):** `crates/anvil-intercept/src/ipc.rs`
+  ships the `SessionDispatcher` trait, `NoopDispatcher`, the Unix
+  socket-dir resolution + permission ladder (lstat-based symlink
+  refusal, owner-and-mode verification, `mkdir(0o700)` then
+  re-verify, `fchmod`+chmod-by-path to `0o600`), the stale-vs-live
+  socket handling, NDJSON framing with a 1 MiB cap, malformed-line
+  skip, per-connection `JoinSet`, and a 250 ms shutdown drain.
+  Validation: `cargo test -p eddacraft-anvil-intercept --lib ipc` —
+  21 tests pass (full crate suite: 25 pass). Windows pipe-name
+  resolution + DACL binding are scaffolded behind `#[cfg(windows)]`
+  with `unimplemented!()` stubs; pipe-name helper is unit-tested on
+  Windows builds. PID-file guarding is covered by INTD-001.
+- **Reopened (2026-04-29):** A1 now requires the full cross-platform
+  contract, including Windows named-pipe binding with an owner-only
+  security descriptor and foreground daemon integration with the IPC
+  listener and session registry.
+- **Complete (2026-04-30, PR #1167 merged with green checks):** Foreground
+  daemon startup now owns a `SessionRegistry`, binds the IPC listener,
+  dispatches registration frames into the registry, ticks stale-session
+  eviction, and shuts the listener down with bounded drain. Windows
+  named-pipe binding is implemented through the Windows-only
+  `anvil-intercept-win32` helper crate so `anvil-intercept` remains
+  `#![forbid(unsafe_code)]`; the helper creates a local-only pipe with
+  `PIPE_REJECT_REMOTE_CLIENTS` and an explicit current-user owner-only
+  DACL. Validation: `cargo test -p eddacraft-anvil-intercept` (51 pass),
+  `cargo clippy -p eddacraft-anvil-intercept --all-targets -- -D warnings`,
+  `cargo clippy -p eddacraft-anvil-intercept --target x86_64-pc-windows-msvc --all-targets -- -D warnings`,
+  `cargo clippy -p eddacraft-anvil-intercept-win32 --target x86_64-pc-windows-msvc --all-targets -- -D warnings`,
+  `cargo fmt --check`, and `cargo hakari verify`.
 - **Council review (2026-04-24):** M8 (security-analyst) pinned the
   end-to-end creation sequence above; see
   PR #1063.
@@ -139,7 +234,17 @@ a new lane.
   crashed launchers that never call unregister, since Drop guards do not fire on
   SIGKILL or TerminateProcess)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib registry`
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTD-003`):** `SessionRegistry` landed in
+  `crates/anvil-intercept/src/registry.rs` with `SessionRecord` /
+  `SessionStatus` extended onto the proto crate's wire surface. Synchronous
+  `evict_stale(now)` returns the ids it removed; the daemon owns scheduling.
+  Worktree paths canonicalised before use as a key; missing paths refused
+  via `RegistryError::WorktreePathInvalid`. `SessionDispatcher` trait gives
+  INTD-002 an `Arc<dyn>` handle without binding to the concrete type. TTL
+  boundary pinned at "exactly TTL alive, TTL + 1ns evicts". 14 registry
+  tests + 2 new proto tests pass:
+  `cargo test -p eddacraft-anvil-intercept --lib registry`.
 
 ### INTD-004: Watcher Integration
 
@@ -159,9 +264,21 @@ a new lane.
   and affected file paths; content reading is performed in the enforcement
   pipeline before rule evaluation, with a hard size cap (1 MB) above which
   content-dependent rules are skipped; binary detection (null byte check)
-  short-circuits content rules; deleted files pass only path-based rules
+  short-circuits content rules; deleted files pass only path-based rules. The
+  core evaluation step is factored so RTAI/RMCP can validate caller-provided
+  proposed content through the same rule pipeline without duplicating rule
+  semantics; the daemon's file-change path still reads from disk for v1.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib enforcement`
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTD-005-enforcement`):** Added the shared
+  enforcement pipeline in `crates/anvil-intercept/src/enforcement.rs` and the
+  content-unavailable skip in `anvil-intercept-rules`. Proposed-content callers
+  and the daemon file-change path now share `RuleRegistry` semantics; the daemon
+  path reads changed file content from disk with a hard 1 MiB cap, null-byte
+  binary detection, removed-file content suppression, and fail-closed read
+  errors. Decisions return allow/interrupt outcomes with triggering rule
+  metadata and the affected batch paths. Watcher-to-daemon event consumption
+  remains INTD-004 scope.
 
 ### INTD-006: Process-Group Interrupt
 
@@ -185,8 +302,11 @@ a new lane.
   regardless of session liveness -- auto-clear is never performed; on daemon
   restart, fences are loaded from disk and re-asserted before accepting
   connections
+- **Dependencies:** INTD-005 (fence machinery)
+- **Required by:** INTD-013 (`grouping.transition` mirror for
+  `active ↔ fenced` events)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib fence`
-- **Status:** Draft
+- **Status:** Complete
 
 ### INTD-008: Configuration Loading
 
@@ -224,8 +344,18 @@ a new lane.
   debugging and operational visibility
 - **Expected Outcome:** IPC commands for session list, worktree status, fence
   list, and daemon health; output suitable for consumption by the launcher and
-  future CLI status commands
+  future CLI status commands. `anvil intercept status` MUST include an
+  operator-visible **mid-edit p50/p95 latency rollup line** sourced from the
+  daemon-side `validation.service` telemetry for `mode = midEdit` (e.g.
+  `latency: p50 <X>ms p95 <Y>ms (mid-edit)`), so the demo runbook §1.5
+  trust-signal line is real and not estimated. The rollup is computed over a
+  sliding window (default last 100 mid-edit calls or last 60 seconds,
+  whichever is shorter). The measurement labels and acceptable thresholds are
+  owned by ADR-031.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib status`
+  plus an assertion that the status payload carries `latency.midEdit.p50`
+  and `latency.midEdit.p95` fields (or their textual rollup) when the
+  daemon has observed at least one mid-edit call.
 - **Status:** Draft
 
 ### INTD-012: Windows CI Matrix
@@ -257,7 +387,7 @@ a new lane.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib telemetry`
   — tests assert the mapping table, schema value, mirror population, and
   fence-transition grouping
-- **Status:** Draft
+- **Status:** Complete
 
 ### INTD-014: JSON-RPC 2.0 Conformance + Round-Trip Latency Benchmark
 
@@ -272,29 +402,37 @@ a new lane.
   shape (`code`, `message`, `data`), `id` semantics for request vs
   notification, batch request behaviour, `-32600`..`-32603` reserved
   codes, and the distinction between request `id: null` and
-  notification. A latency harness measures round-trip p50 / p95 for a
-  small RPC (`session.heartbeat`) and a telemetry-emission path
-  (`enforcement.decision` round-trip) on a warm daemon and records
-  the numbers. The surface under test is the daemon↔driver JSON-RPC
-  boundary (what `DriverClient` in DRVR-001 talks to) — editors
-  reach the daemon via the editor-driver, not by connecting
-  LSP-style directly, so the risk to cover is silent drift between
-  the daemon's wire behaviour and the driver client's expected
-  request/response semantics. The latency numbers back the
-  `editor-and-mcp-driver-design.md` §3.4 save-time budget
-  (< 100ms p95 warm), which otherwise has no factual basis.
+  notification. A latency harness records p50 / p95 / p99 using the
+  ADR-031 measurement vocabulary, at minimum `validation.service` for
+  daemon-handled requests and `validation.roundtrip` where the
+  `DriverClient` transport is present. The surface under test is the
+  daemon↔driver JSON-RPC boundary (what `DriverClient` in DRVR-001
+  talks to) — editors reach the daemon via the editor-driver, not by
+  connecting LSP-style directly, so the risk to cover is silent drift
+  between the daemon's wire behaviour and the driver client's expected
+  request/response semantics. Local latency numbers must not be
+  invented here; save-time and buffer/pre-write budgets come from
+  ADR-031.
 - **Files:** `crates/anvil-intercept/src/ipc.rs`,
   `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (new),
   `crates/anvil-intercept/benches/ipc_roundtrip.rs` (new)
 - **Dependencies:** INTD-002
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --test
-  jsonrpc_conformance` passes against a published JSON-RPC 2.0 test
-  fixture set; `cargo bench -p eddacraft-anvil-intercept --bench
-  ipc_roundtrip` records baseline numbers in the workspace bench
+  jsonrpc_conformance` passes the local fixture-style JSON-RPC 2.0 conformance
+  suite (no published fixture set is present in the workspace); `cargo bench -p
+  eddacraft-anvil-intercept --features bench-internals --bench ipc_roundtrip`
+  records baseline numbers with ADR-031 dimensions in the workspace bench
   dashboard.
 - **Source:** 2026-04-24 council review M1 (adversarial reviewer) —
   tracked in PR #1063.
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-04-29, `feat/INTD-014-jsonrpc`):** JSON-RPC 2.0 request /
+  notification / batch response handling is pinned at the daemon IPC boundary,
+  with local fixture-style conformance coverage for parse errors, error object
+  shape, invalid request handling, id semantics including `id: null`, request-only
+  batch responses, all-notification batches, and reserved `-32700` /
+  `-32600`..`-32603` error codes. `ipc_roundtrip` records `validation.service` separately
+  from Unix-socket `validation.roundtrip` and prints ADR-031-style dimensions.
 
 ### INTD-015: Daemon-Enforced Telemetry Subscription Scoping
 

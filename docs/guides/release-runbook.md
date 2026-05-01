@@ -251,6 +251,8 @@ Expected behaviour:
 - `build-global-artifacts` job produces shell and PowerShell installers.
 - `host` job creates or updates GitHub Releases on both `eddacraft/anvil-001`
   (private) and `eddacraft/anvil` (public) with all artefacts.
+- `host` job promotes both releases with `--prerelease=false --latest` while
+  Anvil tags are still beta releases.
 - `announce` job posts release notes.
 
 ---
@@ -412,7 +414,21 @@ gh release delete vX.Y.Z --repo eddacraft/anvil-001 --yes
   is the internal source-of-truth record; the public one is for distribution.
 - **ANVIL_RELEASES_TOKEN:** A PAT/fine-grained token with `contents: write` on
   `eddacraft/anvil` and `eddacraft/homebrew-tap`. Must be set as a repository
-  secret on `anvil-001`.
+  secret on `anvil-001`. Scoop and WinGet publishing also need write access to
+  the `eddacraft/scoop-bucket` and the upstream WinGet manifest fork; if
+  publishing returns 403, **edit the existing fine-grained PAT scope** (add the
+  missing repo) rather than rotating the token. Rotation churns workflow secrets
+  without fixing the underlying scope mismatch.
+- **cargo-dist installer pinned by SHA256:** the release workflow installs
+  `cargo-dist` via a SHA256-pinned URL rather than `latest`, which avoids silent
+  installer drift between releases. When you bump `cargo-dist`, also update the
+  pinned SHA in the workflow.
+- **Scoop / WinGet pre-flight:** the Scoop publisher runs a token-reachability
+  pre-flight before submitting a manifest, and the WinGet publisher checks the
+  fork is up to date and that the `gh` CLI invocation parses. Both hardenings
+  landed during the 0.5.0-beta cycle after the v0.4.0-beta tag run surfaced
+  silent 403s. If either pre-flight fails, fix the underlying token/fork issue
+  before re-running the publisher.
 
 ---
 

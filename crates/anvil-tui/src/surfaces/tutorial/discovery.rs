@@ -4,6 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 
 use crate::surface::Surface;
+use crate::surfaces::fix_request::FixRequest;
 
 use super::TutorialPath;
 use super::discovery_render;
@@ -61,6 +62,26 @@ pub struct Finding {
     pub title: String,
     pub message: String,
     pub suggestion: String,
+    pub warning_id: Option<String>,
+}
+
+impl Finding {
+    #[must_use]
+    pub fn fix_request(&self) -> Option<FixRequest> {
+        let line = self.line?;
+        if line == 0 {
+            return None;
+        }
+        let warning_id = self.warning_id.as_deref()?;
+        match warning_id {
+            "AP-001" | "AP-003" | "AP-004" => Some(FixRequest::AntiPatternWarning {
+                file: self.file.clone(),
+                line,
+                warning_id: warning_id.to_string(),
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// Aggregated scan results from all sources, filtered and sorted.
@@ -78,7 +99,7 @@ impl ScanResults {
     pub fn sorted_findings(&self) -> Vec<&Finding> {
         let mut sorted: Vec<&Finding> = self.findings.iter().collect();
         // Sort descending: Error > Warning > Info.
-        sorted.sort_by(|a, b| b.severity.cmp(&a.severity));
+        sorted.sort_by_key(|finding| std::cmp::Reverse(finding.severity));
         sorted
     }
 
@@ -338,6 +359,7 @@ mod tests {
             title: title.to_string(),
             message: "test message".to_string(),
             suggestion: "fix it".to_string(),
+            warning_id: None,
         }
     }
 
@@ -354,6 +376,7 @@ mod tests {
             title: title.to_string(),
             message: "test message".to_string(),
             suggestion: "fix it".to_string(),
+            warning_id: None,
         }
     }
 
@@ -365,6 +388,22 @@ mod tests {
             duration_ms: 500,
             truncated: false,
         }
+    }
+
+    #[test]
+    fn fix_request_rejects_zero_line_findings() {
+        let finding = Finding {
+            file: "src/app.ts".to_string(),
+            line: Some(0),
+            severity: FindingSeverity::Warning,
+            source: FindingSource::AntiPattern,
+            title: "Avoid escape hatch".to_string(),
+            message: "eslint disable".to_string(),
+            suggestion: "Use a scoped disable".to_string(),
+            warning_id: Some("AP-001".to_string()),
+        };
+
+        assert_eq!(finding.fix_request(), None);
     }
 
     // ── FindingSeverity ordering ─────────────────────────────────────────

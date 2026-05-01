@@ -2,6 +2,7 @@ mod auth;
 mod capacity;
 mod commands;
 mod feature_flags;
+mod mcp;
 mod output;
 mod services;
 mod tui;
@@ -78,8 +79,15 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// Manage the Anvil intercept daemon.
+    Intercept(commands::intercept::InterceptArgs),
     /// Show Anvil's acknowledgements and third-party licence attribution.
     Licenses(commands::licenses::LicensesArgs),
+    /// Generate MCP server configuration for AI editors (claude-code, cursor, windsurf, vscode).
+    #[command(name = "mcp-config")]
+    McpConfig(commands::mcp_config::McpConfigArgs),
+    /// Manage and serve MCP integrations.
+    Mcp(commands::mcp::McpArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
@@ -136,7 +144,10 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
+        Commands::Intercept(_) => "intercept",
         Commands::Licenses(_) => "licenses",
+        Commands::McpConfig(_) => "mcp-config",
+        Commands::Mcp(args) => commands::mcp::auth_gate_name(args),
         Commands::New(_) => "new",
         Commands::Wizard(_) => "wizard",
         Commands::Admin(_) => "admin",
@@ -186,6 +197,16 @@ fn evaluate_auth(
             eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
             Err(EXIT_AUTH_REQUIRED)
         }
+        Ok(Some(creds)) if auth::credentials::is_edict(creds) => {
+            if verify_edict_auth(creds, verbose) {
+                Ok(())
+            } else {
+                eprintln!(
+                    "Early-access edict is invalid or revoked. Run `anvil auth login --edict` to authenticate."
+                );
+                Err(EXIT_AUTH_REQUIRED)
+            }
+        }
         Ok(Some(_)) => Ok(()),
         Ok(None) => {
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
@@ -204,6 +225,41 @@ fn evaluate_auth(
             eprintln!("[auth] credential load failed: {redacted}");
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
             Err(EXIT_AUTH_REQUIRED)
+        }
+    }
+}
+
+fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> bool {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] could not create edict verification runtime: {err:#}");
+            }
+            return false;
+        }
+    };
+
+    let client = match auth::client::AnvilClient::with_token(creds.license.clone()) {
+        Ok(client) => client,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] could not create edict verification client: {err:#}");
+            }
+            return false;
+        }
+    };
+
+    match rt.block_on(client.whoami()) {
+        Ok(_) => true,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] edict verification failed: {err:#}");
+            }
+            false
         }
     }
 }
@@ -335,10 +391,12 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
     if let Some(details) = feature_flags::cli_dev_bypass_active() {
-        eprintln!(
-            "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
-            details.flag_key, details.variant, details.reason
-        );
+        if !global.json {
+            eprintln!(
+                "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
+                details.flag_key, details.variant, details.reason
+            );
+        }
         return Ok(());
     }
 
@@ -394,6 +452,16 @@ fn wants_json() -> bool {
 }
 
 fn main() -> ExitCode {
+    // TRACE-001: install the cross-cutting tracing subscriber once at
+    // process start. `Err` means a global subscriber was already
+    // registered (test harness, parent context, or a misbehaving
+    // dependency); the CLI continues on that subscriber but surfaces
+    // the condition to stderr so an operator can diagnose missing
+    // spans rather than silently losing observability.
+    if let Err(err) = anvil_observability::init_tracing(anvil_observability::BinaryKind::Cli) {
+        eprintln!("anvil: tracing subscriber init skipped: {err}");
+    }
+
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) => {
@@ -460,7 +528,10 @@ fn main() -> ExitCode {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
+        Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
+        Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
@@ -583,13 +654,31 @@ mod tests {
     }
 
     #[test]
-    fn bypass_auth_welcome() {
-        assert!(!requires_auth(&parse_command(&["welcome"])));
+    fn requires_auth_welcome() {
+        assert!(requires_auth(&parse_command(&["welcome"])));
     }
 
     #[test]
-    fn bypass_auth_init() {
-        assert!(!requires_auth(&parse_command(&["init"])));
+    fn requires_auth_start_alias() {
+        assert!(requires_auth(&parse_command(&["start"])));
+    }
+
+    #[test]
+    fn requires_auth_init() {
+        assert!(requires_auth(&parse_command(&["init"])));
+    }
+
+    #[test]
+    fn bypass_auth_intercept() {
+        // INTD-001 scaffold: `anvil intercept start` is a daemon
+        // launcher and must not be gated behind the licence-gate
+        // flag's auth list. If a future flag-config change accidentally
+        // enrols `intercept`, this test pins the regression.
+        assert!(!requires_auth(&parse_command(&[
+            "intercept",
+            "start",
+            "--foreground",
+        ])));
     }
 
     #[test]
@@ -598,13 +687,36 @@ mod tests {
     }
 
     #[test]
-    fn bypass_auth_new() {
-        assert!(!requires_auth(&parse_command(&["new"])));
+    fn requires_auth_new() {
+        assert!(requires_auth(&parse_command(&["new"])));
     }
 
     #[test]
-    fn bypass_auth_wizard() {
-        assert!(!requires_auth(&parse_command(&["wizard"])));
+    fn requires_auth_wizard() {
+        assert!(requires_auth(&parse_command(&["wizard"])));
+    }
+
+    #[test]
+    fn requires_auth_mcp_config() {
+        assert!(requires_auth(&parse_command(&[
+            "mcp-config",
+            "--target",
+            "cursor",
+        ])));
+    }
+
+    #[test]
+    fn requires_auth_mcp_install() {
+        assert!(requires_auth(&parse_command(&[
+            "mcp", "install", "--client", "cursor",
+        ])));
+    }
+
+    #[test]
+    fn bypass_auth_mcp_serve() {
+        assert!(!requires_auth(&parse_command(
+            &["mcp", "serve", "--stdio",]
+        )));
     }
 
     #[test]
@@ -667,6 +779,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: Some("2099-01-01T00:00:00Z".into()),
+            is_edict: None,
         }
     }
 
@@ -676,6 +789,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: Some("2000-01-01T00:00:00Z".into()),
+            is_edict: None,
         }
     }
 
@@ -685,6 +799,7 @@ mod tests {
             refresh_token: None,
             email: None,
             expires_at: None,
+            is_edict: None,
         }
     }
 

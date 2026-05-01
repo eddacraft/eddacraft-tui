@@ -79,7 +79,8 @@ runs:
             DOCS_ONLY=false
             CODE_CHANGED=true
 
-            # Source code or dependencies
+            # Source code or dependencies (Node/TS surface — gates
+            # ci.yml's lint/typecheck/test/build jobs)
             if [[ "$file" =~ ^apps/ ]] || \
                [[ "$file" =~ ^packages/ ]] || \
                [[ "$file" =~ ^tools/ ]] || \
@@ -96,7 +97,8 @@ runs:
               E2E_CHANGED=true
             fi
 
-            # Rust patterns
+            # Rust patterns (gates rust.yml and the napi build, but
+            # not Node CI; security.yml still runs via code-changed)
             if [[ "$file" =~ ^crates/ ]] || \
                [[ "$file" == "Cargo.toml" ]] || \
                [[ "$file" == "Cargo.lock" ]] || \

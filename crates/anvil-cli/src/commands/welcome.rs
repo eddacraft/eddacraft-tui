@@ -1,5 +1,6 @@
 use std::io::IsTerminal;
 
+use anvil_tui::surfaces::fix_request::FixRequest;
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
 use eddacraft_tui::theme::EddaCraftTheme;
 
@@ -8,6 +9,7 @@ use crate::services::first_run::{
     create_first_run_marker, delete_first_run_marker, first_run_marker_path, is_first_run,
     should_skip_welcome,
 };
+use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
 use crate::tui::SurfaceExit;
 
 /// Draw a loading message and wait for `duration`, processing resize events
@@ -41,6 +43,24 @@ fn timed_loading(
         }
     }
     Ok(())
+}
+
+fn remove_fixed_finding(
+    results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
+    request: &FixRequest,
+) {
+    if let FixRequest::AntiPatternWarning {
+        file,
+        line,
+        warning_id,
+    } = request
+    {
+        results.findings.retain(|finding| {
+            finding.file != *file
+                || finding.line != Some(*line)
+                || finding.warning_id.as_deref() != Some(warning_id.as_str())
+        });
+    }
 }
 
 #[derive(Debug, clap::Args)]
@@ -342,6 +362,74 @@ fn run_discovery(
 const SCAN_MAX_FILES: usize = 500;
 const SCAN_MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
 
+// SCAN-003 — first-run rayon pool cap.
+//
+// The default rayon global pool is sized to `num_cpus::get()`. On 16-core
+// dev boxes the welcome-screen scan can pin every core, fighting the TUI
+// render thread and any background LSP / indexer for CPU. Cap the
+// pool at `min(num_cpus::get(), DEFAULT_FIRST_RUN_THREAD_CAP)` so the
+// terminal stays responsive while the scan completes.
+//
+// Env var contract — `ANVIL_SCAN_THREADS`
+// ---------------------------------------
+// Operators (and the future RTAI debounced-scan surface) may override the
+// cap via `ANVIL_SCAN_THREADS=<positive integer>`. This is the canonical
+// env-var name for the scan-pool cap and is shared with the upcoming
+// real-time AI validation (RTAI) first-run UX work — see
+// `plans/modules/realtime-ai-validation.aps.md`. Locking in the name now,
+// before RTAI ships, prevents the user-visible split-knob problem the
+// spec calls out.
+//
+// `ANVIL_RAYON_THREADS` was the alternative considered. We picked
+// `ANVIL_SCAN_THREADS` because:
+//   - It scopes to scanning (the actual concern) rather than naming an
+//     internal dependency (rayon) that may get swapped out.
+//   - It composes cleanly with the existing `ANVIL_SCAN_ALL` toggle the
+//     welcome screen already honours.
+//   - "rayon threads" leaks an implementation detail that operators
+//     should not need to know.
+//
+// Invalid / non-positive values fall back to the cap; this is a hint, not
+// a hard contract — we never want a malformed env var to abort the scan.
+const ANVIL_SCAN_THREADS_ENV: &str = "ANVIL_SCAN_THREADS";
+const DEFAULT_FIRST_RUN_THREAD_CAP: usize = 4;
+
+/// SCAN-003: resolve the desired thread count for the first-run scan.
+///
+/// Precedence:
+///   1. `ANVIL_SCAN_THREADS` (positive integer) — honoured verbatim,
+///      still clamped at `num_cpus::get()` so an over-large value cannot
+///      schedule more workers than the host has cores.
+///   2. Otherwise: `min(num_cpus::get(), DEFAULT_FIRST_RUN_THREAD_CAP)`.
+///
+/// Returns `None` when the input arguments cannot produce a positive
+/// thread count (which would mean the caller should fall back to the
+/// global pool — currently unreachable, but kept explicit for callers).
+fn resolve_first_run_thread_count(env_value: Option<&str>, available_cpus: usize) -> Option<usize> {
+    let cpus = available_cpus.max(1);
+    let from_env = env_value
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .map(|n| n.min(cpus));
+    let resolved = from_env.unwrap_or_else(|| cpus.min(DEFAULT_FIRST_RUN_THREAD_CAP));
+    (resolved > 0).then_some(resolved)
+}
+
+/// SCAN-003: build a scoped rayon pool sized for the first-run scan.
+///
+/// Returns the pool when construction succeeds; on failure the caller
+/// should fall back to the global rayon pool — failure here is a
+/// best-effort fallback, never fatal to the scan.
+fn build_first_run_pool() -> Option<rayon::ThreadPool> {
+    let env = std::env::var(ANVIL_SCAN_THREADS_ENV).ok();
+    let threads = resolve_first_run_thread_count(env.as_deref(), num_cpus::get())?;
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .thread_name(|idx| format!("anvil-scan-{idx}"))
+        .build()
+        .ok()
+}
+
 /// Decide whether a single `ignore::DirEntry` should be scanned. Used by both
 /// the gitignore-aware primary walker and the always-scan allowlist walker so
 /// filtering stays consistent between the two passes.
@@ -406,6 +494,7 @@ fn scan_one(
             title: format!("Secret detected: {}", hit.pattern_name),
             message: hit.redacted_line.clone(),
             suggestion: "Move the value to an environment variable or secrets manager.".to_string(),
+            warning_id: None,
         });
     }
 
@@ -428,6 +517,7 @@ fn scan_one(
             title: warning.title.clone(),
             message: warning.message.clone(),
             suggestion: warning.suggestion.clone(),
+            warning_id: Some(warning.id.clone()),
         });
     }
 
@@ -538,28 +628,42 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     // Phase 2: read + scan files in parallel. Each worker runs inside
     // catch_unwind so a panic in one scanner doesn't propagate through the
     // rayon collect and tear down the TUI terminal state.
+    //
+    // SCAN-003: the parallel collect runs inside a scoped rayon pool capped
+    // at `min(num_cpus, DEFAULT_FIRST_RUN_THREAD_CAP)` (override via
+    // `ANVIL_SCAN_THREADS`). Falling back to the global pool when the
+    // builder fails preserves the legacy behaviour rather than aborting
+    // discovery.
     let panics = AtomicUsize::new(0);
     let read_failures = AtomicUsize::new(0);
 
-    let all_findings: Vec<Vec<Finding>> = candidates
-        .par_iter()
-        .map(|(path, rel_path)| {
-            let result = catch_unwind(AssertUnwindSafe(|| {
-                scan_one(path, rel_path, &secret_config)
-            }));
-            match result {
-                Ok(Some(v)) => v,
-                Ok(None) => {
-                    read_failures.fetch_add(1, Ordering::Relaxed);
-                    Vec::new()
+    let scan_closure = || -> Vec<Vec<Finding>> {
+        candidates
+            .par_iter()
+            .map(|(path, rel_path)| {
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    scan_one(path, rel_path, &secret_config)
+                }));
+                match result {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        read_failures.fetch_add(1, Ordering::Relaxed);
+                        Vec::new()
+                    }
+                    Err(_) => {
+                        panics.fetch_add(1, Ordering::Relaxed);
+                        Vec::new()
+                    }
                 }
-                Err(_) => {
-                    panics.fetch_add(1, Ordering::Relaxed);
-                    Vec::new()
-                }
-            }
-        })
-        .collect();
+            })
+            .collect()
+    };
+
+    let all_findings: Vec<Vec<Finding>> = if let Some(pool) = build_first_run_pool() {
+        pool.install(scan_closure)
+    } else {
+        scan_closure()
+    };
 
     // files_scanned counts files that were successfully read + scanned, not
     // raw candidates: panics and read/TOCTOU failures drop out.
@@ -588,6 +692,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
             message: err.clone(),
             suggestion: "Fix or remove the offending pattern in your secret-scan configuration."
                 .to_string(),
+            warning_id: None,
         });
     }
 
@@ -693,46 +798,21 @@ fn run_tutorial_with_fix(
             continue;
         }
 
-        if tutorial_state.wants_fix {
-            tutorial_state.wants_fix = false;
-
-            // Get the top finding from domain_findings.
-            let finding = tutorial_state
-                .domain_findings
-                .as_ref()
-                .and_then(|d| d.sorted_findings().into_iter().next().cloned());
-
-            if let Some(finding) = finding {
-                let mut fix_state =
-                    anvil_tui::surfaces::tutorial::fix::FixState::new(finding.clone());
-                // Disable inline editor — welcome flow cannot drive the
-                // save/check loop that the editor requires.
-                fix_state.editor_disabled = true;
-
-                // Load file context around the finding for display.
-                if let Ok(content) = std::fs::read_to_string(&finding.file) {
-                    let all_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
-                    let target = finding.line.unwrap_or(1).saturating_sub(1);
-                    let start = target.saturating_sub(5);
-                    let end = (target + 6).min(all_lines.len());
-                    let context: Vec<String> = all_lines[start..end].to_vec();
-                    fix_state.set_context(context, start + 1);
+        if let Some(request) = tutorial_state.pending_fix.take() {
+            match apply_fix_request(&request, None) {
+                FixOutcome::Applied { summary } => {
+                    if let Some(results) = tutorial_state.scan_results.as_mut() {
+                        remove_fixed_finding(results, &request);
+                    }
+                    if let Some(results) = tutorial_state.domain_findings.as_mut() {
+                        remove_fixed_finding(results, &request);
+                    }
+                    tutorial_state.resuming_notice = Some(summary);
                 }
-
-                let fix_exit = crate::tui::run_surface_in(terminal, &mut fix_state, theme)?;
-                if fix_exit == SurfaceExit::Quit {
-                    return Ok(SurfaceExit::Quit);
-                }
-
-                // Remove the addressed finding so repeated 'f' presses
-                // advance to the next one instead of reopening the same.
-                if let Some(domain) = tutorial_state.domain_findings.as_mut() {
-                    domain.findings.retain(|f| {
-                        f.file != finding.file || f.line != finding.line || f.title != finding.title
-                    });
+                FixOutcome::Refused { reason } | FixOutcome::Failed { reason } => {
+                    tutorial_state.resuming_notice = Some(reason);
                 }
             }
-            // Resume the tutorial — loop back.
             continue;
         }
 
@@ -912,8 +992,27 @@ fn run_welcome_hub(
                 crate::tui::draw_loading(terminal, "Audit", "Scanning project...", theme)?;
                 let data = crate::commands::audit::collect_audit_data();
                 let mut audit_state = anvil_tui::surfaces::audit::AuditState::new(data);
-                let sub_exit = crate::tui::run_surface_in(terminal, &mut audit_state, theme)?;
-                if sub_exit == SurfaceExit::Quit {
+                loop {
+                    let sub_exit = crate::tui::run_surface_in(terminal, &mut audit_state, theme)?;
+                    if let Some(request) = audit_state.pending_fix.take() {
+                        let selected = audit_state.selected_item;
+                        if matches!(
+                            apply_fix_request(&request, None),
+                            FixOutcome::Applied { .. }
+                        ) {
+                            audit_state.data = crate::commands::audit::collect_audit_data();
+                            audit_state.selected_item =
+                                selected.min(audit_state.data.issues.len().saturating_sub(1));
+                            audit_state.expanded = false;
+                        }
+                        continue;
+                    }
+                    if sub_exit == SurfaceExit::Quit {
+                        break;
+                    }
+                    break;
+                }
+                if audit_state.should_quit {
                     break;
                 }
                 welcome.should_quit = false;
@@ -925,17 +1024,17 @@ fn run_welcome_hub(
                 let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
                 loop {
                     let _sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
-                    if doctor_state.wants_fix {
-                        if let Some(idx) = doctor_state.fix_index {
-                            crate::commands::doctor::apply_fix_at(&mut doctor_state.checks, idx);
-                            // Re-collect checks so the UI reflects actual state.
+                    if let Some(request) = doctor_state.pending_fix.take() {
+                        let selected = doctor_state.selected;
+                        if matches!(
+                            apply_fix_request(&request, Some(&mut doctor_state.checks)),
+                            FixOutcome::Applied { .. }
+                        ) {
                             let fresh = crate::commands::doctor::collect_checks();
                             doctor_state.checks = fresh;
                             doctor_state.selected =
-                                idx.min(doctor_state.checks.len().saturating_sub(1));
+                                selected.min(doctor_state.checks.len().saturating_sub(1));
                         }
-                        doctor_state.wants_fix = false;
-                        doctor_state.fix_index = None;
                         continue;
                     }
                     break;
@@ -1012,7 +1111,7 @@ fn run_welcome_hub(
                 if onboarding_ok {
                     let marker_path = first_run_marker_path()?;
                     if let Err(err) = create_first_run_marker(&marker_path) {
-                        eprintln!("[welcome] warning: failed to create first-run marker: {err}",);
+                        eprintln!("[welcome] warning: failed to create first-run marker: {err}");
                     }
                 }
 
@@ -1089,6 +1188,76 @@ mod tests {
     fn open_docs_message_does_not_panic() {
         let msg = open_docs_message();
         assert!(!msg.is_empty());
+    }
+
+    // ── SCAN-003: first-run rayon pool tests ────────────────────────
+    //
+    // Grouped under `welcome::pool::*` so the steps-file validate
+    // command (`cargo test -p eddacraft-anvil welcome::pool`) hits
+    // them precisely.
+
+    mod pool {
+        use super::super::{
+            DEFAULT_FIRST_RUN_THREAD_CAP, build_first_run_pool, resolve_first_run_thread_count,
+        };
+
+        #[test]
+        fn defaults_to_min_of_cpus_and_cap_when_env_unset() {
+            let resolved = resolve_first_run_thread_count(None, 16).unwrap();
+            assert_eq!(resolved, DEFAULT_FIRST_RUN_THREAD_CAP);
+        }
+
+        #[test]
+        fn caps_to_cpu_count_when_cpus_below_default() {
+            let resolved = resolve_first_run_thread_count(None, 2).unwrap();
+            assert_eq!(resolved, 2);
+        }
+
+        #[test]
+        fn env_override_is_honoured_within_cpu_bound() {
+            // 6 < 16 cores → return 6 verbatim.
+            let resolved = resolve_first_run_thread_count(Some("6"), 16).unwrap();
+            assert_eq!(resolved, 6);
+        }
+
+        #[test]
+        fn env_override_clamps_to_available_cpus() {
+            // Asking for 32 on a 4-core box must not over-schedule.
+            let resolved = resolve_first_run_thread_count(Some("32"), 4).unwrap();
+            assert_eq!(resolved, 4);
+        }
+
+        #[test]
+        fn invalid_env_value_falls_back_to_default() {
+            let resolved = resolve_first_run_thread_count(Some("not-a-number"), 8).unwrap();
+            assert_eq!(resolved, DEFAULT_FIRST_RUN_THREAD_CAP);
+        }
+
+        #[test]
+        fn zero_env_value_falls_back_to_default() {
+            // `0` is a malformed override (you can't run 0 threads); fall
+            // back to the default cap rather than refusing to scan.
+            let resolved = resolve_first_run_thread_count(Some("0"), 8).unwrap();
+            assert_eq!(resolved, DEFAULT_FIRST_RUN_THREAD_CAP);
+        }
+
+        #[test]
+        fn whitespace_env_value_is_trimmed() {
+            let resolved = resolve_first_run_thread_count(Some("  3  "), 8).unwrap();
+            assert_eq!(resolved, 3);
+        }
+
+        #[test]
+        fn pool_builder_honours_env_override() {
+            // Drive `build_first_run_pool` end-to-end with a fixed env
+            // override so we exercise the same code path scan_project
+            // calls. `temp_env::with_var` keeps the env mutation scoped
+            // to this test.
+            temp_env::with_var("ANVIL_SCAN_THREADS", Some("2"), || {
+                let pool = build_first_run_pool().expect("scoped pool builds");
+                assert_eq!(pool.current_num_threads(), 2);
+            });
+        }
     }
 
     #[test]

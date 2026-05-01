@@ -61,7 +61,7 @@ function testTargetConfig(options = {}) {
     return {
         executor: '@eddacraft/nx-rust:test',
         cache: true,
-        outputs: BINARY_OUTPUTS,
+        outputs: [],
         options,
         configurations: {
             production: { release: true },

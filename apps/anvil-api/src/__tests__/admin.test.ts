@@ -188,6 +188,41 @@ describe('admin endpoints', () => {
       expect(mockSql.transaction).toHaveBeenCalledTimes(1);
     });
 
+    it('edict mode records waitlist entry and marks access token as an edict', async () => {
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'alice@example.com', tokenOnly: true, edict: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(201);
+      expect(vi.mocked(upsertWaitlistWithName)).toHaveBeenCalledWith(
+        expect.anything(),
+        'alice@example.com',
+        null,
+        'manual'
+      );
+      expect(mockSql.mock.calls.some((call) => call.includes(true))).toBe(true);
+    });
+
+    it('rejects edict mode without tokenOnly', async () => {
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'alice@example.com', edict: true },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+    });
+
     it('returns 400 for invalid email', async () => {
       const res = await request('POST', '/admin/invite', { email: 'not-an-email' }, ADMIN_KEY);
       expect(res.status).toBe(400);
@@ -234,6 +269,7 @@ describe('admin endpoints', () => {
             user_id: 'user-1',
             token_hash: 'hash',
             scopes: ['beta'],
+            is_edict: true,
             expires_at: new Date().toISOString(),
             revoked_at: null,
             created_at: new Date().toISOString(),
@@ -246,6 +282,7 @@ describe('admin endpoints', () => {
       const body = await res.json();
       expect(body.user.email).toBe('alice@example.com');
       expect(body.tokens).toHaveLength(1);
+      expect(body.tokens[0].is_edict).toBe(true);
       // token_hash should not be exposed
       expect(body.tokens[0]).not.toHaveProperty('token_hash');
       expect(vi.mocked(findUserWithTokens)).toHaveBeenCalledWith(

@@ -42,6 +42,14 @@ anvil check --changed --staged
 This blocks commits that introduce violations. The `--changed --staged` flags
 restrict analysis to staged files only, so it stays fast.
 
+On Git 2.54 or newer you can also use `anvil hooks install --config` to install
+Anvil's managed pre-commit gate hook through native `[hook.<name>]` config
+blocks instead of a file. That installs `ANVIL_HOOK=1 anvil gate --progress`,
+which is separate from the manual `anvil check --changed --staged` example above
+— keep that one if you want staged-only checks. See
+[Git hook setup](/anvil/operations/git-hooks) for both modes, coexistence rules,
+and which to pick — file mode remains the default.
+
 ## Layer 3: CI-Time (Pipeline)
 
 The final gate. Runs a full check on every push or pull request.
@@ -180,8 +188,11 @@ anvil gate --profile ci
 Issues caught at inner layers never reach outer ones. The goal is to catch
 everything at save-time -- CI exists as the safety net.
 
-:::info The `--staged` flag pairs well with lint-staged or Husky. See
-[Configuration](/anvil/operations/config) for hook setup options. :::
+:::info The `--staged` flag pairs well with lint-staged or Husky. On Git 2.54 or
+newer, `anvil hooks install --config` is an alternative install mode that
+manages native `[hook.<name>]` config blocks and installs the pre-commit command
+`anvil gate --progress`. See [Git hook setup](/anvil/operations/git-hooks) for
+both modes and coexistence rules. :::
 
 ---
 

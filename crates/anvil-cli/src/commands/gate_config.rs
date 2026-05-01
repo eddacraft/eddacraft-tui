@@ -218,9 +218,11 @@ mod tests {
     // ── Default config ──────────────────────────────────────────
 
     #[test]
-    fn default_config_has_seven_checks() {
+    fn default_config_has_nine_checks() {
+        // Eight gate checks pre-AIGUARD-003 plus `command-safety` wired
+        // in by AIGUARD-003.
         let config = default_config();
-        assert_eq!(config.checks.len(), 8);
+        assert_eq!(config.checks.len(), 9);
         assert_eq!(config.version, 1);
     }
 
@@ -297,6 +299,22 @@ mod tests {
     }
 
     #[test]
+    fn toggle_accepts_stable_check_id() {
+        let dir = tempfile::tempdir().unwrap();
+        save_config(dir.path(), &default_config()).unwrap();
+
+        run_toggle(dir.path(), "ANV-CORE-001", false, OutputMode::Plain).unwrap();
+
+        let reloaded = load_config(dir.path()).unwrap();
+        let check = reloaded
+            .checks
+            .iter()
+            .find(|c| c.name == "secret-detection")
+            .unwrap();
+        assert!(!check.enabled);
+    }
+
+    #[test]
     fn normalize_check_names_refreshes_canonical_descriptions() {
         let mut config = GateConfig {
             version: 1,
@@ -324,7 +342,7 @@ mod tests {
         let config = default_config();
         let json = serde_json::to_string(&config).unwrap();
         let parsed: GateConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.checks.len(), 8);
+        assert_eq!(parsed.checks.len(), 9);
         assert_eq!(parsed.version, 1);
     }
 
@@ -337,7 +355,7 @@ mod tests {
         save_config(dir.path(), &config).unwrap();
 
         let loaded = load_config(dir.path()).unwrap();
-        assert_eq!(loaded.checks.len(), 8);
+        assert_eq!(loaded.checks.len(), 9);
         assert_eq!(loaded.thresholds.get("overall_score"), Some(&80));
     }
 
@@ -345,7 +363,7 @@ mod tests {
     fn load_returns_default_when_no_config() {
         let dir = tempfile::tempdir().unwrap();
         let config = load_config(dir.path()).unwrap();
-        assert_eq!(config.checks.len(), 8);
+        assert_eq!(config.checks.len(), 9);
     }
 
     #[test]

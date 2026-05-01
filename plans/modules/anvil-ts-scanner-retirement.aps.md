@@ -10,10 +10,26 @@ See: plans/aps-rules.md
 
 # Anvil TS Scanner Retirement
 
-| ID    | Owner | Status      |
-| ----- | ----- | ----------- |
-| TSRET | —     | In Progress |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| TSRET | —     | In Progress | 2/5 active (1 superseded) |
 
+> **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
+> The IDE/MCP surfaces this module's TS code exists for are
+> **archived** — the VSCode extension is now at
+> `archive/anvil-vscode-extension/` and the TS MCP server is at
+> `archive/anvil-mcp-server/`. TSRET-005 (archive the TS scanner +
+> retire parity harness) **unblocks immediately** under ADR-033 — its
+> dependencies on DRVR-003/-004 are dissolved because no active
+> package needs the TS scanner. TSRET-006 (transition-window
+> engine-version diagnostics) is **superseded**: there is no
+> transition window to bridge once both engines collapse to one.
+> The napi crate (`crates/anvil-checks-napi/`) stays `"private":
+> true` and remains in CI as a build canary; it is no longer the
+> on-ramp for any active surface. With TSRET-005 executed, this
+> module reaches its terminal state — RMCP/RMCPF and DRVR own the
+> return path for surfaces.
+>
 > **Plan change (2026-04-23, ADR-030):** TSRET-003 and TSRET-004 are
 > superseded by the `surface-drivers` module (**DRVR**). Both consumers
 > cut over to drivers on the anvil-intercept daemon rather than
@@ -21,6 +37,7 @@ See: plans/aps-rules.md
 > is narrowed: the napi crate stays `"private": true`; no npm publish,
 > no provenance decision, no OOB install-test requirement. TSRET-005
 > is retained but now blocks on DRVR rather than on TSRET-003/-004.
+> *(ADR-033 supersedes the "blocks on DRVR" half — see above.)*
 
 ## Purpose
 
@@ -55,9 +72,9 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
 
 - The `packages/anvil/core/src/antipattern/` scanner is a full TS
   implementation of the registry-driven scan loop.
-- The VSCode extension at `packages/vscode-extension/` imports it for
+- The VSCode extension at `archive/anvil-vscode-extension/` imports it for
   in-editor diagnostics.
-- The MCP server at `packages/mcp-server/` imports it for tool calls.
+- The MCP server at `archive/anvil-mcp-server/` imports it for tool calls.
 - `napi-rs` was the originally-planned bridge. TSRET-001 landed the
   spike and TSRET-002 landed the prebuild matrix; both are retained,
   but per ADR-030 the binding now serves the CLI only (not editor or
@@ -99,9 +116,13 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
 - `anvil-scanner-parity-gaps` (SPG, Complete — dependency satisfied).
 - `crates/anvil-checks/` — Rust scanner surface used by the napi
   binding and by the daemon.
-- **DRVR-003 and DRVR-004** — TSRET-005 (delete TS scanner) waits for
-  these before executing, per ADR-030.
+- ~~**DRVR-003 and DRVR-004** — TSRET-005 (delete TS scanner) waits for
+  these before executing, per ADR-030.~~ *(Dependency dissolved by
+  ADR-033 — IDE/MCP surfaces are archived; TSRET-005 executes against
+  the archived-surfaces state.)*
 - `packages/anvil/core/src/antipattern/` — being retired.
+- `packages/anvil/core/src/suppression/parser.ts` — being retired
+  with the scanner under ADR-033.
 
 **Exposes:**
 
@@ -196,36 +217,67 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
 
 ---
 
-### TSRET-005: Delete the TS scanner and retire the parity harness
+### TSRET-005: Archive the TS scanner and retire the parity harness
 
 - **Intent:** One engine. One implementation. One place to change.
-- **Expected Outcome:** `packages/anvil/core/src/antipattern/scanner.ts`,
-  `registry-loader.ts`, `prepare.ts`, and
-  `scanner-parity.test.ts` are deleted. Any lingering type-only exports
-  from that module that other code depends on are preserved as a thin
-  shim re-exporting from the daemon's contracts package (or moved to
-  `@eddacraft/anvil-contracts` if they're pure types). The Rust side of
-  `tests/scanner-parity/` and the root `test:scanner-parity` script are
-  retired. `docs/architecture/rust-architecture-endstate.md` and
-  `docs/guides/anvil-rule-authoring.md` updated to describe the
-  single-engine state.
+- **Expected Outcome:** Following the project's archive convention
+  (precedent: `archive/anvil-cli-node/` from ADR-012,
+  `archive/anvil-tui-ink/` from ADR-011a), the TS engine code moves
+  to `archive/anvil-ts-scanner/`:
+  - `packages/anvil/core/src/antipattern/` →
+    `archive/anvil-ts-scanner/antipattern/`
+  - `packages/anvil/core/src/suppression/parser.ts` →
+    `archive/anvil-ts-scanner/suppression/parser.ts`
+  - `tests/scanner-parity/` (TS side) →
+    `archive/anvil-ts-scanner/scanner-parity/`
+
+  The Rust-side parity test
+  (`crates/anvil-checks/tests/scanner_parity.rs`) and the root
+  `test:scanner-parity` script are **deleted** — there is no
+  second engine to compare against, so the test has no meaning.
+  Inbound imports from active packages
+  (`@eddacraft/anvil-core/antipattern`,
+  `@eddacraft/anvil-core/suppression`) are removed; any lingering
+  type-only exports that other code depends on are moved to
+  `@eddacraft/anvil-contracts`. `docs/architecture/rust-architecture-endstate.md`
+  and `docs/guides/anvil-rule-authoring.md` updated to describe
+  the single-engine state.
 - **Scope:** `packages/anvil/core/src/antipattern/`,
+  `packages/anvil/core/src/suppression/parser.ts`,
   `crates/anvil-checks/tests/scanner_parity.rs`,
-  `tests/scanner-parity/`, `package.json`, docs
-- **Dependencies:** DRVR-003, DRVR-004 (per ADR-030 supersession),
-  SPG-003 (already Complete)
+  `tests/scanner-parity/`, `archive/anvil-ts-scanner/` (new),
+  inbound imports across `packages/`, `package.json`, docs
+- **Dependencies:** ~~DRVR-003, DRVR-004 (per ADR-030 supersession)~~
+  — dependencies dissolved by ADR-033; SPG-003 (already Complete) is
+  the only remaining prerequisite, and it is satisfied
 - **Validation:** `pnpm test` passes with scanner-parity suite
   removed; `grep -r "scanner-parity" docs/` returns nothing
-  load-bearing
+  load-bearing; VSCode-extension and mcp-server packages still build
+  *(if not yet archived)* or are excluded from the test sweep *(if
+  archived per ADR-033)*
 - **Confidence:** medium
-- **Priority:** Medium
-- **Status:** Proposed
+- **Priority:** High
+- **Status:** Ready (unblocked by ADR-033)
+- **Plan change (2026-04-28, ADR-033):** Executes under ADR-033
+  alongside the IDE/MCP pause. Removes
+  `packages/anvil/core/src/antipattern/`,
+  `packages/anvil/core/src/suppression/parser.ts`, and
+  `tests/scanner-parity/` (both sides). The original "blocks on
+  DRVR-003/-004" wording in the Dependencies field is dissolved.
 
 ---
 
-### TSRET-006: Engine-version diagnostics + transition-window divergence canary
+### TSRET-006: Engine-version diagnostics + transition-window divergence canary — **Superseded**
 
-- **Intent:** Close the monitoring gap in the TS-to-daemon transition
+- **Status:** Superseded by ADR-033 (2026-04-28).
+- **Why:** This work item existed to monitor a TS-to-daemon
+  transition window — the period where rules added to the compiled
+  registry after TSRET-002 but before DRVR-003 would be invisible to
+  TS-scanner surfaces (VSCode + MCP via `GateRunner`). Under
+  ADR-033 those surfaces are archived and the TS scanner is retired
+  in TSRET-005, so the window collapses to zero and the canary has
+  no second engine to compare against. No follow-up is required.
+- **Original Intent:** Close the monitoring gap in the TS-to-daemon transition
   window. Rules added to the compiled registry after TSRET-002 but
   before DRVR-003 are invisible to TS-scanner surfaces
   (VSCode + MCP via `GateRunner`) with no attribution path. A user
@@ -275,13 +327,19 @@ Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
 - **M1 (TSRET-001, TSRET-002 — Complete):** napi binding exists and
   installs without a Rust toolchain on every target platform; CI
   matrix green. Under ADR-030 the binding is an internal CLI
-  acceleration path, not a published consumer surface.
-- **M2 (TSRET-006):** transition-window divergence canary green
-  and `engineVersion` field on every diagnostic. Bridges the gap
-  between `GateRunner` (TS scanner) consumers and the daemon-routed
-  surfaces DRVR delivers.
-- **M3 (TSRET-005, via DRVR-003 / DRVR-004):** TS scanner deleted;
-  parity harness retired; single-engine state documented.
+  acceleration path, not a published consumer surface; under
+  ADR-033 it stays as a build canary with no active consumer
+  during the IDE/MCP pause.
+- ~~**M2 (TSRET-006):** transition-window divergence canary green~~
+  *(Superseded by ADR-033 — no transition window remains.)*
+- **M2 / Terminal (TSRET-005, under ADR-033):** TS scanner +
+  TS suppression parser deleted; parity harness retired
+  (both sides); single-engine state documented in
+  `docs/architecture/rust-architecture-endstate.md` and
+  `docs/guides/anvil-rule-authoring.md`.
+
+  *(Pre-ADR-033 wording: "M3 (TSRET-005, via DRVR-003 / DRVR-004)" —
+  the DRVR dependency was dissolved by ADR-033.)*
 
   *(The old M2 — "VSCode + MCP run on the Rust engine via napi" —
   was superseded by ADR-030. See council review S3.)*

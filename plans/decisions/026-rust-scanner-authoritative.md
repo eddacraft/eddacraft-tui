@@ -4,6 +4,14 @@
 
 Accepted
 
+> **Amended (2026-04-29) by [ADR-033](./033-park-ide-mcp-retire-ts-scanner.md).**
+> §7 and §8 of the Decision below are amended: the TS scanner's
+> retention "for in-process surfaces" and its long-term retirement
+> "after napi-rs" are both superseded. The TS scanner is retired now
+> under ADR-033; the in-process surfaces are archived under
+> `archive/anvil-vscode-extension/` and `archive/anvil-mcp-server/`.
+> The authoritative-Rust decision in this ADR is unaffected.
+
 ## Date
 
 2026-04-21

@@ -11,9 +11,17 @@ See: plans/aps-rules.md
 
 # Real-time AI-Output Validation
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| RTAI | —     | Proposed |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| RTAI | —     | In Progress | 5/9      |
+
+**Last reviewed:** 2026-04-30
+
+> **A1 launch slice:** RTAI-001 (Done), RTAI-002, RTAI-003, RTAI-006, RTAI-008.
+> RTAI-004 (TS `DriverClient` envelope) and RTAI-005 (VSCode editor-driver
+> mid-edit path) are deferred to the post-A1 editor-driver path. RTAI-007
+> (telemetry mirror) and RTAI-009 (architecture doc supersession) remain on
+> the H2 roadmap but are not part of the A1 cut.
 
 ## Purpose
 
@@ -81,13 +89,14 @@ shape of the problem:
   conform to it. The reasoning-pattern checks RTVS catalogued (AI-001
   appeal-to-authority, AI-002 unjustified precision, etc.) are
   net-new rule implementations on the same trait — they belong in
-  `anvil-checks` (or a new `anvil-checks-reasoning` crate), not in
-  this module.
+  `crates/anvil-checks/src/reasoning/` (decided 2026-04-26, see
+  Open Question 3), not in this module.
 - `INTD-014` measures save-time RPC latency. RTAI needs a separate
   mid-edit latency measurement because the budget is tighter and
   the call rate is higher.
-- `DRVR-001` ships `DriverClient`. RTAI extends — does not duplicate
-  — the client's request envelope.
+- `DRVR-001` ships `DriverClient` for editor/future TS driver surfaces. The A1
+  MCP path no longer waits for it: RMCP owns the Rust stdio launch shim and uses
+  RTAI's validation semantics directly.
 
 ## Cross-cutting convention
 
@@ -124,14 +133,15 @@ convention" section). Concretely:
 **In scope:**
 
 - A **mid-edit RPC surface** on the intercept daemon
-  (`anvil/validate.midEdit` or similar — naming pinned in RTAI-002)
+  (`scan_buffer`, per the RTAI-001 spike decision)
   that accepts unsaved buffer content and a path, runs the
   configured rule set without touching disk, and returns
   diagnostics. Distinct from the save-time path.
-- A **latency budget** for the mid-edit path: < 50ms p95 on the
-  daemon side for a single fixture-sized buffer, < 100ms total
-  round-trip including driver framing. Stricter than the
-  save-time < 100ms / < 200ms budget DRVR currently targets.
+- A **latency budget** for the interactive buffer class defined by
+  ADR-031: `mode = midEdit` and `mode = preWrite` use
+  `validation.service` p95 <= 50 ms and `validation.roundtrip` p95 <=
+  80 ms on a warm daemon. Save-time uses ADR-031's separate
+  interactive save-time class; RTAI must not invent local numbers.
 - **Debounce / dedup at the driver edge** — drivers must not flood
   the daemon. The default debounce is 80ms (a typing cycle); the
   daemon also computes a content hash and short-circuits identical
@@ -147,11 +157,12 @@ convention" section). Concretely:
   rendered via `publishDiagnostics` in the same channel as
   save-time results, with a marker distinguishing in-flight from
   on-disk findings.
-- **MCP-driver pre-write path** — the MCP server intercepts
-  `fs.write` / `apply_edit` style tool calls before they hit disk
-  and routes the proposed content through the same daemon RPC.
-  Failures are surfaced to the agent as a structured tool result
-  (not a silent log) so the agent can re-plan in-loop.
+- **MCP pre-write path** — for the current release, RMCP owns the
+  narrow Rust `anvil mcp serve --stdio` launch shim that validates
+  proposed writes before they hit disk. Full MCP-driver parity remains
+  downstream RMCPF/DRVR work. Failures are surfaced to the agent as a
+  structured tool result (not a silent log) so the agent can re-plan
+  in-loop.
 - **Observability** — every mid-edit decision emits a notification
   on the telemetry lane via the same envelope INTD-013 defined,
   with `correlation.source = "intercept"` and a new
@@ -166,15 +177,17 @@ convention" section). Concretely:
 - The validation engine internals (which rule fires, how
   reasoning-pattern detectors are written, false-positive tuning,
   the AI-001..AI-007 catalogue). Owned by **anvil-checks**
-  (and/or a new `anvil-checks-reasoning` crate). RTAI consumes
+  (specifically `crates/anvil-checks/src/reasoning/` per the
+  2026-04-26 decision; see Open Question 3). RTAI consumes
   whatever rules are registered in INTR.
 - Save-time watch-flow polish — owned by **LAUNCH**.
 - The save-time gate itself, the editor diagnostics-on-save
   channel, code actions, suppression UI — owned by **DRVR-002 /
-  DRVR-003 / DRVR-004**.
-- LSP / HTTP / stdin server framing as a separate process — that
-  was RTVF's framing and is replaced by "drivers on the daemon".
-  No separate validation server ships from this module.
+  DRVR-003 / RMCPF** depending on surface.
+- LSP / HTTP / stdin server framing implementation — RMCP owns the
+  current-release Rust stdio MCP launch shim; DRVR/RMCPF own broader
+  driver and MCP-server parity work. RTAI owns validation semantics,
+  not the server process.
 - Notification fan-out across terminal / desktop / Slack — owned
   by **NOTIFY** (RTAI emits onto the telemetry lane;
   presentation is downstream).
@@ -183,8 +196,8 @@ convention" section). Concretely:
   not RTAI's job.
 - Editors beyond VSCode and the MCP server. Cursor and Claude Code
   reach Anvil via either an editor driver (where they speak LSP)
-  or the MCP driver (where they speak MCP). No bespoke "Cursor
-  driver" ships in v1.
+  or the Rust MCP launch shim / future MCP driver path (where they
+  speak MCP). No bespoke "Cursor driver" ships in v1.
 - Hot-path graph / boundary checks — those are queued behind
   INTR's "no graph recomputation on hot path" rule. Reasoning
   patterns and content checks first; structural checks later if
@@ -199,24 +212,29 @@ convention" section). Concretely:
   (telemetry mirror), [INTD-014](./intercept-daemon.aps.md)
   (JSON-RPC conformance + latency benchmark — RTAI's mid-edit
   benchmark extends it).
-- **Blocks on:** [DRVR-001](./surface-drivers.aps.md)
-  (`DriverClient`), [DRVR-002](./surface-drivers.aps.md)
+- **Blocks on for editor-driver tasks only:** [DRVR-001](./surface-drivers.aps.md)
+  (`DriverClient`) and [DRVR-002](./surface-drivers.aps.md)
   (editor-driver protocol — RTAI extends the method table with
-  the mid-edit RPC).
+  the mid-edit RPC). The A1 RMCP path does not block on these.
 - **Coordinates with:** [DRVR-003](./surface-drivers.aps.md) (VSCode
   extension cutover) — the editor-driver mid-edit path is most
   cheaply built once DRVR-003 is in flight, but RTAI's spike
   (RTAI-001) does not need to wait for DRVR-003 to complete.
-- **Coordinates with:** [DRVR-004](./surface-drivers.aps.md) (MCP
-  server cutover) — same rationale as DRVR-003.
+- **Coordinates with:** [rust-mcp-launch-shim](./rust-mcp-launch-shim.aps.md)
+  (RMCP) — current-release MCP path for pre-write validation in the
+  single Rust binary.
+- **Coordinates with:** [rust-mcp-full-port](./rust-mcp-full-port.aps.md)
+  (RMCPF) and DRVR — next-release full MCP parity and driver-framework
+  alignment.
 - **Coordinates with:** [LAUNCH](./launch-flow-readiness.aps.md)
   (save-time watch flow) — RTAI is the in-flight sibling. The two
   must produce diagnostics that look the same on the wire so
   consumers don't branch.
-- **Coordinates with:** anvil-checks / a new
-  `anvil-checks-reasoning` crate (rule implementations the daemon
-  evaluates). The reasoning-pattern catalogue from the archived
-  RTVS module belongs there, not here.
+- **Coordinates with:** `crates/anvil-checks` — the
+  `reasoning/` submodule (per the 2026-04-26 decision; see Open
+  Question 3) holds rule implementations the daemon evaluates. The
+  reasoning-pattern catalogue from the archived RTVS module belongs
+  there, not here.
 - **Coordinates with:** [INTR](./intercept-rules.aps.md) — rules
   registered in INTR are what the mid-edit pipeline evaluates.
 - **References:** [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
@@ -224,12 +242,10 @@ convention" section). Concretely:
 
 ## Tasks
 
-> Status: Proposed. Tasks are listed for review and to scope the
-> Phase-0 spike (RTAI-001). Module is **not yet Ready** — see
-> open questions below before promoting. RTAI-001 is intentionally
-> the only task that can start before INTD lands a stable IPC
-> surface; everything else blocks on INTD / DRVR work pinned in
-> "Dependencies".
+> Status: Ready. RTAI-001 completed the Phase-0 spike and promoted this module
+> to Ready. The current-release path is RMCP-first: RTAI owns validation
+> semantics and contracts, RMCP owns the Rust MCP stdio server/tool surface, and
+> DRVR remains the editor/future-driver path.
 
 ### RTAI-001: Phase-0 architecture spike (one driver, one rule, one fixture)
 
@@ -257,7 +273,14 @@ convention" section). Concretely:
   decisions written up; module promotion from Proposed → Ready
   is gated on this task closing.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Done — landed on `feat/RTAI-spike` (commit `ad4f0400`).
+  Spike measured p95 1.4 ms round-trip on the in-process loop fixture
+  (vs ADR-031 mid-edit p95 budget of 80 ms), with one diagnostic per
+  round-trip on `secret-detection`. Decisions recorded in
+  [`plans/specs/2026-04-26-rtai-001-spike-report.md`](../specs/2026-04-26-rtai-001-spike-report.md):
+  (a) single `scan_buffer` RPC method discriminated by `Mode`, not
+  per-mode methods; (b) `DriverClient` owns the debouncer, drivers
+  parameterise the window. Spike binary: `crates/spike/src/rtai_mid_edit.rs`.
 
 ---
 
@@ -267,26 +290,34 @@ convention" section). Concretely:
   validation RPC that accepts unsaved buffer content and returns
   diagnostics without touching disk.
 - **Expected Outcome:** A new JSON-RPC method
-  (`anvil/validate.midEdit` — final name chosen during DRVR-002
-  protocol sign-off) accepts `{ uri, version, content,
-  workspaceRoot, sessionId? }` and returns `{ diagnostics: [...] }`
-  or `{ error: { code, message, data? } }`. The enforcement
+  (`scan_buffer`, per the RTAI-001 spike decision) accepts
+  `{ path, text, version, mode }` with `mode = midEdit` and returns
+  `{ version, diagnostics: [...], truncated }` or a JSON-RPC
+  `{ error: { code, message, data? } }`. The enforcement
   pipeline grows a content-injection variant that bypasses the
   disk-read step in INTD-005 but reuses the same rule registry,
   the 1 MB content cap, the binary-detection short-circuit, and
-  the existing rule short-circuit semantics. The new path is
-  conformance-tested as JSON-RPC 2.0 alongside INTD-014.
+  the existing rule short-circuit semantics. The IPC listener carries
+  the configured scan service instead of a static registry and caps
+  each response with `truncated = true` when extra diagnostics are
+  dropped. The new path is conformance-tested as JSON-RPC 2.0
+  alongside INTD-014.
 - **Blocks on:** INTD-002, INTD-005, RTAI-001 (decision on
   extend-vs-new-method).
 - **Coordinates with:** DRVR-002 (the method must appear in the
   protocol's method table).
-- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib
-  midedit` covers (a) happy-path diagnostics, (b) over-cap
+- **Validation:** `cargo test -p eddacraft-anvil-intercept midedit &&
+  cargo test -p eddacraft-anvil-intercept --test jsonrpc_conformance
+  scan_buffer` covers (a) happy-path diagnostics, (b) over-cap
   rejection, (c) binary content short-circuit, (d) malformed
   request returns structured error, (e) rule-registry parity
-  with the on-disk path against a fixture matrix.
-- **Confidence:** medium
-- **Status:** Proposed
+  with the on-disk path against a fixture matrix, (f) configured
+  listener rule-set injection, and (g) worst-case JSON escaping for a
+  valid 1 MB buffer.
+- **Status:** Complete — merged 2026-04-29 via PR #1186 (`feat/RTAI-002-midedit-rpc`):
+  daemon `scan_buffer` JSON-RPC method, content-injection enforcement variant,
+  1 MiB cap + binary short-circuit, `ScanBufferService` semaphore + truncation,
+  conformance fixtures alongside INTD-014.
 
 ---
 
@@ -296,24 +327,40 @@ convention" section). Concretely:
   on and surface a regression signal in CI before users feel it.
 - **Expected Outcome:** A criterion benchmark measures the
   daemon-side cost of a single mid-edit RPC against a
-  representative fixture set (a small, a medium, and a near-cap
-  buffer; secret-detection rule plus one reasoning-pattern rule
-  active). Recorded baseline numbers establish the < 50ms
-  daemon-side / < 100ms total p95 budget. CI enforces no
-  regression beyond a documented tolerance.
-- **Blocks on:** RTAI-002. **Coordinates with:** INTD-014
-  (extends the existing RPC benchmark with a mid-edit case
-  rather than living separately).
+  representative fixture set labelled with ADR-031's required
+  dimensions, including small, medium, near-cap, binary,
+  Unicode-heavy, and dirty-secret buffers. Recorded baseline
+  numbers establish the `mode = midEdit` `validation.service` and
+  `validation.roundtrip` p50 / p95 / p99 values against ADR-031's
+  interactive buffer SLO. **CI baseline-comparison gating is split
+  off as a follow-up** (eddacraft/anvil-001#1191) so this slice
+  ships the harness and recorded numbers without taking on the
+  workflow-wiring scope.
+- **Blocks on:** RTAI-002 (Done — landed as PR #1186).
+  **Coordinates with:** INTD-014. The benchmark lives at
+  `crates/anvil-intercept/benches/midedit_roundtrip.rs` as a
+  standalone harness rather than extending `ipc_roundtrip.rs`,
+  because the mid-edit harness needs its own ADR-031 corpus,
+  warm-up, and percentile sampler that would have bloated the
+  generic IPC bench. Production drivers reuse a persistent
+  connection — the round-trip harness mirrors that and references
+  `ipc_roundtrip.rs` for the cold-connect cost.
 - **Validation:** `cargo bench -p eddacraft-anvil-intercept --bench
-  midedit_roundtrip` records baseline; CI compares against
-  baseline with documented tolerance.
+  midedit_roundtrip` records baseline locally; CI baseline-comparison
+  is tracked under #1191.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Complete — merged 2026-04-30 via PR #1189; bench + corpus
+  landed (7-case canonical corpus including dirty-secret, binary,
+  Unicode, near-cap). CI baseline-comparison gating deferred to
+  follow-up issue #1191.
 
 ---
 
 ### RTAI-004: DriverClient mid-edit envelope + debouncer
 
+- **Release note:** Deferred from A1 after the 2026-04-28 Rust MCP launch-shim
+  split. RMCP does not use the TS `DriverClient`; this task remains for the
+  editor-driver/future TS driver path.
 - **Intent:** Extend `DriverClient` so any driver can emit
   mid-edit requests with a built-in debouncer and content-hash
   dedup, without re-implementing either in each surface.
@@ -365,35 +412,50 @@ convention" section). Concretely:
 
 ---
 
-### RTAI-006: MCP-driver pre-write path
+### RTAI-006: MCP pre-write validation semantics
 
-- **Intent:** Intercept MCP tool calls that propose file writes
-  (e.g. `fs.write`, `apply_edit`, equivalents) before they hit
-  disk and route the proposed content through the daemon
-  mid-edit RPC.
-- **Expected Outcome:** The MCP driver's write-class tool
-  handlers wrap the underlying disk write with a
-  `validateMidEdit` call. If diagnostics are returned at or
-  above a configured severity, the MCP tool response includes
-  them in a structured shape the agent can read (not a silent
-  log) and — per project config — either blocks the write,
-  warns and proceeds, or proceeds with diagnostics attached.
-  The choice between block / warn / proceed is governed by the
-  same `.anvil.yaml` enforcement block INTD-008 already loads.
-- **Blocks on:** RTAI-004, DRVR-002, DRVR-004 (MCP driver
-  must exist before its pre-write path can be wired).
-- **Coordinates with:** DRVR-006 (MCP daemon-RPC translation
-  table — the mid-edit method must appear there with the right
-  category) and DRVR-007 (driver trust boundary — the MCP
-  redaction contract applies to mid-edit content excerpts the
-  same way it applies to save-time scan results).
-- **Validation:** `pnpm --filter @eddacraft/anvil-mcp test`
-  plus an E2E test that drives a fake MCP `apply_edit` call
-  carrying content known to trigger the secret-detection rule;
-  asserts the tool response carries structured diagnostics and
-  honours the configured enforcement mode.
+- **Intent:** Define the validation semantics RMCP uses when an MCP client asks
+  Anvil to validate a proposed write before it hits disk.
+- **Expected Outcome:** RMCP's validation tool accepts proposed write content,
+  evaluates it through the daemon or shared Rust validation path, and returns a
+  structured tool response the agent can read. If diagnostics are returned at or
+  above a configured severity, the response either blocks the write, warns, or
+  proceeds with diagnostics attached. The choice is governed by the same
+  `.anvil.yaml` enforcement block INTD-008 loads. RTAI owns the semantic
+  contract; RMCP owns the Rust stdio MCP server/tool implementation. Full
+  per-client write-tool inventory for the next-release parity server belongs to
+  RMCPF.
+- **Blocks on:** RTAI-002 and RMCP-004/RMCP-005 (Rust MCP launch shim must expose
+  the validate tool and validation adapter before this path can be proven).
+- **Coordinates with:** RMCP-006 (canonical diagnostics and redaction), RMCPF
+  (full MCP parity), and DRVR-007 (driver trust boundary for any future
+  driver-participating MCP surface).
+- **Validation:** RMCP E2E test drives a fake MCP validate-write call carrying
+  content known to trigger the secret-detection rule; asserts the tool response
+  carries structured diagnostics and honours the configured enforcement mode.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Complete — merged 2026-04-30 via PR #1190 (`feat/RTAI-006-mcp-prewrite`). The MCP
+  `validate_write` tool now consults a workspace-level `EnforcementMode`
+  (`block` | `warn` | `off`) loaded from `.anvil.yaml` and applies the
+  RTAI-006 mapping table (see
+  `crates/anvil-cli/src/mcp/enforcement.rs`): `block` rejects on
+  `Severity::Error` and warns on lower severities, `warn` always returns
+  `warn` when diagnostics are non-empty, `off` always returns `allow` while
+  still surfacing diagnostics. Default is `block` — matches the pre-RTAI-006
+  behaviour. INTD-008's full `.anvil.yaml` loader stays Draft; the loader
+  here reads the same `enforcement.mode` field so the contract remains
+  daemon-shareable when INTD-008 lands. E2E coverage in
+  `crates/anvil-cli/tests/mcp_validate_write_enforcement.rs` drives
+  `anvil mcp serve --stdio` against fixture `.anvil.yaml` files for all
+  three modes plus the missing-file default.
+- **Reconciliation note (2026-04-30):** RMCP-004/-005/-006 implement the launch
+  shim's embedded `anvil_validate_write` path and structured MCP response, but
+  the default daemon client still returns `Unavailable` and the write decision
+  prior to RTAI-006 was hard-coded from diagnostic severity rather than the
+  INTD-008 enforcement block. RTAI-006 closes that semantic gap on the
+  embedded path; the daemon-backed path takes over transparently once the
+  launch shim's `DaemonValidationClient` is wired to the shipped `scan_buffer`
+  RPC (RTAI-002) — a follow-up RMCP/RMCPF task.
 
 ---
 
@@ -432,15 +494,31 @@ convention" section). Concretely:
   cross-session subscription rejection) and every driver that
   consumes the mid-edit RPC must run it. New drivers fail CI
   if they swallow an error into "no diagnostics".
-- **Blocks on:** RTAI-002, RTAI-004.
+- **Blocks on:** RTAI-002 and RMCP-004/RMCP-006 for the A1 Rust MCP path;
+  RTAI-004 is an additional dependency only for future TS `DriverClient`
+  consumers.
 - **Coordinates with:** RTAI-005, RTAI-006 (consumers of the
   contract — both must run the fixture in their test suites).
 - **Validation:** Contract fixture lives in
   `crates/anvil-intercept/tests/midedit_contract.rs` (Rust
-  side) and is mirrored to a TS consumer fixture for the
-  driver client; CI fails if either side drifts.
+  side) and is consumed by RMCP. A TS consumer fixture is added later when
+  RTAI-004/DRVR-001 land; CI fails if any active consumer drifts.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Complete — merged 2026-04-30 via PR #1188 (`feat/RTAI-008-errors-contract`).
+  Public fixtures pin the response
+  envelope for over-cap content (`-32602`), malformed request (`-32602`),
+  daemon-side rule panic (isolated to empty diagnostics on
+  `panic="unwind"` builds), transport timeout (`-32001` / `-32603`),
+  and a busy invariant check (`-32000`). The cross-session-rejection
+  fixture is gated behind `#[ignore]` because `scan_buffer` does not
+  yet take a `sessionId`; resume when session-scoped enforcement is
+  wired. The fixture module exposes public `*_request` / `assert_*_response`
+  pairs and `FIXTURE_NAMES` so any future cross-crate consumer (the planned
+  `crates/anvil-rmcp/` once that crate is created, plus the TS / VSCode
+  drivers when their consumer crates land) can drive the same envelope shapes
+  through their own transport. As of merge there is no cross-crate consumer
+  yet — this contract is the standalone source of truth and the rust harness
+  is the only active driver.
 
 ---
 
@@ -473,13 +551,14 @@ convention" section). Concretely:
   mid-edit shape before INTD-005 is finalised. Do not let the
   spike become a full implementation in disguise — it ships on
   a throwaway branch.
-- **Latency budget is aspirational.** The < 50ms / < 100ms
-  numbers come from the existing editor-driver design's
-  save-time budget reasoning, halved. They have no mid-edit
-  evidence behind them yet. RTAI-001 measures real numbers on
-  a fixture; RTAI-003 enforces them. If the real numbers are
-  worse, scope contracts (fewer rules on the hot path, larger
-  debounce, etc.) before the budget is loosened.
+- **Latency budget still needs production-path evidence.** RTAI-001
+  proved the thin in-process loop fits well inside ADR-031's
+  interactive buffer SLO, but real IPC transport, representative
+  corpus size, and wider rule-set cost remain unmeasured. RTAI-003
+  records the production-path numbers using ADR-031's mode,
+  boundary, and dimension labels. If the real numbers are worse,
+  scope contracts (fewer rules on the hot path, larger debounce,
+  etc.) before the budget is loosened.
 - **Reasoning-pattern false-positive blast radius.** RTVS
   catalogued seven reasoning patterns with explicit < 10% FP
   rate targets. Mid-edit firing means an FP appears while the
@@ -502,6 +581,22 @@ convention" section). Concretely:
   surfaces around them differ. RTAI-005 and RTAI-006 must each
   spell out their consumer contract; conflating them in
   prose-only docs has burned this module's predecessors.
+- **Bypass asymmetry between LSP advisory and MCP refusable.**
+  Cursor in-buffer edits that skip the MCP tool call route
+  through LSP `didChange` (advisory only) — the daemon cannot
+  refuse the write because there is no pending tool call to
+  refuse. The same physical keystroke can be demo-stable
+  (when Cursor routes via `apply_edit` through the Rust MCP shim)
+  or demo-fragile (when Cursor edits the buffer directly and
+  only fires `didChange`). RTAI-002's protocol must document
+  this asymmetry explicitly so demo operators understand which
+  scenarios are demo-stable (MCP-routed) vs. demo-fragile
+  (in-buffer); the runbook §4.3.iii is the operator-facing
+  surface of the same problem. Mitigation: prefer MCP for the
+  headline demo path; surface the degraded-mode indicator
+  loudly on the editor-driver path so an operator can see
+  in real time when a Cursor edit went in-buffer and dodged
+  the refusable surface.
 
 ## Open questions
 
@@ -516,12 +611,30 @@ convention" section). Concretely:
    the user their own keystrokes). If the answer is "MCP can
    block, editor cannot", that asymmetry needs to be in the
    protocol from RTAI-002 — not bolted on later.
-3. **Where do reasoning-pattern rules live?** The RTVS catalogue
-   (AI-001..AI-007) is owned by neither `anvil-checks` nor
-   `anvil-checks-reasoning` (the latter does not exist).
-   Decide before RTAI-003 lands: add to existing
-   `anvil-checks` antipattern crate, or carve out a new crate?
-   The latter is cleaner; the former is faster.
+3. **AI-001 reasoning-pattern rule home: RESOLVED 2026-04-26 —
+   Option (a) decided AND landed.** Extended `crates/anvil-checks`
+   with a new `reasoning/` submodule alongside `secret/`,
+   `antipattern/`, and `command_safety/`. AI-001
+   (appeal-to-authority) ships at
+   `crates/anvil-checks/src/reasoning/appeal_to_authority.rs`,
+   registers through `run_reasoning_check`, emits canonical
+   `Diagnostic` values (`anvil.diagnostic.v1`) tagged
+   `Category::Reasoning` per the diagnostic envelope coordination
+   spec, and honours `@anvil-ignore AI-001` via the shared
+   ADR-029 `parse_suppression` parser. Comment-region only
+   (`//`, `/* … */`, `#`, `<!-- … -->`); string content with the
+   same prose does not match. Required by the RTAI launch demo
+   (Scenario B in the runbook at
+   `plans/specs/2026-04-26-rtai-demo-runbook.md`) — without it the
+   demo headline degrades to "secret-detection mid-edit". 21 unit
+   tests + 2 integration tests + 1 fixture cover positive
+   matches, string-content negatives, suppression, and the four
+   comment families. Future AI-002..AI-007 land in the same
+   submodule on the same registration path. Tracked as task #24
+   (now closed). If the reasoning corpus later grows
+   infrastructure-heavy (NLP helpers, classifier deps), extract
+   on real evidence — `cargo new` + module move is a small
+   reverse op. Premature crate split was rejected.
 4. **Confidence scoping is uniformly medium.** All RTAI-002
    onwards tasks are marked `Confidence: medium` against a
    stack (INTD + DRVR) that does not yet exist. RTAI-001 will

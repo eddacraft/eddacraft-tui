@@ -40,6 +40,7 @@ const AccessTokenSchema = z.object({
   user_id: IdSchema,
   token_hash: z.string(),
   scopes: TextArraySchema,
+  is_edict: z.boolean().default(false),
   expires_at: DateStringSchema,
   revoked_at: z.union([DateStringSchema, z.null()]),
   created_at: DateStringSchema,

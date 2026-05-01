@@ -51,11 +51,23 @@ This ensures `anvil check --json | jq .` always produces valid JSON.
 
 ### Current payload notes
 
-- `doctor --json` now emits an object root:
-  `{ "checks": [...], "notifications": [...] }`.
-- `audit --json` emits `issues[]`, `next_steps[]`, and `notifications[]`.
-- When evolving a JSON payload, document the change in `CHANGELOG.md` and the
-  public release docs before shipping.
+- `doctor --json` emits an object root:
+  `{ "checks": [...], "notifications": [...], "schema_version": "2.0.0" }`.
+  Every check carries a structured `remediation` object
+  (`{ summary, command?, doc_url? }`).
+- `check --json`, `gate --json`, and `audit --json` all include a
+  `notifications[]` field alongside their existing payloads, sharing the same
+  envelope shape as `doctor`.
+- The notification envelope is the shared `Notification` shape owned by
+  `crates/anvil-kernel-types`; subscribers can filter by class, priority, and
+  source without parsing per-command payloads.
+- `gate --profile ai` and the MCP `validate_write` tool emit diagnostics in the
+  canonical `anvil.diagnostic.v1` envelope (also owned by `anvil-kernel-types`).
+  Save-time, watch, mid-edit, and gate surfaces all converge on this envelope so
+  agent and editor consumers parse one shape, not four.
+- When evolving any of the JSON payloads above, bump `schema_version` where
+  present, document the change in `CHANGELOG.md`, and update the public release
+  docs before shipping.
 
 ## Adding a new command
 

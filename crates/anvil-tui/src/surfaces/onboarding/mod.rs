@@ -31,11 +31,7 @@ pub fn config_exists() -> bool {
 pub fn config_exists_in(dir: &std::path::Path) -> bool {
     [".anvilrc", ".anvil.yaml", ".anvil.json", ".anvil.toml"]
         .iter()
-        .any(|name| {
-            std::fs::metadata(dir.join(name))
-                .map(|m| m.is_file() && m.len() > 0)
-                .unwrap_or(false)
-        })
+        .any(|name| std::fs::metadata(dir.join(name)).is_ok_and(|m| m.is_file() && m.len() > 0))
 }
 
 #[cfg(test)]

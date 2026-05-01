@@ -1,8 +1,8 @@
 # Test Coverage Uplift
 
-| ID   | Owner      | Status      |
-| ---- | ---------- | ----------- |
-| TCOV | @eddacraft | In Progress |
+| ID   | Owner      | Status      | Progress |
+| ---- | ---------- | ----------- | -------- |
+| TCOV | @eddacraft | In Progress | 14/25    |
 
 ## Progress (as of 2026-04-21)
 
@@ -76,7 +76,7 @@ above 80% or not in scope retain their current baselines.
 - `packages/anvil/policy/` — TS OPA stack
 - `packages/edda-stack/` — Edda/Ember/Stack contracts and services
 - `packages/kindling-integration/` — emitters and service layer
-- `packages/mcp-server/` — MCP tools, resources, transports
+- `archive/anvil-mcp-server/` — MCP tools, resources, transports
 
 **Exposes:**
 
@@ -404,7 +404,7 @@ Change status to **Ready** when:
   `constraints`, `drift`, `file-warnings`, `patterns`, `suppressions`) has a
   dedicated test file.
 - **Files:**
-  - `packages/mcp-server/src/resources/*.resource.ts`
+  - `archive/anvil-mcp-server/src/resources/*.resource.ts`
 - **Dependencies:** —
 - **Validation:** Each resource test file passes independently; combined
   coverage ≥80%.
@@ -418,7 +418,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** Each generator is directly tested for correct output
   structure, path handling, and edge cases (missing editor, custom paths).
 - **Files:**
-  - `packages/mcp-server/src/config/*.ts`
+  - `archive/anvil-mcp-server/src/config/*.ts`
 - **Dependencies:** —
 - **Validation:** Config module reaches ≥80% line coverage.
 - **Confidence:** high
@@ -431,9 +431,9 @@ Change status to **Ready** when:
   handling, and concurrent requests. Entry points tested via process spawn
   with `--help` / `--version`.
 - **Files:**
-  - `packages/mcp-server/src/transports/streamable-http.ts`
-  - `packages/mcp-server/src/bin.ts`
-  - `packages/mcp-server/src/bin-http.ts`
+  - `archive/anvil-mcp-server/src/transports/streamable-http.ts`
+  - `archive/anvil-mcp-server/src/bin.ts`
+  - `archive/anvil-mcp-server/src/bin-http.ts`
 - **Dependencies:** —
 - **Validation:** ≥80% line coverage for the mcp-server package.
 - **Confidence:** medium — entry points may need process-level testing

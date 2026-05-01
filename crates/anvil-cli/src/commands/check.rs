@@ -10,7 +10,6 @@ use anvil_kernel_types::{
 use anyhow::{Result, bail};
 use clap::Args;
 use serde::Serialize;
-use walkdir::WalkDir;
 
 use anvil_checks::antipattern::{
     AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningSeverity,
@@ -580,32 +579,42 @@ fn get_changed_files(
     Ok(files)
 }
 
+// SCAN-001: `--all` discovery shares the welcome-screen walker shape
+// (`ignore::WalkBuilder`). Per-file regex work is already on the rayon
+// pool inside `scan_artifacts` / `run_antipattern_check`, so swapping the
+// walker is the only change needed here.
+//
+// `Result` return is retained even though the body cannot currently fail —
+// callers expect the signature, and future fallible discovery (e.g.
+// permission errors surfacing through `ignore::WalkBuilder` once we stop
+// silently swallowing them) will use it.
+#[allow(clippy::unnecessary_wraps)]
 fn get_all_source_files(extensions: &[String]) -> Result<Vec<String>> {
     // Scan from git toplevel so --all covers the full repo even from a subdirectory.
     let root = git_toplevel().unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
-    let mut files = Vec::new();
 
-    for entry in WalkDir::new(&root)
+    let walker = ignore::WalkBuilder::new(&root)
         .follow_links(false)
-        .into_iter()
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
-            if e.file_type().is_dir() {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 let name = e.file_name().to_string_lossy();
                 !IGNORE_DIRS.contains(&name.as_ref())
             } else {
                 true
             }
         })
-    {
-        let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path_str = entry.path().to_string_lossy().to_string();
-        if has_matching_extension(&path_str, extensions) {
-            files.push(path_str);
-        }
-    }
+        .build();
+
+    let mut files: Vec<String> = walker
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
+        .filter_map(|e| {
+            let path_str = e.path().to_string_lossy().to_string();
+            has_matching_extension(&path_str, extensions).then_some(path_str)
+        })
+        .collect();
 
     files.sort();
     Ok(files)

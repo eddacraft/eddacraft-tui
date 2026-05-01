@@ -24,6 +24,7 @@ package-lock.json
 *.launch
 .settings/
 *.sublime-workspace
+.zed
 
 # IDE - VSCode
 .vscode/*

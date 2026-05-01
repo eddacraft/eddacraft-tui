@@ -547,7 +547,7 @@ fn bench_debouncer_throughput(c: &mut Criterion) {
                 b.iter_batched(
                     || changes.clone(),
                     |prepared| {
-                        let mut debouncer = Debouncer::new(Duration::from_secs(60), n / 2);
+                        let mut debouncer = Debouncer::new(Duration::from_mins(1), n / 2);
                         let mut flush_count = 0u32;
 
                         for change in prepared {

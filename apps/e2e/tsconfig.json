@@ -20,9 +20,6 @@
       "path": "../../packages/edda-stack"
     },
     {
-      "path": "../../packages/mcp-server"
-    },
-    {
       "path": "../../packages/adapters"
     },
     {

@@ -122,15 +122,11 @@ impl WizardState {
 
     fn handle_template_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.template_selected > 0 {
-                    self.template_selected -= 1;
-                }
+            Action::Up if self.template_selected > 0 => {
+                self.template_selected -= 1;
             }
-            Action::Down => {
-                if self.template_selected < self.templates.len().saturating_sub(1) {
-                    self.template_selected += 1;
-                }
+            Action::Down if self.template_selected < self.templates.len().saturating_sub(1) => {
+                self.template_selected += 1;
             }
             Action::Select => {
                 if let Some(t) = self.templates.get(self.template_selected) {
@@ -169,15 +165,11 @@ impl WizardState {
 
     fn handle_configure_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.config_selected > 0 {
-                    self.config_selected -= 1;
-                }
+            Action::Up if self.config_selected > 0 => {
+                self.config_selected -= 1;
             }
-            Action::Down => {
-                if self.config_selected < 1 {
-                    self.config_selected += 1;
-                }
+            Action::Down if self.config_selected < 1 => {
+                self.config_selected += 1;
             }
             Action::Toggle | Action::Select => {
                 match self.config_selected {

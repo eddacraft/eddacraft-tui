@@ -122,7 +122,7 @@ jobs:
           shared-key: rust-ci
 
       - name: Install OPA
-        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
           version: v0.60.0
@@ -163,7 +163,7 @@ jobs:
       - name: Cache cargo-llvm-cov
         if: github.event_name != 'pull_request'
         id: cache-llvm-cov
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           # Version-scoped key so bumping CARGO_LLVM_COV_VERSION below
@@ -178,7 +178,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: github.event_name != 'pull_request'
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
@@ -229,18 +229,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-      - name: Setup workspace for Nx affected
-        if: github.event_name == 'pull_request'
-        uses: ./.github/actions/setup-workspace
-      - name: Detect Rust Nx projects
-        if: github.event_name == 'pull_request'
-        id: rust-projects
-        shell: bash
-        run: |
-          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
-          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           components: clippy
@@ -248,19 +236,8 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
-      - name: Run clippy (affected on PRs, all on push)
-        env:
-          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
-              echo "No affected Rust projects detected"
-              exit 0
-            fi
-            pnpm exec nx run-many -t clippy --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
-          else
-            cargo clippy --workspace --all-targets -- -D warnings
-          fi
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   format:
     name: Format
@@ -311,7 +288,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-hakari
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-hakari@${{ env.CARGO_HAKARI_VERSION }}
       - name: Verify workspace-hack manifest is current
@@ -333,7 +310,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-deny
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
       - name: Run cargo deny check
@@ -351,13 +328,13 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-about
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
-          if ! tools/generate-acknowledgements.sh --check; then
-            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'pnpm run licenses:generate' locally and commit."
+          if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
+            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'tools/starters/acknowledgements/generate-acknowledgements.sh' locally and commit."
             exit 1
           fi
 
@@ -407,7 +384,7 @@ jobs:
 
       - name: Install OPA
         if: matrix.can_test
-        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
           version: v0.60.0

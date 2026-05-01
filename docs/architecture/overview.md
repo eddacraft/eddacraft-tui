@@ -15,9 +15,8 @@ Document
 6. [Hybrid Policy Engine](#hybrid-policy-engine)
 7. [State and Configuration](#state-and-configuration)
 8. [Memory Stack (Edda Stack)](#memory-stack-edda-stack)
-9. [Forge Pipeline](#forge-pipeline)
-10. [Technology Stack](#technology-stack)
-11. [Key Architectural Decisions](#key-architectural-decisions)
+9. [Technology Stack](#technology-stack)
+10. [Key Architectural Decisions](#key-architectural-decisions)
 
 ---
 
@@ -69,20 +68,20 @@ contracts (zero deps)
 
 ### Packages
 
-| Package                          | npm Name                      | Purpose                                                                                            |
-| -------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `packages/anvil/contracts/`      | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                     |
-| `packages/anvil/ports/`          | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                  |
-| `packages/anvil/core/`           | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance. |
-| `packages/anvil/runtime/`        | `@eddacraft/anvil-runtime`    | GateRunner orchestration, cache, watch, export, concurrency.                                       |
-| `packages/anvil/policy/`         | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                           |
-| `packages/adapters/`             | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                            |
-| `packages/aps/`                  | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                 |
-| `packages/mcp-server/`           | `@eddacraft/anvil-mcp-server` | MCP tools, resources, and prompts.                                                                 |
-| `packages/vscode-extension/`     | --                            | VS Code extension for real-time diagnostics.                                                       |
-| `packages/eslint-plugin-anvil/`  | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                         |
-| `packages/edda-stack/`           | --                            | Kindling, Ember, Edda memory layers (planned).                                                     |
-| `packages/kindling-integration/` | --                            | Kindling memory contracts and emitters.                                                            |
+| Package                           | npm Name                      | Purpose                                                                                                |
+| --------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `packages/anvil/contracts/`       | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                         |
+| `packages/anvil/ports/`           | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                      |
+| `packages/anvil/core/`            | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance.     |
+| `packages/anvil/runtime/`         | `@eddacraft/anvil-runtime`    | GateRunner orchestration, cache, watch, export, concurrency.                                           |
+| `packages/anvil/policy/`          | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                               |
+| `packages/adapters/`              | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                                |
+| `packages/aps/`                   | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                     |
+| `archive/anvil-mcp-server/`       | `@eddacraft/anvil-mcp-server` | Legacy MCP tools/resources/prompts (archived per ADR-033; live MCP path is `anvil mcp serve --stdio`). |
+| `archive/anvil-vscode-extension/` | --                            | Legacy VS Code extension (archived per ADR-033; returns via DRVR-003).                                 |
+| `packages/eslint-plugin-anvil/`   | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                             |
+| `packages/edda-stack/`            | --                            | Kindling, Ember, Edda memory layers (planned).                                                         |
+| `packages/kindling-integration/`  | --                            | Kindling memory contracts and emitters.                                                                |
 
 ### Apps
 
@@ -416,7 +415,8 @@ Inline annotations and the suppressions store both follow the same schema
 ## Memory Stack (Edda Stack)
 
 The Edda Stack is a three-layer architecture governing how activity becomes
-institutional memory. Planned for delivery in v0.4.0. (See
+institutional memory. Initial integration delivered through the v0.4.0-beta
+cycle and refined since. (See
 [edda-stack-integration.aps.md](../../plans/archive/modules/edda-stack-integration.aps.md))
 
 ### Three Layers
@@ -476,75 +476,6 @@ graph TD
 
 ---
 
-## Forge Pipeline
-
-Pre-commit code review pipeline. (See
-[forge-hook-agent.aps.md](../../plans/archive/modules/01-forge-hook-agent.aps.md))
-
-### Forge (Pre-commit, Local)
-
-The `forge.sh` PreToolUse hook intercepts `git commit` commands and spawns a
-`forge-reviewer` subagent. The reviewer performs cross-model review via the
-codex MCP (GPT delegation), then enters a structured negotiation protocol with
-the committing agent.
-
-**Severity-based action matrix:**
-
-| Severity | Action          | Behaviour                                         |
-| -------- | --------------- | ------------------------------------------------- |
-| Critical | Must fix        | Commit blocked until resolved                     |
-| Major    | Must fix        | Commit blocked until resolved                     |
-| Minor    | Author's choice | Agent decides whether to address                  |
-| Nit      | Auto-deferred   | Filed as GitHub issue with `forge:deferred` label |
-
-**Negotiation rules:**
-
-- Maximum 3 rounds of negotiation (`CLAUDE_FORGE_MAX_ROUNDS`).
-- If consensus is not reached after 3 rounds, remaining findings are
-  auto-deferred.
-- Nits are always auto-deferred without negotiation
-  (`CLAUDE_FORGE_AUTO_DEFER_NITS`).
-
-### Forge Negotiation Sequence
-
-```mermaid
-sequenceDiagram
-    participant Dev as Committing Agent
-    participant Hook as forge.sh hook
-    participant FR as forge-reviewer
-    participant Codex as Codex MCP (GPT)
-
-    Dev->>Hook: git commit
-    Hook->>Hook: Capture staged diff
-    Hook->>FR: Spawn subagent with diff
-
-    FR->>Codex: Delegate review (staged diff)
-    Codex-->>FR: Structured findings
-
-    FR->>Dev: Findings (critical, major, minor, nit)
-
-    Note over Dev,FR: Nits auto-deferred immediately
-
-    loop Max 3 rounds
-        Dev->>FR: Response (accept / contest / fix)
-        FR->>Dev: Updated findings
-    end
-
-    alt All critical/major resolved
-        Dev->>Hook: Proceed with commit
-        Hook-->>Dev: Commit succeeds
-    else Unresolved after 3 rounds
-        FR->>FR: Auto-defer remaining findings
-        FR-->>Dev: Deferred to GitHub issues
-        Dev->>Hook: Proceed with commit
-        Hook-->>Dev: Commit succeeds
-    end
-
-    Note over Hook: Write forge report to<br/>.claude/logs/forge-{hash}.md
-```
-
----
-
 ## Technology Stack
 
 ### Rust (CLI + Engine)
@@ -564,25 +495,25 @@ sequenceDiagram
 
 ### TypeScript (Domain Packages + Services)
 
-| Category          | Technology              | Version   | Purpose                                                                                              |
-| ----------------- | ----------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
-| Language          | TypeScript              | 6.0       | Domain packages, API, website (strict mode, ESM)                                                     |
-| Runtime           | Node.js                 | >= 22.13  | TypeScript execution environment                                                                     |
-| Package manager   | pnpm                    | >= 10.20  | Workspace management, strict isolation                                                               |
-| Monorepo          | NX                      | 22.x      | Task orchestration, caching, dependency graph                                                        |
-| HTTP framework    | Hono                    | --        | REST API (Vercel-deployable)                                                                         |
-| Testing           | Vitest                  | 4.x       | Unit and integration tests                                                                           |
-| E2E testing       | Vitest + Playwright     | 4.x / 1.x | `apps/e2e` Vitest harness (CLI/API/contracts); Playwright for browser flows (`playwright.config.ts`) |
-| Schema validation | Zod                     | --        | Runtime type validation, source of truth for types                                                   |
-| Static analysis   | dependency-cruiser      | --        | Import graph analysis, layer violations                                                              |
-| Policy engine     | OPA / Rego              | --        | Policy-as-code evaluation                                                                            |
-| Linting           | ESLint                  | 9.x       | Code quality and style enforcement                                                                   |
-| Formatting        | Prettier                | 3.x       | Code formatting                                                                                      |
-| IaC               | Pulumi (TypeScript)     | --        | Vercel, GitHub, Azure DNS management                                                                 |
-| Database          | Neon Postgres           | --        | API persistence layer                                                                                |
-| Deployment        | Vercel                  | --        | Website, docs apps, and API hosting                                                                  |
-| CI/CD             | GitHub Actions          | --        | Build, test, deploy                                                                                  |
-| Memory storage    | SQLite (better-sqlite3) | --        | Kindling operational memory                                                                          |
+| Category          | Technology              | Version    | Purpose                                                                                              |
+| ----------------- | ----------------------- | ---------- | ---------------------------------------------------------------------------------------------------- |
+| Language          | TypeScript              | 6.0        | Domain packages, API, website (strict mode, ESM)                                                     |
+| Runtime           | Node.js                 | >= 22.13   | TypeScript execution environment                                                                     |
+| Package manager   | pnpm                    | >= 10.20   | Workspace management, strict isolation                                                               |
+| Monorepo          | NX                      | 22.x       | Task orchestration, caching, dependency graph                                                        |
+| HTTP framework    | Hono                    | --         | REST API (Vercel-deployable)                                                                         |
+| Testing           | Vitest                  | 4.x        | Unit and integration tests                                                                           |
+| E2E testing       | Vitest + Playwright     | 4.x / 1.x  | `apps/e2e` Vitest harness (CLI/API/contracts); Playwright for browser flows (`playwright.config.ts`) |
+| Schema validation | Zod                     | --         | Runtime type validation, source of truth for types                                                   |
+| Static analysis   | dependency-cruiser      | --         | Import graph analysis, layer violations                                                              |
+| Policy engine     | OPA / Rego              | --         | Policy-as-code evaluation                                                                            |
+| Linting           | oxlint + ESLint         | 1.x / 10.x | Fast first-pass linting plus package-specific ESLint rules                                           |
+| Formatting        | oxfmt                   | 0.46       | Code and document formatting                                                                         |
+| IaC               | Pulumi (TypeScript)     | --         | Vercel, GitHub, Azure DNS management                                                                 |
+| Database          | Neon Postgres           | --         | API persistence layer                                                                                |
+| Deployment        | Vercel                  | --         | Website, docs apps, and API hosting                                                                  |
+| CI/CD             | GitHub Actions          | --         | Build, test, deploy                                                                                  |
+| Memory storage    | SQLite (better-sqlite3) | --         | Kindling operational memory                                                                          |
 
 ---
 

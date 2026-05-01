@@ -161,6 +161,7 @@ fn render_empty_repo_hint() {
     plain::dim("  • `anvil tutorial` for a guided walkthrough");
     plain::dim("  • `anvil watch` once you've added some code");
     plain::dim("  • `anvil check --all` to scan the whole project later");
+    plain::dim("  • `anvil auth login` to authenticate (unlocks gate-evaluated checks)");
     plain::blank();
 }
 
@@ -201,6 +202,7 @@ fn render_analysis(outcome: &AnalysisOutcome) {
     if s.total == 0 {
         plain::success("No warnings found in this sample.");
         plain::dim("Run `anvil check --all` to scan the whole project.");
+        plain::dim("Run `anvil auth login` to enable additional checks.");
         plain::blank();
         return;
     }
@@ -231,6 +233,7 @@ fn render_analysis(outcome: &AnalysisOutcome) {
 
     plain::blank();
     plain::dim("Run `anvil check --all` for the full report.");
+    plain::dim("Run `anvil auth login` to unlock gate-evaluated checks.");
     plain::blank();
 }
 

@@ -7,6 +7,8 @@
 | -------- | ----- | ------ |
 | SURFDOCK | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring `Dockerfile` to **T2 (Policy)** per

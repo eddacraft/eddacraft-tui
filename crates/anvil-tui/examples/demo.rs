@@ -847,15 +847,11 @@ fn run_loop(
 
             if let DemoSurface::Picker(state) = &mut app.surface {
                 match action {
-                    Action::Up => {
-                        if state.selected > 0 {
-                            state.selected -= 1;
-                        }
+                    Action::Up if state.selected > 0 => {
+                        state.selected -= 1;
                     }
-                    Action::Down => {
-                        if state.selected < SURFACES.len() - 1 {
-                            state.selected += 1;
-                        }
+                    Action::Down if state.selected < SURFACES.len() - 1 => {
+                        state.selected += 1;
                     }
                     Action::Select => {
                         app.surface = create_surface(state.selected);

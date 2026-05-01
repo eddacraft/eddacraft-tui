@@ -7,6 +7,8 @@
 | ----- | ----- | ------ |
 | PYLAN | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring Python to **T3 (Governed)** per

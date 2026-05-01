@@ -4,6 +4,8 @@
 |----|-------|--------|
 | TRUST | @aneki | Ready |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Automate trust-center evidence publishing from Anvil policy, eval, and compliance outputs to reduce manual due-diligence overhead.
@@ -16,21 +18,23 @@ Automate trust-center evidence publishing from Anvil policy, eval, and complianc
 
 ## Tasks
 
+<!-- Audit 2026-04-26: Validation commands updated for Rust crates per ADR-026. "artifact" left as-is (US-spelled identifier in task IDs and existing terminology). -->
+
 ### TRUST-001: Define trust artifact model
 - **Intent:** Create canonical trust artifact schema for publishable evidence.
 - **Expected Outcome:** Artifacts can be assembled from policy, eval, and compliance sources.
-- **Validation:** `pnpm nx test contracts --testNamePattern="trust artifact model"`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- trust_artifact_model`
 
 ### TRUST-002: Build publishing pipeline
 - **Intent:** Automate generation and update of trust summaries.
 - **Expected Outcome:** Publish pipeline emits dated, traceable trust outputs.
-- **Validation:** `pnpm nx test core --testNamePattern="trust publishing"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- trust_publishing`
 - **Dependencies:** TRUST-001
 
 ### TRUST-003: Add freshness and ownership controls
 - **Intent:** Ensure stale evidence is flagged and routed to owners.
 - **Expected Outcome:** Trust artifacts include freshness state and escalation metadata.
-- **Validation:** `pnpm nx test core --testNamePattern="trust freshness"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- trust_freshness`
 - **Dependencies:** TRUST-002
 
 ## Execution

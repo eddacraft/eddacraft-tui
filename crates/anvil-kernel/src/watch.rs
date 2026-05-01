@@ -6,7 +6,6 @@ use std::thread;
 
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
 use rayon::prelude::*;
-use walkdir::WalkDir;
 
 use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
 use crate::parser::Parser;
@@ -122,12 +121,19 @@ fn initial_scan(
 ) {
     let mut scanned_files: Vec<PathBuf> = Vec::new();
 
-    // Collect all file paths first (walk is sequential — cheap)
-    let all_paths: Vec<PathBuf> = WalkDir::new(root)
-        .into_iter()
+    // SCAN-001: noise-pruning discovery (skips target/, node_modules/, etc; .gitignore is intentionally not applied so security scans see every file) (same shape as the welcome
+    // walker). Per-file parsing below already runs on rayon, so the only
+    // change here is the walker primitive.
+    let walker = ignore::WalkBuilder::new(root)
+        .follow_links(false)
+        .standard_filters(false)
+        .hidden(false)
+        .build();
+
+    let all_paths: Vec<PathBuf> = walker
         .filter_map(|r| match r {
             Ok(e) => {
-                if e.file_type().is_file()
+                if e.file_type().is_some_and(|ft| ft.is_file())
                     && filter.should_process(e.path())
                     && pattern_matches(pattern_filter, root, e.path())
                 {
@@ -137,17 +143,18 @@ fn initial_scan(
                 }
             }
             Err(e) => {
-                let path_str = e
-                    .path()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_default();
+                // `ignore::Error::WithPath` carries the offending path
+                // (permission errors, broken symlinks, oversize repos) —
+                // surface it on the emitter so operators can diagnose
+                // without re-running with verbose logging. Other Error
+                // variants don't have a path attached and pass None.
+                let walk_path = match &e {
+                    ignore::Error::WithPath { path, .. } => path.to_str(),
+                    _ => None,
+                };
                 emitter.error(
                     ErrorCode::Internal,
-                    if path_str.is_empty() {
-                        None
-                    } else {
-                        Some(&path_str)
-                    },
+                    walk_path,
                     &format!("walk error: {e}"),
                     true,
                 );

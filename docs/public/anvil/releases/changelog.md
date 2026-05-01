@@ -11,18 +11,124 @@ All notable changes to anvil are documented here.
 
 ## [Unreleased]
 
-### Changed (breaking)
-
-- **`anvil doctor --json` output shape** — the root changed from a bare JSON
-  array of check objects to `{ "checks": [...], "notifications": [...] }`.
-  Consumers that iterated the array must switch to `data.checks`.
+## [0.5.0-beta] — 2026-05-01 — AI Guardrails & Mid-Edit Validation
 
 ### Added
 
-- **`anvil audit --json` notifications** — audit now includes a
-  `notifications[]` field alongside `issues[]` and `next_steps[]`.
-- **Shared notification envelope** — `check`, `gate`, `audit`, `doctor`, and TUI
-  surfaces are converging on one notification taxonomy for machine consumers.
+- **Git config-mode hooks** — `anvil hooks install --config` and
+  `anvil hooks uninstall --config` manage Git 2.54 native `hook.<event>.command`
+  entries; file-mode hooks remain the default and Husky stays as the contributor
+  bootstrap.
+- **Hook setup visibility** — `anvil hooks status`, `anvil doctor`, onboarding,
+  and tutorial now recognise config-mode hooks, `core.hooksPath`, third-party
+  hook managers, and duplicate file/config execution risk.
+- **AI guardrail profile** — `anvil gate --profile ai` runs the AI-focused check
+  set with strict configuration handling and a stable JSON envelope for agent
+  and MCP consumers.
+- **AI-001 reasoning rule** — flags source comments that justify code with
+  authority, social proof, or deflection instead of technical reasoning; honours
+  `// @anvil-ignore AI-001` and emits at info severity.
+- **`.env` and `.envrc` secret scanning** — `.env`, `.env.*`, and `.envrc` files
+  are parsed as key/value files so leaked values report the variable name and
+  source line (`SURFENV-001`).
+- **`anvil mcp-config`** — Rust CLI command generates, verifies, and writes
+  Claude Code, Cursor, Windsurf, and VS Code MCP server configuration with
+  stdio/http transports, `--write`, `--verify`, workspace overrides, path-safety
+  prompts, and atomic writes.
+- **API SQL migration runner** — Anvil API deploys now have a first-party SQL
+  migration runner with dry-run support and drift detection.
+
+### Fixed
+
+- **Doctor outside git repos** — missing git repositories now surface as a
+  structured warning through the doctor JSON contract rather than failing the
+  whole run.
+- **First-run guidance** — init and onboarding copy now points unauthenticated
+  users at `anvil auth login` where required, and inotify capacity warnings are
+  clearer about what to change.
+- **Release publishers** — Scoop and WinGet publishing paths now fail earlier on
+  token or fork problems, and the cargo-dist installer is pinned by SHA256 in
+  the release workflow.
+- **API deploy stability** — CORS preflight caching, Vercel API routing, and the
+  `svix`/`uuid` runtime override were tightened after post-release deploy
+  failures.
+
+### Improved
+
+- **Scan performance and safety** — repository scans now use the shared parallel
+  walk pattern across more CLI surfaces, skip oversized lines before regex
+  evaluation, and cap first-run scan threads via `ANVIL_SCAN_THREADS` (default
+  `min(num_cpus, 4)`).
+- **AI workflow docs** — the AI guardrail profile, MCP and editor setup path,
+  and beta tester guide now describe the current Rust CLI behaviour.
+- **Git hook docs** — public docs now explain file-mode versus config-mode
+  hooks, coexistence warnings, and the current decision to keep Husky as the
+  contributor bootstrap.
+- **Beta validation scenarios** — public tester scenarios were refreshed around
+  the current onboarding, hooks, AI guardrail, and MCP flows.
+
+## [0.4.0-beta] — 2026-04-25 — First-Run Polish & Native Scanner
+
+### Changed (breaking)
+
+- **`anvil watch --exclude` now uses glob patterns** — pass
+  `--exclude 'vendor/**'` to skip a directory tree; bare directory names now
+  warn so existing scripts surface the change instead of silently watching the
+  wrong paths.
+- **JSON output now carries notifications** — `anvil doctor --json` returns
+  `{ "checks": [...], "notifications": [...], "schema_version": "2.0.0" }`, and
+  `check`, `gate`, and `audit` include `notifications[]` alongside their
+  existing payloads.
+
+### Added
+
+- **Native Rust scanner** — the Rust engine is now the authoritative scanner,
+  with registry-backed rules, parallel scanning, rule provenance on findings,
+  and fixture coverage for every shipped rule.
+- **First-run scan after `anvil init`** — new projects get immediate findings,
+  counts, and `file:line` pointers instead of being sent to another command.
+- **Watch filtering** — `anvil watch --patterns` and `--exclude` now drive the
+  watch loop, with a startup banner showing the active include/exclude scope.
+- **`anvil check --artifact`** — scan generated files, build outputs, and other
+  opaque artefacts outside the normal source-file filter.
+- **`anvil licenses`** — prints bundled third-party attributions from
+  `ACKNOWLEDGEMENTS.md`.
+- **Scoop distribution** — Scoop joins WinGet and the existing installers, with
+  README install instructions covering every supported package manager.
+- **Per-operator admin keys** — admin operations can now use individually
+  provisioned operator credentials instead of a single shared admin key.
+
+### Fixed
+
+- **`anvil watch` reliability** — partial setup failures no longer abort the
+  loop, per-change panics are isolated, Ctrl-C exits cleanly, and error chains
+  no longer leak the current working directory.
+- **`anvil doctor` remediation** — checks now show concrete next actions, and
+  `--fix` writes a valid default `.anvilrc` without running `git init` in unsafe
+  directories.
+- **`anvil init` robustness** — post-init git-history sampling now times out
+  instead of hanging on slow filesystems or stalled remotes; tight inotify
+  limits are reported up front with a fix hint.
+- **Config-driven gate checks** — `.anvilrc` check selection now uses the same
+  canonical names as the gate runner.
+- **Non-interactive mode** — empty `ANVIL_NO_PROMPT` and `NONINTERACTIVE` values
+  now correctly opt out of prompts.
+- **Admin CLI and auth flows** — route coverage, timestamp validation, JSON
+  output hygiene, EOF handling, and migration-send safety were tightened across
+  the beta access surfaces.
+- **Tutorial and TUI papercuts** — tutorial exit codes, `husky` handling, ASCII
+  fallback, narrow-terminal titles, discovery scrolling, and `.anvilrc`
+  detection races were corrected.
+
+### Improved
+
+- **Onboarding language** — init, welcome, tutorial, and watch now use the same
+  defaults and explain scan truncation or watcher failures where the user can
+  act on them.
+- **Public docs** — release pages, install docs, the quality model, and the
+  `.anvil` pattern reference were refreshed for the native scanner release.
+- **Release preflight** — `scripts/release.sh` now runs Rust and TypeScript fmt,
+  lint, typecheck, and tests as one bundled release gate.
 
 ## [0.3.3-beta] — WinGet Distribution & Windows UX
 

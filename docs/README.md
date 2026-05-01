@@ -20,6 +20,7 @@ docs/
 │   └── monorepo-structure.md # Repository layout
 ├── guides/                 # Developer how-to guides (incl. testing, branching strategy)
 ├── runbooks/               # Operational playbooks
+├── testing/                # Internal test plans, scenarios, and release reports
 ├── specs/                  # Technical specifications
 ├── reviews/                # Active review work that still needs follow-up
 ├── strategy/               # Adoption candidates and competitor tracking
@@ -46,6 +47,8 @@ docs/
 ### Development
 
 - [guides/testing.md](guides/testing.md) — Test strategy and practices
+- [testing/beta-user-test-scenarios.md](testing/beta-user-test-scenarios.md) —
+  Beta tester facilitator script
 - [guides/branching-strategy.md](guides/branching-strategy.md) — Branching
   strategy
 - [guides/](guides/) — Developer how-to guides

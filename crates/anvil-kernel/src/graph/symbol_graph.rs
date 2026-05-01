@@ -89,7 +89,7 @@ impl SymbolGraph {
         // slot. By processing nodes from highest index to lowest, we ensure that
         // any node that gets swap-moved will not later be removed again by its
         // original index, because that original index has already been handled.
-        indices.sort_by(|a, b| b.1.index().cmp(&a.1.index()));
+        indices.sort_by_key(|(_, idx)| std::cmp::Reverse(idx.index()));
 
         for (_, idx) in &indices {
             self.graph.remove_node(*idx);

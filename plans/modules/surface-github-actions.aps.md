@@ -7,6 +7,8 @@
 | ------- | ----- | ------ |
 | SURFGHA | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Bring GitHub Actions workflow YAML to **T2 (Policy)** per

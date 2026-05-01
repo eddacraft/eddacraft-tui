@@ -2,6 +2,8 @@ pub mod render;
 
 use eddacraft_tui::keyboard::Action;
 
+use super::fix_request::FixRequest;
+
 /// Status of a single diagnostic check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckStatus {
@@ -102,11 +104,8 @@ pub struct DoctorState {
     pub expanded: bool,
     pub should_quit: bool,
     pub wants_back: bool,
-    /// Set when the user presses 'f' on an auto-fixable check.
-    /// The orchestrator applies the fix and refreshes.
-    pub wants_fix: bool,
-    /// Index of the check to fix (set alongside `wants_fix`).
-    pub fix_index: Option<usize>,
+    /// Pending fix request emitted when the user presses `f`.
+    pub pending_fix: Option<FixRequest>,
 }
 
 impl DoctorState {
@@ -117,8 +116,7 @@ impl DoctorState {
             expanded: false,
             should_quit: false,
             wants_back: false,
-            wants_fix: false,
-            fix_index: None,
+            pending_fix: None,
         }
     }
 
@@ -128,17 +126,13 @@ impl DoctorState {
 
     pub fn handle_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                    self.expanded = false;
-                }
+            Action::Up if self.selected > 0 => {
+                self.selected -= 1;
+                self.expanded = false;
             }
-            Action::Down => {
-                if self.selected < self.checks.len().saturating_sub(1) {
-                    self.selected += 1;
-                    self.expanded = false;
-                }
+            Action::Down if self.selected < self.checks.len().saturating_sub(1) => {
+                self.selected += 1;
+                self.expanded = false;
             }
             Action::Select => {
                 self.expanded = !self.expanded;
@@ -148,8 +142,9 @@ impl DoctorState {
                     && check.auto_fixable
                     && check.status != CheckStatus::Pass
                 {
-                    self.wants_fix = true;
-                    self.fix_index = Some(self.selected);
+                    self.pending_fix = Some(FixRequest::DoctorCheck {
+                        index: self.selected,
+                    });
                 }
             }
             Action::Back => {
@@ -185,7 +180,7 @@ impl crate::surface::Surface for DoctorState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit || self.wants_fix
+        self.should_quit || self.pending_fix.is_some()
     }
 
     fn should_back(&self) -> bool {
@@ -195,8 +190,7 @@ impl crate::surface::Surface for DoctorState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
-        self.wants_fix = false;
-        self.fix_index = None;
+        self.pending_fix = None;
     }
 
     fn render(
@@ -290,13 +284,15 @@ mod tests {
     }
 
     #[test]
-    fn f_key_sets_wants_fix_on_fixable_check() {
+    fn f_key_sets_pending_fix_on_fixable_check() {
         let mut state = DoctorState::new(sample_checks());
         // Navigate to ESLint config (index 1) — Fail + auto_fixable
         state.handle_key(Action::Down);
         state.handle_key(Action::Character('f'));
-        assert!(state.wants_fix);
-        assert_eq!(state.fix_index, Some(1));
+        assert_eq!(
+            state.pending_fix,
+            Some(FixRequest::DoctorCheck { index: 1 })
+        );
     }
 
     #[test]
@@ -304,8 +300,7 @@ mod tests {
         let mut state = DoctorState::new(sample_checks());
         // Index 0 is Node.js — Pass, not fixable
         state.handle_key(Action::Character('f'));
-        assert!(!state.wants_fix);
-        assert!(state.fix_index.is_none());
+        assert!(state.pending_fix.is_none());
     }
 
     #[test]
@@ -321,11 +316,11 @@ mod tests {
         }];
         let mut state = DoctorState::new(checks);
         state.handle_key(Action::Character('f'));
-        assert!(!state.wants_fix);
+        assert!(state.pending_fix.is_none());
     }
 
     #[test]
-    fn wants_fix_causes_should_quit_true() {
+    fn pending_fix_causes_should_quit_true() {
         let mut state = DoctorState::new(sample_checks());
         state.handle_key(Action::Down);
         assert!(!crate::surface::Surface::should_quit(&state));
@@ -336,10 +331,8 @@ mod tests {
     #[test]
     fn reset_clears_fix_state() {
         let mut state = DoctorState::new(sample_checks());
-        state.wants_fix = true;
-        state.fix_index = Some(1);
+        state.pending_fix = Some(FixRequest::DoctorCheck { index: 1 });
         <DoctorState as crate::surface::Surface>::reset(&mut state);
-        assert!(!state.wants_fix);
-        assert!(state.fix_index.is_none());
+        assert!(state.pending_fix.is_none());
     }
 }

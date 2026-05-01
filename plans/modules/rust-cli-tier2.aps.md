@@ -9,22 +9,40 @@ Scopes: RCLI2 (main)
 
 # Rust CLI — Tier 2
 
-| ID    | Owner | Status   |
-| ----- | ----- | -------- |
-| RCLI2 | —     | Proposed |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| RCLI2 | —     | In Progress | 4/8      |
+
+**Last reviewed:** 2026-04-26
+
+> **Status correction 2026-04-26 (freshness audit):** Module flipped from
+> `Proposed` to `In Progress`. RCLI2-001..-004 (`check`, `validate`, `drift`,
+> `gate-config`) all shipped to `crates/anvil-cli/src/commands/` —
+> see commits `1e44ef2d` (RCLI2-001), `c5679432` (RCLI2-002),
+> `a2297dca` (RCLI2-003), `06d764d4` (RCLI2-004). Plan was never
+> updated when the work landed. Index previously said `0/8 Proposed`;
+> actual state was `4/8 In Progress` and the index has been corrected
+> in this same change. RCLI2-005..-008 remain `Proposed`
+> (still gated on OPAE).
+>
+> **Post-migration note (2026-04-26):** RCLI Tier 1 is complete (64/64) and
+> the Node.js CLI at `apps/anvil-cli/` has been retired. References to the
+> Node.js CLI in this module are historical — they describe the source we are
+> reaching parity with, not a still-present runtime.
 
 ## Purpose
 
-Port Tier 2 utility and operational commands from the Node.js CLI
-(`apps/anvil-cli/`) to the Rust binary (`crates/anvil-cli/`). These commands
-extend the core workflow shipped in RCLI Tier 1 with single-file checking,
-plan validation, drift tracking, gate configuration, and policy tooling.
+Port Tier 2 utility and operational commands from the historical Node.js CLI
+(`apps/anvil-cli/`, retired) to the Rust binary (`crates/anvil-cli/`). These
+commands extend the core workflow shipped in RCLI Tier 1 with single-file
+checking, plan validation, drift tracking, gate configuration, and policy
+tooling.
 
 **Why:** Tier 1 covers the primary workflow loop (init → watch → gate → status)
 but omits operational commands needed for CI pipelines (`check`, `pr-comment`),
 incremental debugging (`policy-debug`, `drift compare`), and configuration
-management (`gate-config`, `validate`). Without these, users must fall back to
-the Node.js CLI for common tasks, defeating the single-binary goal.
+management (`gate-config`, `validate`). Without parity, parts of the
+historical Node.js workflow remain unported.
 
 **ADR:** [012-rust-cli-replacement](../decisions/012-rust-cli-replacement.md)
 **Spec:** [2026-03-18-rust-cli-design](../specs/2026-03-18-rust-cli-design.md) §6 Tier 2
@@ -77,9 +95,10 @@ language defined in
 
 ## Constraints
 
-- Output parity with Node.js CLI (same JSON schema, same exit codes)
-- Drift snapshots interchangeable between Rust and Node.js CLIs during
-  transition
+- Output parity with the historical Node.js CLI JSON schema and exit codes
+  (the canonical contract; the Node.js CLI itself is retired)
+- Drift snapshots remain backwards-readable with the historical Node.js CLI
+  format so older snapshots in `.anvil/snapshots/` keep working
 - Commands that depend on unimplemented OPAE items are deferred until the
   domain logic exists (in Rust or TypeScript)
 - Same error handling conventions as RCLI: `anyhow` for application code,
@@ -91,13 +110,16 @@ language defined in
 
 Change status to **Ready** when:
 
-- [x] RCLI Tier 1 foundation complete (Phases 1–4)
+- [x] RCLI Tier 1 foundation complete (64/64)
 - [ ] RCLI Phase 7 rework items resolved (gate checks, auth migration,
   command registration) — rework items identified by 2026-03-24 audit
 - [ ] RCLI-017 (anvil-policy crate) has evaluator implemented (PR #640
   in progress)
 - [ ] RCLI-019 (anvil-architecture crate) has validation logic implemented
 - [ ] OPAE status reviewed — identify which Tier 2 commands can proceed
+- [ ] Re-confirm which RCLI2 items remain outstanding versus already shipped
+  in `crates/anvil-cli/src/commands/` (check, validate, drift, gate_config,
+  policy.rs already present as of 2026-04-26)
 
 ---
 
@@ -106,7 +128,7 @@ Change status to **Ready** when:
 #### Phase 1 — Check & Validate
 ### RCLI2-001: check command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `1e44ef2d`; file present at `crates/anvil-cli/src/commands/check.rs`, ~1347 LOC)
 - **Intent:** Port `anvil check` (planless file analysis). Supports file
   selection modes: explicit paths, `--all`, `--changed`, `--staged`,
   `--since <ref>`. Runs GateRunner in planless mode. Supports interactive
@@ -117,11 +139,13 @@ Change status to **Ready** when:
 - **Expected Outcome:** `anvil check --changed` analyses modified files and
   reports findings with severity levels; `--json` produces machine-readable
   output; `--interactive` prompts per-warning
-- **Validation:** Warning counts and severities match Node.js CLI for same
-  project state; exit code 0 on clean, 1 on warnings
-- **Files:** `crates/anvil-cli/src/commands/check.rs`
-- **Confidence:** medium (664 LOC in Node.js; interactive mode needs crossterm
-  prompts)
+- **Validation:** Finding counts and severities match the historical Node.js
+  CLI JSON contract for the same project state; exit code 0 on clean, 1 on
+  warnings
+- **Files:** `crates/anvil-cli/src/commands/check.rs` (file already exists —
+  confirm whether interactive mode + selection flags are still outstanding)
+- **Confidence:** medium (664 LOC in historical Node.js; interactive mode
+  needs crossterm prompts)
 - **Priority:** High
 - **Dependencies:** RCLI (foundation), KERN (gate runner)
 
@@ -129,16 +153,18 @@ Change status to **Ready** when:
 
 ### RCLI2-002: validate command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `c5679432`; file present at `crates/anvil-cli/src/commands/validate.rs`, ~890 LOC)
 - **Intent:** Port `anvil validate <plan>`. Auto-detects plan format (APS,
   SpecKit, BMAD), validates structure, verifies content hash integrity.
   Supports `--format` override and `--no-validate-hash`
 - **Expected Outcome:** `anvil validate plan.aps.md` reports validation issues
   with line numbers; shows detected format and confidence
-- **Validation:** Validation results match Node.js CLI for same plan files;
-  hash verification produces identical pass/fail
-- **Files:** `crates/anvil-cli/src/commands/validate.rs`
-- **Confidence:** high (192 LOC in Node.js; straightforward file parsing)
+- **Validation:** Validation results match the historical Node.js CLI for the
+  same plan files; hash verification produces identical pass/fail
+- **Files:** `crates/anvil-cli/src/commands/validate.rs` (file already exists —
+  confirm scope gap)
+- **Confidence:** high (192 LOC in historical Node.js; straightforward file
+  parsing)
 - **Priority:** Medium
 - **Dependencies:** RCLI (foundation)
 
@@ -148,7 +174,7 @@ Change status to **Ready** when:
 
 ### RCLI2-003: drift command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `a2297dca`; file present at `crates/anvil-cli/src/commands/drift.rs`, ~1059 LOC)
 - **Intent:** Port `anvil drift` with four subcommands: `snapshot` (capture
   baseline), `compare` (diff two snapshots), `report` (longitudinal analysis),
   `list` (enumerate snapshots). Reads/writes `.anvil/snapshots/` directory.
@@ -159,11 +185,13 @@ Change status to **Ready** when:
 - **Expected Outcome:** `anvil drift snapshot --name release-1.0` captures
   current state; `anvil drift compare s1 s2` shows deltas in violations,
   antipatterns, and suppressions
-- **Validation:** Snapshot JSON format is identical to Node.js CLI; comparison
-  metrics (net_change, trend, violation deltas) match for same input
-- **Files:** `crates/anvil-cli/src/commands/drift.rs`
-- **Confidence:** medium (324 LOC in Node.js; requires SnapshotCaptureService
-  port or Rust equivalent)
+- **Validation:** Snapshot JSON format is identical to the historical Node.js
+  CLI; comparison metrics (net_change, trend, violation deltas) match for the
+  same input
+- **Files:** `crates/anvil-cli/src/commands/drift.rs` (file already exists —
+  confirm subcommand coverage)
+- **Confidence:** medium (324 LOC in historical Node.js; requires
+  SnapshotCaptureService port or Rust equivalent)
 - **Priority:** High
 - **Dependencies:** RCLI (foundation), RCLI-019 (anvil-architecture crate)
 
@@ -171,7 +199,7 @@ Change status to **Ready** when:
 
 ### RCLI2-004: gate-config command
 
-- **Status:** Proposed
+- **Status:** Complete (commit `06d764d4`; file present at `crates/anvil-cli/src/commands/gate_config.rs`, ~432 LOC)
 - **Intent:** Port `anvil gate-config`. List, enable, disable, and
   interactively configure gate checks and thresholds. Reads/writes
   `.anvil/gate-config.json`
@@ -181,10 +209,12 @@ Change status to **Ready** when:
 - **Expected Outcome:** `anvil gate-config --list` shows current config;
   `--enable policy` enables a check; `--interactive` walks through all
   settings
-- **Validation:** Config file format is identical to Node.js CLI; enable/disable
-  produces same JSON mutations
-- **Files:** `crates/anvil-cli/src/commands/gate_config.rs`
-- **Confidence:** high (131 LOC in Node.js; straightforward JSON CRUD)
+- **Validation:** Config file format is identical to the historical Node.js
+  CLI; enable/disable produces the same JSON mutations
+- **Files:** `crates/anvil-cli/src/commands/gate_config.rs` (file already
+  exists — confirm scope gap)
+- **Confidence:** high (131 LOC in historical Node.js; straightforward JSON
+  CRUD)
 - **Priority:** Medium
 - **Dependencies:** RCLI (foundation)
 
@@ -202,7 +232,7 @@ Change status to **Ready** when:
   with variable bindings at each step
 - **Validation:** Debug trace matches OPA's native `--explain` output format
 - **Files:** `crates/anvil-cli/src/commands/policy_debug.rs`
-- **Confidence:** low (not yet implemented in Node.js; depends on OPAE-013)
+- **Confidence:** low (no historical Node.js implementation; depends on OPAE-013)
 - **Priority:** Medium
 - **Dependencies:** RCLI-017 (anvil-policy crate), OPAE-013
 - **Notes:** ‡ Blocked on OPAE implementation. Can proceed if OPAE-013 lands
@@ -221,7 +251,7 @@ Change status to **Ready** when:
 - **Validation:** File change triggers re-evaluation within 500ms; errors
   reported correctly
 - **Files:** `crates/anvil-cli/src/commands/policy_watch.rs`
-- **Confidence:** low (not yet implemented in Node.js; depends on OPAE-015)
+- **Confidence:** low (no historical Node.js implementation; depends on OPAE-015)
 - **Priority:** Low
 - **Dependencies:** RCLI-017, KERN (watcher), OPAE-015
 
@@ -240,7 +270,7 @@ Change status to **Ready** when:
 - **Validation:** Annotations appear on correct lines in PR; summary table
   counts match gate results
 - **Files:** `crates/anvil-cli/src/commands/pr_comment.rs`
-- **Confidence:** low (not yet implemented in Node.js; depends on OPAE-028,
+- **Confidence:** low (no historical Node.js implementation; depends on OPAE-028,
   OPAE-029)
 - **Priority:** Medium
 - **Dependencies:** RCLI (foundation), OPAE-028, OPAE-029
@@ -256,10 +286,10 @@ Change status to **Ready** when:
 - **Expected Outcome:** `anvil exception create --rule ARCH-001 --reason "..."
   --expires 30d` creates a scoped exception; `anvil exception list` shows
   active exceptions
-- **Validation:** Exception storage format matches Node.js CLI; expired
-  exceptions are correctly filtered
+- **Validation:** Exception storage format matches the historical Node.js CLI
+  contract; expired exceptions are correctly filtered
 - **Files:** `crates/anvil-cli/src/commands/exception.rs`
-- **Confidence:** low (not yet implemented in Node.js; depends on OPAE-027)
+- **Confidence:** low (no historical Node.js implementation; depends on OPAE-027)
 - **Priority:** Low
 - **Dependencies:** RCLI (foundation), OPAE-027
 
@@ -272,7 +302,8 @@ Change status to **Ready** when:
 | OPAE items not implemented (‡ commands) | High | Medium | Defer ‡ commands; ship Tier 2 without them; they join Tier 2 when OPAE lands |
 | SnapshotCaptureService port complexity | Medium | Medium | Share analysis logic with gate command; avoid duplicating check infrastructure |
 | Interactive mode (check --interactive) | Low | Low | Use crossterm raw mode with simple Y/N/S prompts; no full TUI needed |
-| Drift snapshot format divergence | Low | Medium | Write format compatibility test; snapshot header includes schema version |
+| Drift snapshot format divergence | Low | Medium | Write format compatibility test against historical snapshots; snapshot header includes schema version |
+| Module scope already partly delivered by RCLI | Medium | Low | Audit `crates/anvil-cli/src/commands/` against this list before starting; remove or downscale items already complete |
 
 ## Stats
 

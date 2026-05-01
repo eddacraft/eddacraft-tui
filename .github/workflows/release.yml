@@ -67,16 +67,32 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install dist
-        # we specify bash to get pipefail; it guards against the `curl` command
-        # failing. otherwise `sh` won't catch that `curl` returned non-0
-        # TODO(security): pin installer script by SHA256 hash — currently trusts
-        # the GitHub-hosted script at face value. cargo-dist does not yet publish
-        # checksums for installer scripts; revisit when they do.
+        # V041F-001: pin the downloaded installer script by SHA256 before
+        # executing it with sh. Without this, a compromise of the upstream script
+        # backdoors every Anvil binary the release pipeline produces
+        # (Homebrew tap, WinGet, Scoop bucket all originate here). Bump
+        # both DIST_VERSION and DIST_INSTALLER_SHA256 together when
+        # upgrading cargo-dist; the new hash is the output of:
+        #   curl -fsSL https://github.com/axodotdev/cargo-dist/releases/download/v<version>/cargo-dist-installer.sh \
+        #     | sha256sum
         shell: bash
-        run:
-          "curl --proto '=https' --tlsv1.2 -LsSf
-          https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh
-          | sh"
+        env:
+          DIST_VERSION: v0.31.0
+          DIST_INSTALLER_SHA256: e79d87e418b9d2cbe992d014985457c28a5a7c553add3da4ed1047e161c928f4
+        run: |
+          set -euo pipefail
+          INSTALLER="$RUNNER_TEMP/cargo-dist-installer.sh"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$INSTALLER" \
+            "https://github.com/axodotdev/cargo-dist/releases/download/${DIST_VERSION}/cargo-dist-installer.sh"
+          echo "${DIST_INSTALLER_SHA256}  ${INSTALLER}" | sha256sum --check --status || {
+            echo "::error::cargo-dist installer SHA256 mismatch — refusing to run."
+            echo "::error::expected ${DIST_INSTALLER_SHA256}"
+            echo "::error::actual   $(sha256sum "$INSTALLER" | awk '{print $1}')"
+            echo "::error::either upstream changed the script or the download was tampered with."
+            exit 1
+          }
+          sh "$INSTALLER"
+          rm -f "$INSTALLER"
       - name: Cache dist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -324,6 +340,19 @@ jobs:
               --notes-file "$RUNNER_TEMP/private-notes.txt" \
               artifacts/*
           fi
+      - name: Promote private release to Latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          # Keep the private source-of-truth release list aligned with the
+          # public distribution repo. GitHub skips prereleases for Latest, so
+          # beta tags must be published as normal releases while Anvil is in
+          # beta.
+          gh release edit "$RELEASE_TAG" \
+            --repo eddacraft/anvil-001 \
+            --prerelease=false \
+            --latest
       - name: Publish release to eddacraft/anvil (public)
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
@@ -437,7 +466,6 @@ jobs:
             --prerelease=false \
             --latest
       - name: Publish Homebrew formula to eddacraft/homebrew-tap
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
@@ -516,10 +544,23 @@ jobs:
             exit 1
           fi
 
+          # Surface the runner's gh version so any future "accepts N arg(s)"
+          # cobra failure can be reproduced locally with the matching version.
+          gh --version
+
           VERSION="${RELEASE_TAG#v}"
           REPO="eddacraft/anvil"
           X64_ASSET="eddacraft-anvil-x86_64-pc-windows-msvc.zip"
           ARM64_ASSET="eddacraft-anvil-aarch64-pc-windows-msvc.zip"
+
+          # WinGet validator rejects manifests whose InstallerUrl casing
+          # diverges from the actual GitHub release URL casing — the v0.4.0-beta
+          # manual recovery hit this. Anvil's repo is lowercase; assert the
+          # workflow stays that way before any URL substitution happens.
+          if [[ "$REPO" =~ [A-Z] ]]; then
+            echo "::error::REPO '${REPO}' must be lowercase for WinGet manifest URL casing"
+            exit 1
+          fi
 
           # Validate version looks like semver
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9._-]*$ ]]; then
@@ -594,11 +635,34 @@ jobs:
             echo ""
           done
 
-          # Fork winget-pkgs if not already forked
-          gh repo fork microsoft/winget-pkgs --clone=false 2>/dev/null || true
-
-          # Determine the fork owner from the token
+          # Determine the fork owner from the token first, so the fork-or-skip
+          # check below can ask "do I already have a fork?" without depending
+          # on `gh repo fork`'s own quirky exit-code behaviour across versions.
           FORK_USER=$(gh api user --jq '.login')
+
+          # Fork winget-pkgs only if the authenticated user does not already
+          # have one. The previous `gh repo fork --clone=false || true` form
+          # crashed under the runner's gh CLI with "accepts 1 arg(s),
+          # received 2" — likely a parser change around the boolean flag —
+          # and the `2>/dev/null || true` swallowed the diagnostic, making
+          # the real failure hard to understand. Check explicitly instead,
+          # and only swallow the expected 404 (no fork yet) — auth, rate
+          # limit, and network errors must surface so the job fails loudly
+          # instead of forking unnecessarily and getting confusing errors
+          # downstream.
+          FORK_CHECK_ERR=$(mktemp)
+          if gh api "repos/${FORK_USER}/winget-pkgs" --silent 2>"$FORK_CHECK_ERR"; then
+            echo "Fork ${FORK_USER}/winget-pkgs already exists — skipping fork step"
+          elif grep -qiE 'HTTP 404|not found' "$FORK_CHECK_ERR"; then
+            echo "Fork ${FORK_USER}/winget-pkgs does not exist yet — creating it"
+            gh repo fork microsoft/winget-pkgs --clone=false
+          else
+            echo "::error::Unexpected error checking fork existence:"
+            cat "$FORK_CHECK_ERR" >&2
+            rm -f "$FORK_CHECK_ERR"
+            exit 1
+          fi
+          rm -f "$FORK_CHECK_ERR"
 
           # Use run ID in branch name for idempotency on retries
           BRANCH="eddacraft-anvil-${VERSION}-${GITHUB_RUN_ID}"
@@ -637,16 +701,22 @@ jobs:
             CONTENT=$(base64 -w 0 "$f")
             EXISTING_SHA=$(gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}?ref=${BRANCH}" --jq '.sha' 2>/dev/null || true)
 
-            SHA_ARG=""
+            # Use a bash array so the empty-sha case adds no trailing tokens
+            # to the gh invocation. Avoids word-splitting / globbing hazards
+            # of conditionally building flag strings — the previous
+            # `$SHA_ARG` form happened to be safe on the values we pass but
+            # the array idiom keeps it that way without future maintainer
+            # care.
+            SHA_ARGS=()
             if [ -n "$EXISTING_SHA" ]; then
-              SHA_ARG="-f sha=$EXISTING_SHA"
+              SHA_ARGS=(-f "sha=${EXISTING_SHA}")
             fi
 
             gh api "repos/${FORK_USER}/winget-pkgs/contents/${PKG_PATH}/${TARGET}" -X PUT \
               -f message="New version: ${WINGET_ID} v${VERSION}" \
               -f content="$CONTENT" \
               -f branch="$BRANCH" \
-              $SHA_ARG
+              "${SHA_ARGS[@]}"
           done
 
           # Check for existing open PR before creating a new one
@@ -760,22 +830,60 @@ jobs:
           BUCKET="eddacraft/scoop-bucket"
           TARGET="bucket/anvil.json"
 
+          # Surface the runner's gh version so any future cobra failure
+          # can be reproduced with the matching CLI.
+          gh --version
+
+          # Pre-flight: verify the token can READ the bucket repo. The
+          # actual PUT below also needs `contents:write` — but if even
+          # the read fails, the PUT will fail too and we want a clearer
+          # error than `HTTP 403` ten lines deeper in the script.
+          # v0.4.0-beta tag 403'd here because the PAT lacked
+          # contents:write on eddacraft/scoop-bucket; the manifest was
+          # pushed manually via the same gh api call from a dev machine
+          # (commit eddacraft/scoop-bucket@4f3becf6). See
+          # docs/runbooks/release-token-scope.md for the required
+          # scope; the fix is usually edit-in-place on the existing
+          # PAT (no rotation), and the runbook walks both paths.
+          PREFLIGHT_ERR=$(mktemp)
+          if ! gh api "repos/${BUCKET}" --silent 2>"$PREFLIGHT_ERR"; then
+            echo "::error title=Scoop bucket pre-flight failed::ANVIL_RELEASES_TOKEN cannot READ ${BUCKET}. This is usually a scope issue — the bucket is missing from the fine-grained PAT's selected-repos list, the token lost SSO authorisation, or the token was revoked. See docs/runbooks/release-token-scope.md for the edit-in-place fix (add the repo + verify Metadata: Read). The PUT below additionally needs Contents: Read and write."
+            cat "$PREFLIGHT_ERR" >&2
+            rm -f "$PREFLIGHT_ERR"
+            exit 1
+          fi
+          rm -f "$PREFLIGHT_ERR"
+
           # Use the GitHub contents API so we don't need to clone/push.
           # Fetch the current SHA (required for PUT update) — ignore if missing.
           EXISTING_SHA=$(gh api "repos/${BUCKET}/contents/${TARGET}" --jq '.sha' 2>/dev/null || true)
 
           CONTENT_B64=$(base64 -w 0 < "$RUNNER_TEMP/anvil.json")
 
+          PUT_ERR=$(mktemp)
+          PUT_OK=1
           if [ -n "$EXISTING_SHA" ]; then
             gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
               -f message="chore: bump anvil to ${RELEASE_TAG}" \
               -f content="$CONTENT_B64" \
-              -f sha="$EXISTING_SHA"
+              -f sha="$EXISTING_SHA" 2>"$PUT_ERR" || PUT_OK=0
           else
             gh api "repos/${BUCKET}/contents/${TARGET}" -X PUT \
               -f message="chore: add anvil ${RELEASE_TAG}" \
-              -f content="$CONTENT_B64"
+              -f content="$CONTENT_B64" 2>"$PUT_ERR" || PUT_OK=0
           fi
+
+          if [ "$PUT_OK" = "0" ]; then
+            if grep -qiE 'HTTP 403|not accessible' "$PUT_ERR"; then
+              echo "::error title=Scoop bucket write denied::ANVIL_RELEASES_TOKEN passed the read pre-flight but cannot write to ${BUCKET}. The PAT needs contents:write on eddacraft/scoop-bucket. See docs/runbooks/release-token-scope.md."
+            else
+              echo "::error title=Scoop manifest push failed::Unexpected error pushing ${TARGET} to ${BUCKET}."
+            fi
+            cat "$PUT_ERR" >&2
+            rm -f "$PUT_ERR"
+            exit 1
+          fi
+          rm -f "$PUT_ERR"
 
           echo "Pushed ${TARGET} to ${BUCKET} for ${RELEASE_TAG}"
 

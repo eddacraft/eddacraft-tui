@@ -2,7 +2,20 @@
 
 ## Status
 
-Proposed
+Accepted (2026-04-26)
+
+> Accepted at minimum bar per Council D recommendation; refinements to land on first implementation.
+>
+> **Amended (2026-04-28) by [ADR-033](./033-park-ide-mcp-retire-ts-scanner.md).**
+> The "no new comment styles in the TS suppression parser" rule
+> below is moot under ADR-033 — the TS suppression parser at
+> `packages/anvil/core/src/suppression/parser.ts` is retired with
+> the TS scanner. The Rust suppression parser in
+> `crates/anvil-checks/src/antipattern/scanner.rs` becomes the sole
+> implementation rather than the authoritative one of two. The
+> shared rule schema (`<ID>: <reason>`,
+> `@anvil-ignore-until DATE`) and the Rust-authoritative decision
+> are unaffected.
 
 ## Date
 

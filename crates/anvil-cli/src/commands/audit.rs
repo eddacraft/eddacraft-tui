@@ -11,6 +11,9 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::services::interactive_fix::{
+    FixOutcome, apply_fix_request, is_auto_fixable_console_statement,
+};
 
 #[derive(Debug, Args)]
 pub struct AuditArgs {}
@@ -21,8 +24,23 @@ pub fn run(_args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.json {
         print_json(&data)?;
     } else if !global.no_tui && std::io::stdout().is_terminal() {
-        let state = AuditState::new(data);
-        crate::tui::run_surface(state)?;
+        let mut state = AuditState::new(data);
+        loop {
+            state = crate::tui::run_surface(state)?;
+            if let Some(request) = state.pending_fix.take() {
+                let selected = state.selected_item;
+                if matches!(
+                    apply_fix_request(&request, None),
+                    FixOutcome::Applied { .. }
+                ) {
+                    state.data = collect_audit_data();
+                    state.selected_item = selected.min(state.data.issues.len().saturating_sub(1));
+                    state.expanded = false;
+                }
+                continue;
+            }
+            break;
+        }
     } else {
         print_plain(&data);
     }
@@ -49,45 +67,91 @@ pub fn collect_audit_data() -> AuditData {
 }
 
 /// Scan the repository at `root` and return audit data.
+///
+/// SCAN-001: file discovery uses `ignore::WalkBuilder` configured with
+/// `.standard_filters(false)` plus an explicit `SKIP_DIRS` prune list.
+/// `.gitignore` is intentionally NOT applied — a security scan must see
+/// every file regardless of VCS state — but `target/`, `node_modules/`,
+/// and similar noise dirs are skipped via the explicit prune.
+/// Per-file scans run on the rayon thread pool with `catch_unwind`
+/// panic containment. Findings are then sorted into the deterministic
+/// `(severity, file, line)` order so concurrent collection cannot leak
+/// scheduling into user-visible output.
 pub fn run_audit(root: &Path) -> AuditData {
+    use rayon::prelude::*;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
     let project_name = root
         .canonicalize()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "unknown".to_string());
 
-    let mut total_files: usize = 0;
-    let mut issues: Vec<AuditIssue> = Vec::new();
-
-    let walker = walkdir::WalkDir::new(root)
+    // Phase 1: discover candidate files via the noise-pruning walker (skips target/, node_modules/, etc; not .gitignore).
+    // `standard_filters(true)` honours `.gitignore`; we still prune
+    // SKIP_DIRS explicitly to keep behaviour identical to the legacy
+    // serial walk (audit had its own ignore set independent of gitignore).
+    let walker = ignore::WalkBuilder::new(root)
         .follow_links(false)
-        .into_iter()
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
-            if e.file_type().is_dir()
+            if e.file_type().is_some_and(|ft| ft.is_dir())
                 && let Some(name) = e.file_name().to_str()
             {
                 return !SKIP_DIRS.contains(&name);
             }
             true
-        });
+        })
+        .build();
 
-    for entry in walker.flatten() {
-        if !entry.file_type().is_file() {
-            continue;
-        }
+    let candidates: Vec<(std::path::PathBuf, String)> = walker
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+                return None;
+            }
+            let path = entry.path();
+            let rel = path
+                .strip_prefix(root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .into_owned();
+            Some((path.to_path_buf(), rel))
+        })
+        .collect();
 
-        total_files += 1;
+    let total_files = candidates.len();
 
-        let path = entry.path();
-        let rel = path
-            .strip_prefix(root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .into_owned();
+    // Phase 2: scan each file in parallel. Each closure produces its own
+    // `Vec<AuditIssue>` so workers never contend on a shared mutable
+    // collection. `catch_unwind` keeps a panic in `scan_source_file`
+    // (e.g. on malformed UTF-8 we didn't anticipate) from poisoning the
+    // whole audit run.
+    let per_file: Vec<Vec<AuditIssue>> = candidates
+        .par_iter()
+        .map(|(path, rel)| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                let mut local: Vec<AuditIssue> = Vec::new();
+                check_env_file(path, rel, &mut local);
+                scan_source_file(path, rel, &mut local);
+                local
+            }));
+            result.unwrap_or_default()
+        })
+        .collect();
 
-        check_env_file(path, &rel, &mut issues);
-        scan_source_file(path, &rel, &mut issues);
-    }
+    let mut issues: Vec<AuditIssue> = per_file.into_iter().flatten().collect();
+    // Deterministic order: severity descending, then file ascending, line
+    // ascending, message ascending — without this the rayon collect order
+    // would leak thread scheduling into the user-facing audit output.
+    issues.sort_by(|a, b| {
+        issue_severity_rank(b.severity)
+            .cmp(&issue_severity_rank(a.severity))
+            .then_with(|| a.file.cmp(&b.file))
+            .then_with(|| a.line.cmp(&b.line))
+            .then_with(|| a.message.cmp(&b.message))
+    });
 
     let historical_scores = load_historical_scores(root);
     let next_steps = generate_next_steps(&issues);
@@ -98,6 +162,18 @@ pub fn run_audit(root: &Path) -> AuditData {
         issues,
         historical_scores,
         next_steps,
+    }
+}
+
+/// Severity ordering helper used to sort the parallel-collected audit
+/// issues into a deterministic, user-visible order.
+const fn issue_severity_rank(severity: IssueSeverity) -> u8 {
+    match severity {
+        IssueSeverity::Critical => 5,
+        IssueSeverity::High => 4,
+        IssueSeverity::Medium => 3,
+        IssueSeverity::Low => 2,
+        IssueSeverity::Info => 1,
     }
 }
 
@@ -158,13 +234,14 @@ fn scan_line(ext: &str, trimmed: &str, line_num: usize, rel: &str, issues: &mut 
     if (ext == "ts" || ext == "js")
         && (trimmed.contains("console.log") || trimmed.contains("console.error"))
     {
+        let fixable = is_auto_fixable_console_statement(trimmed);
         issues.push(AuditIssue {
             severity: IssueSeverity::Low,
             category: "Quality".to_string(),
             message: "console statement found".to_string(),
             file: rel.to_string(),
             line: line_num,
-            fixable: true,
+            fixable,
         });
     }
 

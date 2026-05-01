@@ -36,6 +36,8 @@ export class VercelApp extends pulumi.ComponentResource {
     const skipFlag = args.skipPreviewDeploys ? '--skip-preview ' : '';
     const branchFlag =
       args.skipPreviewDeploys && prodBranch !== 'main' ? `--prod-branch ${prodBranch} ` : '';
+    const gitProductionBranch =
+      args.skipPreviewDeploys || args.productionBranch ? prodBranch : undefined;
     const extraArgs = args.extraWatchPaths?.length
       ? ' ' + args.extraWatchPaths.map((p) => `'${p}'`).join(' ')
       : '';
@@ -50,9 +52,11 @@ export class VercelApp extends pulumi.ComponentResource {
         buildCommand: args.buildCommand,
         installCommand: args.installCommand,
         ignoreCommand: args.ignoreCommand ?? defaultIgnoreCommand,
+        previewDeploymentsDisabled: args.skipPreviewDeploys || undefined,
         gitRepository: {
           type: 'github',
           repo: args.gitRepo,
+          ...(gitProductionBranch ? { productionBranch: gitProductionBranch } : {}),
         },
       },
       { parent: this }
@@ -72,6 +76,11 @@ export class VercelApp extends pulumi.ComponentResource {
 
     if (args.envVars) {
       for (const [key, value] of Object.entries(args.envVars)) {
+        // NEXT_PUBLIC_* is read by Next.js at build time and inlined into the
+        // client bundle. Vercel does not expose sensitive env vars to the
+        // build environment, so marking them sensitive silently breaks the
+        // build (the value becomes undefined and any fallback in code wins).
+        const sensitive = !key.startsWith('NEXT_PUBLIC_');
         new vercel.ProjectEnvironmentVariable(
           `${name}-${key.toLowerCase().replace(/_/g, '-')}`,
           {
@@ -79,7 +88,7 @@ export class VercelApp extends pulumi.ComponentResource {
             key,
             value,
             targets: ['production', 'preview'],
-            sensitive: true,
+            sensitive,
           },
           { parent: this }
         );

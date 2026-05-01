@@ -3,9 +3,49 @@
 
 # Policy Federation
 
-| Scope  | Owner | Priority | Status |
-| ------ | ----- | -------- | ------ |
-| POLFED | —     | medium   | Draft  |
+| Scope  | Owner | Priority | Status | Progress |
+| ------ | ----- | -------- | ------ | -------- |
+| POLFED | —     | medium   | Draft  | 0/8      |
+
+**Last reviewed:** 2026-04-26
+
+> **Audit note (2026-04-26):** Tier C (parking lot, post-launch).
+> Multi-repo / fleet federation is an enterprise feature, not RTAI-blocking.
+>
+> Council C recommended dissolving POLFED into OPAE on the grounds that
+> "POLFED-001..006 are 1:1 duplicates of OPAE-034..036." That was
+> overstated. The actual overlap is narrow:
+> - **POLFED-002** (central repo conventions) ↔ **OPAE-034** (org bundles)
+>   — partial overlap on *where bundles live*. Coordinate schema.
+> - **POLFED-006** (subscription version pinning) ↔ **OPAE-035** (bundle
+>   versioning) — different angle (consume vs publish). Coordinate
+>   version-resolution semantics.
+>
+> The other 6 POLFED tasks have no OPAE equivalent: channel schema
+> (POLFED-001), publisher workflow (POLFED-003), publish approval gate
+> (POLFED-004), subscriber workflow (POLFED-005), fleet aggregation
+> (POLFED-007 — cross-repo, distinct from COMPLY-007's single-repo
+> historical), CLI federation commands (POLFED-008 — `publish/subscribe/
+> fleet`, distinct from OPAE's `browse/install`).
+>
+> **Conceptual model:** OPAE owns bundle primitives (data model,
+> versioning, inheritance — the "what"); POLFED owns the operational
+> federation layer (publish workflow, subscribe sync, fleet aggregation,
+> CLI commands — the "how to distribute"). They are layered, not
+> duplicate.
+>
+> **Rescope work pending** (tracked separately, see followup list):
+> 1. Author ADR codifying the OPAE/POLFED boundary so future refactors
+>    don't re-litigate ownership of bundle primitives vs federation
+>    workflow.
+> 2. Coordinate POLFED-002 ↔ OPAE-034 schema (where bundles live in a
+>    central repo: directory layout, manifest format).
+> 3. Coordinate POLFED-006 ↔ OPAE-035 version-resolution semantics
+>    (subscriber pin vs publisher version).
+> 4. Retarget validations to `cargo test -p eddacraft-anvil-policy` once OPAE
+>    bundle primitives land in `crates/anvil-policy`.
+> 5. Confirm POLFED-007 (cross-repo fleet) and COMPLY-007 (single-repo
+>    historical) stay distinct — they shouldn't merge.
 
 ## Purpose
 
@@ -76,77 +116,77 @@ fleet-wide compliance visibility.
 
 - **Intent:** Define the channel model for grouping and versioning policy packs
 - **Expected Outcome:** Schema supports channel name, description, version, and metadata
-- **Scope:** `packages/anvil/contracts/src/types/`
+- **Scope:** `crates/anvil-kernel-types/src/`
 - **Non-scope:** Transport layer
-- **Validation:** `nx test contracts --testNamePattern="policy-channel"`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- policy_channel`
 - **Confidence:** high
 
 ### POLFED-002: Central repository conventions
 
 - **Intent:** Establish directory structure and manifest format for policy repos
 - **Expected Outcome:** Convention documented; manifest loader supports the format
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Policy authoring
 - **Dependencies:** POLFED-001
-- **Validation:** `nx test policy --testNamePattern="central-repo"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- central_repo`
 - **Confidence:** high
 
 ### POLFED-003: Policy publisher
 
 - **Intent:** Package and publish policy packs to channels with validation
 - **Expected Outcome:** Publisher validates, versions, and pushes packs to registry
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Approval workflow
 - **Dependencies:** POLFED-001, POLFED-002
-- **Validation:** `nx test policy --testNamePattern="policy-publisher"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_publisher`
 - **Confidence:** high
 
 ### POLFED-004: Publish approval gate
 
 - **Intent:** Require reviewer approval before policies go live on a channel
 - **Expected Outcome:** Approval tracked in manifest; unapproved publishes blocked
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Notification delivery
 - **Dependencies:** POLFED-003
-- **Validation:** `nx test policy --testNamePattern="publish-approval"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- publish_approval`
 - **Confidence:** medium
 
 ### POLFED-005: Policy subscriber
 
 - **Intent:** Allow repos to subscribe to channels and sync policy bundles
 - **Expected Outcome:** Subscriber fetches, caches, and applies channel policies
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Hierarchy resolution
 - **Dependencies:** POLFED-001
-- **Validation:** `nx test policy --testNamePattern="policy-subscriber"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_subscriber`
 - **Confidence:** high
 
 ### POLFED-006: Subscription version pinning
 
 - **Intent:** Let repos pin to a specific channel version for stability
 - **Expected Outcome:** Pinned repos skip newer versions until pin is updated
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Auto-update logic
 - **Dependencies:** POLFED-005
-- **Validation:** `nx test policy --testNamePattern="version-pinning"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- version_pinning`
 - **Confidence:** high
 
 ### POLFED-007: Fleet compliance aggregator
 
 - **Intent:** Collect compliance data across all subscribed repos for org visibility
 - **Expected Outcome:** Aggregator produces fleet-wide posture summary
-- **Scope:** `packages/anvil/runtime/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Dashboard rendering
 - **Dependencies:** POLFED-005
-- **Validation:** `nx test runtime --testNamePattern="fleet-compliance"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- fleet_compliance`
 - **Confidence:** medium
 
 ### POLFED-008: CLI federation commands
 
 - **Intent:** Expose publish, subscribe, and fleet status via the CLI
 - **Expected Outcome:** `anvil policy publish`, `subscribe`, and `fleet` commands work
-- **Scope:** `apps/anvil-cli/src/commands/`
+- **Scope:** `crates/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation
 - **Dependencies:** POLFED-003, POLFED-005, POLFED-007
-- **Validation:** `nx test cli --testNamePattern="policy federation"`
+- **Validation:** `cargo test -p eddacraft-anvil -- policy_federation`
 - **Confidence:** high

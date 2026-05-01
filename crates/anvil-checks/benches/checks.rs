@@ -75,12 +75,9 @@ fn generate_typescript_file(lines: usize, secrets_count: usize) -> String {
         "const genericSecret = 'super-secret-value-1234';".into(),
     ];
 
-    let spacing = if secrets_count == 0 {
-        lines.saturating_add(1)
-    } else {
-        let bucket = lines / secrets_count;
-        bucket.max(1)
-    };
+    let spacing = lines
+        .checked_div(secrets_count)
+        .map_or_else(|| lines.saturating_add(1), |bucket| bucket.max(1));
 
     let mut inserted = 0;
     while line_count < lines {
@@ -120,12 +117,9 @@ fn generate_typescript_with_antipatterns(lines: usize, antipattern_count: usize)
         "/* eslint-disable */",
     ];
 
-    let spacing = if antipattern_count == 0 {
-        lines.saturating_add(1)
-    } else {
-        let bucket = lines / antipattern_count;
-        bucket.max(1)
-    };
+    let spacing = lines
+        .checked_div(antipattern_count)
+        .map_or_else(|| lines.saturating_add(1), |bucket| bucket.max(1));
 
     let mut inserted = 0;
     while line_count < lines {

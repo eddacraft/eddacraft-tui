@@ -19,6 +19,7 @@ aho-corasick = { version = "1" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 clap = { version = "4", features = ["derive"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "help", "std", "suggestions", "usage"] }
+crossbeam-utils = { version = "0.8" }
 eddacraft-tui = { version = "0.1", default-features = false, features = ["test-utils"] }
 either = { version = "1", default-features = false, features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["sink"] }
@@ -29,7 +30,7 @@ memchr = { version = "2" }
 num-traits = { version = "0.2" }
 once_cell = { version = "1" }
 regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa", "perf", "std", "unicode"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-build", "dfa-onepass", "hybrid", "meta", "nfa", "perf", "std", "unicode"] }
 regex-syntax = { version = "0.8" }
 serde = { version = "1", features = ["alloc", "derive"] }
 serde_core = { version = "1", features = ["alloc"] }
@@ -55,9 +56,11 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
+nix = { version = "0.30", features = ["fs", "signal", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
+tracing-core = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -71,9 +74,11 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
+nix = { version = "0.30", features = ["fs", "signal", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
+tracing-core = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -87,9 +92,12 @@ getrandom = { version = "0.4", default-features = false, features = ["std", "sys
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 libc = { version = "0.2", features = ["extra_traits"] }
+mio = { version = "1", features = ["net", "os-ext"] }
+nix = { version = "0.30", features = ["fs", "signal", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
+tracing-core = { version = "0.1" }
 
 [target.x86_64-apple-darwin.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -103,9 +111,12 @@ getrandom = { version = "0.4", default-features = false, features = ["std", "sys
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 libc = { version = "0.2", features = ["extra_traits"] }
+mio = { version = "1", features = ["net", "os-ext"] }
+nix = { version = "0.30", features = ["fs", "signal", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
+tracing-core = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -119,8 +130,9 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
+tracing-core = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "handleapi", "impl-default", "processenv", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
-windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -133,8 +145,9 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1" }
+tracing-core = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "handleapi", "impl-default", "processenv", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
-windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
 
 [target.aarch64-pc-windows-msvc.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }

@@ -7,6 +7,8 @@
 | ------- | ----- | -------- | ------ |
 | ORGHIER | —     | high     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Enable multi-level policy governance so organisations can enforce baseline
@@ -36,7 +38,8 @@ controlled override and exemption semantics at each level.
 
 **Depends on:**
 
-- `opa-architecture-integration` — Policy loading and OPA execution
+<!-- Audit 2026-04-26: opa-architecture-integration archived; policy now lives in crates/anvil-policy. -->
+- `crates/anvil-policy` — Policy loading and OPA execution
 - `policy-pack-validation` — Validation of policy packs at each tier
 - `opa-enhancements` — Remote bundle infrastructure (OPAE-034–036)
 
@@ -73,66 +76,66 @@ controlled override and exemption semantics at each level.
 
 - **Intent:** Define the configuration format for multi-tier policy bindings
 - **Expected Outcome:** Schema supports org, team, and project tiers with merge strategy
-- **Scope:** `packages/anvil/contracts/src/types/`
+- **Scope:** `crates/anvil-kernel-types/src/`
 - **Non-scope:** Resolution logic
-- **Validation:** `nx test contracts --testNamePattern="hierarchy-config"`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- hierarchy_config`
 - **Confidence:** high
 
 ### ORGHIER-002: Scope selector engine
 
 - **Intent:** Match repositories and paths to policy sets using selectors
 - **Expected Outcome:** Selectors support repo name globs, team tags, and path patterns
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Policy evaluation
-- **Validation:** `nx test policy --testNamePattern="scope-selector"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- scope_selector`
 - **Confidence:** high
 
 ### ORGHIER-003: Policy hierarchy resolver
 
 - **Intent:** Merge policies from multiple tiers into an effective set
 - **Expected Outcome:** Resolver applies inheritance, overrides, and conflict detection
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Bundle fetching
 - **Dependencies:** ORGHIER-001, ORGHIER-002
-- **Validation:** `nx test policy --testNamePattern="hierarchy-resolver"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- hierarchy_resolver`
 - **Confidence:** high
 
 ### ORGHIER-004: Override permission enforcement
 
 - **Intent:** Prevent project-level configs from relaxing org rules without authorisation
 - **Expected Outcome:** Overrides blocked unless parent tier sets `allow_override`
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Approval workflows
 - **Dependencies:** ORGHIER-003
-- **Validation:** `nx test policy --testNamePattern="override-enforcement"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- override_enforcement`
 - **Confidence:** high
 
 ### ORGHIER-005: Conflict diagnostics
 
 - **Intent:** Report contradictory policies across tiers with actionable guidance
 - **Expected Outcome:** Conflicts include provenance, severity, and resolution hints
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy/src/`
 - **Non-scope:** Auto-resolution
 - **Dependencies:** ORGHIER-003
-- **Validation:** `nx test policy --testNamePattern="conflict-diagnostics"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- conflict_diagnostics`
 - **Confidence:** medium
 
 ### ORGHIER-006: CLI hierarchy commands
 
 - **Intent:** Let users inspect effective policies and hierarchy chain
 - **Expected Outcome:** `anvil policy effective` and `anvil policy hierarchy` work
-- **Scope:** `apps/anvil-cli/src/commands/`
+- **Scope:** `crates/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation
 - **Dependencies:** ORGHIER-003, ORGHIER-005
-- **Validation:** `nx test cli --testNamePattern="policy hierarchy"`
+- **Validation:** `cargo test -p eddacraft-anvil -- policy_hierarchy`
 - **Confidence:** high
 
 ### ORGHIER-007: Gate runner hierarchy integration
 
 - **Intent:** Gate evaluation uses the resolved effective policy set
 - **Expected Outcome:** Gate runner resolves hierarchy before policy check
-- **Scope:** `packages/anvil/runtime/src/gate/`
+- **Scope:** `crates/anvil-policy/src/` (gate hooks via `crates/anvil-cli/src/commands/gate.rs`)
 - **Non-scope:** New check types
 - **Dependencies:** ORGHIER-003
-- **Validation:** `nx test runtime --testNamePattern="hierarchy-gate"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- hierarchy_gate`
 - **Confidence:** medium

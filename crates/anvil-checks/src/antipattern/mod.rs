@@ -16,8 +16,8 @@ pub use patterns::{
     is_valid_pattern_id, patterns_count,
 };
 pub use scanner::{
-    Artifact, CompileDiagnostic, ScanOptions, ScanResult, registry_compile_diagnostics,
-    scan_artifact, scan_artifacts, scan_file, scan_files,
+    Artifact, CompileDiagnostic, ScanOptions, ScanResult, parse_suppression,
+    registry_compile_diagnostics, scan_artifact, scan_artifacts, scan_file, scan_files,
 };
 pub use types::{
     AntiPattern, AntiPatternCategory, AntipatternCheckConfig, AntipatternCheckResult, ArtifactKind,

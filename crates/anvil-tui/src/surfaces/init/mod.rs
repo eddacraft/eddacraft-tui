@@ -98,7 +98,7 @@ impl ConfigFormat {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Yaml => "YAML (.anvil.yaml)",
+            Self::Yaml => "YAML (.anvil.yaml) (default)",
             Self::Json => "JSON (.anvil.json)",
             Self::Toml => "TOML (.anvil.toml)",
         }
@@ -188,15 +188,11 @@ impl InitState {
 
     fn handle_mode_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.mode_selected > 0 {
-                    self.mode_selected -= 1;
-                }
+            Action::Up if self.mode_selected > 0 => {
+                self.mode_selected -= 1;
             }
-            Action::Down => {
-                if self.mode_selected < InitMode::ALL.len() - 1 {
-                    self.mode_selected += 1;
-                }
+            Action::Down if self.mode_selected < InitMode::ALL.len() - 1 => {
+                self.mode_selected += 1;
             }
             Action::Select => {
                 self.config.mode = InitMode::ALL[self.mode_selected];
@@ -210,15 +206,11 @@ impl InitState {
 
     fn handle_format_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.format_selected > 0 {
-                    self.format_selected -= 1;
-                }
+            Action::Up if self.format_selected > 0 => {
+                self.format_selected -= 1;
             }
-            Action::Down => {
-                if self.format_selected < ConfigFormat::ALL.len() - 1 {
-                    self.format_selected += 1;
-                }
+            Action::Down if self.format_selected < ConfigFormat::ALL.len() - 1 => {
+                self.format_selected += 1;
             }
             Action::Select => {
                 self.config.format = ConfigFormat::ALL[self.format_selected];
@@ -273,15 +265,11 @@ impl InitState {
 
     fn handle_checks_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.check_selected > 0 {
-                    self.check_selected -= 1;
-                }
+            Action::Up if self.check_selected > 0 => {
+                self.check_selected -= 1;
             }
-            Action::Down => {
-                if self.check_selected < self.check_toggles.len().saturating_sub(1) {
-                    self.check_selected += 1;
-                }
+            Action::Down if self.check_selected < self.check_toggles.len().saturating_sub(1) => {
+                self.check_selected += 1;
             }
             Action::Toggle => {
                 if let Some(check) = self.check_toggles.get_mut(self.check_selected) {

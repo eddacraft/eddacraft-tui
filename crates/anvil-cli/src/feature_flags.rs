@@ -44,10 +44,16 @@ pub const CLI_GATED_COMMANDS: &[&str] = &[
     "export",
     "gate",
     "gate-config",
+    "init",
+    "mcp-config",
+    "mcp-install",
+    "new",
     "policy",
     "status",
     "watch",
+    "welcome",
     "whoami",
+    "wizard",
 ];
 
 /// CLI-local metadata attached to the `cli.licence-gate` flag.

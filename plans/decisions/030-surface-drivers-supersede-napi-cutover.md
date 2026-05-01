@@ -4,6 +4,17 @@
 
 Proposed
 
+> **Amended (2026-04-28) by [ADR-033](./033-park-ide-mcp-retire-ts-scanner.md).**
+> The Sequencing Decision below (Option A — "TS scanner remains in
+> the codebase for the length of the INTD → DRVR build-out") is
+> amended. INTD post-release sequencing stands; the TS-scanner-stays
+> half is supplanted. ADR-033 pauses the IDE/MCP surfaces and
+> retires the TS scanner / suppression parser / parity harness now.
+> TSRET-005 unblocks under ADR-033 rather than waiting on
+> DRVR-003/-004. DRVR-003 (VSCode editor driver) and DRVR-004 (MCP
+> driver) remain the intended return path for surfaces but are
+> deferred until the surfaces resume; the rest of DRVR is unaffected.
+
 ## Date
 
 2026-04-23

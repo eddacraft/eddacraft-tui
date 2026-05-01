@@ -103,10 +103,8 @@ impl StatusState {
 
     pub fn handle_key(&mut self, action: Action) {
         match action {
-            Action::Up => {
-                if self.selected_item > 0 {
-                    self.selected_item -= 1;
-                }
+            Action::Up if self.selected_item > 0 => {
+                self.selected_item -= 1;
             }
             Action::Down => {
                 let max = self.max_items_in_panel().saturating_sub(1);

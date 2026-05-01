@@ -7,6 +7,13 @@
 | ------- | ----- | ------ |
 | PACKPUL | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> Note (2026-04-26): "TS substrate" = the language being analysed by this pack.
+> The pack itself ships as a Rust crate `crates/anvil-pack-pulumi/` per
+> [ADR-027](../decisions/027-pack-architecture.md). Anvil's own `infra/`
+> directory (Pulumi TS) is the dogfood target.
+
 ## Purpose
 
 First semantic pack, layered on TypeScript. Per

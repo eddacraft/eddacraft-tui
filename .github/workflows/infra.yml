@@ -6,6 +6,9 @@ on:
       - 'infra/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/infra.yml'
+      - 'apps/anvil-api/src/db/migrations/**'
+      - 'apps/anvil-api/src/db/migrate.ts'
+      - 'apps/anvil-api/scripts/migrate.mjs'
   push:
     branches:
       - main
@@ -13,6 +16,9 @@ on:
       - 'infra/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/infra.yml'
+      - 'apps/anvil-api/src/db/migrations/**'
+      - 'apps/anvil-api/src/db/migrate.ts'
+      - 'apps/anvil-api/scripts/migrate.mjs'
 
 concurrency:
   group: infra-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -140,6 +146,29 @@ jobs:
           VERCEL_TOKEN=$(az keyvault secret show --vault-name kv-iac-anvil --name vercel-token --query value -o tsv)
           echo "::add-mask::$VERCEL_TOKEN"
           echo "VERCEL_TOKEN=$VERCEL_TOKEN" >> "$GITHUB_ENV"
+
+      # V041F-014: apply pending DB migrations BEFORE Pulumi Up so any
+      # new schema the infra apply depends on is already in place.
+      # v0.4.0-beta tag failed Pulumi Up with `relation "admin_keys"
+      # does not exist` because migrations 007–010 had not been
+      # applied. The runner is idempotent and refuses to apply if any
+      # recorded migration has been edited on disk (drift guard).
+      - name: Build anvil-api
+        # tsc --build already follows the project references composite
+        # graph, so `--filter @eddacraft/anvil-api` (without `...`) is
+        # enough — `--filter ...` would re-build deps once via pnpm
+        # then again via tsc --build.
+        run: pnpm --filter @eddacraft/anvil-api run build
+
+      - name: Apply pending DB migrations
+        # Fetch DATABASE_URL inline rather than persisting to GITHUB_ENV
+        # so the prod credential is scoped to this single step and is
+        # never visible to the Pulumi Up action below or any other
+        # third-party action.
+        run: |
+          DATABASE_URL=$(az keyvault secret show --vault-name kv-iac-anvil --name anvil-api-database-url --query value -o tsv)
+          echo "::add-mask::$DATABASE_URL"
+          DATABASE_URL="$DATABASE_URL" node apps/anvil-api/scripts/migrate.mjs
 
       - name: Apply infrastructure changes
         uses: pulumi/actions@8582a9e8cc630786854029b4e09281acd6794b58 # v6

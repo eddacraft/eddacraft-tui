@@ -7,6 +7,13 @@
 | ------- | ----- | ------ |
 | PACKHON | —     | Draft  |
 
+**Last reviewed:** 2026-04-26
+
+> Note (2026-04-26): "TS substrate" = TS code being analysed. The pack itself
+> ships as a Rust crate `crates/anvil-pack-hono/` per
+> [ADR-027](../decisions/027-pack-architecture.md). `apps/anvil-api` is the
+> dogfood target.
+
 ## Purpose
 
 Per [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)

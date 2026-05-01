@@ -11,8 +11,9 @@ packages:
   - packages/edda-stack
   - packages/eslint-plugin-anvil
   - packages/kindling-integration
-  - packages/mcp-server
-  - packages/vscode-extension
+  # mcp-server and vscode-extension archived under ADR-033
+  # (2026-04-29) → archive/anvil-mcp-server, archive/anvil-vscode-extension.
+  # Excluded by '!archive/**' below.
   # Shared infrastructure (ADR-015)
   - packages/shared/*
   # Shared libraries (ADR-015)

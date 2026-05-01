@@ -13,6 +13,8 @@ Scopes: UCFG (main)
 | ---- | ----- | -------- | -------- |
 | UCFG | —     | Proposed | 0/18     |
 
+**Last reviewed:** 2026-04-26
+
 ## Purpose
 
 Consolidate Anvil's three configuration files (`.anvilrc`,
@@ -369,7 +371,7 @@ Remove legacy config paths and update all documentation.
 ### UCFG-014: Update MCP server config resources
 
 - **Status:** Proposed
-- **Intent:** Update the MCP server (`packages/mcp-server/`) to read from
+- **Intent:** Update the MCP server (`archive/anvil-mcp-server/`) to read from
   the unified `.anvilrc` instead of three separate files. The
   `anvil://config` resource should return the resolved unified config.
   The `anvil://boundaries` resource should resolve architecture from the
@@ -378,8 +380,8 @@ Remove legacy config paths and update all documentation.
   AI agents see a single config surface through MCP
 - **Validation:** MCP server starts, resources return expected data with both
   inline and delegated architecture configs
-- **Files:** `packages/mcp-server/src/resources/`,
-  `packages/mcp-server/src/config/`
+- **Files:** `archive/anvil-mcp-server/src/resources/`,
+  `archive/anvil-mcp-server/src/config/`
 - **Confidence:** Medium — MCP server is TypeScript, needs a TOML parser
 - **Priority:** Low
 - **Dependencies:** UCFG-004

@@ -6,7 +6,6 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::{Deserialize, Serialize};
-use walkdir::WalkDir;
 
 use anvil_architecture::load_baseline;
 use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
@@ -457,7 +456,7 @@ fn save_snapshot(workspace: &Path, snapshot: &DriftSnapshot, name: Option<&str>)
     if let Some(n) = name
         && path.exists()
     {
-        bail!("Snapshot '{n}' already exists. Use a different name or delete the existing one.",);
+        bail!("Snapshot '{n}' already exists. Use a different name or delete the existing one.");
     }
 
     let json = serde_json::to_string_pretty(snapshot)?;
@@ -752,34 +751,50 @@ fn collect_antipatterns(
     (antipatterns, suppressions, ap_result)
 }
 
+// SCAN-001: drift discovery uses `ignore::WalkBuilder` to share the
+// noise-pruning walk shape (skips target/, node_modules/, etc) with the
+// welcome flow. `.gitignore` is intentionally NOT honoured — drift
+// snapshots must see every file regardless of VCS state — and the
+// `.standard_filters(false)` setting reflects that. Per-file scans are
+// already parallelised inside `run_antipattern_check`
+// (`files.par_iter()` in `anvil-checks::antipattern::check`), so we
+// don't need a second rayon fan-out here — only the discovery layer
+// needed swapping. Files are sorted post-collect for deterministic
+// snapshot ordering.
+//
+// `Result` return is retained even though the body cannot currently fail —
+// callers expect the signature, and future fallible discovery (e.g.
+// permission errors surfacing through `ignore::WalkBuilder` once we stop
+// silently swallowing them) will use it.
+#[allow(clippy::unnecessary_wraps)]
 fn get_source_files(workspace: &Path) -> Result<Vec<String>> {
     let extensions = AntipatternCheckConfig::default().extensions;
-    let mut files = Vec::new();
 
-    for entry in WalkDir::new(workspace)
+    let walker = ignore::WalkBuilder::new(workspace)
         .follow_links(false)
-        .into_iter()
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
-            if e.file_type().is_dir() {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 let name = e.file_name().to_string_lossy();
                 !IGNORE_DIRS.contains(&name.as_ref())
             } else {
                 true
             }
         })
-    {
-        let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path_str = entry.path().to_string_lossy().to_string();
-        if extensions
-            .iter()
-            .any(|ext| path_str.ends_with(ext.as_str()))
-        {
-            files.push(path_str);
-        }
-    }
+        .build();
+
+    let mut files: Vec<String> = walker
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
+        .filter_map(|e| {
+            let path_str = e.path().to_string_lossy().to_string();
+            extensions
+                .iter()
+                .any(|ext| path_str.ends_with(ext.as_str()))
+                .then_some(path_str)
+        })
+        .collect();
 
     files.sort();
     Ok(files)

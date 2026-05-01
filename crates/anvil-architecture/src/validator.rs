@@ -348,13 +348,20 @@ pub fn collect_source_files(
 
     let mut files = Vec::new();
 
-    let walker = walkdir::WalkDir::new(workspace_root)
+    // SCAN-001: validator discovery uses `ignore::WalkBuilder` so it
+    // shares the noise-pruning walker (skips target/, node_modules/, etc; not .gitignore) shape with the rest of the
+    // scan-fanout sites. The downstream boundary check is single-pass
+    // string-pattern matching (not regex on file content), so we don't
+    // add a rayon stage here — the walker swap is the win that matters
+    // for the entx-class repo benchmark.
+    let walker = ignore::WalkBuilder::new(workspace_root)
         .follow_links(false)
-        .into_iter()
+        .standard_filters(false)
+        .hidden(false)
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             // Skip well-known non-source directories for performance.
-            if e.file_type().is_dir() {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 return name != "node_modules"
                     && name != ".git"
                     && name != "dist"
@@ -362,10 +369,11 @@ pub fn collect_source_files(
                     && name != "target";
             }
             true
-        });
+        })
+        .build();
 
-    for entry in walker.flatten() {
-        if !entry.file_type().is_file() {
+    for entry in walker.filter_map(Result::ok) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
 

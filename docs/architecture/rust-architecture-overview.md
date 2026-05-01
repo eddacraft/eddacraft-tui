@@ -75,11 +75,18 @@ crates/
         watch/                      # PORT-030 + RATS-002
         wizard/                     # RATS-004
         tutorial/                   # PORT-040–044
-  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, command safety)
+  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, AI-001, SURFENV-001, command safety)
+  anvil-checks-napi/                # Node bindings build canary for anvil-checks (ADR-033)
+  anvil-intercept/                  # INTD — mid-edit intercept daemon (RTAI launch path)
+  anvil-intercept-proto/            # Wire-protocol types shared with the intercept daemon
+  anvil-intercept-rules/            # Rule set evaluated by the intercept daemon
+  anvil-intercept-win32/            # Windows-specific intercept transport bits
+  anvil-observability/              # TRACE — tracing baseline, traceparent envelope, redaction
   anvil-policy/                     # OPA policy evaluation engine
   anvil-architecture/               # Architecture enforcement (boundaries, drift)
   anvil-bench/                      # Stress-test harness and benchmarks
   spike/                            # Phase 0 validation spikes (done)
+  workspace-hack/                   # Hakari-managed feature unifier (build-time only)
 ```
 
 ### External Dependencies
@@ -422,6 +429,36 @@ dated 2026-03-05 (not included in this repository):
 - MermaidDiagram port is likely infeasible in terminal — ASCII fallback needed
 
 ---
+
+## 0.5.0-beta Surface Deliveries
+
+The following surfaces landed during the 0.5.0-beta cycle and are now part of
+the shipped Rust architecture:
+
+- **AI-001 reasoning rule** in `anvil-checks` — flags appeal-to-authority
+  comments via the registry-backed pattern catalogue, runs only inside comment
+  regions, honours `// @anvil-ignore AI-001`, and emits at info severity through
+  the shared `Notification` envelope.
+- **`anvil-checks` rule registry** — every shipped rule (anti-pattern, secret,
+  AI-001, SURFENV-001, command safety) now flows through the compiled `.anvil`
+  registry, with rule provenance attached to every finding.
+- **Parallel scan rollout** — `gate`, `audit`, `check`, `drift`, policy,
+  architecture validation, and the watcher all share the gitignore-aware
+  discovery walk plus the rayon scan pattern; first-run scans cap their pool via
+  `ANVIL_SCAN_THREADS` (default `min(num_cpus, 4)`).
+- **`anvil mcp-config` Rust CLI command** — generates Claude Code, Cursor,
+  Windsurf, and VS Code configurations with stdio/http transports, `--write`,
+  `--verify`, workspace overrides, path-safety prompts, and atomic writes. Lives
+  in `anvil-cli` and reuses the rest of the workspace for path resolution and
+  config generation.
+- **`validate_write` MCP tool** — exposes save-time and mid-edit validation
+  through the MCP server, backed by the canonical `anvil.diagnostic.v1` envelope
+  owned by `anvil-kernel-types`.
+- **Tracing baseline (`anvil-observability`)** — TRACE-001 lands the
+  `anvil-observability` crate with a traceparent envelope, redaction helpers,
+  and the cross-cutting namespace registry consumed by `anvil-intercept` and
+  `anvil-cli`. Subsequent TRACE work items wire it through the daemon and the TS
+  surfaces; the foundation is now part of the shipped Rust architecture.
 
 ## Total Work Item Count
 

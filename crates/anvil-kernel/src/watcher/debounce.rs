@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn tick_does_not_emit_within_window() {
-        let mut d = Debouncer::new(Duration::from_secs(60), 100);
+        let mut d = Debouncer::new(Duration::from_mins(1), 100);
 
         d.record(FileChange {
             path: PathBuf::from("a.rs"),
