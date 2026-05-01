@@ -11,6 +11,7 @@ pub mod editor;
 pub mod header;
 pub mod log_panel;
 pub mod parallel_progress;
+pub mod pretext;
 pub mod progress_bar;
 pub mod select;
 pub mod spinner;

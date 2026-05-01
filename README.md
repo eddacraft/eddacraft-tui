@@ -7,7 +7,9 @@ Shared Ratatui component library for open-source TUIs that follow the eddacraft 
 - **`theme/`** — eddacraft Terminal Standard colour palette, theme trait, and
   brand theming
 - **`keyboard/`** — key binding definitions and action mapping
-- **`widgets/`** — reusable TUI widgets (tables, badges, charts, panels)
+- **`widgets/`** — reusable TUI widgets (tables, badges, charts, panels, pretext)
+- **`pretext/`** — two-phase prepare/layout text engine for streaming AI
+  output and dynamic reflow
 - **`surface.rs`** — base `Surface` trait for TUI screens
 - **`shell.rs`** — shared shell chrome renderer
 
@@ -57,6 +59,37 @@ let forge_spinner = Spinner::new(&theme).anvil().label("Forging...");
 event loop must call `animate_tick` each frame for the transition to play — see
 [`docs/animations.md`](docs/animations.md).
 
+## Pretext layout
+
+`pretext` is a two-phase text layout engine inspired by Cheng Lou's
+[Pretext](https://github.com/chenglou/pretext) library for the browser.
+Measure word widths once with `unicode-width`, cache the layout per
+container width, and re-run only on resize — eliminating reflow stutter
+for streaming AI output and animated layouts.
+
+```rust,ignore
+use eddacraft_tui::prelude::*;
+use ratatui::widgets::StatefulWidget;
+
+let theme = EddaCraftTheme;
+let mut state = PretextState::new("streaming tokens flow here…");
+let widget = PretextWidget::themed(&theme);
+
+// Each frame:
+// widget.render(area, frame.buffer_mut(), &mut state);
+
+// On new tokens:
+state.append(" more text from the model");
+
+// Flow text around moving shapes:
+state.set_exclusions(vec![ExclusionZone::circle(40, 8, 5)]);
+```
+
+The widget itself is zero-sized — all caching lives on `PretextState`. At
+unchanged container width subsequent renders skip layout entirely; only
+`set_text`, `append`, `set_exclusions`, or a width change invalidate the
+cache.
+
 ## Documentation
 
 Extended guides live in [`docs/`](docs/). Contributor docs remain at the repo
@@ -68,10 +101,16 @@ root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
 - eddacraft: <https://eddacraft.com>
 - anvil repository: <https://github.com/EddaCraft/anvil>
 - Brand and design system: <https://github.com/EddaCraft/brand-and-design>
+- pretext-tui demos: <https://github.com/joshuaboys/pretext-tui>
 
 ## Acknowledgements
 
 Spinner support is powered by [`rattles`](https://github.com/vyfor/rattles), a minimal Rust terminal spinner library.
+
+The `pretext` module ports the layout engine and widget originally
+prototyped in [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui),
+itself inspired by Cheng Lou's [Pretext](https://github.com/chenglou/pretext)
+for the browser.
 
 ## Licence
 

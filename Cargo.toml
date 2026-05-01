@@ -14,6 +14,7 @@ ratatui = "0.30"
 crossterm = "0.29"
 rattles = "0.2"
 unicode-width = "0.2"
+textwrap = { version = "0.16", features = ["smawk"] }
 animate = { version = "0.3", features = ["ratatui"] }
 
 [features]
