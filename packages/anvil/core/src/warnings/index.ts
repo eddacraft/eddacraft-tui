@@ -15,4 +15,12 @@ export {
   resolveShortId,
 } from './warning-id.js';
 
-export type { Location, Warning, WarningSeverity, WarningCategory, Confidence } from './types.js';
+export type {
+  Confidence,
+  Location,
+  Warning,
+  WarningCategory,
+  WarningResult,
+  WarningSeverity,
+  WarningSummary,
+} from './types.js';

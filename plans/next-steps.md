@@ -562,6 +562,18 @@ LAUNCH-005 (doctor remediation depth) shipped Complete in
   consumers (`warnings/warning-id`, the boundary half of
   `explain/explain-service`) keep a typed handle on warnings
   emitted by the Rust scanner.
+- **Carve-out:** `packages/anvil/core/src/antipattern/format/`
+  (`compile.ts`, `parse.ts`, `sections.ts`, `schemas.ts`) was kept
+  active. It is still the sole producer of
+  `patterns/compiled/registry.json`, which the Rust scanner
+  (`crates/anvil-checks/src/antipattern/registry_loader.rs`)
+  consumes as its single source of truth. The `patterns:compile`
+  / `patterns:check` scripts in `packages/anvil/core/package.json`
+  still resolve. The original 2026-04-29 commit archived `format/`
+  along with the rest of `core-antipattern/`; this branch un-
+  archived it because dev now exposes the active script via
+  `packages/anvil/core/scripts/compile-patterns.ts` (added after
+  the original branch's baseline).
 - `crates/anvil-checks/tests/scanner_parity.rs` deleted. Root
   `test:scanner-parity` script removed from `package.json`.
 - ADR-033 "Code archived" reference block updated to record the
