@@ -829,8 +829,9 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::{PermissionsExt, symlink};
 
+    use anvil_intercept_proto::SessionId;
     #[cfg(unix)]
-    use anvil_intercept_proto::{IpcCommand, IpcEnvelope, SessionId};
+    use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
     use tokio::time::{sleep, timeout};
 
     use super::*;

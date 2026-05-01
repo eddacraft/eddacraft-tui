@@ -38,6 +38,7 @@ fn run_mcp_json(workspace: &std::path::Path, extra: &[&str]) -> std::process::Ou
     cmd.output().expect("failed to invoke anvil binary")
 }
 
+#[cfg(unix)]
 fn run_mcp_from(cwd: &std::path::Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui").arg("mcp");

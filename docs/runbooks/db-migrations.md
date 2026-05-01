@@ -161,7 +161,9 @@ Set the env var (see "Required env vars") and retry.
 
 This is needed once, the first time the runner is enabled against a database
 that already has migrations applied by hand (the v0.4.0-beta case for prod).
-Compute shas and insert tracking rows:
+Only backfill migrations known to have already run in that environment; do not
+record new pending migrations as applied. For the v0.4.0-beta prod cut, that is
+`001` through `010` only:
 
 ```bash
 psql "$DATABASE_URL" <<'SQL'
@@ -172,7 +174,7 @@ CREATE TABLE IF NOT EXISTS _migrations (
 );
 SQL
 
-for f in apps/anvil-api/src/db/migrations/*.sql; do
+for f in apps/anvil-api/src/db/migrations/00[1-9]-*.sql apps/anvil-api/src/db/migrations/010-*.sql; do
   name=$(basename "$f")
   sha=$(sha256sum "$f" | awk '{print $1}')
   psql "$DATABASE_URL" -c "
@@ -184,7 +186,8 @@ done
 ```
 
 After backfill, the next runner invocation should report
-`no pending migrations.`.
+`011-access-tokens-edict-flag.sql` as pending. Apply it with the migration
+runner so the schema change and `_migrations` row are written together.
 
 ## Cross-references
 

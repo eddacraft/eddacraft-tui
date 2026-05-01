@@ -34,15 +34,17 @@ if (!databaseUrl) {
 }
 
 const pool = new Pool({ connectionString: databaseUrl });
-
-const runner = {
-  query: async (text, params) => {
-    const result = await pool.query(text, params);
-    return { rows: result.rows };
-  },
-};
+let client;
 
 try {
+  client = await pool.connect();
+  const runner = {
+    query: async (text, params) => {
+      const result = await client.query(text, params);
+      return { rows: result.rows };
+    },
+  };
+
   const result = await runMigrations(runner, {
     dir: migrationsDir,
     dryRun,
@@ -63,5 +65,6 @@ try {
   // process.exit() inside the try/catch would skip this; using
   // process.exitCode lets the finally run so the pool closes cleanly
   // and Node exits with the right code once all handles are released.
+  client?.release();
   await pool.end();
 }

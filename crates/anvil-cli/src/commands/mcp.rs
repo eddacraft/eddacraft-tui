@@ -453,7 +453,7 @@ fn verify_mcp_edict_auth(creds: &credentials::Credentials) -> bool {
         return false;
     };
 
-    rt.block_on(client.whoami()).is_ok()
+    rt.block_on(client.verify_edict()).is_ok()
 }
 
 fn mcp_auth_required_result(arguments: &Value) -> Value {

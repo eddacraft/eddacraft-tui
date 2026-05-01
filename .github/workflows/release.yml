@@ -466,7 +466,6 @@ jobs:
             --prerelease=false \
             --latest
       - name: Publish Homebrew formula to eddacraft/homebrew-tap
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'

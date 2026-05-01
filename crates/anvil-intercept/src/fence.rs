@@ -131,6 +131,7 @@ impl FenceStore {
     }
 
     pub fn load(&self) -> Result<FenceState, FenceStoreError> {
+        #[cfg(unix)]
         validate_store_parent(&self.path)?;
         #[cfg(windows)]
         recover_windows_backup(&self.path)?;
@@ -226,6 +227,7 @@ impl FenceStore {
             })?;
         drop(file);
         replace_store_file(&tmp, &self.path)?;
+        #[cfg(unix)]
         sync_parent(&self.path)?;
         Ok(())
     }
@@ -348,13 +350,16 @@ fn replace_store_file(tmp: &Path, target: &Path) -> Result<(), FenceStoreError> 
                 source,
             })?;
         }
-        return Ok(());
+        Ok(())
     }
 
-    fs::rename(tmp, target).map_err(|source| FenceStoreError::Write {
-        path: target.to_path_buf(),
-        source,
-    })
+    #[cfg(not(windows))]
+    {
+        fs::rename(tmp, target).map_err(|source| FenceStoreError::Write {
+            path: target.to_path_buf(),
+            source,
+        })
+    }
 }
 
 #[cfg(windows)]
@@ -374,12 +379,12 @@ fn windows_backup_path(target: &Path) -> PathBuf {
     target.with_extension("json.bak")
 }
 
+#[cfg(unix)]
 fn sync_parent(path: &Path) -> Result<(), FenceStoreError> {
     let Some(parent) = path.parent() else {
         return Ok(());
     };
 
-    #[cfg(unix)]
     File::open(parent)
         .and_then(|file| file.sync_all())
         .map_err(|source| FenceStoreError::Write {
@@ -472,12 +477,12 @@ fn ensure_store_parent(path: &Path) -> Result<(), FenceStoreError> {
     Ok(())
 }
 
+#[cfg(unix)]
 fn validate_store_parent(path: &Path) -> Result<(), FenceStoreError> {
     let Some(parent) = path.parent() else {
         return Ok(());
     };
 
-    #[cfg(unix)]
     if parent.exists() {
         validate_existing_store_parent(parent)?;
     }
@@ -503,6 +508,12 @@ fn validate_existing_store_parent(parent: &Path) -> Result<(), FenceStoreError> 
             reason: "parent must be owned by the current user".to_string(),
         });
     }
+    if metadata.permissions().mode() & 0o077 != 0 {
+        return Err(FenceStoreError::InsecureStoreParent {
+            path: parent.to_path_buf(),
+            reason: "parent must be private to the current user".to_string(),
+        });
+    }
     Ok(())
 }
 
@@ -518,7 +529,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[cfg(unix)]
-    use std::os::unix::fs::symlink;
+    use std::os::unix::fs::{PermissionsExt, symlink};
 
     use anvil_intercept_proto::SessionId;
     use tempfile::TempDir;
@@ -690,6 +701,23 @@ mod tests {
             err,
             FenceStoreError::Write { .. } | FenceStoreError::InsecureStoreParent { .. }
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn store_parent_with_group_write_permission_is_rejected() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store_dir = temp.path().join("state");
+        fs::create_dir(&store_dir).expect("create state dir");
+        fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o770))
+            .expect("make state dir group-writable");
+        let store = FenceStore::at_path(store_dir.join("intercept-fences.json"));
+
+        let err = store
+            .load()
+            .expect_err("group-writable parent should be rejected");
+
+        assert!(matches!(err, FenceStoreError::InsecureStoreParent { .. }));
     }
 
     #[test]

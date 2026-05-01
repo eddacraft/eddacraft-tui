@@ -153,7 +153,7 @@ Validate a proposed file write before the MCP client applies it.
 | `operation` | yes | `create`, `update`, `delete`, or `rename`. |
 | `proposedContent` | conditional | Full proposed UTF-8 content after the operation. Required for `create`/`update` unless `patch` is present. |
 | `patch` | conditional | Unified diff or client patch payload. If supplied without `proposedContent`, the server may read the current file and synthesise proposed content. |
-| `contentEncoding` | no | `utf-8` by default. `base64` is accepted only for future binary-aware handling; A1 blocks binary validation. |
+| `contentEncoding` | no | `utf-8` by default. Other encodings are reserved for future binary-aware handling and are not advertised by the A1 tool schema. |
 | `client` | no | Best-effort client/session metadata for correlation. It is not an auth factor. |
 
 Exactly one of `proposedContent` or `patch` should be supplied for normal

@@ -4,6 +4,7 @@ const INSTALL_COMMAND = 'brew install eddacraft/tap/anvil';
 
 interface VerifyResponse {
   valid?: boolean;
+  isEdict?: boolean;
 }
 
 function getAccessKey(body: unknown): string {
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
   }
 
   const data = (await response.json().catch(() => ({}))) as VerifyResponse;
-  if (data.valid !== true) {
+  if (data.valid !== true || data.isEdict !== true) {
     return NextResponse.json({ error: 'invalid_key' }, { status: 401 });
   }
 
