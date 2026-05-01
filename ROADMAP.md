@@ -1,6 +1,6 @@
 # Anvil Roadmap
 
-**Last updated:** 2026-04-28 (Rust MCP launch path + Graph v2 planning update)
+**Last updated:** 2026-05-01 (post `v0.5.0-beta` ship — Horizons 0–2 rebased)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of
 > release-slice candidates organised by readiness tier.
@@ -32,57 +32,91 @@ time.**
 
 The horizons are **ordered by sequence, not by date**. Each unlocks the next.
 
-### Horizon 0 — Now Shipping (in flight)
+### Horizon 0 — Just Shipped (`v0.5.0-beta`, 2026-05-01)
 
-The current branch (`0.4.x`) carries hardening work that is mid-flight and not
-yet released:
+`v0.5.0-beta` shipped the locked A1 + A2 + A3 + A4 slate as a single tagged
+release. The `release/v0.5.0-beta` branch has been merged back to `dev`; the
+current branch (`chore/post-release-clean`) carries the post-release planning
+sweep.
 
-- **Branch reconciliation** — main/dev integrated; `dev` is canonical.
-- **Anvil TS scanner retirement** (TSRET) — Rust scanner is authoritative per
-  ADR-026; Surface Drivers (DRVR) supersede the napi cutover per ADR-030.
-- **Launch flow readiness** (LAUNCH) — init/welcome/doctor + watcher polish to
-  ship-quality.
-- **Test coverage uplift** (TCOV) — phase 3 in flight.
-- **Documentation sync** (DOCSYNC) — Rust-migration phase 9/10.
+What landed:
 
-These are foreground work; they ride out on the current branch.
+- **A1 — RTAI Spike Slice** (24 items across INTD, INTR, RMCP, RTAI). Real-
+  time AI validation fires before save through `anvil mcp serve --stdio`. The
+  release was validated **embedded-fallback-backed, not daemon-backed**:
+  RMCP-005's `DaemonValidationClient` defaults to `Unavailable` and MCP
+  `tools/call` runs through the embedded `anvil-checks` pipeline. Three GUI-
+  dry-run gaps tracked outside the contract: #1194 (`mcp install --command`
+  override), #1195 (Claude Code path mismatch), #1197 (clients ignore
+  `anvil_validate_write` without explicit prompt instruction).
+- **A2 — AIGUARD** (4 items). `anvil gate --profile ai` with the stable
+  `anvil.diagnostic.v1` envelope shared with RTAI / INTD / DRVR / RMCP.
+- **A3 — Release Engineering smallest-viable cut** (7 items): GHOOK-001,
+  ATTRIB-001/-002/-003, SCAN-001/-002/-003. ATTRIB-004..-011 and SCAN-004/-005
+  remain outside this release.
+- **A4 — Language Credibility Floor** (9 items): LANGTS-001/-003, OPSUP-001
+  check-ID registry slice, SURFENV-001..-006 (`.env` secret scanning).
+- **TRACE-001** — cross-cutting tracing baseline (anvil-observability crate,
+  W3C `traceparent` propagation, redaction layer, INTD-014 fixture). TRACE-002
+  (TS mirror) and TRACE-003 (redaction hardening) are post-launch.
 
-### Horizon 1 — Launch (the differentiator) 🔒 LOCKED 2026-04-26; MCP path updated 2026-04-28
+Headline post-release follow-ups (foreground for the next release window):
 
-**Theme: real-time AI-output validation that fires before save.**
+- **Daemon-backed RMCP path** — replace RMCP-005's `Unavailable` stub with a
+  live JSON-RPC client; graduate MCP `tools/call` from the embedded fallback
+  to the daemon-backed pipeline. The daemon side (`scan_buffer` RPC, INTD-002
+  listener) is already in place.
+- **V050F** (`v050-release-followups`) — 5/16 done; 11 hardening items
+  outstanding (per-operator audit attribution, family-theft cascade,
+  `/admin/approve` flag-gate, allowlist regex compile cache, eager rayon pool
+  init, CI-class bench baseline, `release/*` push filter, `WAITLIST_PAUSED`
+  runbook, etc.).
+- **Latency CI gating** (#1191) — RTAI mid-edit baseline-comparison gating
+  against the recorded 7-case ADR-031 corpus. Until #1191 lands, regressions
+  are caught only by manual `cargo bench` runs.
+- **TSRET-005 execution** — archive the TS scanner / TS suppression parser /
+  parity harness to `archive/anvil-ts-scanner/` per ADR-033. Unblocked but not
+  executed pre-release.
 
-The thesis Anvil sells against is "AI tools produce code that compiles and
-passes tests yet drifts from intended patterns." The launch demo answers that
-literally: open Cursor, ask Claude Code to make a confident-but-wrong rewrite,
-watch Anvil refuse the write **before it hits disk** through
-`anvil mcp serve --stdio` and surface the reason to the agent.
+### Horizon 1 — Daemon-Backed RTV + Driver Reach (next release, slate not yet locked)
 
-Big bets in this horizon:
+**Theme: graduate real-time AI validation from embedded fallback to the
+daemon-backed pipeline, and bring at least one editor / second-MCP surface
+online.**
 
-- **Intercept Daemon (INTD)** — host-local validation/enforcement authority and
-  shared rule pipeline for the launch path.
-- **Rust MCP Launch Shim (RMCP)** — narrow `anvil mcp serve --stdio` path for
-  Cursor / Claude Code pre-write validation in the single Rust binary.
-- **Real-time AI Validation (RTAI)** — mid-edit and pre-write validation paths.
-- **One reasoning-pattern rule** — minimum-viable AI-pattern check exposed via
-  INTR-008 (gap surfaced by Council A).
-- **AI Guardrail Profile (AIGUARD)** — `anvil gate --profile ai` with stable
-  JSON diagnostic envelope; the shape AI tools consume.
+`v0.5.0-beta` proved the demo with the embedded `anvil-checks` pipeline
+behind the MCP launch shim. The next release closes the daemon path
+end-to-end and starts the driver-reach story:
 
-These ship as a coherent **RTAI Spike Slice** plus the AIGUARD envelope work.
-The slice is deliberately small (≈23 items) and explicitly avoids a full MCP
-server port or TS `DriverClient` bridge. Everything below this line waits.
+- **Daemon-backed RMCP** — wire the live JSON-RPC client; verify the
+  daemon-backed `tools/call` matches the embedded fallback envelope (RTAI
+  contract test, AIGUARD-002 envelope shape).
+- **DRVR-001 / DRVR-002** — shared driver client + editor-driver protocol;
+  the framework that lets a second surface attach.
+- **RMCPF (Rust MCP Full Port)** — graduate the launch shim to feature parity
+  with the archived TS MCP server; reuse the AIGUARD envelope.
+- **RTAI-004 / -005 / -007 / -009** — driver-side debouncer, editor mid-edit
+  path, telemetry mirror, architecture doc + supersession links.
+- **Remaining INTD items** (-004, -006, -008..-012, -015, -016) — watcher
+  integration, process-group interrupt, configuration loading, embedded
+  mode, unregistered-change handling, status / diagnostics, Windows CI
+  matrix, telemetry subscription scoping, DoS protection budgets.
+- **ADR-031 latency CI gating** (#1191).
 
-### Horizon 2 — Credibility & Hygiene (parallel with Horizon 1) 🔒 LOCKED 2026-04-26
+Slate **not yet locked**. Cherry-pick verdict against this horizon lives in
+[`plans/next-steps.md`](./plans/next-steps.md).
 
-Two narrow tracks that ship without contending for RTAI engineering bandwidth:
+### Horizon 2 — Credibility & Hygiene (carry-over from `v0.5.0-beta`)
 
-- **Release Engineering** — git-config-hooks (GHOOK), attribution-pipeline-v3
-  (ATTRIB), scan-performance (SCAN). Launch hygiene without product-surface
-  bloat. Council E's "smallest viable cut" is 7 items.
-- **Language Credibility Floor** — lang-ts-audit (LANGTS) artefact + OPSUP slice
-  1 (check-ID registry) + SURFENV (`.env` secret scan). 3 items. Pure
-  governance/operational floor.
+A3 and A4 shipped their **smallest-viable cuts** in `v0.5.0-beta`. The
+broader hygiene tracks remain queued, eligible to ride the next-release
+window without contending for RTAI engineering bandwidth:
+
+- **Release Engineering tail** — ATTRIB-004..-011 (full attribution pipeline
+  v3), SCAN-004..-005 (parallel-scan rollout to remaining call-sites).
+- **Language Credibility tail** — LANGTS-002/-004/-005, OPSUP-002..-007
+  (drift schema versioning, per-track flags, file-presence guards, FP
+  reporting), SURFSQL Phase 1.
 
 ### Horizon 3 — Team-Lead Surface (post-launch)
 
@@ -199,8 +233,9 @@ What changed instead:
 - [ADR-027: Pack Architecture](./plans/decisions/027-pack-architecture.md)
 - [ADR-028: Markdown Governance Crate](./plans/decisions/028-markdown-governance-crate.md)
 - [ADR-029: Suppression Parser Authority](./plans/decisions/029-suppression-parser-authority.md)
-- [ADR-031: Validation Latency Rubric](./plans/decisions/031-validation-latency-rubric.md)
 - [ADR-030: Surface Drivers Supersede napi Cutover](./plans/decisions/030-surface-drivers-supersede-napi-cutover.md)
+- [ADR-031: Validation Latency Rubric](./plans/decisions/031-validation-latency-rubric.md)
+- [ADR-033: Park IDE/MCP, retire TS scanner](./plans/decisions/033-park-ide-mcp-retire-ts-scanner.md)
 
 ## What this roadmap is NOT
 
