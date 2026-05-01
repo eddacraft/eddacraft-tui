@@ -13,6 +13,7 @@ categories = ["command-line-interface"]
 ratatui = "0.30"
 crossterm = "0.29"
 rattles = "0.2"
+textwrap = { version = "0.16", features = ["smawk"] }
 unicode-width = "0.2"
 animate = { version = "0.3", features = ["ratatui"] }
 
@@ -22,8 +23,6 @@ test-utils = []
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
 tempfile = "3"
-
-[workspace]
 
 [lints.rust]
 unsafe_code = "forbid"

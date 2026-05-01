@@ -16,3 +16,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Local review tooling output
+review/

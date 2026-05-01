@@ -37,10 +37,10 @@ loop {
 
 ## What's animated
 
-| Widget             | Animated property                  | Duration | Easing   |
-| ------------------ | ---------------------------------- | -------- | -------- |
-| `ProgressBar`      | `display_fraction` → `fraction`    | 250 ms   | quad-out |
-| `ParallelProgress` | overall progress bar               | 250 ms   | quad-out |
+| Widget             | Animated property               | Duration | Easing   |
+| ------------------ | ------------------------------- | -------- | -------- |
+| `ProgressBar`      | `display_fraction` → `fraction` | 250 ms   | quad-out |
+| `ParallelProgress` | overall progress bar            | 250 ms   | quad-out |
 
 Each animated value eases toward its target whenever the target changes. The
 interpolated value is read during `render`; you don't need to poll it manually.
