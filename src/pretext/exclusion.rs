@@ -41,7 +41,10 @@ impl ExclusionZone {
         match &self.shape {
             ExclusionShape::Rect(rect) => {
                 if rect.contains_row(row) {
-                    Some((rect.x.min(container_width), rect.right().min(container_width)))
+                    Some((
+                        rect.x.min(container_width),
+                        rect.right().min(container_width),
+                    ))
                 } else {
                     None
                 }
@@ -84,11 +87,7 @@ impl RowBand {
 }
 
 /// Compute the layout band for a single row, accounting for exclusion zones.
-pub fn compute_row_band(
-    container_width: u16,
-    row: u16,
-    exclusions: &[ExclusionZone],
-) -> RowBand {
+pub fn compute_row_band(container_width: u16, row: u16, exclusions: &[ExclusionZone]) -> RowBand {
     let ranges: Vec<(u16, u16)> = exclusions
         .iter()
         .filter_map(|z| z.occupied_cols_at_row(row, container_width))
@@ -183,7 +182,11 @@ mod tests {
         let result = zone.occupied_cols_at_row(5, 50);
         assert!(result.is_some());
         let (_, right) = result.unwrap();
-        assert!(right <= 50, "right {} should be clamped to container 50", right);
+        assert!(
+            right <= 50,
+            "right {} should be clamped to container 50",
+            right
+        );
     }
 
     #[test]

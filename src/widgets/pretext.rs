@@ -156,9 +156,7 @@ impl StatefulWidget for PretextWidget {
                     let style = self.base_style.patch(seg_style);
                     buf.set_stringn(seg_x, y, seg_text, max_w, style);
                     let consumed = UnicodeWidthStr::width(seg_text).min(max_w);
-                    seg_x = seg_x.saturating_add(
-                        u16::try_from(consumed).unwrap_or(u16::MAX),
-                    );
+                    seg_x = seg_x.saturating_add(u16::try_from(consumed).unwrap_or(u16::MAX));
                 }
             }
         }

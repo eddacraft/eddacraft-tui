@@ -107,8 +107,9 @@ pub(crate) fn layout_with_cap(
             .sum()
     };
 
-    let mut estimated_max_lines =
-        (prepared.total_width() / safe_width + 1).min(max_rows_cap as usize).max(50) as u16;
+    let mut estimated_max_lines = (prepared.total_width() / safe_width + 1)
+        .min(max_rows_cap as usize)
+        .max(50) as u16;
     estimated_max_lines = estimated_max_lines.min(max_rows_cap);
     let mut row_bands: Vec<RowBand> = build_bands(estimated_max_lines);
 
@@ -130,10 +131,8 @@ pub(crate) fn layout_with_cap(
         }
     }
 
-    let mut overflow_capacity_accum: usize = filtered_widths
-        .iter()
-        .map(|w| *w as usize)
-        .sum::<usize>();
+    let mut overflow_capacity_accum: usize =
+        filtered_widths.iter().map(|w| *w as usize).sum::<usize>();
     let mut next_overflow_row: u16 = row_bands.len() as u16;
     let overflow_probe_limit: u32 = (max_rows_cap as u32).saturating_mul(4);
     let mut probed: u32 = 0;
@@ -197,7 +196,9 @@ pub(crate) fn layout_with_cap(
                 width: w as u16,
                 style_runs: word.style_runs.clone(),
             });
-            x = x.saturating_add(word.width).saturating_add(word.whitespace_width);
+            x = x
+                .saturating_add(word.width)
+                .saturating_add(word.whitespace_width);
         }
 
         lines.push(LayoutLine {
