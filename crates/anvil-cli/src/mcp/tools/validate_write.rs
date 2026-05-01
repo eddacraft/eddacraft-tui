@@ -782,6 +782,7 @@ mod tests {
     use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
     use serde_json::{Value, json};
     use std::path::Path;
+    #[cfg(unix)]
     use std::sync::Mutex;
     use tempfile::tempdir;
 
@@ -790,12 +791,15 @@ mod tests {
     /// deleted-cwd test could race against any other test that calls
     /// `current_dir` (e.g. embedded validation paths that resolve
     /// relative file lookups).
+    #[cfg(unix)]
     static CWD_GUARD: Mutex<()> = Mutex::new(());
 
     /// RAII helper for the `deleted_server_cwd_*` test: restores the
     /// captured cwd on drop so the test runner's working directory is
     /// always reinstated, even if the test body panics.
+    #[cfg(unix)]
     struct CwdRestore(std::path::PathBuf);
+    #[cfg(unix)]
     impl Drop for CwdRestore {
         fn drop(&mut self) {
             let _ = std::env::set_current_dir(&self.0);
@@ -1463,6 +1467,7 @@ mod tests {
     /// `server-cwd-unavailable` error rather than silently rebinding
     /// to a relative `.` path that would confuse downstream checks.
     /// Council finding 4.
+    #[cfg(unix)]
     #[test]
     fn deleted_server_cwd_surfaces_structured_error() {
         // `set_current_dir` is process-global. Hold the cwd mutex for
