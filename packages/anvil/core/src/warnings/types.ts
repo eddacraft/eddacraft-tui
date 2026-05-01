@@ -48,3 +48,29 @@ export interface Warning {
   links?: string[];
   [key: string]: unknown;
 }
+
+/**
+ * Per-severity counters that accompany a `WarningResult`.
+ */
+export interface WarningSummary {
+  total: number;
+  errors: number;
+  warnings: number;
+  info: number;
+  suppressed: number;
+}
+
+/**
+ * Collection of warnings from a check run — embeds in `GateResult.details`
+ * via the `ports` `CheckDetails` shape.
+ *
+ * Matches the archived zod-derived `WarningResultSchema` from
+ * `archive/anvil-ts-scanner/core-antipattern/types.ts`. Carried here as a
+ * plain interface so active consumers (`@eddacraft/anvil-ports`,
+ * runtime gate adapters) can refer to the shape without pulling zod.
+ */
+export interface WarningResult {
+  warnings: Warning[];
+  summary: WarningSummary;
+  patterns_checked: string[];
+}

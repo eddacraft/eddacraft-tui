@@ -17,11 +17,25 @@ the TS scanner ecosystem out of multiple packages:
 archive/anvil-ts-scanner/
 ├── README.md                ← this file
 ├── core-antipattern/        ← was packages/anvil/core/src/antipattern/
+│                              (NB: `format/` deliberately left active —
+│                              see "Carve-out: format/" below)
 ├── core-suppression/        ← was packages/anvil/core/src/suppression/
 ├── runtime-gate/            ← was packages/anvil/runtime/src/gate/
 ├── runtime-export/          ← was packages/anvil/runtime/src/export/constraint-collector*
 └── scanner-parity/          ← was tests/scanner-parity/
 ```
+
+### Carve-out: `format/` stays active
+
+`packages/anvil/core/src/antipattern/format/` was **not** archived. It
+holds the `.anvil` source-tree → `patterns/compiled/registry.json`
+compilation pipeline (`format/compile.ts`, `parse.ts`, `sections.ts`,
+`schemas.ts`). The `patterns:compile` script in
+`packages/anvil/core/package.json` invokes it; the **Rust** scanner
+(`crates/anvil-checks/src/antipattern/registry_loader.rs`) consumes
+its output. Until a Rust-side replacement for the compilation step
+exists, `format/` is load-bearing infrastructure, not part of the
+deprecated TS runtime.
 
 Internal imports inside these files (e.g. `@eddacraft/anvil-core/antipattern`,
 `./scanner.js`) will not resolve any more — the active workspace
