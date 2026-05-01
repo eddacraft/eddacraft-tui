@@ -23,7 +23,7 @@
 - [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
 - [Observability Foundation](#observability-foundation-draft)
 - [Tracing Foundation](#tracing-foundation-in-progress)
-- [Infrastructure as Code](#infrastructure-as-code-complete)
+- [Infrastructure as Code](#infrastructure-as-code-in-progress)
 - [Web Dashboard](#web-dashboard-ready)
 - [Policy Governance](#policy-governance-draftready)
 - [Engineering Platform](#engineering-platform-draft)
