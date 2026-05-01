@@ -131,6 +131,7 @@ impl FenceStore {
     }
 
     pub fn load(&self) -> Result<FenceState, FenceStoreError> {
+        #[cfg(unix)]
         validate_store_parent(&self.path)?;
         #[cfg(windows)]
         recover_windows_backup(&self.path)?;
@@ -226,6 +227,7 @@ impl FenceStore {
             })?;
         drop(file);
         replace_store_file(&tmp, &self.path)?;
+        #[cfg(unix)]
         sync_parent(&self.path)?;
         Ok(())
     }
@@ -348,13 +350,16 @@ fn replace_store_file(tmp: &Path, target: &Path) -> Result<(), FenceStoreError> 
                 source,
             })?;
         }
-        return Ok(());
+        Ok(())
     }
 
-    fs::rename(tmp, target).map_err(|source| FenceStoreError::Write {
-        path: target.to_path_buf(),
-        source,
-    })
+    #[cfg(not(windows))]
+    {
+        fs::rename(tmp, target).map_err(|source| FenceStoreError::Write {
+            path: target.to_path_buf(),
+            source,
+        })
+    }
 }
 
 #[cfg(windows)]
@@ -374,12 +379,12 @@ fn windows_backup_path(target: &Path) -> PathBuf {
     target.with_extension("json.bak")
 }
 
+#[cfg(unix)]
 fn sync_parent(path: &Path) -> Result<(), FenceStoreError> {
     let Some(parent) = path.parent() else {
         return Ok(());
     };
 
-    #[cfg(unix)]
     File::open(parent)
         .and_then(|file| file.sync_all())
         .map_err(|source| FenceStoreError::Write {
@@ -472,12 +477,12 @@ fn ensure_store_parent(path: &Path) -> Result<(), FenceStoreError> {
     Ok(())
 }
 
+#[cfg(unix)]
 fn validate_store_parent(path: &Path) -> Result<(), FenceStoreError> {
     let Some(parent) = path.parent() else {
         return Ok(());
     };
 
-    #[cfg(unix)]
     if parent.exists() {
         validate_existing_store_parent(parent)?;
     }
