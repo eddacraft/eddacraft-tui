@@ -28,7 +28,7 @@
 - [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
 - [Observability Foundation](#observability-foundation-draft)
 - [Tracing Foundation](#tracing-foundation-in-progress)
-- [Infrastructure as Code](#infrastructure-as-code-in-progress)
+- [Infrastructure as Code](#infrastructure-as-code-ready)
 - [Web Dashboard](#web-dashboard-ready)
 - [Policy Governance](#policy-governance-draftready)
 - [Engineering Platform](#engineering-platform-draft)
@@ -310,7 +310,7 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 > fire. The named `WatchStats` contract is the inheritance TUIDASH-009 will
 > consume when the dashboard surface lands. TRACE is now **In Progress** (TRACE-001 Complete 2026-04-30).
 
-### Infrastructure as Code (In Progress)
+### Infrastructure as Code (Ready)
 
 Pulumi-managed infrastructure: Vercel projects, Azure DNS, backend migration to
 Azure Blob Storage + KeyVault. EDGE module (Azure Front Door multi-origin edge
