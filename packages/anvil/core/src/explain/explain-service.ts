@@ -1,3 +1,27 @@
+/**
+ * Architecture-rule explain service.
+ *
+ * Public API surface:
+ * - `explainWarning(warning, allWarnings?)` — always returns an
+ *   explanation. Architecture and boundary rules use the registered
+ *   templates; everything else (including retired anti-pattern rule
+ *   IDs `AP-*`) falls through to a generic "potential issue"
+ *   explanation. Use this when you have a `Warning` object in hand.
+ * - `explainByRule(ruleId, context?)` — returns `null` for any rule
+ *   that does not have a registered template. Architecture rules
+ *   are explainable; retired anti-pattern rule IDs (`AP-*`) are not.
+ * - `isExplainable(ruleId)` — `true` only for rules with a
+ *   registered template (architecture / boundary).
+ * - `getExplainableRules()` — returns the architecture/boundary rule
+ *   IDs only.
+ *
+ * The TS anti-pattern explainer was archived under ADR-033
+ * (2026-04-29) → `archive/anvil-ts-scanner/core-explain-antipattern.ts`.
+ * The capability has not been reimplemented; the Rust scanner
+ * publishes the canonical anti-pattern catalogue, and consumers
+ * needing AP-* explanations should consult that catalogue rather
+ * than this service.
+ */
 import type { Warning } from '../warnings/types.js';
 import type { ExplanationContext, WarningExplanation } from './types.js';
 import {
@@ -6,8 +30,6 @@ import {
   createGenericExplanation,
   clearTemplates,
 } from './template-loader.js';
-// Anti-pattern explainer archived under ADR-033 (2026-04-29)
-// → archive/anvil-ts-scanner/core-explain-antipattern.ts.
 import { registerBoundaryTemplates, isArchitectureRule } from './boundary-explainer.js';
 import {
   parseWarningId,

@@ -35,29 +35,30 @@ describe('ExplainService', () => {
   });
 
   describe('initExplainService', () => {
-    it('initialises templates', () => {
+    it('initialises architecture templates only (anti-pattern explainer archived under ADR-033)', () => {
       initExplainService();
-      expect(isExplainable('AP-003')).toBe(true);
       expect(isExplainable('ARCH-001')).toBe(true);
+      expect(isExplainable('AP-003')).toBe(false);
     });
 
     it('is idempotent', () => {
       initExplainService();
       initExplainService();
-      expect(isExplainable('AP-003')).toBe(true);
+      expect(isExplainable('ARCH-001')).toBe(true);
     });
   });
 
   describe('explainWarning', () => {
-    it('returns explanation for anti-pattern warning', () => {
+    it('returns generic explanation for retired anti-pattern warning (no template)', () => {
       const warning = createMockWarning();
       const explanation = explainWarning(warning);
 
       expect(explanation.ruleId).toBe('AP-003');
-      expect(explanation.title).toContain('any');
       expect(explanation.whyItMatters.title).toBe('WHY THIS WARNING EXISTS');
       expect(explanation.howToAddress.title).toBe('HOW TO ADDRESS');
       expect(explanation.whenToSuppress.title).toBe('WHEN TO SUPPRESS');
+      // Generic fallback content rather than the archived AP-003 template.
+      expect(explanation.whyItMatters.content).toContain('potential issue');
     });
 
     it('returns explanation for architecture warning', () => {
@@ -74,9 +75,24 @@ describe('ExplainService', () => {
 
     it('includes similar warnings count when all warnings provided', () => {
       const warnings: Warning[] = [
-        createMockWarning({ location: { file: 'src/a.ts', line: 1 } }),
-        createMockWarning({ location: { file: 'src/a.ts', line: 10 } }),
-        createMockWarning({ location: { file: 'src/b.ts', line: 5 } }),
+        createMockWarning({
+          id: 'ARCH-001',
+          category: 'architecture',
+          title: 'Circular dependency',
+          location: { file: 'src/a.ts', line: 1 },
+        }),
+        createMockWarning({
+          id: 'ARCH-001',
+          category: 'architecture',
+          title: 'Circular dependency',
+          location: { file: 'src/a.ts', line: 10 },
+        }),
+        createMockWarning({
+          id: 'ARCH-001',
+          category: 'architecture',
+          title: 'Circular dependency',
+          location: { file: 'src/b.ts', line: 5 },
+        }),
       ];
 
       const explanation = explainWarning(warnings[0], warnings);
@@ -116,16 +132,14 @@ describe('ExplainService', () => {
   });
 
   describe('explainByRule', () => {
-    it('returns explanation for known rule', () => {
-      const explanation = explainByRule('AP-003', { file: 'test.ts', line: 5 });
-      expect(explanation).not.toBeNull();
-      expect(explanation?.ruleId).toBe('AP-003');
-    });
-
     it('returns explanation for architecture rule', () => {
-      const explanation = explainByRule('ARCH-001');
+      const explanation = explainByRule('ARCH-001', { file: 'test.ts', line: 5 });
       expect(explanation).not.toBeNull();
       expect(explanation?.ruleId).toBe('ARCH-001');
+    });
+
+    it('returns null for retired anti-pattern rule (archived under ADR-033)', () => {
+      expect(explainByRule('AP-003', { file: 'test.ts', line: 5 })).toBeNull();
     });
 
     it('returns null for unknown rule', () => {
@@ -133,7 +147,7 @@ describe('ExplainService', () => {
     });
 
     it('uses default context when not provided', () => {
-      const explanation = explainByRule('AP-003');
+      const explanation = explainByRule('ARCH-001');
       expect(explanation).not.toBeNull();
     });
   });
@@ -158,10 +172,10 @@ describe('ExplainService', () => {
   });
 
   describe('isExplainable', () => {
-    it('returns true for anti-pattern rules', () => {
-      expect(isExplainable('AP-001')).toBe(true);
-      expect(isExplainable('AP-003')).toBe(true);
-      expect(isExplainable('AP-006')).toBe(true);
+    it('returns false for retired anti-pattern rules (archived under ADR-033)', () => {
+      expect(isExplainable('AP-001')).toBe(false);
+      expect(isExplainable('AP-003')).toBe(false);
+      expect(isExplainable('AP-006')).toBe(false);
     });
 
     it('returns true for architecture rules', () => {
@@ -176,13 +190,15 @@ describe('ExplainService', () => {
   });
 
   describe('getExplainableRules', () => {
-    it('returns all known rule IDs', () => {
+    it('returns architecture rule IDs only (anti-pattern explainer archived under ADR-033)', () => {
       const rules = getExplainableRules();
-      expect(rules).toContain('AP-001');
-      expect(rules).toContain('AP-003');
       expect(rules).toContain('ARCH-001');
+      expect(rules).toContain('ARCH-002');
+      expect(rules).toContain('ARCH-003');
+      expect(rules).toContain('ARCH-004');
       expect(rules).toContain('BOUND-001');
-      expect(rules.length).toBeGreaterThanOrEqual(12);
+      expect(rules).not.toContain('AP-001');
+      expect(rules).toHaveLength(5);
     });
   });
 });

@@ -54,11 +54,20 @@ serve, while still costing dual-engine maintenance (every rule
 change re-validated against TS, the parity harness CI on every
 PR, regex-engine divergence as user-visible UX risk).
 
-The Rust scanner in `crates/anvil-checks/` is now the sole
-implementation; the Rust binary serves the launch MCP path via
-`anvil mcp serve --stdio` (RMCP). RMCPF will port the full TS MCP
-server feature set into Rust as next-release work; the editor
-return path is DRVR-003 on the intercept daemon (DRVR module).
+This is **the TS implementation** of the anti-pattern, suppression,
+gate, and drift capabilities — not the capabilities themselves.
+Anti-pattern detection, suppression handling, and gate evaluation
+are now served by the Rust scanner in `crates/anvil-checks/`; the
+Rust binary serves the launch MCP path via `anvil mcp serve --stdio`
+(RMCP). RMCPF will port the full TS MCP server feature set into Rust
+as next-release work; the editor return path is DRVR-003 on the
+intercept daemon (DRVR module).
+
+Drift snapshot/compare and the TS-side `runtime/export` constraint
+collector / formatter pipeline currently have **no active
+replacement** — they were tightly coupled to the archived anti-
+pattern + suppression layers. Reintroducing drift detection (likely
+on the daemon path) is out of scope for this archive.
 
 ## Use this instead
 

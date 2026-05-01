@@ -6,8 +6,31 @@
  */
 
 /**
+ * Subpaths under `@eddacraft/anvil-core` whose backing TS components were
+ * archived under ADR-033 (the TS scanner stack — anti-pattern engine,
+ * suppression parser, drift snapshot/compare, gate runner, constraint
+ * collector, exporter). The capabilities those components provided are
+ * either now served by the Rust scanner (anti-pattern detection,
+ * suppression handling, gate evaluation) or have no current
+ * implementation (drift snapshot/compare, TS-side export).
+ *
+ * Imports from these subpaths must NOT be rewritten — there is no
+ * 1:1 active replacement. `getRewrittenPath()` returns `undefined`
+ * for them so the caller surfaces the broken import explicitly.
+ */
+export const ARCHIVED_CORE_SUBDIRS: readonly string[] = [
+  'antipattern',
+  'suppression',
+  'drift',
+  'export',
+  'gate',
+];
+
+/**
  * Mapping of core/src subdirectories to target packages
- * Based on Phase 0 discovery (MONO-000b)
+ * Based on Phase 0 discovery (MONO-000b). Subpaths in
+ * `ARCHIVED_CORE_SUBDIRS` are intentionally absent — see that
+ * constant's docs.
  */
 export const CORE_SUBDIR_TO_PACKAGE: Record<string, string> = {
   // Contracts package (schemas, types, validation)
@@ -18,29 +41,12 @@ export const CORE_SUBDIR_TO_PACKAGE: Record<string, string> = {
   // Core package (pure domain logic)
   provenance: '@eddacraft/anvil-core',
   warnings: '@eddacraft/anvil-core',
-  antipattern: '@eddacraft/anvil-core',
-  suppression: '@eddacraft/anvil-core',
   explain: '@eddacraft/anvil-core',
   architecture: '@eddacraft/anvil-core',
-  drift: '@eddacraft/anvil-core',
 
   // Runtime package (I/O and orchestration)
   cache: '@eddacraft/anvil-runtime',
   watch: '@eddacraft/anvil-runtime',
-  export: '@eddacraft/anvil-runtime',
-  'gate/checks': '@eddacraft/anvil-runtime',
-  'gate/config': '@eddacraft/anvil-runtime',
-  'gate/formatters': '@eddacraft/anvil-runtime',
-  'gate/parsers': '@eddacraft/anvil-runtime',
-  'gate/rules': '@eddacraft/anvil-runtime',
-  'gate/gate-runner': '@eddacraft/anvil-runtime',
-  'gate/gate-config': '@eddacraft/anvil-runtime',
-
-  // Policy package (OPA/Rego)
-  'gate/policy': '@eddacraft/anvil-policy',
-
-  // Ports package (interfaces)
-  'gate/check.interface': '@eddacraft/anvil-ports',
 
   // Platform packages
   crypto: '@eddacraft/anvil-platform/crypto',
@@ -229,9 +235,23 @@ export function getPackageForSymbol(symbol: string): string | undefined {
 }
 
 /**
- * Gets the rewritten import path for a given source path
+ * Gets the rewritten import path for a given source path.
+ *
+ * Returns `undefined` for paths under `@eddacraft/anvil-core/<subpath>`
+ * where `<subpath>` is in `ARCHIVED_CORE_SUBDIRS` — the TS components
+ * those paths used to expose were archived under ADR-033 and have no
+ * 1:1 active replacement, so a silent rewrite would be a lie. Callers
+ * should treat `undefined` as a broken import that needs manual review.
  */
 export function getRewrittenPath(sourcePath: string): string | undefined {
+  // Archived subpaths: explicitly refuse to rewrite (see ARCHIVED_CORE_SUBDIRS).
+  for (const subdir of ARCHIVED_CORE_SUBDIRS) {
+    const archivedPrefix = `@eddacraft/anvil-core/${subdir}`;
+    if (sourcePath === archivedPrefix || sourcePath.startsWith(`${archivedPrefix}/`)) {
+      return undefined;
+    }
+  }
+
   // Direct path match
   if (IMPORT_REWRITES[sourcePath]) {
     return IMPORT_REWRITES[sourcePath];
