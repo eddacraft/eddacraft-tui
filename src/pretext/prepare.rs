@@ -23,10 +23,7 @@ impl PreparedText {
     /// Prepare text with a specific style applied to all words.
     pub fn styled(text: &str, style: Style) -> Self {
         let words = measure_words(text, style);
-        let total_width = words
-            .iter()
-            .map(|w| w.width + w.whitespace_width)
-            .sum();
+        let total_width = words.iter().map(|w| w.width + w.whitespace_width).sum();
 
         Self {
             words,
@@ -49,41 +46,39 @@ impl PreparedText {
             .map(|(i, ch)| i + ch.len_utf8())
             .unwrap_or(0);
 
-        if leading_ws_end > 0 {
-            if let Some(last) = self.words.last_mut() {
-                let ws = &text[..leading_ws_end];
-                last.whitespace_width += UnicodeWidthStr::width(ws);
-                self.total_width += UnicodeWidthStr::width(ws);
-            }
+        if leading_ws_end > 0
+            && let Some(last) = self.words.last_mut()
+        {
+            let ws = &text[..leading_ws_end];
+            last.whitespace_width += UnicodeWidthStr::width(ws);
+            self.total_width += UnicodeWidthStr::width(ws);
         }
 
         let text_remainder = &text[leading_ws_end..];
         let new_words = measure_words(text_remainder, style);
 
-        if let (Some(last), Some(first_new)) = (self.words.last_mut(), new_words.first()) {
-            if last.whitespace_width == 0 && !text_remainder.starts_with(char::is_whitespace) {
-                let old_last_total = last.width + last.whitespace_width;
+        if let (Some(last), Some(first_new)) = (self.words.last_mut(), new_words.first())
+            && last.whitespace_width == 0
+            && !text_remainder.starts_with(char::is_whitespace)
+        {
+            let old_last_total = last.width + last.whitespace_width;
 
-                last.append_fragment(first_new);
+            last.append_fragment(first_new);
 
-                let merged_last_total = last.width + last.whitespace_width;
-                let remaining_new_total: usize = new_words
-                    .iter()
-                    .skip(1)
-                    .map(|w| w.width + w.whitespace_width)
-                    .sum();
+            let merged_last_total = last.width + last.whitespace_width;
+            let remaining_new_total: usize = new_words
+                .iter()
+                .skip(1)
+                .map(|w| w.width + w.whitespace_width)
+                .sum();
 
-                self.words.extend(new_words.into_iter().skip(1));
-                self.raw_text.push_str(text);
-                self.total_width += (merged_last_total - old_last_total) + remaining_new_total;
-                return;
-            }
+            self.words.extend(new_words.into_iter().skip(1));
+            self.raw_text.push_str(text);
+            self.total_width += (merged_last_total - old_last_total) + remaining_new_total;
+            return;
         }
 
-        let new_total: usize = new_words
-            .iter()
-            .map(|w| w.width + w.whitespace_width)
-            .sum();
+        let new_total: usize = new_words.iter().map(|w| w.width + w.whitespace_width).sum();
 
         self.words.extend(new_words);
         self.raw_text.push_str(text);

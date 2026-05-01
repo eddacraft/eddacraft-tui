@@ -40,7 +40,10 @@ pub mod prepare;
 pub mod segment;
 pub mod types;
 
-pub use exclusion::{ExclusionShape, ExclusionZone, RowBand, compute_line_widths, compute_row_band, compute_row_bands};
+pub use exclusion::{
+    ExclusionShape, ExclusionZone, RowBand, compute_line_widths, compute_row_band,
+    compute_row_bands,
+};
 pub use layout::{LayoutLine, LayoutResult, PositionedWord, layout};
 pub use prepare::PreparedText;
 pub use segment::{MeasuredWord, measure_words};
