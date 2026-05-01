@@ -48,7 +48,7 @@ pub fn descriptor() -> Value {
                 },
                 "contentEncoding": {
                     "type": "string",
-                    "enum": ["utf-8", "base64"],
+                    "enum": ["utf-8"],
                     "default": "utf-8"
                 },
                 "client": {
@@ -833,7 +833,7 @@ mod tests {
 
         assert_eq!(
             descriptor["inputSchema"]["properties"]["contentEncoding"]["enum"],
-            json!(["utf-8", "base64"])
+            json!(["utf-8"])
         );
     }
 

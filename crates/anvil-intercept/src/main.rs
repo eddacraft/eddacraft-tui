@@ -70,7 +70,10 @@ fn main() -> ExitCode {
                     // diagnostic plus a triggered shutdown lets the
                     // foreground loop unwind cleanly.
                     if let Err(err) = wait_for_shutdown_signal().await {
-                        eprintln!("anvil-intercept: shutdown signal handler failed: {err}");
+                        #[allow(clippy::uninlined_format_args)]
+                        {
+                            eprintln!("anvil-intercept: shutdown signal handler failed: {}", err);
+                        }
                     }
                     signal_shutdown.trigger();
                 });

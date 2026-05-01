@@ -508,6 +508,12 @@ fn validate_existing_store_parent(parent: &Path) -> Result<(), FenceStoreError> 
             reason: "parent must be owned by the current user".to_string(),
         });
     }
+    if metadata.permissions().mode() & 0o077 != 0 {
+        return Err(FenceStoreError::InsecureStoreParent {
+            path: parent.to_path_buf(),
+            reason: "parent must be private to the current user".to_string(),
+        });
+    }
     Ok(())
 }
 
@@ -523,7 +529,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[cfg(unix)]
-    use std::os::unix::fs::symlink;
+    use std::os::unix::fs::{PermissionsExt, symlink};
 
     use anvil_intercept_proto::SessionId;
     use tempfile::TempDir;
@@ -695,6 +701,23 @@ mod tests {
             err,
             FenceStoreError::Write { .. } | FenceStoreError::InsecureStoreParent { .. }
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn store_parent_with_group_write_permission_is_rejected() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store_dir = temp.path().join("state");
+        fs::create_dir(&store_dir).expect("create state dir");
+        fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o770))
+            .expect("make state dir group-writable");
+        let store = FenceStore::at_path(store_dir.join("intercept-fences.json"));
+
+        let err = store
+            .load()
+            .expect_err("group-writable parent should be rejected");
+
+        assert!(matches!(err, FenceStoreError::InsecureStoreParent { .. }));
     }
 
     #[test]
