@@ -15,9 +15,9 @@ merge that changes strategic shape.
 
 > **Last refreshed:** 2026-05-01 (`v0.5.0-beta` shipped — H1 hype-builder
 > release is now in market with the locked A1 + A2 + A3 + A4 slate;
-> horizons rebased so H1 becomes post-release follow-up + daemon-backed
-> RTV, H2 becomes second-surface driver reach, H3 stays GA; cherry-pick
-> output re-derived against the new H1 window).
+> horizons rebased so H1 closes as shipped, H2 becomes daemon-backed
+> RTV + driver reach (slate not yet locked), H3 stays GA; cherry-pick
+> output re-derived against the post-`v0.5.0-beta` window).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
@@ -140,10 +140,12 @@ fires today; daemon-backed RTV-before-disk is the H2 deliverable.
 Three GUI-dry-run gaps tracked outside the release contract (#1194 /
 #1195 / #1197) and **do not retroactively un-ship A1**.
 
-**Tag convention.** Settled as `-beta`. The X5 contradiction (Open
-Decision 1) effectively resolved as **Option A by default** — `-beta`
-shipped on the hype-builder cut and the daemon-backed product release
-still has a tag-rename option open, but the rename is not blocking.
+**Tag convention.** Hybrid resolution of the X5 contradiction (Open
+Decision 1): **sequencing followed Option B-ish** — INTD work shipped
+inside the hype-builder cut rather than being deferred behind it —
+**while tagging stayed at `-beta`** rather than being renamed to
+`-preview` / `-rc` per Option A. The tag-rename option is still open
+for the daemon-backed product release but is not blocking.
 
 ### H2 — Daemon-backed RTV + driver reach (next release window, slate not yet locked)
 
