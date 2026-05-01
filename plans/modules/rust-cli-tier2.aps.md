@@ -11,9 +11,9 @@ Scopes: RCLI2 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI2 | —     | In Progress | 4/8      |
+| RCLI2 | —     | In Progress | 4/9      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-01
 
 > **Status correction 2026-04-26 (freshness audit):** Module flipped from
 > `Proposed` to `In Progress`. RCLI2-001..-004 (`check`, `validate`, `drift`,
@@ -68,6 +68,9 @@ language defined in
   (policy-debug, policy-watch), anvil-architecture (drift)
 - JSON and plain-text output modes for all commands
 - Kindling provenance integration where applicable (check, gate-config)
+- Admin command parity port: bring `anvil admin` to feature parity with the
+  Node operator CLI (`apps/admin-cli/`) and add a CLI surface for
+  `POST /admin/user/email-update`
 
 ## Out of Scope
 
@@ -295,6 +298,70 @@ Change status to **Ready** when:
 
 ---
 
+#### Phase 5 — Admin Parity
+### RCLI2-009: admin command parity (list/show/revoke/audit/send-migration/email-update)
+
+- **Status:** Proposed
+- **Intent:** Bring `anvil admin` to feature parity with the Node operator CLI
+  (`apps/admin-cli/`, binary `anvil-admin`) and add a CLI surface for
+  `POST /admin/user/email-update`, which has no CLI today. RCLI-016 (Tier 1)
+  ported only `approve` and `invite`; everything else still requires the
+  separate Node binary, which is an operator papercut
+  (`anvil admin list` currently fails with "unrecognized subcommand").
+- **Expected Outcome:** Each subcommand below is callable on the Rust binary,
+  authenticates via `ANVIL_ADMIN_KEY` (same env contract as
+  `commands/admin.rs` today), supports `--json`, and surfaces
+  `EXIT_AUTH_REQUIRED = 3` on missing/invalid credentials:
+  - `anvil admin list [--status pending|approved|all] [--source manual|website|import|all] [--limit N] [--offset N]`
+    → `GET /admin/waitlist`
+  - `anvil admin show <email>` → `GET /admin/user/:email`
+    (user, tokens, recent audit)
+  - `anvil admin revoke [<email>] [--token <raw>] [-y]`
+    → `POST /admin/revoke`
+  - `anvil admin audit [--action <a>] [--filter-actor <e>] [--limit N] [--offset N]`
+    → `GET /admin/audit`
+  - `anvil admin send-migration [--source import|...] [--limit N] [--no-dry-run] [-y]`
+    → `POST /admin/send-migration`; preserves the dry-run → `previewToken`
+    → real-send flow (snapshot TTL 10 min, cohort-drift error handling per
+    `apps/anvil-api/src/routes/admin.ts:539`)
+  - `anvil admin email-update <current-email> <new-email>` (new — no Node
+    equivalent) → `POST /admin/user/email-update`
+- **Validation:**
+  - JSON output schemas match the responses defined in
+    `apps/anvil-api/src/routes/admin-schemas.ts` and the existing Node CLI
+    expectations (`apps/admin-cli/src/__tests__/`)
+  - `send-migration` round-trip honours `preview_token_required`,
+    `preview_token_missing`, `preview_token_consumed`, `preview_token_expired`,
+    and `cohort_drift` error codes with operator-friendly messages
+  - Confirmation prompts (`-y` to skip) on destructive verbs (`revoke`,
+    real-send `send-migration`); EOF on the prompt aborts cleanly
+  - Integration tests against `wiremock` follow the existing
+    `crates/anvil-cli/src/auth/client.rs` pattern; unit tests for arg parsing
+    follow `crates/anvil-cli/src/commands/admin.rs` tests
+- **Files:**
+  - `crates/anvil-cli/src/commands/admin.rs` — extend `AdminCommand` enum
+    and `run()` with the six subcommands
+  - `crates/anvil-cli/src/auth/client.rs` — add `list_waitlist`,
+    `get_user`, `revoke_*`, `list_audit`, `send_migration_dry_run`,
+    `send_migration_commit`, `update_user_email` methods on `AnvilClient`
+  - `crates/anvil-cli/src/output/` — table/JSON formatters for waitlist,
+    audit, and user-with-tokens views (reuse the existing JSON printer)
+  - Update `docs/cli/` admin reference once shipped
+- **Confidence:** high — pure parity port over an established API surface;
+  the Node CLI is the canonical contract and is well-tested
+- **Priority:** Medium (operator quality-of-life; unblocks retiring
+  `apps/admin-cli/` once parity lands)
+- **Dependencies:** RCLI (foundation; already complete)
+- **Notes:**
+  - Once parity ships, `apps/admin-cli/` can be archived alongside
+    `archive/anvil-cli-node/` to keep one operator surface
+  - `email-update` is the only net-new CLI surface; the rest are 1:1 ports
+  - Admin commands are already on the `requires_auth` bypass list
+    (RCLI-016 precedent) — they auth on `ANVIL_ADMIN_KEY` directly, not
+    user credentials
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -313,4 +380,5 @@ Change status to **Ready** when:
 | 2 — Drift & Gate Config | 2 | Proposed |
 | 3 — Policy Utilities | 2 | Proposed (blocked on OPAE) |
 | 4 — CI Integration | 2 | Proposed (blocked on OPAE) |
-| **Total** | **8** | — |
+| 5 — Admin Parity | 1 | Proposed |
+| **Total** | **9** | — |
