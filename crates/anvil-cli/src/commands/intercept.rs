@@ -61,10 +61,11 @@ fn run_start(args: &StartArgs) -> Result<()> {
             // the operator-visible diagnostic plus a triggered
             // shutdown lets the foreground loop unwind cleanly.
             if let Err(err) = wait_for_shutdown_signal().await {
-                #[allow(clippy::uninlined_format_args)]
-                {
-                    eprintln!("anvil intercept: shutdown signal handler failed: {}", err);
-                }
+                let mut message = String::from("anvil intercept: shutdown signal handler failed: ");
+                message.push_str(&err.to_string());
+                message.push('\n');
+                let mut stderr = std::io::stderr().lock();
+                let _ = std::io::Write::write_all(&mut stderr, message.as_bytes());
             }
             signal_shutdown.trigger();
         });
