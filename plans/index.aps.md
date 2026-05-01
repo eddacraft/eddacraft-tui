@@ -3,9 +3,14 @@
 
 # Anvil — Save-time Trust
 
-> **🔒 Current release locked 2026-04-26; state updated 2026-04-30:** A1
-> (RTAI Spike + Rust MCP launch shim) + A2 (AIGUARD) + A3 (Release
-> Engineering) + A4 (Language Credibility Floor). See
+> **✅ Last release shipped 2026-05-01 as `v0.5.0-beta`:** A1 (RTAI Spike +
+> Rust MCP launch shim, embedded-fallback-backed) + A2 (AIGUARD) + A3
+> (Release Engineering smallest-viable cut) + A4 (Language Credibility Floor).
+> The next-release slate is **not yet locked**; staffing and follow-ups are
+> tracked in [`plans/next-steps.md`](./next-steps.md). Open follow-ups from
+> the release: V050F (5/16 done), the daemon-backed RMCP path
+> (RMCP-005 `DaemonValidationClient` still defaults to `Unavailable`), and
+> #1194 / #1195 / #1197 from the RMCP-008 GUI dry-run. See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
 > and adversarial risks. See [`ROADMAP.md`](../ROADMAP.md) for thematic
 > context across horizons.
@@ -80,14 +85,22 @@ class reaches across architectural contexts.
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
-### A1 — RTAI Spike Slice (launch-blocker, ~24 items)
+### Last release — `v0.5.0-beta` (shipped 2026-05-01)
 
-The A1 cut is a **virtual slice** cherry-picked across four modules
-(INTD, INTR, RMCP, RTAI). Status reconciled on 2026-04-30 after the RMCP-008
-Cursor / Claude Code GUI dry-run completed against `target/release/anvil` and
-was recorded in the RTAI demo runbook validation log
-(`plans/specs/2026-04-26-rtai-demo-runbook.md` §8). The locked release state
-and dependency order are mirrored in
+The slate below shipped as `v0.5.0-beta` on 2026-05-01. Tables are retained
+for historical record; counts read "Complete / Locked" rather than "Complete
+/ In Progress". The next-release slate is open — see
+[`plans/next-steps.md`](./next-steps.md) for the cherry-pick verdict against
+the post-0.5.0 horizon.
+
+### A1 — RTAI Spike Slice (launch-blocker, ~24 items, shipped)
+
+The A1 cut was a **virtual slice** cherry-picked across four modules
+(INTD, INTR, RMCP, RTAI). Status was reconciled on 2026-04-30 after the
+RMCP-008 Cursor / Claude Code GUI dry-run completed against
+`target/release/anvil` and was recorded in the RTAI demo runbook validation
+log (`plans/specs/2026-04-26-rtai-demo-runbook.md` §8). The shipped release
+state and dependency order are mirrored in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Source module | A1 items | Complete | Committed | In Progress | Ready / unblocked | Blocked |
@@ -98,11 +111,11 @@ and dependency order are mirrored in
 | RTAI | -001 (spike), -002, -003, -006, -008 | -001, -002, -003, -006, -008 | — | — | — | — |
 | **Total** | **24** | **24** | **0** | **0** | **0** | **0** |
 
-**Locked A1 — Complete.** All 24 items shipped and validated. The next
-slice for RMCP/RMCPF, captured here so it does not get lost between
-release cuts. The current release was explicitly validated as
-**embedded-fallback-backed, not daemon-backed**; this follow-up is not a
-current-release blocker:
+**A1 — Shipped in `v0.5.0-beta`.** All 24 items shipped and validated. The
+next slice for RMCP/RMCPF is captured here so it does not get lost between
+release cuts. `v0.5.0-beta` was explicitly validated as
+**embedded-fallback-backed, not daemon-backed**; the daemon wiring is the
+headline post-release follow-up:
 
 1. **Wire the daemon validation client:** RMCP-005's `DaemonValidationClient`
    default impl still returns `Unavailable`; the daemon `scan_buffer` RPC
@@ -119,21 +132,24 @@ live JSON-RPC implementation, MCP `tools/call` graduates from the embedded
 fallback to the daemon-backed pipeline. The embedded path remains the
 correctness-equivalent fallback when the daemon is not running.
 
-**Outstanding A1 ambiguities to resolve at kickoff:**
+**A1 ambiguities resolved by ship:**
 
 - INTR slice item: launch slice listed "INTR-006 config" — INTR-006 is the
-  rule **Registry** and INTR-007 is rule **Configuration**. Treated as
-  INTR-006 here (the registry is load-bearing for the daemon-backed path;
-  -007 is defaults-friendly and post-A1). Confirm at INTR kickoff.
-- The X5 ADR-030 sequencing question (see `plans/next-steps.md` Open
-  Decision 1) still gates whether INTD work formally counts as part of the
-  beta cut or sits behind a tag rename.
+  rule **Registry** and INTR-007 is rule **Configuration**. The registry
+  was load-bearing for the daemon-backed path and shipped under -006;
+  INTR-007 (Configuration) remains Draft for the next release window.
+- The X5 ADR-030 sequencing question is effectively resolved: INTD work
+  *did* ship inside the `-beta` cut. The tag-rename option for the next
+  release (daemon-backed RTV) is still open but no longer blocks A1's
+  status (see `plans/next-steps.md` Open Decision 1).
 
-### A2-A4 — Locked Source Modules
+### A2-A4 — Shipped Source Modules
 
-The remaining locked slices are smaller than A1 but still span multiple APS
-modules. This table names the exact module subsets that form each slice; full
-module state remains in the detailed module tables below.
+The remaining `v0.5.0-beta` slices were smaller than A1 but still spanned
+multiple APS modules. This table names the exact module subsets that formed
+each slice; full module state remains in the detailed module tables below.
+Items listed under "Remaining state" did **not** ship in `v0.5.0-beta` and
+remain candidates for the next-release slate.
 
 | Slice | Source module | Locked items | Complete | Remaining state |
 | ----- | ------------- | ------------ | -------- | --------------- |
@@ -179,7 +195,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [scan-performance](./modules/scan-performance.aps.md)                           | SCAN   | In Progress | 3/5 (SCAN-001/-002/-003 landed as one slice — parallel-scan rollout, ReDoS line-length guard, first-run rayon pool cap; SCAN-004/-005 deferred per Council E "smallest viable cut")                                                                                                                                                                                                         |
 | [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md)                       | NXRUST | Complete    | 8/8 (6 delivered via upstream `eddacraft/nxrust` vendored into `tools/nx-rust/`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed)                                                                                                                                                                                                           |
 | [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md)                 | RUSTNX | Complete    | 9/9                                                                                                                                                                                                                                                                                                                                                                                         |
-| [v050-release-followups](./modules/v050-release-followups.aps.md)               | V050F  | In Progress | 5/16 (16 hardening items: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — 1 from the copilot PR #1090 review tracking the svix>uuid override exception, and 1 private-release Latest promotion fix; non-blocking for the H1 tag, riding the v0.5.0-beta release) |
+| [v050-release-followups](./modules/v050-release-followups.aps.md)               | V050F  | In Progress | 5/16 (16 hardening items deferred from `v0.5.0-beta` release work: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — 1 from the copilot PR #1090 review tracking the svix>uuid override exception, and 1 private-release Latest promotion fix; 5 done as of `v0.5.0-beta` ship, 11 outstanding as post-release follow-ups) |
 
 **Design doc (Forge & Temper — archived):**
 [docs/archive/2026-02-24-forge-temper-review-pipeline.md](../docs/archive/2026-02-24-forge-temper-review-pipeline.md)

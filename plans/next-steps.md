@@ -13,13 +13,11 @@ merge that changes strategic shape.
 
 # Anvil — Next Steps
 
-> **Last refreshed:** 2026-04-29 (ADR-033 lands — IDE/MCP surfaces
-> archived under `archive/anvil-vscode-extension/` and
-> `archive/anvil-mcp-server/`; TSRET-005 (engine archive) is
-> **unblocked** by ADR-033 but execution is **out of scope for
-> this PR** and lands separately on `chore/TSRET-005`; TSRET-006
-> superseded; DRVR-003 deferred until a new extension package is
-> created on the daemon-driver path; module/index docs reconciled).
+> **Last refreshed:** 2026-05-01 (`v0.5.0-beta` shipped — H1 hype-builder
+> release is now in market with the locked A1 + A2 + A3 + A4 slate;
+> horizons rebased so H1 becomes post-release follow-up + daemon-backed
+> RTV, H2 becomes second-surface driver reach, H3 stays GA; cherry-pick
+> output re-derived against the new H1 window).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
@@ -31,36 +29,57 @@ merge that changes strategic shape.
 
 ## Where we are right now
 
-- **Branch:** `dev`, clean against `origin/dev`.
-- **Working tree at the moment this was written:** RTAI module
-  ([`plans/modules/realtime-ai-validation.aps.md`](./modules/realtime-ai-validation.aps.md))
-  is uncommitted; RTVF
-  ([`plans/archive/modules/real-time-validation-full.aps.md`](./archive/modules/real-time-validation-full.aps.md))
-  is moved into the archive and the original `plans/modules/`
-  copy is deleted; `plans/index.aps.md` is updated to record both
-  supersessions. RTVS
-  ([`plans/archive/modules/real-time-validation-simplified.aps.md`](./archive/modules/real-time-validation-simplified.aps.md))
-  was already archived in the previous commit. Orchestrator will
-  commit these shortly.
+- **Branch:** `chore/post-release-clean` off `dev`. Tag `v0.5.0-beta` cut
+  from `release/v0.5.0-beta`; release branch merged back to `dev` via
+  PR #1215.
+- **What just shipped (`v0.5.0-beta`, 2026-05-01):** the locked
+  A1 + A2 + A3 + A4 slate per
+  [`RELEASE-PLAN.md`](../RELEASE-PLAN.md):
+  - **A1 — RTAI Spike Slice** (24 items, INTD/INTR/RMCP/RTAI). Real-
+    time AI validation fires before save through `anvil mcp serve --stdio`.
+    Validation backend recorded as **embedded-fallback-backed, not daemon-
+    backed**: RMCP-005's `DaemonValidationClient` defaults to `Unavailable`
+    so MCP `tools/call` runs through embedded `anvil-checks`. Three GUI-
+    dry-run gaps tracked outside the contract (#1194 missing `--command`
+    override, #1195 Claude Code config-path mismatch, #1197 clients ignore
+    `anvil_validate_write` without prompt instruction).
+  - **A2 — AIGUARD** (4 items): `anvil gate --profile ai` + canonical
+    `anvil.diagnostic.v1` envelope shared with RTAI / INTD / RMCP / DRVR.
+  - **A3 — Release Engineering smallest-viable cut** (7 items): GHOOK-001,
+    ATTRIB-001/-002/-003, SCAN-001/-002/-003. ATTRIB-004..-011 and
+    SCAN-004/-005 stay queued.
+  - **A4 — Language Credibility Floor** (9 items): LANGTS-001/-003,
+    OPSUP-001 check-ID registry slice, SURFENV-001..-006.
+  - **TRACE-001** — cross-cutting tracing baseline (anvil-observability
+    crate, `traceparent` envelope round-trip, INTD-014 conformance assert).
+    TRACE-002 (TS mirror) and TRACE-003 (redaction hardening) are post-
+    launch.
+- **Open follow-ups (foreground for the next release window):**
+  - **Daemon-backed RMCP path** — replace RMCP-005's `Unavailable` stub
+    with a live JSON-RPC client; graduate `tools/call` from embedded
+    fallback to daemon-backed pipeline. Daemon side (`scan_buffer`,
+    INTD-002 listener) already in place.
+  - **V050F** — 5/16 done, 11 outstanding (per-operator audit attribution,
+    cascade revoke, `/admin/approve` flag-gate, regex compile cache, eager
+    rayon pool init, CI-class bench baseline, `release/*` push filter,
+    custom-pattern compile errors, svix>uuid override removal,
+    `WAITLIST_PAUSED` runbook).
+  - **#1191** — wire RTAI mid-edit baseline-comparison gating into CI
+    against the recorded 7-case ADR-031 corpus; until then, manual
+    `cargo bench -p eddacraft-anvil-intercept --bench midedit_roundtrip`
+    is the only safety net.
+  - **TSRET-005 execution** — archive `crates/anvil-checks/tests/scanner_parity.rs`
+    + the `packages/anvil/core/src/antipattern/` and
+    `packages/anvil/core/src/suppression/parser.ts` trees + `tests/scanner-parity/`
+    to `archive/anvil-ts-scanner/` per ADR-033. Unblocked but not executed
+    pre-release.
 - **Last few commits:**
-  - `57be8fc1` docs(aps): mark TSRET-002 Complete under the
-    ADR-030-reduced scope
-  - `b65a9180` docs(launch): clarify LAUNCH-001 updates `--exclude`
-    to glob semantics
-  - `0383e00c` plan(launch): add LAUNCH cross-cutting module +
-    supersede RTVS
-  - `64ef65f0` docs(adr): record Option A for ADR-030 sequencing —
-    INTD post-release
-- **What just changed strategically (this session):**
-  1. RTVS archived; its watch-flow intent moved into LAUNCH; its
-     validation-engine intent moved into RTAI.
-  2. RTAI authored from scratch on the daemon + drivers
-     architecture, replacing RTVF entirely.
-  3. Real-time AI-output validation (RTV) recognised as **the**
-     Anvil headline capability — not a save-time linter feature.
-  4. Cross-cutting module convention proven on its second use
-     (LAUNCH → RTAI). Promotion to a first-class APS primitive is
-     now an open decision, not a hypothetical.
+  - `9e623aba2` fix(plans): correct broken Contents anchor for
+    Infrastructure as Code
+  - `4e727b5be` chore(plans): reconcile APS index against code
+  - `92cd0967f` chore: merge release v0.5.0-beta back to dev (#1215)
+  - `5e8040854` fix(intercept): avoid codeql macro false positive
+  - `9ded49664` fix(release): address security review blockers
 
 ---
 
@@ -83,11 +102,13 @@ shells) attach as **drivers** over JSON-RPC 2.0. This is what
 ADR-030 commits to and what the next architectural mile of work
 exists to deliver.
 
-The funding context: a hype-builder release is being prepared as the
-**primary funding mechanism**. Influencers and industry mates are
-lined up to drive a waitlist; the resulting signal is what investors
-are looking at. The hype phase is the highest-leverage horizon, not
-a warm-up for the "real" launch.
+The funding context: the hype-builder release shipped on 2026-05-01 as
+`v0.5.0-beta`, the **primary funding mechanism**. Influencers and
+industry mates are lined up against this tag to drive waitlist signal;
+the resulting numbers are what investors are looking at. The hype phase
+is the highest-leverage horizon — the next release window has to convert
+that signal into a credible "headline capability proven on the daemon
+path" demo, not a warm-up for some later "real" launch.
 
 ---
 
@@ -96,73 +117,85 @@ a warm-up for the "real" launch.
 > No dates. Sequence and dependency only. Releases get planned after
 > each release ships.
 
-### H1 — Hype-builder release
+### H1 — Hype-builder release ✅ SHIPPED as `v0.5.0-beta` (2026-05-01)
 
-**What it is.** The next ship. Re-establishes Anvil's first-touch
-surface so it is recommendable to the people the launch is aimed at:
-demo-grade *but not embarrassing*. The product story is "save-time
-trust today, in-flight AI oversight imminent" — proof of the headline
-capability is staged for H2. H1's job is to convert hype into
-waitlist signal without making the inevitable poke-around a
-disappointment.
+**What it was.** First-touch surface recommendable to the audience the
+launch is aimed at: demo-grade *but not embarrassing*. The product
+story shipped as "save-time trust today, in-flight AI oversight
+imminent" — except "imminent" turned out to mean *in the same release*:
+the embedded fallback behind the MCP launch shim already validates AI
+output before disk, just not yet through the daemon-backed path.
 
-**What is in it.**
+**What shipped.** The locked A1 + A2 + A3 + A4 slate (44 items).
+LAUNCH-001 (glob filter), LAUNCH-004 (post-init auto-analysis), and
+LAUNCH-005 (doctor remediation depth) all shipped Complete; LAUNCH-007
+(unified interactive fix handling) closed in the same window.
+LAUNCH-002, LAUNCH-003 and LAUNCH-006 remain Todo and roll into the
+next-release window. DOCSYNC and EATEST shipped what fitted.
 
-- LAUNCH pre-flight items: `LAUNCH-001` (glob filter actually works),
-  `LAUNCH-004` (post-init auto-analysis restored), and probably
-  `LAUNCH-005` (doctor remediation depth). Each ships as a standalone
-  PR, not bundled.
-- Hygiene items already in flight that happen to land before the
-  cut (DOCSYNC, EATEST as time permits).
+**Embedded-fallback caveat.** The launch demo runs through the embedded
+`anvil-checks` pipeline behind RMCP, not the live daemon. This is the
+single load-bearing caveat for the headline framing: RTV-before-disk
+fires today; daemon-backed RTV-before-disk is the H2 deliverable.
+Three GUI-dry-run gaps tracked outside the release contract (#1194 /
+#1195 / #1197) and **do not retroactively un-ship A1**.
 
-**Gate to call it ready.** The two pre-flight items are merged on
-`dev`; `anvil init` lands on a useful first signal; `anvil watch
---patterns` actually filters; the existing welcome → init → watch
-chain has no first-touch papercuts that would make a wait-listed
-viewer close the tab.
+**Tag convention.** Settled as `-beta`. The X5 contradiction (Open
+Decision 1) effectively resolved as **Option A by default** — `-beta`
+shipped on the hype-builder cut and the daemon-backed product release
+still has a tag-rename option open, but the rename is not blocking.
 
-**Deferred.** Polish that is not visible in the first ten minutes.
-Anything that requires the daemon to exist. Anything that requires
-DRVR to be in flight. The H1 ship is on the in-process Rust surfaces
-that already exist.
+### H2 — Daemon-backed RTV + driver reach (next release window, slate not yet locked)
 
-**Tag convention.** Stays `-beta`. Renaming to `-preview` / `-RC` is
-a live option (see Open Decisions) but is not blocking.
+**What it is.** The product release. RTV — validating AI output mid-
+edit through the **live daemon**, not the embedded fallback — is the
+headline upgrade over `v0.5.0-beta`. A second surface (editor or second
+MCP target) attaches via DRVR-001/-002. The "daemon + drivers"
+architecture is no longer aspirational; it is the actual data path for
+the next demo.
 
-### H2 — Beta launch with real-time AI-output validation
+**Already shipped via A1 (counts toward H2 in the original framing).**
+INTD-001/-002/-003/-005/-007/-013/-014, INTR-001/-002/-006/-008,
+RMCP-001..-008, RTAI-001/-002/-003/-006/-008. The launch shim and the
+mid-edit RPC are real; the daemon-backed wiring is the missing edge.
 
-**What it is.** The product release. RTV — validating AI output
-mid-edit, not at save time — is live behind at least one driver. The
-"daemon + drivers" architecture is no longer aspirational; it is the
-actual data path for the headline demo.
+**What is left for H2.**
 
-**What is in it.**
-
-- `INTD-001`/`-002` and the rest of INTD reaching a stable IPC
-  surface.
-- DRVR-001 (shared driver client), DRVR-002 (editor-driver protocol),
-  and **either** DRVR-003 (VSCode editor driver) **or** DRVR-004
-  (MCP driver) — pick the one that demos best, ship the other in
-  H2 patch.
-- `RTAI-001` spike → `RTAI-002`/`-003`/`-004` (mid-edit RPC,
-  latency benchmark, driver-side debouncer) → either `RTAI-005`
-  (editor mid-edit) or `RTAI-006` (MCP pre-write). Same demo-driven
-  pick as DRVR-003 vs DRVR-004 — they pair.
-- RTAI-007 (telemetry mirror), RTAI-008 (errors-as-first-class
-  contract test), RTAI-009 (architecture doc + supersession links)
-  before declaring H2 done.
-- TSRET-005 (delete TS scanner) — comes for free once a driver
-  ships, per ADR-030.
+- **Daemon-backed RMCP** — replace RMCP-005's `Unavailable` stub with
+  a live JSON-RPC client; verify the daemon-backed `tools/call`
+  matches the embedded fallback envelope (RTAI contract test +
+  AIGUARD-002 envelope shape).
+- **DRVR-001 / DRVR-002** — shared driver client + editor-driver
+  protocol.
+- **RMCPF (Rust MCP Full Port)** — graduate the launch shim to feature
+  parity with the archived TS MCP server.
+- **RTAI-004 / -005 / -007 / -009** — driver-side debouncer, editor
+  mid-edit path, telemetry mirror, architecture doc + supersession
+  links.
+- **Remaining INTD items** — -004 (watcher), -006 (process-group
+  interrupt), -008..-012 (config / embedded / unregistered-change /
+  status / Windows CI matrix), -015 (telemetry subscription scoping),
+  -016 (DoS protection budgets).
+- **#1191** — wire RTAI mid-edit baseline-comparison gating into CI
+  against the recorded ADR-031 corpus.
+- **TSRET-005 execution** — archive the TS scanner / suppression
+  parser / parity harness per ADR-033. Unblocked but not executed
+  pre-`v0.5.0-beta`.
+- The post-release follow-ups in **V050F** that should ride this
+  window (per-operator audit attribution, family-theft cascade,
+  `/admin/approve` flag-gate, regex compile cache, eager rayon pool
+  init, CI-class bench baseline, custom-pattern compile errors).
 
 **Gate to call it ready.** Mid-edit diagnostics from a real AI tool
-session reach the user inside the latency budget on at least one
-surface. The other surface has a stub or known follow-up. Architecture
-docs reflect shipped reality (RTAI-009).
+session reach the user inside the latency budget through the **daemon-
+backed** path on at least one surface; the embedded fallback remains
+correctness-equivalent. Architecture docs reflect shipped reality
+(RTAI-009). RMCP-008 dry-run repeated against the daemon backend.
 
 **Deferred.** Multi-driver parity (DRVR-008 capability negotiation
 matters, but second-editor reach is H3). Reasoning-pattern catalogue
-itself — the AI-001..AI-007 detectors live in `anvil-checks`, not
-in RTAI; their own roadmap is downstream.
+itself — the AI-001..AI-007 detectors live in `anvil-checks`, not in
+RTAI; their own roadmap is downstream.
 
 ### H3 — GA
 
@@ -186,84 +219,96 @@ strategic decision is owed before they consume effort.
 
 ---
 
-## The next release (hype-builder) in detail
+## The next release (daemon-backed RTV) in detail
 
 This is the section the team executes against. Everything else in
-this document is context.
+this document is context. Slate **not yet locked**; the entries below
+are the cherry-pick verdicts that survived the post-`v0.5.0-beta`
+sweep.
 
-### In scope
+### In scope (working slate, pending lock)
 
-| ID | Module | Why it ships in H1 |
-|----|--------|--------------------|
-| `LAUNCH-001` | LAUNCH | `--patterns` and `--exclude` actually filter. The current code declares the fields but never consumes them; first-time visitors will try this and notice. |
-| `LAUNCH-004` | LAUNCH | Post-init auto-analysis. `anvil init` currently ends on "now run `anvil doctor`" — the hype-phase user clicks away there. IFR-003 shipped this in TS; the Rust port regressed it. |
-| `LAUNCH-005` (probable) | LAUNCH | Doctor remediation depth. Bare "see README" references on `anvil doctor` failures kill the demo. Confidence is medium; ship if it slots in, defer if it grows. |
+| ID | Module | Why it ships next |
+|----|--------|-------------------|
+| Daemon-backed RMCP | RMCP / RMCPF | Replace RMCP-005's `Unavailable` stub with a live JSON-RPC client; graduate `tools/call` from embedded fallback to daemon-backed pipeline. The single load-bearing caveat that gates the headline framing. |
+| `DRVR-001` / `DRVR-002` | DRVR | Shared driver client + editor-driver protocol. Lets a second surface attach. |
+| `RTAI-004` / `-005` / `-007` / `-009` | RTAI | Driver-side debouncer, editor mid-edit path, telemetry mirror, architecture doc + supersession links. Closes the H2 RTAI checklist. |
+| Remaining `INTD-004/-006/-008..-012/-015/-016` | INTD | Watcher integration, process-group interrupt, config / embedded / unregistered-change / status / Windows CI matrix, telemetry subscription scoping, DoS protection budgets. |
+| `INTR-003` / `-004` / `-005` / `-007` | INTR | The remaining rule traits + configuration; prereq for second-rule expansion behind the daemon. |
+| `#1191` | (RTAI ops) | Wire ADR-031 mid-edit baseline-comparison gating into CI against the recorded 7-case corpus. Until landed, manual `cargo bench` is the only safety net. |
+| `TSRET-005` | TSRET | Archive the TS scanner / suppression parser / parity harness to `archive/anvil-ts-scanner/` per ADR-033. Unblocked, not yet executed. |
+| `LAUNCH-002` / `-003` / `-006` | LAUNCH | Watch polish that did not make `v0.5.0-beta`. Should land in this window so the watch flow is solid by the time the daemon-backed demo ships against it. -003 still watches for TUIDASH supersession. |
+| V050F outstanding (11 items) | V050F | Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, `release/*` push filter, custom-pattern compile errors, svix>uuid override removal, `WAITLIST_PAUSED` runbook. |
 
-Each ships as **a standalone PR**, not bundled. No "LAUNCH release"
-branch. The pre-flight bundle is a **sequencing label**, not a
-release label.
+Each ships as **a standalone PR**, not bundled. No single "next
+release" branch. The slate is a **sequencing label**, not a release
+label.
 
 ### Not in scope, deliberately
 
-- `LAUNCH-002` (allow `--action` with TUI mode). Worth doing, not a
-  first-touch papercut. NEXT.
-- `LAUNCH-003` (real watch TUI stats rollup). Coordinates with
-  TUIDASH; the bespoke surface may go away. NEXT, with eye on
-  Superseded-by TUIDASH-009.
-- `LAUNCH-006` (welcome `--skip-to watch` shortcut). Returning-user
-  optimisation. NEXT.
-- All RTAI work. RTAI is the H2 headline; staging part of it into
-  H1 to look impressive will not finish in time and will fragment
-  the demo.
-- All DRVR work. Same reasoning.
-- All INTD work *except as preparation* — see immediately below.
+- All Web Dashboard waves. DASH/DASHCORE/DASHARCH/DASHOPS/DASHAI is
+  the team-lead-surface horizon (H3); pulling any of it forward
+  fragments the daemon-backed demo.
+- All Policy Governance constellation work. OPAE/ORGHIER/POLLC/etc.
+  remain Draft and stay there until H3.
+- All Language & Coverage tail work beyond the smallest-viable A4 cut
+  that already shipped.
+- WEAVE / agent-infrastructure import. Schedule after the intercept-
+  loop thesis is proven on the daemon path.
+- Any new Open-Spec / Pocketflow / Graph v2 work — see REVISIT.
 
-### The leverage move that is not in H1 but is gated by H1
+### The leverage move that is not in H2 but is gated by H2
 
-**Staff INTD-001 / INTD-002 immediately.** Per ADR-030's Sequencing
-Decision (Option A), INTD picks up "straight after the v0.4.0-beta
-release". The H1 ship is what unblocks that; the team should be
-ready to point at INTD on the day H1 cuts. RTAI-001 (the spike) is
-deliberately designed to start against a partial INTD, so the
-critical-path delay between H1 and H2 is dominated by INTD reaching
-"stable enough to spike against", not by INTD reaching done.
-
-This is also where the **X5 contradiction** lives — see Open
-Decisions.
+**Plan the H3 dashboard scoping conversation now.** Once the daemon-
+backed RTV path is live, the Dashboard MVP "Team-Lead Glance" cut
+(Council B's ~12-of-39 80/20 slice) is the next coherent product
+release after H2. The `anvil export` CLI work item is the load-bearing
+glue between CLI artefacts and the dashboard read path. Neither is in
+scope for H2; both should have a Ready Checklist drafted before H2
+tags so the H3 cut does not start cold.
 
 ---
 
 ## Cherry-pick output
 
-Verdicts assigned against the H1-funding / H2-RTV / H3-GA frame.
-Sorted by verdict, then by module ID. Active and Draft modules only;
-already-archived modules are not re-listed.
+Verdicts assigned against the H1-shipped / H2-daemon-RTV / H3-GA frame
+after `v0.5.0-beta`. Sorted by verdict, then by module ID. Active and
+Draft modules only; already-archived modules are not re-listed.
 
-### 🔥 HYPE — needed for the next release
+### 🔥 SHIPPED in `v0.5.0-beta` — H1 is closed
 
-| Module | ID | Status | Verdict rationale |
-|--------|----|--------|-------------------|
-| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | Draft | Owns the pre-flight items. Module itself is not "complete in H1" — only LAUNCH-001 / -004 / (-005) ship. |
+| Module | ID | Final state at `v0.5.0-beta` ship | Notes |
+|--------|----|-----------------------------------|-------|
+| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress 5/7 | LAUNCH-001/-004/-005/-007 Complete; -002/-003/-006 roll into H2 watch polish. |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress 7/16 | A1 slice closed: -001/-002/-003/-005/-007/-013/-014. -004/-006/-008..-012/-015/-016 roll into H2. |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress 4/8 | A1 slice closed: -001/-002/-006/-008. -003/-004/-005/-007 roll into H2. |
+| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete 8/8 | Embedded-fallback-backed; daemon-backed graduation rolls into H2 RMCPF and RMCP follow-up. |
+| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress 5/9 | A1 slice closed: -001/-002/-003/-006/-008. -004/-005/-007/-009 roll into H2. |
+| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Complete 4/4 | Diagnostic envelope shared with RTAI / RMCP / DRVR. |
+| [git-config-hooks](./archive/modules/git-config-hooks.aps.md) | GHOOK | Complete 6/6 | A3 hygiene cut. |
+| [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | In Progress 3/11 | A3 smallest-viable cut: ATTRIB-001/-002/-003. -004..-011 roll into H2. |
+| [scan-performance](./modules/scan-performance.aps.md) | SCAN | In Progress 3/5 | A3 smallest-viable cut: SCAN-001/-002/-003. -004/-005 stay queued. |
+| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Ready 2/5 | A4 floor: -001/-003 shipped. -002/-004/-005 stay queued. |
+| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | In Progress 1/7 | A4 check-ID registry slice. -002..-007 stay queued. |
+| [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | Complete 6/6 | A4 `.env` secret scan. |
+| [tracing-foundation](./modules/tracing-foundation.aps.md) | TRACE | In Progress 1/3 | TRACE-001 (anvil-observability + traceparent) shipped; -002/-003 are post-launch. |
 
-That is the entire HYPE list. The funding-driven release rides on
-**three work items** out of one module, against the existing
-in-process Rust surfaces. Adding anything else to HYPE is what burns
-the release window.
-
-### ➡️ NEXT — needed for H2 beta with RTV
+### ➡️ NEXT — needed for H2 daemon-backed RTV
 
 The headline-capability work and everything that gates it.
 
 | Module | ID | Status | Verdict rationale |
 |--------|----|--------|-------------------|
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | The daemon. RTAI cannot exist without it; DRVR cannot function without it. Pick up immediately after H1 cut per ADR-030 Option A. Critical-path root. |
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | Session ingress for shell-launched agents. Required for the daemon's session-attribution story to hold once non-editor agents (Claude Code in a tmux pane) become a demo target. |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | Rule trait + initial rule set. RTAI evaluates whatever INTR registers. Cannot ship the headline demo without at least the secret-detection and antipattern wrappers running on the hot path. |
-| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft | The driver framework. DRVR-001/-002 plus one of DRVR-003/-004 is the H2 minimum. |
-| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | Proposed | The headline. Spike (RTAI-001) starts against partial INTD; the rest blocks on INTD + DRVR reaching the pinned deliverables. |
-| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress | TSRET-005 unblocked under ADR-033 — IDE/MCP surfaces archived under `archive/anvil-vscode-extension/` and `archive/anvil-mcp-server/`; TS scanner + TS suppression parser + parity harness move to `archive/anvil-ts-scanner/` (no longer blocking on DRVR). TSRET-006 superseded — transition window collapses. Module reaches terminal state once -005 lands. |
-| [notification-framework cross-link] (telemetry stream contract) | n/a | Complete | Already merged; called out so future readers do not re-open it. RTAI-007 rides on INTD-013 which rides on this contract. |
-| `LAUNCH-002` / `-003` / `-006` (within LAUNCH) | LAUNCH | Draft | Watch polish that does not block H1 but should land in the H1→H2 window so the watch flow is solid by the time the headline demo ships against it. LAUNCH-003 watches for TUIDASH supersession. |
+| Daemon-backed RMCP / RMCPF | RMCP / RMCPF | RMCP Complete 8/8; RMCPF Draft 0/9 | Replace RMCP-005's `Unavailable` stub with a live JSON-RPC client; graduate `tools/call` from embedded fallback to daemon-backed. RMCPF brings full TS-MCP parity. The single load-bearing caveat from `v0.5.0-beta`. |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress 7/16 | Remaining INTD-004/-006/-008..-012/-015/-016. Watcher integration, process-group interrupt, config / embedded / unregistered-change / status / Windows CI matrix, telemetry subscription scoping, DoS protection budgets. Critical-path tail. |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft 0/9 | Session ingress for shell-launched agents. Required for the daemon's session-attribution story to hold once non-editor agents (Claude Code in a tmux pane) become a demo target. |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress 4/8 | Remaining INTR-003/-004/-005/-007. Rule trait extension + configuration; prereq for second-rule expansion behind the daemon. |
+| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft 0/4 active | DRVR-001/-002 (shared driver client + editor-driver protocol) is the H2 minimum. DRVR-003 (VSCode editor driver) deferred per ADR-033 until a new extension package is created on the daemon-driver path. DRVR-004 superseded by RMCP/RMCPF. |
+| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress 5/9 | Remaining RTAI-004/-005/-007/-009. Driver-side debouncer, editor mid-edit path, telemetry mirror, architecture doc + supersession links. |
+| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress 2/5 active | TSRET-005 unblocked under ADR-033 but execution is post-`v0.5.0-beta`. Module reaches terminal state once -005 archives the TS scanner / TS suppression parser / parity harness to `archive/anvil-ts-scanner/`. |
+| `LAUNCH-002` / `-003` / `-006` (within LAUNCH) | LAUNCH | In Progress 5/7 | Watch polish that did not make `v0.5.0-beta`. Should land in this window so the watch flow is solid by the time the daemon-backed demo ships against it. LAUNCH-003 watches for TUIDASH supersession. |
+| `#1191` (RTAI ops) | n/a | Open | Wire ADR-031 mid-edit baseline-comparison gating into CI against the recorded 7-case corpus. Until then, manual `cargo bench` is the only safety net. |
+| [v050-release-followups](./modules/v050-release-followups.aps.md) | V050F | In Progress 5/16 | 11 outstanding hardening items deferred from `v0.5.0-beta` review rounds. Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, `release/*` push filter, custom-pattern compile errors, svix>uuid override removal, `WAITLIST_PAUSED` runbook. |
 
 ### 🌱 LATER — needed for H3 GA, parked until H2 ships
 
@@ -367,7 +412,6 @@ The five-track plan. Excellent design work; entirely H3.
 | [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | Gateway integration. |
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | Parse open-spec format as a planning source. |
 | [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Proposed | Unified config-format ADR (ADR-016 Proposed). H3 unless a surface forces it sooner. |
-| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete (8/8) | Listed Complete in index but file remains in active modules; archive sweep owed. See REVISIT. |
 
 ### ❓ REVISIT — premise should be re-examined
 
@@ -384,7 +428,6 @@ session. Each is a decision waiting to be made.
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | Graph context for policy evaluation. INTR explicitly *forbids* graph recomputation on the hot path. GCTX may belong to the cold-path policy evaluation story; the framing should be re-pointed. |
 | [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Ready | "Ready" but the executable consumer is unclear post-RTAI. Confirm scope. |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | Same — promising, but does it *plug into* INTD-013's notification envelope cleanly, or does it want a separate emission path? |
-| [nx-rust-plugin](./modules/nx-rust-plugin.aps.md) | NXRUST | Complete (8/8) | Listed Complete in index Hardening table but the module file is still in `plans/modules/`. Archive sweep owed (`git mv` to `plans/archive/modules/`). |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | BMAD v4 backward compat. Demand for v4 is unproven post-v6.0.3. Defer or archive based on a real user signal. |
 
 ### ✅ DONE — already complete or in-flight under another module
@@ -392,7 +435,7 @@ session. Each is a decision waiting to be made.
 | Module | ID | Status | Notes |
 |--------|----|--------|-------|
 | (Most of the index's "Complete" entries) | — | — | See [index.aps.md](./index.aps.md) Release Plan tables and [completed-index.aps.md](./completed-index.aps.md). |
-| `nx-rust-plugin` | NXRUST | Complete (8/8) | But also flagged REVISIT for archive sweep. |
+| [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md) | NXRUST | Complete (8/8) | Archived to `plans/archive/modules/`; sweep complete. |
 
 ---
 
@@ -401,40 +444,23 @@ session. Each is a decision waiting to be made.
 The decisions on this list change downstream sequencing. Each needs a
 human call.
 
-### 1. The X5 contradiction in ADR-030
+### 1. The X5 contradiction in ADR-030 — effectively resolved by Option B-ish
 
-**Where it lives.** [`plans/decisions/030-surface-drivers-supersede-napi-cutover.md`](./decisions/030-surface-drivers-supersede-napi-cutover.md)
+**Where it lived.** [`plans/decisions/030-surface-drivers-supersede-napi-cutover.md`](./decisions/030-surface-drivers-supersede-napi-cutover.md)
 "Sequencing decision (2026-04-24, X5 closed)" section.
 
-**The contradiction.** ADR-030's Option A says "INTD-001 / INTD-002
-are picked up straight after the v0.4.0-beta release". This session
-re-framed RTV-on-drivers as the **launch-blocker** for the actual
-product (H2 beta). RTV requires INTD + DRVR + RTAI. So either:
+**How `v0.5.0-beta` resolved it.** Reality picked **(B)-ish**: INTD
+work was *not* deferred behind the hype-builder cut. The A1 INTD slice
+(INTD-001/-002/-003/-005/-007/-013/-014) shipped *as part of*
+`v0.5.0-beta`, alongside RMCP and the RTAI A1 items, with a tag of
+`-beta`. The launch shim is real but embedded-fallback-backed, so the
+"beta is still aspirational on RTV" reading holds — but ADR-030's
+"after the v0.4.0-beta release" language is now historical.
 
-- INTD work *is* part of the beta (and ADR-030's "after the beta"
-  language is wrong), or
-- The beta cut now has two stages and "beta" needs renaming, or
-- "Beta" stays the name for the H1 hype-builder ship and the H2
-  product launch needs a different label.
-
-**Three options surfaced this session.**
-
-- **(A) Rename current "beta" to preview / RC.** Reserve "beta" for
-  the H2 product launch with RTV. Smallest sequencing change; a
-  marketing/tag-rename cost only. Preserves ADR-030 Option A's
-  intent (INTD picks up straight after the *current* cut, which is
-  now called preview). This is the cleanest reading.
-- **(B) Rewrite X5 to start INTD now, in parallel with H1.**
-  Eliminates the gap between H1 and INTD start. Costs: INTD work
-  inevitably bleeds into H1 review bandwidth; ADR-030 needs editing;
-  the team has to defend "two parallel mainlines".
-- **(C) Two-stage beta (beta-1, beta-2).** Honest but loud. The
-  funding-phase audience does not necessarily know to read the suffix.
-
-**Recommendation deferred — this is the user's call, not the
-orchestrator's.** All three are coherent; the choice depends on what
-the funding-phase audience reads as "beta" and how loud a rename
-costs.
+**Outstanding sub-question — tag rename for H2.** Whether the next
+release (daemon-backed RTV) tags as `-beta` again, `-rc`, or graduates
+out of `-beta` is still open and downstream of audience-reading
+considerations. Not blocking; pick at H2 lock.
 
 ### 2. Promote the cross-cutting module convention to a first-class APS primitive?
 
@@ -484,25 +510,20 @@ lint).
 
 ### 4. Tag rename bandwidth
 
-Independent of decision 1, the team agreed in-session that "tag
-convention stays `-beta`" because rename effort is not worth it
-right now. Worth re-checking once X5 is closed — if X5 lands on
-Option A (rename to preview/RC), the tag rename folds in.
+`v0.5.0-beta` shipped under `-beta` so the in-session call held. The
+question only resurfaces if H2 (daemon-backed RTV) wants a different
+tag (`-rc`, drop `-beta`, or stay). Decide at H2 lock; not blocking.
 
-### 5. Archive sweep owed
+### 5. ~~Archive sweep owed~~ (resolved)
 
-**NXRUST** module file lives in `plans/modules/nx-rust-plugin.aps.md`
-but the index lists it Complete (8/8) under the Hardening table. Run
-`git mv` to `plans/archive/modules/` next time the modules directory
-is touched. Same sweep should re-check anything else the index
-records as Complete that hasn't been archived.
+NXRUST module file is now at `plans/archive/modules/nx-rust-plugin.aps.md`
+as expected. Sweep complete; the active-module list and the index
+agree.
 
-### 6. The pre-flight scope of LAUNCH-005
+### 6. ~~The pre-flight scope of LAUNCH-005~~ (resolved)
 
-LAUNCH-005 (doctor remediation depth) is a candidate for H1 but its
-own confidence is medium. Decision: ship if it slots between
-LAUNCH-001 and LAUNCH-004 review, defer to NEXT if it grows. Does
-not need to be made in advance.
+LAUNCH-005 (doctor remediation depth) shipped Complete in
+`v0.5.0-beta`. Decision retired.
 
 ---
 
@@ -510,6 +531,42 @@ not need to be made in advance.
 
 > Append-only. Newest entry first. A future session reads this to
 > see what has moved since the last refresh.
+
+### 2026-05-01 (`v0.5.0-beta` shipped — H1 closed, horizons rebased)
+
+- `v0.5.0-beta` tagged from `release/v0.5.0-beta`, public release
+  artefacts published, release branch merged back to `dev` via
+  PR #1215.
+- The locked A1 + A2 + A3 + A4 slate (44 items) shipped as a single
+  cut. A1 RTAI Spike Slice closed at 24/24 with RMCP-008 Cursor /
+  Claude Code GUI dry-run recorded in
+  `plans/specs/2026-04-26-rtai-demo-runbook.md` §8. Backend recorded
+  as **embedded-fallback-backed, not daemon-backed** — RMCP-005's
+  `DaemonValidationClient` defaults to `Unavailable` and `tools/call`
+  runs through the embedded `anvil-checks` pipeline. Three GUI-dry-
+  run gaps tracked outside the contract (#1194 missing `--command`,
+  #1195 Claude Code config-path mismatch, #1197 clients ignore
+  `anvil_validate_write` without prompt instruction).
+- TRACE-001 (anvil-observability crate, `traceparent` envelope,
+  INTD-014 conformance assert) shipped as a cross-cutting baseline
+  per ADR-034 / ADR-035; TRACE-002 (TS mirror) and TRACE-003
+  (redaction hardening) remain post-launch.
+- V050F advanced 5/16 during the release window (cargo-dist installer
+  pin, scoop PAT scope, winget `gh` arg regression, migration runner,
+  private-release Latest promotion). 11 items outstanding as
+  post-release follow-ups.
+- ADR-033 surface archives executed:
+  `packages/vscode-extension/` → `archive/anvil-vscode-extension/`,
+  `packages/mcp-server/` → `archive/anvil-mcp-server/`. TSRET-005
+  (engine archive of TS scanner / TS suppression parser / parity
+  harness to `archive/anvil-ts-scanner/`) **remains unblocked but
+  not yet executed** — pending post-release window.
+- X5 contradiction effectively resolved by reality: INTD work *did*
+  ship inside the `-beta` cut. Tag-rename question for H2 is still
+  open but no longer load-bearing.
+- Strategic frame this snapshot records: H1 hype-builder is closed;
+  H2 daemon-backed RTV + driver reach is the next-release window
+  (slate not yet locked); H3 GA is unchanged.
 
 ### 2026-04-29 (ADR-033 — archive IDE/MCP, retire TS scanner now)
 
@@ -669,8 +726,8 @@ that produced this version: read `plans/aps-rules.md`,
 `plans/index.aps.md`, every active module file (skim for
 purpose + status), the critical-path modules in full
 (LAUNCH / RTAI / INTD / DRVR), and the load-bearing ADRs (currently
-ADR-030). Apply the H1 / H2 / H3 lens; assign one of
-🔥 HYPE / ➡️ NEXT / 🌱 LATER / ❓ REVISIT / ✅ DONE per module; surface
+ADR-030, ADR-033). Apply the H1 / H2 / H3 lens; assign one of
+🔥 SHIPPED / ➡️ NEXT / 🌱 LATER / ❓ REVISIT / ✅ DONE per module; surface
 contradictions explicitly; do not paper over the open decisions.
 
 The "What recently changed" log above is the only section that
