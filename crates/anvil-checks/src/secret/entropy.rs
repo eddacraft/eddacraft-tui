@@ -183,7 +183,8 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = "\"nudge\": \"This TODO has no tracking reference. Without a ticket number, issue\\nlink, or project reference, nobody will be reminded to do this work.\\n\\nAdd a reference: `// TODO(PROJ-123): description` or\\n`// TODO(#456): description`. If the work doesn't warrant a ticket,\\nconsider whether it warrants a TODO — either do it now or decide it's\\nnot important enough to track.\"";
 
-        let findings = detect_high_entropy_strings(content, "patterns/compiled/registry.json", &config);
+        let findings =
+            detect_high_entropy_strings(content, "patterns/compiled/registry.json", &config);
 
         assert!(
             findings.is_empty(),
@@ -203,7 +204,8 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = r"  pattern: '//\s*(temporary|workaround|compat|shim|stopgap|interim)\b(?!.*(until|before|after|when|remove|drop|deadline|\d{4}-\d{2}))'";
 
-        let findings = detect_high_entropy_strings(content, "patterns/deferred-debt/DD-003.anvil", &config);
+        let findings =
+            detect_high_entropy_strings(content, "patterns/deferred-debt/DD-003.anvil", &config);
 
         assert!(
             findings.is_empty(),
@@ -249,6 +251,10 @@ mod tests {
         let findings = detect_high_entropy_strings(content, "src/auth.ts", &config);
 
         assert!(!findings.is_empty(), "secret-shaped value must still fire");
-        assert!(findings.iter().all(|f| f.finding_type == FindingType::Entropy));
+        assert!(
+            findings
+                .iter()
+                .all(|f| f.finding_type == FindingType::Entropy)
+        );
     }
 }

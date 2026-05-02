@@ -144,7 +144,11 @@ impl StatusState {
 
 impl crate::surface::Surface for StatusState {
     fn surface_name(&self) -> &'static str {
-        if self.zoomed { "Status [zoom]" } else { "Status" }
+        if self.zoomed {
+            "Status [zoom]"
+        } else {
+            "Status"
+        }
     }
 
     fn help_text(&self) -> &'static str {

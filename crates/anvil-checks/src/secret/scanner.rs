@@ -58,16 +58,16 @@ fn is_generic_secret_false_positive(matched_value: &str) -> bool {
         .unwrap_or(rhs)
         .trim_end_matches([';', ',']);
 
-    // Real secret tokens are URL-safe and dense: alnum plus the small
-    // set `_/+=-`. Any other character means we are looking at a code
-    // expression — TS types (`string)`), property access
+    // Code-structural characters that never appear in a real secret
+    // literal: TS type closures (`string)`), property access
     // (`config.password`), bracket env access (`process.env['X']`),
     // template substitutions (`${dbPassword}`), function calls
-    // (`requireSecret(...)`), statement terminators, ternaries, etc.
-    let secret_shaped = unquoted
+    // (`requireSecret(...)`), and similar. Real passwords with
+    // `!@#$%^&*` survive — only structural code shape is rejected.
+    let has_code_shape = unquoted
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/' | '+' | '=' | '-'));
-    if !secret_shaped {
+        .any(|c| matches!(c, '(' | ')' | '[' | ']' | '{' | '}' | '`' | '.' | ',' | ';'));
+    if has_code_shape {
         return true;
     }
 
@@ -171,9 +171,7 @@ pub fn scan_content_with_limit_and_stats(
             // run as a value, which mis-flags TS type annotations,
             // env-var accesses, and identifiers. Apply the RHS-shape
             // filter so only real-secret-shaped values escape.
-            if pattern.name == "Generic Secret"
-                && is_generic_secret_false_positive(matched_value)
-            {
+            if pattern.name == "Generic Secret" && is_generic_secret_false_positive(matched_value) {
                 continue;
             }
             // Credit Card matches a UUID fragment if the preceding or
@@ -331,9 +329,7 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = "function hashBearer(bearer: string, secret: string): string {";
         let findings = scan_content(content, "src/auth.ts", &config);
-        let generic = findings
-            .iter()
-            .find(|f| f.pattern_name == "Generic Secret");
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
         assert!(
             generic.is_none(),
             "TS type annotation `secret: string` should not be flagged, got: {:?}",
@@ -347,9 +343,7 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = "  const cronSecret = process.env.CRON_SECRET || '';";
         let findings = scan_content(content, "src/cron.ts", &config);
-        let generic = findings
-            .iter()
-            .find(|f| f.pattern_name == "Generic Secret");
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
         assert!(
             generic.is_none(),
             "process.env access should not be flagged, got: {:?}",
@@ -363,9 +357,7 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = "const ORIGINAL_CLIENT_SECRET = process.env['GITHUB_CLIENT_SECRET'];";
         let findings = scan_content(content, "src/test.ts", &config);
-        let generic = findings
-            .iter()
-            .find(|f| f.pattern_name == "Generic Secret");
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
         assert!(
             generic.is_none(),
             "process.env[...] access should not be flagged, got: {:?}",
@@ -379,9 +371,7 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = "    DB_PASSWORD: ${dbPassword}";
         let findings = scan_content(content, "docs/SKILL.md", &config);
-        let generic = findings
-            .iter()
-            .find(|f| f.pattern_name == "Generic Secret");
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
         assert!(
             generic.is_none(),
             "template substitution should not be flagged, got: {:?}",
@@ -395,9 +385,7 @@ mod tests {
         let config = SecretCheckConfig::default();
         let content = "    auth.password = configuredPassword;";
         let findings = scan_content(content, "src/bundle.ts", &config);
-        let generic = findings
-            .iter()
-            .find(|f| f.pattern_name == "Generic Secret");
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
         assert!(
             generic.is_none(),
             "variable reference should not be flagged, got: {:?}",

@@ -1063,7 +1063,10 @@ mod tests {
             std::fs::write(&path, "").unwrap();
             let mut issues = Vec::new();
             check_env_file(&path, name, &mut issues);
-            assert!(issues.is_empty(), "{name} should be excluded, got: {issues:?}");
+            assert!(
+                issues.is_empty(),
+                "{name} should be excluded, got: {issues:?}"
+            );
         }
         cleanup(&dir);
     }

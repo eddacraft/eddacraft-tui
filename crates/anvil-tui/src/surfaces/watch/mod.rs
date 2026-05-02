@@ -128,6 +128,7 @@ impl WatchPanel {
 }
 
 /// State for the watch dashboard surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct WatchState {
     pub data: WatchData,
     pub focused_panel: WatchPanel,

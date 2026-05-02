@@ -256,8 +256,8 @@ pub fn parse_suppression(line: &str) -> Option<(String, String)> {
     Some((id.to_string(), reason.to_string()))
 }
 
-/// Map an ESLint rule name (or `None` for a bare `eslint-disable-next-line`)
-/// to the Anvil rule IDs it suppresses. The mapping covers the AP/GS family
+/// Map an `ESLint` rule name (or `None` for a bare `eslint-disable-next-line`)
+/// to the Anvil rule IDs it suppresses. The mapping covers the `AP`/`GS` family
 /// rules that overlap with standard `@typescript-eslint/*` lints. A bare
 /// directive (no rule name) suppresses the whole family because the user
 /// has explicitly opted out of *some* lint and Anvil should not double-flag.
@@ -299,7 +299,7 @@ static ESLINT_DISABLE_BLOCK_CLOSE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("eslint-disable block-close regex must compile")
 });
 
-/// Parsed contents of an ESLint suppression directive.
+/// Parsed contents of an `ESLint` suppression directive.
 struct EslintDirective {
     rules: Vec<String>,
     reason: Option<String>,
@@ -362,11 +362,7 @@ fn eslint_next_line_suppression(
 /// `/* eslint-disable [rule] */` (no later `/* eslint-enable */`
 /// closes it before reaching the current line). Returns the reason
 /// when such a block exists and covers `anvil_id`.
-fn eslint_block_suppression(
-    lines: &[&str],
-    line_number: usize,
-    anvil_id: &str,
-) -> Option<String> {
+fn eslint_block_suppression(lines: &[&str], line_number: usize, anvil_id: &str) -> Option<String> {
     if line_number <= 1 {
         return None;
     }
@@ -388,10 +384,10 @@ fn eslint_block_suppression(
                 return None;
             }
         }
-        if let Some(caps) = ESLINT_DISABLE_BLOCK_OPEN.captures(prior) {
-            if let Some(reason) = directive_suppresses(&parse_eslint_directive(&caps), anvil_id) {
-                return Some(reason);
-            }
+        if let Some(caps) = ESLINT_DISABLE_BLOCK_OPEN.captures(prior)
+            && let Some(reason) = directive_suppresses(&parse_eslint_directive(&caps), anvil_id)
+        {
+            return Some(reason);
         }
     }
     None
@@ -1101,7 +1097,10 @@ mod tests {
         assert!(
             gs_warnings.is_empty(),
             "guarded Map.get should not trigger GS-001, got: {:?}",
-            gs_warnings.iter().map(|w| w.location.line).collect::<Vec<_>>()
+            gs_warnings
+                .iter()
+                .map(|w| w.location.line)
+                .collect::<Vec<_>>()
         );
     }
 

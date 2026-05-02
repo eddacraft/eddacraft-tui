@@ -22,14 +22,13 @@ use anvil_checks::secret::scanner::scan_content_with_stats;
 use anvil_checks::secret::types::SecretCheckConfig;
 
 const SOURCE_EXTS: &[&str] = &[
-    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go", ".py",
-    ".html", ".css", ".scss", ".vue", ".svelte", ".md", ".json", ".yaml",
-    ".yml", ".toml", ".anvil",
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go", ".py", ".html", ".css", ".scss",
+    ".vue", ".svelte", ".md", ".json", ".yaml", ".yml", ".toml", ".anvil",
 ];
 
 const SKIP_EXTS: &[&str] = &[
-    ".lock", ".min.js", ".min.css", ".map", ".svg", ".png", ".jpg",
-    ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".eot",
+    ".lock", ".min.js", ".min.css", ".map", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico",
+    ".woff", ".woff2", ".ttf", ".eot",
 ];
 
 fn ext_match(path: &str, exts: &[&str]) -> bool {
@@ -43,15 +42,14 @@ fn discovery_repro_scan() {
         return;
     }
 
-    let repo_root = std::env::var("ANVIL_DISCOVERY_REPRO_ROOT")
-        .unwrap_or_else(|_| {
-            // Crate is at `crates/anvil-checks` — repo root is two levels up.
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(|p| p.parent())
-                .map(|p| p.to_string_lossy().into_owned())
-                .expect("repo root resolves")
-        });
+    let repo_root = std::env::var("ANVIL_DISCOVERY_REPRO_ROOT").unwrap_or_else(|_| {
+        // Crate is at `crates/anvil-checks` — repo root is two levels up.
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.to_string_lossy().into_owned())
+            .expect("repo root resolves")
+    });
 
     let output = Command::new("git")
         .arg("-C")
@@ -90,16 +88,23 @@ fn discovery_repro_scan() {
         }
 
         let abs = std::path::PathBuf::from(&repo_root).join(rel);
-        let Ok(meta) = std::fs::metadata(&abs) else { continue };
+        let Ok(meta) = std::fs::metadata(&abs) else {
+            continue;
+        };
         if meta.len() > 512 * 1024 {
             continue; // mirror welcome.rs SCAN_MAX_FILE_SIZE
         }
-        let Ok(content) = std::fs::read_to_string(&abs) else { continue };
+        let Ok(content) = std::fs::read_to_string(&abs) else {
+            continue;
+        };
         files_scanned += 1;
         // SCAN_MAX_FILES cap is opt-in; absence of the cap surfaces the
         // user-reported FPs that live deeper in the repo than the
         // welcome scan reaches.
-        if std::env::var("ANVIL_DISCOVERY_REPRO_CAP_500").ok().as_deref() == Some("1")
+        if std::env::var("ANVIL_DISCOVERY_REPRO_CAP_500")
+            .ok()
+            .as_deref()
+            == Some("1")
             && files_scanned > 500
         {
             break;

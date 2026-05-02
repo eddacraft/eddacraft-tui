@@ -217,16 +217,12 @@ fn detail_panel_height(state: &DoctorState, area: Rect) -> u16 {
 /// Build the right-aligned status banner shown when a fix is pending
 /// (about to yield to the host) or freshly applied. Returns `None` when
 /// neither state is active so the caller can skip the render.
-fn build_fix_banner<'a>(
-    state: &'a DoctorState,
-    theme: &EddaCraftTheme,
-) -> Option<Paragraph<'a>> {
+fn build_fix_banner<'a>(state: &'a DoctorState, theme: &EddaCraftTheme) -> Option<Paragraph<'a>> {
     let (label, colour) = if state.pending_fix.is_some() {
         let check_label = state
             .checks
             .get(state.selected)
-            .map(|c| c.name.as_str())
-            .unwrap_or("auto-fix");
+            .map_or("auto-fix", |c| c.name.as_str());
         (
             format!("Applying auto-fix: {check_label}..."),
             theme.accent(),
@@ -236,9 +232,7 @@ fn build_fix_banner<'a>(
             FixOutcomeBanner::Applied { summary } => {
                 (format!("\u{2713} {summary}"), theme.success())
             }
-            FixOutcomeBanner::Refused { reason } => {
-                (format!("\u{26A0} {reason}"), theme.warning())
-            }
+            FixOutcomeBanner::Refused { reason } => (format!("\u{26A0} {reason}"), theme.warning()),
             FixOutcomeBanner::Failed { reason } => {
                 (format!("\u{2717} Fix failed: {reason}"), theme.error())
             }

@@ -238,7 +238,7 @@ fn path_line_width(path: TutorialPath, done: bool) -> u16 {
 /// available column count. Each path always claims at least one row.
 fn path_select_inner_rows(state: &TutorialState, inner_width: u16) -> u16 {
     if inner_width == 0 {
-        return state.paths.len() as u16;
+        return u16::try_from(state.paths.len()).unwrap_or(u16::MAX);
     }
     let mut rows: u32 = 0;
     for path in &state.paths {
@@ -262,9 +262,7 @@ fn path_select_box_height(state: &TutorialState, area: Rect) -> u16 {
     const CHROME_ROWS: u16 = 4;
     let inner_width = area.width.saturating_sub(4); // 2 borders + 2 padding cols
     let inner_rows = path_select_inner_rows(state, inner_width).max(1);
-    inner_rows
-        .saturating_add(CHROME_ROWS)
-        .min(area.height)
+    inner_rows.saturating_add(CHROME_ROWS).min(area.height)
 }
 
 fn render_path_select(
@@ -1150,7 +1148,7 @@ mod tests {
         let rows = path_select_inner_rows(&state, 200);
         assert_eq!(
             rows,
-            state.paths.len() as u16,
+            u16::try_from(state.paths.len()).unwrap_or(u16::MAX),
             "unwrapped layout: one row per path"
         );
     }
@@ -1162,7 +1160,7 @@ mod tests {
         // so every path wraps to at least two rows.
         let rows = path_select_inner_rows(&state, 50);
         assert!(
-            rows >= (state.paths.len() as u16) * 2,
+            rows >= (u16::try_from(state.paths.len()).unwrap_or(u16::MAX)) * 2,
             "wrapped layout must reserve >= 2 rows per path; got {rows} for {} paths",
             state.paths.len()
         );

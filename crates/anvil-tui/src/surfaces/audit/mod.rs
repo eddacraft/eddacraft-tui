@@ -135,6 +135,7 @@ impl AuditData {
 }
 
 /// State for the audit results surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct AuditState {
     pub data: AuditData,
     pub focused_panel: AuditPanel,
