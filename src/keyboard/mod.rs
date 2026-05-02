@@ -1,3 +1,3 @@
 mod handler;
 
-pub use handler::{Action, KeyHandler};
+pub use handler::{Action, Binding, KeyHandler};

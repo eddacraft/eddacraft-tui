@@ -1,5 +1,22 @@
 use ratatui::style::{Color, Modifier, Style};
 
+/// Semantic role tokens that widgets can resolve to a [`Style`] via
+/// [`Theme::role_style`]. Lets downstream widgets reference *what a colour
+/// means* rather than which palette slot it occupies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Role {
+    Primary,
+    Secondary,
+    Accent,
+    Highlight,
+    HighlightInactive,
+    Success,
+    Warning,
+    Error,
+    BorderSubtle,
+    BorderEmphasis,
+}
+
 pub trait Theme {
     fn bg(&self) -> Color;
     fn fg(&self) -> Color;
@@ -18,6 +35,13 @@ pub trait Theme {
         Style::default()
             .fg(self.bg())
             .bg(self.accent())
+            .add_modifier(Modifier::BOLD)
+    }
+
+    fn highlight_inactive(&self) -> Style {
+        Style::default()
+            .fg(self.fg())
+            .bg(self.border())
             .add_modifier(Modifier::BOLD)
     }
 
@@ -55,5 +79,20 @@ pub trait Theme {
 
     fn disabled(&self) -> Style {
         Style::default().fg(self.muted())
+    }
+
+    fn role_style(&self, role: Role) -> Style {
+        match role {
+            Role::Primary => self.base(),
+            Role::Secondary => self.disabled(),
+            Role::Accent => self.title(),
+            Role::Highlight => self.highlighted(),
+            Role::HighlightInactive => self.highlight_inactive(),
+            Role::Success => self.status_ok(),
+            Role::Warning => self.status_warning(),
+            Role::Error => self.status_error(),
+            Role::BorderSubtle => self.border_unfocused(),
+            Role::BorderEmphasis => self.border_focused(),
+        }
     }
 }

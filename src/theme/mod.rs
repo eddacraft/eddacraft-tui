@@ -2,4 +2,4 @@ mod eddacraft;
 mod traits;
 
 pub use eddacraft::EddaCraftTheme;
-pub use traits::Theme;
+pub use traits::{Role, Theme};

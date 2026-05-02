@@ -88,4 +88,45 @@ mod tests {
         assert_eq!(style.fg, Some(OFF_WHITE));
         assert_eq!(style.bg, Some(VOID));
     }
+
+    #[test]
+    fn role_style_resolves_each_variant() {
+        use crate::theme::Role;
+        let theme = EddaCraftTheme;
+        for role in [
+            Role::Primary,
+            Role::Secondary,
+            Role::Accent,
+            Role::Highlight,
+            Role::HighlightInactive,
+            Role::Success,
+            Role::Warning,
+            Role::Error,
+            Role::BorderSubtle,
+            Role::BorderEmphasis,
+        ] {
+            let style = theme.role_style(role);
+            assert!(
+                style.fg.is_some() || style.bg.is_some(),
+                "role {role:?} should resolve to a non-empty style"
+            );
+        }
+    }
+
+    #[test]
+    fn role_style_matches_individual_methods() {
+        use crate::theme::Role;
+        let theme = EddaCraftTheme;
+        assert_eq!(theme.role_style(Role::Primary), theme.base());
+        assert_eq!(theme.role_style(Role::Highlight), theme.highlighted());
+        assert_eq!(
+            theme.role_style(Role::HighlightInactive),
+            theme.highlight_inactive(),
+        );
+        assert_eq!(theme.role_style(Role::Error), theme.status_error());
+        assert_eq!(
+            theme.role_style(Role::BorderSubtle),
+            theme.border_unfocused()
+        );
+    }
 }

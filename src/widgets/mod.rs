@@ -4,12 +4,20 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::{Block, Widget};
 
+#[cfg(feature = "big-text")]
+pub mod big_banner;
 pub mod confirm;
 pub mod container;
+pub mod data_table;
 pub mod divider;
 pub mod editor;
 pub mod header;
+pub mod help_bar;
+#[cfg(feature = "image")]
+pub mod image_pane;
 pub mod log_panel;
+pub mod modal;
+pub mod overlay;
 pub mod parallel_progress;
 pub mod pretext;
 pub mod progress_bar;
@@ -18,6 +26,9 @@ pub mod spinner;
 pub mod status_badge;
 pub mod status_bar;
 pub mod text_input;
+pub mod toast;
+pub mod tree;
+pub mod wrappers;
 
 /// Animated `f64` value that eases toward its target over [`ANIM_DURATION_MS`].
 pub(crate) type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;

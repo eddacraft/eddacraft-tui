@@ -4,10 +4,11 @@ Shared Ratatui component library for open-source TUIs that follow the eddacraft 
 
 ## Modules
 
-- **`theme/`** — eddacraft Terminal Standard colour palette, theme trait, and
-  brand theming
-- **`keyboard/`** — key binding definitions and action mapping
-- **`widgets/`** — reusable TUI widgets (tables, badges, charts, panels, pretext)
+- **`theme/`** — eddacraft Terminal Standard colour palette, `Theme` trait,
+  semantic `Role` tokens, and brand theming
+- **`keyboard/`** — key binding definitions, action mapping, and
+  introspectable `Binding` table
+- **`widgets/`** — reusable TUI widgets (see [Widgets](#widgets) below)
 - **`pretext/`** — two-phase prepare/layout text engine for streaming AI
   output and dynamic reflow
 - **`surface.rs`** — base `Surface` trait for TUI screens
@@ -58,6 +59,40 @@ let forge_spinner = Spinner::new(&theme).anvil().label("Forging...");
 `ProgressBar` and `ParallelProgress` animate toward their target value. Your
 event loop must call `animate_tick` each frame for the transition to play — see
 [`docs/animations.md`](docs/animations.md).
+
+## Widgets
+
+The `widgets/` module ships a curated component set. Highlights:
+
+- **Inputs** — `TextInput`, `Editor`, `Select`, `Confirm`
+- **Status** — `Spinner`, `ProgressBar`, `ParallelProgress`, `StatusBadge`, `StatusBar`
+- **Layout** — `Container`, `Divider`, `Header`
+- **Data** — `DataTable` (sortable, themed `▲`/`▼` indicators), `Tree`
+  (expand/collapse via `TreeState`), `LogPanel`
+- **Overlays** — `OverlayStack` + `Layer` + `Placement` for layered modals;
+  `Modal` and `Toast`/`ToastStack` as ready-made consumers
+- **Chrome** — `HelpBar` auto-renders key hints from
+  `KeyHandler::default_bindings()`, so help text stays in sync with the keymap
+- **Text reflow** — `PretextWidget` + `PretextState` for cached two-phase
+  layout (see [Pretext layout](#pretext-layout) below)
+- **Wrappers** — `Hideable`, `Disableable`, `Padded` decorate any
+  `Widget`/`StatefulWidget` without bloating each widget's API
+
+## Optional features
+
+| Feature    | Adds                                                        |
+| ---------- | ----------------------------------------------------------- |
+| `image`    | `ImagePane` — themed wrapper around [`ratatui-image`] (Kitty / Sixel / iTerm2 / halfblocks) |
+| `big-text` | `BigBanner` — themed wrapper around [`tui-big-text`] for branded splashes |
+| `test-utils` | Snapshot testing helpers re-exported for downstream crates |
+
+```toml
+[dependencies]
+eddacraft-tui = { version = "0.1", features = ["image", "big-text"] }
+```
+
+[`ratatui-image`]: https://crates.io/crates/ratatui-image
+[`tui-big-text`]: https://crates.io/crates/tui-big-text
 
 ## Pretext layout
 

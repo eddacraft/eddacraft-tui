@@ -16,9 +16,14 @@ rattles = "0.2"
 unicode-width = "0.2"
 textwrap = { version = "0.16", features = ["smawk"] }
 animate = { version = "0.3", features = ["ratatui"] }
+ratatui-image = { version = "10", default-features = false, features = ["crossterm"], optional = true }
+tui-big-text = { version = "0.8", optional = true }
+image = { version = "0.25", default-features = false, optional = true }
 
 [features]
 test-utils = []
+image = ["dep:ratatui-image", "dep:image"]
+big-text = ["dep:tui-big-text"]
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
