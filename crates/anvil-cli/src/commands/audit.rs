@@ -177,20 +177,66 @@ const fn issue_severity_rank(severity: IssueSeverity) -> u8 {
     }
 }
 
-/// Flag `.env` files (but not `.env.example`) as potential secret leaks.
-fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
-    if let Some(name) = path.file_name().and_then(|n| n.to_str())
-        && (name == ".env" || (name.starts_with(".env.") && name != ".env.example"))
-    {
-        issues.push(AuditIssue {
-            severity: IssueSeverity::High,
-            category: "Security".to_string(),
-            message: "Environment file may contain secrets".to_string(),
-            file: rel.to_string(),
-            line: 0,
-            fixable: false,
-        });
+/// Suffixes that mark a `.env` file as a committed *template* — its
+/// presence alone is not a leak signal because by convention these
+/// files contain placeholder values (e.g. `.env.example`,
+/// `.env.local.example`, `.env.sample`, `.env.template`, `.env.dist`).
+const ENV_TEMPLATE_SUFFIXES: &[&str] = &[".example", ".sample", ".template", ".dist"];
+
+/// Path fragments that mark a file as test data / vendored config
+/// rather than a real environment file. Directories containing these
+/// fragments routinely hold deliberate `.env`-shaped fixtures (the
+/// surfenv scanner's own test corpus, GitHub Actions runner configs)
+/// that are not real-secret leaks. Fragments are matched with `/` on
+/// either side so partial-name collisions stay outside scope.
+const ENV_PATH_EXCLUSIONS: &[&str] = &[
+    "/tests/fixtures/",
+    "/__fixtures__/",
+    "/.github/actions-runner/",
+];
+
+fn is_env_template_filename(name: &str) -> bool {
+    if name == ".env" || name == ".envrc" {
+        return false;
     }
+    ENV_TEMPLATE_SUFFIXES
+        .iter()
+        .any(|suffix| name.ends_with(suffix))
+}
+
+fn is_env_path_excluded(rel: &str) -> bool {
+    let needle = format!("/{rel}");
+    ENV_PATH_EXCLUSIONS
+        .iter()
+        .any(|fragment| needle.contains(fragment))
+}
+
+/// Flag `.env` files as potential secret leaks. Excludes committed
+/// template files (`.env.example`, `.env.local.example`, etc.) and
+/// known test/vendored locations where `.env`-shaped files are not
+/// real leaks.
+fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return;
+    };
+    let is_env = name == ".env" || name.starts_with(".env.");
+    if !is_env {
+        return;
+    }
+    if is_env_template_filename(name) {
+        return;
+    }
+    if is_env_path_excluded(rel) {
+        return;
+    }
+    issues.push(AuditIssue {
+        severity: IssueSeverity::High,
+        category: "Security".to_string(),
+        message: "Environment file may contain secrets".to_string(),
+        file: rel.to_string(),
+        line: 0,
+        fixable: false,
+    });
 }
 
 /// Scan a single source file for quality and documentation issues.
@@ -992,6 +1038,75 @@ mod tests {
         let mut issues = Vec::new();
         check_env_file(&path, "config.toml", &mut issues);
         assert!(issues.is_empty());
+        cleanup(&dir);
+    }
+
+    // v0.5.0 audit FPs — committed templates beyond `.env.example` and
+    // test/vendored locations were flagged as "may contain secrets".
+
+    #[test]
+    fn check_env_skips_dotted_example_template() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env.local.example");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, ".env.local.example", &mut issues);
+        assert!(issues.is_empty(), "got: {issues:?}");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_skips_other_template_suffixes() {
+        let dir = make_temp_dir();
+        for name in [".env.sample", ".env.template", ".env.dist"] {
+            let path = dir.join(name);
+            std::fs::write(&path, "").unwrap();
+            let mut issues = Vec::new();
+            check_env_file(&path, name, &mut issues);
+            assert!(issues.is_empty(), "{name} should be excluded, got: {issues:?}");
+        }
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_skips_test_fixtures() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(
+            &path,
+            "crates/anvil-checks/tests/fixtures/surfenv/aws-key.env",
+            &mut issues,
+        );
+        assert!(issues.is_empty(), "test fixture .env should be excluded");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_skips_actions_runner_dir() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, ".github/actions-runner/.env", &mut issues);
+        assert!(
+            issues.is_empty(),
+            "vendored actions-runner .env should be excluded"
+        );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_still_flags_real_local() {
+        // Regression guard: a normal `.env.local` outside excluded
+        // paths must still fire — that's the original threat model.
+        let dir = make_temp_dir();
+        let path = dir.join(".env.local");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, "apps/website/.env.local", &mut issues);
+        assert_eq!(issues.len(), 1, "real .env.local must still fire");
         cleanup(&dir);
     }
 
