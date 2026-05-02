@@ -19,6 +19,7 @@ pub mod spinner;
 pub mod status_badge;
 pub mod status_bar;
 pub mod text_input;
+pub mod wrappers;
 
 /// Animated `f64` value that eases toward its target over [`ANIM_DURATION_MS`].
 pub(crate) type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;

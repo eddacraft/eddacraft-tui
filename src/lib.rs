@@ -63,4 +63,5 @@ pub mod prelude {
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;
     pub use crate::widgets::text_input::{TextInput, TextInputState};
+    pub use crate::widgets::wrappers::{Disableable, Hideable, Padded};
 }
