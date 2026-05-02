@@ -36,6 +36,7 @@ fn ext_match(path: &str, exts: &[&str]) -> bool {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn discovery_repro_scan() {
     if std::env::var("ANVIL_DISCOVERY_REPRO").ok().as_deref() != Some("1") {
         eprintln!("skipping: set ANVIL_DISCOVERY_REPRO=1 to run");
@@ -116,13 +117,16 @@ fn discovery_repro_scan() {
             let key = format!("secret::{}", hit.pattern_name);
             *by_pattern.entry(key.clone()).or_insert(0) += 1;
             total_findings += 1;
-            println!(
-                "{{\"scanner\":\"secret\",\"pattern\":\"{}\",\"file\":\"{}\",\"line\":{},\"redacted\":{}}}",
-                hit.pattern_name,
-                rel,
-                hit.line,
-                serde_json::to_string(&hit.redacted_line).unwrap_or_else(|_| "\"\"".to_string())
-            );
+            // Use serde_json so paths/patterns containing `"` or `\`
+            // produce valid JSON instead of breaking the line shape.
+            let record = serde_json::json!({
+                "scanner": "secret",
+                "pattern": hit.pattern_name,
+                "file": rel,
+                "line": hit.line,
+                "redacted": hit.redacted_line,
+            });
+            println!("{record}");
         }
 
         // Antipattern scanner
@@ -139,21 +143,24 @@ fn discovery_repro_scan() {
             let key = format!("antipattern::{}", warning.id);
             *by_pattern.entry(key.clone()).or_insert(0) += 1;
             total_findings += 1;
-            println!(
-                "{{\"scanner\":\"antipattern\",\"id\":\"{}\",\"sev\":\"{}\",\"file\":\"{}\",\"line\":{},\"title\":{}}}",
-                warning.id,
-                sev,
-                rel,
-                warning.location.line,
-                serde_json::to_string(&warning.title).unwrap_or_else(|_| "\"\"".to_string())
-            );
+            let record = serde_json::json!({
+                "scanner": "antipattern",
+                "id": warning.id,
+                "sev": sev,
+                "file": rel,
+                "line": warning.location.line,
+                "title": warning.title,
+            });
+            println!("{record}");
         }
     }
 
-    println!(
-        "{{\"summary\":{{\"files_scanned\":{},\"total_findings\":{},\"by_pattern\":{}}}}}",
-        files_scanned,
-        total_findings,
-        serde_json::to_string(&by_pattern).unwrap_or_else(|_| "{}".to_string())
-    );
+    let summary = serde_json::json!({
+        "summary": {
+            "files_scanned": files_scanned,
+            "total_findings": total_findings,
+            "by_pattern": by_pattern,
+        }
+    });
+    println!("{summary}");
 }

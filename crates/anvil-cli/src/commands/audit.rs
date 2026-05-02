@@ -196,7 +196,10 @@ const ENV_PATH_EXCLUSIONS: &[&str] = &[
 ];
 
 fn is_env_template_filename(name: &str) -> bool {
-    if name == ".env" || name == ".envrc" {
+    // `check_env_file` only invokes this helper for filenames that
+    // satisfy `is_env` (literal `.env` or `.env.*`), so `.envrc` is
+    // already filtered out at the caller — no early-return needed.
+    if name == ".env" {
         return false;
     }
     ENV_TEMPLATE_SUFFIXES
@@ -205,7 +208,11 @@ fn is_env_template_filename(name: &str) -> bool {
 }
 
 fn is_env_path_excluded(rel: &str) -> bool {
-    let needle = format!("/{rel}");
+    // Normalise Windows-style separators so the fragment match works
+    // regardless of host OS — `rel` reaches us via `Path::to_string_lossy()`,
+    // which yields `\` on Windows.
+    let normalised = rel.replace('\\', "/");
+    let needle = format!("/{normalised}");
     ENV_PATH_EXCLUSIONS
         .iter()
         .any(|fragment| needle.contains(fragment))
@@ -1096,6 +1103,27 @@ mod tests {
         assert!(
             issues.is_empty(),
             "vendored actions-runner .env should be excluded"
+        );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_path_excluded_normalises_windows_separators() {
+        // `Path::to_string_lossy()` returns `\`-separated paths on Windows.
+        // The exclusion fragments use `/`, so we must normalise before
+        // matching or the exclusions silently no-op on Windows.
+        let dir = make_temp_dir();
+        let path = dir.join(".env");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(
+            &path,
+            r"crates\anvil-checks\tests\fixtures\surfenv\aws-key.env",
+            &mut issues,
+        );
+        assert!(
+            issues.is_empty(),
+            "Windows-style backslash paths must hit the same exclusions"
         );
         cleanup(&dir);
     }
