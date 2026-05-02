@@ -179,4 +179,36 @@ describe('proxy upstream behaviour', () => {
     expect(res.status).toBe(503);
     expect(await res.text()).toBe('Upstream timeout');
   });
+
+  // Regression: in production this proxy was emitting empty 200 responses
+  // (Content-Length: 0, no body) for every proxied page, so the docs UI
+  // rendered as a blank white page after sign-in. Root cause: undici
+  // transparently decompressed the upstream body, but the upstream's
+  // `content-encoding: br` and `content-length: <compressed>` headers
+  // were forwarded unchanged, and the runtime dropped the mismatched body.
+  it('forwards the body and strips the upstream content-encoding/length headers', async () => {
+    const html = '<!doctype html><html><body>upstream content</body></html>';
+    fetchSpy.mockResolvedValueOnce(
+      new Response(html, {
+        status: 200,
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          // These two would have been honest about the *original* compressed
+          // payload — but undici has already decoded the body before we see
+          // it, so leaving them on the response sends a misleading shape to
+          // the client.
+          'content-encoding': 'br',
+          'content-length': '17',
+        },
+      })
+    );
+    const req = makeRequest('https://docs.eddacraft.ai/kindling/overview');
+    const res = await proxy(req as never);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-encoding')).toBeNull();
+    expect(res.headers.get('content-length')).toBeNull();
+    expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(await res.text()).toBe(html);
+  });
 });

@@ -34,6 +34,16 @@ const STRIP_RESPONSE_HEADERS = [
   'x-middleware-next',
   'x-docs-upstream-secret',
   'via',
+  // Node 22's undici fetch transparently decompresses the upstream
+  // response body, so the upstream's `content-encoding` and
+  // `content-length` headers no longer match the bytes we forward.
+  // Leaving them in place produced an empty response from the edge
+  // (browsers and Vercel's outer edge both saw a content-length /
+  // body-bytes mismatch and dropped the body). Strip them and let
+  // the runtime emit the correct length for the decoded payload.
+  'content-encoding',
+  'content-length',
+  'transfer-encoding',
 ];
 
 function redirectToLogin(request: NextRequest, clearCookie: boolean): NextResponse {
@@ -109,7 +119,15 @@ async function proxyToUpstream(request: NextRequest, upstream: string): Promise<
       }
     }
 
-    const body = response.status === 204 || response.status === 304 ? null : response.body;
+    // Buffer the body via arrayBuffer so the response has a known length.
+    // Streaming `response.body` through into a new Response was producing
+    // empty bodies in production — likely because the proxy runtime can't
+    // recompute Content-Length for an arbitrary ReadableStream once the
+    // upstream encoding headers are stripped. Pages here are HTML/asset
+    // payloads (Docusaurus), so buffering trades a small memory bump for
+    // a correct response.
+    const body =
+      response.status === 204 || response.status === 304 ? null : await response.arrayBuffer();
 
     return new Response(body, {
       status: response.status,
