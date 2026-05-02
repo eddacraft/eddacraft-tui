@@ -8,6 +8,20 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{WatchPanel, WatchState, WatchStatus};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
+    // Zoom mode: collapse the 2x2 grid to the focused panel filling the
+    // whole area. Useful at narrow widths where the four-up layout
+    // becomes unreadable. Toggle via `z`; `esc` exits zoom first, then
+    // navigates back on a subsequent press.
+    if state.zoomed {
+        match state.focused_panel {
+            WatchPanel::Status => render_status_panel(frame, area, state, theme),
+            WatchPanel::Queue => render_queue_panel(frame, area, state, theme),
+            WatchPanel::History => render_history_panel(frame, area, state, theme),
+            WatchPanel::Stats => render_stats_panel(frame, area, state, theme),
+        }
+        return;
+    }
+
     // 2x2 grid: split vertically into top/bottom rows, each row split horizontally
     let rows = Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
 
@@ -424,5 +438,67 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    // v0.5.0 — pressing `z` toggles a zoom mode where only the focused
+    // panel fills the area, so users on narrow IDE side panes can read
+    // queue/history content without competing with status/stats tiles.
+
+    fn buffer_contents(buf: &ratatui::buffer::Buffer) -> String {
+        (0..buf.area.height)
+            .map(|y| {
+                (0..buf.area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn zoomed_render_shows_only_focused_panel() {
+        let backend = TestBackend::new(60, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.focused_panel = WatchPanel::Queue;
+        state.zoomed = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("Queue"),
+            "zoomed render must show focused (Queue) panel; got:\n{rendered}"
+        );
+        // Other panel titles must not appear when zoomed.
+        for hidden in ["Status", "History", "Stats"] {
+            assert!(
+                !rendered.contains(hidden),
+                "zoomed render must hide non-focused panel `{hidden}`; got:\n{rendered}"
+            );
+        }
+    }
+
+    #[test]
+    fn unzoomed_default_shows_all_four_panels() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        for panel in ["Status", "Queue", "History", "Stats"] {
+            assert!(
+                rendered.contains(panel),
+                "unzoomed render must show panel `{panel}`; got:\n{rendered}"
+            );
+        }
     }
 }
