@@ -1,9 +1,10 @@
 <!--
 APS Module: Launch Flow Readiness
 ==================================
-Cross-cutting polish to take the start (init/welcome/doctor) and watch
-(file-watcher + dashboard) flows from "demo-quality" to "ship-quality".
-Owns its own work items but coordinates with TUIDASH and DRVR.
+Cross-cutting polish to take the start (init/welcome/doctor/activation) and
+watch (file-watcher + dashboard) flows from "demo-quality" to "ship-quality".
+Owns its own work items but coordinates with TUIDASH, DRVR, RMCP, RTAI, and
+INTD.
 RTVS has been superseded by this module + RTVF and is now archived.
 See: plans/aps-rules.md
 -->
@@ -12,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 5/7      |
+| LAUNCH | —     | In Progress | 5/12     |
 
 ## Purpose
 
@@ -20,7 +21,7 @@ Anvil has two flows that disproportionately shape the user's first and
 daily experience:
 
 - **Start** — `anvil init`, `anvil new`, `anvil welcome`, `anvil doctor`,
-  the first-run service, onboarding surfaces.
+  `anvil start`, the first-run service, activation and onboarding surfaces.
 - **Watch** — `anvil watch`, the kernel watch loop, the watch TUI
   dashboard surface.
 
@@ -96,6 +97,22 @@ new primitive, this module follows three rules:
   events; the richer json-render dashboard work still lives in
   TUIDASH.
 
+### Activation council outcome (2026-05-03)
+
+- Five independent brainstorms in `plans/brainstorms/2026-05-02-wow-start-*.md`
+  converged on the same gap: installation is credible, but the first
+  minute after install does not yet prove protection inside the user's
+  real AI/editor workflow.
+- Planning council review approved the `anvil start` activation path
+  with changes: use existing primitives, keep v1 narrow, avoid
+  rule-file injection, avoid no-args TUI theatre, and make protection
+  claims literal.
+- The canonical first-run story becomes `install -> cd repo -> anvil
+  start`; `anvil welcome` remains the menu/tutorial surface.
+- V1 editor claims are limited to Cursor and Claude Code via the Rust
+  MCP launch path. Watch mode is a save-time fallback, not pre-write
+  interception.
+
 ### Audit findings (2026-04-24)
 
 | Area  | Finding | Reference |
@@ -112,6 +129,8 @@ new primitive, this module follows three rules:
 **In scope:**
 
 - Closing the six audit findings above as `LAUNCH-NNN` tasks.
+- Closing the activation gap from the 2026-05-03 planning council by
+  making `anvil start` the canonical local activation path.
 - Absorbing the watch-flow intent of the now-superseded RTVS module
   (Phase 2 "Enhanced Watch Mode" and Phase 3 "Terminal TUI Dashboard"
   were written against the retired Ink TUI and pre-dated the Ratatui
@@ -124,6 +143,18 @@ new primitive, this module follows three rules:
 - The full json-render TUI dashboard — owned by TUIDASH; this module
   only ensures the existing 2x2 skeleton stops shipping with empty
   stats so TUIDASH inherits a working baseline rather than a stub.
+- Rule/instruction-file injection (`.cursorrules`, `.clauderules`,
+  global AI rules, or equivalent) as an enforcement mechanism. MCP
+  pre-write validation is the only v1 editor enforcement claim.
+- Broad editor or AI-session support beyond Cursor and Claude Code in
+  the activation MVP. Windsurf, VS Code, Copilot CLI, Codex CLI, and
+  running-process auto-attach remain downstream work unless RMCP/DRVR
+  verifies them first.
+- Git hook installation as a default activation step; hooks may be
+  offered later, but they are not part of the hard wow-start path.
+- Cloud login, team policy pull, CI setup, demo fixtures, challenge
+  files, or guaranteed-catch prompt catalogues before local protection
+  is working.
 - Surface-driver migration (DRVR) — if surfaces become drivers on the
   intercept daemon, the watch CLI flow will shift. This module assumes
   the in-process Rust surfaces stay authoritative for now.
@@ -139,6 +170,13 @@ new primitive, this module follows three rules:
   contract, see that task).
 - **Coordinates with:** DRVR (surface drivers may reshape the watch
   flow; LAUNCH stays in the in-process world for now).
+- **Coordinates with:** RMCP (Rust MCP launch shim owns the concrete
+  Cursor / Claude Code config and `anvil_validate_write` server path).
+- **Coordinates with:** RTAI (pre-write validation semantics and
+  diagnostic contracts must remain consistent with activation status).
+- **Coordinates with:** INTD (daemon-backed validation and live status
+  may strengthen activation verification, but v1 must degrade honestly
+  when daemon evidence is unavailable).
 - **Supersedes (in part):** RTVS — the watch-flow intent of RTVS
   Phase 2 and Phase 3 lives here as LAUNCH-001..003; its validation
   engine intent is folded into RTVF. RTVS itself has been archived
@@ -147,8 +185,8 @@ new primitive, this module follows three rules:
 ## Tasks
 
 > Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, and LAUNCH-007 are complete; remaining work stays Todo
-> until picked up.
+> LAUNCH-005, and LAUNCH-007 are complete; remaining activation and
+> watch work stays Todo until picked up.
 
 ### LAUNCH-001: Implement user-facing glob filter for watch loop
 
@@ -261,17 +299,24 @@ new primitive, this module follows three rules:
 
 ---
 
-### LAUNCH-006: Onboarding shortcut to watch
+### LAUNCH-006: Make `anvil start` the activation entrypoint
 
-- **Intent:** A returning user who knows what they want can skip the
-  full welcome / onboarding chain and land directly in `anvil watch`.
-- **Expected Outcome:** `anvil welcome --skip-to watch` (or an
-  equivalent flag) bypasses the discovery / tutorial surfaces and
-  starts the watch flow with default config; the first-run marker
-  is still set.
-- **Validation:** End-to-end test on a fresh temp repo asserts the
-  flag advances the marker and starts the watch loop.
-- **Confidence:** high
+- **Intent:** A new user can run one command in a repo and reach the
+  shortest safe path to local protection without learning Anvil's
+  command taxonomy.
+- **Expected Outcome:** `anvil start` routes to an activation flow that
+  composes existing init, first-scan, MCP, doctor/status, and watch
+  primitives. `anvil welcome` remains the explicit menu/tutorial
+  surface. No new top-level `activate` or `connect` command is added
+  for the MVP.
+- **Coordinates with:** RMCP for MCP install/verify, RTAI for pre-write
+  semantics, INTD for live-status evidence, and DRVR for future editor
+  expansion. This task supersedes the narrower watch-only shortcut
+  originally described here.
+- **Validation:** End-to-end test on a fresh temp repo asserts that
+  `anvil start` enters activation, preserves access to `anvil welcome`,
+  and emits one literal final state.
+- **Confidence:** medium
 - **Status:** Todo
 
 ---
@@ -292,6 +337,109 @@ new primitive, this module follows three rules:
 - **Confidence:** medium
 - **Status:** Complete
 
+---
+
+### LAUNCH-008: Define activation protection states
+
+- **Intent:** `anvil start`, `anvil status`, and `anvil doctor` use the
+  same literal vocabulary for activation and degraded modes.
+- **Expected Outcome:** The shared state model distinguishes
+  `protecting`, `ready_restart_required`, `watching`, `needs_action`,
+  `unsupported`, and `error`. User-facing copy never describes config
+  presence, restart-required setup, or watch-only fallback as pre-write
+  protection.
+- **Coordinates with:** RMCP verification tiers, INTD daemon-status
+  evidence, and existing `doctor` / `status` output.
+- **Validation:** Targeted CLI tests cover final-state rendering for at
+  least protected, restart-required, watch fallback, unsupported, and
+  config-error scenarios.
+- **Confidence:** high
+- **Status:** Todo
+
+---
+
+### LAUNCH-009: Safely activate Cursor and Claude Code MCP paths
+
+- **Intent:** The activation flow wires only verified v1 MCP clients
+  without corrupting user editor configuration or over-claiming live
+  protection.
+- **Expected Outcome:** `anvil start` detects Cursor and Claude Code,
+  installs or verifies the Rust MCP launch shim where safe, and reports
+  the exact tier reached: config absent, config written, restart
+  required, server startable, or live validation observed. Existing
+  editor config is parsed before modification, written atomically, and
+  left untouched on parse failure or unsafe drift. Rule/instruction
+  files are not edited.
+- **Coordinates with:** RMCP follow-ups for client config paths,
+  `anvil mcp install --verify`, and the `anvil_validate_write` tool
+  contract.
+- **Validation:** Fixture-backed tests cover Cursor and Claude Code
+  config install, verify, idempotent rerun, parse failure, drift, and
+  restart-required output.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-010: Baseline old findings before first activation signal
+
+- **Intent:** First activation proves future-change protection without
+  punishing users for inherited repository problems.
+- **Expected Outcome:** Activation creates or reuses a local baseline
+  for existing findings, runs a local-only high-signal first scan, and
+  prints a concise summary such as `Existing findings baselined; future
+  changes are checked`. Secret or credential-like findings are
+  prioritised as the first security signal when present, but activation
+  does not imply the repository is clean.
+- **Coordinates with:** ADR-003 new-edges-only behaviour,
+  `crates/anvil-checks`, RTAI diagnostic shape, and existing first-scan
+  support from LAUNCH-004.
+- **Validation:** Integration test on a fixture repo with legacy and new
+  findings asserts that legacy findings are baselined, new findings are
+  surfaced, and the final copy does not claim zero risk.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-011: Add honest watch fallback activation mode
+
+- **Intent:** Users without confirmed MCP pre-write validation still get
+  save-time protection with a clear degraded-state label.
+- **Expected Outcome:** When no supported MCP client is detected, MCP
+  verification fails safely, or restart is pending, activation can start
+  or offer `anvil watch` scoped to the current repo. The final state is
+  `watching` when the watcher is active and never claims pre-write AI
+  interception.
+- **Coordinates with:** LAUNCH-002 for action/TUI coexistence,
+  LAUNCH-003 watch stats, and the kernel watch loop.
+- **Validation:** End-to-end test with no supported client asserts that
+  activation reaches watch fallback, scopes it to the repo, and renders
+  `watching` rather than `protecting`.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-012: Add activation verification and retry path
+
+- **Intent:** Users and support can re-check activation state without
+  rewriting configuration or guessing which layer failed.
+- **Expected Outcome:** A verification path (`anvil start --verify`, or
+  equivalent `status` / `doctor` integration) distinguishes config
+  presence, config validity, MCP server startability, restart-required
+  state, live validation evidence where available, watch liveness,
+  baseline state, and last activation error. Re-running activation is
+  idempotent and gives a concrete repair or manual action when it
+  cannot proceed safely.
+- **Coordinates with:** `anvil doctor`, `anvil status`, RMCP verify,
+  and INTD status APIs.
+- **Validation:** CLI tests assert verification performs no writes,
+  reports each degraded layer separately, and leaves existing config
+  unchanged on repeated runs.
+- **Confidence:** medium
+- **Status:** Todo
+
 ## Risks
 
 - **TUIDASH supersession of LAUNCH-003.** *Resolved 2026-04-30:*
@@ -307,11 +455,24 @@ new primitive, this module follows three rules:
   items will silently break when targets are renamed or archived.
   The cleanup obligation is documented in the Cross-cutting
   convention section above; honour it on every task close.
+- **Activation over-claiming.** The highest-risk launch failure is
+  printing `protecting` when only config was written or a restart is
+  still required. LAUNCH-008 owns the shared state model that prevents
+  this.
+- **Editor config trust.** MCP setup touches user-owned editor config.
+  LAUNCH-009 must stop safely on parse failure or unsafe drift rather
+  than doing a clever best-effort merge.
+- **Watch fallback perception.** Watch mode is useful, but weaker than
+  MCP pre-write validation. LAUNCH-011 must make the degraded state
+  explicit.
 
 ## Open questions
 
-- Should LAUNCH carry a doctor-on-first-watch step (auto-run `doctor`
-  if `.anvil/first-run` is unset and the user goes straight to
-  `watch`), or is that a LAUNCH-007?
+- Can live MCP invocation be observed reliably enough in v1 to ever
+  print `protecting`, or should first activation normally stop at
+  `ready_restart_required` until a subsequent verify sees evidence?
+- Should activation verification live primarily in `anvil start
+  --verify`, `anvil status`, `anvil doctor`, or all three with one
+  shared backend?
 - Does the IFR-003 port (LAUNCH-004) want the same 5-second budget the
   TypeScript version honoured, or a Rust-appropriate target?
