@@ -19,6 +19,19 @@ fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize 
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
+    // Zoom mode: render only the focused panel filling the area. Same
+    // affordance as the watch surface — `z` toggles, `esc` exits zoom
+    // before going back.
+    if state.zoomed {
+        match state.focused_panel {
+            AuditPanel::Project => render_project_panel(frame, area, state, theme),
+            AuditPanel::Issues => render_issues_panel(frame, area, state, theme),
+            AuditPanel::Historical => render_historical_panel(frame, area, state, theme),
+            AuditPanel::NextSteps => render_next_steps_panel(frame, area, state, theme),
+        }
+        return;
+    }
+
     let chunks = Layout::vertical([
         Constraint::Ratio(1, 4), // Project panel
         Constraint::Ratio(1, 4), // Issues panel
@@ -535,6 +548,43 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    fn buffer_contents(buf: &ratatui::buffer::Buffer) -> String {
+        (0..buf.area.height)
+            .map(|y| {
+                (0..buf.area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn audit_zoomed_render_shows_only_focused_panel() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = super::super::AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        state.zoomed = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("Issues"),
+            "zoomed render must show focused (Issues) panel; got:\n{rendered}"
+        );
+        for hidden in ["Project", "Historical", "Next"] {
+            assert!(
+                !rendered.contains(hidden),
+                "zoomed render must hide non-focused panel `{hidden}`"
+            );
+        }
     }
 
     // ── viewport_scroll unit tests ──────────────────────────────────

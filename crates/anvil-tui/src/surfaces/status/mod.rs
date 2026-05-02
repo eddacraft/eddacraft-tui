@@ -70,6 +70,10 @@ pub struct StatusState {
     pub data: StatusData,
     pub focused_panel: StatusPanel,
     pub selected_item: usize,
+    /// When `true`, only the focused panel renders, taking the full
+    /// area. Same affordance as the watch surface — press `z` to
+    /// toggle, `esc` while zoomed exits zoom before navigating back.
+    pub zoomed: bool,
     pub should_quit: bool,
     pub wants_back: bool,
 }
@@ -88,6 +92,7 @@ impl StatusState {
             data,
             focused_panel: StatusPanel::Hooks,
             selected_item: 0,
+            zoomed: false,
             should_quit: false,
             wants_back: false,
         }
@@ -120,6 +125,12 @@ impl StatusState {
                 self.focused_panel = self.focused_panel.prev();
                 self.selected_item = 0;
             }
+            Action::Character('z') => {
+                self.zoomed = !self.zoomed;
+            }
+            Action::Back if self.zoomed => {
+                self.zoomed = false;
+            }
             Action::Back => {
                 self.wants_back = true;
             }
@@ -133,11 +144,15 @@ impl StatusState {
 
 impl crate::surface::Surface for StatusState {
     fn surface_name(&self) -> &'static str {
-        "Status"
+        if self.zoomed { "Status [zoom]" } else { "Status" }
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  esc back  q quit"
+        if self.zoomed {
+            "j/k navigate  z unzoom  esc unzoom  q quit"
+        } else {
+            "j/k navigate  h/l switch panel  z zoom  esc back  q quit"
+        }
     }
 
     fn handle_key(&mut self, action: Action) {

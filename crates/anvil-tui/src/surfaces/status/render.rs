@@ -8,6 +8,17 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{StatusPanel, StatusState};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCraftTheme) {
+    // Zoom mode: only the focused panel renders, taking the full area.
+    // Press `z` to toggle, `esc` exits zoom before navigating back.
+    if state.zoomed {
+        match state.focused_panel {
+            StatusPanel::Hooks => render_hooks_panel(frame, area, state, theme),
+            StatusPanel::Profile => render_profile_panel(frame, area, state, theme),
+            StatusPanel::Results => render_results_panel(frame, area, state, theme),
+        }
+        return;
+    }
+
     let chunks = Layout::vertical([
         Constraint::Ratio(1, 3), // Hooks panel
         Constraint::Ratio(1, 3), // Profile panel
@@ -301,5 +312,42 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    fn buffer_contents(buf: &ratatui::buffer::Buffer) -> String {
+        (0..buf.area.height)
+            .map(|y| {
+                (0..buf.area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn status_zoomed_render_shows_only_focused_panel() {
+        let backend = TestBackend::new(60, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.focused_panel = StatusPanel::Profile;
+        state.zoomed = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("Profile"),
+            "zoomed render must show focused (Profile) panel; got:\n{rendered}"
+        );
+        for hidden in ["Hooks", "Results"] {
+            assert!(
+                !rendered.contains(hidden),
+                "zoomed render must hide non-focused panel `{hidden}`"
+            );
+        }
     }
 }
