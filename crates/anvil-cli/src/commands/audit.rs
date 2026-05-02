@@ -183,18 +183,6 @@ const fn issue_severity_rank(severity: IssueSeverity) -> u8 {
 /// `.env.local.example`, `.env.sample`, `.env.template`, `.env.dist`).
 const ENV_TEMPLATE_SUFFIXES: &[&str] = &[".example", ".sample", ".template", ".dist"];
 
-/// Path fragments that mark a file as test data / vendored config
-/// rather than a real environment file. Directories containing these
-/// fragments routinely hold deliberate `.env`-shaped fixtures (the
-/// surfenv scanner's own test corpus, GitHub Actions runner configs)
-/// that are not real-secret leaks. Fragments are matched with `/` on
-/// either side so partial-name collisions stay outside scope.
-const ENV_PATH_EXCLUSIONS: &[&str] = &[
-    "/tests/fixtures/",
-    "/__fixtures__/",
-    "/.github/actions-runner/",
-];
-
 fn is_env_template_filename(name: &str) -> bool {
     // `check_env_file` only invokes this helper for filenames that
     // satisfy `is_env` (literal `.env` or `.env.*`), so `.envrc` is
@@ -207,21 +195,11 @@ fn is_env_template_filename(name: &str) -> bool {
         .any(|suffix| name.ends_with(suffix))
 }
 
-fn is_env_path_excluded(rel: &str) -> bool {
-    // Normalise Windows-style separators so the fragment match works
-    // regardless of host OS — `rel` reaches us via `Path::to_string_lossy()`,
-    // which yields `\` on Windows.
-    let normalised = rel.replace('\\', "/");
-    let needle = format!("/{normalised}");
-    ENV_PATH_EXCLUSIONS
-        .iter()
-        .any(|fragment| needle.contains(fragment))
-}
-
 /// Flag `.env` files as potential secret leaks. Excludes committed
-/// template files (`.env.example`, `.env.local.example`, etc.) and
-/// known test/vendored locations where `.env`-shaped files are not
-/// real leaks.
+/// template files (`.env.example`, `.env.local.example`, etc.). Real
+/// `.env` files are reported even under fixtures or runner directories:
+/// audit is the broad, security-first surface and should not hide local
+/// secret stores based on path alone.
 fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return;
@@ -231,9 +209,6 @@ fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
         return;
     }
     if is_env_template_filename(name) {
-        return;
-    }
-    if is_env_path_excluded(rel) {
         return;
     }
     issues.push(AuditIssue {
@@ -1079,7 +1054,7 @@ mod tests {
     }
 
     #[test]
-    fn check_env_skips_test_fixtures() {
+    fn check_env_flags_test_fixtures() {
         let dir = make_temp_dir();
         let path = dir.join(".env");
         std::fs::write(&path, "").unwrap();
@@ -1089,41 +1064,21 @@ mod tests {
             "crates/anvil-checks/tests/fixtures/surfenv/aws-key.env",
             &mut issues,
         );
-        assert!(issues.is_empty(), "test fixture .env should be excluded");
+        assert_eq!(issues.len(), 1, "test fixture .env should still be audited");
         cleanup(&dir);
     }
 
     #[test]
-    fn check_env_skips_actions_runner_dir() {
+    fn check_env_flags_actions_runner_dir() {
         let dir = make_temp_dir();
         let path = dir.join(".env");
         std::fs::write(&path, "").unwrap();
         let mut issues = Vec::new();
         check_env_file(&path, ".github/actions-runner/.env", &mut issues);
-        assert!(
-            issues.is_empty(),
-            "vendored actions-runner .env should be excluded"
-        );
-        cleanup(&dir);
-    }
-
-    #[test]
-    fn check_env_path_excluded_normalises_windows_separators() {
-        // `Path::to_string_lossy()` returns `\`-separated paths on Windows.
-        // The exclusion fragments use `/`, so we must normalise before
-        // matching or the exclusions silently no-op on Windows.
-        let dir = make_temp_dir();
-        let path = dir.join(".env");
-        std::fs::write(&path, "").unwrap();
-        let mut issues = Vec::new();
-        check_env_file(
-            &path,
-            r"crates\anvil-checks\tests\fixtures\surfenv\aws-key.env",
-            &mut issues,
-        );
-        assert!(
-            issues.is_empty(),
-            "Windows-style backslash paths must hit the same exclusions"
+        assert_eq!(
+            issues.len(),
+            1,
+            "actions-runner .env should still be audited"
         );
         cleanup(&dir);
     }

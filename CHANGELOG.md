@@ -10,6 +10,12 @@ engineering maintenance are recorded in the
 
 ## [0.5.1] — Scanner Signal & TUI Hotfixes
 
+### Changed
+
+- **TypeScript package subpaths** — archived scanner-era subpath exports were
+  removed from `@eddacraft/anvil-core` and `@eddacraft/anvil-runtime`; use the
+  Rust CLI surfaces for antipattern, suppression, drift, gate, and export flows.
+
 ### Added
 
 - **TUI zoom controls** — audit, status, and watch surfaces now support zooming
@@ -23,9 +29,8 @@ engineering maintenance are recorded in the
 - **Antipattern suppressions** — `AP-*` checks now honour local `eslint-disable`
   directives, and `GS-001` avoids reporting guarded `Map.get` after `has`/`set`
   flows.
-- **Audit noise** — audit scans now skip broader environment-template and
-  generated/self-documenting paths so docs and release artefacts do not create
-  noisy findings.
+- **Audit noise** — audit scans now skip broader environment-template files
+  while still reporting real `.env` files regardless of directory.
 - **Doctor and tutorial interactions** — doctor now acknowledges `f` to fix, and
   tutorial path selection has more room for wrapped options.
 - **Incremental kernel imports** — watch updates now keep synthetic import IDs
@@ -36,8 +41,8 @@ engineering maintenance are recorded in the
 
 - The TypeScript scanner stack and parity harness were archived now that the
   Rust scanner is authoritative.
-- A PR base guard workflow now protects release-sensitive PRs from targeting the
-  wrong branch.
+- A PR base guard workflow now detects release-sensitive PRs targeting the wrong
+  branch when required by branch protection.
 
 ## [0.5.0-beta] — AI Guardrails & Mid-Edit Validation
 

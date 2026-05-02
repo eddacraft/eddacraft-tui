@@ -10,6 +10,9 @@ name: PR Base Guard
 #   - `release/*`              (release branches cut from dev)
 #   - `hotfix/*`               (production fixes)
 #
+# The PR head repository must also be this repository. A fork branch named
+# `dev` / `release/*` / `hotfix/*` is not a release branch.
+#
 # Anything else opened against `main` will fail this check. To merge real
 # fix work directly to `main`, prefix the branch with `hotfix/` so the
 # intent is unambiguous in the PR list.
@@ -44,6 +47,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
@@ -52,6 +57,16 @@ jobs:
           if [[ "${BASE_REF}" != "main" ]]; then
             echo "Base is not 'main'; nothing to enforce."
             exit 0
+          fi
+
+          if [[ "${HEAD_REPO}" != "${REPO}" ]]; then
+            cat <<'EOF' >&2
+          PR base guard: fork branches are not allowed to target 'main'.
+
+          Retarget this PR at 'dev'. Changes reach 'main' through an internal
+          release or hotfix branch after review.
+          EOF
+            exit 1
           fi
 
           # Allowed head patterns.

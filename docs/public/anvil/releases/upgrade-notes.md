@@ -13,8 +13,11 @@ Guides for upgrading between anvil versions.
 
 ## Upgrading to 0.5.1
 
-Drop-in upgrade from `0.5.0-beta`. This release focuses on scanner signal
-quality, TUI interaction fixes, and release workflow hardening.
+CLI upgrade from `0.5.0-beta`. This release focuses on scanner signal quality,
+TUI interaction fixes, incremental graph correctness, and release workflow
+hardening. TypeScript package consumers should note that archived scanner-era
+subpath exports were removed from `@eddacraft/anvil-core` and
+`@eddacraft/anvil-runtime`.
 
 ```bash
 # Upgrade via the installer
@@ -46,17 +49,20 @@ scoop update anvil
 - **Antipattern suppression fixes** — `AP-*` checks now honour local
   `eslint-disable` directives and avoid reporting guarded `Map.get` after
   `has`/`set` flows as `GS-001`.
-- **Audit path filtering** — audit scans skip broader environment-template and
-  generated/self-documenting paths so release and docs files do not create noisy
-  findings.
+- **Audit path filtering** — audit scans skip broader environment-template files
+  while still reporting real `.env` files regardless of directory.
 - **TUI interaction polish** — audit, status, and watch surfaces support
   zooming; doctor acknowledges `f` to fix; tutorial path selection has more room
   for wrapped options.
 - **Incremental graph correctness** — watch updates now avoid synthetic import
   ID collisions and preserve import-source ID `0`, preventing missed import
   edges in refreshed symbol graphs.
-- **Release safety** — the PR base guard workflow now protects against merging
-  release-sensitive PRs into the wrong branch.
+- **TypeScript package subpath cleanup** — archived scanner-era subpaths for
+  antipattern, suppression, drift, gate, and export flows are no longer
+  exported; use the Rust CLI surfaces instead.
+- **Release safety** — the PR base guard workflow now detects release-sensitive
+  PRs targeting the wrong branch when repository branch protection requires the
+  check.
 
 ## Upgrading to 0.5.0-beta
 

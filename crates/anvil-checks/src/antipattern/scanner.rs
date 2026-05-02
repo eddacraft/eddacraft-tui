@@ -677,8 +677,13 @@ static GS001_GET_KEY: LazyLock<Regex> = LazyLock::new(|| {
     // character class excludes `(`, so the matched span often only
     // covers `pattern)!`; we look at the prefix of the line up to
     // match_end and find the `.get(<key>)!` that ends there.
-    Regex::new(r"\.get\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)!\s*$")
+    Regex::new(r"([A-Za-z_][A-Za-z0-9_.]*)\.get\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)!\s*$")
         .expect("GS-001 get-key extractor must compile")
+});
+
+static GS001_MAP_GUARD: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"([A-Za-z_][A-Za-z0-9_.]*)\.(?:has|set)\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(?:[,\)])")
+        .expect("GS-001 map guard extractor must compile")
 });
 
 /// Return `true` when the `<receiver>.get(<key>)!` match has a
@@ -697,23 +702,25 @@ fn gs001_is_guarded_map_get(
     let Some(captures) = GS001_GET_KEY.captures(prefix) else {
         return false;
     };
-    let Some(key) = captures.get(1) else {
+    let Some(receiver) = captures.get(1) else {
         return false;
     };
+    let Some(key) = captures.get(2) else {
+        return false;
+    };
+    let receiver = receiver.as_str();
     let key = key.as_str();
 
     let start = line_index.saturating_sub(GS001_GUARD_LOOKBACK);
-    let needle_has = format!(".has({key}");
-    let needle_has_padded = format!(".has( {key}");
-    let needle_set = format!(".set({key}");
-    let needle_set_padded = format!(".set( {key}");
-
     for prior in &lines[start..line_index] {
-        if prior.contains(&needle_has)
-            || prior.contains(&needle_has_padded)
-            || prior.contains(&needle_set)
-            || prior.contains(&needle_set_padded)
-        {
+        if GS001_MAP_GUARD.captures_iter(prior).any(|guard| {
+            guard
+                .get(1)
+                .is_some_and(|guard_receiver| guard_receiver.as_str() == receiver)
+                && guard
+                    .get(2)
+                    .is_some_and(|guard_key| guard_key.as_str() == key)
+        }) {
             return true;
         }
     }
@@ -1447,6 +1454,44 @@ mod tests {
         // Negative: `value!!` double-bang is not a non-null assert under the
         // original positive-lookahead spec.
         assert!(scan_with("GS-001", "src/a.ts", "const x = value!!foo;\n").is_empty(),);
+    }
+
+    #[test]
+    fn gs001_guarded_map_get_requires_same_receiver() {
+        let _ = registry_pattern("GS-001");
+
+        assert!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!cache.has(id)) cache.set(id, []);\ncache.get(id)!.push(value);\n",
+            )
+            .is_empty(),
+        );
+        assert_eq!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!other.has(id)) other.set(id, []);\ncache.get(id)!.push(value);\n",
+            ),
+            vec!["GS-001:2"],
+        );
+        assert_eq!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!other.cache.has(id)) other.cache.set(id, []);\ncache.get(id)!.push(value);\n",
+            ),
+            vec!["GS-001:2"],
+        );
+        assert_eq!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!cache.has(id2)) cache.set(id2, []);\ncache.get(id)!.push(value);\n",
+            ),
+            vec!["GS-001:2"],
+        );
     }
 
     #[test]
