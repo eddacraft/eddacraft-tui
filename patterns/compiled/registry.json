@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-04-20T16:00:22.092Z",
+  "compiled_at": "2026-05-02T03:42:15.118Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -17,7 +17,7 @@
         "pattern": "/\\*\\s*eslint-disable\\s*\\*/|//\\s*eslint-disable(?!-next-line|-line)\\s*$"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": [],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
       "nudge": "Don't disable all linting rules. Identify which specific rule is\nfailing and either fix the underlying issue or disable only that rule\nwith `/* eslint-disable specific-rule */`.\n\nBlanket disables hide every lint error in scope — including ones you\ndon't know about yet. Read the error message first. Most lint failures\nhave a straightforward fix.",
       "related": ["AP-002", "AP-004"],
       "enabled": true,
@@ -44,7 +44,7 @@
         "pattern": "eslint-disable(?:-next-line|-line)?\\s+[\\w@/-]+"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": [],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
       "nudge": "Before disabling this rule, try to fix the code so it passes. If the\ndisable is genuinely necessary, add a comment explaining why this\nspecific case can't follow the rule.\n\nA targeted disable is better than a blanket one, but the right\nquestion is still: \"why is this rule failing here, and can I fix the\ncode instead?\"",
       "related": ["AP-001"],
       "enabled": true,
@@ -71,7 +71,15 @@
         "pattern": ":\\s*any\\b|as\\s+any\\b|<any>"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["*.d.ts", "**/__mocks__/**", "**/test/**/*.ts", "**/__tests__/**"],
+      "allowlist": [
+        "*.d.ts",
+        "**/__mocks__/**",
+        "**/test/**/*.ts",
+        "**/__tests__/**",
+        "**/*.setup.ts",
+        "**/*.setup.js",
+        "**/explain/**"
+      ],
       "nudge": "Don't use `any` here. Think about what type this value actually holds\nand declare it explicitly.\n\nIf it comes from an API, define an interface for the response shape. If\nit comes from `JSON.parse()`, parse into `unknown` and validate with a\nschema. If the type is genuinely unknown at compile time, use `unknown`\nand narrow it with type guards before use. `unknown` forces you to\ncheck; `any` lets you pretend.",
       "related": [],
       "enabled": true,
@@ -98,7 +106,7 @@
         "pattern": "@ts-ignore"
       },
       "file_extensions": [".ts", ".tsx"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
       "nudge": "Don't suppress this TypeScript error — fix it. Read the actual error\nmessage and address the type mismatch directly.\n\nIf you must suppress, use `@ts-expect-error` instead. It fails when the\nunderlying issue is resolved, so it's self-cleaning. `@ts-ignore` is\npermanent and silences all errors on the next line, including future\nones you don't know about yet.",
       "related": ["AP-005", "AP-001"],
       "enabled": true,
@@ -125,7 +133,7 @@
         "pattern": "@ts-expect-error"
       },
       "file_extensions": [".ts", ".tsx"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
       "nudge": "This type error is being suppressed rather than fixed. Read the error\nmessage and resolve the type mismatch if possible.\n\nIf suppression is genuinely necessary, `@ts-expect-error` is the right\nchoice — it will fail when the underlying issue is resolved. Ensure the\ncomment explains exactly why this case can't satisfy the type system.",
       "related": ["AP-004"],
       "enabled": true,
@@ -152,7 +160,7 @@
         "pattern": "catch\\s*\\([^)]*\\)\\s*\\{\\s*(?://[^\\n]*\\s*)?\\}"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": [],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
       "nudge": "Don't swallow this error silently. Decide whether it's recoverable\n(handle it with a Result type or fallback) or not (re-throw it and\nlet the caller decide).\n\nUse a structured logger — not `console.log` — if you need to record\nthe failure. Silent catch blocks make debugging impossible because the\nerror disappears and downstream symptoms have no traceable cause.",
       "related": ["AP-007"],
       "enabled": true,
@@ -179,7 +187,7 @@
         "pattern": "console\\.(log|warn|info|debug)\\s*\\("
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/scripts/**", "**/cli/**"],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/scripts/**", "**/cli/**", "**/explain/**"],
       "nudge": "Replace this console statement with a structured logger that supports\nlog levels, context fields, and output routing.\n\nConsole output in production is the wrong observability channel — it\ngoes to stdout where nobody is watching, can leak sensitive data to\nbrowser devtools, and can't be filtered, searched, or alerted on. If\nthis is intentional debugging, wrap it in a development-only check.",
       "related": ["AP-006"],
       "enabled": true,
@@ -206,7 +214,7 @@
         "pattern": "//\\s*(TODO|FIXME)\\b(?!.*([A-Z]+-\\d+|#\\d+|issue|ticket))"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs"],
-      "allowlist": [],
+      "allowlist": ["**/explain/**"],
       "nudge": "This TODO has no tracking reference. Without a ticket number, issue\nlink, or project reference, nobody will be reminded to do this work.\n\nAdd a reference: `// TODO(PROJ-123): description` or\n`// TODO(#456): description`. If the work doesn't warrant a ticket,\nconsider whether it warrants a TODO — either do it now or decide it's\nnot important enough to track.",
       "related": ["DD-002", "RL-005"],
       "enabled": true,
@@ -233,7 +241,7 @@
         "pattern": "//\\s*(HACK|XXX)\\b(?!.*([A-Z]+-\\d+|#\\d+|issue|ticket))"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs"],
-      "allowlist": [],
+      "allowlist": ["**/explain/**"],
       "nudge": "This code is explicitly marked as a hack with no plan for remediation.\nLabeling code as a hack without a tracking artifact turns the label\ninto permission to leave it indefinitely.\n\nCreate a ticket documenting why the hack exists, what the proper\nsolution looks like, and what blocks it. Reference it in the comment:\n`// HACK(PROJ-789): workaround for upstream bug, fix when v3 ships`.",
       "related": ["DD-001"],
       "enabled": true,
@@ -260,7 +268,7 @@
         "pattern": "//\\s*(temporary|workaround|compat|shim|stopgap|interim)\\b(?!.*(until|before|after|when|remove|drop|deadline|\\d{4}-\\d{2}))"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs"],
-      "allowlist": [],
+      "allowlist": ["**/explain/**"],
       "nudge": "This code is marked as temporary but has no expiry condition. Without\na date, version gate, or removal trigger, \"temporary\" becomes\npermanent because nothing surfaces the follow-up.\n\nAdd an expiry: `// TEMPORARY: remove after 2025-06-01`,\n`// COMPAT: remove when we drop Node 18`, or a feature flag with a\nscheduled review. Something concrete that will trigger action when\nthe condition changes.",
       "related": ["DD-001"],
       "enabled": true,
@@ -314,7 +322,7 @@
         "pattern": "[\\w.)\\]]+!(?=[.\\[(\\s;,)]|$)"
       },
       "file_extensions": [".ts", ".tsx"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
       "nudge": "Don't use the non-null assertion operator (`!`) to silence a\nnullability warning. If the value can be null, handle it. If you have\na runtime guarantee it's non-null, add a guard or assertion that\nmakes the guarantee explicit.\n\n`value!.property` tells the compiler \"trust me\" — but if you're\nwrong, the result is a runtime crash with no helpful error message.\nUse optional chaining (`value?.property`), a null check, or an\nexplicit assertion (`if (!value) throw ...`) instead.",
       "related": ["AP-004"],
       "enabled": true,

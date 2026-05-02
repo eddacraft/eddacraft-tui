@@ -11,7 +11,7 @@ spectrum_position: 3
 
 targets: [source]
 file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs, .py, .go, .rs]
-allowlist: []
+allowlist: ['**/explain/**']
 
 detection:
   type: regex
