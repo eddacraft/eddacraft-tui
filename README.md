@@ -8,6 +8,7 @@ Shared Ratatui component library for open-source TUIs that follow the eddacraft 
   brand theming
 - **`keyboard/`** — key binding definitions and action mapping
 - **`widgets/`** — reusable TUI widgets (tables, badges, charts, panels)
+- **`pretext/`** — cached text measurement and exclusion-aware layout
 - **`surface.rs`** — base `Surface` trait for TUI screens
 - **`shell.rs`** — shared shell chrome renderer
 
