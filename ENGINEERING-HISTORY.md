@@ -9,6 +9,31 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
+## [0.5.1]
+
+### Scanner Signal Hardening
+
+- **Secret false-positive reductions** — generic secret matching now requires a
+  stronger right-hand-side shape, credit-card detection rejects UUID fragments,
+  and entropy matching focuses on secret-shaped quoted values.
+- **Antipattern suppression alignment** — `AP-*` checks now honour local
+  `eslint-disable` directives, and `GS-001` avoids reporting guarded `Map.get`
+  after `has`/`set` flows.
+- **Audit input filtering** — audit scans skip broader environment-template and
+  generated/self-documenting paths so release and documentation artefacts do not
+  create noisy findings.
+
+### TUI & Release Operations
+
+- **TUI interaction fixes** — audit, status, and watch surfaces support zooming;
+  doctor acknowledges `f` to fix; tutorial path selection has more room for
+  wrapped options.
+- **TypeScript scanner retirement** — the archived TypeScript scanner stack and
+  parity harness now live under `archive/anvil-ts-scanner/`, with the Rust
+  scanner remaining authoritative.
+- **PR base guard** — a release-sensitive PR base guard workflow now blocks the
+  branch-targeting mistake that caused the post-`v0.5.0-beta` recovery work.
+
 ## [0.5.0-beta]
 
 ### Git Hook Compatibility (GHOOK)
