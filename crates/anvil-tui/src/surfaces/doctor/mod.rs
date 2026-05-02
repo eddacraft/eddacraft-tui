@@ -106,6 +106,22 @@ pub struct DoctorState {
     pub wants_back: bool,
     /// Pending fix request emitted when the user presses `f`.
     pub pending_fix: Option<FixRequest>,
+    /// Outcome banner rendered after the host applies a pending fix and
+    /// re-enters the TUI. The host is responsible for clearing this on the
+    /// next user action so the banner is transient. `None` means no outcome
+    /// to surface.
+    pub last_fix_outcome: Option<FixOutcomeBanner>,
+}
+
+/// Display-friendly summary of a completed fix attempt — populated by the
+/// command host (`commands::doctor::run`) after `apply_fix_request` returns.
+/// Kept separate from the host-side `FixOutcome` enum so the TUI crate can
+/// render it without depending on the CLI crate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FixOutcomeBanner {
+    Applied { summary: String },
+    Refused { reason: String },
+    Failed { reason: String },
 }
 
 impl DoctorState {
@@ -117,6 +133,7 @@ impl DoctorState {
             should_quit: false,
             wants_back: false,
             pending_fix: None,
+            last_fix_outcome: None,
         }
     }
 
@@ -129,13 +146,16 @@ impl DoctorState {
             Action::Up if self.selected > 0 => {
                 self.selected -= 1;
                 self.expanded = false;
+                self.last_fix_outcome = None;
             }
             Action::Down if self.selected < self.checks.len().saturating_sub(1) => {
                 self.selected += 1;
                 self.expanded = false;
+                self.last_fix_outcome = None;
             }
             Action::Select => {
                 self.expanded = !self.expanded;
+                self.last_fix_outcome = None;
             }
             Action::Character('f') => {
                 if let Some(check) = self.checks.get(self.selected)

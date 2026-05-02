@@ -45,10 +45,26 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             state = crate::tui::run_surface(state)?;
             if let Some(request) = state.pending_fix.take() {
                 let selected = state.selected;
-                if matches!(
-                    apply_fix_request(&request, Some(&mut state.checks)),
-                    FixOutcome::Applied { .. }
-                ) {
+                let outcome = apply_fix_request(&request, Some(&mut state.checks));
+                let banner = match &outcome {
+                    FixOutcome::Applied { summary } => {
+                        anvil_tui::surfaces::doctor::FixOutcomeBanner::Applied {
+                            summary: summary.clone(),
+                        }
+                    }
+                    FixOutcome::Refused { reason } => {
+                        anvil_tui::surfaces::doctor::FixOutcomeBanner::Refused {
+                            reason: reason.clone(),
+                        }
+                    }
+                    FixOutcome::Failed { reason } => {
+                        anvil_tui::surfaces::doctor::FixOutcomeBanner::Failed {
+                            reason: reason.clone(),
+                        }
+                    }
+                };
+                state.last_fix_outcome = Some(banner);
+                if matches!(outcome, FixOutcome::Applied { .. }) {
                     let fresh = collect_checks();
                     state.checks = fresh;
                     state.selected = selected.min(state.checks.len().saturating_sub(1));
