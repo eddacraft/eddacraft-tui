@@ -53,6 +53,7 @@ pub mod prelude {
     pub use crate::widgets::header::Header;
     pub use crate::widgets::help_bar::HelpBar;
     pub use crate::widgets::log_panel::{LogEntry, LogFilter, LogLevel, LogPanel, LogPanelState};
+    pub use crate::widgets::modal::Modal;
     pub use crate::widgets::overlay::{Layer, OverlayStack, Placement};
     pub use crate::widgets::parallel_progress::{
         CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState,
@@ -63,5 +64,6 @@ pub mod prelude {
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;
     pub use crate::widgets::text_input::{TextInput, TextInputState};
+    pub use crate::widgets::toast::{Toast, ToastPlacement, ToastStack};
     pub use crate::widgets::wrappers::{Disableable, Hideable, Padded};
 }
