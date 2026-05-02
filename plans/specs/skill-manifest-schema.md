@@ -95,7 +95,7 @@ unless the file is a symlink.
       "scope": "project",
       "type": "command",
       "path": "/home/user/anvil-001/.claude/commands/commit.md",
-      "contentHash": "a1b2c3d4e5f6...",
+      "contentHash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
       "lastModified": "2026-04-28T10:15:00Z",
       "sizeBytes": 1234,
       "source": {
@@ -111,7 +111,7 @@ unless the file is a symlink.
       "scope": "project",
       "type": "agent",
       "path": "/home/user/anvil-001/.claude/agents/council-reviewer.md",
-      "contentHash": "f6e5d4c3b2a1...",
+      "contentHash": "f6e5d4c3b2a1098765432109876543210fedcba9876543210fedcba987654321",
       "lastModified": "2026-04-25T08:00:00Z",
       "sizeBytes": 2456,
       "source": {
@@ -128,7 +128,7 @@ unless the file is a symlink.
       "scope": "project",
       "type": "hook",
       "path": "/home/user/anvil-001/.claude/hooks/git-safety.sh",
-      "contentHash": "1234abcd5678...",
+      "contentHash": "1234abcd5678901234567890123456789012345678901234567890123456abcd",
       "lastModified": "2026-04-20T12:00:00Z",
       "sizeBytes": 890,
       "source": {
@@ -211,7 +211,7 @@ The optional `.claude/skill-policy.json` config:
 | `requireDeclaredCapabilities` | `boolean` | `false` | Warn if skills lack capability declarations |
 | `alertOnNewSkills` | `boolean` | `true` | Warn when skills appear that weren't in last snapshot |
 | `alertOnFlaggedSkills` | `boolean` | `true` | Warn when flagged skills are present |
-| `minimumFlagSeverityToAlert` | `string` | `"warning"` | Minimum flag severity that triggers an alert |
+| `minimumFlagSeverityToAlert` | `"info" \| "warning" \| "critical"` | `"warning"` | Minimum flag severity that triggers an alert. Aligned with `Flag.severity` enum so policy config can be validated against the same set of values. |
 
 When both `allowlist` and `blocklist` are non-empty, `blocklist` takes
 precedence (a skill on both lists is blocked).
