@@ -116,6 +116,23 @@ impl StatefulWidget for PretextWidget {
     type State = PretextState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if area.width == 0 || area.height == 0 {
+            return;
+        }
+
+        // Reset cells in the render area before drawing. The renderer below
+        // only writes occupied cells, so without this a shrinking layout
+        // (text shortened, scroll advanced, exclusion grew) would leave
+        // stale glyphs from a prior frame visible.
+        for y in area.top()..area.bottom() {
+            for x in area.left()..area.right() {
+                buf[(x, y)].reset();
+            }
+        }
+        if self.base_style != Style::default() {
+            buf.set_style(area, self.base_style);
+        }
+
         let needs_relayout = state
             .layout_cache
             .as_ref()
@@ -217,5 +234,33 @@ mod tests {
         let theme = EddaCraftTheme;
         let widget = PretextWidget::themed(&theme);
         assert_eq!(widget.base_style, theme.base());
+    }
+
+    #[test]
+    fn zero_sized_area_is_no_op() {
+        let mut state = PretextState::new("hello world");
+        let widget = PretextWidget::new();
+        let mut buf = Buffer::empty(Rect::new(0, 0, 10, 1));
+        widget.render(Rect::new(0, 0, 0, 1), &mut buf, &mut state);
+        widget.render(Rect::new(0, 0, 10, 0), &mut buf, &mut state);
+        // Layout was never computed because both render passes bailed out.
+        assert!(state.layout_result().is_none());
+    }
+
+    #[test]
+    fn shrinking_text_does_not_leave_stale_glyphs() {
+        let mut state = PretextState::new("hello world");
+        let widget = PretextWidget::new();
+        let mut buf = Buffer::empty(Rect::new(0, 0, 20, 1));
+        widget.render(Rect::new(0, 0, 20, 1), &mut buf, &mut state);
+        assert_eq!(buf[(6, 0)].symbol(), "w");
+
+        // Shrink the prepared text, render again — the old "world" cells must
+        // be cleared rather than retain glyphs from the previous frame.
+        state.set_text("hi");
+        widget.render(Rect::new(0, 0, 20, 1), &mut buf, &mut state);
+        assert_eq!(buf[(0, 0)].symbol(), "h");
+        assert_eq!(buf[(1, 0)].symbol(), "i");
+        assert_eq!(buf[(6, 0)].symbol(), " ");
     }
 }

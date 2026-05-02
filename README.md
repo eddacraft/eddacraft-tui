@@ -86,9 +86,10 @@ state.set_exclusions(vec![ExclusionZone::circle(40, 8, 5)]);
 ```
 
 The widget itself is zero-sized — all caching lives on `PretextState`. At
-unchanged container width subsequent renders skip layout entirely; only
-`set_text`, `append`, `set_exclusions`, or a width change invalidate the
-cache.
+unchanged container width subsequent renders skip layout entirely; the
+cache is invalidated by a width change, by any text mutation
+(`set_text`, `set_styled_text`, `append`, `append_styled`), by
+`set_exclusions`, or by an explicit `invalidate_layout()` call.
 
 ## Documentation
 
