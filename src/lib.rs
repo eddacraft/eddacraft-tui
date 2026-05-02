@@ -68,4 +68,9 @@ pub mod prelude {
     pub use crate::widgets::toast::{Toast, ToastPlacement, ToastStack};
     pub use crate::widgets::tree::{Tree, TreeNode, TreeState};
     pub use crate::widgets::wrappers::{Disableable, Hideable, Padded};
+
+    #[cfg(feature = "big-text")]
+    pub use crate::widgets::big_banner::BigBanner;
+    #[cfg(feature = "image")]
+    pub use crate::widgets::image_pane::ImagePane;
 }
