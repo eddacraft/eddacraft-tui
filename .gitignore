@@ -82,6 +82,9 @@ docs/analysis/claude-code-safety-net-review.md
 .claude/skills/*
 !.claude/skills/release/
 .claude/VERSION
+# SKOBS — skill discovery & observability snapshots (local, not committed)
+.claude/.skill-snapshots/
+.claude/.skill-snapshot.json
 .claude/README.md
 .claude/CHANGELOG.md
 apps/anvil-api/.claude/settings.local.json
