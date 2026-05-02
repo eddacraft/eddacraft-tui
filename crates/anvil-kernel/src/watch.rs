@@ -224,7 +224,12 @@ fn initial_scan(
         let rel_str = rel_path.to_string_lossy().to_string();
         state.all_imports.extend(file_symbols.imports.clone());
         update_file(&mut state.graph, file_symbols);
-        state.next_id = base_id + symbol_count;
+        // update_file may create synthetic external/module nodes when
+        // resolving bare imports (axios, node:fs) or side-effect-only
+        // modules. Those use graph.next_id() internally, which advances
+        // past base_id + symbol_count. Take the max so the next file's
+        // base_id never overlaps a synthetic id.
+        state.next_id = (base_id + symbol_count).max(state.graph.next_id());
         state.file_count += 1;
         state.tracked_files.insert(rel_str);
         scanned_files.push(rel_path);
@@ -430,13 +435,18 @@ fn process_change(
             let symbol_count = file_symbols.symbols.len() as u64;
             let new_imports = file_symbols.imports.clone();
             let was_tracked = state.tracked_files.contains(&rel_str);
+            let base_id = state.next_id;
             let delta = update_file(&mut state.graph, file_symbols);
-            state.next_id += symbol_count;
 
             // Replace imports for this file (remove old, add new)
             state.all_imports.retain(|i| i.from_file != rel_str);
             state.all_imports.extend(new_imports);
             re_resolve_imports(&mut state.graph, &state.all_imports);
+            // Sync after update_file AND re_resolve_imports — both may have
+            // added synthetic external nodes via graph.next_id(). Without this,
+            // the next change event re-uses ids already claimed by externals
+            // and produces a flood of "duplicate symbol id" errors.
+            state.next_id = (base_id + symbol_count).max(state.graph.next_id());
             annotate_trust(&mut state.graph, &state.all_imports);
 
             // Clear policy dedupe state so reintroduced violations

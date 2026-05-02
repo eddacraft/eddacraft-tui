@@ -22,6 +22,13 @@ pub struct SymbolGraph {
     graph: DiGraph<SymbolNode, SymbolEdge>,
     index: HashMap<u64, NodeIndex>,
     files: HashMap<String, Vec<u64>>,
+    /// Monotonic high-water mark: one past the largest id ever inserted.
+    /// Synthetic-node creation in `incremental::{update_file, resolve_import}`
+    /// reads this to pick a fresh id in O(1), and `watch.rs` syncs its own
+    /// per-file allocator against it after every `update_file` so the two
+    /// allocators can never collide. Never decremented on `remove_file` —
+    /// ids must stay unique across the lifetime of the graph.
+    next_id: u64,
 }
 
 impl SymbolGraph {
@@ -30,6 +37,7 @@ impl SymbolGraph {
             graph: DiGraph::new(),
             index: HashMap::new(),
             files: HashMap::new(),
+            next_id: 0,
         }
     }
 
@@ -42,7 +50,16 @@ impl SymbolGraph {
         let idx = self.graph.add_node(node);
         self.index.insert(id, idx);
         self.files.entry(file).or_default().push(id);
+        if id >= self.next_id {
+            self.next_id = id + 1;
+        }
         Ok(idx)
+    }
+
+    /// One past the largest id ever inserted. Use this to pick a fresh id
+    /// without iterating `node_weights()`.
+    pub fn next_id(&self) -> u64 {
+        self.next_id
     }
 
     pub fn add_edge(&mut self, edge: SymbolEdge) -> Result<(), GraphError> {

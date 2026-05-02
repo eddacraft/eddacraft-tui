@@ -99,13 +99,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     let from_id = if let Some(&id) = added_ids.first() {
         id
     } else if !new_symbols.imports.is_empty() {
-        let synthetic_id = graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .unwrap_or(0)
-            + 1;
+        let synthetic_id = graph.next_id();
         let synthetic = SymbolNode {
             id: synthetic_id,
             kind: SymbolKind::Module,
@@ -177,13 +171,7 @@ pub(crate) fn resolve_import(
             return Some(existing.id);
         }
         // Create a synthetic external node
-        let ext_id = graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .unwrap_or(0)
-            + 1;
+        let ext_id = graph.next_id();
         let ext_node = SymbolNode {
             id: ext_id,
             kind: SymbolKind::Module,
@@ -698,5 +686,108 @@ mod tests {
         assert_eq!(delta.removed_symbols.len(), 1);
         assert_eq!(delta.added_symbols.len(), 1);
         assert_eq!(g.node_count(), 1);
+    }
+
+    /// Regression test for the watch-mode "duplicate symbol id" cascade.
+    ///
+    /// Before the fix, `update_file` and `resolve_import` allocated
+    /// synthetic external/module ids by calling
+    /// `graph.node_weights().map(|s| s.id).max() + 1`, independent of the
+    /// caller's per-file id allocator. When watch.rs picked the next file's
+    /// `base_id` from its own `state.next_id` counter, that counter still
+    /// pointed at the slot already taken by the synthetic external node,
+    /// and every subsequent `add_symbol` returned `DuplicateSymbol`.
+    ///
+    /// After the fix, ids flow through `graph.next_id()`, so callers that
+    /// take `(base + count).max(graph.next_id())` cannot land on a slot
+    /// the graph already owns.
+    #[test]
+    fn external_synthetic_does_not_collide_with_next_files_base_id() {
+        use crate::parser::extract::ImportEdge;
+
+        let mut g = SymbolGraph::new();
+
+        // File a.ts: 3 symbols (ids 1,2,3) and a bare "axios" import that
+        // creates a synthetic external node. Ids start at 1 because the
+        // import loop in update_file currently treats from_id == 0 as a
+        // sentinel for "no source", silently skipping imports — a separate
+        // latent bug from the duplicate-id cascade fixed here.
+        let a = FileSymbols {
+            file: "a.ts".to_string(),
+            symbols: vec![
+                SymbolNode {
+                    id: 1,
+                    kind: SymbolKind::Function,
+                    name: "f0".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "a.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: 2,
+                    kind: SymbolKind::Function,
+                    name: "f1".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "a.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: 3,
+                    kind: SymbolKind::Function,
+                    name: "f2".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "a.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+            ],
+            imports: vec![ImportEdge {
+                from_file: "a.ts".to_string(),
+                to_source: "axios".to_string(),
+                line: 0,
+            }],
+        };
+        let delta_a = update_file(&mut g, a);
+        assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
+
+        // The synthetic axios node consumed id 4 (one past the last file
+        // symbol id of 3), so the graph's allocator advances to 5.
+        assert!(
+            g.next_id() > 4,
+            "graph.next_id() must reflect the synthetic external node, got {}",
+            g.next_id()
+        );
+
+        // Mimic watch.rs's per-file allocator: take the high-water mark
+        // from the graph rather than naively incrementing by symbol count.
+        let base_id = g.next_id();
+        let b = FileSymbols {
+            file: "b.ts".to_string(),
+            symbols: vec![
+                SymbolNode {
+                    id: base_id,
+                    kind: SymbolKind::Function,
+                    name: "g0".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "b.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: base_id + 1,
+                    kind: SymbolKind::Function,
+                    name: "g1".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "b.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+            ],
+            imports: vec![],
+        };
+        let delta_b = update_file(&mut g, b);
+        assert!(
+            delta_b.errors.is_empty(),
+            "second file must not collide with the synthetic external id, errors: {:?}",
+            delta_b.errors
+        );
+        assert_eq!(delta_b.added_symbols.len(), 2);
     }
 }

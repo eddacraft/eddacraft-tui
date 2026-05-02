@@ -254,12 +254,9 @@ fn parse_and_build_graph(
         }
         all_imports.extend(file_symbols.imports.clone());
         update_file(&mut graph, file_symbols);
-        next_id = graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .map_or(0, |m| m + 1);
+        // graph.next_id() reflects both the symbols we just added and any
+        // synthetic external nodes update_file created for bare imports.
+        next_id = graph.next_id();
     }
 
     re_resolve_imports(&mut graph, &all_imports);
