@@ -54,7 +54,15 @@ impl PreparedText {
             self.total_width += UnicodeWidthStr::width(ws);
         }
 
-        let text_remainder = &text[leading_ws_end..];
+        // When there's no prior word to attach leading whitespace to, hand the
+        // full text (including leading whitespace) to `measure_words` so it
+        // can emit a leading-whitespace sentinel rather than dropping the indent.
+        let strip_leading = leading_ws_end > 0 && !self.words.is_empty();
+        let text_remainder = if strip_leading {
+            &text[leading_ws_end..]
+        } else {
+            text
+        };
         let new_words = measure_words(text_remainder, style);
 
         if let (Some(last), Some(first_new)) = (self.words.last_mut(), new_words.first())
@@ -252,11 +260,35 @@ mod tests {
     }
 
     #[test]
-    fn test_append_leading_whitespace_no_prior_words() {
+    fn test_append_leading_whitespace_no_prior_words_preserved() {
+        // Streaming `"  indented"` into an empty state must keep the indent.
+        // The leading whitespace is carried by an empty sentinel word so the
+        // first visible word lands at the indented column rather than column 0.
         let mut prepared = PreparedText::new("");
-        prepared.append(" hello world");
+        prepared.append("  hello world");
+        assert_eq!(prepared.word_count(), 3);
+        assert_eq!(prepared.words()[0].text, "");
+        assert_eq!(prepared.words()[0].width, 0);
+        assert_eq!(prepared.words()[0].whitespace_width, 2);
+        assert_eq!(prepared.words()[1].text, "hello");
+        assert_eq!(prepared.words()[2].text, "world");
+        assert_eq!(prepared.total_width(), 13);
+    }
+
+    #[test]
+    fn test_new_with_leading_whitespace_preserved() {
+        let prepared = PreparedText::new("  indented");
         assert_eq!(prepared.word_count(), 2);
-        assert_eq!(prepared.words()[0].text, "hello");
-        assert_eq!(prepared.words()[1].text, "world");
+        assert_eq!(prepared.words()[0].text, "");
+        assert_eq!(prepared.words()[0].whitespace_width, 2);
+        assert_eq!(prepared.words()[1].text, "indented");
+    }
+
+    #[test]
+    fn test_new_with_only_whitespace() {
+        let prepared = PreparedText::new("   ");
+        assert_eq!(prepared.word_count(), 1);
+        assert_eq!(prepared.words()[0].text, "");
+        assert_eq!(prepared.words()[0].whitespace_width, 3);
     }
 }

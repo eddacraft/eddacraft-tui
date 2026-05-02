@@ -125,8 +125,21 @@ pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
                 ws_end = i + ch.len_utf8();
             }
             let ws = &text[ws_start..ws_end];
+            let ws_width = UnicodeWidthStr::width(ws);
             if let Some(last) = words.last_mut() {
-                last.whitespace_width += UnicodeWidthStr::width(ws);
+                last.whitespace_width += ws_width;
+            } else {
+                // Leading whitespace with no preceding word — push an empty
+                // sentinel that carries the indent forward. Its zero width
+                // means the renderer draws nothing for it; layout still
+                // advances `x` by `whitespace_width`, indenting the next word.
+                words.push(MeasuredWord {
+                    text: String::new(),
+                    width: 0,
+                    whitespace_width: ws_width,
+                    penalty: String::new(),
+                    style_runs: vec![(0, style)],
+                });
             }
             continue;
         }
@@ -218,6 +231,25 @@ mod tests {
 
         let segments: Vec<_> = word.segments().collect();
         assert_eq!(segments, vec![("hel", red), ("lo", blue)]);
+    }
+
+    #[test]
+    fn test_measure_leading_whitespace_emits_sentinel() {
+        let words = measure_words("  hello", Style::default());
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "");
+        assert_eq!(words[0].width, 0);
+        assert_eq!(words[0].whitespace_width, 2);
+        assert_eq!(words[1].text, "hello");
+        assert_eq!(words[1].whitespace_width, 0);
+    }
+
+    #[test]
+    fn test_measure_only_whitespace_emits_sentinel() {
+        let words = measure_words("    ", Style::default());
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].text, "");
+        assert_eq!(words[0].whitespace_width, 4);
     }
 
     #[test]
