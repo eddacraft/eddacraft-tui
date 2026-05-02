@@ -505,7 +505,67 @@ pub fn registry_compile_diagnostics() -> Vec<CompileDiagnostic> {
         .collect()
 }
 
-fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
+/// Number of preceding lines GS-001 inspects when checking for a
+/// guarded Map.get / Map.set / Map.has idiom. 8 covers the typical
+/// "ensure key exists, then push" pattern across reasonable nesting;
+/// if the guard sits further away the code is suspect anyway.
+const GS001_GUARD_LOOKBACK: usize = 8;
+
+static GS001_GET_KEY: LazyLock<Regex> = LazyLock::new(|| {
+    // Anchored to end-of-haystack so we extract the `.get(<key>)!`
+    // immediately preceding the match. The GS-001 base regex's
+    // character class excludes `(`, so the matched span often only
+    // covers `pattern)!`; we look at the prefix of the line up to
+    // match_end and find the `.get(<key>)!` that ends there.
+    Regex::new(r"\.get\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)!\s*$")
+        .expect("GS-001 get-key extractor must compile")
+});
+
+/// Return `true` when the `<receiver>.get(<key>)!` match has a
+/// preceding `.has(<key>)` or `.set(<key>, ...)` guard within the
+/// look-back window — the canonical "lazily populate this Map then
+/// dereference" idiom whose runtime guarantee is explicit but
+/// invisible to the line-local regex.
+fn gs001_is_guarded_map_get(
+    line: &str,
+    _match_start: usize,
+    match_end: usize,
+    lines: &[&str],
+    line_index: usize,
+) -> bool {
+    let prefix = line.get(..match_end).unwrap_or("");
+    let Some(captures) = GS001_GET_KEY.captures(prefix) else {
+        return false;
+    };
+    let Some(key) = captures.get(1) else {
+        return false;
+    };
+    let key = key.as_str();
+
+    let start = line_index.saturating_sub(GS001_GUARD_LOOKBACK);
+    let needle_has = format!(".has({key}");
+    let needle_has_padded = format!(".has( {key}");
+    let needle_set = format!(".set({key}");
+    let needle_set_padded = format!(".set( {key}");
+
+    for prior in &lines[start..line_index] {
+        if prior.contains(&needle_has)
+            || prior.contains(&needle_has_padded)
+            || prior.contains(&needle_set)
+            || prior.contains(&needle_set_padded)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn find_match_columns(
+    prepared: &PreparedPattern,
+    line: &str,
+    lines: &[&str],
+    line_index: usize,
+) -> Vec<usize> {
     if prepared.pattern.id == "AP-001" {
         let mut columns = Vec::new();
         if let Some(regex) = &prepared.primary_regex {
@@ -518,6 +578,8 @@ fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
         return columns;
     }
 
+    let is_gs001 = prepared.pattern.id == "GS-001";
+
     prepared
         .primary_regex
         .as_ref()
@@ -527,6 +589,16 @@ fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
                 .filter(|matched| match &prepared.post_filter {
                     None => true,
                     Some(filter) => post_filter_accepts(filter, line, matched.end()),
+                })
+                .filter(|matched| {
+                    !is_gs001
+                        || !gs001_is_guarded_map_get(
+                            line,
+                            matched.start(),
+                            matched.end(),
+                            lines,
+                            line_index,
+                        )
                 })
                 .map(|matched| matched.start())
                 .collect()
@@ -590,7 +662,7 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
 
         for (line_index, line) in lines.iter().enumerate() {
             let line_number = line_index + 1;
-            let columns = find_match_columns(prepared, line);
+            let columns = find_match_columns(prepared, line, &lines, line_index);
             for column in columns {
                 let suppressed = if is_source {
                     suppression_for_line(&lines, line_number, &prepared.pattern.id)
@@ -775,6 +847,58 @@ mod tests {
 
         assert_eq!(result.warnings.len(), 1);
         assert!(result.warnings[0].suppressed.is_some());
+    }
+
+    // v0.5.0 GS-001 false positives — the Map.get-after-has-set idiom
+    // is a canonical guarded-lookup pattern flagged by the regex despite
+    // the runtime guarantee being explicit. Reproduces from
+    // packages/adapters/src/base/file-discovery.ts:301 and
+    // packages/anvil/runtime/src/export/formatters/llms-txt-formatter.ts:195.
+
+    #[test]
+    fn does_not_flag_guarded_map_get_after_has_set() {
+        let content = "    if (!groups.has(pattern)) {\n      groups.set(pattern, []);\n    }\n    groups.get(pattern)!.push(file);";
+        let result = scan_file("src/grouper.ts", content, None);
+        let gs_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            gs_warnings.is_empty(),
+            "guarded Map.get should not trigger GS-001, got: {:?}",
+            gs_warnings.iter().map(|w| w.location.line).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn does_not_flag_guarded_map_get_with_indented_block() {
+        // Wider indentation, deeper nesting — shape that matches the
+        // actual `prompt-formatter.ts:198` site.
+        let content = "      const byCategory = new Map();\n      for (const pattern of constraints.antiPatterns) {\n        const category = pattern.category;\n        if (!byCategory.has(category)) {\n          byCategory.set(category, []);\n        }\n        byCategory.get(category)!.push(pattern);\n      }";
+        let result = scan_file("src/formatter.ts", content, None);
+        let gs_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            gs_warnings.is_empty(),
+            "guarded Map.get inside a for loop should not trigger GS-001"
+        );
+    }
+
+    #[test]
+    fn still_flags_unguarded_non_null_assertion() {
+        // Regression guard: a bare `obj!.prop` with no preceding guard
+        // on the same key must still fire.
+        let content = "function unsafe(maybe?: Foo) {\n  return maybe!.value;\n}";
+        let result = scan_file("src/unsafe.ts", content, None);
+        let has_gs001 = result
+            .warnings
+            .iter()
+            .any(|w| w.id == "GS-001" && w.suppressed.is_none());
+        assert!(has_gs001, "unguarded `maybe!.value` must still fire GS-001");
     }
 
     #[test]
