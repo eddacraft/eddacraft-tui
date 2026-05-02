@@ -42,16 +42,18 @@ pub mod prelude {
     pub use animate::{is_animating, tick as animate_tick};
 
     pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
-    pub use crate::keyboard::{Action, KeyHandler};
+    pub use crate::keyboard::{Action, Binding, KeyHandler};
     pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;
-    pub use crate::theme::{EddaCraftTheme, Theme};
+    pub use crate::theme::{EddaCraftTheme, Role, Theme};
     pub use crate::widgets::confirm::{Confirm, ConfirmState};
     pub use crate::widgets::container::{Container, ContainerVariant};
     pub use crate::widgets::divider::{Divider, DividerVariant};
     pub use crate::widgets::editor::{Editor, EditorState};
     pub use crate::widgets::header::Header;
+    pub use crate::widgets::help_bar::HelpBar;
     pub use crate::widgets::log_panel::{LogEntry, LogFilter, LogLevel, LogPanel, LogPanelState};
+    pub use crate::widgets::overlay::{Layer, OverlayStack, Placement};
     pub use crate::widgets::parallel_progress::{
         CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState,
     };
