@@ -21,7 +21,7 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`widgets`] | 13 reusable Ratatui widgets (select, text input, progress, pretext, etc.) |
+//! | [`widgets`] | 14 reusable Ratatui widgets (select, text input, progress, pretext, etc.) |
 //! | [`pretext`] | Two-phase prepare/layout text engine — measure once, lay out cheaply |
 //! | [`theme`] | `Theme` trait + `EddaCraftTheme` implementation |
 //! | [`keyboard`] | `KeyHandler` mapping crossterm events to semantic `Action`s |
