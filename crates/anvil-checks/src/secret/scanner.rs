@@ -4,6 +4,64 @@ use crate::secret::patterns::{
 };
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
+/// Reject the "Generic Secret" pattern when its right-hand side is
+/// clearly a code expression rather than a secret literal. Real
+/// secrets are quoted strings or unquoted env-style values that
+/// contain digits / mixed case; variable references, type annotations,
+/// `process.env.X` accesses, and `${...}` template substitutions all
+/// fail one of these tests.
+///
+/// Returns `true` when the value should be SKIPPED (i.e. the match is
+/// a false positive).
+fn is_generic_secret_false_positive(matched_value: &str) -> bool {
+    // Split on the first `=` or `:` so the RHS is the candidate value.
+    let Some(rhs_start) = matched_value.find(['=', ':']) else {
+        return false;
+    };
+    let rhs_raw = &matched_value[rhs_start + 1..];
+    let rhs = rhs_raw.trim();
+    if rhs.is_empty() {
+        return false;
+    }
+
+    // Strip outer matched quotes — `"hunter2"` should be evaluated as
+    // `hunter2`, not as starting with `"`. Trailing terminators like
+    // `;`, `,` are noise from how the regex captures up to the next
+    // whitespace; strip them too.
+    let unquoted = rhs
+        .strip_prefix(['"', '\''])
+        .and_then(|s| s.strip_suffix(['"', '\'']))
+        .unwrap_or(rhs)
+        .trim_end_matches([';', ',']);
+
+    // Real secret tokens are URL-safe and dense: alnum plus the small
+    // set `_/+=-`. Any other character means we are looking at a code
+    // expression — TS types (`string)`), property access
+    // (`config.password`), bracket env access (`process.env['X']`),
+    // template substitutions (`${dbPassword}`), function calls
+    // (`requireSecret(...)`), statement terminators, ternaries, etc.
+    let secret_shaped = unquoted
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/' | '+' | '=' | '-'));
+    if !secret_shaped {
+        return true;
+    }
+
+    // Bare identifier (alphabetic + underscore only, no digits, no
+    // special chars). Catches variable references like `passwordEnv`,
+    // `configuredPassword` and TS types like `string`, `Buffer`,
+    // `ArrayBuffer`. Real secret literals carry at least one digit
+    // or non-alpha character.
+    let pure_identifier = unquoted
+        .chars()
+        .all(|c| c.is_ascii_alphabetic() || c == '_');
+    if pure_identifier {
+        return true;
+    }
+
+    false
+}
+
 /// SCAN-002: per-call stats returned alongside findings. Currently exposes
 /// the count of lines that exceeded `SecretCheckConfig::max_line_bytes` and
 /// were therefore skipped before regex evaluation.
@@ -83,6 +141,15 @@ pub fn scan_content_with_limit_and_stats(
                 continue;
             }
             if matcher.looks_like_code(matched_value) {
+                continue;
+            }
+            // Generic Secret is keyword-anchored and accepts any non-quote
+            // run as a value, which mis-flags TS type annotations,
+            // env-var accesses, and identifiers. Apply the RHS-shape
+            // filter so only real-secret-shaped values escape.
+            if pattern.name == "Generic Secret"
+                && is_generic_secret_false_positive(matched_value)
+            {
                 continue;
             }
 
@@ -188,6 +255,119 @@ mod tests {
 
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].line, 1);
+    }
+
+    // v0.5.0 Generic Secret false positives — actual repo lines that
+    // were flagged but are not secret leaks. They share a shape: the
+    // RHS after the keyword is a code expression (variable reference,
+    // env access, type annotation, template substitution), not a
+    // secret literal.
+
+    #[test]
+    fn does_not_flag_typescript_type_annotation_as_secret() {
+        // From apps/anvil-api/src/middleware/admin-auth.ts:54
+        let config = SecretCheckConfig::default();
+        let content = "function hashBearer(bearer: string, secret: string): string {";
+        let findings = scan_content(content, "src/auth.ts", &config);
+        let generic = findings
+            .iter()
+            .find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "TS type annotation `secret: string` should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_process_env_access_as_secret() {
+        // From apps/anvil-api/src/routes/cron.ts:28 and similar.
+        let config = SecretCheckConfig::default();
+        let content = "  const cronSecret = process.env.CRON_SECRET || '';";
+        let findings = scan_content(content, "src/cron.ts", &config);
+        let generic = findings
+            .iter()
+            .find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "process.env access should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_bracket_env_access_as_secret() {
+        // From apps/anvil-api/src/__tests__/auth-github.test.ts:45
+        let config = SecretCheckConfig::default();
+        let content = "const ORIGINAL_CLIENT_SECRET = process.env['GITHUB_CLIENT_SECRET'];";
+        let findings = scan_content(content, "src/test.ts", &config);
+        let generic = findings
+            .iter()
+            .find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "process.env[...] access should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_template_substitution_as_secret() {
+        // From .codex/skills/pulumi-esc/SKILL.md:92,96
+        let config = SecretCheckConfig::default();
+        let content = "    DB_PASSWORD: ${dbPassword}";
+        let findings = scan_content(content, "docs/SKILL.md", &config);
+        let generic = findings
+            .iter()
+            .find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "template substitution should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_bare_identifier_as_secret() {
+        // From archive/anvil-cli-node/src/commands/policy/bundle.ts:296
+        let config = SecretCheckConfig::default();
+        let content = "    auth.password = configuredPassword;";
+        let findings = scan_content(content, "src/bundle.ts", &config);
+        let generic = findings
+            .iter()
+            .find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "variable reference should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn still_flags_real_quoted_secret_literal() {
+        // Regression guard: the RHS-shape filter must still let real
+        // password literals through.
+        let config = SecretCheckConfig::default();
+        let content = "password='hunter22hunter22'";
+        let findings = scan_content(content, "src/.env", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "real quoted secret should still fire, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn still_flags_real_unquoted_secret_with_digits() {
+        // Regression guard: unquoted env-style values with digits remain detectable.
+        let config = SecretCheckConfig::default();
+        let content = "PASSWORD=ab1cd2ef3gh4ij5";
+        let findings = scan_content(content, ".env", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "real env-style secret should still fire, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
     }
 
     #[test]
