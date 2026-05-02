@@ -2,7 +2,7 @@
 APS Module: v0.6.0-beta Release Candidates
 ==========================================
 Capture-as-you-find module for items targeted at the next release window
-after v0.5.0-beta (which shipped 2026-04-29). Holds two kinds of entries:
+after v0.5.0-beta (which shipped 2026-05-01). Holds two kinds of entries:
 
   1. Deferrals from the v0.5.0-beta council / post-tag findings that
      were judged non-blocking for the v0.5.0 cut but should ride the
