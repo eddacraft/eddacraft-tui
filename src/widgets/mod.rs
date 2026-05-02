@@ -19,6 +19,7 @@ pub mod log_panel;
 pub mod modal;
 pub mod overlay;
 pub mod parallel_progress;
+pub mod pretext;
 pub mod progress_bar;
 pub mod select;
 pub mod spinner;
