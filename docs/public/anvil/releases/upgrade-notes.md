@@ -9,7 +9,54 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.5.0-beta
+## Current Version: 0.5.1
+
+## Upgrading to 0.5.1
+
+Drop-in upgrade from `0.5.0-beta`. This release focuses on scanner signal
+quality, TUI interaction fixes, and release workflow hardening.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.5.1
+
+- **Secret scanner false-positive reductions** — generic secret matching now
+  requires a stronger right-hand-side shape, credit-card detection rejects UUID
+  fragments, and entropy matching focuses on secret-shaped quoted values.
+- **Antipattern suppression fixes** — `AP-*` checks now honour local
+  `eslint-disable` directives and avoid reporting guarded `Map.get` after
+  `has`/`set` flows as `GS-001`.
+- **Audit path filtering** — audit scans skip broader environment-template and
+  generated/self-documenting paths so release and docs files do not create noisy
+  findings.
+- **TUI interaction polish** — audit, status, and watch surfaces support
+  zooming; doctor acknowledges `f` to fix; tutorial path selection has more room
+  for wrapped options.
+- **Incremental graph correctness** — watch updates now avoid synthetic import
+  ID collisions and preserve import-source ID `0`, preventing missed import
+  edges in refreshed symbol graphs.
+- **Release safety** — the PR base guard workflow now protects against merging
+  release-sensitive PRs into the wrong branch.
 
 ## Upgrading to 0.5.0-beta
 

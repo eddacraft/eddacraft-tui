@@ -8,6 +8,37 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+## [0.5.1] — Scanner Signal & TUI Hotfixes
+
+### Added
+
+- **TUI zoom controls** — audit, status, and watch surfaces now support zooming
+  to inspect dense output more comfortably.
+
+### Fixed
+
+- **Secret scanner false positives** — generic secret matching now requires a
+  stronger right-hand-side shape, credit-card detection rejects UUID fragments,
+  and entropy matching focuses on secret-shaped quoted values.
+- **Antipattern suppressions** — `AP-*` checks now honour local `eslint-disable`
+  directives, and `GS-001` avoids reporting guarded `Map.get` after `has`/`set`
+  flows.
+- **Audit noise** — audit scans now skip broader environment-template and
+  generated/self-documenting paths so docs and release artefacts do not create
+  noisy findings.
+- **Doctor and tutorial interactions** — doctor now acknowledges `f` to fix, and
+  tutorial path selection has more room for wrapped options.
+- **Incremental kernel imports** — watch updates now keep synthetic import IDs
+  separate from the allocator and treat import-source ID `0` as valid, avoiding
+  missed or colliding import edges during incremental graph refreshes.
+
+### Developer
+
+- The TypeScript scanner stack and parity harness were archived now that the
+  Rust scanner is authoritative.
+- A PR base guard workflow now protects release-sensitive PRs from targeting the
+  wrong branch.
+
 ## [0.5.0-beta] — AI Guardrails & Mid-Edit Validation
 
 ### Added

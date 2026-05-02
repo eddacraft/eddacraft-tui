@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-mcp-server",
-  "version": "0.4.0-beta",
+  "version": "0.5.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

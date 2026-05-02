@@ -23,6 +23,15 @@ delivery changes behind each release. For end-user feature summaries, see the
   generated/self-documenting paths so release and documentation artefacts do not
   create noisy findings.
 
+### Kernel Incremental Graph Fixes
+
+- **Synthetic import ID allocation** — watch graph updates now keep synthetic
+  import IDs out of the allocator's file-ID range so incremental updates do not
+  collide with real source files.
+- **Import-source ID zero handling** — `update_file` now treats ID `0` as a
+  valid import source, preserving edges that previously disappeared when the
+  first allocated file participated in import analysis.
+
 ### TUI & Release Operations
 
 - **TUI interaction fixes** — audit, status, and watch surfaces support zooming;
