@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Widget};
 
 pub mod confirm;
 pub mod container;
+pub mod data_table;
 pub mod divider;
 pub mod editor;
 pub mod header;
@@ -21,6 +22,7 @@ pub mod status_badge;
 pub mod status_bar;
 pub mod text_input;
 pub mod toast;
+pub mod tree;
 pub mod wrappers;
 
 /// Animated `f64` value that eases toward its target over [`ANIM_DURATION_MS`].

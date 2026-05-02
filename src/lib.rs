@@ -48,6 +48,7 @@ pub mod prelude {
     pub use crate::theme::{EddaCraftTheme, Role, Theme};
     pub use crate::widgets::confirm::{Confirm, ConfirmState};
     pub use crate::widgets::container::{Container, ContainerVariant};
+    pub use crate::widgets::data_table::{DataTable, DataTableState, SortDirection, SortIndicator};
     pub use crate::widgets::divider::{Divider, DividerVariant};
     pub use crate::widgets::editor::{Editor, EditorState};
     pub use crate::widgets::header::Header;
@@ -65,5 +66,6 @@ pub mod prelude {
     pub use crate::widgets::status_bar::StatusBar;
     pub use crate::widgets::text_input::{TextInput, TextInputState};
     pub use crate::widgets::toast::{Toast, ToastPlacement, ToastStack};
+    pub use crate::widgets::tree::{Tree, TreeNode, TreeState};
     pub use crate::widgets::wrappers::{Disableable, Hideable, Padded};
 }
