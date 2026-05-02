@@ -1,0 +1,88 @@
+name: PR Base Guard
+
+# Fail any PR opened against `main` whose head branch is not part of the
+# allowed release / hotfix / sync flow. The intent is to keep `main` as a
+# release branch and prevent feature / planning / refactor branches from
+# being merged into it directly.
+#
+# Allowed head patterns (any one):
+#   - `dev`                    (the standard dev → main release sync)
+#   - `release/*`              (release branches cut from dev)
+#   - `hotfix/*`               (production fixes)
+#
+# Anything else opened against `main` will fail this check. To merge real
+# fix work directly to `main`, prefix the branch with `hotfix/` so the
+# intent is unambiguous in the PR list.
+#
+# This check runs as a GitHub Action and shows up in the PR's check list.
+# To make it actually block merges, add it as a required status check in
+# the repository's branch protection rule for `main`.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-base-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Validate PR base
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check head branch against allowed patterns
+        # Both inputs flow through env: and are then dereferenced as quoted
+        # shell variables ("$HEAD_REF", "$BASE_REF"), never interpolated
+        # via ${{ }} into the run: body. They are only used as the LHS of
+        # `[[ "$X" == ... ]]` tests, never echoed back, executed, or
+        # interpolated into a shell command.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          # Defensive: this workflow is gated to base=main via `on:`, but
+          # double-check rather than trust the trigger.
+          if [[ "${BASE_REF}" != "main" ]]; then
+            echo "Base is not 'main'; nothing to enforce."
+            exit 0
+          fi
+
+          # Allowed head patterns.
+          if [[ "${HEAD_REF}" == "dev" ]] \
+            || [[ "${HEAD_REF}" == release/* ]] \
+            || [[ "${HEAD_REF}" == hotfix/* ]]; then
+            echo "Head matches an allowed pattern for base 'main'."
+            exit 0
+          fi
+
+          # Reject everything else. Do NOT interpolate the head ref into
+          # this message — keep the failure body fully static so a hostile
+          # branch name cannot inject markup into the workflow log.
+          cat <<'EOF' >&2
+          PR base guard: this head branch is not allowed to target 'main'.
+
+          Allowed head patterns for base 'main':
+            - dev          (the standard dev -> main release sync)
+            - release/*    (release branches cut from dev)
+            - hotfix/*     (production fixes)
+
+          What to do:
+            - For feature / planning / refactor work, retarget this PR at
+              'dev' via the GitHub UI's "Edit" button on the title row, or
+              `gh pr edit <num> --base dev`. The change will reach 'main'
+              through the next release sync.
+            - For an emergency production fix, rename the branch to
+              'hotfix/<short-name>' and re-open. The 'hotfix/' prefix is
+              what tells reviewers this is intentional traffic to 'main'.
+
+          See PR #1228 for the cleanup of a previous wrong-base merge
+          (PR #1223).
+          EOF
+          exit 1
