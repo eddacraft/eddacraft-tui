@@ -22,7 +22,7 @@ use crate::theme::Theme;
 pub struct HelpBar<'a, T: Theme> {
     theme: &'a T,
     bindings: &'a [Binding],
-    separator: &'static str,
+    separator: &'a str,
     bracket_keys: bool,
 }
 
@@ -45,7 +45,7 @@ impl<'a, T: Theme> HelpBar<'a, T> {
     }
 
     #[must_use]
-    pub fn separator(mut self, separator: &'static str) -> Self {
+    pub fn separator(mut self, separator: &'a str) -> Self {
         self.separator = separator;
         self
     }

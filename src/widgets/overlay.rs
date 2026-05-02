@@ -26,7 +26,7 @@
 //! ```
 
 use ratatui::Frame;
-use ratatui::layout::{Position, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Modifier;
 use ratatui::widgets::{Clear, Widget};
 
@@ -158,12 +158,10 @@ impl<'a, T: Theme> OverlayStack<'a, T> {
 
 fn apply_scrim(frame: &mut Frame, area: Rect) {
     let buf = frame.buffer_mut();
-    let buf_area = buf.area;
-    for y in area.y..area.y.saturating_add(area.height) {
-        for x in area.x..area.x.saturating_add(area.width) {
-            if buf_area.contains(Position::new(x, y)) {
-                buf[(x, y)].modifier.insert(Modifier::DIM);
-            }
+    let clipped = area.intersection(buf.area);
+    for y in clipped.y..clipped.y.saturating_add(clipped.height) {
+        for x in clipped.x..clipped.x.saturating_add(clipped.width) {
+            buf[(x, y)].modifier.insert(Modifier::DIM);
         }
     }
 }

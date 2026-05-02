@@ -79,7 +79,10 @@ const DEFAULT_BINDINGS: &[Binding] = &[
 pub struct KeyHandler;
 
 impl KeyHandler {
-    /// Bindings that mirror the defaults handled by [`KeyHandler::map`].
+    /// Curated subset of bindings handled by [`KeyHandler::map`], suitable for
+    /// rendering as help text. Omits keys that are either redundant for users
+    /// (e.g. `Ctrl+C` alongside `q` for [`Action::Quit`]) or context-specific
+    /// (`Backspace`/`Delete`/`Home`/`End`/`PageUp`/`PageDown`/character input).
     /// Pass to `HelpBar::bindings` to render the active key hints.
     #[must_use]
     pub fn default_bindings() -> &'static [Binding] {
