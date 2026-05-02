@@ -4,6 +4,30 @@ use crate::secret::patterns::{
 };
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
+/// Reject Credit Card matches that are actually a fragment of a
+/// UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). The Credit Card
+/// regex `\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b` happily matches
+/// the first 18 digits of a UUID like `11111111-2222-0000-...`. If
+/// the byte immediately before or after the matched range is `-` or
+/// another digit, we are inside a longer dashed/numeric token and
+/// the match is not a real card number.
+fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usize) -> bool {
+    let bytes = line.as_bytes();
+    if match_start > 0 {
+        let prev = bytes[match_start - 1];
+        if prev == b'-' || prev.is_ascii_digit() {
+            return true;
+        }
+    }
+    if match_end < bytes.len() {
+        let next = bytes[match_end];
+        if next == b'-' || next.is_ascii_digit() {
+            return true;
+        }
+    }
+    false
+}
+
 /// Reject the "Generic Secret" pattern when its right-hand side is
 /// clearly a code expression rather than a secret literal. Real
 /// secrets are quoted strings or unquoted env-style values that
@@ -152,6 +176,14 @@ pub fn scan_content_with_limit_and_stats(
             {
                 continue;
             }
+            // Credit Card matches a UUID fragment if the preceding or
+            // following char is `-` or another digit — we're inside a
+            // longer dashed/numeric token, not a real 16-digit card.
+            if pattern.name == "Credit Card"
+                && is_credit_card_false_positive(line, matched_range.start(), matched_range.end())
+            {
+                continue;
+            }
 
             findings.push(SecretFinding {
                 file: file_path.to_string(),
@@ -255,6 +287,36 @@ mod tests {
 
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].line, 1);
+    }
+
+    #[test]
+    fn does_not_flag_uuid_as_credit_card() {
+        // From entx apps/admin/src/lib/authorization.spec.ts — UUIDs
+        // shaped `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` were caught
+        // by the Credit Card regex which only inspects the first 16
+        // digits.
+        let config = SecretCheckConfig::default();
+        let content = "const VENUE_1 = '11111111-2222-0000-000000000001' as Id;";
+        let findings = scan_content(content, "src/spec.ts", &config);
+        let card = findings.iter().find(|f| f.pattern_name == "Credit Card");
+        assert!(
+            card.is_none(),
+            "UUID fragment should not be flagged as Credit Card, got: {:?}",
+            card.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn still_flags_real_credit_card_number() {
+        // Regression guard: a genuine 16-digit card (with or without
+        // hyphens) must still fire.
+        let config = SecretCheckConfig::default();
+        let content = "// see card 4242 4242 4242 4242 in fixtures";
+        let findings = scan_content(content, "src/payments.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Credit Card"),
+            "real Visa-shaped card must still fire"
+        );
     }
 
     // v0.5.0 Generic Secret false positives — actual repo lines that
