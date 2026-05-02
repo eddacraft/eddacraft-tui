@@ -212,18 +212,72 @@ fn render_resuming_notice(
     }
 }
 
+/// Render width (display columns) of a single path's line in the
+/// selector. Mirrors the spans built in `render_path_select` so the
+/// height calculation stays in sync with what is actually drawn.
+fn path_line_width(path: TutorialPath, done: bool) -> u16 {
+    // ">> " or "   " indicator
+    let mut width: usize = 3;
+    if done {
+        // "\u{2713} " — checkmark + space
+        width += 2;
+    }
+    width += UnicodeWidthStr::width(path.label());
+    // "  " gap between label and description
+    width += 2;
+    width += UnicodeWidthStr::width(path.description());
+    if done {
+        // "  (redo)"
+        width += 8;
+    }
+    u16::try_from(width).unwrap_or(u16::MAX)
+}
+
+/// Number of inner rows the path-select list needs at `inner_width`,
+/// accounting for word-wrapped lines whose content is longer than the
+/// available column count. Each path always claims at least one row.
+fn path_select_inner_rows(state: &TutorialState, inner_width: u16) -> u16 {
+    if inner_width == 0 {
+        return state.paths.len() as u16;
+    }
+    let mut rows: u32 = 0;
+    for path in &state.paths {
+        let done = state.completed_paths.contains(path);
+        let width = path_line_width(*path, done);
+        let wraps = width.saturating_sub(1) / inner_width + 1;
+        rows = rows.saturating_add(u32::from(wraps));
+    }
+    u16::try_from(rows).unwrap_or(u16::MAX)
+}
+
+/// Outer box height for the path-select list, including borders and
+/// padding. Clamped to `area.height` so the box never overflows the
+/// available space — when the terminal is too short to fit every
+/// wrapped path, the inner Paragraph clips internally rather than the
+/// last paths silently disappearing because the box was sized for
+/// unwrapped rows.
+fn path_select_box_height(state: &TutorialState, area: Rect) -> u16 {
+    // Block borders eat 2 columns and 2 rows; the explicit `Padding::new(1, 1, 1, 1)`
+    // adds 1 row top + 1 row bottom on top of that, leaving 4 rows of chrome.
+    const CHROME_ROWS: u16 = 4;
+    let inner_width = area.width.saturating_sub(4); // 2 borders + 2 padding cols
+    let inner_rows = path_select_inner_rows(state, inner_width).max(1);
+    inner_rows
+        .saturating_add(CHROME_ROWS)
+        .min(area.height)
+}
+
 fn render_path_select(
     frame: &mut Frame,
     area: Rect,
     state: &TutorialState,
     theme: &EddaCraftTheme,
 ) {
-    // Height: one row per path + top/bottom internal padding + two borders.
-    // Clamp to area.height so the bottom border is never clipped on short terminals.
-    #[allow(clippy::cast_possible_truncation)]
-    let box_height = (state.paths.len() as u16)
-        .saturating_add(4)
-        .min(area.height);
+    // Box height accounts for line-wrapping: when the terminal is
+    // narrow enough that path descriptions wrap, each path can occupy
+    // 2+ rows. Sizing the box to `paths.len() + 4` (one row per path)
+    // clipped the last entries at IDE-side-panel widths.
+    let box_height = path_select_box_height(state, area);
     let chunks = Layout::vertical([Constraint::Length(box_height), Constraint::Min(0)]).split(area);
     let box_area = chunks[0];
     let below = chunks[1];
@@ -1082,5 +1136,68 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    // v0.5.0 — at narrow widths (IDE side panes, dual-column layouts)
+    // the path descriptions wrap to a second row, but the path-select
+    // box height was computed as `paths.len() + 4`, so the last paths'
+    // wrapped rows fell off the bottom of the box.
+
+    #[test]
+    fn path_select_inner_rows_unwrapped_at_full_width() {
+        let state = TutorialState::new();
+        // Wide enough that every label+description fits on one row.
+        let rows = path_select_inner_rows(&state, 200);
+        assert_eq!(
+            rows,
+            state.paths.len() as u16,
+            "unwrapped layout: one row per path"
+        );
+    }
+
+    #[test]
+    fn path_select_inner_rows_doubles_when_wrapped() {
+        let state = TutorialState::new();
+        // 50 columns is narrower than any label+description combined,
+        // so every path wraps to at least two rows.
+        let rows = path_select_inner_rows(&state, 50);
+        assert!(
+            rows >= (state.paths.len() as u16) * 2,
+            "wrapped layout must reserve >= 2 rows per path; got {rows} for {} paths",
+            state.paths.len()
+        );
+    }
+
+    #[test]
+    fn path_select_box_fits_all_paths_in_narrow_terminal() {
+        // Reproduces the IDE-side-pane case: 60-col wide terminal,
+        // ample height. All four paths (Policy / Architecture / Drift /
+        // CI) must remain visible inside the box.
+        let backend = TestBackend::new(60, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let rendered: String = (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        for path in &state.paths {
+            assert!(
+                rendered.contains(path.label()),
+                "path label {:?} missing from narrow render — likely clipped by box height",
+                path.label()
+            );
+        }
     }
 }
