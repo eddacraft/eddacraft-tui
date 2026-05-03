@@ -28,13 +28,12 @@
 //!             .placement(Placement::Center { width: 40, height: 7 })
 //!             .scrim(true),
 //!         )
-//!         .render(frame, area);
+//!         .render_to_frame(frame, area);
 //! }
 //! ```
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Widget, Wrap};
 
@@ -62,7 +61,7 @@ impl<'a, T: Theme> Modal<'a, T> {
 
     #[must_use]
     pub fn title(mut self, title: &'a str) -> Self {
-        self.title = title.into();
+        self.title = Some(title);
         self
     }
 
@@ -83,18 +82,8 @@ impl<'a, T: Theme> Modal<'a, T> {
     /// Optional footer text rendered along the bottom border (e.g. key hints).
     #[must_use]
     pub fn footer(mut self, footer: &'a str) -> Self {
-        self.footer = footer.into();
+        self.footer = Some(footer);
         self
-    }
-
-    fn severity_style(&self) -> Style {
-        match self.severity {
-            BadgeStatus::Success => self.theme.status_ok(),
-            BadgeStatus::Error => self.theme.status_error(),
-            BadgeStatus::Warning => self.theme.status_warning(),
-            BadgeStatus::Info | BadgeStatus::Running => self.theme.title(),
-            BadgeStatus::Skipped => self.theme.disabled(),
-        }
     }
 }
 
@@ -104,7 +93,7 @@ impl<T: Theme> Widget for Modal<'_, T> {
             return;
         }
 
-        let border_style = self.severity_style();
+        let border_style = self.severity.severity_style(self.theme);
         let mut block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)

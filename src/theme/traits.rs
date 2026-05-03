@@ -3,7 +3,13 @@ use ratatui::style::{Color, Modifier, Style};
 /// Semantic role tokens that widgets can resolve to a [`Style`] via
 /// [`Theme::role_style`]. Lets downstream widgets reference *what a colour
 /// means* rather than which palette slot it occupies.
+///
+/// Currently exposed as a forward extensibility hook — the built-in
+/// widgets resolve styles directly via [`Theme::title`] / [`Theme::base`] /
+/// etc. New widgets are encouraged to use [`Theme::role_style`] instead so
+/// downstream theme implementations can override roles centrally.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Role {
     Primary,
     Secondary,
@@ -17,6 +23,18 @@ pub enum Role {
     BorderEmphasis,
 }
 
+/// Visual theme for eddacraft-tui widgets.
+///
+/// **Implementor contract.** Every style method in this trait is expected to
+/// return a [`Style`] with both `fg` and (where semantically meaningful) `bg`
+/// explicitly set. Internal widget tests rely on
+/// e.g. `theme.status_error().fg.unwrap()`; an implementation that returns
+/// [`Style::default()`] for a given role will cause those tests to panic if
+/// run against the custom theme.
+///
+/// The default method bodies on this trait satisfy the contract automatically
+/// when the eight palette colours below are implemented; only override a
+/// default if you also keep `fg`/`bg` populated.
 pub trait Theme {
     fn bg(&self) -> Color;
     fn fg(&self) -> Color;

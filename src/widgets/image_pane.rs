@@ -7,22 +7,28 @@
 //! startup and reuse it. This widget just renders an existing
 //! [`Protocol`](ratatui_image::protocol::Protocol).
 //!
+//! Validate image dimensions and source before constructing a `Protocol` —
+//! the `image` crate has a parser surface that has carried decoder
+//! advisories in the past; keep the dependency current and treat
+//! attacker-controlled paths with care.
+//!
 //! ```rust,no_run
 //! # #[cfg(feature = "image")]
-//! # {
+//! # fn demo() -> Result<(), Box<dyn std::error::Error>> {
 //! use eddacraft_tui::theme::EddaCraftTheme;
 //! use eddacraft_tui::widgets::image_pane::ImagePane;
 //! use ratatui_image::picker::Picker;
 //!
 //! let theme = EddaCraftTheme;
-//! let picker = Picker::from_query_stdio().unwrap();
-//! let dyn_img = image::open("logo.png").unwrap();
+//! let picker = Picker::from_query_stdio()?;
+//! let dyn_img = image::open("logo.png")?;
 //! let protocol = picker.new_protocol(
 //!     dyn_img,
 //!     ratatui::layout::Rect::new(0, 0, 40, 20),
 //!     ratatui_image::Resize::Fit(None),
-//! ).unwrap();
+//! )?;
 //! let _ = ImagePane::new(&theme, &protocol).title("Logo");
+//! # Ok(())
 //! # }
 //! ```
 
@@ -52,13 +58,20 @@ impl<'a, T: Theme> ImagePane<'a, T> {
         }
     }
 
+    /// Set the title shown in the top border. The title is only rendered
+    /// when [`Self::bordered`] is `true` (the default); calling `.title(...)`
+    /// on an unbordered pane is a no-op for clarity, surfaced via a debug
+    /// assertion in [`<ImagePane as Widget>::render`].
     #[must_use]
     pub fn title(mut self, title: &'a str) -> Self {
-        self.title = title.into();
+        self.title = Some(title);
         self
     }
 
     /// Disable the surrounding border. Default is bordered.
+    ///
+    /// Note: title (if any) is only rendered when bordered. Pair with a
+    /// border, or render the title separately above the pane.
     #[must_use]
     pub fn bordered(mut self, bordered: bool) -> Self {
         self.bordered = bordered;
@@ -71,6 +84,10 @@ impl<T: Theme> Widget for ImagePane<'_, T> {
         if area.width == 0 || area.height == 0 {
             return;
         }
+        debug_assert!(
+            self.bordered || self.title.is_none(),
+            "ImagePane: title is only rendered when bordered(true); the supplied title would be silently dropped",
+        );
         let inner = if self.bordered {
             let mut block = Block::default()
                 .borders(Borders::ALL)
