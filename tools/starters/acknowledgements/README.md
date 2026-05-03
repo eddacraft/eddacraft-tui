@@ -66,16 +66,16 @@ tokens and prune the example sections to fit your stack.
 ### Placeholders
 
 All placeholders use `{{DOUBLE_BRACES}}` so they are easy to grep and replace.
-None of them are interpreted by the generator — they are plain text the
-template author left for you to fill in.
+None of them are interpreted by the generator — they are plain text the template
+author left for you to fill in.
 
-| Placeholder              | Replace with                                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `{{PROJECT_NAME}}`       | Display name of your project, e.g. `Anvil`                                                         |
-| `{{PROJECT_BINARY}}`     | The shipping binary or package name, e.g. `anvil`                                                  |
-| `{{GENERATOR_TOOL}}`     | The upstream tool that produces the auto-generated block, e.g. `cargo-about`                       |
-| `{{GENERATOR_TOOL_URL}}` | Upstream URL for the tool, e.g. `https://github.com/EmbarkStudios/cargo-about`                     |
-| `{{LOCKFILE_NAME}}`      | The lockfile the attribution derives from, e.g. `Cargo.lock` or `pnpm-lock.yaml`                   |
+| Placeholder                 | Replace with                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `{{PROJECT_NAME}}`          | Display name of your project, e.g. `Anvil`                                                                                   |
+| `{{PROJECT_BINARY}}`        | The shipping binary or package name, e.g. `anvil`                                                                            |
+| `{{GENERATOR_TOOL}}`        | The upstream tool that produces the auto-generated block, e.g. `cargo-about`                                                 |
+| `{{GENERATOR_TOOL_URL}}`    | Upstream URL for the tool, e.g. `https://github.com/EmbarkStudios/cargo-about`                                               |
+| `{{LOCKFILE_NAME}}`         | The lockfile the attribution derives from, e.g. `Cargo.lock` or `pnpm-lock.yaml`                                             |
 | `{{GENERATOR_SCRIPT_PATH}}` | Path to the generator script as it appears in your repo, e.g. `tools/starters/acknowledgements/generate-acknowledgements.sh` |
 
 A one-shot `sed` works for most of these:
@@ -93,17 +93,17 @@ sed -i \
 
 ### "Thanks" sections
 
-The template ships four illustrative subsections (Language and tooling,
-Testing and quality, Build and CI, Developer environment) with two `Project A`
-/ `Project B` bullets each. They exist to show the structure — categorised
-`###` subsections, bullet list with link-reference style, link references
-grouped immediately after each list.
+The template ships four illustrative subsections (Language and tooling, Testing
+and quality, Build and CI, Developer environment) with two `Project A` /
+`Project B` bullets each. They exist to show the structure — categorised `###`
+subsections, bullet list with link-reference style, link references grouped
+immediately after each list.
 
 Treat them as a starting point:
 
 - **Keep** the categories that fit your stack.
-- **Rename** categories if the labels don't match (e.g. `Monorepo and TypeScript
-  tooling` instead of `Language and tooling`).
+- **Rename** categories if the labels don't match (e.g.
+  `Monorepo and TypeScript tooling` instead of `Language and tooling`).
 - **Delete** sections you don't use — there's no requirement that any specific
   category exists.
 - **Add** sections for ecosystems the template doesn't anticipate (e.g.
@@ -117,19 +117,21 @@ preserves it verbatim.
 Two things in the template are load-bearing for the generator:
 
 1. The marker pair at the bottom:
+
    ```markdown
    <!-- BEGIN AUTO-GENERATED -->
    <!-- END AUTO-GENERATED -->
    ```
-   Each must appear **exactly once** on a line of its own. If you customise
-   the marker text via `[project].marker_begin` / `marker_end` in
+
+   Each must appear **exactly once** on a line of its own. If you customise the
+   marker text via `[project].marker_begin` / `marker_end` in
    `attribution.toml`, update both the template and the config together.
 
 2. The order: BEGIN must precede END. The generator splices content between
    them; if they're swapped or duplicated, the marker-count gate fails.
 
-Everything else — heading levels, prose, link styles, the intro paragraph —
-is yours to edit.
+Everything else — heading levels, prose, link styles, the intro paragraph — is
+yours to edit.
 
 ### After customising
 
