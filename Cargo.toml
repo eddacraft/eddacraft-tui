@@ -2,7 +2,7 @@
 name = "eddacraft-tui"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "Apache-2.0"
 description = "Shared Ratatui component library for the EddaCraft product family"
 repository = "https://github.com/EddaCraft/eddacraft-tui"
@@ -36,6 +36,12 @@ test-utils = []
 # Enabling `image` pulls a substantial transitive graph (ratatui-image, image,
 # rayon, the windows crate family, icy_sixel, etc.). Build time and binary
 # size grow accordingly — only enable if `ImagePane` is needed.
+#
+# MSRV note: `image` and `big-text` raise the effective MSRV beyond the
+# core library's 1.88 floor — `image`'s transitive `quantette` requires
+# 1.90, and upstream bumps may push it further. The core library is
+# verified at 1.88 by the `MSRV` CI job, which builds without these
+# features; the `Check (all-features)` row uses stable Rust.
 image = ["dep:ratatui-image", "dep:image"]
 big-text = ["dep:tui-big-text"]
 
