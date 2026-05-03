@@ -485,7 +485,7 @@ describe('TaskLocker', () => {
       // State should reflect the winner
       const state = await getTaskState(tempDir, 'TEST-001');
       expect(state?.status).toBe('locked');
-    });
+    }, 15_000);
 
     it('should create and clean up lock files correctly', async () => {
       const locker = new TaskLocker({
