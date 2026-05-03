@@ -11,7 +11,7 @@ All notable changes to anvil are documented here.
 
 ## [Unreleased]
 
-## [0.5.1] — 2026-05-03 — Scanner Signal & TUI Hotfixes
+## [0.5.1-beta] — 2026-05-03 — Scanner Signal & TUI Hotfixes
 
 ### Changed
 

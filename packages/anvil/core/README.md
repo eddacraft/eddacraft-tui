@@ -27,7 +27,7 @@ Subpath exports for targeted imports:
 | `@eddacraft/anvil-core/utils`        | General utilities                                            |
 
 Scanner-era subpaths for antipattern, drift, and suppression were removed in
-`0.5.1`; use the Rust CLI surfaces for those flows.
+`0.5.1-beta`; use the Rust CLI surfaces for those flows.
 
 Also re-exports all contracts (schemas, types, events) formerly in
 `@eddacraft/anvil-contracts` and platform config from

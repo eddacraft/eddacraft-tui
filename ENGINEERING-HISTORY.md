@@ -9,7 +9,7 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
-## [0.5.1]
+## [0.5.1-beta]
 
 ### Scanner Signal Hardening
 
