@@ -8,7 +8,7 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-## [0.5.1] — Scanner Signal & TUI Hotfixes
+## [0.5.1-beta] — Scanner Signal & TUI Hotfixes
 
 ### Changed
 

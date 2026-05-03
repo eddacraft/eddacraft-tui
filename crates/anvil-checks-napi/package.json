@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-checks-native",
-  "version": "0.5.1",
+  "version": "0.5.1-beta",
   "description": "Native Anvil scanner via Node-API binding to the Rust engine",
   "private": true,
   "main": "index.js",

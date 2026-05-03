@@ -9,9 +9,9 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.5.1
+## Current Version: 0.5.1-beta
 
-## Upgrading to 0.5.1
+## Upgrading to 0.5.1-beta
 
 CLI upgrade from `0.5.0-beta`. This release focuses on scanner signal quality,
 TUI interaction fixes, incremental graph correctness, and release workflow
@@ -41,7 +41,7 @@ winget upgrade eddacraft.anvil
 scoop update anvil
 ```
 
-### What's New in 0.5.1
+### What's New in 0.5.1-beta
 
 - **Secret scanner false-positive reductions** — generic secret matching now
   requires a stronger right-hand-side shape, credit-card detection rejects UUID
