@@ -1,6 +1,11 @@
 //! Themed wrapper around [`tui_big_text::BigText`] for branded banners and
 //! splash screens. Available behind the `big-text` Cargo feature.
 //!
+//! **Caveat:** the upstream `tui-big-text` crate has a known limitation
+//! around multi-codepoint graphemes (e.g. emoji with skin-tone modifiers,
+//! ZWJ sequences). Pass plain ASCII / single-codepoint text until upstream
+//! resolves the issue, or accept the risk of a panic on render.
+//!
 //! ```rust,no_run
 //! # #[cfg(feature = "big-text")]
 //! # {

@@ -66,11 +66,32 @@ impl TreeNode {
 
 #[derive(Debug, Default, Clone)]
 pub struct TreeState {
-    pub expanded: HashSet<String>,
-    pub cursor: usize,
+    pub(crate) expanded: HashSet<String>,
+    pub(crate) cursor: usize,
 }
 
 impl TreeState {
+    /// Build a state from a pre-existing set of expanded ids. Useful when the
+    /// application persists view state.
+    #[must_use]
+    pub fn from_expanded(ids: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            expanded: ids.into_iter().collect(),
+            cursor: 0,
+        }
+    }
+
+    /// Current cursor index into the visible-node list.
+    #[must_use]
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
+    /// Snapshot of the expanded-node ids — useful for persistence.
+    pub fn expanded_ids(&self) -> impl Iterator<Item = &str> {
+        self.expanded.iter().map(String::as_str)
+    }
+
     pub fn expand(&mut self, id: impl Into<String>) {
         self.expanded.insert(id.into());
     }
@@ -123,22 +144,60 @@ struct Visible<'a> {
     depth: usize,
 }
 
+/// Iterative walker that produces the visible-node list without recursing on
+/// the input tree. Recursion would stack-overflow on attacker-controlled or
+/// pathologically deep input (e.g. parsed filesystem paths or JSON).
 fn visible_nodes<'a>(
     nodes: &'a [TreeNode],
     expanded: &HashSet<String>,
-    depth: usize,
     out: &mut Vec<Visible<'a>>,
 ) {
-    for node in nodes {
+    let mut stack: Vec<(&[TreeNode], usize, usize)> = vec![(nodes, 0, 0)];
+    while let Some((slice, index, depth)) = stack.pop() {
+        if index >= slice.len() {
+            continue;
+        }
+        let node = &slice[index];
         out.push(Visible { node, depth });
+        // Resume with the next sibling at this depth.
+        stack.push((slice, index + 1, depth));
+        // Then descend into expanded branches before the next sibling.
         if node.is_branch() && expanded.contains(&node.id) {
-            visible_nodes(&node.children, expanded, depth + 1, out);
+            stack.push((&node.children, 0, depth + 1));
         }
     }
 }
 
+#[cfg(debug_assertions)]
+fn ids_are_unique(nodes: &[TreeNode]) -> bool {
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut stack: Vec<(&[TreeNode], usize)> = vec![(nodes, 0)];
+    while let Some((slice, index)) = stack.pop() {
+        if index >= slice.len() {
+            continue;
+        }
+        let node = &slice[index];
+        if !seen.insert(node.id.as_str()) {
+            return false;
+        }
+        stack.push((slice, index + 1));
+        if !node.children.is_empty() {
+            stack.push((&node.children, 0));
+        }
+    }
+    true
+}
+
 impl<'a, T: Theme> Tree<'a, T> {
+    /// Construct a `Tree` over the supplied nodes. Panics in debug builds if
+    /// any two nodes share an `id` — `TreeState.expanded` is keyed on `id`,
+    /// so duplicates would cause `expand` / `collapse` / `toggle` to act on
+    /// every matching node simultaneously.
     pub fn new(theme: &'a T, nodes: &'a [TreeNode]) -> Self {
+        debug_assert!(
+            ids_are_unique(nodes),
+            "TreeNode ids must be unique across the entire tree",
+        );
         Self { theme, nodes }
     }
 
@@ -147,7 +206,7 @@ impl<'a, T: Theme> Tree<'a, T> {
     #[must_use]
     pub fn visible_count(&self, state: &TreeState) -> usize {
         let mut buf = Vec::new();
-        visible_nodes(self.nodes, &state.expanded, 0, &mut buf);
+        visible_nodes(self.nodes, &state.expanded, &mut buf);
         buf.len()
     }
 
@@ -155,7 +214,7 @@ impl<'a, T: Theme> Tree<'a, T> {
     #[must_use]
     pub fn selected_id(&self, state: &TreeState) -> Option<String> {
         let mut buf = Vec::new();
-        visible_nodes(self.nodes, &state.expanded, 0, &mut buf);
+        visible_nodes(self.nodes, &state.expanded, &mut buf);
         buf.get(state.cursor).map(|v| v.node.id.clone())
     }
 }
@@ -170,7 +229,7 @@ impl<T: Theme> StatefulWidget for Tree<'_, T> {
         buf.set_style(area, self.theme.base());
 
         let mut visible = Vec::new();
-        visible_nodes(self.nodes, &state.expanded, 0, &mut visible);
+        visible_nodes(self.nodes, &state.expanded, &mut visible);
 
         if !visible.is_empty() && state.cursor >= visible.len() {
             state.cursor = visible.len() - 1;
@@ -190,7 +249,9 @@ impl<T: Theme> StatefulWidget for Tree<'_, T> {
         let leaf_style = self.theme.disabled();
 
         for (row_index, vis) in visible.iter().enumerate().skip(scroll).take(usable_rows) {
-            let y = area.y + u16::try_from(row_index - scroll).unwrap_or(0);
+            let y = area
+                .y
+                .saturating_add(u16::try_from(row_index - scroll).unwrap_or(0));
             let indent = "  ".repeat(vis.depth);
             let glyph = if vis.node.is_branch() {
                 if state.expanded.contains(&vis.node.id) {
@@ -352,6 +413,36 @@ mod tests {
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(Tree::new(&theme, &nodes), area, &mut buf, &mut state);
         assert_eq!(state.cursor, 1);
+    }
+
+    #[test]
+    fn deep_chain_does_not_overflow_stack() {
+        // Construct a 10,000-deep linear chain. Recursive walkers would blow
+        // the host process stack here; the iterative walker is bounded by
+        // heap.
+        let depth = 10_000;
+        let mut current = TreeNode::leaf(format!("n{depth}"), "leaf");
+        for i in (0..depth).rev() {
+            current = TreeNode::branch(format!("n{i}"), "branch", vec![current]);
+        }
+        let nodes = vec![current];
+        let theme = EddaCraftTheme;
+        let mut state = TreeState::default();
+        for i in 0..depth {
+            state.expand(format!("n{i}"));
+        }
+        let tree = Tree::new(&theme, &nodes);
+        // visible_count must include the root + every expanded ancestor +
+        // the leaf at the bottom.
+        assert_eq!(tree.visible_count(&state), depth + 1);
+    }
+
+    #[test]
+    fn from_expanded_round_trips_state() {
+        let state = TreeState::from_expanded(["root".to_string(), "nested".to_string()]);
+        assert!(state.is_expanded("root"));
+        assert!(state.is_expanded("nested"));
+        assert!(!state.is_expanded("missing"));
     }
 
     #[test]

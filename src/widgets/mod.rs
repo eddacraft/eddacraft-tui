@@ -1,10 +1,11 @@
 use animate::{Lerp, Once};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Widget};
 
 #[cfg(feature = "big-text")]
+#[cfg_attr(docsrs, doc(cfg(feature = "big-text")))]
 pub mod big_banner;
 pub mod confirm;
 pub mod container;
@@ -14,6 +15,7 @@ pub mod editor;
 pub mod header;
 pub mod help_bar;
 #[cfg(feature = "image")]
+#[cfg_attr(docsrs, doc(cfg(feature = "image")))]
 pub mod image_pane;
 pub mod log_panel;
 pub mod modal;
@@ -72,5 +74,17 @@ pub(crate) fn render_block(
         inner
     } else {
         area
+    }
+}
+
+/// Apply [`Modifier::DIM`] to every cell in the intersection of `area` and the
+/// buffer. Shared by overlay scrim and the `Disableable` wrapper so dim
+/// semantics stay in lockstep across the crate.
+pub(crate) fn dim_buffer(area: Rect, buf: &mut Buffer) {
+    let clipped = area.intersection(buf.area);
+    for y in clipped.y..clipped.y.saturating_add(clipped.height) {
+        for x in clipped.x..clipped.x.saturating_add(clipped.width) {
+            buf[(x, y)].modifier.insert(Modifier::DIM);
+        }
     }
 }

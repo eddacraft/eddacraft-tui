@@ -43,6 +43,23 @@ should upgrade.
 ## Scope
 
 This policy covers vulnerabilities in the `eddacraft-tui` crate
-itself. Vulnerabilities in direct dependencies (e.g. `ratatui`,
-`crossterm`, `rattles`, `animate`) should be reported upstream;
-we will update our dependencies promptly once a fix is released.
+itself. Vulnerabilities in direct dependencies should be reported
+upstream; we will update our dependencies promptly once a fix is
+released.
+
+We treat dependencies in two trust tiers:
+
+- **Mature, broadly-vetted ecosystem crates** — `ratatui`, `crossterm`,
+  `unicode-width`, `textwrap`, `image`, `ratatui-image`,
+  `tui-big-text`. Tracked via `cargo audit` and updated on release.
+- **Lower-bus-factor or proc-macro crates** — currently `animate`
+  (and its `animate-core` / `animate-macros` companion crates).
+  Pinned to exact versions because patch updates can land
+  build-time code execution. Bumps go through manual review and
+  `cargo audit`. The animation API surface is shimmed via
+  [`crate::animation`] so the underlying engine can be swapped
+  without breaking downstream callers.
+
+CI runs `cargo audit` and `cargo deny check` on every push and
+pull request; advisories against the dependency graph fail the
+build.

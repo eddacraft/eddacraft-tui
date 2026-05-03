@@ -18,8 +18,9 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Modifier;
 use ratatui::widgets::{StatefulWidget, Widget};
+
+use super::dim_buffer;
 
 // ---------------------------------------------------------------------------
 // Hideable
@@ -115,23 +116,12 @@ impl<W> Disableable<W> {
     }
 }
 
-fn dim_area(area: Rect, buf: &mut Buffer) {
-    let buf_area = buf.area;
-    for y in area.y..area.y.saturating_add(area.height) {
-        for x in area.x..area.x.saturating_add(area.width) {
-            if buf_area.contains(ratatui::layout::Position::new(x, y)) {
-                buf[(x, y)].modifier.insert(Modifier::DIM);
-            }
-        }
-    }
-}
-
 impl<W: Widget> Widget for Disableable<W> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let enabled = self.enabled;
         self.inner.render(area, buf);
         if !enabled {
-            dim_area(area, buf);
+            dim_buffer(area, buf);
         }
     }
 }
@@ -143,7 +133,7 @@ impl<W: StatefulWidget> StatefulWidget for Disableable<W> {
         let enabled = self.enabled;
         self.inner.render(area, buf, state);
         if !enabled {
-            dim_area(area, buf);
+            dim_buffer(area, buf);
         }
     }
 }
@@ -272,7 +262,7 @@ impl<W: StatefulWidget> StatefulWidget for Padded<W> {
 
 #[cfg(test)]
 mod tests {
-    use ratatui::style::Style;
+    use ratatui::style::{Modifier, Style};
     use ratatui::text::Line;
     use ratatui::widgets::Paragraph;
 

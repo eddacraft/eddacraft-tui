@@ -32,6 +32,7 @@ use ratatui::widgets::{Block, Cell, Row, StatefulWidget, Table, TableState, Widg
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum SortDirection {
     Asc,
     Desc,
@@ -62,7 +63,7 @@ pub struct SortIndicator {
 }
 
 pub struct DataTableState {
-    pub table_state: TableState,
+    pub(crate) table_state: TableState,
 }
 
 impl Default for DataTableState {
@@ -72,10 +73,22 @@ impl Default for DataTableState {
 }
 
 impl DataTableState {
+    /// Construct a new state with no row selected. Use [`Self::move_down`] /
+    /// [`Self::move_up`] or [`Self::select`] to position the cursor once row
+    /// data is known.
     #[must_use]
     pub fn new() -> Self {
+        Self {
+            table_state: TableState::default(),
+        }
+    }
+
+    /// Construct a state with the cursor already positioned at `index`.
+    /// Useful when the application persists and restores cursor position.
+    #[must_use]
+    pub fn with_selection(index: usize) -> Self {
         let mut table_state = TableState::default();
-        table_state.select(Some(0));
+        table_state.select(Some(index));
         Self { table_state }
     }
 
@@ -88,7 +101,16 @@ impl DataTableState {
         self.table_state.select(index);
     }
 
-    /// Move the cursor up, wrapping at the top.
+    /// Visible scroll offset (top row index). Exposed so callers that build
+    /// scrollbars or persist viewport position can read ratatui's internal
+    /// scroll without a public field.
+    #[must_use]
+    pub fn scroll_offset(&self) -> usize {
+        self.table_state.offset()
+    }
+
+    /// Move the cursor up, wrapping at the top. From an empty selection,
+    /// snaps to the last row.
     pub fn move_up(&mut self, total: usize) {
         if total == 0 {
             self.table_state.select(None);
@@ -101,7 +123,8 @@ impl DataTableState {
         self.table_state.select(Some(next));
     }
 
-    /// Move the cursor down, wrapping at the bottom.
+    /// Move the cursor down, wrapping at the bottom. From an empty selection,
+    /// snaps to the first row.
     pub fn move_down(&mut self, total: usize) {
         if total == 0 {
             self.table_state.select(None);
@@ -138,21 +161,42 @@ impl<'a, T: Theme> DataTable<'a, T> {
     }
 
     /// Override column widths. By default columns share the area equally.
+    ///
+    /// Panics in debug builds if `widths.len()` does not match
+    /// `headers.len()`. In release builds the mismatch causes ratatui to
+    /// silently allocate zero width to the uncovered columns, which renders
+    /// as invisible columns rather than an error.
     #[must_use]
     pub fn widths(mut self, widths: &'a [Constraint]) -> Self {
-        self.widths = widths.into();
+        debug_assert_eq!(
+            widths.len(),
+            self.headers.len(),
+            "DataTable::widths must supply one constraint per header column",
+        );
+        self.widths = Some(widths);
         self
     }
 
+    /// Mark a column as actively sorted. The widget renders the
+    /// [`SortDirection`] glyph next to that column's header label.
+    ///
+    /// Panics in debug builds if `sort.column` is out of bounds for
+    /// `headers`. In release builds the indicator is silently dropped.
     #[must_use]
     pub fn sort(mut self, sort: SortIndicator) -> Self {
-        self.sort = sort.into();
+        debug_assert!(
+            sort.column < self.headers.len(),
+            "DataTable::sort column {} is out of bounds for {} headers",
+            sort.column,
+            self.headers.len(),
+        );
+        self.sort = Some(sort);
         self
     }
 
     #[must_use]
     pub fn block(mut self, block: Block<'a>) -> Self {
-        self.block = block.into();
+        self.block = Some(block);
         self
     }
 
@@ -242,8 +286,21 @@ mod tests {
     }
 
     #[test]
-    fn move_down_advances_then_wraps() {
+    fn new_starts_with_no_selection() {
+        let state = DataTableState::new();
+        assert_eq!(state.selected(), None);
+    }
+
+    #[test]
+    fn with_selection_starts_at_index() {
+        let state = DataTableState::with_selection(2);
+        assert_eq!(state.selected(), Some(2));
+    }
+
+    #[test]
+    fn move_down_from_empty_selects_first_then_wraps() {
         let mut state = DataTableState::new();
+        state.move_down(3);
         assert_eq!(state.selected(), Some(0));
         state.move_down(3);
         assert_eq!(state.selected(), Some(1));
@@ -254,18 +311,18 @@ mod tests {
     }
 
     #[test]
-    fn move_up_wraps_to_last() {
+    fn move_up_from_empty_wraps_to_last() {
         let mut state = DataTableState::new();
-        state.select(Some(0));
         state.move_up(3);
         assert_eq!(state.selected(), Some(2));
     }
 
     #[test]
     fn empty_total_clears_selection() {
-        let mut state = DataTableState::new();
+        let mut state = DataTableState::with_selection(1);
         state.move_down(0);
         assert_eq!(state.selected(), None);
+        let mut state = DataTableState::with_selection(1);
         state.move_up(0);
         assert_eq!(state.selected(), None);
     }

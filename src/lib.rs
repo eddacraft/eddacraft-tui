@@ -21,7 +21,8 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`widgets`] | 14 reusable Ratatui widgets (select, text input, progress, pretext, etc.) |
+//! | [`widgets`] | A growing suite of reusable Ratatui widgets (select, text input, progress, data table, tree, modal, toast, overlay, etc.) |
+//! | [`animation`] | Lightweight shims over the internal animation runtime |
 //! | [`pretext`] | Two-phase prepare/layout text engine — measure once, lay out cheaply |
 //! | [`theme`] | `Theme` trait + `EddaCraftTheme` implementation |
 //! | [`keyboard`] | `KeyHandler` mapping crossterm events to semantic `Action`s |
@@ -30,6 +31,9 @@
 //! | [`compat`] | Terminal detection and minimum-size validation |
 //! | [`test_utils`] | Snapshot testing helpers for style-aware buffer serialisation |
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+pub mod animation;
 pub mod compat;
 pub mod keyboard;
 pub mod pretext;
@@ -41,8 +45,9 @@ pub mod theme;
 pub mod widgets;
 
 pub mod prelude {
-    pub use animate::{is_animating, tick as animate_tick};
-
+    // Animation shim is owned by this crate so the underlying engine can be
+    // swapped without breaking the prelude API.
+    pub use crate::animation::{animate_tick, is_animating};
     pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, Binding, KeyHandler};
     pub use crate::pretext::{ExclusionZone, LayoutResult, PositionedWord, PreparedText};
@@ -74,7 +79,9 @@ pub mod prelude {
     pub use crate::widgets::wrappers::{Disableable, Hideable, Padded};
 
     #[cfg(feature = "big-text")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "big-text")))]
     pub use crate::widgets::big_banner::BigBanner;
     #[cfg(feature = "image")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "image")))]
     pub use crate::widgets::image_pane::ImagePane;
 }

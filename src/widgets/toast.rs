@@ -20,15 +20,16 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget, Wrap};
+use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
 use crate::widgets::status_badge::BadgeStatus;
 
 /// Where in the parent area a [`ToastStack`] anchors its toasts.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum ToastPlacement {
     #[default]
     TopRight,
@@ -65,18 +66,8 @@ impl<'a, T: Theme> Toast<'a, T> {
     /// Override the leading icon. Defaults to the icon implied by `severity`.
     #[must_use]
     pub fn icon(mut self, icon: &'a str) -> Self {
-        self.icon = icon.into();
+        self.icon = Some(icon);
         self
-    }
-
-    fn severity_style(&self) -> Style {
-        match self.severity {
-            BadgeStatus::Success => self.theme.status_ok(),
-            BadgeStatus::Error => self.theme.status_error(),
-            BadgeStatus::Warning => self.theme.status_warning(),
-            BadgeStatus::Info | BadgeStatus::Running => self.theme.title(),
-            BadgeStatus::Skipped => self.theme.disabled(),
-        }
     }
 
     fn default_icon(&self) -> &'static str {
@@ -91,13 +82,16 @@ impl<'a, T: Theme> Toast<'a, T> {
 
     /// Estimated height (in cells) needed to render this toast at `width`.
     /// Includes the 2-row border. Used by [`ToastStack`] to lay out toasts.
+    ///
+    /// Width is measured in display columns via [`unicode_width`] so wide
+    /// characters (CJK, emoji) and combining marks count correctly.
     #[must_use]
     pub fn measured_height(&self, width: u16) -> u16 {
         if width <= 4 {
             return 3;
         }
         let inner_width = usize::from(width - 4); // borders + icon column
-        let total = self.message.chars().count();
+        let total = UnicodeWidthStr::width(self.message);
         let lines = total.div_ceil(inner_width.max(1));
         let lines = u16::try_from(lines).unwrap_or(1).max(1);
         lines.saturating_add(2)
@@ -109,7 +103,7 @@ impl<T: Theme> Widget for Toast<'_, T> {
         if area.width < 4 || area.height < 3 {
             return;
         }
-        let style = self.severity_style();
+        let style = self.severity.severity_style(self.theme);
         let icon = self.icon.unwrap_or_else(|| self.default_icon());
 
         let block = Block::default()
@@ -142,6 +136,7 @@ pub struct ToastStack<'a, T: Theme> {
     placement: ToastPlacement,
     width: u16,
     gap: u16,
+    max: Option<usize>,
 }
 
 impl<'a, T: Theme> ToastStack<'a, T> {
@@ -152,6 +147,7 @@ impl<'a, T: Theme> ToastStack<'a, T> {
             placement: ToastPlacement::default(),
             width: 32,
             gap: 0,
+            max: None,
         }
     }
 
@@ -175,9 +171,31 @@ impl<'a, T: Theme> ToastStack<'a, T> {
         self
     }
 
+    /// Cap the number of toasts retained in the stack. When the cap is
+    /// exceeded, the oldest toasts are dropped on `push`. Default uncapped.
+    /// Use this to bound memory when toasts are produced from a message bus
+    /// or log stream.
+    #[must_use]
+    pub fn max(mut self, n: usize) -> Self {
+        self.max = Some(n);
+        if let Some(cap) = self.max
+            && self.toasts.len() > cap
+        {
+            let drop = self.toasts.len() - cap;
+            self.toasts.drain(0..drop);
+        }
+        self
+    }
+
     #[must_use]
     pub fn push(mut self, toast: Toast<'a, T>) -> Self {
         self.toasts.push(toast);
+        if let Some(cap) = self.max
+            && self.toasts.len() > cap
+        {
+            let drop = self.toasts.len() - cap;
+            self.toasts.drain(0..drop);
+        }
         self
     }
 
@@ -197,6 +215,10 @@ impl<T: Theme> Widget for ToastStack<'_, T> {
         if self.toasts.is_empty() || area.width == 0 || area.height == 0 {
             return;
         }
+        // Anchor the stack against the theme base so gap rows pick up the
+        // background and unicode-width measurement does not change semantics.
+        buf.set_style(area, self.theme.base());
+
         let toast_width = self.width.min(area.width);
 
         // Measure first so we know vertical extent.
@@ -219,15 +241,17 @@ impl<T: Theme> Widget for ToastStack<'_, T> {
         let mut y = match self.placement {
             ToastPlacement::TopLeft | ToastPlacement::TopRight | ToastPlacement::Top => area.y,
             ToastPlacement::BottomLeft | ToastPlacement::BottomRight | ToastPlacement::Bottom => {
-                let total: u16 = heights.iter().copied().sum::<u16>()
-                    + self.gap.saturating_mul(
-                        u16::try_from(heights.len().saturating_sub(1)).unwrap_or(0),
-                    );
+                // Accumulate in u32 then saturate to u16 — sums can overflow
+                // u16 with thousands of toasts, which would silently wrap and
+                // anchor the stack at the wrong Y in release builds.
+                let height_sum: u32 = heights.iter().copied().map(u32::from).sum();
+                let gap_count = u32::try_from(heights.len().saturating_sub(1)).unwrap_or(0);
+                let gap_total = u32::from(self.gap).saturating_mul(gap_count);
+                let total = u16::try_from(height_sum.saturating_add(gap_total)).unwrap_or(u16::MAX);
                 area.y + area.height.saturating_sub(total)
             }
         };
 
-        let _ = self.theme; // currently unused outside child toasts; kept for future styling
         for (toast, height) in self.toasts.into_iter().zip(heights) {
             if y >= area.y + area.height {
                 break;
@@ -381,6 +405,48 @@ mod tests {
             assert_eq!(buf[(x, 3)].symbol(), " ");
         }
         assert_eq!(buf[(0, 4)].symbol(), "╭");
+    }
+
+    #[test]
+    fn measured_height_uses_display_columns_for_cjk() {
+        // ASCII control: 14 columns of inner space, 14 chars → 1 line.
+        let theme = EddaCraftTheme;
+        let ascii = Toast::new(&theme, "abcdefghijklmn").measured_height(18);
+        // CJK: each of the 4 characters is 2 display columns (8 columns)
+        // and the inner width is 14 columns → still 1 line.
+        let cjk = Toast::new(&theme, "日本語版").measured_height(18);
+        assert_eq!(cjk, ascii);
+        // CJK long enough to wrap: 16 chars at 2 columns each = 32 columns
+        // → wraps to 3 lines + 2 border rows.
+        let long = Toast::new(&theme, &"日".repeat(16)).measured_height(18);
+        assert!(long >= 5, "long={long}");
+    }
+
+    #[test]
+    fn stack_height_sum_does_not_overflow_u16() {
+        // Push more toasts than `u16::MAX / 3` (the minimum-height ToastStack
+        // anchor calculation). The previous implementation summed heights as
+        // u16 and overflowed; the fix accumulates in u32 then saturates.
+        let theme = EddaCraftTheme;
+        let mut stack = ToastStack::new(&theme).placement(ToastPlacement::BottomLeft);
+        for _ in 0..30_000 {
+            stack = stack.push(Toast::new(&theme, "x"));
+        }
+        let area = Rect::new(0, 0, 40, 10);
+        let mut buf = Buffer::empty(area);
+        // Must not panic in debug mode.
+        stack.render(area, &mut buf);
+    }
+
+    #[test]
+    fn stack_max_drops_oldest() {
+        let theme = EddaCraftTheme;
+        let stack = ToastStack::new(&theme)
+            .max(2)
+            .push(Toast::new(&theme, "old"))
+            .push(Toast::new(&theme, "mid"))
+            .push(Toast::new(&theme, "new"));
+        assert_eq!(stack.len(), 2);
     }
 
     #[test]

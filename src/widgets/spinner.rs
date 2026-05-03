@@ -4,20 +4,68 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{StatefulWidget, Widget};
-use rattles::{Rattle, rattle};
 
 use crate::theme::Theme;
 
-rattle!(
-    EddaCraftSpinner,
-    eddacraft,
-    3,
-    90,
-    ["[ ]", "[=]", "[≡]", "[=]", "[ ]"]
-);
-rattle!(AnvilSpinner, anvil, 1, 110, ["⚒", "⚒", "⚒", "🔨", "⚒", "🛠"]);
+const EDDACRAFT_FRAMES: &[&str] = &["[ ]", "[=]", "[≡]", "[=]", "[ ]"];
+const ANVIL_FRAMES: &[&str] = &["⚒", "⚒", "⚒", "🔨", "⚒", "🛠"];
+
+const EDDACRAFT_INTERVAL: Duration = Duration::from_millis(90);
+const ANVIL_INTERVAL: Duration = Duration::from_millis(110);
+
+/// Read-only handle into a spinner frame set. Returned by [`eddacraft`] and
+/// [`anvil`] for callers that only need direct frame access without a full
+/// [`Spinner`] widget.
+#[derive(Debug, Clone, Copy)]
+pub struct FrameSet {
+    frames: &'static [&'static str],
+    interval: Duration,
+}
+
+impl FrameSet {
+    #[must_use]
+    pub fn frame(&self, index: usize) -> &'static str {
+        if self.frames.is_empty() {
+            ""
+        } else {
+            self.frames[index % self.frames.len()]
+        }
+    }
+
+    #[must_use]
+    pub fn interval(&self) -> Duration {
+        self.interval
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.frames.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.frames.is_empty()
+    }
+}
+
+#[must_use]
+pub fn eddacraft() -> FrameSet {
+    FrameSet {
+        frames: EDDACRAFT_FRAMES,
+        interval: EDDACRAFT_INTERVAL,
+    }
+}
+
+#[must_use]
+pub fn anvil() -> FrameSet {
+    FrameSet {
+        frames: ANVIL_FRAMES,
+        interval: ANVIL_INTERVAL,
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SpinnerPreset {
     #[default]
     EddaCraft,
@@ -27,18 +75,12 @@ pub enum SpinnerPreset {
 impl SpinnerPreset {
     #[must_use]
     pub fn frame(self, index: usize) -> &'static str {
-        match self {
-            Self::EddaCraft => eddacraft().frame(index),
-            Self::Anvil => anvil().frame(index),
-        }
+        self.frames().frame(index)
     }
 
     #[must_use]
     pub fn interval(self) -> Duration {
-        match self {
-            Self::EddaCraft => EddaCraftSpinner::INTERVAL,
-            Self::Anvil => AnvilSpinner::INTERVAL,
-        }
+        self.frames().interval()
     }
 
     #[must_use]
@@ -48,10 +90,7 @@ impl SpinnerPreset {
 
     #[must_use]
     pub fn len(self) -> usize {
-        match self {
-            Self::EddaCraft => eddacraft().len(),
-            Self::Anvil => anvil().len(),
-        }
+        self.frames().len()
     }
 
     #[must_use]
@@ -61,6 +100,13 @@ impl SpinnerPreset {
             return 0;
         }
         (frame + 1) % len
+    }
+
+    fn frames(self) -> FrameSet {
+        match self {
+            Self::EddaCraft => eddacraft(),
+            Self::Anvil => anvil(),
+        }
     }
 }
 
@@ -102,7 +148,7 @@ impl<'a, T: Theme> Spinner<'a, T> {
 
     #[must_use]
     pub fn label(mut self, label: &'a str) -> Self {
-        self.label = label.into();
+        self.label = Some(label);
         self
     }
 

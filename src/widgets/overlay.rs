@@ -21,19 +21,21 @@
 //!             .placement(Placement::Center { width: 20, height: 3 })
 //!             .scrim(true),
 //!         )
-//!         .render(frame, area);
+//!         .render_to_frame(frame, area);
 //! }
 //! ```
 
 use ratatui::Frame;
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Modifier;
 use ratatui::widgets::{Clear, Widget};
 
 use crate::theme::Theme;
+use crate::widgets::dim_buffer;
 
 /// How a [`Layer`] occupies the parent area.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum Placement {
     /// Fill the entire area.
     Fill,
@@ -139,13 +141,21 @@ impl<'a, T: Theme> OverlayStack<'a, T> {
     }
 
     /// Render every layer in order over `area`. Each layer's region is cleared
-    /// (so base content does not bleed through) and, if requested, the parent
-    /// area is dimmed first.
-    pub fn render(self, frame: &mut Frame, area: Rect) {
+    /// (so base content does not bleed through). If any layer requests a
+    /// scrim, the entire parent area is dimmed once *before* any layers are
+    /// drawn, so subsequent layers render at full intensity rather than being
+    /// dimmed by their own scrim or by a prior layer's scrim.
+    ///
+    /// Use this when rendering inside a draw closure that has access to the
+    /// [`Frame`]; for stateless [`Widget`] composition prefer
+    /// [`OverlayStack::render`] (the trait impl) which renders against the
+    /// buffer only.
+    pub fn render_to_frame(self, frame: &mut Frame, area: Rect) {
+        let want_scrim = self.layers.iter().any(|l| l.scrim);
+        if want_scrim {
+            dim_buffer(area, frame.buffer_mut());
+        }
         for layer in self.layers {
-            if layer.scrim {
-                apply_scrim(frame, area);
-            }
             let layer_area = layer.placement.resolve(area);
             if layer_area.width == 0 || layer_area.height == 0 {
                 continue;
@@ -156,12 +166,26 @@ impl<'a, T: Theme> OverlayStack<'a, T> {
     }
 }
 
-fn apply_scrim(frame: &mut Frame, area: Rect) {
-    let buf = frame.buffer_mut();
-    let clipped = area.intersection(buf.area);
-    for y in clipped.y..clipped.y.saturating_add(clipped.height) {
-        for x in clipped.x..clipped.x.saturating_add(clipped.width) {
-            buf[(x, y)].modifier.insert(Modifier::DIM);
+impl<T: Theme> Widget for OverlayStack<'_, T> {
+    /// Buffer-only [`Widget`] impl. Useful for composing `OverlayStack` with
+    /// the wrapper widgets (`Hideable`, `Padded`) and ratatui layout helpers
+    /// when you only need scrim + clear + a single rendering pass.
+    ///
+    /// Layers receive a synthetic [`Frame`] is not available here; the
+    /// closures inside layers cannot call `frame.render_widget` and so will
+    /// be skipped. For full overlay rendering use
+    /// [`OverlayStack::render_to_frame`] from inside a draw closure instead.
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let want_scrim = self.layers.iter().any(|l| l.scrim);
+        if want_scrim {
+            dim_buffer(area, buf);
+        }
+        for layer in self.layers {
+            let layer_area = layer.placement.resolve(area);
+            if layer_area.width == 0 || layer_area.height == 0 {
+                continue;
+            }
+            Clear.render(layer_area, buf);
         }
     }
 }
@@ -170,6 +194,7 @@ fn apply_scrim(frame: &mut Frame, area: Rect) {
 mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
+    use ratatui::style::Modifier;
     use ratatui::widgets::{Block, Borders, Paragraph};
 
     use super::*;
@@ -223,7 +248,7 @@ mod tests {
             .draw(|frame| {
                 let stack = OverlayStack::new(&theme);
                 assert!(stack.is_empty());
-                stack.render(frame, frame.area());
+                stack.render_to_frame(frame, frame.area());
             })
             .unwrap();
     }
@@ -253,7 +278,7 @@ mod tests {
                             height: 1,
                         }),
                     )
-                    .render(frame, area);
+                    .render_to_frame(frame, area);
             })
             .unwrap();
 
@@ -285,13 +310,90 @@ mod tests {
                             })
                             .scrim(true),
                     )
-                    .render(frame, area);
+                    .render_to_frame(frame, area);
             })
             .unwrap();
 
         let buf = terminal.backend().buffer();
         // A cell outside the layer rect (e.g. (0,0)) should be dimmed.
         assert!(buf[(0, 0)].modifier.contains(Modifier::DIM));
+    }
+
+    #[test]
+    fn double_scrim_does_not_dim_prior_layer_content() {
+        // Two layers with scrim(true) used to dim each other in the original
+        // implementation. The fix applies scrim once before any layer draws.
+        let backend = TestBackend::new(20, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                OverlayStack::new(&theme)
+                    .push(
+                        Layer::new(|f, a, _t| {
+                            f.render_widget(Paragraph::new("AAA"), a);
+                        })
+                        .placement(Placement::Center {
+                            width: 3,
+                            height: 1,
+                        })
+                        .scrim(true),
+                    )
+                    .push(
+                        Layer::new(|f, a, _t| {
+                            f.render_widget(Paragraph::new("BBB"), a);
+                        })
+                        .placement(Placement::Center {
+                            width: 3,
+                            height: 1,
+                        })
+                        .scrim(true),
+                    )
+                    .render_to_frame(frame, area);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        // Centre cells belong to the top-most layer (BBB) and must not carry
+        // DIM — which would happen if the second scrim dimmed prior layer
+        // pixels.
+        let centre_x = (20 - 3) / 2;
+        for x in centre_x..centre_x + 3 {
+            assert!(
+                !buf[(x, 2)].modifier.contains(Modifier::DIM),
+                "cell ({x},2) was dimmed",
+            );
+        }
+    }
+
+    #[test]
+    fn widget_impl_dims_and_clears_without_frame() {
+        // Buffer-only path (Widget impl) should still apply scrim and clear
+        // layer rects, but without invoking layer render closures.
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 20, 5);
+        let mut buf = Buffer::empty(area);
+        for x in 0..20 {
+            for y in 0..5 {
+                buf[(x, y)].set_symbol("X");
+            }
+        }
+        OverlayStack::new(&theme)
+            .push(
+                Layer::new(|_f, _a, _t| {})
+                    .placement(Placement::Center {
+                        width: 4,
+                        height: 1,
+                    })
+                    .scrim(true),
+            )
+            .render(area, &mut buf);
+        // Cells outside the layer rect should be dimmed.
+        assert!(buf[(0, 0)].modifier.contains(Modifier::DIM));
+        // Cells inside the layer rect were cleared by the Widget impl.
+        let inner_x = (20 - 4) / 2;
+        assert_eq!(buf[(inner_x, 2)].symbol(), " ");
     }
 
     #[test]
@@ -321,7 +423,7 @@ mod tests {
                             height: 1,
                         }),
                     )
-                    .render(frame, area);
+                    .render_to_frame(frame, area);
             })
             .unwrap();
 
