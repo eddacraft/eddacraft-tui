@@ -48,14 +48,18 @@ jobs:
         run: cargo publish --dry-run --all-features
 
   msrv:
-    name: MSRV (1.85.0)
+    name: MSRV (1.88.0)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.88.0
       - uses: Swatinem/rust-cache@v2
       - name: cargo build
-        run: cargo build --all-features
+        # MSRV applies to the core library (default features). Optional
+        # `image`/`big-text` features pull crates whose transitive deps
+        # (e.g. `quantette` requires 1.90) need a newer toolchain — those
+        # are covered by the stable `Check (all-features)` row.
+        run: cargo build
 
   audit:
     name: Supply chain (audit + deny)
