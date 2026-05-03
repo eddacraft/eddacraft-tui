@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 5/12     |
+| LAUNCH | —     | In Progress | 5/14     |
 
 ## Purpose
 
@@ -185,8 +185,55 @@ new primitive, this module follows three rules:
 ## Tasks
 
 > Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, and LAUNCH-007 are complete; remaining activation and
-> watch work stays Todo until picked up.
+> LAUNCH-005, and LAUNCH-007 are complete; remaining activation,
+> tutorial, upgrade, and watch work stays Todo until picked up.
+
+### LAUNCH-013: Make version and upgrade guidance install-method aware
+
+- **Intent:** A user can answer "am I current, what is latest, and how do I
+  upgrade?" without knowing whether they installed Anvil through WinGet,
+  Scoop, Homebrew, or the direct installer.
+- **Expected Outcome:** Add an explicit `anvil version` surface that prints the
+  current binary version, latest available release version, update availability,
+  detected install method, and recommended upgrade command. Human and JSON
+  output include `current_version`, `latest_version`, `update_available`,
+  `install_method`, and `upgrade_command` when available. Detection covers
+  Homebrew, Scoop, WinGet, direct cargo-dist installer / PowerShell installer,
+  and unknown/manual installs. Network/latest lookup failures remain non-fatal
+  and still print the local version. The recommendation accounts for older
+  direct installs that predate `anvil update`: those users are told to rerun the
+  latest installer rather than use a missing subcommand.
+- **Coordinates with:** release metadata on `eddacraft/anvil` and the existing
+  `anvil update --check` path in `crates/anvil-cli/src/commands/update.rs`.
+- **Validation:** CLI tests cover human and JSON output, mocked latest-release
+  responses, each detected install method, unknown installs, and network lookup
+  failure. Manual smoke covers the currently published release metadata.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-014: Make the interactive tutorial prove value faster
+
+- **Intent:** The tutorial should help a new user understand Anvil's protection
+  loop quickly, not just walk command taxonomy.
+- **Expected Outcome:** Rework `anvil tutorial` so the first path is a short,
+  repo-local value path: explain what Anvil is about to check, run or simulate
+  a high-signal check on safe fixture content, show the result, and point the
+  user to the next activation step. The tutorial keeps an explicit learning
+  path for deeper concepts, but the default flow prioritises a concrete first
+  win and uses the same activation vocabulary as `anvil start`, `anvil status`,
+  and `anvil doctor`.
+- **Coordinates with:** LAUNCH-006 activation entrypoint, LAUNCH-008 activation
+  protection states, LAUNCH-010 baseline copy, and LAUNCH-012 verification and
+  retry paths.
+- **Validation:** Snapshot or CLI tests cover the default tutorial path,
+  no-config / already-initialised repo states, and copy that avoids claiming
+  pre-write protection unless activation evidence supports it.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
 
 ### LAUNCH-001: Implement user-facing glob filter for watch loop
 
