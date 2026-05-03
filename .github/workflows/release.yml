@@ -588,21 +588,6 @@ jobs:
             fi
           done
 
-          # Fetch the icon asset and compute its SHA256 (winget Icons entry
-          # requires a pinned digest; the icon is uploaded with every release).
-          ICON_ASSET="anvil-icon-256.png"
-          ICON_FILE="$RUNNER_TEMP/$ICON_ASSET"
-          gh release download "$RELEASE_TAG" \
-            --repo "$REPO" \
-            --pattern "$ICON_ASSET" \
-            --output "$ICON_FILE"
-          ICON_SHA256=$(sha256sum "$ICON_FILE" | awk '{print toupper($1)}')
-
-          if [[ ! "$ICON_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
-            echo "::error::ICON_SHA256 '${ICON_SHA256}' is not a valid 64-char hex digest"
-            exit 1
-          fi
-
           X64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${X64_ASSET}"
           ARM64_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ARM64_ASSET}"
 
@@ -611,7 +596,6 @@ jobs:
           echo "X64 SHA256:    $X64_SHA256"
           echo "ARM64 URL:     $ARM64_URL"
           echo "ARM64 SHA256:  $ARM64_SHA256"
-          echo "ICON_SHA256:   $ICON_SHA256"
 
           # Populate manifest templates
           MANIFEST_DIR="$RUNNER_TEMP/winget-manifest"
@@ -624,9 +608,13 @@ jobs:
               -e "s|\${X64_SHA256}|${X64_SHA256}|g" \
               -e "s|\${ARM64_URL}|${ARM64_URL}|g" \
               -e "s|\${ARM64_SHA256}|${ARM64_SHA256}|g" \
-              -e "s|\${ICON_SHA256}|${ICON_SHA256}|g" \
               "$tmpl" > "$MANIFEST_DIR/$(basename "$tmpl")"
           done
+
+          if grep -R '^Icons:' "$MANIFEST_DIR"; then
+            echo "::error::WinGet Icons metadata requires a verified publisher; remove Icons before submitting"
+            exit 1
+          fi
 
           echo "--- Generated manifests ---"
           for f in "$MANIFEST_DIR"/*.yaml; do
