@@ -11,7 +11,7 @@ spectrum_position: 2
 
 targets: [source]
 file_extensions: [.ts, .tsx]
-allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**']
+allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**', '**/explain/**']
 
 detection:
   type: regex

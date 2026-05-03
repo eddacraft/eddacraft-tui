@@ -123,10 +123,26 @@ fn surface_loop<S: Surface>(
 
                     // Check exit immediately after key — avoids waiting for
                     // the next poll timeout before responding to quit/back.
-                    if state.should_quit() {
-                        return Ok(SurfaceExit::Quit);
-                    }
-                    if state.should_back() {
+                    // Draw the post-key frame first so any acknowledgement
+                    // the surface added (e.g. "Applying auto-fix...") is
+                    // visible to the user before the TUI tears down.
+                    if state.should_quit() || state.should_back() {
+                        if dirty {
+                            terminal.draw(|frame| {
+                                let area = frame.area();
+                                let content = render_shell(
+                                    frame,
+                                    area,
+                                    state.surface_name(),
+                                    state.help_text(),
+                                    theme,
+                                );
+                                state.render(frame, content, theme);
+                            })?;
+                        }
+                        if state.should_quit() {
+                            return Ok(SurfaceExit::Quit);
+                        }
                         return Ok(SurfaceExit::Back);
                     }
                 }

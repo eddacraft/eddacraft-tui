@@ -4,6 +4,140 @@ use crate::secret::patterns::{
 };
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
+/// Reject Credit Card matches that are actually a fragment of a
+/// UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). The Credit Card
+/// regex `\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b` happily matches
+/// the first 18 digits of a UUID like `11111111-2222-0000-...`. If
+/// the byte immediately before or after the matched range is `-` or
+/// another digit, we are inside a longer dashed/numeric token and
+/// the match is not a real card number.
+fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usize) -> bool {
+    let bytes = line.as_bytes();
+    if match_start > 0 {
+        let prev = bytes[match_start - 1];
+        if prev == b'-' || prev.is_ascii_digit() {
+            return true;
+        }
+    }
+    if match_end < bytes.len() {
+        let next = bytes[match_end];
+        if next == b'-' || next.is_ascii_digit() {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_js_identifier_path(value: &str) -> bool {
+    value.split('.').all(|part| {
+        let mut chars = part.chars();
+        chars
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
+}
+
+fn is_likely_code_identifier_path(value: &str) -> bool {
+    is_js_identifier_path(value)
+        && (value.starts_with("config.")
+            || value.starts_with("env.")
+            || value.starts_with("options.")
+            || value.starts_with("process.")
+            || value.starts_with("secrets.")
+            || value.split('.').any(|part| {
+                part.chars()
+                    .any(|c| c.is_ascii_digit() || c == '_' || c.is_ascii_uppercase())
+            }))
+}
+
+/// Reject the "Generic Secret" pattern when its right-hand side is
+/// clearly a code expression rather than a secret literal. Real
+/// secrets are quoted strings or unquoted env-style values that
+/// contain digits / mixed case; variable references, type annotations,
+/// `process.env.X` accesses, and `${...}` template substitutions all
+/// fail one of these tests.
+///
+/// Returns `true` when the value should be SKIPPED (i.e. the match is
+/// a false positive).
+fn is_generic_secret_false_positive(matched_value: &str) -> bool {
+    // Split on the first `=` or `:` so the RHS is the candidate value.
+    let Some(rhs_start) = matched_value.find(['=', ':']) else {
+        return false;
+    };
+    let rhs_raw = &matched_value[rhs_start + 1..];
+    let rhs = rhs_raw.trim();
+    if rhs.is_empty() {
+        return false;
+    }
+
+    let quoted = (rhs.starts_with('"') && rhs.ends_with('"'))
+        || (rhs.starts_with('\'') && rhs.ends_with('\''));
+
+    // Strip outer matched quotes — `"hunter2"` should be evaluated as
+    // `hunter2`, not as starting with `"`. Trailing terminators like
+    // `;`, `,` are noise from how the regex captures up to the next
+    // whitespace; strip them too.
+    let unquoted = rhs
+        .strip_prefix(['"', '\''])
+        .and_then(|s| s.strip_suffix(['"', '\'']))
+        .unwrap_or(rhs)
+        .trim_end_matches([';', ',']);
+
+    if unquoted.starts_with("process.env.") {
+        return true;
+    }
+
+    // Code-structural characters that rarely appear in a real secret
+    // literal: TS type closures (`string)`), bracket env access
+    // (`process.env['X']`), template substitutions (`${dbPassword}`),
+    // function calls (`requireSecret(...)`), and similar. Dots are only
+    // rejected for unquoted identifier paths (`config.password`) so
+    // generated dotted passwords remain detectable.
+    let has_code_shape = unquoted
+        .chars()
+        .any(|c| matches!(c, '(' | ')' | '[' | ']' | '{' | '}' | '`'));
+    if has_code_shape {
+        return true;
+    }
+
+    let dotted_identifier_path =
+        !quoted && unquoted.contains('.') && is_likely_code_identifier_path(unquoted);
+    if dotted_identifier_path {
+        return true;
+    }
+
+    // Bare identifier (alphabetic + underscore only, no digits, no
+    // special chars). Catches variable references like `passwordEnv`,
+    // `configuredPassword` and TS types like `string`, `Buffer`,
+    // `ArrayBuffer`. Real secret literals carry at least one digit
+    // or non-alpha character.
+    let pure_identifier = unquoted
+        .chars()
+        .all(|c| c.is_ascii_alphabetic() || c == '_');
+    if pure_identifier {
+        return true;
+    }
+
+    false
+}
+
+fn should_skip_pattern_match(
+    pattern: &CompiledPattern,
+    matcher: &PatternMatcher,
+    line: &str,
+    match_start: usize,
+    match_end: usize,
+) -> bool {
+    let matched_value = &line[match_start..match_end];
+
+    matcher.is_allowlisted(matched_value)
+        || matcher.looks_like_code(matched_value)
+        || (pattern.name == "Generic Secret" && is_generic_secret_false_positive(matched_value))
+        || (pattern.name == "Credit Card"
+            && is_credit_card_false_positive(line, match_start, match_end))
+}
+
 /// SCAN-002: per-call stats returned alongside findings. Currently exposes
 /// the count of lines that exceeded `SecretCheckConfig::max_line_bytes` and
 /// were therefore skipped before regex evaluation.
@@ -73,33 +207,33 @@ pub fn scan_content_with_limit_and_stats(
         let line_number = index + 1;
 
         for pattern in patterns_iter() {
-            let maybe_match = pattern.regex.find(line);
-            let Some(matched_range) = maybe_match else {
-                continue;
-            };
-            let matched_value = matched_range.as_str();
-
-            if matcher.is_allowlisted(matched_value) {
-                continue;
-            }
-            if matcher.looks_like_code(matched_value) {
-                continue;
-            }
-
-            findings.push(SecretFinding {
-                file: file_path.to_string(),
-                line: line_number,
-                finding_type: FindingType::Pattern,
-                pattern_name: pattern.name.clone(),
-                redacted_match: matcher.redact_secret(matched_value),
-                redacted_line: matcher.redact_range_in_line(
+            for matched_range in pattern.regex.find_iter(line) {
+                if should_skip_pattern_match(
+                    pattern,
+                    &matcher,
                     line,
                     matched_range.start(),
                     matched_range.end(),
-                ),
-            });
-            if findings.len() == limit {
-                return (findings, stats);
+                ) {
+                    continue;
+                }
+
+                let matched_value = matched_range.as_str();
+                findings.push(SecretFinding {
+                    file: file_path.to_string(),
+                    line: line_number,
+                    finding_type: FindingType::Pattern,
+                    pattern_name: pattern.name.clone(),
+                    redacted_match: matcher.redact_secret(matched_value),
+                    redacted_line: matcher.redact_range_in_line(
+                        line,
+                        matched_range.start(),
+                        matched_range.end(),
+                    ),
+                });
+                if findings.len() == limit {
+                    return (findings, stats);
+                }
             }
         }
     }
@@ -122,7 +256,17 @@ pub fn scan_content_with_limit_and_stats(
                 {
                     return false;
                 }
-                patterns_iter().all(|pattern| !pattern.regex.is_match(line))
+                patterns_iter().all(|pattern| {
+                    pattern.regex.find_iter(line).all(|matched_range| {
+                        should_skip_pattern_match(
+                            pattern,
+                            &matcher,
+                            line,
+                            matched_range.start(),
+                            matched_range.end(),
+                        )
+                    })
+                })
             },
         );
         findings.extend(entropy_findings);
@@ -188,6 +332,191 @@ mod tests {
 
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].line, 1);
+    }
+
+    #[test]
+    fn does_not_flag_uuid_as_credit_card() {
+        // From entx apps/admin/src/lib/authorization.spec.ts — UUIDs
+        // shaped `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` were caught
+        // by the Credit Card regex which only inspects the first 16
+        // digits.
+        let config = SecretCheckConfig::default();
+        let content = "const VENUE_1 = '11111111-2222-0000-000000000001' as Id;";
+        let findings = scan_content(content, "src/spec.ts", &config);
+        let card = findings.iter().find(|f| f.pattern_name == "Credit Card");
+        assert!(
+            card.is_none(),
+            "UUID fragment should not be flagged as Credit Card, got: {:?}",
+            card.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn still_flags_real_credit_card_number() {
+        // Regression guard: a genuine 16-digit card (with or without
+        // hyphens) must still fire.
+        let config = SecretCheckConfig::default();
+        let content = "// see card 4242 4242 4242 4242 in fixtures";
+        let findings = scan_content(content, "src/payments.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Credit Card"),
+            "real Visa-shaped card must still fire"
+        );
+    }
+
+    // v0.5.0 Generic Secret false positives — actual repo lines that
+    // were flagged but are not secret leaks. They share a shape: the
+    // RHS after the keyword is a code expression (variable reference,
+    // env access, type annotation, template substitution), not a
+    // secret literal.
+
+    #[test]
+    fn does_not_flag_typescript_type_annotation_as_secret() {
+        // From apps/anvil-api/src/middleware/admin-auth.ts:54
+        let config = SecretCheckConfig::default();
+        let content = "function hashBearer(bearer: string, secret: string): string {";
+        let findings = scan_content(content, "src/auth.ts", &config);
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "TS type annotation `secret: string` should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_process_env_access_as_secret() {
+        // From apps/anvil-api/src/routes/cron.ts:28 and similar.
+        let config = SecretCheckConfig::default();
+        let content = "  const cronSecret = process.env.CRON_SECRET || '';";
+        let findings = scan_content(content, "src/cron.ts", &config);
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "process.env access should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_bracket_env_access_as_secret() {
+        // From apps/anvil-api/src/__tests__/auth-github.test.ts:45
+        let config = SecretCheckConfig::default();
+        let content = "const ORIGINAL_CLIENT_SECRET = process.env['GITHUB_CLIENT_SECRET'];";
+        let findings = scan_content(content, "src/test.ts", &config);
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "process.env[...] access should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_template_substitution_as_secret() {
+        // From .codex/skills/pulumi-esc/SKILL.md:92,96
+        let config = SecretCheckConfig::default();
+        let content = "    DB_PASSWORD: ${dbPassword}";
+        let findings = scan_content(content, "docs/SKILL.md", &config);
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "template substitution should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_bare_identifier_as_secret() {
+        // From archive/anvil-cli-node/src/commands/policy/bundle.ts:296
+        let config = SecretCheckConfig::default();
+        let content = "    auth.password = configuredPassword;";
+        let findings = scan_content(content, "src/bundle.ts", &config);
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "variable reference should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn still_flags_real_quoted_secret_literal() {
+        // Regression guard: the RHS-shape filter must still let real
+        // password literals through.
+        let config = SecretCheckConfig::default();
+        let content = "password='hunter22hunter22'";
+        let findings = scan_content(content, "src/.env", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "real quoted secret should still fire, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn still_flags_real_unquoted_secret_with_digits() {
+        // Regression guard: unquoted env-style values with digits remain detectable.
+        let config = SecretCheckConfig::default();
+        let content = "PASSWORD=ab1cd2ef3gh4ij5";
+        let findings = scan_content(content, ".env", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "real env-style secret should still fire, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn still_flags_real_dotted_secret_literal() {
+        let config = SecretCheckConfig::default();
+        let content = "PASSWORD=correct.horse.battery.staple";
+        let findings = scan_content(content, ".env", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "dotted env-style secret should still fire, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn does_not_flag_dotted_code_path_with_digits_as_secret() {
+        let config = SecretCheckConfig::default();
+        let content = "const clientSecret = config.oauth2Secret;";
+        let findings = scan_content(content, "src/config.ts", &config);
+        let generic = findings.iter().find(|f| f.pattern_name == "Generic Secret");
+        assert!(
+            generic.is_none(),
+            "dotted code path should not be flagged, got: {:?}",
+            generic.map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn generic_false_positive_does_not_hide_later_pattern_match_on_same_line() {
+        let config = SecretCheckConfig::default();
+        let content = "const authSecret = process.env.CRON_SECRET; password='realSecret123456';";
+        let findings = scan_content(content, "src/test.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "later same-line generic secret should still fire, got: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn generic_false_positive_does_not_block_entropy_scan() {
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.0,
+            ..SecretCheckConfig::default()
+        };
+        let content = "const authSecret = process.env.CRON_SECRET; token='9xY7qW2vK8mN4pR6'";
+        let findings = scan_content(content, "src/test.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.finding_type == FindingType::Entropy),
+            "skipped generic-secret matches should not suppress entropy findings, got: {findings:?}"
+        );
     }
 
     #[test]

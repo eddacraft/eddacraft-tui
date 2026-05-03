@@ -5,7 +5,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use super::{CheckStatus, DoctorState};
+use super::{CheckStatus, DoctorState, FixOutcomeBanner};
 
 #[allow(clippy::too_many_lines)]
 pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCraftTheme) {
@@ -49,6 +49,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
         ),
     ]);
     frame.render_widget(Paragraph::new(summary_line), chunks[0]);
+
+    // Fix-feedback banner: when a fix is pending (about to yield to host)
+    // or freshly applied, show a one-line status so pressing `f` is never
+    // silent. Drawn on top of the summary row's right side; rendered last
+    // so it always wins the cell.
+    if let Some(banner) = build_fix_banner(state, theme) {
+        frame.render_widget(banner, chunks[0]);
+    }
 
     // Check list
     let list_block = Block::default()
@@ -206,6 +214,41 @@ fn detail_panel_height(state: &DoctorState, area: Rect) -> u16 {
     )
 }
 
+/// Build the right-aligned status banner shown when a fix is pending
+/// (about to yield to the host) or freshly applied. Returns `None` when
+/// neither state is active so the caller can skip the render.
+fn build_fix_banner<'a>(state: &'a DoctorState, theme: &EddaCraftTheme) -> Option<Paragraph<'a>> {
+    let (label, colour) = if state.pending_fix.is_some() {
+        let check_label = state
+            .checks
+            .get(state.selected)
+            .map_or("auto-fix", |c| c.name.as_str());
+        (
+            format!("Applying auto-fix: {check_label}..."),
+            theme.accent(),
+        )
+    } else if let Some(outcome) = &state.last_fix_outcome {
+        match outcome {
+            FixOutcomeBanner::Applied { summary } => {
+                (format!("\u{2713} {summary}"), theme.success())
+            }
+            FixOutcomeBanner::Refused { reason } => (format!("\u{26A0} {reason}"), theme.warning()),
+            FixOutcomeBanner::Failed { reason } => {
+                (format!("\u{2717} Fix failed: {reason}"), theme.error())
+            }
+        }
+    } else {
+        return None;
+    };
+
+    let line = Line::from(Span::styled(
+        label,
+        Style::default().fg(colour).add_modifier(Modifier::BOLD),
+    ))
+    .right_aligned();
+    Some(Paragraph::new(line))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -359,5 +402,98 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    // v0.5.0 — pressing `f` in the doctor surface yielded silently with
+    // no acknowledgement. Render a transient "Applying auto-fix..."
+    // banner before the TUI tears down, plus a "Fixed/Refused/Failed"
+    // outcome banner when the host re-enters after the fix.
+
+    fn buffer_contents(buf: &ratatui::buffer::Buffer) -> String {
+        (0..buf.area.height)
+            .map(|y| {
+                (0..buf.area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn renders_applying_banner_when_fix_pending() {
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        // Select the ESLint check (auto-fixable) and stamp a pending fix.
+        state.selected = 1;
+        state.pending_fix = Some(super::super::FixRequest::DoctorCheck { index: 1 });
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Applying auto-fix"),
+            "expected Applying banner; got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("ESLint config"),
+            "expected check name in banner"
+        );
+    }
+
+    #[test]
+    fn renders_applied_banner_after_fix() {
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.last_fix_outcome = Some(FixOutcomeBanner::Applied {
+            summary: "Installed git hooks".to_string(),
+        });
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Installed git hooks"),
+            "expected Applied summary; got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn renders_failed_banner_after_fix() {
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.last_fix_outcome = Some(FixOutcomeBanner::Failed {
+            reason: "Permission denied".to_string(),
+        });
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Permission denied"),
+            "expected Failed reason; got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn no_banner_when_idle() {
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            !rendered.contains("Applying auto-fix"),
+            "no Applying banner expected at rest; got:\n{rendered}"
+        );
     }
 }

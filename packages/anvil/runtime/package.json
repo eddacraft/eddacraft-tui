@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-runtime",
-  "version": "0.4.0-beta",
+  "version": "0.5.1",
   "description": "Runtime orchestration layer for Anvil — gate runner, file watching, caching, exports",
   "license": "PROPRIETARY",
   "type": "module",
@@ -11,10 +11,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./gate": {
-      "types": "./dist/gate/index.d.ts",
-      "import": "./dist/gate/index.js"
-    },
     "./cache": {
       "types": "./dist/cache/index.d.ts",
       "import": "./dist/cache/index.js"
@@ -22,10 +18,6 @@
     "./watch": {
       "types": "./dist/watch/index.d.ts",
       "import": "./dist/watch/index.js"
-    },
-    "./export": {
-      "types": "./dist/export/index.d.ts",
-      "import": "./dist/export/index.js"
     },
     "./feature-flags": {
       "types": "./dist/feature-flags/index.d.ts",

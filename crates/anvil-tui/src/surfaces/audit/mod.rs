@@ -135,11 +135,16 @@ impl AuditData {
 }
 
 /// State for the audit results surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct AuditState {
     pub data: AuditData,
     pub focused_panel: AuditPanel,
     pub selected_item: usize,
     pub expanded: bool,
+    /// When `true`, only the focused panel renders, taking the full
+    /// area. Same affordance as the watch surface — press `z` to
+    /// toggle, `esc` while zoomed exits zoom before navigating back.
+    pub zoomed: bool,
     pub should_quit: bool,
     pub wants_back: bool,
     pub pending_fix: Option<FixRequest>,
@@ -152,6 +157,7 @@ impl AuditState {
             focused_panel: AuditPanel::Project,
             selected_item: 0,
             expanded: false,
+            zoomed: false,
             should_quit: false,
             wants_back: false,
             pending_fix: None,
@@ -220,8 +226,18 @@ impl AuditState {
                     self.pending_fix = Some(request);
                 }
             }
+            Action::Character('z') => {
+                self.zoomed = !self.zoomed;
+                // Exiting zoom while expanded keeps the expansion; entering
+                // zoom collapses so the focused panel uses every row.
+                if self.zoomed {
+                    self.expanded = false;
+                }
+            }
             Action::Back => {
-                if self.expanded {
+                if self.zoomed {
+                    self.zoomed = false;
+                } else if self.expanded {
                     self.expanded = false;
                 } else {
                     self.wants_back = true;
@@ -237,11 +253,17 @@ impl AuditState {
 
 impl crate::surface::Surface for AuditState {
     fn surface_name(&self) -> &'static str {
-        "Audit"
+        if self.zoomed { "Audit [zoom]" } else { "Audit" }
     }
 
     fn help_text(&self) -> &'static str {
-        if self.expanded {
+        if self.zoomed {
+            if self.selected_issue_is_fixable() {
+                "j/k navigate  z unzoom  f fix  esc unzoom  q quit"
+            } else {
+                "j/k navigate  z unzoom  esc unzoom  q quit"
+            }
+        } else if self.expanded {
             if self.selected_issue_is_fixable() {
                 "j/k navigate  h/l switch panel  f fix  esc collapse  q quit"
             } else {
@@ -249,9 +271,9 @@ impl crate::surface::Surface for AuditState {
             }
         } else {
             if self.selected_issue_is_fixable() {
-                "j/k navigate  h/l switch panel  enter expand  f fix  esc back  q quit"
+                "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc back  q quit"
             } else {
-                "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+                "j/k navigate  h/l switch panel  enter expand  z zoom  esc back  q quit"
             }
         }
     }
@@ -474,13 +496,13 @@ mod tests {
         state.focused_panel = AuditPanel::Issues;
         assert_eq!(
             <AuditState as crate::surface::Surface>::help_text(&state),
-            "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+            "j/k navigate  h/l switch panel  enter expand  z zoom  esc back  q quit"
         );
 
         state.selected_item = 1;
         assert_eq!(
             <AuditState as crate::surface::Surface>::help_text(&state),
-            "j/k navigate  h/l switch panel  enter expand  f fix  esc back  q quit"
+            "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc back  q quit"
         );
     }
 

@@ -56,7 +56,15 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
         return Vec::new();
     }
     let matcher = PatternMatcher::new(&config.custom_allowlist);
-    let Ok(quoted_pattern) = Regex::new(r#"['\"]([^'\"]{16,})['\"]"#) else {
+    // Real secret tokens are dense alphanumeric runs with at most a few
+    // structure characters (`_/+=-`). Capturing any quoted run of 16+
+    // chars produced thousands of false positives in the v0.5.0 discovery
+    // scan: long Tailwind className strings, JSDoc/`nudge` prose, regex
+    // pattern definitions, and pnpm-lock.yaml peer-dep keys all crossed
+    // the entropy threshold. Mirroring `assignment_pattern`'s char class
+    // here rejects values containing spaces, parentheses, brackets,
+    // commas, dots, etc — none of which appear in actual secret tokens.
+    let Ok(quoted_pattern) = Regex::new(r#"['\"]([a-zA-Z0-9_/+=\-]{16,})['\"]"#) else {
         return Vec::new();
     };
     let Ok(assignment_pattern) = Regex::new(r#"[:=]\s*['\"]?([a-zA-Z0-9_/+=-]{16,})['\"]?"#) else {
@@ -158,5 +166,95 @@ mod tests {
         let findings = detect_high_entropy_strings(content, "src/test.ts", &config);
 
         assert!(findings.is_empty());
+    }
+
+    // v0.5.0 Discovery scan false positives — real strings that the
+    // entropy detector flagged in the anvil-001 codebase. None of these
+    // are secrets; they are prose, regex source, or CSS class lists.
+    // The fix is to require the captured value to consist of secret-
+    // shaped characters (no spaces, parens, brackets, commas, etc).
+
+    #[test]
+    fn does_not_flag_long_natural_prose_in_quoted_string() {
+        // From patterns/compiled/registry.json:210 — a "nudge" field
+        // (367 chars, entropy 4.70) the discovery scan flagged as
+        // High Entropy String. Spaces and punctuation make it not a
+        // secret-shaped value.
+        let config = SecretCheckConfig::default();
+        let content = "\"nudge\": \"This TODO has no tracking reference. Without a ticket number, issue\\nlink, or project reference, nobody will be reminded to do this work.\\n\\nAdd a reference: `// TODO(PROJ-123): description` or\\n`// TODO(#456): description`. If the work doesn't warrant a ticket,\\nconsider whether it warrants a TODO — either do it now or decide it's\\nnot important enough to track.\"";
+
+        let findings =
+            detect_high_entropy_strings(content, "patterns/compiled/registry.json", &config);
+
+        assert!(
+            findings.is_empty(),
+            "natural-prose string should not be flagged as a secret, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn does_not_flag_regex_pattern_source() {
+        // From patterns/deferred-debt/DD-003.anvil:18 (121 chars,
+        // entropy 4.74). Backslash-escapes, parens, brackets, pipes
+        // make this a regex source, not a secret value.
+        let config = SecretCheckConfig::default();
+        let content = r"  pattern: '//\s*(temporary|workaround|compat|shim|stopgap|interim)\b(?!.*(until|before|after|when|remove|drop|deadline|\d{4}-\d{2}))'";
+
+        let findings =
+            detect_high_entropy_strings(content, "patterns/deferred-debt/DD-003.anvil", &config);
+
+        assert!(
+            findings.is_empty(),
+            "regex pattern source should not be flagged as a secret, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn does_not_flag_tailwind_classname_lists() {
+        // The CSS-class case other users hit: a long Tailwind className
+        // string. Spaces disqualify it as a secret value.
+        let config = SecretCheckConfig::default();
+        let content = "<button className=\"rounded-md bg-indigo-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500\">";
+
+        let findings = detect_high_entropy_strings(content, "components/Button.tsx", &config);
+
+        assert!(
+            findings.is_empty(),
+            "Tailwind className list should not be flagged as a secret, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn still_flags_real_secret_shaped_quoted_value() {
+        // Regression guard: tightening quoted_pattern must not disable
+        // detection of high-entropy secret-shaped values. The same line
+        // matches both quoted and assignment patterns, so two findings
+        // is the contract of the existing detector.
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = "const token = '9xY7qW2vK8mN4pR6';";
+
+        let findings = detect_high_entropy_strings(content, "src/auth.ts", &config);
+
+        assert!(!findings.is_empty(), "secret-shaped value must still fire");
+        assert!(
+            findings
+                .iter()
+                .all(|f| f.finding_type == FindingType::Entropy)
+        );
     }
 }

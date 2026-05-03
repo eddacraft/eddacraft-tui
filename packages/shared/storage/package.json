@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/shared-storage",
-  "version": "0.4.0-beta",
+  "version": "0.5.1",
   "description": "File system and persistence abstractions",
   "type": "module",
   "main": "./dist/index.js",

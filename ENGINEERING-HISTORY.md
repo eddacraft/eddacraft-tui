@@ -9,6 +9,41 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
+## [0.5.1]
+
+### Scanner Signal Hardening
+
+- **Secret false-positive reductions** — generic secret matching now requires a
+  stronger right-hand-side shape, credit-card detection rejects UUID fragments,
+  and entropy matching focuses on secret-shaped quoted values.
+- **Antipattern suppression alignment** — `AP-*` checks now honour local
+  `eslint-disable` directives, and `GS-001` avoids reporting guarded `Map.get`
+  after `has`/`set` flows.
+- **Audit input filtering** — audit scans skip broader environment-template
+  files while still reporting real `.env` files regardless of directory.
+
+### Kernel Incremental Graph Fixes
+
+- **Synthetic import ID allocation** — watch graph updates now keep synthetic
+  import IDs out of the allocator's file-ID range so incremental updates do not
+  collide with real source files.
+- **Import-source ID zero handling** — `update_file` now treats ID `0` as a
+  valid import source, preserving edges that previously disappeared when the
+  first allocated file participated in import analysis.
+
+### TUI & Release Operations
+
+- **TUI interaction fixes** — audit, status, and watch surfaces support zooming;
+  doctor acknowledges `f` to fix; tutorial path selection has more room for
+  wrapped options.
+- **TypeScript scanner retirement** — the archived TypeScript scanner stack and
+  parity harness now live under `archive/anvil-ts-scanner/`, with the Rust
+  scanner remaining authoritative; stale scanner-era package subpath exports
+  were removed from `@eddacraft/anvil-core` and `@eddacraft/anvil-runtime`.
+- **PR base guard** — a release-sensitive PR base guard workflow now detects the
+  branch-targeting mistake that caused the post-`v0.5.0-beta` recovery work when
+  repository branch protection requires the check.
+
 ## [0.5.0-beta]
 
 ### Git Hook Compatibility (GHOOK)

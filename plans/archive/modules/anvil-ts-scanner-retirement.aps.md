@@ -12,9 +12,17 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| TSRET | —     | Complete    | 3/5 active (1 superseded — terminal state reached on `chore/TSRET-005`) |
+| TSRET | —     | Complete    | 3/3 active (3 superseded — terminal state reached on `chore/TSRET-005`) |
 
-> **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
+> **Post-close gap audit (2026-05-02):** TSRET-005 completed the archive, but
+> several scanner-adjacent capabilities now need explicit active ownership or
+> retirement decisions: stale `@eddacraft/anvil-core` subpath exports,
+> `.anvil` compiler namespace ownership, drift snapshot/reporting, constraint
+> export APIs, persistent suppression store/service semantics, AP-* explain
+> content, and MCP resource/prompt return paths. These are tracked in
+> [TSGAP](../../modules/scanner-adjacent-ts-retirement.aps.md); TSRET remains Complete.
+>
+> **Plan change (2026-04-29, [ADR-033](../../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The IDE/MCP surfaces this module's TS code exists for are
 > **archived** — the VSCode extension is now at
 > `archive/anvil-vscode-extension/` and the TS MCP server is at
@@ -63,9 +71,9 @@ DRVR), and the TS scanner is deleted once no surface imports it
 remains as an internal acceleration path for the CLI only; no npm
 publication, no per-consumer embedding.
 
-Authoritative ADRs: [ADR-026](../decisions/026-rust-scanner-authoritative.md)
+Authoritative ADRs: [ADR-026](../../decisions/026-rust-scanner-authoritative.md)
 (Rust scanner authoritative) and
-[ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
+[ADR-030](../../decisions/030-surface-drivers-supersede-napi-cutover.md)
 (surface drivers supersede napi cutover).
 
 ## Background

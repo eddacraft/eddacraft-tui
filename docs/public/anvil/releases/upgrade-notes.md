@@ -9,7 +9,60 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.5.0-beta
+## Current Version: 0.5.1
+
+## Upgrading to 0.5.1
+
+CLI upgrade from `0.5.0-beta`. This release focuses on scanner signal quality,
+TUI interaction fixes, incremental graph correctness, and release workflow
+hardening. TypeScript package consumers should note that archived scanner-era
+subpath exports were removed from `@eddacraft/anvil-core` and
+`@eddacraft/anvil-runtime`.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.5.1
+
+- **Secret scanner false-positive reductions** — generic secret matching now
+  requires a stronger right-hand-side shape, credit-card detection rejects UUID
+  fragments, and entropy matching focuses on secret-shaped quoted values.
+- **Antipattern suppression fixes** — `AP-*` checks now honour local
+  `eslint-disable` directives and avoid reporting guarded `Map.get` after
+  `has`/`set` flows as `GS-001`.
+- **Audit path filtering** — audit scans skip broader environment-template files
+  while still reporting real `.env` files regardless of directory.
+- **TUI interaction polish** — audit, status, and watch surfaces support
+  zooming; doctor acknowledges `f` to fix; tutorial path selection has more room
+  for wrapped options.
+- **Incremental graph correctness** — watch updates now avoid synthetic import
+  ID collisions and preserve import-source ID `0`, preventing missed import
+  edges in refreshed symbol graphs.
+- **TypeScript package subpath cleanup** — archived scanner-era subpaths for
+  antipattern, suppression, drift, gate, and export flows are no longer
+  exported; use the Rust CLI surfaces instead.
+- **Release safety** — the PR base guard workflow now detects release-sensitive
+  PRs targeting the wrong branch when repository branch protection requires the
+  check.
 
 ## Upgrading to 0.5.0-beta
 

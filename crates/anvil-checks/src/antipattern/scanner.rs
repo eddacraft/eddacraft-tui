@@ -256,26 +256,186 @@ pub fn parse_suppression(line: &str) -> Option<(String, String)> {
     Some((id.to_string(), reason.to_string()))
 }
 
+/// Map an `ESLint` rule name (or `None` for a bare `eslint-disable-next-line`)
+/// to the Anvil rule IDs it suppresses. The mapping covers the `AP`/`GS` family
+/// rules that overlap with standard `@typescript-eslint/*` lints. A bare
+/// directive (no rule name) suppresses the whole family because the user
+/// has explicitly opted out of *some* lint and Anvil should not double-flag.
+fn eslint_rule_suppresses_anvil(eslint_rule: Option<&str>, anvil_id: &str) -> bool {
+    match eslint_rule {
+        // Bare `eslint-disable-next-line` with no rule — broad opt-out.
+        None => matches!(
+            anvil_id,
+            "AP-001" | "AP-002" | "AP-003" | "AP-004" | "AP-005" | "AP-006" | "AP-007" | "GS-001"
+        ),
+        Some(rule) => match rule {
+            "@typescript-eslint/no-explicit-any" => anvil_id == "AP-003",
+            "@typescript-eslint/ban-ts-comment" => anvil_id == "AP-004" || anvil_id == "AP-005",
+            "@typescript-eslint/no-non-null-assertion" => anvil_id == "GS-001",
+            "no-empty" => anvil_id == "AP-006",
+            "no-console" => anvil_id == "AP-007",
+            _ => false,
+        },
+    }
+}
+
+static ESLINT_DISABLE_NEXT_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    // Captures: (1) optional rule list (comma-separated), (2) optional reason.
+    // The trailing `--` reason is convention; when absent the comment may end
+    // at end-of-line or have a `*/` block close.
+    Regex::new(
+        r"(?://|/\*)\s*eslint-disable-next-line(?:\s+([^\s/].*?))?\s*(?:--\s*(.+?))?\s*(?:\*/|$)",
+    )
+    .expect("eslint-disable-next-line regex must compile")
+});
+
+static ESLINT_DISABLE_BLOCK_OPEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"/\*\s*eslint-disable(?:\s+([^*]+?))?\s*\*/")
+        .expect("eslint-disable block-open regex must compile")
+});
+
+static ESLINT_DISABLE_BLOCK_CLOSE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"/\*\s*eslint-enable(?:\s+([^*]+?))?\s*\*/")
+        .expect("eslint-disable block-close regex must compile")
+});
+
+/// Parsed contents of an `ESLint` suppression directive.
+struct EslintDirective {
+    rules: Vec<String>,
+    reason: Option<String>,
+}
+
+fn parse_eslint_directive(captures: &regex::Captures<'_>) -> EslintDirective {
+    let rules = captures
+        .get(1)
+        .map(|m| {
+            m.as_str()
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let reason = captures
+        .get(2)
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty());
+    EslintDirective { rules, reason }
+}
+
+fn directive_suppresses(directive: &EslintDirective, anvil_id: &str) -> Option<String> {
+    let matches_rule = if directive.rules.is_empty() {
+        eslint_rule_suppresses_anvil(None, anvil_id)
+    } else {
+        directive
+            .rules
+            .iter()
+            .any(|rule| eslint_rule_suppresses_anvil(Some(rule), anvil_id))
+    };
+    if !matches_rule {
+        return None;
+    }
+    Some(
+        directive
+            .reason
+            .clone()
+            .unwrap_or_else(|| "eslint-disable directive".to_string()),
+    )
+}
+
+/// Look at the line immediately preceding `line_number` (1-based) for a
+/// `// eslint-disable-next-line` directive that suppresses `anvil_id`.
+fn eslint_next_line_suppression(
+    lines: &[&str],
+    line_number: usize,
+    anvil_id: &str,
+) -> Option<String> {
+    if line_number <= 1 {
+        return None;
+    }
+    let prior = lines[line_number - 2];
+    let captures = ESLINT_DISABLE_NEXT_LINE.captures(prior)?;
+    directive_suppresses(&parse_eslint_directive(&captures), anvil_id)
+}
+
+/// Walk lines preceding `line_number` looking for an unmatched
+/// `/* eslint-disable [rule] */` (no later `/* eslint-enable */`
+/// closes it before reaching the current line). Returns the reason
+/// when such a block exists and covers `anvil_id`.
+fn eslint_block_suppression(lines: &[&str], line_number: usize, anvil_id: &str) -> Option<String> {
+    if line_number <= 1 {
+        return None;
+    }
+    // Walk backwards. The first relevant marker we find decides:
+    // an `eslint-enable` means the most recent block already closed,
+    // so no suppression applies. An `eslint-disable` with a matching
+    // rule (or no rule) means we are inside a covering block.
+    for prior in lines[..line_number - 1].iter().rev() {
+        if let Some(caps) = ESLINT_DISABLE_BLOCK_CLOSE.captures(prior) {
+            // If this enables the specific rule we're checking (or
+            // is a bare enable), the block is closed — stop scanning.
+            let directive = parse_eslint_directive(&caps);
+            if directive.rules.is_empty()
+                || directive
+                    .rules
+                    .iter()
+                    .any(|rule| eslint_rule_suppresses_anvil(Some(rule), anvil_id))
+            {
+                return None;
+            }
+        }
+        if let Some(caps) = ESLINT_DISABLE_BLOCK_OPEN.captures(prior)
+            && let Some(reason) = directive_suppresses(&parse_eslint_directive(&caps), anvil_id)
+        {
+            return Some(reason);
+        }
+    }
+    None
+}
+
 fn suppression_for_line(
     lines: &[&str],
     line_number: usize,
     pattern_id: &str,
 ) -> Option<Suppression> {
-    if line_number <= 1 {
-        return None;
-    }
-    let previous_line = lines[line_number - 2];
-    let (id, reason) = parse_suppression(previous_line)?;
-    if id != pattern_id {
-        return None;
+    // Anvil's native directive takes precedence — same line above the
+    // finding, with explicit pattern_id match.
+    if line_number > 1 {
+        let previous_line = lines[line_number - 2];
+        if let Some((id, reason)) = parse_suppression(previous_line)
+            && id == pattern_id
+        {
+            return Some(Suppression {
+                reason,
+                author: None,
+                timestamp: None,
+                scope: SuppressionScope::Line,
+            });
+        }
     }
 
-    Some(Suppression {
-        reason,
-        author: None,
-        timestamp: None,
-        scope: SuppressionScope::Line,
-    })
+    // ESLint-disable-next-line: same call site, mapped to Anvil family.
+    if let Some(reason) = eslint_next_line_suppression(lines, line_number, pattern_id) {
+        return Some(Suppression {
+            reason,
+            author: None,
+            timestamp: None,
+            scope: SuppressionScope::Line,
+        });
+    }
+
+    // ESLint block disable: any earlier `/* eslint-disable [rule] */`
+    // not yet closed by `/* eslint-enable */`.
+    if let Some(reason) = eslint_block_suppression(lines, line_number, pattern_id) {
+        return Some(Suppression {
+            reason,
+            author: None,
+            timestamp: None,
+            scope: SuppressionScope::Line,
+        });
+    }
+
+    None
 }
 
 fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
@@ -505,7 +665,74 @@ pub fn registry_compile_diagnostics() -> Vec<CompileDiagnostic> {
         .collect()
 }
 
-fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
+/// Number of preceding lines GS-001 inspects when checking for a
+/// guarded Map.get / Map.set / Map.has idiom. 8 covers the typical
+/// "ensure key exists, then push" pattern across reasonable nesting;
+/// if the guard sits further away the code is suspect anyway.
+const GS001_GUARD_LOOKBACK: usize = 8;
+
+static GS001_GET_KEY: LazyLock<Regex> = LazyLock::new(|| {
+    // Anchored to end-of-haystack so we extract the `.get(<key>)!`
+    // immediately preceding the match. The GS-001 base regex's
+    // character class excludes `(`, so the matched span often only
+    // covers `pattern)!`; we look at the prefix of the line up to
+    // match_end and find the `.get(<key>)!` that ends there.
+    Regex::new(r"([A-Za-z_][A-Za-z0-9_.]*)\.get\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)!\s*$")
+        .expect("GS-001 get-key extractor must compile")
+});
+
+static GS001_MAP_GUARD: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"([A-Za-z_][A-Za-z0-9_.]*)\.(?:has|set)\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(?:[,\)])")
+        .expect("GS-001 map guard extractor must compile")
+});
+
+/// Return `true` when the `<receiver>.get(<key>)!` match has a
+/// preceding `.has(<key>)` or `.set(<key>, ...)` guard within the
+/// look-back window — the canonical "lazily populate this Map then
+/// dereference" idiom whose runtime guarantee is explicit but
+/// invisible to the line-local regex.
+fn gs001_is_guarded_map_get(
+    line: &str,
+    _match_start: usize,
+    match_end: usize,
+    lines: &[&str],
+    line_index: usize,
+) -> bool {
+    let prefix = line.get(..match_end).unwrap_or("");
+    let Some(captures) = GS001_GET_KEY.captures(prefix) else {
+        return false;
+    };
+    let Some(receiver) = captures.get(1) else {
+        return false;
+    };
+    let Some(key) = captures.get(2) else {
+        return false;
+    };
+    let receiver = receiver.as_str();
+    let key = key.as_str();
+
+    let start = line_index.saturating_sub(GS001_GUARD_LOOKBACK);
+    for prior in &lines[start..line_index] {
+        if GS001_MAP_GUARD.captures_iter(prior).any(|guard| {
+            guard
+                .get(1)
+                .is_some_and(|guard_receiver| guard_receiver.as_str() == receiver)
+                && guard
+                    .get(2)
+                    .is_some_and(|guard_key| guard_key.as_str() == key)
+        }) {
+            return true;
+        }
+    }
+    false
+}
+
+fn find_match_columns(
+    prepared: &PreparedPattern,
+    line: &str,
+    lines: &[&str],
+    line_index: usize,
+) -> Vec<usize> {
     if prepared.pattern.id == "AP-001" {
         let mut columns = Vec::new();
         if let Some(regex) = &prepared.primary_regex {
@@ -518,6 +745,8 @@ fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
         return columns;
     }
 
+    let is_gs001 = prepared.pattern.id == "GS-001";
+
     prepared
         .primary_regex
         .as_ref()
@@ -527,6 +756,16 @@ fn find_match_columns(prepared: &PreparedPattern, line: &str) -> Vec<usize> {
                 .filter(|matched| match &prepared.post_filter {
                     None => true,
                     Some(filter) => post_filter_accepts(filter, line, matched.end()),
+                })
+                .filter(|matched| {
+                    !is_gs001
+                        || !gs001_is_guarded_map_get(
+                            line,
+                            matched.start(),
+                            matched.end(),
+                            lines,
+                            line_index,
+                        )
                 })
                 .map(|matched| matched.start())
                 .collect()
@@ -590,7 +829,7 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
 
         for (line_index, line) in lines.iter().enumerate() {
             let line_number = line_index + 1;
-            let columns = find_match_columns(prepared, line);
+            let columns = find_match_columns(prepared, line, &lines, line_index);
             for column in columns {
                 let suppressed = if is_source {
                     suppression_for_line(&lines, line_number, &prepared.pattern.id)
@@ -775,6 +1014,131 @@ mod tests {
 
         assert_eq!(result.warnings.len(), 1);
         assert!(result.warnings[0].suppressed.is_some());
+    }
+
+    // v0.5.0 ESLint-disable awareness — an explicit
+    // `// eslint-disable-next-line` directive (with or without a
+    // reason after `--`) is a documented suppression of the same
+    // class of issue Anvil's AP-* family flags. Honouring it lets
+    // existing TS/JS suppressions co-exist with Anvil without forcing
+    // double-suppression via `@anvil-ignore`.
+
+    #[test]
+    fn eslint_disable_next_line_suppresses_ap003() {
+        let content = "// eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]\noverride on(event: string, listener: (...args: any[]) => void): this {";
+        let result = scan_file("src/file-watcher.ts", content, None);
+        let unsuppressed: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "AP-003" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            unsuppressed.is_empty(),
+            "eslint-disable-next-line for no-explicit-any should suppress AP-003"
+        );
+    }
+
+    #[test]
+    fn eslint_disable_next_line_without_rule_suppresses_ap_family() {
+        let content = "// eslint-disable-next-line\nconst v: any = input;";
+        let result = scan_file("src/app.ts", content, None);
+        let unsuppressed: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "AP-003" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            unsuppressed.is_empty(),
+            "bare eslint-disable-next-line should suppress AP family"
+        );
+    }
+
+    #[test]
+    fn eslint_disable_block_suppresses_following_lines() {
+        let content = "/* eslint-disable @typescript-eslint/no-explicit-any */\nconst v: any = input;\nconst w: any = other;";
+        let result = scan_file("src/app.ts", content, None);
+        let unsuppressed: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "AP-003" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            unsuppressed.is_empty(),
+            "block eslint-disable should suppress AP-003 on subsequent lines"
+        );
+    }
+
+    #[test]
+    fn eslint_disable_does_not_suppress_unrelated_findings() {
+        // An eslint-disable-next-line still on the SAME line as a
+        // *different* issue should not over-reach. AP-006 (empty
+        // catch) and AP-003 are independent.
+        let content = "try { go() } catch (e) {}\n// eslint-disable-next-line @typescript-eslint/no-explicit-any\nconst v: any = input;";
+        let result = scan_file("src/app.ts", content, None);
+        let ap006_unsuppressed: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "AP-006" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            !ap006_unsuppressed.is_empty(),
+            "AP-006 (empty catch) should still fire when only AP-003 was suppressed"
+        );
+    }
+
+    // v0.5.0 GS-001 false positives — the Map.get-after-has-set idiom
+    // is a canonical guarded-lookup pattern flagged by the regex despite
+    // the runtime guarantee being explicit. Reproduces from
+    // packages/adapters/src/base/file-discovery.ts:301 and
+    // packages/anvil/runtime/src/export/formatters/llms-txt-formatter.ts:195.
+
+    #[test]
+    fn does_not_flag_guarded_map_get_after_has_set() {
+        let content = "    if (!groups.has(pattern)) {\n      groups.set(pattern, []);\n    }\n    groups.get(pattern)!.push(file);";
+        let result = scan_file("src/grouper.ts", content, None);
+        let gs_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            gs_warnings.is_empty(),
+            "guarded Map.get should not trigger GS-001, got: {:?}",
+            gs_warnings
+                .iter()
+                .map(|w| w.location.line)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn does_not_flag_guarded_map_get_with_indented_block() {
+        // Wider indentation, deeper nesting — shape that matches the
+        // actual `prompt-formatter.ts:198` site.
+        let content = "      const byCategory = new Map();\n      for (const pattern of constraints.antiPatterns) {\n        const category = pattern.category;\n        if (!byCategory.has(category)) {\n          byCategory.set(category, []);\n        }\n        byCategory.get(category)!.push(pattern);\n      }";
+        let result = scan_file("src/formatter.ts", content, None);
+        let gs_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            gs_warnings.is_empty(),
+            "guarded Map.get inside a for loop should not trigger GS-001"
+        );
+    }
+
+    #[test]
+    fn still_flags_unguarded_non_null_assertion() {
+        // Regression guard: a bare `obj!.prop` with no preceding guard
+        // on the same key must still fire.
+        let content = "function unsafe(maybe?: Foo) {\n  return maybe!.value;\n}";
+        let result = scan_file("src/unsafe.ts", content, None);
+        let has_gs001 = result
+            .warnings
+            .iter()
+            .any(|w| w.id == "GS-001" && w.suppressed.is_none());
+        assert!(has_gs001, "unguarded `maybe!.value` must still fire GS-001");
     }
 
     #[test]
@@ -1090,6 +1454,44 @@ mod tests {
         // Negative: `value!!` double-bang is not a non-null assert under the
         // original positive-lookahead spec.
         assert!(scan_with("GS-001", "src/a.ts", "const x = value!!foo;\n").is_empty(),);
+    }
+
+    #[test]
+    fn gs001_guarded_map_get_requires_same_receiver() {
+        let _ = registry_pattern("GS-001");
+
+        assert!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!cache.has(id)) cache.set(id, []);\ncache.get(id)!.push(value);\n",
+            )
+            .is_empty(),
+        );
+        assert_eq!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!other.has(id)) other.set(id, []);\ncache.get(id)!.push(value);\n",
+            ),
+            vec!["GS-001:2"],
+        );
+        assert_eq!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!other.cache.has(id)) other.cache.set(id, []);\ncache.get(id)!.push(value);\n",
+            ),
+            vec!["GS-001:2"],
+        );
+        assert_eq!(
+            scan_with(
+                "GS-001",
+                "src/a.ts",
+                "if (!cache.has(id2)) cache.set(id2, []);\ncache.get(id)!.push(value);\n",
+            ),
+            vec!["GS-001:2"],
+        );
     }
 
     #[test]

@@ -128,12 +128,18 @@ impl WatchPanel {
 }
 
 /// State for the watch dashboard surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct WatchState {
     pub data: WatchData,
     pub focused_panel: WatchPanel,
     pub selected_item: usize,
     pub should_quit: bool,
     pub wants_back: bool,
+    /// When `true`, the focused panel fills the entire surface area
+    /// instead of sharing the 2x2 grid. Toggle via `z`. Useful in
+    /// narrow IDE side panes where the four-up layout becomes
+    /// unreadable.
+    pub zoomed: bool,
     pub(crate) anim_pass_rate: AnimatedF64,
     pub(crate) anim_pass_rate_target: f64,
     pub(crate) anim_avg_duration_ms: AnimatedF64,
@@ -155,6 +161,7 @@ impl WatchState {
             selected_item: 0,
             should_quit: false,
             wants_back: false,
+            zoomed: false,
             anim_pass_rate: animated_f64(pass_rate),
             anim_pass_rate_target: pass_rate,
             anim_avg_duration_ms: animated_f64(avg_duration_ms),
@@ -254,6 +261,16 @@ impl WatchState {
                 self.selected_item = 0;
                 self.mark_dirty();
             }
+            Action::Character('z') => {
+                self.zoomed = !self.zoomed;
+                self.mark_dirty();
+            }
+            Action::Back if self.zoomed => {
+                // First press exits zoom; second press goes back. Lets users
+                // un-zoom without losing context.
+                self.zoomed = false;
+                self.mark_dirty();
+            }
             Action::Back => {
                 self.wants_back = true;
                 self.mark_dirty();
@@ -296,11 +313,15 @@ impl NotificationSource for WatchState {
 
 impl crate::surface::Surface for WatchState {
     fn surface_name(&self) -> &'static str {
-        "Watch"
+        if self.zoomed { "Watch [zoom]" } else { "Watch" }
     }
 
     fn help_text(&self) -> &'static str {
-        "\u{2191}\u{2193}/jk scroll  \u{2190}\u{2192}/hl panel  esc back  q quit"
+        if self.zoomed {
+            "\u{2191}\u{2193}/jk scroll  z unzoom  esc unzoom  q quit"
+        } else {
+            "\u{2191}\u{2193}/jk scroll  \u{2190}\u{2192}/hl panel  z zoom  esc back  q quit"
+        }
     }
 
     fn handle_key(&mut self, action: eddacraft_tui::keyboard::Action) {

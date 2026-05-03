@@ -95,17 +95,13 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
 
     // Use the first added symbol as the edge origin. If the file has no
     // symbols (side-effect-only module), create a synthetic Module node
-    // so import edges are still recorded.
-    let from_id = if let Some(&id) = added_ids.first() {
-        id
+    // so import edges are still recorded. None means we have no usable
+    // source node — id 0 is a legitimate symbol id and must not be used
+    // as a sentinel here.
+    let from_id: Option<u64> = if let Some(&id) = added_ids.first() {
+        Some(id)
     } else if !new_symbols.imports.is_empty() {
-        let synthetic_id = graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .unwrap_or(0)
-            + 1;
+        let synthetic_id = graph.next_id();
         let synthetic = SymbolNode {
             id: synthetic_id,
             kind: SymbolKind::Module,
@@ -116,30 +112,29 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         };
         if graph.add_symbol(synthetic).is_ok() {
             added_ids.push(synthetic_id);
-            synthetic_id
+            Some(synthetic_id)
         } else {
-            0 // won't match, edges will be skipped
+            None
         }
     } else {
-        0
+        None
     };
 
     let mut added_edges = Vec::new();
-    for import in new_symbols.imports {
-        if from_id == 0 {
-            continue;
-        }
-        // Resolve the import specifier to a known file path
-        let to_id = resolve_import(&import.to_source, &file, &known_files, graph);
+    if let Some(from) = from_id {
+        for import in new_symbols.imports {
+            // Resolve the import specifier to a known file path
+            let to_id = resolve_import(&import.to_source, &file, &known_files, graph);
 
-        if let Some(to) = to_id {
-            let edge = anvil_kernel_types::SymbolEdge {
-                from: from_id,
-                to,
-                edge_type: EdgeType::Imports,
-            };
-            if graph.add_edge(edge).is_ok() {
-                added_edges.push((from_id, to, EdgeType::Imports));
+            if let Some(to) = to_id {
+                let edge = anvil_kernel_types::SymbolEdge {
+                    from,
+                    to,
+                    edge_type: EdgeType::Imports,
+                };
+                if graph.add_edge(edge).is_ok() {
+                    added_edges.push((from, to, EdgeType::Imports));
+                }
             }
         }
     }
@@ -177,13 +172,7 @@ pub(crate) fn resolve_import(
             return Some(existing.id);
         }
         // Create a synthetic external node
-        let ext_id = graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .unwrap_or(0)
-            + 1;
+        let ext_id = graph.next_id();
         let ext_node = SymbolNode {
             id: ext_id,
             kind: SymbolKind::Module,
@@ -698,5 +687,163 @@ mod tests {
         assert_eq!(delta.removed_symbols.len(), 1);
         assert_eq!(delta.added_symbols.len(), 1);
         assert_eq!(g.node_count(), 1);
+    }
+
+    /// Regression test for the watch-mode "duplicate symbol id" cascade.
+    ///
+    /// Before the fix, `update_file` and `resolve_import` allocated
+    /// synthetic external/module ids by calling
+    /// `graph.node_weights().map(|s| s.id).max() + 1`, independent of the
+    /// caller's per-file id allocator. When watch.rs picked the next file's
+    /// `base_id` from its own `state.next_id` counter, that counter still
+    /// pointed at the slot already taken by the synthetic external node,
+    /// and every subsequent `add_symbol` returned `DuplicateSymbol`.
+    ///
+    /// After the fix, ids flow through `graph.next_id()`, so callers that
+    /// take `(base + count).max(graph.next_id())` cannot land on a slot
+    /// the graph already owns.
+    #[test]
+    fn external_synthetic_does_not_collide_with_next_files_base_id() {
+        use crate::parser::extract::ImportEdge;
+
+        let mut g = SymbolGraph::new();
+
+        // File a.ts: 3 symbols (ids 1,2,3) and a bare "axios" import that
+        // creates a synthetic external node. Ids start at 1 to keep this
+        // test focused on the duplicate-id cascade; id-0 sources are
+        // covered separately by `id_zero_first_symbol_still_emits_import_edges`.
+        let a = FileSymbols {
+            file: "a.ts".to_string(),
+            symbols: vec![
+                SymbolNode {
+                    id: 1,
+                    kind: SymbolKind::Function,
+                    name: "f0".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "a.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: 2,
+                    kind: SymbolKind::Function,
+                    name: "f1".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "a.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: 3,
+                    kind: SymbolKind::Function,
+                    name: "f2".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "a.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+            ],
+            imports: vec![ImportEdge {
+                from_file: "a.ts".to_string(),
+                to_source: "axios".to_string(),
+                line: 0,
+            }],
+        };
+        let delta_a = update_file(&mut g, a);
+        assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
+
+        // The synthetic axios node consumed id 4 (one past the last file
+        // symbol id of 3), so the graph's allocator advances to 5.
+        assert!(
+            g.next_id() > 4,
+            "graph.next_id() must reflect the synthetic external node, got {}",
+            g.next_id()
+        );
+
+        // Mimic watch.rs's per-file allocator: take the high-water mark
+        // from the graph rather than naively incrementing by symbol count.
+        let base_id = g.next_id();
+        let b = FileSymbols {
+            file: "b.ts".to_string(),
+            symbols: vec![
+                SymbolNode {
+                    id: base_id,
+                    kind: SymbolKind::Function,
+                    name: "g0".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "b.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: base_id + 1,
+                    kind: SymbolKind::Function,
+                    name: "g1".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "b.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+            ],
+            imports: vec![],
+        };
+        let delta_b = update_file(&mut g, b);
+        assert!(
+            delta_b.errors.is_empty(),
+            "second file must not collide with the synthetic external id, errors: {:?}",
+            delta_b.errors
+        );
+        assert_eq!(delta_b.added_symbols.len(), 2);
+    }
+
+    /// Regression test for the symbol-id-zero sentinel.
+    ///
+    /// `update_file` previously used `from_id == 0` as a "no source node"
+    /// marker, so the very first file in a fresh watch session — whose
+    /// first symbol gets id 0 from the per-file allocator — silently
+    /// dropped every import edge. Switching the marker to `Option<u64>`
+    /// makes id 0 a valid source.
+    #[test]
+    fn id_zero_first_symbol_still_emits_import_edges() {
+        use crate::parser::extract::ImportEdge;
+
+        let mut g = SymbolGraph::new();
+
+        // Pre-add the import target so resolve_import returns Some.
+        g.add_symbol(SymbolNode {
+            id: 50,
+            kind: SymbolKind::Module,
+            name: "axios".to_string(),
+            visibility: Visibility::Public,
+            file: "axios".to_string(),
+            trust_level: TrustLevel::External,
+        })
+        .unwrap();
+
+        // First file in a fresh watch session: its first symbol takes
+        // id 0 (state.next_id starts at 0). Before the fix this id-0
+        // value was treated as "no source", so the axios import edge
+        // was never added.
+        let syms = FileSymbols {
+            file: "src/main.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 0,
+                kind: SymbolKind::Function,
+                name: "main".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/main.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/main.ts".to_string(),
+                to_source: "axios".to_string(),
+                line: 0,
+            }],
+        };
+
+        let delta = update_file(&mut g, syms);
+
+        assert_eq!(
+            delta.added_edges.len(),
+            1,
+            "id-0 source must still record import edges"
+        );
+        assert_eq!(delta.added_edges[0].0, 0);
+        assert_eq!(delta.added_edges[0].1, 50);
     }
 }
