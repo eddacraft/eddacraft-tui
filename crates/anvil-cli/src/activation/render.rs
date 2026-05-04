@@ -345,10 +345,15 @@ mod tests {
         // Round-2 council: the Unsupported hint must not over-claim
         // that watch runs secrets-only on unsupported files — that
         // isolation is owned by LAUNCH-016 and is not yet wired.
-        let h = render_human(&unsupported());
+        // Round-3 council: pin against any combined claim of "secret"
+        // + "watch" coverage so a future copy edit cannot reintroduce
+        // the over-claim under different wording.
+        let h = render_human(&unsupported()).to_lowercase();
+        let mentions_secrets = h.contains("secret");
+        let mentions_watch = h.contains("watch");
         assert!(
-            !h.to_lowercase().contains("secrets checks still run"),
-            "Unsupported hint must not claim secrets-only watch coverage: {h}"
+            !(mentions_secrets && mentions_watch),
+            "Unsupported hint must not pair `secret` and `watch` to imply coverage: {h}"
         );
     }
 }

@@ -266,61 +266,59 @@ fn probe_config_status(root: &Path) -> ConfigStatus {
         return ConfigStatus::Invalid;
     }
 
-    // The init command writes one of JSON, YAML, or TOML — accept
-    // any parser succeeding as proof of validity. This matches the
-    // `gather_profile` heuristic in `commands::status`. A bare
-    // `null`, comment-only file, or other semantically-empty parse
-    // result still represents a corrupted / missing config, so
-    // [`is_semantically_empty_value`] rejects those even though the
-    // parser accepts them.
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        return if is_semantically_empty_json(&v) {
-            ConfigStatus::Invalid
-        } else {
-            ConfigStatus::Valid
-        };
+    // The init command writes one of JSON, YAML, or TOML. Try each
+    // parser in turn — accept the first one that produces a
+    // non-empty top-level object / table / mapping (the only valid
+    // `.anvilrc` shape). Fall through to the next parser on a
+    // semantically-empty parse so a strict TOML config is not
+    // pre-empted by YAML's permissive scalar parse. JSON is tried
+    // first because it has the strictest grammar; TOML before YAML
+    // because YAML accepts almost any byte sequence as a scalar.
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed)
+        && !is_semantically_empty_json(&v)
+    {
+        return ConfigStatus::Valid;
     }
-    if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(trimmed) {
-        return if is_semantically_empty_yaml(&v) {
-            ConfigStatus::Invalid
-        } else {
-            ConfigStatus::Valid
-        };
+    if let Ok(v) = toml::from_str::<toml::Value>(trimmed)
+        && !is_semantically_empty_toml(&v)
+    {
+        return ConfigStatus::Valid;
     }
-    if let Ok(v) = toml::from_str::<toml::Value>(trimmed) {
-        return if is_semantically_empty_toml(&v) {
-            ConfigStatus::Invalid
-        } else {
-            ConfigStatus::Valid
-        };
+    if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(trimmed)
+        && !is_semantically_empty_yaml(&v)
+    {
+        return ConfigStatus::Valid;
     }
 
     ConfigStatus::Invalid
 }
 
+// `.anvilrc` MUST have a non-empty object / mapping / table at the
+// top level — that is the only shape `init` and the parsers in
+// `commands::status::gather_profile` recognise. Any other top-level
+// shape (null, bare scalar, array) is semantically empty regardless
+// of whether the parser accepted it. Round-3 council remediation:
+// rejecting on shape is stricter than the original "Null only" rule
+// and closes the `[null]` / bare-array / bare-scalar gaps.
+
 fn is_semantically_empty_json(v: &serde_json::Value) -> bool {
     match v {
-        serde_json::Value::Null => true,
         serde_json::Value::Object(map) => map.is_empty(),
-        serde_json::Value::Array(arr) => arr.is_empty(),
-        _ => false,
+        _ => true,
     }
 }
 
 fn is_semantically_empty_yaml(v: &serde_yaml::Value) -> bool {
     match v {
-        serde_yaml::Value::Null => true,
         serde_yaml::Value::Mapping(m) => m.is_empty(),
-        serde_yaml::Value::Sequence(s) => s.is_empty(),
-        _ => false,
+        _ => true,
     }
 }
 
 fn is_semantically_empty_toml(v: &toml::Value) -> bool {
     match v {
         toml::Value::Table(t) => t.is_empty(),
-        toml::Value::Array(a) => a.is_empty(),
-        _ => false,
+        _ => true,
     }
 }
 
@@ -627,18 +625,69 @@ mod tests {
     }
 
     #[test]
-    fn verify_flags_empty_toml_table_config_as_valid_only_when_keys_present() {
-        // Bare TOML produces an empty table; that's semantically
-        // empty and should be Invalid.
+    fn verify_flags_toml_comment_only_config_as_invalid() {
+        // TOML with only comments / blank lines parses successfully
+        // to an empty top-level `Table`. The `trimmed.is_empty()`
+        // guard does NOT catch this (the file is non-empty after
+        // BOM/whitespace trim), so this test exercises the
+        // `is_semantically_empty_toml` predicate directly.
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join(".anvilrc"), "").unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "# this is a TOML comment\n# blank top-level table\n",
+        )
+        .unwrap();
         let d = verify(dir.path());
         assert_eq!(d.config, ConfigStatus::Invalid);
+    }
 
-        // Single-key TOML must be Valid.
+    #[test]
+    fn verify_with_non_empty_toml_is_valid() {
+        let dir = TempDir::new().unwrap();
         fs::write(dir.path().join(".anvilrc"), "profile = \"default\"\n").unwrap();
         let d = verify(dir.path());
         assert_eq!(d.config, ConfigStatus::Valid);
+    }
+
+    #[test]
+    fn verify_flags_json_array_top_level_as_invalid() {
+        // Round-3 council: a non-empty top-level JSON array would
+        // pass the round-2 `is_empty()` rule. The shape is wrong for
+        // `.anvilrc` (must be a mapping), so it must be Invalid.
+        // Use comma-separated content so TOML and YAML cannot
+        // re-interpret it as a header — `[1, 2, 3]` has no valid
+        // reading as a TOML section header or YAML mapping.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "[1, 2, 3]\n").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+    }
+
+    #[test]
+    fn verify_flags_bare_scalars_as_invalid() {
+        // Top-level bare scalars in any of the three formats must be
+        // Invalid — the config shape is always an object.
+        let dir = TempDir::new().unwrap();
+        for content in ["42\n", "true\n", "\"hello\"\n"] {
+            fs::write(dir.path().join(".anvilrc"), content).unwrap();
+            let d = verify(dir.path());
+            assert_eq!(
+                d.config,
+                ConfigStatus::Invalid,
+                "expected Invalid for content {content:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn verify_flags_yaml_null_shorthand_as_invalid() {
+        // Direct test for the YAML `Null` arm in
+        // `is_semantically_empty_yaml` — `~` is YAML's explicit
+        // null shorthand.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "~\n").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
     }
 
     #[test]
