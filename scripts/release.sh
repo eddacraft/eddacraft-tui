@@ -27,10 +27,33 @@ readonly NC='\033[0m'
 # Optional per-step timeout (seconds). 0 disables. Env override:
 # ANVIL_RELEASE_STEP_TIMEOUT=0 ./scripts/release.sh
 readonly STEP_TIMEOUT="${ANVIL_RELEASE_STEP_TIMEOUT:-600}"
+readonly CARGO_HAKARI_VERSION="0.9.37"
+readonly CARGO_DENY_VERSION="0.19.4"
 
 declare -a RESULT_NAMES
 declare -a RESULT_STATUS
 declare -a RESULT_DURATIONS
+
+require_cargo_tool_version() {
+  local binary="$1"
+  local subcommand="$2"
+  local expected="$3"
+
+  if ! command -v "${binary}" >/dev/null 2>&1; then
+    echo -e "  ${RED}Missing ${binary}.${NC} Install with: cargo install ${binary} --locked --version ${expected}"
+    return 1
+  fi
+
+  local installed
+  installed=$(cargo "${subcommand}" --version | awk '{print $2}')
+  if [[ "${installed}" != "${expected}" ]]; then
+    echo -e "  ${RED}${binary} version mismatch:${NC} installed=${installed} expected=${expected}"
+    echo -e "  Install with: cargo install ${binary} --locked --version ${expected}"
+    return 1
+  fi
+
+  echo "  ${binary} ${installed} installed"
+}
 
 run_check() {
   local name="$1"
@@ -40,7 +63,9 @@ run_check() {
   local start=${SECONDS}
   local rc=0
 
-  if [[ "${STEP_TIMEOUT}" != "0" ]] && command -v timeout >/dev/null 2>&1; then
+  if declare -F "$1" >/dev/null 2>&1; then
+    "$@" || rc=$?
+  elif [[ "${STEP_TIMEOUT}" != "0" ]] && command -v timeout >/dev/null 2>&1; then
     timeout "${STEP_TIMEOUT}" "$@" || rc=$?
   else
     "$@" || rc=$?
@@ -100,6 +125,10 @@ main() {
   echo -e "${YELLOW}Deterministic checks only. Judgment steps live in /release.${NC}"
 
   run_check "cargo fmt"      cargo fmt --all --check
+  run_check "hakari version" require_cargo_tool_version cargo-hakari hakari "${CARGO_HAKARI_VERSION}"
+  run_check "cargo hakari"   cargo hakari verify
+  run_check "deny version"   require_cargo_tool_version cargo-deny deny "${CARGO_DENY_VERSION}"
+  run_check "cargo deny"     cargo deny check
   run_check "cargo clippy"   cargo clippy --workspace --all-targets -- -D warnings
   run_check "cargo test"     cargo test --workspace
   run_check "pnpm format"    pnpm format:check

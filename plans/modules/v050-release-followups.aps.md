@@ -219,7 +219,10 @@ require a coordinated bundle — pick them off in any order.
   AND add `cargo hakari verify` + `cargo deny check` to
   `scripts/release.sh` so local preflight catches what CI catches.
 - **Confidence:** high
-- **Status:** Todo
+- **Resolution:** Added `release/*` to the Rust workflow push branch filter.
+  Added `cargo hakari verify` and `cargo deny check` to the local release
+  preflight script before the existing clippy/test checks.
+- **Status:** Done
 
 ### V050F-011: Refactor `scan_content` to surface custom-pattern compile errors
 
