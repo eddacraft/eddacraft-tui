@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 5/12     |
+| LAUNCH | —     | In Progress | 5/16     |
 
 ## Purpose
 
@@ -185,8 +185,124 @@ new primitive, this module follows three rules:
 ## Tasks
 
 > Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, and LAUNCH-007 are complete; remaining activation and
-> watch work stays Todo until picked up.
+> LAUNCH-005, and LAUNCH-007 are complete; remaining activation,
+> tutorial, upgrade, language-profile, and watch work stays Todo until
+> picked up.
+
+### LAUNCH-013: Make version and upgrade guidance install-method aware
+
+- **Intent:** A user can answer "am I current, what is latest, and how do I
+  upgrade?" without knowing whether they installed Anvil through WinGet,
+  Scoop, Homebrew, or the direct installer.
+- **Expected Outcome:** Add an explicit `anvil version` surface that prints the
+  current binary version, latest available release version, update availability,
+  detected install method, and recommended upgrade command. Human and JSON
+  output include `current_version`, `latest_version`, `update_available`,
+  `install_method`, and `upgrade_command` when available. Detection covers
+  Homebrew, Scoop, WinGet, direct cargo-dist installer / PowerShell installer,
+  and unknown/manual installs. Network/latest lookup failures remain non-fatal
+  and still print the local version. The recommendation accounts for older
+  direct installs that predate `anvil update`: those users are told to rerun the
+  latest installer rather than use a missing subcommand.
+- **Coordinates with:** release metadata on `eddacraft/anvil` and the existing
+  `anvil update --check` path in `crates/anvil-cli/src/commands/update.rs`.
+- **Validation:** CLI tests cover human and JSON output, mocked latest-release
+  responses, each detected install method, unknown installs, and network lookup
+  failure. Manual smoke covers the currently published release metadata.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-014: Make the interactive tutorial prove value faster
+
+- **Intent:** The tutorial should help a new user understand Anvil's protection
+  loop quickly, not just walk command taxonomy.
+- **Expected Outcome:** Rework `anvil tutorial` so the first path is a short,
+  repo-local value path: explain what Anvil is about to check, run or simulate
+  a high-signal check on safe fixture content, show the result, and point the
+  user to the next activation step. The tutorial keeps an explicit learning
+  path for deeper concepts, but the default flow prioritises a concrete first
+  win and uses the same activation vocabulary as `anvil start`, `anvil status`,
+  and `anvil doctor`.
+- **Coordinates with:** LAUNCH-006 activation entrypoint, LAUNCH-008 activation
+  protection states, LAUNCH-010 baseline copy, and LAUNCH-012 verification and
+  retry paths.
+- **Validation:** Snapshot or CLI tests cover the default tutorial path,
+  no-config / already-initialised repo states, and copy that avoids claiming
+  pre-write protection unless activation evidence supports it.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-015: Profile repo languages during activation
+
+- **Intent:** A user running activation sees an explicit, honest accounting of
+  which languages Anvil covers in their repository. The activation summary
+  names each detected language and the coverage tier Anvil claims for it, so
+  the user can judge fit without guessing from absence of findings.
+- **Expected Outcome:** A repo language profile step runs as part of
+  `anvil start` (and is reused by `anvil status` and `anvil doctor`). It
+  inspects the working tree, classifies each detected language as
+  `supported`, `partial`, or `unsupported` against the registered anchors and
+  packs that ship in this release (TS supported, SQL partial pending SURFSQL
+  Phase 1, Markdown partial pending MDGOV, Python and Rust unsupported as of
+  this release), and produces a structured profile consumed by activation
+  copy. Detection uses file extensions plus presence heuristics; vendored /
+  generated paths (already filtered by the existing internal denylist) are
+  not counted. Activation and tutorial copy never claim protection for an
+  unsupported language; the JSON output exposes `repo_languages` with
+  `{name, files_seen, coverage_tier, basis}` per entry. The coverage tier
+  table lives in one place (a single registry, not duplicated in copy
+  strings) so future anchors land in one edit.
+- **Coordinates with:** LAUNCH-008 (the protection-state vocabulary the copy
+  must respect), LAUNCH-014 (tutorial copy reuses the same coverage tiers),
+  RELEASE-PLAN A5 (LANGTS / SURFSQL / OPSUP define which languages move from
+  `partial` to `supported`).
+- **Validation:** Integration test against a multi-language fixture asserts
+  the profile classifies each detected language with the expected tier;
+  snapshot test on activation copy confirms it lists detected languages and
+  never asserts protection for an `unsupported` entry; JSON output schema
+  test on `repo_languages`.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-016: Honour the language profile in scan and watch filters
+
+- **Intent:** Files belonging to languages Anvil does not support in this
+  release are not fed to language-specific antipattern checks, so users do
+  not see false-positive findings on out-of-scope code (e.g. `.py` files
+  flagged by JS-shaped rules).
+- **Expected Outcome:** The default scan and watch file filters consult the
+  repo language profile from LAUNCH-015. Files belonging to `unsupported`
+  languages are excluded from language-specific antipattern checks unless
+  the user explicitly opts in via config (`extensions:` override or an
+  equivalent allow entry). Cross-language checks (secrets, etc.) still run
+  on all files — only language-targeted antipattern checks are gated.
+  Skipped files are recorded in the run summary so the behaviour is visible,
+  not silent (`skipped: {language: count, reason: "unsupported"}`). The
+  hardcoded extension allowlist in
+  `crates/anvil-checks/src/antipattern/types.rs` becomes the fallback
+  default for repos with no profile, and is overridden by the profile when
+  one exists.
+- **Coordinates with:** LAUNCH-015 (consumes the profile), LAUNCH-008 (the
+  activation summary should reflect what was actually scanned vs skipped),
+  `crates/anvil-kernel/src/watcher/filter.rs` (the existing internal
+  denylist is preserved as-is and is not conflated with the user-facing
+  language gate).
+- **Validation:** Integration test on a fixture with `.ts` + `.py` files
+  asserts: (a) the default behaviour scans `.ts` and skips `.py` for
+  language-specific checks, (b) the secret scanner runs on both, (c) the
+  run summary records the skip with language and count, (d) explicit
+  opt-in (`extensions:` includes `.py`) reverses the language-specific
+  skip without affecting the secret scan.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
 
 ### LAUNCH-001: Implement user-facing glob filter for watch loop
 

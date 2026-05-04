@@ -57,6 +57,93 @@ edits required.
 
 6. Wire CI: drop `ci-freshness.yml.snippet` into your existing workflow.
 
+## Customising `ACKNOWLEDGEMENTS.md`
+
+The template at `ACKNOWLEDGEMENTS.md.template` is a structural scaffold, not a
+finished file. After copying it to your repo root, replace the `{{PLACEHOLDER}}`
+tokens and prune the example sections to fit your stack.
+
+### Placeholders
+
+All placeholders use `{{DOUBLE_BRACES}}` so they are easy to grep and replace.
+None of them are interpreted by the generator — they are plain text the template
+author left for you to fill in.
+
+| Placeholder                 | Replace with                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `{{PROJECT_NAME}}`          | Display name of your project, e.g. `Anvil`                                                                                   |
+| `{{PROJECT_BINARY}}`        | The shipping binary or package name, e.g. `anvil`                                                                            |
+| `{{GENERATOR_TOOL}}`        | The upstream tool that produces the auto-generated block, e.g. `cargo-about`                                                 |
+| `{{GENERATOR_TOOL_URL}}`    | Upstream URL for the tool, e.g. `https://github.com/EmbarkStudios/cargo-about`                                               |
+| `{{LOCKFILE_NAME}}`         | The lockfile the attribution derives from, e.g. `Cargo.lock` or `pnpm-lock.yaml`                                             |
+| `{{GENERATOR_SCRIPT_PATH}}` | Path to the generator script as it appears in your repo, e.g. `tools/starters/acknowledgements/generate-acknowledgements.sh` |
+
+A one-shot `sed` works for most of these:
+
+```bash
+sed -i \
+  -e 's|{{PROJECT_NAME}}|Anvil|g' \
+  -e 's|{{PROJECT_BINARY}}|anvil|g' \
+  -e 's|{{GENERATOR_TOOL}}|cargo-about|g' \
+  -e 's|{{GENERATOR_TOOL_URL}}|https://github.com/EmbarkStudios/cargo-about|g' \
+  -e 's|{{LOCKFILE_NAME}}|Cargo.lock|g' \
+  -e 's|{{GENERATOR_SCRIPT_PATH}}|tools/starters/acknowledgements/generate-acknowledgements.sh|g' \
+  ACKNOWLEDGEMENTS.md
+```
+
+### "Thanks" sections
+
+The template ships four illustrative subsections (Language and tooling, Testing
+and quality, Build and CI, Developer environment) with two `Project A` /
+`Project B` bullets each. They exist to show the structure — categorised `###`
+subsections, bullet list with link-reference style, link references grouped
+immediately after each list.
+
+Treat them as a starting point:
+
+- **Keep** the categories that fit your stack.
+- **Rename** categories if the labels don't match (e.g.
+  `Monorepo and TypeScript tooling` instead of `Language and tooling`).
+- **Delete** sections you don't use — there's no requirement that any specific
+  category exists.
+- **Add** sections for ecosystems the template doesn't anticipate (e.g.
+  `Infrastructure`, `Documentation`, `Design`).
+
+The generator does not police the shape of the hand-curated region; it only
+preserves it verbatim.
+
+### What you must not change
+
+Two things in the template are load-bearing for the generator:
+
+1. The marker pair at the bottom:
+
+   ```markdown
+   <!-- BEGIN AUTO-GENERATED -->
+   <!-- END AUTO-GENERATED -->
+   ```
+
+   Each must appear **exactly once** on a line of its own. If you customise the
+   marker text via `[project].marker_begin` / `marker_end` in
+   `attribution.toml`, update both the template and the config together.
+
+2. The order: BEGIN must precede END. The generator splices content between
+   them; if they're swapped or duplicated, the marker-count gate fails.
+
+Everything else — heading levels, prose, link styles, the intro paragraph — is
+yours to edit.
+
+### After customising
+
+Run the generator once to populate the auto-generated block:
+
+```bash
+tools/starters/acknowledgements/generate-acknowledgements.sh
+```
+
+Then commit both the customised `ACKNOWLEDGEMENTS.md` and (if applicable) the
+updated `attribution.toml`.
+
 ## The marker-splice contract
 
 This section is the canonical reference for the kit's invariants. The generator

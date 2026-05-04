@@ -1054,7 +1054,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `signal-hook-mio` | 0.2.5 | MIT License | https://github.com/vorner/signal-hook |
 | `signal-hook-registry` | 1.4.8 | MIT License | https://github.com/vorner/signal-hook |
 | `signal-hook` | 0.3.18 | MIT License | https://github.com/vorner/signal-hook |
-| `digest` | 0.11.2 | MIT License | https://github.com/RustCrypto/traits |
+| `digest` | 0.11.3 | MIT License | https://github.com/RustCrypto/traits |
 | `bytes` | 1.11.1 | MIT License | https://github.com/tokio-rs/bytes |
 | `smallvec` | 1.15.1 | MIT License | https://github.com/servo/rust-smallvec |
 | `want` | 0.3.1 | MIT License | https://github.com/seanmonstar/want |
