@@ -10,7 +10,7 @@ vi.mock('../db/client.js', () => ({
 vi.mock('../db/queries.js', () => ({
   findRefreshTokenByHash: vi.fn(),
   consumeRefreshToken: vi.fn(),
-  revokeRefreshTokenFamily: vi.fn(),
+  revokeRefreshFamilyAndAccessTokensForUser: vi.fn(),
   insertRefreshToken: vi.fn(),
   findUserById: vi.fn(),
   findActiveScopesForUser: vi.fn(),
@@ -29,7 +29,7 @@ import {
   findRefreshTokenByHash,
   findUserById,
   insertRefreshToken,
-  revokeRefreshTokenFamily,
+  revokeRefreshFamilyAndAccessTokensForUser,
   findActiveScopesForUser,
   type RefreshToken,
 } from '../db/queries.js';
@@ -53,7 +53,10 @@ afterAll(() => {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(consumeRefreshToken).mockResolvedValue(true);
-  vi.mocked(revokeRefreshTokenFamily).mockResolvedValue(0);
+  vi.mocked(revokeRefreshFamilyAndAccessTokensForUser).mockResolvedValue({
+    refreshTokensRevoked: 0,
+    accessTokensRevoked: 0,
+  });
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
   // Default to the conservative `['beta']` fallback so existing tests
   // don't have to know about the new scope-lookup call. Tests that care
@@ -134,7 +137,7 @@ describe('POST /auth/session/refresh', () => {
       'family-1', // new token carries the same family_id
       expect.any(Date)
     );
-    expect(vi.mocked(revokeRefreshTokenFamily)).not.toHaveBeenCalled();
+    expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).not.toHaveBeenCalled();
   });
 
   it('hashes the inbound refresh token before lookup', async () => {
@@ -188,9 +191,10 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Token reuse detected' });
-    expect(vi.mocked(revokeRefreshTokenFamily)).toHaveBeenCalledWith(
+    expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).toHaveBeenCalledWith(
       expect.anything(),
-      'family-compromised'
+      'family-compromised',
+      'user-1'
     );
     expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
     // Must not call consumeRefreshToken — reuse path short-circuits before it.
@@ -206,7 +210,7 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Invalid refresh token' });
-    expect(vi.mocked(revokeRefreshTokenFamily)).not.toHaveBeenCalled();
+    expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).not.toHaveBeenCalled();
     expect(vi.mocked(consumeRefreshToken)).not.toHaveBeenCalled();
   });
 
@@ -253,9 +257,10 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Token reuse detected' });
-    expect(vi.mocked(revokeRefreshTokenFamily)).toHaveBeenCalledWith(
+    expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).toHaveBeenCalledWith(
       expect.anything(),
-      'family-race'
+      'family-race',
+      'user-1'
     );
     expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
   });

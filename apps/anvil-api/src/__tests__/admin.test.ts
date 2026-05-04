@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { admin } from '../routes/admin.js';
 
+vi.mock('../lib/feature-flags.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/feature-flags.js')>();
+  return {
+    ...actual,
+    resolveApiScope: vi.fn(actual.resolveApiScope),
+  };
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -81,8 +89,10 @@ import {
   findSendMigrationSnapshot,
   consumeSendMigrationSnapshot,
   findAdminKeyByHash,
+  findActiveScopesForUser,
 } from '../db/queries.js';
 import { sendWaitlistMigration } from '../lib/email.js';
+import { resolveApiScope } from '../lib/feature-flags.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -105,6 +115,15 @@ describe('admin endpoints', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env['ADMIN_KEY'] = ADMIN_KEY;
+    vi.mocked(resolveApiScope).mockImplementation((scope) => ({
+      allowed: ['beta', 'preview', 'internal'].includes(scope),
+      details: {
+        value: true,
+        variant: 'enabled',
+        reason: 'default',
+        flagKey: `api.scope.${scope}`,
+      },
+    }));
   });
 
   afterEach(() => {
@@ -617,6 +636,149 @@ describe('admin endpoints', () => {
       const body = await res.json();
       expect(body.approved).toHaveLength(1);
       expect(body.approved[0].email).toBe('alice@example.com');
+    });
+
+    it('preserves existing graded scopes when approving a waitlisted user', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      vi.mocked(findActiveScopesForUser).mockResolvedValue(['preview', 'beta']);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'device-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const accessTokenCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) =>
+          chunk.includes('INSERT INTO access_tokens')
+        )
+      );
+      expect(accessTokenCall).toContainEqual(['preview', 'beta']);
+    });
+
+    it('drops disabled preserved scopes and audits the filtered grant atomically', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      vi.mocked(findActiveScopesForUser).mockResolvedValue(['preview', 'beta']);
+      vi.mocked(resolveApiScope).mockImplementation((scope) => ({
+        allowed: scope !== 'preview',
+        details: {
+          value: scope !== 'preview',
+          variant: scope === 'preview' ? 'disabled' : 'enabled',
+          reason: scope === 'preview' ? 'local_override' : 'default',
+          flagKey: `api.scope.${scope}`,
+        },
+      }));
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'device-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const accessTokenCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) =>
+          chunk.includes('INSERT INTO access_tokens')
+        )
+      );
+      expect(accessTokenCall).toContainEqual(['beta']);
+      expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'user.approve.scopes_dropped',
+        expect.anything(),
+        expect.anything(),
+        expect.anything()
+      );
+      const transactionStatements = mockSql.transaction.mock.calls[0][0] as unknown[][];
+      expect(transactionStatements).toHaveLength(5);
+      const droppedAuditCall = mockSql.mock.calls.find(
+        (call) => call[1] === 'user.approve.scopes_dropped'
+      );
+      expect(droppedAuditCall).toContainEqual(
+        JSON.stringify({
+          email: 'alice@example.com',
+          droppedScopes: ['preview'],
+          grantedScopes: ['beta'],
+        })
+      );
+    });
+
+    it('rejects approval when every requested scope is disabled', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      vi.mocked(findActiveScopesForUser).mockResolvedValue([]);
+      vi.mocked(resolveApiScope).mockReturnValue({
+        allowed: false,
+        details: {
+          value: false,
+          variant: 'disabled',
+          reason: 'local_override',
+          flagKey: 'api.scope.beta',
+        },
+      });
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'No enabled API scopes available for approval' });
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        mockSql,
+        'user.approve.scopes_dropped',
+        'shared-key@anvil',
+        {
+          email: 'alice@example.com',
+          droppedScopes: ['beta'],
+          grantedScopes: [],
+        },
+        'shared'
+      );
     });
 
     it('retries on user_code collision then succeeds', async () => {
@@ -1387,7 +1549,7 @@ describe('admin endpoints', () => {
           outcome: 'rejected_unknown',
           hashed_bearer: expect.any(String),
         }),
-        'shared'
+        'per_operator'
       );
     });
 

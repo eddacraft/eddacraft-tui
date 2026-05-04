@@ -6,7 +6,7 @@ import { getClient } from '../db/client.js';
 import {
   findRefreshTokenByHash,
   consumeRefreshToken,
-  revokeRefreshTokenFamily,
+  revokeRefreshFamilyAndAccessTokensForUser,
   insertRefreshToken,
   findUserById,
   findActiveScopesForUser,
@@ -50,7 +50,7 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   // Theft detection: token already consumed means it was cloned
   if (record.consumed_at) {
     debug('token reuse detected — revoking family', { familyId: record.family_id });
-    await revokeRefreshTokenFamily(sql, record.family_id);
+    await revokeRefreshFamilyAndAccessTokensForUser(sql, record.family_id, record.user_id);
     return c.json({ error: 'Token reuse detected' }, 401);
   }
 
@@ -78,7 +78,7 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   const consumed = await consumeRefreshToken(sql, record.id);
   if (!consumed) {
     debug('concurrent refresh detected — revoking family', { familyId: record.family_id });
-    await revokeRefreshTokenFamily(sql, record.family_id);
+    await revokeRefreshFamilyAndAccessTokensForUser(sql, record.family_id, record.user_id);
     return c.json({ error: 'Token reuse detected' }, 401);
   }
 

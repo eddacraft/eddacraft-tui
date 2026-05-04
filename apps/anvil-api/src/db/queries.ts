@@ -158,14 +158,17 @@ export async function findTokenByHash(
  * sign time — `/session/refresh` and the device/github/otp first-issuance
  * paths read from this function so scope changes flow into the next licence.
  *
- * Returns `['beta']` as a conservative default when no active access_tokens
- * row exists — that path covers self-signup users who have not yet been
- * issued a graded scope.
+ * Returns `['beta']` as a conservative default only when no active
+ * access_tokens row exists — that path covers self-signup users who have not
+ * yet been issued a graded scope. If active rows exist but all unnest to zero
+ * scopes, return [] so callers do not silently re-grant beta.
  */
 export async function findActiveScopesForUser(sql: NeonClient, userId: string): Promise<string[]> {
   const r = rows(
     await sql`
-    SELECT COALESCE(
+    SELECT
+      COUNT(*)::int AS active_token_count,
+      COALESCE(
       ARRAY(
         SELECT DISTINCT scope
         FROM access_tokens, unnest(scopes) AS scope
@@ -175,16 +178,21 @@ export async function findActiveScopesForUser(sql: NeonClient, userId: string): 
       ),
       ARRAY[]::text[]
     ) AS scopes
+    FROM access_tokens
+    WHERE user_id = ${userId}
+      AND revoked_at IS NULL
+      AND expires_at > now()
   `
   );
   if (!r[0]) {
     return ['beta'];
   }
   const ScopeSchema = z.object({
+    active_token_count: z.coerce.number().default(0),
     scopes: z.array(z.string()).default(['beta']),
   });
   const parsed = ScopeSchema.parse(r[0]);
-  return parsed.scopes.length > 0 ? parsed.scopes : ['beta'];
+  return parsed.active_token_count > 0 ? parsed.scopes : ['beta'];
 }
 
 export async function revokeTokensByEmail(sql: NeonClient, email: string): Promise<number> {
@@ -209,6 +217,18 @@ export async function revokeTokenByHash(sql: NeonClient, tokenHash: string): Pro
   `
   );
   return r.length > 0;
+}
+
+export async function revokeAccessTokensByUserId(sql: NeonClient, userId: string): Promise<number> {
+  const r = rows(
+    await sql`
+    UPDATE access_tokens SET revoked_at = now()
+    WHERE user_id = ${userId}
+      AND revoked_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length;
 }
 
 export async function findUserWithTokens(
@@ -460,6 +480,26 @@ export async function revokeRefreshTokenFamily(sql: NeonClient, familyId: string
   `
   );
   return r.length;
+}
+
+export async function revokeRefreshFamilyAndAccessTokensForUser(
+  sql: NeonClient,
+  familyId: string,
+  userId: string
+): Promise<{ refreshTokensRevoked: number; accessTokensRevoked: number }> {
+  const txResult = await sql.transaction([
+    sql`UPDATE refresh_tokens SET revoked_at = now()
+        WHERE family_id = ${familyId}
+          AND revoked_at IS NULL
+        RETURNING id`,
+    sql`UPDATE access_tokens SET revoked_at = now()
+        WHERE user_id = ${userId}
+          AND revoked_at IS NULL
+        RETURNING id`,
+  ]);
+  const refreshRows = (txResult as unknown[][])[0] ?? [];
+  const accessRows = (txResult as unknown[][])[1] ?? [];
+  return { refreshTokensRevoked: refreshRows.length, accessTokensRevoked: accessRows.length };
 }
 
 // ---------------------------------------------------------------------------
