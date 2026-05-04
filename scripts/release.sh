@@ -27,6 +27,8 @@ readonly NC='\033[0m'
 # Optional per-step timeout (seconds). 0 disables. Env override:
 # ANVIL_RELEASE_STEP_TIMEOUT=0 ./scripts/release.sh
 readonly STEP_TIMEOUT="${ANVIL_RELEASE_STEP_TIMEOUT:-600}"
+# Keep these aligned with CARGO_HAKARI_VERSION and CARGO_DENY_VERSION in
+# .github/workflows/rust.yml; require_release_tool_pins_synced enforces it.
 readonly CARGO_HAKARI_VERSION="0.9.37"
 readonly CARGO_DENY_VERSION="0.19.4"
 
@@ -44,8 +46,16 @@ require_cargo_tool_version() {
     return 1
   fi
 
+  local output
+  if ! output=$(cargo "${subcommand}" --version 2>&1); then
+    echo -e "  ${RED}${binary} version probe failed.${NC}"
+    echo -e "  Output: ${output}"
+    echo -e "  Reinstall with: cargo install ${binary} --locked --version ${expected}"
+    return 1
+  fi
+
   local installed
-  installed=$(cargo "${subcommand}" --version | awk '{print $2}')
+  installed=$(awk '{print $2}' <<<"${output}")
   if [[ "${installed}" != "${expected}" ]]; then
     echo -e "  ${RED}${binary} version mismatch:${NC} installed=${installed} expected=${expected}"
     echo -e "  Install with: cargo install ${binary} --locked --version ${expected}"
@@ -53,6 +63,24 @@ require_cargo_tool_version() {
   fi
 
   echo "  ${binary} ${installed} installed"
+}
+
+require_release_tool_pins_synced() {
+  local workflow=".github/workflows/rust.yml"
+  local workflow_hakari
+  local workflow_deny
+
+  workflow_hakari=$(awk -F': ' '/CARGO_HAKARI_VERSION:/ {print $2; exit}' "${workflow}")
+  workflow_deny=$(awk -F': ' '/CARGO_DENY_VERSION:/ {print $2; exit}' "${workflow}")
+
+  if [[ "${workflow_hakari}" != "${CARGO_HAKARI_VERSION}" ]]; then
+    echo -e "  ${RED}cargo-hakari pin drift:${NC} script=${CARGO_HAKARI_VERSION} rust.yml=${workflow_hakari}"
+    return 1
+  fi
+  if [[ "${workflow_deny}" != "${CARGO_DENY_VERSION}" ]]; then
+    echo -e "  ${RED}cargo-deny pin drift:${NC} script=${CARGO_DENY_VERSION} rust.yml=${workflow_deny}"
+    return 1
+  fi
 }
 
 run_check() {
@@ -125,6 +153,7 @@ main() {
   echo -e "${YELLOW}Deterministic checks only. Judgment steps live in /release.${NC}"
 
   run_check "cargo fmt"      cargo fmt --all --check
+  run_check "release pins"   require_release_tool_pins_synced
   run_check "hakari version" require_cargo_tool_version cargo-hakari hakari "${CARGO_HAKARI_VERSION}"
   run_check "cargo hakari"   cargo hakari verify
   run_check "deny version"   require_cargo_tool_version cargo-deny deny "${CARGO_DENY_VERSION}"
