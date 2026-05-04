@@ -11,7 +11,7 @@ Scopes: RCLI2 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI2 | —     | In Progress | 4/9      |
+| RCLI2 | —     | In Progress | 5/9      |
 
 **Last reviewed:** 2026-05-01
 
@@ -301,13 +301,12 @@ Change status to **Ready** when:
 #### Phase 5 — Admin Parity
 ### RCLI2-009: admin command parity (list/show/revoke/audit/send-migration/email-update)
 
-- **Status:** Proposed
-- **Intent:** Bring `anvil admin` to feature parity with the Node operator CLI
-  (`apps/admin-cli/`, binary `anvil-admin`) and add a CLI surface for
-  `POST /admin/user/email-update`, which has no CLI today. RCLI-016 (Tier 1)
-  ported only `approve` and `invite`; everything else still requires the
-  separate Node binary, which is an operator papercut
-  (`anvil admin list` currently fails with "unrecognized subcommand").
+- **Status:** Complete
+- **Intent:** Bring `anvil admin` to feature parity with the historical Node
+  operator CLI (`apps/admin-cli/`, binary `anvil-admin`) and add a CLI surface
+  for `POST /admin/user/email-update`, which previously had no CLI. RCLI-016
+  (Tier 1) ported only `approve` and `invite`; this item closes the remaining
+  operator parity gap.
 - **Expected Outcome:** Each subcommand below is callable on the Rust binary,
   authenticates via `ANVIL_ADMIN_KEY` (same env contract as
   `commands/admin.rs` today), supports `--json`, and surfaces
@@ -380,5 +379,5 @@ Change status to **Ready** when:
 | 2 — Drift & Gate Config | 2 | Proposed |
 | 3 — Policy Utilities | 2 | Proposed (blocked on OPAE) |
 | 4 — CI Integration | 2 | Proposed (blocked on OPAE) |
-| 5 — Admin Parity | 1 | Proposed |
+| 5 — Admin Parity | 1 | Complete |
 | **Total** | **9** | — |

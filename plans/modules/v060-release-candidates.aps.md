@@ -29,7 +29,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 0/1      |
+| V060F | —     | In Progress | 1/1      |
 
 **Last reviewed:** 2026-05-01
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
@@ -95,20 +95,20 @@ discovery.
 
 ---
 
-## Work items
+## Tasks
 
 ### V060F-001: admin command parity for `anvil admin` (nomination)
 
 - **Source:** [RCLI2-009](./rust-cli-tier2.aps.md#rcli2-009-admin-command-parity-listshowrevokeauditsend-migrationemail-update)
-- **Status:** Nominated
-- **Why earmark:** Operator-experience papercut — `anvil admin list`
-  fails today with "unrecognized subcommand" because RCLI-016 only
-  ported `approve` and `invite`. The other six commands still require
-  the separate Node binary `anvil-admin` (`apps/admin-cli/`), which is
-  not on PATH for normal operator setup. Pure 1:1 parity port over a
-  well-tested API surface, plus one new CLI surface for the existing
-  `POST /admin/user/email-update` endpoint. High confidence, medium
-  priority, no policy/OPAE dependency.
+- **Status:** Complete
+- **Intent:** Track RCLI2-009 as the nominated admin parity candidate for the
+  next release window until the source work item is complete.
+- **Why earmark:** Operator-experience papercut — RCLI-016 only ported
+  `approve` and `invite`, leaving the other admin surfaces on the historical
+  Node binary `anvil-admin` (`apps/admin-cli/`). RCLI2-009 closes that parity
+  gap with a 1:1 port over a well-tested API surface, plus one new CLI surface
+  for the existing `POST /admin/user/email-update` endpoint. High confidence,
+  medium priority, no policy/OPAE dependency.
 - **Cuts:** unblocks retiring `apps/admin-cli/` for a single operator
   surface; closes the `anvil admin list` ergonomic gap that prompted
   this nomination.
@@ -129,5 +129,5 @@ discovery.
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | Deferrals | 0 | — |
-| Nominations | 1 | In Progress |
+| Nominations | 1 | Complete |
 | **Total** | **1** | — |
