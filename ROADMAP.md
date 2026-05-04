@@ -66,11 +66,10 @@ Headline post-release follow-ups (foreground for the next release window):
   live JSON-RPC client; graduate MCP `tools/call` from the embedded fallback to
   the daemon-backed pipeline. The daemon side (`scan_buffer` RPC, INTD-002
   listener) is already in place.
-- **V050F** (`v050-release-followups`) — 5/16 done; 11 hardening items
+- **V050F** (`v050-release-followups`) — 6/16 done; 10 hardening items
   outstanding (per-operator audit attribution, family-theft cascade,
   `/admin/approve` flag-gate, allowlist regex compile cache, eager rayon pool
-  init, CI-class bench baseline, `release/*` push filter, `WAITLIST_PAUSED`
-  runbook, etc.).
+  init, CI-class bench baseline, `release/*` push filter, etc.).
 - **Latency CI gating** (#1191) — RTAI mid-edit baseline-comparison gating
   against the recorded 7-case ADR-031 corpus. Until #1191 lands, regressions are
   caught only by manual `cargo bench` runs.
