@@ -47,8 +47,41 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
             "absent"
         }
     );
-    if d.all_languages_unsupported {
-        out.push_str("  languages: all detected languages are unsupported in this release\n");
+
+    // Language profile (LAUNCH-015): surface the per-language
+    // breakdown so the user sees coverage tier alongside protection
+    // state. Surfaces never claim coverage for `unsupported` rows.
+    if !d.language_profile.entries.is_empty() {
+        out.push_str("  languages:\n");
+        for entry in &d.language_profile.entries {
+            let _ = writeln!(
+                out,
+                "    {} ({} {}): {} — {}",
+                entry.name,
+                entry.files_seen,
+                if entry.files_seen == 1 { "file" } else { "files" },
+                entry.coverage_tier.label(),
+                entry.basis,
+            );
+        }
+        if d.language_profile.unclassified_files_seen > 0 {
+            let _ = writeln!(
+                out,
+                "    ({} unclassified file{})",
+                d.language_profile.unclassified_files_seen,
+                if d.language_profile.unclassified_files_seen == 1 {
+                    ""
+                } else {
+                    "s"
+                },
+            );
+        }
+    } else if d.all_languages_unsupported {
+        // Defensive: if the profile is empty but `all_languages_unsupported`
+        // was set externally (e.g. tests), still surface the gap honestly.
+        out.push_str(
+            "  languages: all detected languages are unsupported in this release\n",
+        );
     }
 
     if let Some(err) = &d.last_error {
@@ -67,7 +100,8 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
 ///
 /// The shape is stable contract — keys are: `state`, `headline`,
 /// `config`, `mcp` (array of `{client, tier}` objects), `watch`,
-/// `baseline_present`, `last_error`, `all_languages_unsupported`.
+/// `baseline_present`, `last_error`, `all_languages_unsupported`,
+/// `repo_languages` (array of `{name, files_seen, coverage_tier, basis}`).
 /// Tooling consumers may rely on this set; downstream PRs add fields,
 /// they do not rename or remove existing ones.
 ///
@@ -81,6 +115,19 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
         .iter()
         .map(|(c, t)| json!({"client": c.label(), "tier": t.label()}))
         .collect();
+    let repo_languages: Vec<Value> = d
+        .language_profile
+        .entries
+        .iter()
+        .map(|e| {
+            json!({
+                "name": e.name,
+                "files_seen": e.files_seen,
+                "coverage_tier": e.coverage_tier.label(),
+                "basis": e.basis,
+            })
+        })
+        .collect();
     json!({
         "state": state.label(),
         "headline": state.headline(),
@@ -90,6 +137,8 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
         "baseline_present": d.baseline_present,
         "last_error": d.last_error,
         "all_languages_unsupported": d.all_languages_unsupported,
+        "repo_languages": repo_languages,
+        "unclassified_files_seen": d.language_profile.unclassified_files_seen,
     })
 }
 
@@ -175,6 +224,7 @@ mod tests {
             baseline_present: false,
             last_error: None,
             all_languages_unsupported: false,
+            language_profile: super::super::language_profile::RepoLanguageProfile::default(),
         }
     }
 
