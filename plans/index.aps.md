@@ -20,25 +20,25 @@
 ## Contents
 
 - [Release Plan](#release-plan)
-- [Branch Recovery](#branch-recovery-complete)
-- [Hardening & Maintenance](#hardening--maintenance-in-progress)
-- [Continuous Improvement](#continuous-improvement-complete)
-- [Rust Engine](#rust-engine-in-progress)
-- [Auth & Access](#auth--access-complete)
-- [Dev Tooling Bridge](#dev-tooling-bridge-proposed)
-- [Observability Foundation](#observability-foundation-draft)
-- [Tracing Foundation](#tracing-foundation-in-progress)
-- [Infrastructure as Code](#infrastructure-as-code-ready)
-- [Web Dashboard](#web-dashboard-ready)
-- [Policy Governance](#policy-governance-draftready)
-- [Engineering Platform](#engineering-platform-draft)
-- [Test Quality](#test-quality-readydraft)
-- [Multi-Language Support](#multi-language-support-draft)
-- [Config Intelligence](#config-intelligence-draft)
-- [Graph Substrate](#graph-substrate-draft)
-- [Rust MCP Launch Path](#rust-mcp-launch-path-completedraft)
-- [Intercept Loop](#intercept-loop-in-progress--a1-intd-slice-complete)
-- [Agent Infrastructure](#agent-infrastructure-draft--no-code-yet)
+- [Branch Recovery](#branch-recovery)
+- [Hardening & Maintenance](#hardening--maintenance)
+- [Continuous Improvement](#continuous-improvement)
+- [Rust Engine](#rust-engine)
+- [Auth & Access](#auth--access)
+- [Dev Tooling Bridge](#dev-tooling-bridge)
+- [Observability Foundation](#observability-foundation)
+- [Tracing Foundation](#tracing-foundation)
+- [Infrastructure as Code](#infrastructure-as-code)
+- [Web Dashboard](#web-dashboard)
+- [Policy Governance](#policy-governance)
+- [Engineering Platform](#engineering-platform)
+- [Test Quality](#test-quality)
+- [Language & Coverage](#language--coverage)
+- [Config Intelligence](#config-intelligence)
+- [Graph Substrate](#graph-substrate)
+- [Rust MCP Launch Path](#rust-mcp-launch-path)
+- [Intercept Loop](#intercept-loop)
+- [Agent Infrastructure](#agent-infrastructure)
 
 Anvil makes AI-generated code safe to merge by catching architecture boundary
 violations and AI escape-hatch anti-patterns at file-save time. Developers get
@@ -161,14 +161,14 @@ remain candidates for the next-release slate.
 | A4 | OPSUP | OPSUP-001 (check-ID registry slice) | OPSUP-001 | OPSUP-002..-007 remain outside this release cut |
 | A4 | SURFENV | SURFENV-001..-006 | SURFENV-001..-006 | — |
 
-### Edda Stack — Memory System (Done)
+### Edda Stack — Memory System
 
 Kindling (observation), Ember (interpretation), Edda (canonical memory),
 integration layer, and review backlog.
 
 See [completed-index.aps.md](./completed-index.aps.md) for task tables.
 
-### Branch Recovery (Complete)
+### Branch Recovery
 
 Reconcile divergent `main`/`dev` histories by porting release-critical fixes
 from `main` onto `dev`, validating as one integrated branch, then cutting over.
@@ -179,7 +179,7 @@ See `docs/runbooks/branch-reconciliation.md` and the freeze notice in
 | ----------------------------------------------------------------------- | ------ | -------- | -------- |
 | [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md) | BRECON | Complete | 14/14    |
 
-### Hardening & Maintenance (In Progress)
+### Hardening & Maintenance
 
 Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
@@ -202,7 +202,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 **Design doc (Forge & Temper — archived):**
 [docs/archive/2026-02-24-forge-temper-review-pipeline.md](../docs/archive/2026-02-24-forge-temper-review-pipeline.md)
 
-### Continuous Improvement (Complete)
+### Continuous Improvement
 
 Codebase-maintenance drives ongoing refactoring, shared libraries, generators,
 and DX improvements. Code-review-backlog (complete) is retained for history.
@@ -216,7 +216,7 @@ and DX improvements. Code-review-backlog (complete) is retained for history.
 > without executable tasks. All concrete intents map onto MAINT. See
 > [archived notice](./archive/modules/continuous-improvement.aps.md).
 
-### Rust Engine (In Progress)
+### Rust Engine
 
 Rust kernel for structural graph analysis (KERN), performance-critical check
 ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
@@ -248,7 +248,7 @@ surfaces use Ratatui (RATS), and existing Ink surfaces are ported systematically
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan.
 
-### Auth & Access (Complete)
+### Auth & Access
 
 Streamline beta access: device code + email OTP activation flows, JWT session
 model with rotating refresh tokens, admin CLI approval, Resend audience
@@ -268,7 +268,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 - `plans/specs/2026-04-03-docs-auth-gating-design.md`
 - `plans/specs/2026-04-16-admin-cli-design.md`
 
-### Dev Tooling Bridge (Proposed)
+### Dev Tooling Bridge
 
 Connect the LLM-powered council review flow to Anvil's deterministic attestation
 format. Discovery-first: understand the interface before building.
@@ -277,20 +277,20 @@ format. Discovery-first: understand the interface before building.
 | ----------------------------------------------------------- | ----- | -------- | -------- | ------------ |
 | [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Proposed | 0/6      | —            |
 
-### Observability Foundation (Draft)
+### Observability Foundation
 
 Domain ops: telemetry contracts, Neon health instrumentation, dashboard ops
 data contract, alert thresholds, runbook pack. 5 tasks (post-launch
 hardening). The cross-cutting tracing baseline originally scoped as OBS-006
 moved to TRACE on 2026-04-30 per Planning Council session plan-b00c16c7;
 see [ADR-035](./decisions/035-three-pipe-observability-rule.md) for the
-three-pipe rule and [Tracing Foundation](#tracing-foundation-in-progress) below.
+three-pipe rule and [Tracing Foundation](#tracing-foundation) below.
 
 | Module                                                                | Scope | Status | Progress | Dependencies                                                                                                                  |
 | --------------------------------------------------------------------- | ----- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | [observability-foundation](./modules/observability-foundation.aps.md) | OBS   | Draft  | 0/5      | kindling-integration, dashboard-ops-views; tracing scope migrated to TRACE on 2026-04-30 (OBS-006 superseded by TRACE-001)    |
 
-### Tracing Foundation (In Progress)
+### Tracing Foundation
 
 Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
 daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
@@ -312,7 +312,7 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 > fire. The named `WatchStats` contract is the inheritance TUIDASH-009 will
 > consume when the dashboard surface lands. TRACE is now **In Progress** (TRACE-001 Complete 2026-04-30).
 
-### Infrastructure as Code (Ready)
+### Infrastructure as Code
 
 Pulumi-managed infrastructure: Vercel projects, Azure DNS, backend migration to
 Azure Blob Storage + KeyVault. EDGE module (Azure Front Door multi-origin edge
@@ -324,7 +324,7 @@ layer) in flight per ADR-032.
 | [database-consolidation](./archive/modules/database-consolidation.aps.md) | DBCON | Complete | 4/4      | IAC                                                                                                                                                |
 | [edge](./modules/edge.aps.md)                                             | EDGE  | Ready    | 0/24     | IAC; coordinates with OBS (Log Analytics workspace), Vercel origins, and 8-week Azure-hosted origin commit. AFD Standard, Australia East. ADR-032. |
 
-### Web Dashboard (Ready)
+### Web Dashboard
 
 Browser-based interface for exploring Anvil data. Built into `apps/website/`
 (Next.js 16 + shadcn/ui + Recharts). Four execution waves; 39 tasks total.
@@ -343,7 +343,7 @@ persistent views, historical trends, and graphical visualisations that a
 terminal cannot provide. See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 [json-render approach](./brainstorms/json-render-dashboard.md) for background.
 
-### Policy Governance (Draft/Ready)
+### Policy Governance
 
 Organisational policy governance: multi-level inheritance, lifecycle management,
 compliance reporting, federation, and agent orchestration. Policy governance
@@ -377,7 +377,7 @@ implementation targets.
 Requires multi-repo awareness, hierarchy resolution, and fleet-level aggregation
 that only make sense after the core policy engine is battle-tested.
 
-### Engineering Platform (Draft)
+### Engineering Platform
 
 Cross-cutting concerns that span all packages and releases. Promoted to Ready
 when specific work is identified.
@@ -402,7 +402,7 @@ when specific work is identified.
 | [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md)                                 | TUIEXTRACT | 7/7        | eddacraft-tui, RATS (done) — **Complete**                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md)                                   | ATTRIB     | 3/11       | tools/starters/acknowledgements/ (kit + parameterised generator), cargo-about, deny.toml — **In Progress** (owner: joshuaboys; ATTRIB-001/002/003 landed; v1 entry points retired)                                                                                                                                                                                                                                                                             |
 
-### Test Quality (Ready/Draft)
+### Test Quality
 
 CI infrastructure repair, coverage uplift to ≥80% for targeted packages/crates,
 integration boundary testing, and external service contract tests. Implements
@@ -416,7 +416,7 @@ TCOV/TINT/TEXT depend on it.
 | [test-integration-surface](./modules/test-integration-surface.aps.md)       | TINT  | Draft       | 0/15                                                                                       | TFIX, partial RCLI/KERN |
 | [test-external-services](./modules/test-external-services.aps.md)           | TEXT  | Draft       | 0/14                                                                                       | TFIX                    |
 
-### Language & Coverage (Draft)
+### Language & Coverage
 
 Coverage strategy is defined by the
 [2026-04-08 Language and Coverage Design](./specs/2026-04-08-language-and-coverage-design.md)
@@ -570,7 +570,7 @@ it, each new module would re-design the same plumbing.
 | §16.5 #12 — parallelism-is-logical-dependency clarification                                                                                         | Inline in spec §9; track modules inherit                                         |
 | Council C-025 — suppression parser authority                                                                                                        | ✅ ADR-029 (Proposed)                                                            |
 
-### Config Intelligence (Draft)
+### Config Intelligence
 
 Extract dependency graphs and project structure from config files (package.json,
 Cargo.toml, go.mod, tsconfig.json, etc.) without language- specific analysers.
@@ -580,7 +580,7 @@ Feeds the architecture edge detector with dependency graph data.
 | ----------------------------------------------------------- | ------ | ---------- | ------------------- |
 | [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | 7          | architecture-safety |
 
-### Graph Substrate (Draft)
+### Graph Substrate
 
 Persistent joined graph substrate for deterministic enforcement, provenance,
 trust, control/session joins, and optional assistant context projection. Graph
@@ -592,7 +592,7 @@ trusted model.
 | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | Draft | 0/12 | KERN, ADR-015, ADR-030, ADR-031, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
-### Rust MCP Launch Path (Complete/Draft)
+### Rust MCP Launch Path
 
 Current-release Rust MCP launch shim plus next-release full parity port. The
 current release ships only the narrow A1 path: `anvil mcp install` writes client
@@ -604,7 +604,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 | [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete | 8/8 (A1 launch slice closed 2026-04-30 — RMCP-001..-008 shipped; RMCP-008 GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md` §8; follow-up gaps tracked as #1194/#1195/#1197) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
 
-### Intercept Loop (In Progress — A1 INTD slice complete)
+### Intercept Loop
 
 Host-local enforcement daemon that detects policy violations from AI agent file
 changes and interrupts the correct session via process-group control.
@@ -647,7 +647,7 @@ INTD/INTR/INTL/DRVR work is queued after the launch shim.
 [D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md),
 [D-033: Park IDE/MCP Surfaces; Retire TS Scanner Now](./decisions/033-park-ide-mcp-retire-ts-scanner.md)
 
-### Agent Infrastructure (Draft — no code yet)
+### Agent Infrastructure
 
 Thin, provider-agnostic agent runtime (weave, Apache-2.0) in standalone repo
 (`eddacraft/weave-rs`) plus Anvil-specific harness (anvil-weave) with zero-copy
@@ -727,26 +727,11 @@ All milestones complete. See [completed-index.aps.md](./completed-index.aps.md).
 
 ## Modules
 
-Module tables are in the Release Plan above. Completed modules are archived in
-[completed-index.aps.md](./completed-index.aps.md).
-
-Active module themes:
-
-| Theme                   | Module File                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Branch Recovery         | [branch-reconciliation](./archive/modules/branch-reconciliation.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Hardening & Maintenance | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [anvil-file-format](./archive/modules/anvil-file-format.aps.md), [nx-task-migration](./archive/modules/nx-task-migration.aps.md), [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Continuous Improvement  | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) (continuous-improvement retired — see Superseded)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Rust Engine             | [rust-kernel](./archive/modules/rust-kernel.aps.md), [rust-core-engine](./archive/modules/rust-core-engine.aps.md), [ratatui-tui](./archive/modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md), [rust-cli](./archive/modules/rust-cli.aps.md), [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Beta Auth               | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Observability           | [observability-foundation](./modules/observability-foundation.aps.md), [tracing-foundation](./modules/tracing-foundation.aps.md), [observability-export](./modules/observability-export.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Infrastructure as Code  | [pulumi-iac](./archive/modules/pulumi-iac.aps.md), [database-consolidation](./archive/modules/database-consolidation.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Web Dashboard           | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Policy Governance       | [opa-enhancements](./modules/opa-enhancements.aps.md) + 17 more (see release plan)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Engineering Platform    | [api-governance](./modules/api-governance.aps.md), [feature-flagging](./archive/modules/feature-flagging.aps.md), [feature-flag-migration](./archive/modules/feature-flag-migration.aps.md), [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./archive/modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./archive/modules/eddacraft-tui-shared.aps.md), [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Intercept Loop          | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Agent Infrastructure    | [weave](./modules/weave.aps.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Language & Coverage     | 5-track design — see [Language & Coverage](#language--coverage-draft) and [spec](./specs/2026-04-08-language-and-coverage-design.md). Track 1: [lang-ts-audit](./modules/lang-ts-audit.aps.md), [lang-rust](./modules/lang-rust.aps.md), [lang-python](./modules/lang-python.aps.md). Track 2: [lang-tail-wave](./modules/lang-tail-wave.aps.md). Track 3: [surface-sql-migrations](./modules/surface-sql-migrations.aps.md), [surface-github-actions](./modules/surface-github-actions.aps.md), [surface-dockerfile](./modules/surface-dockerfile.aps.md), [surface-shell](./modules/surface-shell.aps.md), [surface-env-files](./modules/surface-env-files.aps.md). Track 4: [pack-pulumi](./modules/pack-pulumi.aps.md), [pack-llm-provider](./modules/pack-llm-provider.aps.md), [pack-drizzle](./modules/pack-drizzle.aps.md), [pack-nextjs](./modules/pack-nextjs.aps.md), [pack-hono](./modules/pack-hono.aps.md), [pack-tokio](./modules/pack-tokio.aps.md). Track 5: [markdown-governance](./modules/markdown-governance.aps.md). Cross-track: [operational-supplement](./modules/operational-supplement.aps.md). Decisions: [ADR-027](./decisions/027-pack-architecture.md), [ADR-028](./decisions/028-markdown-governance-crate.md), [ADR-029](./decisions/029-suppression-parser-authority.md). Process: [anchor-rescoring-process](../docs/guides/anchor-rescoring-process.md). |
+Active module tables live in the [Release Plan](#release-plan) above.
+Completed modules are archived in
+[completed-index.aps.md](./completed-index.aps.md). Per-task detail for any
+module lives in that module's own `.aps.md` file — this index does not duplicate
+it.
 
 ### Superseded
 
@@ -760,439 +745,6 @@ Active module themes:
 
 > ~~continuous-improvement~~ (CI) — retired 2026-04-18; meta-module without
 > executable tasks. All concrete intents roll into MAINT.
-
-### Task Status — Web Dashboard
-
-The web dashboard provides a browser-based interface for exploring Anvil data.
-See [brainstorm](./brainstorms/dashboard-web-ui.md) and
-[json-render approach](./brainstorms/json-render-dashboard.md) for background.
-
-#### Dashboard Foundation
-
-| Task     | Module | Description                             | Status   | Priority |
-| -------- | ------ | --------------------------------------- | -------- | -------- |
-| DASH-001 | dash   | Dashboard route group and layout shell  | Draft    | high     |
-| DASH-002 | dash   | Extended theme tokens for dashboard     | Draft    | high     |
-| DASH-003 | dash   | Shared dashboard component catalogue    | Draft    | high     |
-| DASH-004 | dash   | Chart components (shadcn/ui + Recharts) | Draft    | high     |
-| DASH-005 | dash   | API data layer (Next.js API routes)     | Draft    | high     |
-| DASH-006 | dash   | Data fetching hooks (TanStack Query)    | Draft    | high     |
-| DASH-007 | dash   | Command palette (global search)         | Draft    | medium   |
-| DASH-008 | dash   | URL deep linking and filter persistence | Draft    | medium   |
-| DASH-009 | dash   | Remove apps/anvil-ui/ placeholder       | Complete | low      |
-
-#### Dashboard Core Views (Overview, Gates, Warnings)
-
-| Task         | Module   | Description                          | Status | Priority |
-| ------------ | -------- | ------------------------------------ | ------ | -------- |
-| DASHCORE-001 | dashcore | Overview — metric cards row          | Draft  | high     |
-| DASHCORE-002 | dashcore | Overview — trend charts              | Draft  | medium   |
-| DASHCORE-003 | dashcore | Overview — activity feed             | Draft  | high     |
-| DASHCORE-004 | dashcore | Gate history list                    | Draft  | high     |
-| DASHCORE-005 | dashcore | Gate detail with check tree          | Draft  | medium   |
-| DASHCORE-006 | dashcore | Warning list with grouping/filtering | Draft  | high     |
-| DASHCORE-007 | dashcore | Warning detail panel                 | Draft  | medium   |
-| DASHCORE-008 | dashcore | Warning breakdown visualisations     | Draft  | medium   |
-| DASHCORE-009 | dashcore | Anti-pattern registry reference      | Draft  | high     |
-
-#### Dashboard Architecture, Drift & Suppressions
-
-| Task         | Module   | Description                           | Status | Priority |
-| ------------ | -------- | ------------------------------------- | ------ | -------- |
-| DASHARCH-001 | dasharch | Architecture overview & layer diagram | Draft  | high     |
-| DASHARCH-002 | dasharch | Boundary violation explorer           | Draft  | high     |
-| DASHARCH-003 | dasharch | Interactive dependency graph          | Draft  | medium   |
-| DASHARCH-004 | dasharch | Drift timeline and snapshot list      | Draft  | high     |
-| DASHARCH-005 | dasharch | Snapshot detail view                  | Draft  | medium   |
-| DASHARCH-006 | dasharch | Snapshot comparison view              | Draft  | high     |
-| DASHARCH-007 | dasharch | Suppression list with lifecycle views | Draft  | high     |
-| DASHARCH-008 | dasharch | Suppression trend analysis            | Draft  | medium   |
-
-#### Dashboard AI Builder
-
-| Task       | Module | Description                        | Status | Priority |
-| ---------- | ------ | ---------------------------------- | ------ | -------- |
-| DASHAI-001 | dashai | json-render runtime integration    | Draft  | high     |
-| DASHAI-002 | dashai | Component catalog registration     | Draft  | high     |
-| DASHAI-003 | dashai | Prompt interface with live preview | Draft  | high     |
-| DASHAI-004 | dashai | Dashboard template gallery         | Draft  | medium   |
-| DASHAI-005 | dashai | Dashboard persistence              | Draft  | medium   |
-| DASHAI-006 | dashai | Dashboard versioning & iteration   | Draft  | low      |
-
-#### Dashboard Operations & Administration
-
-| Task        | Module  | Description                | Status | Priority |
-| ----------- | ------- | -------------------------- | ------ | -------- |
-| DASHOPS-001 | dashops | Audit log viewer           | Draft  | high     |
-| DASHOPS-002 | dashops | User activity breakdown    | Draft  | high     |
-| DASHOPS-003 | dashops | AI tool tracking analysis  | Draft  | medium   |
-| DASHOPS-004 | dashops | Plan list and detail views | Draft  | high     |
-| DASHOPS-005 | dashops | Configuration viewer       | Draft  | high     |
-| DASHOPS-006 | dashops | Diagnostics page           | Draft  | high     |
-| DASHOPS-007 | dashops | Role-based view filtering  | Draft  | medium   |
-
-### Task Status — Policy Governance
-
-#### OPA Enhancements
-
-<!-- REVIEW(post-rust): OPAE tasks now reference Rust paths. When OPAE moves to Ready,
-     implement in Rust crates (anvil-kernel, anvil-policy, anvil-cli, anvil-tui).
-
-     TypeScript → Rust path mapping:
-       core/src/architecture/  → crates/anvil-kernel/src/policy/ or crates/anvil-architecture/src/
-       core/src/gate/          → crates/anvil-policy/src/
-       cli/src/commands/       → crates/anvil-cli/src/commands/
-       cli/src/tui/            → crates/anvil-tui/src/surfaces/
-
-     TUI items use Ratatui, not Ink/React. See ADR-011.
-
-     Watch mode may be subsumed by KERN watch + RATS-002 (done). -->
-
-| Task     | Module | Description                         | Status | Priority | Review                          |
-| -------- | ------ | ----------------------------------- | ------ | -------- | ------------------------------- |
-| OPAE-001 | opae   | Enhanced architecture YAML schema   | Draft  | high     | Rust: crates/anvil-kernel       |
-| OPAE-002 | opae   | Module boundary definitions         | Draft  | high     | Rust: crates/anvil-architecture |
-| OPAE-003 | opae   | File-level import rules             | Draft  | high     | Rust: crates/anvil-kernel       |
-| OPAE-004 | opae   | Package import restrictions         | Draft  | high     | Rust: crates/anvil-kernel       |
-| OPAE-005 | opae   | Interactive architecture wizard     | Draft  | medium   | Rust: Ratatui surface           |
-| OPAE-006 | opae   | Policy library infrastructure       | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-007 | opae   | Security policy pack (8 policies)   | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-008 | opae   | Quality policy pack (6 policies)    | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-009 | opae   | Scope policy pack (4 policies)      | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-010 | opae   | Compliance policy pack (5 policies) | Draft  | medium   | Rust: crates/anvil-policy       |
-| OPAE-011 | opae   | Policy browse command               | Draft  | high     | Rust: crates/anvil-cli          |
-| OPAE-012 | opae   | Enhanced violation messages         | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-013 | opae   | Policy debugger foundation          | Draft  | medium   | Rust: crates/anvil-cli          |
-| OPAE-014 | opae   | Interactive debugger TUI            | Draft  | medium   | Rust: Ratatui surface           |
-| OPAE-015 | opae   | Policy watch mode                   | Draft  | medium   | May subsume by KERN watch       |
-| OPAE-016 | opae   | Architecture watch mode             | Draft  | medium   | May subsume by KERN watch       |
-| OPAE-017 | opae   | Watch mode performance optimisation | Draft  | medium   | KERN done (14x speedup)         |
-| OPAE-018 | opae   | Historical PR analysis              | Draft  | medium   | Rust: crates/anvil-policy       |
-| OPAE-019 | opae   | Impact visualisation                | Draft  | medium   | Rust: Ratatui surface           |
-| OPAE-020 | opae   | Impact simulation                   | Draft  | medium   | Rust: crates/anvil-policy       |
-| OPAE-021 | opae   | Policy description parser (NLP)     | Draft  | low      | Rust: crates/anvil-policy       |
-| OPAE-022 | opae   | YAML generation from NLP            | Draft  | low      | Rust: crates/anvil-policy       |
-| OPAE-023 | opae   | Policy creation wizard              | Draft  | low      | Rust: Ratatui surface           |
-| OPAE-024 | opae   | Exception request system            | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-025 | opae   | Exception approval workflow         | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-026 | opae   | Audit trail                         | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-027 | opae   | Exception CLI commands              | Draft  | high     | Rust: crates/anvil-cli          |
-| OPAE-028 | opae   | GitHub PR comments                  | Draft  | high     | Rust: crates/anvil-cli          |
-| OPAE-029 | opae   | GitLab MR comments                  | Draft  | high     | Rust: crates/anvil-cli          |
-| OPAE-030 | opae   | Inline annotations                  | Draft  | medium   | Rust: crates/anvil-policy       |
-| OPAE-031 | opae   | Compliance metrics collection       | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-032 | opae   | Metrics dashboard TUI               | Draft  | medium   | Rust: Ratatui surface           |
-| OPAE-033 | opae   | Team leaderboards                   | Draft  | medium   | Rust: Ratatui surface           |
-| OPAE-034 | opae   | Organisation policy bundles         | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-035 | opae   | Bundle versioning                   | Draft  | high     | Rust: crates/anvil-policy       |
-| OPAE-036 | opae   | Bundle inheritance                  | Draft  | medium   | Rust: crates/anvil-policy       |
-
-#### OPA Agent Orchestration
-
-| Task     | Module | Description                             | Status | Priority |
-| -------- | ------ | --------------------------------------- | ------ | -------- |
-| OPAG-001 | opag   | Orchestration contract                  | Draft  | high     |
-| OPAG-002 | opag   | Checkpoint policy runner                | Draft  | high     |
-| OPAG-003 | opag   | Remediation-first guidance model        | Draft  | high     |
-| OPAG-004 | opag   | Exception workflow lifecycle            | Draft  | high     |
-| OPAG-005 | opag   | Audit event stream                      | Draft  | high     |
-| OPAG-006 | opag   | CLI/IDE/MCP/CI surface adapters         | Draft  | medium   |
-| OPAG-007 | opag   | Rollout controls and latency guardrails | Draft  | medium   |
-
-#### Eval Harness Integration
-
-| Task     | Module | Description                  | Status | Priority |
-| -------- | ------ | ---------------------------- | ------ | -------- |
-| EVAL-001 | eval   | EvalHarnessPort contract     | Draft  | high     |
-| EVAL-002 | eval   | Framework adapter            | Draft  | high     |
-| EVAL-003 | eval   | CI regression command        | Draft  | high     |
-| EVAL-004 | eval   | Canonical result persistence | Draft  | high     |
-| EVAL-005 | eval   | Policy-linked remediation    | Draft  | high     |
-
-#### Compliance Evidence Workspace
-
-| Task     | Module | Description                    | Status | Priority |
-| -------- | ------ | ------------------------------ | ------ | -------- |
-| CEWS-001 | cews   | Control-evidence model         | Draft  | high     |
-| CEWS-002 | cews   | Evidence ingestion and linking | Draft  | high     |
-| CEWS-003 | cews   | Workspace views/contracts      | Draft  | medium   |
-| CEWS-004 | cews   | Export packs                   | Draft  | medium   |
-
-#### Contextual Policy Assertions
-
-| Task     | Module | Description      | Status | Priority |
-| -------- | ------ | ---------------- | ------ | -------- |
-| CPOL-001 | cpol   | Assertion schema | Draft  | high     |
-| CPOL-002 | cpol   | Context adapters | Draft  | high     |
-| CPOL-003 | cpol   | Guidance outputs | Draft  | high     |
-
-#### IO Risk Controls
-
-| Task       | Module | Description               | Status | Priority |
-| ---------- | ------ | ------------------------- | ------ | -------- |
-| IORISK-001 | iorisk | IO risk taxonomy          | Draft  | high     |
-| IORISK-002 | iorisk | Scanner pipeline          | Draft  | high     |
-| IORISK-003 | iorisk | Policy output integration | Draft  | high     |
-
-#### Gateway Control Plane Patterns
-
-| Task     | Module | Description               | Status | Priority |
-| -------- | ------ | ------------------------- | ------ | -------- |
-| GATE-001 | gate   | Reference topologies      | Draft  | medium   |
-| GATE-002 | gate   | Enforcement contract      | Draft  | high     |
-| GATE-003 | gate   | Observability event model | Draft  | medium   |
-
-#### Adversarial Testing Catalog
-
-| Task    | Module | Description                 | Status | Priority |
-| ------- | ------ | --------------------------- | ------ | -------- |
-| ATC-001 | atc    | Adversarial probe taxonomy  | Draft  | high     |
-| ATC-002 | atc    | Probe pack registry         | Draft  | high     |
-| ATC-003 | atc    | Eval harness integration    | Draft  | high     |
-| ATC-004 | atc    | Adversarial trend reporting | Draft  | medium   |
-
-#### Prompt Attack Regression Packs
-
-| Task     | Module | Description                     | Status | Priority |
-| -------- | ------ | ------------------------------- | ------ | -------- |
-| PATT-001 | patt   | Attack scenario schema          | Draft  | high     |
-| PATT-002 | patt   | Attack pack runner              | Draft  | high     |
-| PATT-003 | patt   | CI threshold policy integration | Draft  | high     |
-
-#### Trust Center Automation
-
-| Task      | Module | Description                   | Status | Priority |
-| --------- | ------ | ----------------------------- | ------ | -------- |
-| TRUST-001 | trust  | Trust artifact model          | Draft  | high     |
-| TRUST-002 | trust  | Publishing pipeline           | Draft  | high     |
-| TRUST-003 | trust  | Freshness and ownership rules | Draft  | medium   |
-
-#### Organisational Policy Hierarchy
-
-| Task        | Module  | Description                       | Status | Priority |
-| ----------- | ------- | --------------------------------- | ------ | -------- |
-| ORGHIER-001 | orghier | Hierarchy configuration schema    | Draft  | high     |
-| ORGHIER-002 | orghier | Scope selector engine             | Draft  | high     |
-| ORGHIER-003 | orghier | Policy hierarchy resolver         | Draft  | high     |
-| ORGHIER-004 | orghier | Override permission enforcement   | Draft  | high     |
-| ORGHIER-005 | orghier | Conflict diagnostics              | Draft  | medium   |
-| ORGHIER-006 | orghier | CLI hierarchy commands            | Draft  | high     |
-| ORGHIER-007 | orghier | Gate runner hierarchy integration | Draft  | medium   |
-
-#### Policy Lifecycle Management
-
-| Task      | Module | Description                       | Status | Priority |
-| --------- | ------ | --------------------------------- | ------ | -------- |
-| POLLC-001 | pollc  | Policy version schema             | Draft  | high     |
-| POLLC-002 | pollc  | Lifecycle state machine           | Draft  | high     |
-| POLLC-003 | pollc  | Canary rollout selector           | Draft  | medium   |
-| POLLC-004 | pollc  | Grace period enforcer             | Draft  | high     |
-| POLLC-005 | pollc  | Policy changelog generator        | Draft  | high     |
-| POLLC-006 | pollc  | CLI lifecycle commands            | Draft  | high     |
-| POLLC-007 | pollc  | Gate runner lifecycle integration | Draft  | medium   |
-
-#### Compliance Reporting
-
-| Task       | Module | Description                     | Status | Priority |
-| ---------- | ------ | ------------------------------- | ------ | -------- |
-| COMPLY-001 | comply | Compliance framework registry   | Draft  | high     |
-| COMPLY-002 | comply | SOC 2 and ISO 27001 definitions | Draft  | medium   |
-| COMPLY-003 | comply | Policy-to-control mapper        | Draft  | high     |
-| COMPLY-004 | comply | Evidence collector              | Draft  | medium   |
-| COMPLY-005 | comply | Compliance posture scoring      | Draft  | high     |
-| COMPLY-006 | comply | Report generator                | Draft  | medium   |
-| COMPLY-007 | comply | Historical posture tracking     | Draft  | high     |
-| COMPLY-008 | comply | CLI compliance commands         | Draft  | high     |
-
-#### Policy Federation
-
-| Task       | Module | Description                    | Status | Priority |
-| ---------- | ------ | ------------------------------ | ------ | -------- |
-| POLFED-001 | polfed | Policy channel schema          | Draft  | high     |
-| POLFED-002 | polfed | Central repository conventions | Draft  | high     |
-| POLFED-003 | polfed | Policy publisher               | Draft  | high     |
-| POLFED-004 | polfed | Publish approval gate          | Draft  | medium   |
-| POLFED-005 | polfed | Policy subscriber              | Draft  | high     |
-| POLFED-006 | polfed | Subscription version pinning   | Draft  | high     |
-| POLFED-007 | polfed | Fleet compliance aggregator    | Draft  | medium   |
-| POLFED-008 | polfed | CLI federation commands        | Draft  | high     |
-
-### Task Status — Pulumi Infrastructure as Code
-
-| Task    | Module | Description                                     | Status   | Priority |
-| ------- | ------ | ----------------------------------------------- | -------- | -------- |
-| IAC-001 | iac    | Scaffold Pulumi project in monorepo             | Complete | high     |
-| IAC-002 | iac    | Configure Pulumi state backend                  | Complete | high     |
-| IAC-003 | iac    | Manage website Vercel project config            | Complete | high     |
-| IAC-004 | iac    | Manage docs-site Vercel project config          | Complete | high     |
-| IAC-005 | iac    | Create VercelApp ComponentResource              | Complete | medium   |
-| IAC-006 | iac    | Manage GitHub repository configuration          | Complete | high     |
-| IAC-007 | iac    | Manage Azure DNS zones and records              | Complete | high     |
-| IAC-008 | iac    | Add Pulumi CI/CD pipeline integration           | Complete | high     |
-| IAC-009 | iac    | Write unit tests for infrastructure code        | Complete | medium   |
-| IAC-010 | iac    | Import existing Vercel resources                | Complete | high     |
-| IAC-011 | iac    | Document IaC setup and contributor guide        | Complete | medium   |
-| IAC-012 | iac    | Document rollback procedures                    | Complete | medium   |
-| IAC-013 | iac    | Bootstrap Azure storage + KeyVault (CLI script) | Complete | high     |
-| IAC-014 | iac    | Migrate Pulumi backend to Azure Blob Storage    | Complete | high     |
-| IAC-015 | iac    | Add Azure KeyVault SDK helper module            | Complete | high     |
-| IAC-016 | iac    | Migrate secrets from Pulumi config to KeyVault  | Complete | high     |
-| IAC-017 | iac    | Update tests for KeyVault mocking               | Complete | medium   |
-| IAC-018 | iac    | Update CI workflow for self-managed backend     | Complete | high     |
-| IAC-019 | iac    | Migrate state from Pulumi Cloud to Azure Blob   | Complete | high     |
-| IAC-020 | iac    | Update infra README for new backend             | Complete | medium   |
-
-### Task Status — Code Review Backlog
-
-Architectural recommendations from the 2026-02-16 code review. Non-urgent
-improvements tracked for future work.
-
-| Task    | Module | Description                                         | Status   | Priority |
-| ------- | ------ | --------------------------------------------------- | -------- | -------- |
-| CRB-001 | crb    | Standardise stderr/stdout policy across CLI         | Complete | Medium   |
-| CRB-002 | crb    | Consolidate hook scripts to single source           | Complete | Medium   |
-| CRB-003 | crb    | Add Zod validation to runtime YAML parsers          | Complete | Medium   |
-| CRB-004 | crb    | OPA binary manager safer PATH + shared logger       | Complete | Low      |
-| CRB-005 | crb    | Dependency audit — surface errors deterministically | Complete | Medium   |
-| CRB-006 | crb    | Monorepo-wide vitest config strategy                | Complete | Low      |
-| CRB-007 | crb    | Move process.exit from library code to CLI layer    | Complete | High     |
-| CRB-008 | crb    | Consistent workspace root containment for output    | Complete | High     |
-| CRB-009 | crb    | OPA checksum table contains placeholder hashes      | Complete | High     |
-| CRB-010 | crb    | APS task locking is not atomic (race condition)     | Complete | Medium   |
-| CRB-011 | crb    | APS loader maxDepth parameter ignored               | Complete | Low      |
-| CRB-012 | crb    | Config loader placeholder vs Complete status drift  | Complete | Low      |
-| CRB-013 | crb    | MCP server tests not in vitest include globs        | Complete | Medium   |
-| CRB-014 | crb    | Add tests for git command composition safety        | Complete | Medium   |
-| CRB-015 | crb    | Add symlink escape tests to file-storage            | Complete | Medium   |
-| CRB-016 | crb    | Add Windows separator tests to MCP path guards      | Complete | Low      |
-| CRB-017 | crb    | Add tests for platform/core config loaders          | Complete | Low      |
-| CRB-018 | crb    | Standardise works-from-repo-root workflow           | Complete | Medium   |
-| CRB-019 | crb    | Consistent logging/output conventions               | Complete | Medium   |
-| CRB-020 | crb    | Option parsing/validation inconsistency             | Complete | Low      |
-| CRB-021 | crb    | Duplicated implementations and naming drift         | Complete | Low      |
-| CRB-022 | crb    | Large command modules need decomposition            | Complete | Low      |
-| CRB-023 | crb    | Silent fallbacks without visibility                 | Complete | Medium   |
-| CRB-024 | crb    | Subprocess calls without timeouts in CI             | Complete | Medium   |
-| CRB-025 | crb    | Docs and scripts drifting from reality              | Complete | Low      |
-| CRB-026 | crb    | Fix spinner leak on TUI fallback path in audit      | Complete | Medium   |
-| CRB-027 | crb    | Add workspace path containment to policy validate   | Complete | High     |
-| CRB-028 | crb    | Annotate mcp-config symlink guard as fixed          | Complete | Low      |
-| CRB-029 | crb    | Expand test coverage for untested CLI commands      | Complete | Medium   |
-
-### Task Status — Hardening & Maintenance
-
-Ongoing pattern extraction and shared utility consolidation. Discovery-driven —
-new tasks are added as repeated patterns are found during other work.
-
-| Task      | Module | Description                                          | Status   | Priority |
-| --------- | ------ | ---------------------------------------------------- | -------- | -------- |
-| MAINT-001 | maint  | CLI option coercion utility (from CRB-020 discovery) | Complete | High     |
-| MAINT-002 | maint  | Error formatting consistency                         | Complete | Medium   |
-| MAINT-003 | maint  | Workspace root resolution patterns                   | Complete | Low      |
-| MAINT-004 | maint  | Git operation wrappers                               | Complete | Medium   |
-| MAINT-005 | maint  | JSON output formatting                               | Complete | Low      |
-| MAINT-006 | maint  | Nx generator for CLI commands                        | Complete | Low      |
-| MAINT-007 | maint  | Nx generator for gate checks                         | Complete | Low      |
-| MAINT-008 | maint  | Spinner/progress patterns                            | Complete | Low      |
-| MAINT-009 | maint  | Edda list filters parity with release claims         | Complete | Medium   |
-| MAINT-010 | maint  | Authenticated release smoke harness                  | Deferred | Medium   |
-| MAINT-011 | maint  | Migrate to TypeScript 6.0                            | Complete | Medium   |
-
-### Task Status — Hardening & Maintenance (Nx Task Migration)
-
-Migrate root-level lint, typecheck, and test scripts from monolithic processes
-to Nx-orchestrated per-project targets.
-
-| Task       | Module | Description                                           | Status   | Priority |
-| ---------- | ------ | ----------------------------------------------------- | -------- | -------- |
-| NXTASK-001 | nxtask | Ensure nx sync is clean and TS references are current | Complete | high     |
-| NXTASK-002 | nxtask | Wire eslint-plugin-anvil as Nx build dependency       | Complete | high     |
-| NXTASK-003 | nxtask | Migrate root lint scripts to nx run-many              | Complete | high     |
-| NXTASK-004 | nxtask | Migrate root typecheck script to nx run-many          | Complete | high     |
-| NXTASK-005 | nxtask | Migrate root test script to nx run-many               | Complete | medium   |
-| NXTASK-006 | nxtask | Update CI to use nx affected                          | Complete | high     |
-
-### Task Status — Hardening & Maintenance (Rust Nx Migration)
-
-Bring the Rust workspace up to parity with the TypeScript Nx setup: CI caching,
-affected-only builds, and workspace hygiene. Mirrors NXTASK for Rust crates. See
-[rust-nx-migration](./archive/modules/rust-nx-migration.aps.md) for full module.
-
-| Task       | Module | Description                                         | Status   | Priority | Tier |
-| ---------- | ------ | --------------------------------------------------- | -------- | -------- | ---- |
-| RUSTNX-001 | rustnx | Add Swatinem/rust-cache to Rust CI jobs             | Complete | high     | 1    |
-| RUSTNX-002 | rustnx | Adopt cargo-nextest for workspace test runs         | Complete | high     | 1    |
-| RUSTNX-003 | rustnx | Parallelise Rust CI jobs behind shared cache        | Complete | medium   | 1    |
-| RUSTNX-004 | rustnx | Bring Rust crates under Nx via `@eddacraft/nx-rust` | Complete | high     | 2    |
-| RUSTNX-005 | rustnx | Workspace-level cache inputs for Rust               | Complete | high     | 2    |
-| RUSTNX-006 | rustnx | Unify root scripts across TS and Rust               | Complete | medium   | 2    |
-| RUSTNX-007 | rustnx | Switch Rust CI to nx affected                       | Complete | high     | 2    |
-| RUSTNX-008 | rustnx | Adopt cargo-hakari workspace-hack                   | Complete | medium   | 3    |
-| RUSTNX-009 | rustnx | Add cargo-deny CI gate                              | Complete | medium   | 3    |
-
-### Task Status — Language & Coverage (Draft)
-
-All modules below are at status **Draft**. Tasks per module will be defined when
-each module's Ready Checklist passes — most are gated on outstanding ADRs (TS T3
-acceptance checklist, pack architecture, Rust T3 enforcement location, kernel
-prerequisite work, operational supplement).
-
-Authoritative source:
-[2026-04-08 Language and Coverage Design](./specs/2026-04-08-language-and-coverage-design.md).
-
-**Track 1 — Anchors** (TS audit + Rust → T3 + Python → T3)
-
-| Scope ID | Module                                          | Status      | Phase | Notes                                                                                                                                                                                                                       |
-| -------- | ----------------------------------------------- | ----------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LANGTS   | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | Ready (2/5) | 1     | Anchor item zero — audit + T3 checklist landed 2026-04-26; promoted to Ready after anchor re-scoring gate ([report](./specs/2026-04-26-langts-audit-report.md), [checklist](./specs/2026-04-26-t3-acceptance-checklist.md)) |
-| RSTLAN   | [lang-rust](./modules/lang-rust.aps.md)         | Draft       | 2     | Rewritten for T3 target; gated on LANGTS + Rust T3 enforcement ADR                                                                                                                                                          |
-| PYLAN    | [lang-python](./modules/lang-python.aps.md)     | Draft       | 2     | Rewritten for T3 target; gated on LANGTS + RSTLAN                                                                                                                                                                           |
-
-**Track 2 — Tail T1 wave** (single batched sprint)
-
-| Scope ID | Module                                            | Status         | Phase | Notes                                                                     |
-| -------- | ------------------------------------------------- | -------------- | ----- | ------------------------------------------------------------------------- |
-| LANGTAIL | [lang-tail-wave](./modules/lang-tail-wave.aps.md) | Draft          | 2     | Merges Dart, Go, Java, Kotlin, .NET, C/C++ — C/C++ at-risk per spec §12.3 |
-| —        | `lang-swift`, `lang-zig`                          | Cut (spec §13) | —     | Archived — no implementation planned                                      |
-
-**Track 3 — Governance surfaces**
-
-| Scope ID | Module                                                            | Target tier | Status      | Phase |
-| -------- | ----------------------------------------------------------------- | ----------- | ----------- | ----- |
-| SURFSQL  | [surface-sql-migrations](./modules/surface-sql-migrations.aps.md) | T2          | Draft       | 1     |
-| SURFGHA  | [surface-github-actions](./modules/surface-github-actions.aps.md) | T2          | Draft       | 2     |
-| SURFDOCK | [surface-dockerfile](./modules/surface-dockerfile.aps.md)         | T2          | Draft       | 3     |
-| SURFSH   | [surface-shell](./modules/surface-shell.aps.md)                   | T1          | Draft       | 3     |
-| SURFENV  | [surface-env-files](./modules/surface-env-files.aps.md)           | T1          | Complete    | 6     |
-
-**Track 4 — Semantic packs**
-
-| Scope ID | Module                                                  | Substrate     | Min substrate | Status                              | Phase |
-| -------- | ------------------------------------------------------- | ------------- | ------------- | ----------------------------------- | ----- |
-| PACKPUL  | [pack-pulumi](./modules/pack-pulumi.aps.md)             | TS            | T3            | Draft                               | 1     |
-| PACKLLM  | [pack-llm-provider](./modules/pack-llm-provider.aps.md) | TS → Python   | T3 → T2+      | Draft (warn-only default)           | 1 + 2 |
-| PACKDRZ  | [pack-drizzle](./modules/pack-drizzle.aps.md)           | TS            | T3            | Draft                               | 2     |
-| PACKNXT  | [pack-nextjs](./modules/pack-nextjs.aps.md)             | TS            | T3            | Draft                               | 2     |
-| PACKHON  | [pack-hono](./modules/pack-hono.aps.md)                 | TS            | T3            | Draft                               | 2     |
-| PACKTOK  | [pack-tokio](./modules/pack-tokio.aps.md)               | Rust          | T2+           | Draft                               | 2     |
-| —        | `pack-django`, `pack-fastapi`, `pack-axum`              | Python / Rust | T2+           | Phase 3 — file created on promotion | 3     |
-
-**Track 5 — Markdown governance**
-
-| Scope ID | Module                                                      | Target tier | Status | Phase |
-| -------- | ----------------------------------------------------------- | ----------- | ------ | ----- |
-| MDGOV    | [markdown-governance](./modules/markdown-governance.aps.md) | M1          | Draft  | 2     |
-
-**Cross-track infrastructure**
-
-| Scope ID | Module                                                            | Status | Notes                                                                                                                                                                                                   |
-| -------- | ----------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPSUP    | [operational-supplement](./modules/operational-supplement.aps.md) | In Progress | 1/7 — owns stable check-ID registry building on `check_catalog.rs`, drift schema versioning, per-track flags, file-presence guards + wall-time caps, FP reporting. OPSUP-002..-007 remain Draft; surfaces and packs may move to Ready against partial OPSUP. |
-
-The previous Multi-Language Task Status table (PYLAN / RSTLAN / DNLAN with
-HTMLCSS-001 prerequisites) is fully superseded. .NET/C# is folded into Track 2's
-`lang-tail-wave` under the new ranking — zero confirmed demand and no pack
-potential (spec §8.2).
 
 ## Risks & Mitigations
 
