@@ -1,3 +1,4 @@
+use std::fmt::Write as FmtWrite;
 use std::io::{self, IsTerminal, Write};
 
 use anyhow::{Context, Result, bail};
@@ -238,6 +239,7 @@ fn render_json<T: Serialize>(value: &T, json: bool) -> Result<bool> {
     Ok(json)
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
     let admin_key = resolve_admin_key(std::env::var("ANVIL_ADMIN_KEY"), global.json)?;
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
@@ -270,10 +272,10 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
             }
         }
         AdminCommand::Revoke { email, token, yes } => {
-            let target = email
-                .as_ref()
-                .map(|email| format!("all tokens for {email}"))
-                .unwrap_or_else(|| "the supplied token".to_string());
+            let target = email.as_ref().map_or_else(
+                || "the supplied token".to_string(),
+                |email| format!("all tokens for {email}"),
+            );
             if !*yes && !confirm_revoke(&target, global.json)? {
                 return Ok(());
             }
@@ -324,7 +326,16 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
             let preview = rt.block_on(client.send_migration_dry_run(&source, *limit))?;
             if preview.count == 0 {
                 if global.json {
-                    eprintln!("No recipients match the filter. Nothing to send.");
+                    render_json(
+                        &MigrationSendResponse {
+                            source: source.clone(),
+                            total: 0,
+                            sent: 0,
+                            failed: 0,
+                            results: Vec::new(),
+                        },
+                        true,
+                    )?;
                 } else {
                     println!("No recipients match the filter. Nothing to send.");
                 }
@@ -507,7 +518,7 @@ fn print_waitlist(result: &WaitlistResponse) {
             item.name.as_deref().unwrap_or("-"),
             item.source,
             date_only(&item.created_at),
-            item.approved_at.as_deref().map(date_only).unwrap_or("-")
+            item.approved_at.as_deref().map_or("-", date_only)
         );
     }
     println!("\nShowing {} of {}", result.items.len(), result.total);
@@ -538,7 +549,7 @@ fn print_user(result: &ShowUserResponse) {
                 token.scopes.join(","),
                 date_only(&token.created_at),
                 date_only(&token.expires_at),
-                token.revoked_at.as_deref().map(date_only).unwrap_or("-")
+                token.revoked_at.as_deref().map_or("-", date_only)
             );
         }
     }
@@ -603,11 +614,12 @@ fn print_migration_preview(result: &MigrationPreviewResponse) {
 fn migration_recipient_table(result: &MigrationPreviewResponse) -> String {
     let mut out = String::from("EMAIL\tNAME");
     for recipient in &result.recipients {
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "\n{}\t{}",
             recipient.email,
             recipient.name.as_deref().unwrap_or("")
-        ));
+        );
     }
     out
 }
@@ -673,10 +685,10 @@ fn rewrite_migration_error(err: anyhow::Error) -> anyhow::Error {
                 "recipient set changed since preview; re-run with --no-dry-run to preview and retry",
             );
             if !added.is_empty() {
-                message.push_str(&format!("\n  added:   {added}"));
+                let _ = write!(message, "\n  added:   {added}");
             }
             if !removed.is_empty() {
-                message.push_str(&format!("\n  removed: {removed}"));
+                let _ = write!(message, "\n  removed: {removed}");
             }
             anyhow::anyhow!(message)
         }
