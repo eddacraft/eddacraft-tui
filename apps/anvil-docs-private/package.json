@@ -1,6 +1,7 @@
 {
   "name": "@eddacraft/anvil-docs-private",
   "version": "0.3.0-beta",
+  "description": "Anvil + beta Docusaurus docs sitting behind the docs-shell proxy at docs.eddacraft.ai/anvil",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",

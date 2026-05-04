@@ -1,6 +1,7 @@
 {
   "name": "@eddacraft/docs-public",
   "version": "0.3.0-beta",
+  "description": "Public Docusaurus site (APS, Kindling, edda-stack, blog) sitting behind the docs-shell proxy at docs.eddacraft.ai",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
