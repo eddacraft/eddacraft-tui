@@ -1,3 +1,4 @@
+mod activation;
 mod auth;
 mod capacity;
 mod commands;

@@ -9,23 +9,55 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::activation;
 use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
 
 #[derive(Debug, Args)]
-pub struct StatusArgs {}
+pub struct StatusArgs {
+    /// Print only the activation diagnostic (LAUNCH-008 / LAUNCH-012).
+    ///
+    /// Equivalent to `anvil start --verify`'s status mode — a
+    /// non-mutating layered probe of the activation pipeline that
+    /// reports the literal protection state (`protecting`,
+    /// `ready_restart_required`, `watching`, `needs_action`,
+    /// `unsupported`, or `error`) without touching config.
+    #[arg(long)]
+    pub verify: bool,
+}
 
-pub fn run(_args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    if args.verify {
+        return run_verify(global);
+    }
+
     let data = gather_status_data(".");
+    let activation = activation::verify(Path::new("."));
 
     if global.json {
-        print_json(&data)?;
+        print_json(&data, &activation)?;
     } else if !global.no_tui && std::io::stdout().is_terminal() {
         let state = StatusState::new(data);
         crate::tui::run_surface(state)?;
     } else {
-        print_plain(&data);
+        print_plain(&data, &activation);
     }
 
+    Ok(())
+}
+
+/// LAUNCH-012: verification surface. Stand-alone activation probe
+/// suitable for `anvil status --verify`. Non-mutating: never writes
+/// config, never spawns subprocesses outside read-only probes. The
+/// `anvil start --verify` form forwards here once LAUNCH-006 promotes
+/// the start command.
+fn run_verify(global: &GlobalArgs) -> anyhow::Result<()> {
+    let activation = activation::verify(Path::new("."));
+    if global.json {
+        let json = serde_json::to_string_pretty(&activation::render_json(&activation))?;
+        println!("{json}");
+    } else {
+        print!("{}", activation::render_human(&activation));
+    }
     Ok(())
 }
 
@@ -411,8 +443,15 @@ fn is_executable(path: &Path) -> bool {
 // Output: plain text
 // ---------------------------------------------------------------------------
 
-fn print_plain(data: &StatusData) {
+fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagnostic) {
     println!("ANVIL STATUS\n");
+
+    // Activation header is rendered first so the literal protection
+    // claim is the first thing the user sees — they should not have
+    // to scroll past hooks/profile/runs to learn whether Anvil is
+    // protecting their repo.
+    print!("{}", activation::render_human(activation_diag));
+    println!();
 
     println!("HOOKS");
     for hook in &data.hooks {
@@ -461,6 +500,7 @@ fn print_plain(data: &StatusData) {
 
 #[derive(Serialize)]
 struct StatusOutput {
+    activation: serde_json::Value,
     hooks: Vec<HookOutput>,
     profile: ProfileOutput,
     recent_runs: Vec<RunOutput>,
@@ -490,8 +530,12 @@ struct RunOutput {
     duration_ms: u64,
 }
 
-fn print_json(data: &StatusData) -> anyhow::Result<()> {
+fn print_json(
+    data: &StatusData,
+    activation_diag: &activation::ActivationDiagnostic,
+) -> anyhow::Result<()> {
     let output = StatusOutput {
+        activation: activation::render_json(activation_diag),
         hooks: data
             .hooks
             .iter()
