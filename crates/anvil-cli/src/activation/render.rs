@@ -12,8 +12,7 @@
 
 use std::fmt::Write as _;
 
-use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::diagnostic::{ActivationDiagnostic, McpTier};
 use super::state::ProtectionState;
@@ -64,49 +63,35 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     out
 }
 
-/// Stable JSON shape for activation. Deliberately a separate
-/// `#[derive(Serialize)]` struct so consumers can lock onto the field
-/// list rather than the (private) `ActivationDiagnostic`.
-#[derive(Serialize)]
-pub struct ActivationJson {
-    pub state: &'static str,
-    pub headline: &'static str,
-    pub config: &'static str,
-    pub mcp: Vec<McpEntryJson>,
-    pub watch: &'static str,
-    pub baseline_present: bool,
-    pub last_error: Option<String>,
-    pub all_languages_unsupported: bool,
-}
-
-#[derive(Serialize)]
-pub struct McpEntryJson {
-    pub client: &'static str,
-    pub tier: &'static str,
-}
-
 /// Build the JSON value for embedding inside a parent JSON document
 /// (e.g. `anvil status --json`'s `activation` field).
+///
+/// The shape is stable contract — keys are: `state`, `headline`,
+/// `config`, `mcp` (array of `{client, tier}` objects), `watch`,
+/// `baseline_present`, `last_error`, `all_languages_unsupported`.
+/// Tooling consumers may rely on this set; downstream PRs add fields,
+/// they do not rename or remove existing ones.
+///
+/// The body uses `serde_json::json!` so the value is constructed
+/// directly from primitives — no fallible `to_value` round-trip and
+/// no panic path for the binary to inherit.
 pub fn render_json(d: &ActivationDiagnostic) -> Value {
     let state = d.protection_state();
-    let payload = ActivationJson {
-        state: state.label(),
-        headline: state.headline(),
-        config: d.config.label(),
-        mcp: d
-            .mcp
-            .iter()
-            .map(|(c, t)| McpEntryJson {
-                client: c.label(),
-                tier: t.label(),
-            })
-            .collect(),
-        watch: d.watch.label(),
-        baseline_present: d.baseline_present,
-        last_error: d.last_error.clone(),
-        all_languages_unsupported: d.all_languages_unsupported,
-    };
-    serde_json::to_value(&payload).expect("activation JSON shape is total")
+    let mcp: Vec<Value> = d
+        .mcp
+        .iter()
+        .map(|(c, t)| json!({"client": c.label(), "tier": t.label()}))
+        .collect();
+    json!({
+        "state": state.label(),
+        "headline": state.headline(),
+        "config": d.config.label(),
+        "mcp": mcp,
+        "watch": d.watch.label(),
+        "baseline_present": d.baseline_present,
+        "last_error": d.last_error,
+        "all_languages_unsupported": d.all_languages_unsupported,
+    })
 }
 
 /// Concrete, actionable next step for the current state. Returning
@@ -131,7 +116,11 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             }
         }
         ProtectionState::Unsupported => {
-            Some("Anvil does not yet cover this repo's languages — see `anvil status` for the language profile.")
+            // Pointing to `anvil status` is circular when the user is
+            // already reading status output. The honest hint is to
+            // wait for language coverage to ship, or run secrets-only
+            // checks via watch fallback if they want any safety net.
+            Some("Anvil does not yet cover this repo's languages — secrets checks still run via `anvil watch`, but architecture / antipattern checks will not produce findings on these files.")
         }
         ProtectionState::Error => {
             Some("re-run `anvil start --verify` after addressing the cause; activation will not write any state until it can proceed safely.")

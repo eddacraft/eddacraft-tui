@@ -183,29 +183,35 @@ impl ActivationDiagnostic {
             return ProtectionState::Protecting;
         }
 
-        // Watch running is honest fallback coverage. It outranks
-        // `RestartRequired` only when MCP is not yet startable —
-        // otherwise the truer state is "you have MCP, please restart".
+        // `RestartRequired` is the literal "one restart from live"
+        // tier. `ServerStartable` is earlier in the chain (the server
+        // spawns, but we have no evidence a client restart will pick
+        // it up) — collapsing it to `ReadyRestartRequired` would
+        // over-claim, so it falls through to `NeedsAction` /
+        // `Watching` like the weaker tiers.
+        let restart_pending = matches!(highest_mcp, Some(McpTier::RestartRequired));
+
         if matches!(self.watch, WatchTier::Running) {
-            // If MCP is one step from live, prefer the literal
-            // "restart required" label so the user knows there is a
-            // stronger state immediately available.
-            if matches!(
-                highest_mcp,
-                Some(McpTier::RestartRequired | McpTier::ServerStartable)
-            ) {
+            // Watch is honest fallback coverage. If MCP is literally
+            // one step from live, surface that stronger label so the
+            // user knows a restart will graduate them — but never
+            // promote `ServerStartable` to that label.
+            if restart_pending {
                 return ProtectionState::ReadyRestartRequired;
             }
             return ProtectionState::Watching;
         }
 
-        if matches!(highest_mcp, Some(McpTier::RestartRequired)) {
+        if restart_pending {
             return ProtectionState::ReadyRestartRequired;
         }
 
-        // No MCP at all and no supported language coverage → tell the
-        // user honestly, do not pretend we cover them.
-        if highest_mcp.is_none() && self.all_languages_unsupported {
+        // No literal `Protecting` / `ReadyRestartRequired` /
+        // `Watching` claim is available. If the repo's languages are
+        // all unsupported AND MCP is below the restart-pending tier,
+        // tell the user honestly — `NeedsAction` would suggest "run
+        // `anvil start`" but no further setup will help here.
+        if self.all_languages_unsupported {
             return ProtectionState::Unsupported;
         }
 
@@ -251,16 +257,25 @@ fn probe_config_status(root: &Path) -> ConfigStatus {
         return ConfigStatus::Absent;
     };
 
+    // Empty / whitespace-only / BOM-only files are accepted by
+    // serde_yaml as `Null` and would otherwise pass as `Valid`. That
+    // would silently mask an editor that truncated the user's config.
+    // Treat them as `Invalid` so the surface flags the problem.
+    let trimmed = contents.trim_start_matches('\u{feff}').trim();
+    if trimmed.is_empty() {
+        return ConfigStatus::Invalid;
+    }
+
     // The init command writes one of JSON, YAML, or TOML — accept
     // any parser succeeding as proof of validity. This matches the
     // `gather_profile` heuristic in `commands::status`.
-    if serde_json::from_str::<serde_json::Value>(&contents).is_ok() {
+    if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
         return ConfigStatus::Valid;
     }
-    if serde_yaml::from_str::<serde_yaml::Value>(&contents).is_ok() {
+    if serde_yaml::from_str::<serde_yaml::Value>(trimmed).is_ok() {
         return ConfigStatus::Valid;
     }
-    if toml::from_str::<toml::Value>(&contents).is_ok() {
+    if toml::from_str::<toml::Value>(trimmed).is_ok() {
         return ConfigStatus::Valid;
     }
 
@@ -354,11 +369,70 @@ mod tests {
     }
 
     #[test]
+    fn watch_running_plus_server_startable_does_not_overclaim() {
+        // Council remediation: ServerStartable is NOT one restart from
+        // live — the client may not pick up the entry without further
+        // setup. With watch running, the truer state is the watch
+        // fallback, never `ReadyRestartRequired`.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(McpClientId::Cursor, McpTier::ServerStartable);
+        d.watch = WatchTier::Running;
+        assert_eq!(d.protection_state(), ProtectionState::Watching);
+    }
+
+    #[test]
+    fn server_startable_without_watch_falls_to_needs_action() {
+        // Council remediation: ServerStartable alone is not enough
+        // for a `ReadyRestartRequired` claim — promote only on
+        // `RestartRequired`. The user has actionable next steps.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
+        assert_eq!(d.protection_state(), ProtectionState::NeedsAction);
+    }
+
+    #[test]
     fn no_mcp_and_all_languages_unsupported_yields_unsupported() {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
         d.all_languages_unsupported = true;
         assert_eq!(d.protection_state(), ProtectionState::Unsupported);
+    }
+
+    #[test]
+    fn unsupported_languages_with_partial_mcp_yields_unsupported() {
+        // Council remediation: when languages are out-of-scope and
+        // MCP has not yet reached `RestartRequired`, telling the user
+        // to "run anvil start" is misleading because no further setup
+        // will produce coverage. Surface `Unsupported` instead.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(McpClientId::Cursor, McpTier::ConfigPresent);
+        d.all_languages_unsupported = true;
+        assert_eq!(d.protection_state(), ProtectionState::Unsupported);
+    }
+
+    #[test]
+    fn unsupported_languages_yield_to_restart_required_when_one_step_away() {
+        // The user is literally one restart from secrets coverage —
+        // tell them, do not collapse to `Unsupported`.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(McpClientId::Cursor, McpTier::RestartRequired);
+        d.all_languages_unsupported = true;
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+    }
+
+    #[test]
+    fn unsupported_languages_yield_to_protecting_when_live() {
+        // Even on unsupported languages, secrets checks still run
+        // through MCP. Live evidence wins.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(McpClientId::Cursor, McpTier::LiveValidation);
+        d.all_languages_unsupported = true;
+        assert_eq!(d.protection_state(), ProtectionState::Protecting);
     }
 
     #[test]
@@ -434,6 +508,46 @@ mod tests {
         let d = verify(dir.path());
         assert_eq!(d.config, ConfigStatus::Invalid);
         assert_eq!(d.protection_state(), ProtectionState::Error);
+    }
+
+    #[test]
+    fn verify_flags_empty_config_as_invalid() {
+        // Council remediation: empty file passes serde_yaml as
+        // `Null` and would otherwise be reported as Valid — that
+        // would mask an editor that truncated the user's config.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+        assert_eq!(d.protection_state(), ProtectionState::Error);
+    }
+
+    #[test]
+    fn verify_flags_whitespace_only_config_as_invalid() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "   \n\t\n").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+    }
+
+    #[test]
+    fn verify_handles_bom_prefixed_config() {
+        // A BOM-prefixed file with otherwise-valid YAML should still
+        // be Valid — only BOM-only / whitespace-only are Invalid.
+        let dir = TempDir::new().unwrap();
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend_from_slice(b"profile: default\nchecks: []\n");
+        fs::write(dir.path().join(".anvilrc"), bytes).unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Valid);
+    }
+
+    #[test]
+    fn verify_flags_bom_only_config_as_invalid() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), b"\xEF\xBB\xBF").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
     }
 
     #[test]

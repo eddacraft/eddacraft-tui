@@ -75,9 +75,18 @@ fn status_verify_json_keys_are_stable() {
     )
     .unwrap();
 
-    let out = run_status_verify(dir.path(), &[]);
-    let mut cmd = Command::new(ANVIL_BIN);
-    let json_out = cmd
+    // Both human and JSON modes must agree on `needs_action` for a
+    // repo with valid config but no MCP install — the test covers
+    // both invocations so a regression in either path is caught.
+    let human_out = run_status_verify(dir.path(), &[]);
+    assert!(human_out.status.success());
+    let human_stdout = String::from_utf8_lossy(&human_out.stdout);
+    assert!(
+        human_stdout.contains("state: needs_action"),
+        "human render expected `state: needs_action`, got:\n{human_stdout}"
+    );
+
+    let json_out = Command::new(ANVIL_BIN)
         .arg("--no-tui")
         .arg("--json")
         .arg("status")
@@ -118,9 +127,6 @@ fn status_verify_json_keys_are_stable() {
         !stdout.contains("ACTIVATION\n"),
         "human header leaked into JSON output:\n{stdout}"
     );
-
-    // Also ensure default (non-verify) status JSON now embeds activation.
-    let _ = out; // silence unused warning if first invocation wasn't used here
 }
 
 #[test]
@@ -148,18 +154,49 @@ fn status_default_json_embeds_activation_block() {
 }
 
 #[test]
-fn status_verify_is_idempotent_and_does_not_mutate_config() {
+fn status_verify_is_idempotent_and_does_not_mutate_workdir() {
     // LAUNCH-012: re-running verification performs no writes and
-    // leaves existing config unchanged on repeated runs.
+    // leaves existing state unchanged. We snapshot the entire
+    // workdir's path → mtime map so a future regression that writes
+    // to `.anvil/`, a sibling file, or a freshly-created path is
+    // caught — not just `.anvilrc`.
     let dir = tempfile::tempdir().unwrap();
-    let rc = dir.path().join(".anvilrc");
-    fs::write(&rc, "profile: default\nchecks: []\n").unwrap();
-    let before = fs::metadata(&rc).unwrap().modified().unwrap();
+    fs::write(
+        dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    )
+    .unwrap();
+    fs::create_dir_all(dir.path().join(".anvil")).unwrap();
+
+    let snapshot = |root: &std::path::Path| -> Vec<(std::path::PathBuf, std::time::SystemTime)> {
+        let mut out = Vec::new();
+        for entry in walkdir::WalkDir::new(root) {
+            let entry = entry.unwrap();
+            let m = entry.metadata().unwrap();
+            // Use modified time only; atime can be touched by reads
+            // on non-noatime mounts, which is allowed for a probe.
+            let mtime = m.modified().unwrap();
+            out.push((entry.path().to_path_buf(), mtime));
+        }
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    };
+
+    let before = snapshot(dir.path());
     let _ = run_status_verify(dir.path(), &[]);
     let _ = run_status_verify(dir.path(), &[]);
-    let after = fs::metadata(&rc).unwrap().modified().unwrap();
+    let after = snapshot(dir.path());
+
     assert_eq!(
-        before, after,
-        "status --verify must not mutate `.anvilrc` mtime"
+        before.len(),
+        after.len(),
+        "status --verify created or removed entries: before={before:?}, after={after:?}"
     );
+    for ((bp, bt), (ap, at)) in before.iter().zip(after.iter()) {
+        assert_eq!(bp, ap, "path drift: {bp:?} vs {ap:?}");
+        assert_eq!(
+            bt, at,
+            "status --verify mutated mtime of {bp:?}: {bt:?} → {at:?}"
+        );
+    }
 }
