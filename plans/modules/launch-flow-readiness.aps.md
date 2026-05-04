@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 7/16     |
+| LAUNCH | —     | In Progress | 9/16     |
 
 ## Purpose
 
@@ -185,9 +185,9 @@ new primitive, this module follows three rules:
 ## Tasks
 
 > Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, LAUNCH-007, LAUNCH-008, and LAUNCH-012 are complete;
-> remaining activation, tutorial, upgrade, language-profile, and watch
-> work stays Todo until picked up.
+> LAUNCH-005, LAUNCH-007, LAUNCH-008, LAUNCH-012, LAUNCH-015, and
+> LAUNCH-016 are complete; remaining activation, tutorial, upgrade,
+> and watch work stays Todo until picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -266,7 +266,20 @@ new primitive, this module follows three rules:
   never asserts protection for an `unsupported` entry; JSON output schema
   test on `repo_languages`.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete — landed in
+  `crates/anvil-cli/src/activation/language_profile.rs`. The
+  `LANGUAGE_REGISTRY` is the single-source-of-truth coverage table;
+  `profile_repo(root)` walks the working tree (excluding vendored /
+  generated paths) and returns a `RepoLanguageProfile` classifying
+  each language as `supported` / `partial` / `unsupported`. Embedded
+  in `ActivationDiagnostic.language_profile` and surfaced via human
+  (per-language breakdown in `anvil status --verify`) and JSON
+  (`repo_languages` array) renderers. The protection-state mapping
+  collapses to `Unsupported` when `all_languages_unsupported &&
+  highest_mcp < RestartRequired` (carve-outs for live MCP and
+  one-restart-from-live preserved). Integration tests in
+  `tests/status_verify_languages.rs` cover empty / TS-only /
+  Python-only / mixed scenarios; vendored dirs do not bias counts.
 
 ---
 
@@ -300,7 +313,20 @@ new primitive, this module follows three rules:
   opt-in (`extensions:` includes `.py`) reverses the language-specific
   skip without affecting the secret scan.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete — `language_profile::partition_for_language_specific_checks`
+  is the canonical contract; it returns `(scannable, LanguageSkipLedger)`
+  for any candidate file list, with the ledger keyed by language name
+  and `reason: "unsupported"` for the v1 release. `services::sample_analyser`
+  consumes the language profile and surfaces the skip ledger in
+  `AnalysisOutcome.skipped_unsupported_languages`, which `commands::init`
+  prints next to the post-init scan summary so the skip is visible to the
+  user. Acceptance items (a) and (b) are met by the existing
+  `AntipatternCheckConfig::default().extensions` fallback (which
+  already excludes `.py`/`.rs`); item (c) is met via the new ledger;
+  item (d) — `extensions:` opt-in to scan unsupported languages —
+  remains hand-off to a follow-up that wires user-config-aware
+  filtering through scan / watch entry points (the partition helper
+  is the seam and is documented as `pub` for that adoption).
 
 ---
 

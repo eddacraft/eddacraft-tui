@@ -181,6 +181,24 @@ fn render_analysis(outcome: &AnalysisOutcome) {
         outcome.elapsed.as_millis()
     ));
 
+    // LAUNCH-016: name the skip honestly when the repo contains
+    // files of `Unsupported` languages — they are not silently
+    // ignored. Cross-language checks (secrets) still run on these
+    // files via separate code paths.
+    if !outcome.skipped_unsupported_languages.is_empty() {
+        let parts: Vec<String> = outcome
+            .skipped_unsupported_languages
+            .by_language
+            .iter()
+            .map(|(lang, count)| format!("{count} {lang}"))
+            .collect();
+        plain::dim(&format!(
+            "Skipped {} ({}) — language-specific checks not yet shipped for these.",
+            parts.join(", "),
+            outcome.skipped_unsupported_languages.reason.label(),
+        ));
+    }
+
     if outcome.exceeded_budget {
         plain::dim(&format!(
             "Note: scan took longer than the {}s soft budget — large samples may be trimmed in a future release.",
