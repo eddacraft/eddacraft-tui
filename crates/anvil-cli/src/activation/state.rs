@@ -82,7 +82,6 @@ impl ProtectionState {
             }
         }
     }
-
 }
 
 impl std::fmt::Display for ProtectionState {

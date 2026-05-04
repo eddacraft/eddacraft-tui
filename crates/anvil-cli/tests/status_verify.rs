@@ -149,7 +149,10 @@ fn status_default_json_embeds_activation_block() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert!(parsed.get("activation").is_some(), "activation block missing from `anvil --json status`: {parsed}");
+    assert!(
+        parsed.get("activation").is_some(),
+        "activation block missing from `anvil --json status`: {parsed}"
+    );
     assert_eq!(parsed["activation"]["state"], "needs_action");
 }
 
