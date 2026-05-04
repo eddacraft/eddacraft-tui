@@ -157,9 +157,13 @@ pub struct ActivationDiagnostic {
     /// the first successful re-run.
     pub last_error: Option<String>,
     /// True when the repo's languages are all `unsupported` per
-    /// the future repo language profile (LAUNCH-015). Defaults to
-    /// `false` until that probe lands; PR 5 wires this through.
+    /// the language profile (derived from
+    /// [`super::language_profile::RepoLanguageProfile::all_unsupported`]).
     pub all_languages_unsupported: bool,
+    /// Per-language breakdown produced by the activation walk
+    /// (LAUNCH-015). Empty for synthetic diagnostics built by tests.
+    #[serde(default)]
+    pub language_profile: super::language_profile::RepoLanguageProfile,
 }
 
 impl ActivationDiagnostic {
@@ -241,13 +245,20 @@ pub fn verify(root: &Path) -> ActivationDiagnostic {
     // running watcher process. Surfaces render "watch: not requested".
     let watch = WatchTier::NotRequested;
 
+    // LAUNCH-015: walk the working tree and classify languages so the
+    // protection-state mapping can return `Unsupported` honestly when
+    // the repo has no covered languages.
+    let language_profile = super::language_profile::profile_repo(root);
+    let all_languages_unsupported = language_profile.all_unsupported();
+
     ActivationDiagnostic {
         config,
         mcp,
         watch,
         baseline_present,
         last_error: None,
-        all_languages_unsupported: false,
+        all_languages_unsupported,
+        language_profile,
     }
 }
 
@@ -344,6 +355,7 @@ mod tests {
             baseline_present: false,
             last_error: None,
             all_languages_unsupported: false,
+            language_profile: super::super::language_profile::RepoLanguageProfile::default(),
         }
     }
 

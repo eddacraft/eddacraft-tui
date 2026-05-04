@@ -16,14 +16,19 @@
 //! single literal vocabulary word users see.
 
 pub mod diagnostic;
+pub mod language_profile;
 pub mod render;
 pub mod state;
 
 // Re-exports kept narrow to the surface the binary currently consumes
-// (status.rs). Each downstream PR (LAUNCH-006/-009/-010/-011/-015) is
+// (status.rs). Each downstream PR (LAUNCH-006/-009/-010/-011) is
 // expected to extend this list as it wires in further consumers —
 // `ProtectionState`, `McpClientId`, `McpTier`, `WatchTier`, and
 // `ConfigStatus` remain accessible as `activation::{diagnostic,state}::…`
 // until then.
 pub use diagnostic::{ActivationDiagnostic, verify};
+#[allow(unused_imports)] // contract surface for downstream PRs
+pub use language_profile::{
+    CoverageTier, LanguageProfileEntry, RepoLanguageProfile, profile_repo,
+};
 pub use render::{render_human, render_json};
