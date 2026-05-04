@@ -104,7 +104,20 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             Some("restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`.")
         }
         ProtectionState::Watching => {
-            Some("watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` for Cursor or Claude Code.")
+            // Council remediation: the next step depends on whether
+            // any MCP tier is already past `ConfigPresent`. If the
+            // server is already configured and startable, telling
+            // the user to run `anvil mcp install` is wrong — they
+            // need to restart their editor.
+            let highest_mcp = d.mcp.values().copied().max();
+            if matches!(
+                highest_mcp,
+                Some(McpTier::ServerStartable | McpTier::RestartRequired)
+            ) {
+                Some("watch is the save-time fallback — your MCP server is configured; restart your editor and re-run `anvil start --verify` to upgrade to pre-write validation.")
+            } else {
+                Some("watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` for Cursor or Claude Code.")
+            }
         }
         ProtectionState::NeedsAction => {
             if matches!(d.config, super::diagnostic::ConfigStatus::Absent) {
@@ -116,11 +129,11 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             }
         }
         ProtectionState::Unsupported => {
-            // Pointing to `anvil status` is circular when the user is
-            // already reading status output. The honest hint is to
-            // wait for language coverage to ship, or run secrets-only
-            // checks via watch fallback if they want any safety net.
-            Some("Anvil does not yet cover this repo's languages — secrets checks still run via `anvil watch`, but architecture / antipattern checks will not produce findings on these files.")
+            // Round-2 council: do not promise watch runs `secrets
+            // only` on unsupported files — that isolation is owned by
+            // LAUNCH-016, which has not landed. Keep the copy
+            // descriptive and avoid future-tense claims.
+            Some("Anvil does not yet cover this repo's languages in the current release. Architecture / antipattern checks will not produce findings on files in unsupported languages; coverage expands as language packs ship.")
         }
         ProtectionState::Error => {
             Some("re-run `anvil start --verify` after addressing the cause; activation will not write any state until it can proceed safely.")
@@ -295,6 +308,47 @@ mod tests {
         assert!(
             !h.contains("next:"),
             "protecting render must not include a `next:` line, got: {h}"
+        );
+    }
+
+    #[test]
+    fn watching_with_server_startable_hint_says_restart_not_install() {
+        // Round-2 council remediation: the Watching hint must not
+        // say "run `anvil mcp install`" when the MCP server is
+        // already configured and startable. The user needs to
+        // restart their editor, not reinstall.
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(McpClientId::Cursor, McpTier::ServerStartable);
+        d.watch = WatchTier::Running;
+        let h = render_human(&d);
+        assert!(
+            h.contains("restart your editor") && !h.contains("anvil mcp install"),
+            "ServerStartable + Watching hint should advise restart, not install: {h}"
+        );
+    }
+
+    #[test]
+    fn watching_without_mcp_hint_says_install() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.watch = WatchTier::Running;
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil mcp install"),
+            "Watching without MCP should advise install: {h}"
+        );
+    }
+
+    #[test]
+    fn unsupported_hint_does_not_promise_secrets_via_watch() {
+        // Round-2 council: the Unsupported hint must not over-claim
+        // that watch runs secrets-only on unsupported files — that
+        // isolation is owned by LAUNCH-016 and is not yet wired.
+        let h = render_human(&unsupported());
+        assert!(
+            !h.to_lowercase().contains("secrets checks still run"),
+            "Unsupported hint must not claim secrets-only watch coverage: {h}"
         );
     }
 }

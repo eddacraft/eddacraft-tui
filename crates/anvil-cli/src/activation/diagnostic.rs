@@ -268,18 +268,60 @@ fn probe_config_status(root: &Path) -> ConfigStatus {
 
     // The init command writes one of JSON, YAML, or TOML — accept
     // any parser succeeding as proof of validity. This matches the
-    // `gather_profile` heuristic in `commands::status`.
-    if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
-        return ConfigStatus::Valid;
+    // `gather_profile` heuristic in `commands::status`. A bare
+    // `null`, comment-only file, or other semantically-empty parse
+    // result still represents a corrupted / missing config, so
+    // [`is_semantically_empty_value`] rejects those even though the
+    // parser accepts them.
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        return if is_semantically_empty_json(&v) {
+            ConfigStatus::Invalid
+        } else {
+            ConfigStatus::Valid
+        };
     }
-    if serde_yaml::from_str::<serde_yaml::Value>(trimmed).is_ok() {
-        return ConfigStatus::Valid;
+    if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(trimmed) {
+        return if is_semantically_empty_yaml(&v) {
+            ConfigStatus::Invalid
+        } else {
+            ConfigStatus::Valid
+        };
     }
-    if toml::from_str::<toml::Value>(trimmed).is_ok() {
-        return ConfigStatus::Valid;
+    if let Ok(v) = toml::from_str::<toml::Value>(trimmed) {
+        return if is_semantically_empty_toml(&v) {
+            ConfigStatus::Invalid
+        } else {
+            ConfigStatus::Valid
+        };
     }
 
     ConfigStatus::Invalid
+}
+
+fn is_semantically_empty_json(v: &serde_json::Value) -> bool {
+    match v {
+        serde_json::Value::Null => true,
+        serde_json::Value::Object(map) => map.is_empty(),
+        serde_json::Value::Array(arr) => arr.is_empty(),
+        _ => false,
+    }
+}
+
+fn is_semantically_empty_yaml(v: &serde_yaml::Value) -> bool {
+    match v {
+        serde_yaml::Value::Null => true,
+        serde_yaml::Value::Mapping(m) => m.is_empty(),
+        serde_yaml::Value::Sequence(s) => s.is_empty(),
+        _ => false,
+    }
+}
+
+fn is_semantically_empty_toml(v: &toml::Value) -> bool {
+    match v {
+        toml::Value::Table(t) => t.is_empty(),
+        toml::Value::Array(a) => a.is_empty(),
+        _ => false,
+    }
 }
 
 fn probe_baseline_present(root: &Path) -> bool {
@@ -551,6 +593,68 @@ mod tests {
     }
 
     #[test]
+    fn verify_flags_json_null_config_as_invalid() {
+        // Round-2 council: `null` parses as JSON Value::Null and
+        // would otherwise be reported Valid. Editor corruption can
+        // produce this — semantically it is the same as "no
+        // configuration".
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "null\n").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+    }
+
+    #[test]
+    fn verify_flags_yaml_comment_only_config_as_invalid() {
+        // Round-2 council: comment-only YAML parses as Null. A file
+        // with only comments carries zero configuration.
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "# this is a comment\n# and another\n",
+        )
+        .unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+    }
+
+    #[test]
+    fn verify_flags_empty_json_object_config_as_invalid() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "{}\n").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+    }
+
+    #[test]
+    fn verify_flags_empty_toml_table_config_as_valid_only_when_keys_present() {
+        // Bare TOML produces an empty table; that's semantically
+        // empty and should be Invalid.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Invalid);
+
+        // Single-key TOML must be Valid.
+        fs::write(dir.path().join(".anvilrc"), "profile = \"default\"\n").unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Valid);
+    }
+
+    #[test]
+    fn verify_with_only_yaml_keylist_is_valid() {
+        // Sanity: a non-empty mapping is Valid.
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "profile: default\nchecks: []\n",
+        )
+        .unwrap();
+        let d = verify(dir.path());
+        assert_eq!(d.config, ConfigStatus::Valid);
+    }
+
+    #[test]
     fn verify_detects_baseline_marker() {
         let dir = TempDir::new().unwrap();
         fs::create_dir_all(dir.path().join(".anvil")).unwrap();
@@ -562,25 +666,42 @@ mod tests {
     #[test]
     fn idempotent_reverify_is_pure() {
         // LAUNCH-012 acceptance: re-running verification performs no
-        // writes and leaves the config unchanged. The probe never
-        // mutates state, but pin it with a test that diffs the
-        // directory mtime before/after a double verify.
+        // writes and leaves all state unchanged. Round-2 council:
+        // snapshot the entire workdir tree's mtimes, not just
+        // `.anvilrc`, so a future regression that writes anywhere
+        // (e.g. `.anvil/`) is caught at the unit level too.
         let dir = TempDir::new().unwrap();
         fs::write(
             dir.path().join(".anvilrc"),
             "profile: default\nchecks: []\n",
         )
         .unwrap();
-        let before = fs::metadata(dir.path().join(".anvilrc"))
-            .unwrap()
-            .modified()
-            .unwrap();
+        fs::create_dir_all(dir.path().join(".anvil")).unwrap();
+
+        let snapshot = || -> Vec<(std::path::PathBuf, std::time::SystemTime)> {
+            let mut out = Vec::new();
+            for entry in walkdir::WalkDir::new(dir.path()) {
+                let entry = entry.unwrap();
+                let m = entry.metadata().unwrap();
+                out.push((entry.path().to_path_buf(), m.modified().unwrap()));
+            }
+            out.sort_by(|a, b| a.0.cmp(&b.0));
+            out
+        };
+
+        let before = snapshot();
         let _ = verify(dir.path());
         let _ = verify(dir.path());
-        let after = fs::metadata(dir.path().join(".anvilrc"))
-            .unwrap()
-            .modified()
-            .unwrap();
-        assert_eq!(before, after, "verify must not mutate the config file");
+        let after = snapshot();
+
+        assert_eq!(
+            before.len(),
+            after.len(),
+            "verify created or removed entries"
+        );
+        for (b, a) in before.iter().zip(after.iter()) {
+            assert_eq!(b.0, a.0, "path drift: {:?} vs {:?}", b.0, a.0);
+            assert_eq!(b.1, a.1, "verify mutated mtime of {:?}", b.0);
+        }
     }
 }
