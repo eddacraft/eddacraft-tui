@@ -1,67 +1,58 @@
 # Admin CLI Operator Runbook
 
-`anvil-admin` is the operator CLI that wraps Anvil's admin HTTP API
-(`/admin/*`). It is the supported way to approve waitlist signups, invite beta
-users, revoke tokens, browse the audit log, and send migration emails during
-beta.
+`anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP
+API (`/admin/*`). It is the supported way to approve waitlist signups, invite
+beta users, revoke tokens, browse the audit log, and send migration emails
+during beta.
 
 This runbook covers install, configuration, every command with an example, the
 exit-code taxonomy, and troubleshooting.
 
 ## Install
 
-`anvil-admin` ships from this monorepo as `@eddacraft/admin-cli`. It is not
-published to npm; operators run it from a local checkout.
+`anvil admin` ships as part of the Rust `anvil` binary. Operators can use an
+installed release build or run it from a local checkout.
 
 ```bash
 git clone git@github.com:eddacraft/anvil-001.git
 cd anvil-001
 pnpm install
-pnpm -F @eddacraft/admin-cli build
+cargo build -p eddacraft-anvil
 ```
 
-Then either run via the package script:
+Then run the local binary:
 
 ```bash
-pnpm -F @eddacraft/admin-cli exec anvil-admin --help
+./target/debug/anvil admin --help
 ```
 
-Or link the binary globally:
-
-```bash
-pnpm -F @eddacraft/admin-cli link --global
-anvil-admin --help
-```
-
-Requires Node.js `>=22.13`.
+Release installs expose the same surface as `anvil admin --help`.
 
 ## Configuration
 
-The CLI reads configuration from environment variables with per-invocation flag
-overrides. Every command uses the same resolution order.
+The CLI reads admin configuration from environment variables. The Rust admin
+surface does not accept per-invocation admin URL, key, or actor override flags.
 
-| Setting        | Env var             | Flag      | Default                                   |
-| -------------- | ------------------- | --------- | ----------------------------------------- |
-| API base URL   | `ANVIL_ADMIN_URL`   | `--url`   | `https://api.eddacraft.ai`                |
-| Admin API key  | `ANVIL_ADMIN_KEY`   | `--key`   | _(required — no default)_                 |
-| Operator ident | `ANVIL_ADMIN_ACTOR` | `--actor` | `git config user.email`, else OS username |
+| Setting       | Env var           | Default                    |
+| ------------- | ----------------- | -------------------------- |
+| API base URL  | `ANVIL_API_URL`   | `https://api.eddacraft.ai` |
+| Admin API key | `ANVIL_ADMIN_KEY` | _(required — no default)_  |
 
-- `--key` is sent as `Authorization: Bearer <key>`.
-- `--actor` is sent as `X-Admin-Actor: <actor>` and recorded in the audit log.
-  Prefer a real email so audit rows are attributable.
+- `ANVIL_ADMIN_KEY` is sent as `Authorization: Bearer <key>`.
+- Per-operator keys determine the audit actor server-side. Shared-key requests
+  are attributed to the sentinel actor `shared-key@anvil`.
 
-Missing key exits `5` (see **Exit codes** below):
+Missing or invalid admin credentials exit `3` (see **Exit codes** below):
 
 ```
-✖ missing admin key; set ANVIL_ADMIN_KEY or pass --key
+Authentication required: set ANVIL_ADMIN_KEY to an admin token before running admin commands.
 ```
 
 ### Example shell setup
 
 ```bash
-export ANVIL_ADMIN_URL="https://api.eddacraft.ai"
+export ANVIL_API_URL="https://api.eddacraft.ai"
 export ANVIL_ADMIN_KEY="sk_admin_…"       # placeholder — see "Handling the admin key"
-export ANVIL_ADMIN_ACTOR="you@eddacraft.ai"
 ```
 
 > The `export ANVIL_ADMIN_KEY=…` line above is illustrative only; pasting a real
@@ -76,7 +67,7 @@ matters as much as how the server stores its hash. These guidelines are in
 preference order — start at the top and only drop down when a workflow forces
 your hand.
 
-- **Do not pass `--key <value>` on the command line.** `ps(1)`, `htop`, and
+- **Do not put the key on the command line.** `ps(1)`, `htop`, and
   `/proc/<pid>/cmdline` expose argv to every other user on the host for the life
   of the process. Shell history captures it too. Use the `ANVIL_ADMIN_KEY` env
   var (resolved via one of the patterns below) so the raw bearer never appears
@@ -87,14 +78,14 @@ your hand.
   process. If you've done this, rotate the key and scrub shell history.
 
 - **Preferred — 1Password CLI, scoped subshell.** Shell the key in only for the
-  life of the admin-cli invocation so it never reaches `~/.zshrc` or a parent
+  life of the admin invocation so it never reaches `~/.zshrc` or a parent
   shell's env:
 
   ```bash
-  op run --env-file=admin-cli.env -- anvil-admin list
+  op run --env-file=admin.env -- anvil admin list
   ```
 
-  where `admin-cli.env` maps env vars to 1Password items, e.g.
+  where `admin.env` maps env vars to 1Password items, e.g.
   `ANVIL_ADMIN_KEY="op://Anvil/admin-key/credential"`. `op run` injects the
   resolved secret only for the child process.
 
@@ -102,7 +93,7 @@ your hand.
 
   ```bash
   ANVIL_ADMIN_KEY="$(op read 'op://Anvil/admin-key/credential')" \
-    anvil-admin list
+    anvil admin list
   ```
 
 - **Alternative — `direnv` scoped per project directory.** Put a `.envrc` beside
@@ -129,14 +120,14 @@ your hand.
   The key is never echoed, nor written to history. `unset ANVIL_ADMIN_KEY` when
   you're done.
 
-- **Private dotenv as last resort.** A `~/.anvil-admin.env` with mode `0600`,
+- **Private dotenv as last resort.** A `~/.anvil-rust-admin.env` with mode `0600`,
   outside the repo, `source`'d into a scoped subshell. Never commit this file;
   add its path to your global git ignore.
 
 - **CI/automation.** Inject via the platform's secret store (GitHub Actions
   secrets, Azure Key Vault, Vercel env). Never echo the key to logs, and never
-  pass it via `--key`. For pre-merge pipelines, prefer per-operator keys (see
-  **Per-operator admin keys**) over the shared key.
+  pass it on the command line. For pre-merge pipelines, prefer per-operator
+  keys (see **Per-operator admin keys**) over the shared key.
 
 **Rotation:** on suspected exposure or operator offboarding, rotate immediately.
 Per-operator keys: edit the row out of `infra/src/admin-keys.ts` and run
@@ -271,7 +262,7 @@ offboarding, suspected exposure, or at least once per quarter:
 3. Redeploy — the old key stops working as soon as the new deploy is live.
 4. Distribute the new key to active operators via 1Password. Remove the old item
    from the vault.
-5. Confirm `anvil-admin list` works with the new key.
+5. Confirm `anvil admin list` works with the new key.
 
 The final cutover (removal of the shared-key path) happens only after the
 shared-key request rate is zero for ≥7 consecutive days, tracked via the
@@ -297,15 +288,16 @@ cutover PR that removes the shared-key branch.
 
 ## Commands
 
-All commands accept `--json` for machine-readable output. Without `--json` they
-render human tables with colour (auto-disabled on non-TTY stdout).
+All commands accept global `--json` for machine-readable output. Without
+`--json` they render human tables. Put `--json` before or after `admin`, for
+example `anvil --json admin list` or `anvil admin list --json`.
 
 ### `list` — show waitlist entries
 
 ```bash
-anvil-admin list                               # pending, all sources, 50 rows
-anvil-admin list --status approved --limit 10
-anvil-admin list --source website --status all
+anvil admin list                               # server defaults, 50 rows
+anvil admin list --status approved --limit 10
+anvil admin list --source website --status all
 ```
 
 Flags:
@@ -320,8 +312,8 @@ Flags:
 Prints the user row, any tokens, and the most recent audit entries.
 
 ```bash
-anvil-admin show alice@example.com
-anvil-admin show alice@example.com --json
+anvil admin show alice@example.com
+anvil --json admin show alice@example.com
 ```
 
 ### `approve [email]` — approve one or a batch
@@ -329,21 +321,19 @@ anvil-admin show alice@example.com --json
 Single approve:
 
 ```bash
-anvil-admin approve alice@example.com
+anvil admin approve alice@example.com
 ```
 
-Oldest N pending (prompts for confirmation unless `--yes`):
+Oldest N pending:
 
 ```bash
-anvil-admin approve --batch 10
-anvil-admin approve --batch 10 --yes   # skip confirmation
+anvil admin approve --batch 10
 ```
 
 Flags:
 
-- `--batch <1-100>` — approve the oldest N unapproved entries (mutually
-  exclusive with `[email]`)
-- `-y, --yes` — skip the confirmation prompt
+- `--batch <n>` — approve the oldest N unapproved entries (mutually exclusive
+  with `[email]`)
 - `--json`
 
 ### `invite <email>` — invite to beta
@@ -351,20 +341,18 @@ Flags:
 Creates a user (if needed), issues a beta token, and sends the invite email.
 
 ```bash
-anvil-admin invite alice@example.com --name "Alice Example"
-anvil-admin invite alice@example.com --days 30
-anvil-admin invite alice@example.com --token-only          # suppress email, print raw token once
-anvil-admin invite alice@example.com --scope beta docs     # restrict token scopes
+anvil admin invite alice@example.com --name "Alice Example"
+anvil admin invite alice@example.com --notes "VIP customer"
+anvil admin invite ci@example.com --token       # print raw token once
+anvil admin invite early@example.com --edict    # print revokable edict once
 ```
 
 Flags:
 
 - `--name <name>` — display name
 - `--notes <text>` — internal notes stored on the user row
-- `--days <1-365>` (default `90`)
-- `--scope <scopes...>` — one or more of the allowed scopes
-- `--token-only` — skip the invite email and print the raw token once (you will
-  not be able to retrieve it again)
+- `--token` — skip the invite email and print the raw token once
+- `--edict` — issue a revokable early-access edict and print it once
 - `--json`
 
 ### `revoke [email]` — revoke tokens
@@ -372,9 +360,9 @@ Flags:
 Revoke all active tokens for an email, or a specific raw token string.
 
 ```bash
-anvil-admin revoke alice@example.com            # prompts for confirmation
-anvil-admin revoke alice@example.com --yes
-anvil-admin revoke --token "betatok_…"          # revoke one specific token
+anvil admin revoke alice@example.com            # prompts for confirmation
+anvil admin revoke alice@example.com --yes
+anvil admin revoke --token "betatok_…" --yes    # revoke one specific token
 ```
 
 Flags:
@@ -387,10 +375,10 @@ Flags:
 ### `audit` — browse the audit log
 
 ```bash
-anvil-admin audit
-anvil-admin audit --action user.approved
-anvil-admin audit --filter-actor you@eddacraft.ai --limit 20
-anvil-admin audit --offset 50
+anvil admin audit
+anvil admin audit --action user.approved
+anvil admin audit --filter-actor you@eddacraft.ai --limit 20
+anvil admin audit --offset 50
 ```
 
 Flags:
@@ -408,20 +396,17 @@ Sends the migration email to waitlist users imported from the previous system.
 send.
 
 ```bash
-anvil-admin send-migration                              # dry-run, source=import, limit=20
-anvil-admin send-migration --source website --limit 5   # dry-run, different filter
-anvil-admin send-migration --no-dry-run                  # preview → prompt → send (interactive)
-anvil-admin send-migration --no-dry-run --yes            # preview (silent) → send (non-interactive)
-anvil-admin send-migration --json                        # raw JSON for the dry-run (includes previewToken)
+anvil admin send-migration                              # dry-run, source=import, limit=20
+anvil admin send-migration --source website --limit 5   # dry-run, different filter
+anvil admin send-migration --no-dry-run                 # preview -> prompt -> send (interactive)
+anvil admin send-migration --no-dry-run --yes           # preview -> send (non-interactive)
+anvil --json admin send-migration                       # raw JSON dry-run, includes previewToken
 ```
 
-A dry-run prints a preview token and an `expiresAt` stamp; you must re-run
-without `--dry-run` within 10 minutes for the send to consume that exact
-recipient snapshot. The CLI always re-fetches a fresh token when you run with
-`--no-dry-run`, so operators don't need to carry the token manually. If you run
-multiple previews without sending, always use the **most recently printed**
-token on the real-send — earlier tokens remain valid (and bound to you) until
-they age out, which can cause confusion if you paste the wrong one.
+A human dry-run prints the recipient table and preview expiry; JSON dry-runs
+also include `previewToken` for automation. Operators do not need to copy the
+token manually: running with `--no-dry-run` always fetches a fresh preview token
+and sends against that exact snapshot within the 10-minute TTL.
 
 Flags:
 
@@ -466,16 +451,16 @@ these with recovery-specific messages; the runbook equivalents:
 
 | HTTP | `code`                   | What it means                                                              | Recovery                                                                                           |
 | ---- | ------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 409  | `cohort_drift`           | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil-admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first       |
-| 410  | `preview_token_expired`  | The 10-minute TTL elapsed                                                  | Re-run `anvil-admin send-migration --no-dry-run` (within 10 minutes next time)                     |
+| 409  | `cohort_drift`           | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first       |
+| 410  | `preview_token_expired`  | The 10-minute TTL elapsed                                                  | Re-run `anvil admin send-migration --no-dry-run` (within 10 minutes next time)                     |
 | 410  | `preview_token_consumed` | A prior send call already used this token                                  | **Verify the previous send completed** in the audit log, then decide whether to re-send            |
-| 410  | `preview_token_missing`  | Token not found, reaped, or owned by a different operator                  | Re-run `anvil-admin send-migration --no-dry-run` under the correct `ANVIL_ADMIN_ACTOR` / `--actor` |
+| 410  | `preview_token_missing`  | Token not found, reaped, or owned by a different operator                  | Re-run `anvil admin send-migration --no-dry-run` with the same per-operator admin key              |
 | 400  | `preview_token_required` | Should not occur via the CLI; indicates a client bug                       | File a ticket; workaround is to re-run the CLI (it always fetches a token first)                   |
 
 For a `preview_token_consumed` recovery, confirm before re-sending:
 
 ```bash
-anvil-admin audit --action migration.email.sent --limit 5
+anvil admin audit --action migration.email.sent --limit 5
 ```
 
 Look for an entry matching the source, count, and preview token you expect. If
@@ -483,37 +468,53 @@ the previous send completed successfully, do **not** re-run. If it partially
 sent and was interrupted, coordinate in `#beta-ops` before re-running — the
 second run will re-email every recipient in the snapshot.
 
-Non-TTY refusal (`exit 4`) applies only to the **real-send** path. A plain
+Non-TTY refusal (`exit 1`) applies only to the **real-send** path. A plain
 dry-run works in any session. In non-TTY sessions without `--yes`, the CLI
-refuses to prompt and exits `4`.
+refuses to prompt and exits `1`.
+
+### `email-update <current-email> <new-email>` — update a beta user's email
+
+This surface is Rust-only (`anvil admin email-update`) and wraps
+`POST /admin/user/email-update`. It updates the `beta_users.email` value for a
+user who cannot self-service an email mismatch. The historical waitlist row is
+left unchanged.
+
+```bash
+anvil admin email-update old@example.com new@example.com
+anvil --json admin email-update old@example.com new@example.com
+```
+
+The API rejects same-address updates, missing users, and collisions with an
+existing beta user email.
 
 ## Exit codes
 
-| Code | Meaning                                               | Typical cause                                   |
-| ---- | ----------------------------------------------------- | ----------------------------------------------- |
-| `0`  | Success                                               | —                                               |
-| `1`  | HTTP 4xx, or `send-migration` had ≥1 failed recipient | Bad request, unauthorised, partial send failure |
-| `2`  | HTTP 5xx or malformed JSON response                   | Server bug; check logs                          |
-| `3`  | Network / cannot reach the API                        | DNS, TLS, connection refused                    |
-| `4`  | Refused to prompt in a non-TTY session                | CI/script without `--yes` on a real send        |
-| `5`  | Missing required config                               | `ANVIL_ADMIN_KEY` not set                       |
-| `6`  | Response validation failed (schema mismatch)          | Server/CLI contract drift; upgrade one side     |
-| `64` | Invalid argument (EX_USAGE)                           | Out-of-range `--limit`, bad enum choice         |
+| Code | Meaning                                   | Typical cause                                      |
+| ---- | ----------------------------------------- | -------------------------------------------------- |
+| `0`  | Success                                   | —                                                  |
+| `1`  | Command failed                            | API error, network error, invalid API URL, partial send failure, or non-TTY refusal |
+| `2`  | Usage error from clap                     | Out-of-range `--limit`, bad enum choice, missing required argument |
+| `3`  | Authentication required                   | `ANVIL_ADMIN_KEY` missing, invalid, or not authorised |
+| `4`  | Reserved Rust CLI configuration error     | Used by auth preflight surfaces, not currently by `anvil admin` |
 
-All errors go to stderr; `--json` payloads go to stdout.
+All errors go to stderr; `--json` payloads go to stdout. The Rust CLI currently
+uses the common `1` error path for HTTP, network, schema, and prompt-refusal
+failures rather than a typed admin-specific exit taxonomy.
 
 ## Troubleshooting
 
-### "missing admin key; set ANVIL_ADMIN_KEY or pass --key"
+### "Authentication required"
 
-Export `ANVIL_ADMIN_KEY` or pass `--key`. The value is in 1Password under "Anvil
-Admin API Key".
+Set `ANVIL_ADMIN_KEY` from the approved secret manager. For per-operator keys,
+confirm the key has not been revoked. For the shared break-glass key, confirm
+the server-side `ADMIN_KEY` value has not rotated.
 
 ### "cannot reach …"
 
-- Check `ANVIL_ADMIN_URL` — default is `https://api.eddacraft.ai`
+- Check `ANVIL_API_URL` — default is `https://api.eddacraft.ai`
 - Check VPN / network egress
-- Retry with `--url https://api.eddacraft.ai` to rule out a bad env var
+- Retry with `ANVIL_API_URL=https://api.eddacraft.ai anvil admin list` to rule
+  out a bad environment value
 
 ### "server error 5xx"
 
@@ -521,13 +522,12 @@ The API is the issue, not the CLI. Check the observability dashboard
 (`docs/runbooks/observability-triage.md`) and the recent deploys on Vercel.
 Rerun once the issue is cleared.
 
-### "response validation failed at …" (exit 6)
+### Response validation or malformed JSON errors
 
-The admin-API returned a 2xx payload whose shape does not match the schema the
-CLI expects (defined in `@eddacraft/admin-contracts`). This is contract drift —
-server and CLI are on different versions. The failing field path is in the error
-message, and the raw response body is attached to the error (visible with
-`--verbose` / in CI logs).
+The admin API returned a payload whose shape does not match the Rust CLI structs
+in `crates/anvil-cli/src/auth/client.rs`. This is contract drift: server and CLI
+are on different versions. The failing field path is in the error message, and
+the raw response body may be visible with `--verbose` / in CI logs.
 
 What to do:
 
@@ -535,11 +535,10 @@ What to do:
    `response validation failed at items.3.approved_at: Expected string, received null`).
 2. Check whether the CLI or the API was deployed most recently. The lagging side
    needs to be upgraded.
-3. If the server change is intentional, update
-   `packages/shared/admin-contracts/src/index.ts` and publish a new CLI.
-4. If the CLI change is ahead of a rolled-back server, downgrade the CLI
-   (`npm i -g @eddacraft/admin-cli@<last-good-version>`) until the server
-   catches up.
+3. If the server change is intentional, update the Rust response types and
+   release a new `anvil` binary.
+4. If the CLI change is ahead of a rolled-back server, use the previous `anvil`
+   release until the server catches up.
 
 This code is strict on purpose: silently accepting a drifted payload would let
 us operate on stale or malformed admin data. If the drift is harmless and you
@@ -553,21 +552,21 @@ pass `--yes` after you've verified the dry-run output.
 
 ### Sent the wrong thing
 
-- For a bad approve/invite: use `anvil-admin revoke` to invalidate the token,
+- For a bad approve/invite: use `anvil admin revoke` to invalidate the token,
   then re-invite
 - For a migration email sent to the wrong cohort: there is no unsend — escalate
   in `#beta-ops`
 
 ### Looking for what happened
 
-Every admin mutation writes to the audit log. Use `anvil-admin audit` to review,
+Every admin mutation writes to the audit log. Use `anvil admin audit` to review,
 filtering by `--filter-actor` (who) and `--action` (what). The admin API also
 logs request/response metadata in the Vercel logs for 7 days.
 
 ## Related
 
-- Admin CLI design spec: `plans/specs/2026-04-16-admin-cli-design.md`
-- Admin CLI module plan (archived): `plans/archive/modules/admin-cli.aps.md`
-- Admin CLI hardening plan: `plans/modules/admin-cli-hardening.aps.md`
+- Historical Node admin CLI design spec: `plans/specs/2026-04-16-admin-cli-design.md`
+- Historical Node admin CLI module plan (archived): `plans/archive/modules/admin-cli.aps.md`
+- Historical Node admin CLI hardening plan: `plans/archive/modules/admin-cli-hardening.aps.md`
 - Waitlist email operations: `docs/runbooks/waitlist-email-operations.md`
 - Observability triage: `docs/runbooks/observability-triage.md`
