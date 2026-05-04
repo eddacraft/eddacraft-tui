@@ -308,7 +308,7 @@ mod tests {
     fn json_render_keys_are_stable() {
         let v = render_json(&restart_required());
         let obj = v.as_object().unwrap();
-        for key in [
+        let expected_keys = [
             "state",
             "headline",
             "config",
@@ -322,9 +322,17 @@ mod tests {
             // JSON contract against silent removal.
             "repo_languages",
             "unclassified_files_seen",
-        ] {
+        ];
+        for key in expected_keys {
             assert!(obj.contains_key(key), "missing key {key} in {v}");
         }
+        // Round-2 council: pin the total key count so a future
+        // rename adding the old name as an alias is also caught.
+        assert_eq!(
+            obj.len(),
+            expected_keys.len(),
+            "JSON output has unexpected keys: {obj:?}"
+        );
         assert_eq!(obj["state"], "ready_restart_required");
         assert_eq!(obj["watch"], "not_requested");
         assert!(obj["repo_languages"].is_array());
