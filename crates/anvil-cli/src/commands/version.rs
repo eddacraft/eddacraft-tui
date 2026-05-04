@@ -18,8 +18,13 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
+// Match the public release source used by `commands::update.rs` and
+// the canonical `install.sh` URL — the public-facing repo is
+// `eddacraft/anvil`, not `eddacraft/anvil-001` (which is the private
+// development repo). Pointing the latest-version probe at the wrong
+// repo would silently report wrong update availability.
 const GITHUB_OWNER: &str = "eddacraft";
-const GITHUB_REPO: &str = "anvil-001";
+const GITHUB_REPO: &str = "anvil";
 
 #[derive(Debug, Args)]
 pub struct VersionArgs {
@@ -175,10 +180,17 @@ pub fn upgrade_command_for(m: InstallMethod) -> &'static str {
         InstallMethod::CargoDist => {
             "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh"
         }
-        InstallMethod::CargoInstall => "cargo install eddacraft-anvil --force",
+        // The `eddacraft-anvil` crate is `publish = false`, so a
+        // bare `cargo install eddacraft-anvil` will fail. The only
+        // working `cargo install` form is the git-source variant
+        // pointing at the public repo. Users who installed via a
+        // local `--path` clone should re-run their original command.
+        InstallMethod::CargoInstall => {
+            "cargo install --git https://github.com/eddacraft/anvil --force eddacraft-anvil"
+        }
         InstallMethod::DevBuild => "",
         InstallMethod::Unknown => {
-            "rerun your installer or download the latest release from https://github.com/eddacraft/anvil-001/releases"
+            "rerun your installer or download the latest release from https://github.com/eddacraft/anvil/releases"
         }
     }
 }
@@ -536,12 +548,32 @@ mod tests {
             "CargoDist upgrade command must point at the canonical \
              release URL: {cargo_dist_cmd}"
         );
-        assert_eq!(
-            upgrade_command_for(InstallMethod::CargoInstall),
-            "cargo install eddacraft-anvil --force"
+        // Round-2 council: `eddacraft-anvil` crate is `publish =
+        // false`, so the bare `cargo install eddacraft-anvil` form
+        // would fail. The hint must use the git-source variant
+        // pointing at the public repo, not crates.io.
+        let cargo_install_cmd = upgrade_command_for(InstallMethod::CargoInstall);
+        assert!(
+            cargo_install_cmd.contains("--git https://github.com/eddacraft/anvil"),
+            "CargoInstall hint must use --git form (crate is publish=false): {cargo_install_cmd}"
+        );
+        assert!(
+            !cargo_install_cmd.starts_with("cargo install eddacraft-anvil "),
+            "CargoInstall hint must NOT use the bare crates.io form: {cargo_install_cmd}"
         );
         assert_eq!(upgrade_command_for(InstallMethod::DevBuild), "");
-        assert!(upgrade_command_for(InstallMethod::Unknown).contains("releases"));
+        // Unknown hint must point at the PUBLIC repo (eddacraft/anvil),
+        // not the private dev repo (eddacraft/anvil-001).
+        let unknown_cmd = upgrade_command_for(InstallMethod::Unknown);
+        assert!(unknown_cmd.contains("releases"));
+        assert!(
+            unknown_cmd.contains("eddacraft/anvil/releases"),
+            "Unknown hint must point at the public repo: {unknown_cmd}"
+        );
+        assert!(
+            !unknown_cmd.contains("eddacraft/anvil-001/releases"),
+            "Unknown hint must NOT point at the private repo: {unknown_cmd}"
+        );
     }
 
     #[test]
