@@ -46,6 +46,13 @@ pub struct AnalysisOutcome {
     pub elapsed: Duration,
     pub exceeded_budget: bool,
     pub top_warnings: Vec<TopWarning>,
+    /// LAUNCH-016: tally of files belonging to `Unsupported` languages
+    /// that were excluded from language-specific antipattern checks.
+    /// Surfaces the skip honestly so users do not silently miss the
+    /// gap; cross-language checks (secrets) still run on these files
+    /// when invoked via separate code paths.
+    pub skipped_unsupported_languages:
+        crate::activation::language_profile::LanguageSkipLedger,
 }
 
 /// A trimmed-down warning view used for the inline summary. We do not
@@ -102,6 +109,25 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
     let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
     let elapsed = started.elapsed();
 
+    // LAUNCH-016: count files of `Unsupported` languages so the
+    // run summary can name them honestly. The walk is independent
+    // of the antipattern run so it can see files the existing
+    // extension allowlist filters out.
+    let language_profile =
+        crate::activation::language_profile::profile_repo(root);
+    let mut skipped =
+        crate::activation::language_profile::LanguageSkipLedger::default();
+    for entry in &language_profile.entries {
+        if matches!(
+            entry.coverage_tier,
+            crate::activation::language_profile::CoverageTier::Unsupported
+        ) {
+            skipped
+                .by_language
+                .insert(entry.name.clone(), entry.files_seen);
+        }
+    }
+
     let mut top_warnings: Vec<TopWarning> = result
         .warnings
         .warnings
@@ -126,6 +152,7 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
 
     Some(AnalysisOutcome {
         files_scanned: result.files_scanned,
+        skipped_unsupported_languages: skipped,
         source,
         summary: result.warnings.summary,
         elapsed,
