@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 5/14     |
+| LAUNCH | —     | In Progress | 5/16     |
 
 ## Purpose
 
@@ -186,7 +186,8 @@ new primitive, this module follows three rules:
 
 > Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
 > LAUNCH-005, and LAUNCH-007 are complete; remaining activation,
-> tutorial, upgrade, and watch work stays Todo until picked up.
+> tutorial, upgrade, language-profile, and watch work stays Todo until
+> picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -230,6 +231,74 @@ new primitive, this module follows three rules:
 - **Validation:** Snapshot or CLI tests cover the default tutorial path,
   no-config / already-initialised repo states, and copy that avoids claiming
   pre-write protection unless activation evidence supports it.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-015: Profile repo languages during activation
+
+- **Intent:** A user running activation sees an explicit, honest accounting of
+  which languages Anvil covers in their repository. The activation summary
+  names each detected language and the coverage tier Anvil claims for it, so
+  the user can judge fit without guessing from absence of findings.
+- **Expected Outcome:** A repo language profile step runs as part of
+  `anvil start` (and is reused by `anvil status` and `anvil doctor`). It
+  inspects the working tree, classifies each detected language as
+  `supported`, `partial`, or `unsupported` against the registered anchors and
+  packs that ship in this release (TS supported, SQL partial pending SURFSQL
+  Phase 1, Markdown partial pending MDGOV, Python and Rust unsupported as of
+  this release), and produces a structured profile consumed by activation
+  copy. Detection uses file extensions plus presence heuristics; vendored /
+  generated paths (already filtered by the existing internal denylist) are
+  not counted. Activation and tutorial copy never claim protection for an
+  unsupported language; the JSON output exposes `repo_languages` with
+  `{name, files_seen, coverage_tier, basis}` per entry. The coverage tier
+  table lives in one place (a single registry, not duplicated in copy
+  strings) so future anchors land in one edit.
+- **Coordinates with:** LAUNCH-008 (the protection-state vocabulary the copy
+  must respect), LAUNCH-014 (tutorial copy reuses the same coverage tiers),
+  RELEASE-PLAN A5 (LANGTS / SURFSQL / OPSUP define which languages move from
+  `partial` to `supported`).
+- **Validation:** Integration test against a multi-language fixture asserts
+  the profile classifies each detected language with the expected tier;
+  snapshot test on activation copy confirms it lists detected languages and
+  never asserts protection for an `unsupported` entry; JSON output schema
+  test on `repo_languages`.
+- **Confidence:** medium
+- **Status:** Todo
+
+---
+
+### LAUNCH-016: Honour the language profile in scan and watch filters
+
+- **Intent:** Files belonging to languages Anvil does not support in this
+  release are not fed to language-specific antipattern checks, so users do
+  not see false-positive findings on out-of-scope code (e.g. `.py` files
+  flagged by JS-shaped rules).
+- **Expected Outcome:** The default scan and watch file filters consult the
+  repo language profile from LAUNCH-015. Files belonging to `unsupported`
+  languages are excluded from language-specific antipattern checks unless
+  the user explicitly opts in via config (`extensions:` override or an
+  equivalent allow entry). Cross-language checks (secrets, etc.) still run
+  on all files — only language-targeted antipattern checks are gated.
+  Skipped files are recorded in the run summary so the behaviour is visible,
+  not silent (`skipped: {language: count, reason: "unsupported"}`). The
+  hardcoded extension allowlist in
+  `crates/anvil-checks/src/antipattern/types.rs` becomes the fallback
+  default for repos with no profile, and is overridden by the profile when
+  one exists.
+- **Coordinates with:** LAUNCH-015 (consumes the profile), LAUNCH-008 (the
+  activation summary should reflect what was actually scanned vs skipped),
+  `crates/anvil-kernel/src/watcher/filter.rs` (the existing internal
+  denylist is preserved as-is and is not conflated with the user-facing
+  language gate).
+- **Validation:** Integration test on a fixture with `.ts` + `.py` files
+  asserts: (a) the default behaviour scans `.ts` and skips `.py` for
+  language-specific checks, (b) the secret scanner runs on both, (c) the
+  run summary records the skip with language and count, (d) explicit
+  opt-in (`extensions:` includes `.py`) reverses the language-specific
+  skip without affecting the secret scan.
 - **Confidence:** medium
 - **Status:** Todo
 

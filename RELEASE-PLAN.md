@@ -84,7 +84,7 @@ activation entrypoint on 2026-05-03.
 - Adjacent re-architecture brainstorm:
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
-**Modules / work items (9 outstanding):**
+**Modules / work items (11 outstanding):**
 
 - **LAUNCH-002** — allow `--action` with TUI mode (watch flow ergonomics).
 - **LAUNCH-006** — make `anvil start` the activation entrypoint (the
@@ -99,6 +99,10 @@ activation entrypoint on 2026-05-03.
 - **LAUNCH-012** — activation verification + retry path.
 - **LAUNCH-013** — install-method-aware version + upgrade guidance.
 - **LAUNCH-014** — make the interactive tutorial prove value faster.
+- **LAUNCH-015** — profile repo languages during activation (honest accounting
+  of which languages are supported / partial / unsupported in this release).
+- **LAUNCH-016** — honour the language profile in scan and watch filters
+  (skip language-specific checks on unsupported files; secrets still run).
 
 **Prerequisites:**
 
@@ -130,10 +134,15 @@ activation entrypoint on 2026-05-03.
 / small / unfamiliar-language repo, the protection claim is literal but empty —
 the user sees "activated, no findings yet" and bounces. **Mitigation:**
 LAUNCH-010 (baseline old findings) explicitly seeds context so the first genuine
-save produces a signal; LAUNCH-014 (faster tutorial) gives a guaranteed-value
-path when the live repo doesn't trip anything. Secondary risk: claiming
-"attached" when activation is partial. LAUNCH-008 + LAUNCH-012 (protection
-states + verification) are the literal fix — be honest about what's wired.
+save produces a signal; LAUNCH-015 (repo language profile) names the gap
+honestly when the repo's languages are out of scope, instead of pretending
+coverage; LAUNCH-014 (faster tutorial) gives a guaranteed-value path when the
+live repo doesn't trip anything. Secondary risk: claiming "attached" when
+activation is partial, or surfacing false positives on out-of-scope languages
+(e.g. JS-shaped antipattern findings on `.py` files). LAUNCH-008 + LAUNCH-012
+(protection states + verification) and LAUNCH-016 (language-aware filters) are
+the literal fixes — be honest about what's wired and don't scan what we don't
+support.
 
 **Recommendation: PICK. This is the next-tag headline. The five-brainstorm
 convergence + council ratification means the framing is locked; what's
@@ -528,12 +537,12 @@ they're glue some Tier A picks need.
 | Combo                                | Slices                      | Net items | Posture                                                                                               |
 | ------------------------------------ | --------------------------- | --------- | ----------------------------------------------------------------------------------------------------- |
 | **Patch-shaped tag**                 | Carry-over only             | ~12       | V050F tail + V060F + GUI gaps. Tags as `v0.5.2-beta`. Smallest credible cut.                          |
-| **Wow-start minimum**                | A1 + GUI gaps               | ~12       | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
-| **Wow-start + daemon (recommended)** | A1 + A2 + carry-over        | ~41       | The headline + the literal-protection substrate. Tags as `v0.6.0-beta`. Highest confidence.           |
-| **Wow-start + parity**               | A1 + A2 + A3 + carry-over   | ~54       | Adds full Rust MCP parity. Strong narrative, real contention with A1.                                 |
-| **Wow-start + hygiene**              | A1 + A4 + A5                | ~31       | Activation + finishes the `v0.5.0-beta` tails. Skips daemon graduation — A2 follows in next window.   |
-| **Founder-pitch slate**              | A1 + A2 + A6                | ~53       | Activation + daemon + dashboard. Largest persona expansion. Highest A6/A1 bandwidth contention.       |
-| **Full slate**                       | A1 + A2 + A3 + A4 + A5 + A6 | ~75       | All Tier A. Most ambitious; only realistic if A1 ships clean and bandwidth holds.                     |
+| **Wow-start minimum**                | A1 + GUI gaps               | ~14       | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
+| **Wow-start + daemon (recommended)** | A1 + A2 + carry-over        | ~43       | The headline + the literal-protection substrate. Tags as `v0.6.0-beta`. Highest confidence.           |
+| **Wow-start + parity**               | A1 + A2 + A3 + carry-over   | ~56       | Adds full Rust MCP parity. Strong narrative, real contention with A1.                                 |
+| **Wow-start + hygiene**              | A1 + A4 + A5                | ~33       | Activation + finishes the `v0.5.0-beta` tails. Skips daemon graduation — A2 follows in next window.   |
+| **Founder-pitch slate**              | A1 + A2 + A6                | ~55       | Activation + daemon + dashboard. Largest persona expansion. Highest A6/A1 bandwidth contention.       |
+| **Full slate**                       | A1 + A2 + A3 + A4 + A5 + A6 | ~77       | All Tier A. Most ambitious; only realistic if A1 ships clean and bandwidth holds.                     |
 
 The councils' lesson from `v0.5.0-beta` plus the 2026-05-03 activation council:
 **A1 + A2 + carry-over** is the highest-confidence cut for the next tag. A1
