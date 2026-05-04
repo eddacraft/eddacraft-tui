@@ -402,8 +402,13 @@ require a coordinated bundle — pick them off in any order.
   it, how to set it in Vercel (env-var toggle + redeploy), what the
   caller sees, and when to unset it. Cross-reference from
   `post-deploy-smoke-check.md`.
+- **Resolution:** Added the operator pause path to the waitlist email runbook:
+  set `WAITLIST_PAUSED=true` in the Vercel `anvil-api` project, redeploy,
+  expect HTTP `503`, verify the pause, then unset and redeploy when the
+  incident or maintenance window ends. The post-deploy smoke runbook now links
+  to those steps when the waitlist submission smoke check returns `503`.
 - **Confidence:** high
-- **Status:** Todo
+- **Status:** Done
 
 ### V050F-016: Promote private beta releases to Latest
 

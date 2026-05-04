@@ -62,11 +62,10 @@ merge that changes strategic shape.
     with a live JSON-RPC client; graduate `tools/call` from embedded
     fallback to daemon-backed pipeline. Daemon side (`scan_buffer`,
     INTD-002 listener) already in place.
-  - **V050F** — 5/16 done, 11 outstanding (per-operator audit attribution,
+  - **V050F** — 6/16 done, 10 outstanding (per-operator audit attribution,
     cascade revoke, `/admin/approve` flag-gate, regex compile cache, eager
     rayon pool init, CI-class bench baseline, `release/*` push filter,
-    custom-pattern compile errors, svix>uuid override removal,
-    `WAITLIST_PAUSED` runbook).
+    custom-pattern compile errors, svix>uuid override removal).
   - **#1191** — wire RTAI mid-edit baseline-comparison gating into CI
     against the recorded 7-case ADR-031 corpus; until then, manual
     `cargo bench -p eddacraft-anvil-intercept --bench midedit_roundtrip`
@@ -243,7 +242,7 @@ sweep.
 | `#1191` | (RTAI ops) | Wire ADR-031 mid-edit baseline-comparison gating into CI against the recorded 7-case corpus. Until landed, manual `cargo bench` is the only safety net. |
 | `TSRET-005` | TSRET | Archive the TS scanner / suppression parser / parity harness to `archive/anvil-ts-scanner/` per ADR-033. Unblocked, not yet executed. |
 | `LAUNCH-002` / `-003` / `-006` | LAUNCH | Watch polish that did not make `v0.5.0-beta`. Should land in this window so the watch flow is solid by the time the daemon-backed demo ships against it. -003 still watches for TUIDASH supersession. |
-| V050F outstanding (11 items) | V050F | Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, `release/*` push filter, custom-pattern compile errors, svix>uuid override removal, `WAITLIST_PAUSED` runbook. |
+| V050F outstanding (10 items) | V050F | Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, `release/*` push filter, custom-pattern compile errors, svix>uuid override removal. |
 
 Each ships as **a standalone PR**, not bundled. No single "next
 release" branch. The slate is a **sequencing label**, not a release
@@ -313,7 +312,7 @@ The headline-capability work and everything that gates it.
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress 2/5 active | TSRET-005 unblocked under ADR-033 but execution is post-`v0.5.0-beta`. Module reaches terminal state once -005 archives the TS scanner / TS suppression parser / parity harness to `archive/anvil-ts-scanner/`. |
 | `LAUNCH-002` / `-003` / `-006` (within LAUNCH) | LAUNCH | In Progress 5/7 | Watch polish that did not make `v0.5.0-beta`. Should land in this window so the watch flow is solid by the time the daemon-backed demo ships against it. LAUNCH-003 watches for TUIDASH supersession. |
 | `#1191` (RTAI ops) | n/a | Open | Wire ADR-031 mid-edit baseline-comparison gating into CI against the recorded 7-case corpus. Until then, manual `cargo bench` is the only safety net. |
-| [v050-release-followups](./modules/v050-release-followups.aps.md) | V050F | In Progress 5/16 | 11 outstanding hardening items deferred from `v0.5.0-beta` review rounds. Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, `release/*` push filter, custom-pattern compile errors, svix>uuid override removal, `WAITLIST_PAUSED` runbook. |
+| [v050-release-followups](./modules/v050-release-followups.aps.md) | V050F | In Progress 6/16 | 10 outstanding hardening items deferred from `v0.5.0-beta` review rounds. Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, `release/*` push filter, custom-pattern compile errors, svix>uuid override removal. |
 
 ### 🌱 LATER — needed for H3 GA, parked until H2 ships
 
@@ -606,7 +605,8 @@ LAUNCH-005 (doctor remediation depth) shipped Complete in
   (redaction hardening) remain post-launch.
 - V050F advanced 5/16 during the release window (cargo-dist installer
   pin, scoop PAT scope, winget `gh` arg regression, migration runner,
-  private-release Latest promotion). 11 items outstanding as
+  private-release Latest promotion). It is now 6/16 after the
+  `WAITLIST_PAUSED` runbook follow-up, with 10 items outstanding as
   post-release follow-ups.
 - ADR-033 surface archives executed:
   `packages/vscode-extension/` → `archive/anvil-vscode-extension/`,

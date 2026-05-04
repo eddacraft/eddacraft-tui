@@ -46,12 +46,50 @@ Open the local preview URL and select the waitlist confirmation template.
 ## Test normal waitlist flow
 
 ```bash
-curl -X POST https://api.eddacraft.ai/api/v1/waitlist \
+curl -sS -w '\nHTTP %{http_code}\n' \
+  -X POST https://api.eddacraft.ai/api/v1/waitlist \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com"}'
 ```
 
 Expected response fields include `emailSent`, `emailStatus`, and `isNewSignup`.
+
+## Pause waitlist signups
+
+Use `WAITLIST_PAUSED` only as a short-lived kill-switch when accepting new
+waitlist writes is riskier than rejecting them, for example during a write storm,
+database maintenance, or a Resend/API incident where signup attempts are causing
+secondary failures.
+
+To pause signups:
+
+1. In Vercel, open the **anvil-api** project environment variables.
+2. Set `WAITLIST_PAUSED=true` for the affected target, usually Production.
+3. Redeploy `anvil-api`; environment variable changes do not affect the running
+   deployment until redeploy.
+4. Verify `POST /api/v1/waitlist` returns HTTP `503` with
+   `Waitlist temporarily paused for maintenance`:
+
+   ```bash
+   curl -sS -w '\nHTTP %{http_code}\n' \
+     -X POST https://api.eddacraft.ai/api/v1/waitlist \
+     -H "Content-Type: application/json" \
+     -d '{"email":"you@example.com"}'
+   ```
+
+Expected caller behaviour while paused: new waitlist submissions receive `503`
+and should be treated as temporarily unavailable. The admin resend endpoint is
+not the normal signup path and should be used only for explicit support/testing.
+
+In observability dashboards, filter or annotate intentional `/api/v1/waitlist`
+`503` responses separately from incidents. Continue to escalate non-waitlist
+`5xx` responses, non-`503` waitlist failures, or waitlist `503` volume that does
+not match the expected pause window.
+
+Unset `WAITLIST_PAUSED` as soon as the incident or maintenance window is over,
+then redeploy `anvil-api` again. Verify normal signups return `success: true`
+with `emailSent`, `emailStatus`, and `isNewSignup` fields before closing the
+incident.
 
 ## Force resend as admin
 
@@ -61,7 +99,8 @@ Use one of these auth headers:
 - `x-waitlist-admin-token: <WAITLIST_RESEND_ADMIN_TOKEN>`
 
 ```bash
-curl -X POST https://api.eddacraft.ai/api/v1/waitlist/resend \
+curl -sS -w '\nHTTP %{http_code}\n' \
+  -X POST https://api.eddacraft.ai/api/v1/waitlist/resend \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $WAITLIST_RESEND_ADMIN_TOKEN" \
   -d '{"email":"you@example.com"}'
