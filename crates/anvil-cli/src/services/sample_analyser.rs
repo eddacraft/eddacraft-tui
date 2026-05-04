@@ -106,27 +106,23 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
         .ok()
         .map(|p| p.to_string_lossy().to_string());
 
-    let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
-    let elapsed = started.elapsed();
-
-    // LAUNCH-016: count files of `Unsupported` languages so the
-    // run summary can name them honestly. The walk is independent
-    // of the antipattern run so it can see files the existing
-    // extension allowlist filters out.
+    // LAUNCH-016: derive the skip ledger from the SAMPLE that was
+    // actually considered for antipattern scanning. Using the
+    // whole-repo count would overstate the skip — the post-init
+    // path only sampled up to SAMPLE_SIZE_LIMIT files. The ledger
+    // must reflect what was excluded from THIS scan, not the
+    // overall repo composition (the language profile already
+    // surfaces that separately via `anvil status --verify`).
     let language_profile =
         crate::activation::language_profile::profile_repo(root);
-    let mut skipped =
-        crate::activation::language_profile::LanguageSkipLedger::default();
-    for entry in &language_profile.entries {
-        if matches!(
-            entry.coverage_tier,
-            crate::activation::language_profile::CoverageTier::Unsupported
-        ) {
-            skipped
-                .by_language
-                .insert(entry.name.clone(), entry.files_seen);
-        }
-    }
+    let (_scannable, skipped) =
+        crate::activation::language_profile::partition_for_language_specific_checks(
+            &file_refs,
+            &language_profile,
+        );
+
+    let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
+    let elapsed = started.elapsed();
 
     let mut top_warnings: Vec<TopWarning> = result
         .warnings

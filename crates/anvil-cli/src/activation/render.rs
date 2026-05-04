@@ -317,11 +317,17 @@ mod tests {
             "baseline_present",
             "last_error",
             "all_languages_unsupported",
+            // PR 5 (LAUNCH-015) added: pin both the per-language
+            // breakdown and the unclassified counter to lock the
+            // JSON contract against silent removal.
+            "repo_languages",
+            "unclassified_files_seen",
         ] {
             assert!(obj.contains_key(key), "missing key {key} in {v}");
         }
         assert_eq!(obj["state"], "ready_restart_required");
         assert_eq!(obj["watch"], "not_requested");
+        assert!(obj["repo_languages"].is_array());
     }
 
     #[test]

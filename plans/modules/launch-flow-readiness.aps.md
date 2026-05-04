@@ -313,20 +313,37 @@ new primitive, this module follows three rules:
   opt-in (`extensions:` includes `.py`) reverses the language-specific
   skip without affecting the secret scan.
 - **Confidence:** medium
-- **Status:** Complete — `language_profile::partition_for_language_specific_checks`
-  is the canonical contract; it returns `(scannable, LanguageSkipLedger)`
-  for any candidate file list, with the ledger keyed by language name
-  and `reason: "unsupported"` for the v1 release. `services::sample_analyser`
-  consumes the language profile and surfaces the skip ledger in
-  `AnalysisOutcome.skipped_unsupported_languages`, which `commands::init`
-  prints next to the post-init scan summary so the skip is visible to the
-  user. Acceptance items (a) and (b) are met by the existing
-  `AntipatternCheckConfig::default().extensions` fallback (which
-  already excludes `.py`/`.rs`); item (c) is met via the new ledger;
-  item (d) — `extensions:` opt-in to scan unsupported languages —
-  remains hand-off to a follow-up that wires user-config-aware
-  filtering through scan / watch entry points (the partition helper
-  is the seam and is documented as `pub` for that adoption).
+- **Status:** Complete (with explicit hand-offs) —
+  `language_profile::partition_for_language_specific_checks` is the
+  canonical contract; it returns `(scannable, LanguageSkipLedger)`
+  for any candidate file list, with the ledger keyed by language
+  name and `reason: "unsupported"` for the v1 release.
+  `services::sample_analyser` derives the ledger from the
+  pre-filtered sample using the partition helper (so the ledger
+  reflects what was actually skipped from the scan, not the broader
+  repo); `commands::init` prints the skipped line if non-empty.
+  Acceptance status:
+  - (a) Default behaviour scans `.ts` and skips `.py` for
+    language-specific checks: **met** by the existing
+    `AntipatternCheckConfig::default().extensions` allowlist; the
+    partition helper provides the visible ledger contract so the
+    skip can be surfaced honestly when downstream PRs adopt it at
+    sites without a pre-filter.
+  - (b) Secret scanner runs on both: **hand-off**. The post-init
+    activation path does not invoke the secret scanner; secret
+    scanning happens via `commands::audit` and the MCP path. PR 3
+    (LAUNCH-009) wires MCP secrets coverage; the
+    cross-language-checks-still-run claim is preserved by leaving
+    the partition helper out of secret-scan call sites.
+  - (c) Run summary records the skip with language and count:
+    **met** via `AnalysisOutcome.skipped_unsupported_languages` and
+    the `repo_languages` array in `anvil status --verify --json`.
+  - (d) Explicit `extensions:` opt-in to scan unsupported
+    languages: **hand-off** to a follow-up PR that wires
+    user-config-aware filtering through `commands::check`,
+    `commands::watch`, and `commands::audit`. The partition helper
+    is the seam; downstream consumers compose the user-config
+    decision before invoking it.
 
 ---
 

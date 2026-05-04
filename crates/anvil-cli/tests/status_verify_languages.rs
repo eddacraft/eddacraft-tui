@@ -165,6 +165,29 @@ fn human_render_shows_per_language_breakdown() {
 }
 
 #[test]
+fn unclassified_files_surface_in_json_output() {
+    // Round-2 council: pin the JSON `unclassified_files_seen` field
+    // end-to-end so a future render rename is caught.
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("src/a.ts"), "");
+    write(&dir.path().join("Makefile"), "all:\n");
+    write(&dir.path().join("README"), "");
+    write(
+        &dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    );
+
+    let parsed = run_verify_json(dir.path());
+    let unclassified = parsed["unclassified_files_seen"]
+        .as_u64()
+        .expect("unclassified_files_seen must be present and numeric");
+    assert!(
+        unclassified >= 2,
+        "expected Makefile and README to count as unclassified, got {unclassified}: {parsed}"
+    );
+}
+
+#[test]
 fn vendored_dirs_are_excluded_from_language_count() {
     // Files in node_modules / target / .git must not bias the
     // profile — the user did not write them. PR 5 mirrors the

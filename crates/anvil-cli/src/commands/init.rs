@@ -181,10 +181,15 @@ fn render_analysis(outcome: &AnalysisOutcome) {
         outcome.elapsed.as_millis()
     ));
 
-    // LAUNCH-016: name the skip honestly when the repo contains
-    // files of `Unsupported` languages — they are not silently
-    // ignored. Cross-language checks (secrets) still run on these
-    // files via separate code paths.
+    // LAUNCH-016: name the skip honestly only if the post-init
+    // sample contained any unsupported-language files. The
+    // `select_sample` step pre-filters via the antipattern
+    // extension allowlist, so the ledger is typically empty in this
+    // path — broader repo composition is surfaced separately via
+    // `anvil status --verify`'s language profile, not here. This
+    // branch is preserved for the contract: when downstream PRs
+    // adopt the partition helper at scan/watch sites without an
+    // existing pre-filter, this surfaces the skip honestly.
     if !outcome.skipped_unsupported_languages.is_empty() {
         let parts: Vec<String> = outcome
             .skipped_unsupported_languages
