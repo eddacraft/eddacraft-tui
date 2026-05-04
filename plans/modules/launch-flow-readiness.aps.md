@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 9/16     |
+| LAUNCH | —     | In Progress | 10/16    |
 
 ## Purpose
 
@@ -210,7 +210,24 @@ new primitive, this module follows three rules:
   responses, each detected install method, unknown installs, and network lookup
   failure. Manual smoke covers the currently published release metadata.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete — `anvil version` lands as a new top-level
+  command in `crates/anvil-cli/src/commands/version.rs`. Detects
+  Homebrew (path-prefix match), Scoop (path marker), WinGet
+  (`WindowsApps\\eddacraft` marker), the cargo-dist installer (via
+  install receipt), and a `dev_build` tier (`target/debug` /
+  `target/release`); falls back to `unknown / manual`. Per-method
+  upgrade commands are pinned in
+  [`upgrade_command_for`](../../crates/anvil-cli/src/commands/version.rs).
+  Latest-release lookup uses an async `reqwest` call wrapped in a
+  fresh tokio runtime (matching axoupdater's pattern); a 3-second
+  timeout makes network failures non-fatal — the local version still
+  prints. `--offline` skips the probe entirely for sandboxed CI
+  environments. SemVer comparison is hand-rolled to ensure stable
+  releases sort after pre-releases of the same core (`1.0.0 >
+  1.0.0-rc1`); 11 unit tests pin the parse / order / install-method
+  detection / per-method upgrade strings, and 3 integration tests
+  exercise the human + JSON paths and confirm the command does not
+  require auth.
 
 ---
 
