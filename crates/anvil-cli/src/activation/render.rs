@@ -109,7 +109,18 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // server is already configured and startable, telling
             // the user to run `anvil mcp install` is wrong — they
             // need to restart their editor.
+            //
+            // Invariant (debug-asserted below): `LiveValidation` is
+            // unreachable here because `protection_state` returns
+            // `Protecting` first when any client is at that tier.
+            // The match arms below only handle tiers strictly weaker
+            // than `LiveValidation`; if a future refactor breaks the
+            // invariant, the assertion fires in debug builds.
             let highest_mcp = d.mcp.values().copied().max();
+            debug_assert!(
+                !matches!(highest_mcp, Some(McpTier::LiveValidation)),
+                "Watching unreachable when MCP at LiveValidation"
+            );
             if matches!(
                 highest_mcp,
                 Some(McpTier::ServerStartable | McpTier::RestartRequired)
