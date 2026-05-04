@@ -1,6 +1,7 @@
 {
   "name": "@eddacraft/docs-shell",
   "version": "0.3.0-beta",
+  "description": "Auth-gated proxy shell that fronts the public and private Docusaurus docs at docs.eddacraft.ai",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
