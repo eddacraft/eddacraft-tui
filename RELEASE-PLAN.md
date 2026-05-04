@@ -101,8 +101,8 @@ activation entrypoint on 2026-05-03.
 - **LAUNCH-014** — make the interactive tutorial prove value faster.
 - **LAUNCH-015** — profile repo languages during activation (honest accounting
   of which languages are supported / partial / unsupported in this release).
-- **LAUNCH-016** — honour the language profile in scan and watch filters
-  (skip language-specific checks on unsupported files; secrets still run).
+- **LAUNCH-016** — honour the language profile in scan and watch filters (skip
+  language-specific checks on unsupported files; secrets still run).
 
 **Prerequisites:**
 
