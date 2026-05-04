@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 5/16     |
+| LAUNCH | —     | In Progress | 7/16     |
 
 ## Purpose
 
@@ -185,9 +185,9 @@ new primitive, this module follows three rules:
 ## Tasks
 
 > Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, and LAUNCH-007 are complete; remaining activation,
-> tutorial, upgrade, language-profile, and watch work stays Todo until
-> picked up.
+> LAUNCH-005, LAUNCH-007, LAUNCH-008, and LAUNCH-012 are complete;
+> remaining activation, tutorial, upgrade, language-profile, and watch
+> work stays Todo until picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -470,7 +470,14 @@ new primitive, this module follows three rules:
   least protected, restart-required, watch fallback, unsupported, and
   config-error scenarios.
 - **Confidence:** high
-- **Status:** Todo
+- **Status:** Complete — landed alongside LAUNCH-012 in
+  `crates/anvil-cli/src/activation/`. The shared `ProtectionState`
+  vocabulary plus the `ActivationDiagnostic` shape now back
+  `anvil status` (default + `--verify`) human and JSON output, with
+  unit + CLI integration tests covering each required scenario.
+  Downstream PRs (LAUNCH-006, -009, -010, -011, -015) extend the
+  diagnostic with their probe layers; the contract is locked so they
+  cannot add ad-hoc states.
 
 ---
 
@@ -554,7 +561,13 @@ new primitive, this module follows three rules:
   reports each degraded layer separately, and leaves existing config
   unchanged on repeated runs.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete — landed alongside LAUNCH-008 via
+  `anvil status --verify`. PR 1 (LAUNCH-006) is expected to add the
+  `anvil start --verify` form that forwards to the same backend. The
+  current implementation honours each layer in `ActivationDiagnostic`
+  separately, never writes config, and is idempotent — covered by
+  `crates/anvil-cli/tests/status_verify.rs`. Live MCP tier and watch
+  liveness probes are stubbed today and plug in via PR 3.
 
 ## Risks
 
