@@ -106,22 +106,26 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
         .ok()
         .map(|p| p.to_string_lossy().to_string());
 
-    // LAUNCH-016: derive the skip ledger from the SAMPLE that was
-    // actually considered for antipattern scanning. Using the
-    // whole-repo count would overstate the skip — the post-init
-    // path only sampled up to SAMPLE_SIZE_LIMIT files. The ledger
-    // must reflect what was excluded from THIS scan, not the
-    // overall repo composition (the language profile already
-    // surfaces that separately via `anvil status --verify`).
+    // LAUNCH-016: partition the sample into scannable files and a
+    // skip ledger. The ledger reflects what was excluded from
+    // THIS scan, not the overall repo composition (the language
+    // profile separately surfaces composition via
+    // `anvil status --verify`). The `select_sample` step already
+    // pre-filters by the antipattern extension allowlist, so for
+    // the post-init path the partition is a no-op today (the
+    // ledger is empty, the scannable list matches `file_refs`).
+    // Wiring the partition here belt-and-suspenders the contract
+    // so a future change that broadens `select_sample` does not
+    // silently re-introduce the over-scan.
     let language_profile =
         crate::activation::language_profile::profile_repo(root);
-    let (_scannable, skipped) =
+    let (scannable, skipped) =
         crate::activation::language_profile::partition_for_language_specific_checks(
             &file_refs,
             &language_profile,
         );
 
-    let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
+    let result = run_antipattern_check(&scannable, &config, workspace_root.as_deref());
     let elapsed = started.elapsed();
 
     let mut top_warnings: Vec<TopWarning> = result
