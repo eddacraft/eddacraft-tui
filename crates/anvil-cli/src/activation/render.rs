@@ -103,9 +103,11 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
 /// The shape is stable contract — keys are: `state`, `headline`,
 /// `config`, `mcp` (array of `{client, tier}` objects), `watch`,
 /// `baseline_present`, `last_error`, `all_languages_unsupported`,
-/// `repo_languages` (array of `{name, files_seen, coverage_tier, basis}`).
-/// Tooling consumers may rely on this set; downstream PRs add fields,
-/// they do not rename or remove existing ones.
+/// `repo_languages` (array of `{name, files_seen, coverage_tier, basis}`),
+/// and `unclassified_files_seen` (count of files whose extension
+/// matched no registry entry). Tooling consumers may rely on this
+/// set; downstream PRs add fields, they do not rename or remove
+/// existing ones.
 ///
 /// The body uses `serde_json::json!` so the value is constructed
 /// directly from primitives — no fallible `to_value` round-trip and

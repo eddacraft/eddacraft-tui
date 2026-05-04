@@ -400,24 +400,37 @@ pub fn classify_extension(ext_with_dot: &str) -> Option<&'static str> {
 
 /// True when a path has a directory component matching one of the
 /// well-known vendored / generated paths Anvil's scanners always
-/// skip. Mirrors `crates/anvil-checks/src/filter.rs::DEFAULT_DIR_EXCLUDES`
-/// without depending on it (the activation walk runs before scan
-/// configuration, so a low-level list is appropriate here).
+/// skip. Mirrors the union of `DEFAULT_DIR_EXCLUDES` and
+/// `BUILD_ARTEFACT_DIRS` from `crates/anvil-checks/src/filter.rs`
+/// without depending on the crate (the activation walk runs before
+/// scan configuration, so a low-level list is appropriate here).
+/// Keep this list in sync with that source — additions there should
+/// land here too, or generated files will skew `repo_languages`.
 fn is_excluded_directory(path: &Path) -> bool {
     const EXCLUDED: &[&str] = &[
+        // Always-excluded (DEFAULT_DIR_EXCLUDES)
         ".git",
         "node_modules",
         "target",
         ".anvil",
-        ".next",
-        ".nuxt",
-        ".cache",
-        ".turbo",
-        ".nx",
+        // BUILD_ARTEFACT_DIRS — not always denylisted by the
+        // scanner (a user may want to scan `dist/` for secrets), but
+        // the activation language profile must not count generated
+        // files as first-party source. A repo using Angular or
+        // SvelteKit otherwise gets `.angular/` / `.svelte-kit/`
+        // generated TypeScript counted, which can flip the
+        // protection state away from `unsupported` incorrectly.
         "dist",
         "build",
         "out",
         "coverage",
+        ".next",
+        ".nuxt",
+        ".nx",
+        ".turbo",
+        ".cache",
+        ".angular",
+        ".svelte-kit",
     ];
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
@@ -546,6 +559,31 @@ mod tests {
         let profile = profile_repo(dir.path());
         // Only `src/a.ts` should be counted.
         assert_eq!(profile.entries.len(), 1);
+        assert_eq!(profile.entries[0].name, "TypeScript");
+        assert_eq!(profile.entries[0].files_seen, 1);
+    }
+
+    #[test]
+    fn framework_build_artefact_dirs_are_excluded() {
+        // Round-1 follow-up review (PR #1268): `.angular/` and
+        // `.svelte-kit/` are recognised build-artefact dirs in
+        // `anvil-checks::filter::BUILD_ARTEFACT_DIRS` but were not
+        // mirrored in this list. Generated TS / JS in those
+        // directories must not count toward `repo_languages` —
+        // otherwise the protection state can flip away from the
+        // truthful label for an Angular or SvelteKit user.
+        let dir = TempDir::new().unwrap();
+        touch(dir.path(), "src/app.ts");
+        touch(dir.path(), ".angular/cache/0/foo.ts");
+        touch(dir.path(), ".svelte-kit/output/server/bar.js");
+        touch(dir.path(), "dist/index.js");
+        touch(dir.path(), ".turbo/cache/baz.ts");
+        let profile = profile_repo(dir.path());
+        assert_eq!(
+            profile.entries.len(),
+            1,
+            "only src/app.ts should be counted: {profile:?}"
+        );
         assert_eq!(profile.entries[0].name, "TypeScript");
         assert_eq!(profile.entries[0].files_seen, 1);
     }

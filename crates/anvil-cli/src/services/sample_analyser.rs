@@ -105,25 +105,25 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
         .ok()
         .map(|p| p.to_string_lossy().to_string());
 
-    // LAUNCH-016: partition the sample into scannable files and a
-    // skip ledger. The ledger reflects what was excluded from
-    // THIS scan, not the overall repo composition (the language
-    // profile separately surfaces composition via
-    // `anvil status --verify`). The `select_sample` step already
-    // pre-filters by the antipattern extension allowlist, so for
-    // the post-init path the partition is a no-op today (the
-    // ledger is empty, the scannable list matches `file_refs`).
-    // Wiring the partition here belt-and-suspenders the contract
-    // so a future change that broadens `select_sample` does not
-    // silently re-introduce the over-scan.
-    let language_profile = crate::activation::language_profile::profile_repo(root);
-    let (scannable, skipped) =
-        crate::activation::language_profile::partition_for_language_specific_checks(
-            &file_refs,
-            &language_profile,
-        );
+    // LAUNCH-016: the skip ledger reflects what was excluded from
+    // THIS scan. `select_sample` already pre-filters by the
+    // antipattern extension allowlist, so the ledger is necessarily
+    // empty for the post-init path — there are no `Unsupported`-
+    // language files in `file_refs` to skip. Emitting an empty
+    // ledger preserves the contract on `AnalysisOutcome` without
+    // walking the working tree (a full `profile_repo(root)` call
+    // here would defeat `SAMPLE_SIZE_LIMIT` on large repos for no
+    // observable benefit; the broader composition is surfaced via
+    // `anvil status --verify`'s language profile, not init).
+    //
+    // Downstream PRs that broaden `select_sample` to include
+    // unsupported-language files MUST call
+    // `partition_for_language_specific_checks(&file_refs,
+    // &profile_repo(root))` here and propagate the resulting
+    // ledger; the partition helper is the seam.
+    let skipped = crate::activation::language_profile::LanguageSkipLedger::default();
 
-    let result = run_antipattern_check(&scannable, &config, workspace_root.as_deref());
+    let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
     let elapsed = started.elapsed();
 
     let mut top_warnings: Vec<TopWarning> = result
