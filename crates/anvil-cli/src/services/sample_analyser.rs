@@ -51,8 +51,7 @@ pub struct AnalysisOutcome {
     /// Surfaces the skip honestly so users do not silently miss the
     /// gap; cross-language checks (secrets) still run on these files
     /// when invoked via separate code paths.
-    pub skipped_unsupported_languages:
-        crate::activation::language_profile::LanguageSkipLedger,
+    pub skipped_unsupported_languages: crate::activation::language_profile::LanguageSkipLedger,
 }
 
 /// A trimmed-down warning view used for the inline summary. We do not
@@ -117,8 +116,7 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
     // Wiring the partition here belt-and-suspenders the contract
     // so a future change that broadens `select_sample` does not
     // silently re-introduce the over-scan.
-    let language_profile =
-        crate::activation::language_profile::profile_repo(root);
+    let language_profile = crate::activation::language_profile::profile_repo(root);
     let (scannable, skipped) =
         crate::activation::language_profile::partition_for_language_specific_checks(
             &file_refs,

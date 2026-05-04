@@ -145,7 +145,10 @@ fn human_render_shows_per_language_breakdown() {
     );
 
     let stdout = run_verify_human(dir.path());
-    assert!(stdout.contains("languages:"), "missing languages block: {stdout}");
+    assert!(
+        stdout.contains("languages:"),
+        "missing languages block: {stdout}"
+    );
     assert!(
         stdout.contains("TypeScript"),
         "TypeScript not surfaced: {stdout}"
@@ -154,10 +157,7 @@ fn human_render_shows_per_language_breakdown() {
         stdout.contains("supported"),
         "supported tier not labelled: {stdout}"
     );
-    assert!(
-        stdout.contains("Python"),
-        "Python not surfaced: {stdout}"
-    );
+    assert!(stdout.contains("Python"), "Python not surfaced: {stdout}");
     assert!(
         stdout.contains("unsupported"),
         "unsupported tier not labelled: {stdout}"
