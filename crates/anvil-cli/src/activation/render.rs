@@ -59,7 +59,11 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
                 "    {} ({} {}): {} — {}",
                 entry.name,
                 entry.files_seen,
-                if entry.files_seen == 1 { "file" } else { "files" },
+                if entry.files_seen == 1 {
+                    "file"
+                } else {
+                    "files"
+                },
                 entry.coverage_tier.label(),
                 entry.basis,
             );
@@ -79,9 +83,7 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     } else if d.all_languages_unsupported {
         // Defensive: if the profile is empty but `all_languages_unsupported`
         // was set externally (e.g. tests), still surface the gap honestly.
-        out.push_str(
-            "  languages: all detected languages are unsupported in this release\n",
-        );
+        out.push_str("  languages: all detected languages are unsupported in this release\n");
     }
 
     if let Some(err) = &d.last_error {

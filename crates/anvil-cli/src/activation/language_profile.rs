@@ -298,7 +298,10 @@ pub fn partition_for_language_specific_checks<'a>(
             continue;
         };
         let ext = format!(".{}", raw_ext.to_ascii_lowercase());
-        if unsupported_exts.iter().any(|u| u.eq_ignore_ascii_case(&ext)) {
+        if unsupported_exts
+            .iter()
+            .any(|u| u.eq_ignore_ascii_case(&ext))
+        {
             if let Some(language) = classify_extension(&ext) {
                 *by_language.entry(language.to_string()).or_insert(0) += 1;
             }
@@ -384,7 +387,11 @@ pub fn extension_with_dot(path: &Path) -> Option<String> {
 pub fn classify_extension(ext_with_dot: &str) -> Option<&'static str> {
     let lower = ext_with_dot.to_ascii_lowercase();
     for entry in LANGUAGE_REGISTRY {
-        if entry.extensions.iter().any(|e| e.eq_ignore_ascii_case(&lower)) {
+        if entry
+            .extensions
+            .iter()
+            .any(|e| e.eq_ignore_ascii_case(&lower))
+        {
             return Some(entry.name);
         }
     }
@@ -570,14 +577,8 @@ mod tests {
         touch(dir.path(), "main.rs");
         let profile = profile_repo(dir.path());
 
-        let files = vec![
-            "src/a.ts",
-            "lib/util.py",
-            "scripts/cleanup.py",
-            "main.rs",
-        ];
-        let (scannable, ledger) =
-            partition_for_language_specific_checks(&files, &profile);
+        let files = vec!["src/a.ts", "lib/util.py", "scripts/cleanup.py", "main.rs"];
+        let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
 
         assert_eq!(scannable, vec!["src/a.ts"]);
         assert_eq!(ledger.by_language.get("Python"), Some(&2));
@@ -599,8 +600,7 @@ mod tests {
         let profile = profile_repo(dir.path());
 
         let files = vec!["src/a.ts", "src/b.tsx", "schema.sql"];
-        let (scannable, ledger) =
-            partition_for_language_specific_checks(&files, &profile);
+        let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
         assert_eq!(scannable.len(), 3);
         assert!(ledger.is_empty());
     }
@@ -618,8 +618,7 @@ mod tests {
         let profile = profile_repo(dir.path());
 
         let files = vec!["src/a.ts", "lib/util.py", "Makefile", "README.txt"];
-        let (scannable, ledger) =
-            partition_for_language_specific_checks(&files, &profile);
+        let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
 
         assert!(scannable.contains(&"src/a.ts"));
         assert!(scannable.contains(&"Makefile"));
@@ -636,8 +635,7 @@ mod tests {
         let profile = profile_repo(dir.path());
 
         let files = vec!["src/a.ts", "lib/Util.PY"];
-        let (scannable, ledger) =
-            partition_for_language_specific_checks(&files, &profile);
+        let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
         assert_eq!(scannable, vec!["src/a.ts"]);
         assert_eq!(ledger.by_language.get("Python"), Some(&1));
     }
