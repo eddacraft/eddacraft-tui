@@ -22,6 +22,7 @@ pub mod status;
 pub mod tutorial;
 pub mod update;
 pub mod validate;
+pub mod version;
 pub mod watch;
 pub mod welcome;
 pub mod wizard;

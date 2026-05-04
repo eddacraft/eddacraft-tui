@@ -116,6 +116,8 @@ enum Commands {
     Update(commands::update::UpdateArgs),
     /// Validate an APS plan file (structure, task format, hash integrity).
     Validate(commands::validate::ValidateArgs),
+    /// Show install-method-aware version + upgrade guidance.
+    Version(commands::version::VersionArgs),
     /// Log in to Anvil (alias for `auth login`).
     #[command(hide = true)]
     Login(commands::auth::LoginArgs),
@@ -161,6 +163,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Policy(_) => "policy",
         Commands::Update(_) => "update",
         Commands::Validate(_) => "validate",
+        Commands::Version(_) => "version",
         Commands::Login(_) => "login",
         Commands::Logout(_) => "logout",
         Commands::Whoami(_) => "whoami",
@@ -452,6 +455,7 @@ fn wants_json() -> bool {
     std::env::args().any(|a| a == "--json")
 }
 
+#[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
     // TRACE-001: install the cross-cutting tracing subscriber once at
     // process start. `Err` means a global subscriber was already
@@ -545,6 +549,7 @@ fn main() -> ExitCode {
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
         Commands::Validate(args) => commands::validate::run(args, &cli.global),
+        Commands::Version(args) => commands::version::run(args, &cli.global),
         Commands::Login(args) => commands::auth::run_login(args, &cli.global),
         Commands::Logout(args) => commands::auth::run_logout(args, &cli.global),
         Commands::Whoami(args) => commands::auth::run_whoami(args, &cli.global),
