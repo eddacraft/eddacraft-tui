@@ -135,6 +135,7 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
   // hashed with the real pepper), so we refuse to hash without one.
   const pepperValue = pepper();
   const perOperatorActive = perOperatorKeysEnabled() && pepperValue !== null;
+  let perOperatorLookupSucceeded = false;
   if (perOperatorKeysEnabled() && pepperValue === null) {
     logPepperMisconfig();
   }
@@ -145,6 +146,7 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
     try {
       const sql = getClient();
       adminKeyRow = await findAdminKeyByHash(sql, hashed);
+      perOperatorLookupSucceeded = true;
     } catch (err) {
       // DB error: fall through to shared-key path. The spec requires this
       // so a DB hiccup can't take down the admin surface.
@@ -178,11 +180,12 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
   }
 
   debug('admin auth: unknown bearer');
-  const hashedForAudit = perOperatorActive ? hashBearer(provided, pepperValue) : null;
+  const hashedForAudit =
+    perOperatorLookupSucceeded && pepperValue ? hashBearer(provided, pepperValue) : null;
   await auditAuthFailure(
     'rejected_unknown',
     hashedForAudit,
-    perOperatorActive ? 'per_operator' : 'shared'
+    perOperatorLookupSucceeded ? 'per_operator' : 'shared'
   );
   return c.json({ error: 'Forbidden' }, 403);
 };

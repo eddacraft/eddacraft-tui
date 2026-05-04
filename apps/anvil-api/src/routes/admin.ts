@@ -321,7 +321,9 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
         actor,
         { email: normalizedEmail, droppedScopes, grantedScopes: [] },
         authMethod
-      );
+      ).catch((err) => {
+        console.error('Failed to record dropped scopes audit (non-fatal):', err);
+      });
       throw new Error(`no_scopes:${normalizedEmail}`);
     }
 
