@@ -381,6 +381,26 @@ describe('POST /auth/otp/verify', () => {
     );
   });
 
+  it('preserves graded scopes in the issued licence', async () => {
+    vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
+    vi.mocked(findActiveOtpCodes).mockResolvedValue([
+      makeCode({ id: 'otp-match', code_hash: SUBMITTED_HASH }),
+    ]);
+    vi.mocked(findActiveScopesForUser).mockResolvedValue(['preview', 'beta']);
+
+    const res = await post('/auth/otp/verify', {
+      email: 'active@example.com',
+      code: SUBMITTED_CODE,
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const { decodeJwt } = await import('jose');
+    const claims = decodeJwt(body.license) as { scopes?: string[] };
+    expect(claims.scopes).toEqual(['preview', 'beta']);
+    expect(vi.mocked(findActiveScopesForUser)).toHaveBeenCalledWith(expect.anything(), 'user-1');
+  });
+
   it.each([
     { name: 'missing code', body: { email: 'active@example.com' } },
     { name: 'non-digit code', body: { email: 'active@example.com', code: 'abcdef' } },

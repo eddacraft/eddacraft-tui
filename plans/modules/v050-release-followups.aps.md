@@ -95,7 +95,7 @@ require a coordinated bundle — pick them off in any order.
 - **Expected outcome:** Stamp `auth_method: 'per_operator'` on
   rejected_unknown when `perOperatorActive` is true. One-line fix.
 - **Confidence:** high
-- **Status:** Todo
+- **Status:** Done
 
 ### V050F-003: Cascade access_tokens revoke when refresh family is revoked on theft detection
 
@@ -110,7 +110,7 @@ require a coordinated bundle — pick them off in any order.
   bound the leaked JWT's lifetime by tracking refresh-revoked users
   and refusing to verify their tokens). Pairs with V050F-008 below.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Done
 
 ### V050F-004: Flag-gate `/admin/approve` granted scopes via `resolveApiScope`
 
@@ -129,7 +129,7 @@ require a coordinated bundle — pick them off in any order.
   `resolveApiScope` and audit any dropped scopes so the operator sees
   the kill-switch took effect.
 - **Confidence:** high
-- **Status:** Todo
+- **Status:** Done
 
 ### V050F-005: Regression tests for graded-scope preservation across `/admin/approve` and `/auth/otp`
 
@@ -148,7 +148,7 @@ require a coordinated bundle — pick them off in any order.
   asserts the issued JWT carries that union (decodeJwt the licence
   claim, same shape as the auth-session regression test).
 - **Confidence:** high
-- **Status:** Todo
+- **Status:** Done
 
 ### V050F-006: Cache compiled allowlist regexes in `is_file_allowlisted`
 

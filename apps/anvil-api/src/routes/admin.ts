@@ -294,7 +294,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     // the read side; this closes the write side. The query is best-effort:
     // if the user has no existing user row yet, we use the default scopes.
     const existingUser = await findUserByEmail(sql, normalizedEmail);
-    const grantedScopes: string[] = existingUser
+    const requestedScopes: string[] = existingUser
       ? Array.from(
           new Set([
             ...(await findActiveScopesForUser(sql, existingUser.id)),
@@ -302,6 +302,28 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
           ])
         )
       : [...DEFAULT_APPROVAL_SCOPES];
+
+    const grantedScopes: string[] = [];
+    const droppedScopes: string[] = [];
+    for (const scope of requestedScopes) {
+      const resolution = resolveApiScope(scope);
+      if (resolution?.allowed) {
+        grantedScopes.push(scope);
+      } else {
+        droppedScopes.push(scope);
+      }
+    }
+
+    if (grantedScopes.length === 0) {
+      await insertAuditLog(
+        sql,
+        'user.approve.scopes_dropped',
+        actor,
+        { email: normalizedEmail, droppedScopes, grantedScopes: [] },
+        authMethod
+      );
+      throw new Error(`no_scopes:${normalizedEmail}`);
+    }
 
     // Generate access token (90-day expiry)
     const rawToken = generateToken();
@@ -315,7 +337,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     // Retry on user_code collision (23505). Entire transaction is re-run
     // with a fresh code because the INSERT is part of an atomic batch.
     const { userCode } = await withUserCodeRetry(async (code) => {
-      await sql.transaction([
+      const statements = [
         sql`INSERT INTO beta_users (email, status)
             VALUES (${normalizedEmail}, ${'active'})
             ON CONFLICT (email) DO UPDATE SET status = ${'active'}
@@ -335,7 +357,17 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
         sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
             VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
             RETURNING *`,
-      ]);
+      ];
+      if (droppedScopes.length > 0) {
+        statements.push(sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+            VALUES (
+              ${'user.approve.scopes_dropped'}, ${actor},
+              ${JSON.stringify({ email: normalizedEmail, droppedScopes, grantedScopes })},
+              ${authMethod}
+            )
+            RETURNING *`);
+      }
+      await sql.transaction(statements);
       return { userCode: code };
     });
 
@@ -353,7 +385,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     return { email: normalizedEmail, expiresAt: tokenExpiry.toISOString() };
   }
 
-  type SkipReason = 'not_found' | 'collision' | 'error';
+  type SkipReason = 'not_found' | 'collision' | 'no_scopes' | 'error';
 
   async function recordCollision(email: string): Promise<void> {
     await insertAuditLog(sql, 'user.approve.collision', actor, { email }, authMethod).catch(
@@ -365,6 +397,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
 
   function classifySkip(err: unknown): SkipReason {
     if (err instanceof Error && err.message.startsWith('not_found:')) return 'not_found';
+    if (err instanceof Error && err.message.startsWith('no_scopes:')) return 'no_scopes';
     if (isUserCodeCollision(err)) return 'collision';
     return 'error';
   }
@@ -381,6 +414,9 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       if (reason === 'collision') {
         await recordCollision(body.email.toLowerCase().trim());
         return c.json({ error: 'user_code collision after retries, try again' }, 503);
+      }
+      if (reason === 'no_scopes') {
+        return c.json({ error: 'No enabled API scopes available for approval' }, 409);
       }
       throw err;
     }

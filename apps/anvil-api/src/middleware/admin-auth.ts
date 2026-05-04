@@ -179,6 +179,10 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
 
   debug('admin auth: unknown bearer');
   const hashedForAudit = perOperatorActive ? hashBearer(provided, pepperValue) : null;
-  await auditAuthFailure('rejected_unknown', hashedForAudit, 'shared');
+  await auditAuthFailure(
+    'rejected_unknown',
+    hashedForAudit,
+    perOperatorActive ? 'per_operator' : 'shared'
+  );
   return c.json({ error: 'Forbidden' }, 403);
 };
