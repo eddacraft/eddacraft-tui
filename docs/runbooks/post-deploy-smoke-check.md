@@ -48,10 +48,10 @@ request origin.
 
 ```bash
 curl -sS -w '\nHTTP %{http_code}\n' \
-  https://api.eddacraft.ai/api/v1/waitlist \
   -X POST \
   -H "Content-Type: application/json" \
-  -d '{"email":"smoke-test@example.com"}'
+  -d '{"email":"smoke-test@example.com"}' \
+  https://api.eddacraft.ai/api/v1/waitlist
 ```
 
 Expected: `success: true` with delivery fields (`emailSent`, `emailStatus`).
@@ -110,8 +110,8 @@ Expected: `valid: true` with `user`, `scopes`, `expiresAt`, `license` fields.
    - Recovery: check `emailStatus`, validate Resend config/domain.
 
 3. **Waitlist returns 503**
-   - Recovery: if `WAITLIST_PAUSED=true` is intentional, leave the smoke check in
-     degraded-but-expected state until the incident ends. If not intentional,
+   - Recovery: if `WAITLIST_PAUSED=true` is intentional, leave the smoke check
+     in degraded-but-expected state until the incident ends. If not intentional,
      unset it in Vercel, redeploy `anvil-api`, and rerun the waitlist submission
      flow.
 

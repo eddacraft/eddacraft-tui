@@ -57,9 +57,9 @@ Expected response fields include `emailSent`, `emailStatus`, and `isNewSignup`.
 ## Pause waitlist signups
 
 Use `WAITLIST_PAUSED` only as a short-lived kill-switch when accepting new
-waitlist writes is riskier than rejecting them, for example during a write storm,
-database maintenance, or a Resend/API incident where signup attempts are causing
-secondary failures.
+waitlist writes are riskier than rejecting them, for example during a write
+storm, database maintenance, or a Resend/API incident where signup attempts are
+causing secondary failures.
 
 To pause signups:
 
