@@ -383,7 +383,8 @@ mod tests {
     fn restart_required_tier_yields_ready_restart_required() {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
         assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
     }
 
@@ -428,7 +429,8 @@ mod tests {
         // `RestartRequired`. The user has actionable next steps.
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
         assert_eq!(d.protection_state(), ProtectionState::NeedsAction);
     }
 
@@ -489,7 +491,8 @@ mod tests {
     fn highest_mcp_tier_picks_strongest() {
         let mut d = empty_diagnostic();
         d.mcp.insert(McpClientId::Cursor, McpTier::ConfigPresent);
-        d.mcp.insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
         assert_eq!(d.highest_mcp_tier(), Some(McpTier::ServerStartable));
     }
 
@@ -544,7 +547,11 @@ mod tests {
     #[test]
     fn verify_flags_unparseable_config_as_invalid() {
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join(".anvilrc"), "{this is not valid in any format::").unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "{this is not valid in any format::",
+        )
+        .unwrap();
         let d = verify(dir.path());
         assert_eq!(d.config, ConfigStatus::Invalid);
         assert_eq!(d.protection_state(), ProtectionState::Error);

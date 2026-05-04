@@ -33,12 +33,7 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     } else {
         out.push_str("  mcp:\n");
         for (client, tier) in &d.mcp {
-            let _ = writeln!(
-                out,
-                "    {}: {}",
-                client.display_name(),
-                tier.label()
-            );
+            let _ = writeln!(out, "    {}: {}", client.display_name(), tier.label());
         }
     }
 
@@ -46,7 +41,11 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     let _ = writeln!(
         out,
         "  baseline: {}",
-        if d.baseline_present { "present" } else { "absent" }
+        if d.baseline_present {
+            "present"
+        } else {
+            "absent"
+        }
     );
     if d.all_languages_unsupported {
         out.push_str("  languages: all detected languages are unsupported in this release\n");
@@ -100,9 +99,9 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
 fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'static str> {
     match state {
         ProtectionState::Protecting => None,
-        ProtectionState::ReadyRestartRequired => {
-            Some("restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`.")
-        }
+        ProtectionState::ReadyRestartRequired => Some(
+            "restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`.",
+        ),
         ProtectionState::Watching => {
             // Council remediation: the next step depends on whether
             // any MCP tier is already past `ConfigPresent`. If the
@@ -125,16 +124,22 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 highest_mcp,
                 Some(McpTier::ServerStartable | McpTier::RestartRequired)
             ) {
-                Some("watch is the save-time fallback — your MCP server is configured; restart your editor and re-run `anvil start --verify` to upgrade to pre-write validation.")
+                Some(
+                    "watch is the save-time fallback — your MCP server is configured; restart your editor and re-run `anvil start --verify` to upgrade to pre-write validation.",
+                )
             } else {
-                Some("watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` for Cursor or Claude Code.")
+                Some(
+                    "watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` for Cursor or Claude Code.",
+                )
             }
         }
         ProtectionState::NeedsAction => {
             if matches!(d.config, super::diagnostic::ConfigStatus::Absent) {
                 Some("run `anvil init` to create a config, then `anvil start` to activate.")
             } else if d.mcp.values().all(|t| *t < McpTier::ConfigPresent) {
-                Some("run `anvil start` to wire Cursor and Claude Code MCP paths, or `anvil watch` for save-time fallback.")
+                Some(
+                    "run `anvil start` to wire Cursor and Claude Code MCP paths, or `anvil watch` for save-time fallback.",
+                )
             } else {
                 Some("run `anvil start --verify` to re-check activation.")
             }
@@ -144,11 +149,13 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // only` on unsupported files — that isolation is owned by
             // LAUNCH-016, which has not landed. Keep the copy
             // descriptive and avoid future-tense claims.
-            Some("Anvil does not yet cover this repo's languages in the current release. Architecture / antipattern checks will not produce findings on files in unsupported languages; coverage expands as language packs ship.")
+            Some(
+                "Anvil does not yet cover this repo's languages in the current release. Architecture / antipattern checks will not produce findings on files in unsupported languages; coverage expands as language packs ship.",
+            )
         }
-        ProtectionState::Error => {
-            Some("re-run `anvil start --verify` after addressing the cause; activation will not write any state until it can proceed safely.")
-        }
+        ProtectionState::Error => Some(
+            "re-run `anvil start --verify` after addressing the cause; activation will not write any state until it can proceed safely.",
+        ),
     }
 }
 
@@ -181,7 +188,8 @@ mod tests {
     fn restart_required() -> ActivationDiagnostic {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
         d
     }
 
@@ -271,7 +279,8 @@ mod tests {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
         d.mcp.insert(McpClientId::Cursor, McpTier::ConfigPresent);
-        d.mcp.insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
         let v = render_json(&d);
         let arr = v["mcp"].as_array().unwrap();
         assert_eq!(arr.len(), 2);
@@ -298,7 +307,13 @@ mod tests {
                 render.contains(&format!("state: {expected}")),
                 "case {expected} did not produce its literal state line, render:\n{render}"
             );
-            for forbidden in ["protecting", "ready_restart_required", "watching", "unsupported", "error"] {
+            for forbidden in [
+                "protecting",
+                "ready_restart_required",
+                "watching",
+                "unsupported",
+                "error",
+            ] {
                 if forbidden == *expected {
                     continue;
                 }
