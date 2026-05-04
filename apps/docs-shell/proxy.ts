@@ -13,6 +13,7 @@ function requireEnv(name: string): string {
 const ANVIL_DOCS_URL = requireEnv('ANVIL_DOCS_URL');
 const PUBLIC_DOCS_URL = requireEnv('PUBLIC_DOCS_URL');
 const UPSTREAM_SECRET = requireEnv('DOCS_UPSTREAM_SECRET');
+const BUILD_MARKER = '2026-05-04-explicit-content-length';
 
 const FORWARDED_REQUEST_HEADERS = [
   'accept',
@@ -119,17 +120,26 @@ async function proxyToUpstream(request: NextRequest, upstream: string): Promise<
       }
     }
 
-    // Buffer the body via arrayBuffer so the response has a known length.
-    // Streaming `response.body` through into a new Response was producing
-    // empty bodies in production — likely because the proxy runtime can't
-    // recompute Content-Length for an arbitrary ReadableStream once the
-    // upstream encoding headers are stripped. Pages here are HTML/asset
-    // payloads (Docusaurus), so buffering trades a small memory bump for
-    // a correct response.
-    const body =
-      response.status === 204 || response.status === 304 ? null : await response.arrayBuffer();
+    // Buffer the body so we can both forward it and report its length via
+    // a debug header. Both streaming `response.body` through into a new
+    // Response *and* buffering via arrayBuffer were observed producing
+    // empty 200 responses on `docs.eddacraft.ai` even after stripping
+    // content-encoding/content-length, so we explicitly buffer to a
+    // Uint8Array, attach a fresh content-length, and surface diagnostic
+    // headers so the next regression can be traced live.
+    const buf =
+      response.status === 204 || response.status === 304
+        ? null
+        : new Uint8Array(await response.arrayBuffer());
 
-    return new Response(body, {
+    if (buf) {
+      responseHeaders.set('content-length', String(buf.byteLength));
+    }
+    responseHeaders.set('x-docs-shell-build', BUILD_MARKER);
+    responseHeaders.set('x-docs-shell-upstream-status', String(response.status));
+    responseHeaders.set('x-docs-shell-upstream-bytes', String(buf?.byteLength ?? 0));
+
+    return new Response(buf, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,

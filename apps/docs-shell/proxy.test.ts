@@ -205,10 +205,18 @@ describe('proxy upstream behaviour', () => {
     const req = makeRequest('https://docs.eddacraft.ai/kindling/overview');
     const res = await proxy(req as never);
 
+    const expectedBytes = new TextEncoder().encode(html).byteLength;
+
     expect(res.status).toBe(200);
     expect(res.headers.get('content-encoding')).toBeNull();
-    expect(res.headers.get('content-length')).toBeNull();
+    // Content-Length is now set explicitly to the buffered byte count
+    // (instead of being stripped) so the edge has an unambiguous length
+    // and can't drop the body for a length/body mismatch.
+    expect(res.headers.get('content-length')).toBe(String(expectedBytes));
     expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(res.headers.get('x-docs-shell-upstream-status')).toBe('200');
+    expect(res.headers.get('x-docs-shell-upstream-bytes')).toBe(String(expectedBytes));
+    expect(res.headers.get('x-docs-shell-build')).toBeTruthy();
     expect(await res.text()).toBe(html);
   });
 });
