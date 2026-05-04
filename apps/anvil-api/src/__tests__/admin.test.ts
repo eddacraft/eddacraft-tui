@@ -781,6 +781,40 @@ describe('admin endpoints', () => {
       );
     });
 
+    it('still returns no_scopes when dropped-scope audit logging fails', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      vi.mocked(findActiveScopesForUser).mockResolvedValue([]);
+      vi.mocked(resolveApiScope).mockReturnValue({
+        allowed: false,
+        details: {
+          value: false,
+          variant: 'disabled',
+          reason: 'local_override',
+          flagKey: 'api.scope.beta',
+        },
+      });
+      vi.mocked(insertAuditLog).mockRejectedValueOnce(new Error('audit down'));
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'No enabled API scopes available for approval' });
+    });
+
     it('retries on user_code collision then succeeds', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction
@@ -866,6 +900,52 @@ describe('admin endpoints', () => {
         'user.approve.collision',
         expect.any(String),
         { email: 'bob@example.com' },
+        'shared'
+      );
+    });
+
+    it('batch mode reports fully dropped scopes as skipped and audits the drop', async () => {
+      vi.mocked(findUnapprovedWaitlistEntries).mockResolvedValue([{ email: 'alice@example.com' }]);
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      vi.mocked(findActiveScopesForUser).mockResolvedValue([]);
+      vi.mocked(resolveApiScope).mockReturnValue({
+        allowed: false,
+        details: {
+          value: false,
+          variant: 'disabled',
+          reason: 'local_override',
+          flagKey: 'api.scope.beta',
+        },
+      });
+
+      const res = await request('POST', '/admin/approve', { batch: 1 }, ADMIN_KEY);
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.approved).toEqual([]);
+      expect(body.skipped).toHaveLength(1);
+      expect(body.skipped[0]).toMatchObject({
+        email: 'alice@example.com',
+        reason: 'no_scopes',
+      });
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        mockSql,
+        'user.approve.scopes_dropped',
+        'shared-key@anvil',
+        {
+          email: 'alice@example.com',
+          droppedScopes: ['beta'],
+          grantedScopes: [],
+        },
         'shared'
       );
     });
@@ -1574,6 +1654,29 @@ describe('admin endpoints', () => {
       const binds = findAuditInsertBinds();
       expect(binds).toContain('shared-key@anvil');
       expect(binds).toContain('shared');
+    });
+
+    it('audits unknown bearer as shared when admin_keys lookup throws', async () => {
+      vi.mocked(findAdminKeyByHash).mockRejectedValue(new Error('db down'));
+
+      const res = await request(
+        'POST',
+        '/admin/invite',
+        { email: 'bob@example.com', tokenOnly: true },
+        'unknown-bearer'
+      );
+
+      expect(res.status).toBe(403);
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'admin.auth.failed',
+        'admin-auth-failure@anvil',
+        expect.objectContaining({
+          outcome: 'rejected_unknown',
+          hashed_bearer: null,
+        }),
+        'shared'
+      );
     });
 
     it('shared-key path ignores X-Admin-Actor', async () => {
