@@ -713,18 +713,151 @@ new primitive, this module follows three rules:
   protection.
 - **Expected Outcome:** `anvil start` detects Cursor and Claude Code,
   installs or verifies the Rust MCP launch shim where safe, and reports
-  the exact tier reached: config absent, config written, restart
-  required, server startable, or live validation observed. Existing
-  editor config is parsed before modification, written atomically, and
-  left untouched on parse failure or unsafe drift. Rule/instruction
-  files are not edited.
-- **Coordinates with:** RMCP follow-ups for client config paths,
-  `anvil mcp install --verify`, and the `anvil_validate_write` tool
-  contract.
-- **Validation:** Fixture-backed tests cover Cursor and Claude Code
-  config install, verify, idempotent rerun, parse failure, drift, and
-  restart-required output.
-- **Confidence:** medium
+  the exact tier reached. Existing editor config is parsed before
+  modification, written atomically, and left untouched on parse failure
+  or unsafe drift. Rule/instruction files are not edited.
+- **Council revision (2026-05-05):** Standard pack interrogated three
+  questions: (a) v1 scope, (b) the user's expansion request to
+  OpenCode/Zed/VS Code, (c) hosted-MCP-server pre-investment. All
+  three reviewers converged on staying at Cursor + Claude Code for v1
+  on the grounds that:
+  - The 2026-05-03 activation council explicitly banned VS Code,
+    Windsurf, Copilot CLI, Codex CLI; reversing requires fresh
+    council, not a user request.
+  - The existing `mcp_config.rs::Target::Vscode` writes to the wrong
+    file (`.vscode/settings.json` with `mcp.servers`) — VS Code 1.99+
+    moved MCP to `.vscode/mcp.json` with `servers`. Shipping that
+    today claims success while doing nothing.
+  - Zed's `experimental.context_servers` is upstream-experimental
+    with jsonc-with-comments support that needs a comment-preserving
+    editor (cost > rest of LAUNCH-009 combined).
+  - OpenCode has no MCP-protocol-compliance evidence in the repo or
+    docs.
+  - Adversarial flagged 5 critical v1 spec gaps (RestartRequired
+    detection mechanism, Windows TOCTOU, drift tri-state, LiveValidation
+    INTD-only, JSONC support for Claude Code) — all addressed in the
+    revised plan below.
+  - Architect proposed introducing a `McpClient` trait in v1 itself
+    (~150 LOC) so future expansion is one-impl-per-editor rather
+    than a refactor under release pressure.
+- **Hosted-MCP-server pre-investment** (approved 2026-05-05): the
+  trait shape and diagnostic schema reserve room for future remote
+  transports without baking in any code that uses them. v1 ships only
+  `Stdio` transport but the types are future-shaped:
+  - `AnvilEntry` is an enum with one variant today (`Stdio { command,
+    args, env }`); future adds `RemoteSse` / `RemoteHttp` additively.
+  - `McpTransport` enum reserved with `Stdio` variant; doc names the
+    future variants.
+  - Diagnostic JSON: each client's tier carries a `transport` tag
+    (`{"tier": "config_present", "transport": "stdio"}`) so the
+    schema doesn't need migration when hosted lands.
+  - `verify_tier(&AnvilEntry)` is the trait method; for stdio it
+    spawns a probe, for future remote it would HTTP-GET. Trait
+    signature is transport-agnostic.
+  - No actual hosted-server code, no auth flow, no token UX — those
+    ship when the hosted server itself ships.
+- **Revised plan:**
+  1. Introduce `McpClient` trait in
+     `crates/anvil-cli/src/activation/mcp_client.rs`:
+     - `id() -> McpClientId`
+     - `config_paths(workspace, home) -> Vec<ConfigCandidate>`
+     - `parse(raw: &str) -> Result<ParsedConfig, ParseError>`
+     - `merge(parsed, entry: &AnvilEntry) -> Result<MergedConfig, DriftClass>`
+       where `DriftClass` is `UpToDate | SafeDrift | UnsafeDrift`
+     - `render(merged) -> String`
+     - `verify_tier(parsed, entry: &AnvilEntry) -> McpTier`
+     - `restart_hint() -> &'static str`
+  2. Implement the trait for `Cursor` and `ClaudeCode`. Two impls;
+     ~75 LOC each before tests.
+  3. **Tier transition spec** (closes adversarial finding 1):
+     - `ConfigAbsent → ConfigPresent`: the anvil entry parses cleanly
+       in the file.
+     - `ConfigPresent → RestartRequired`: ALWAYS emit RestartRequired
+       on a fresh write — we cannot observe restart without IPC.
+       Demote only if the user has explicit evidence (manual `anvil
+       status --verify` after restart).
+     - `RestartRequired → ServerStartable`: `verify_tier` spawns
+       `anvil mcp serve --stdio` against the entry and observes a
+       clean MCP handshake within a 1-second budget.
+     - `ServerStartable → LiveValidation`: **OUT OF SCOPE for v1.**
+       LiveValidation requires INTD daemon evidence (RMCP issue
+       #1197). McpTier::LiveValidation is reserved for a future PR
+       that wires INTD into the diagnostic; LAUNCH-009 caps at
+       ServerStartable.
+  4. **Drift tri-state** (closes adversarial finding 3):
+     - `UpToDate`: existing entry matches our `AnvilEntry` byte-for-byte.
+     - `SafeDrift`: same shape but a different anvil-binary path
+       (e.g. user has nix-managed anvil); update if the new path
+       is reachable, else flag UnsafeDrift.
+     - `UnsafeDrift`: existing entry's `command` field doesn't
+       resolve to anvil, OR an unrecognised key shape. Don't write;
+       diagnostic emits `state: error` with detail naming the drift.
+  5. **Windows concurrency** (closes adversarial finding 2): wrap
+     the read-merge-write cycle in a side-car `.lock` file (POSIX
+     `flock` / Windows `LockFileEx`). Idempotent merge as the safety
+     net if locking is unavailable.
+  6. **JSONC support** (closes adversarial finding 5): empirically
+     verify Claude Code's settings.json format on a real install
+     before shipping. If comments are present, add `jsonc-parser`
+     as a dependency and use it for parse-without-strip-comments.
+  7. **`AnvilEntry` enum** (hosted-future pre-investment):
+     ```
+     enum AnvilEntry {
+         Stdio { command: PathBuf, args: Vec<String>, env: BTreeMap<String, String> },
+         // RemoteSse / RemoteHttp reserved for hosted-server future.
+     }
+     ```
+  8. **`McpTransport` enum** (hosted-future pre-investment):
+     ```
+     enum McpTransport {
+         Stdio,
+         // RemoteSse / RemoteHttp reserved.
+     }
+     ```
+  9. **Diagnostic JSON schema** (hosted-future pre-investment): each
+     client's entry becomes `{"tier": "...", "transport": "stdio"}`
+     instead of just `"..."`. Renderer + tests updated.
+  10. **Drop dead/broken Target paths** (closes architect cleanup):
+      - Remove `Target::Windsurf` from `mcp_config.rs` — council-banned.
+      - Remove or feature-flag `Target::Vscode` — writes the wrong
+        file shape. Keep test fixtures as expected-failure regression
+        guards.
+  11. **Plug orchestrator into `activation::verify`**: replace the
+      empty `BTreeMap::new()` stub at `diagnostic.rs:242` with a real
+      probe that calls each `McpClient::verify_tier` and assembles
+      the `mcp` map.
+- **NOT included in v1:**
+  - **VS Code, Zed, OpenCode** — see council revision above. Each
+    has a specific blocker the council documented; revisit once the
+    blocker resolves (VS Code MCP exits experimental + verified path,
+    Zed schema exits experimental, OpenCode protocol-compliance
+    evidence).
+  - **`LiveValidation` tier** — INTD-only; future PR.
+  - **Hosted MCP server itself** — separate workstream.
+  - **Token / auth / OAuth UX** — wait for the hosted server.
+  - **Co-existence policy** (local stdio + remote on same client) —
+    wait until we know what users want.
+- **Coordinates with:** RMCP follow-ups for client config paths
+  (especially #1195 — Claude Code path-gap), `anvil mcp install
+  --verify`, the `anvil_validate_write` tool contract, and INTD for
+  the future `LiveValidation` tier.
+- **Validation:**
+  - Fixture-backed tests for each `McpClient` impl: config absent,
+    config written, idempotent rerun, parse failure, safe drift,
+    unsafe drift, restart-required, server-startable. 8 scenarios ×
+    2 editors = 16 fixtures.
+  - Unit test on the tier-promotion ladder for each editor.
+  - Concurrent-invocation regression test (Windows-skip on Unix
+    since `flock` is reliable there; Windows-only test if the lock
+    file approach is used).
+  - Diagnostic JSON schema test asserting the `transport` tag
+    appears on every client entry.
+  - Trait contract test: `AnvilEntry::Stdio` round-trips through
+    every impl's `merge()` and `render()` cleanly.
+- **LOC budget:** ~750-900 production + ~250-350 test = ~1000-1250
+  total. Single PR.
+- **Confidence:** medium (council resolved scope; spec gaps closed
+  in the plan).
 - **Status:** Todo
 
 ---
