@@ -14,6 +14,7 @@ pub(crate) const PRE_WRITE_MODE: &str = "pre-write";
 const DAEMON_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 const DAEMON_RESPONSE_LINE_BYTES: u64 = 1 << 20;
 const DAEMON_REQUEST_ID: &str = "mcp-prewrite-validation";
+const SCAN_BUFFER_REQUEST_VERSION: u64 = 1;
 const SCAN_BUFFER_RESULT_VERSION: u64 = 1;
 const DAEMON_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-unavailable",
@@ -219,7 +220,7 @@ fn request_daemon_diagnostics(
         "params": {
             "path": request.relative_path,
             "text": request.content,
-            "version": 1,
+            "version": SCAN_BUFFER_REQUEST_VERSION,
             "mode": "preWrite"
         },
         "id": DAEMON_REQUEST_ID

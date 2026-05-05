@@ -23,6 +23,7 @@ use tokio::runtime::Runtime;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const CHILD_TIMEOUT: Duration = Duration::from_secs(5);
+const DAEMON_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 const SECRET_PROPOSED_CONTENT: &str = "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
 
 #[test]
@@ -201,7 +202,11 @@ impl Drop for LiveDaemon {
         self.shutdown.trigger();
         if let Some(server) = self.server.take() {
             self.runtime.block_on(async {
-                let _ = server.await;
+                tokio::time::timeout(DAEMON_SHUTDOWN_TIMEOUT, server)
+                    .await
+                    .expect("daemon task timed out during shutdown")
+                    .expect("daemon task join failed")
+                    .expect("daemon exited with error");
             });
         }
     }
