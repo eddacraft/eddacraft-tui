@@ -1,7 +1,7 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-05-04 (post `v0.5.1-beta` ship — slate for next release
-not yet locked)
+**Last updated:** 2026-05-05 (post `v0.5.1-beta` ship — next-release slate
+unlocked)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons. Source of
 > truth for module status: [`plans/index.aps.md`](./plans/index.aps.md).
@@ -15,21 +15,28 @@ not yet locked)
 | `v0.5.0-beta` | 2026-05-01 | AI Guardrails & Mid-Edit Validation | Locked slate **A1+A2+A3+A4** — RTAI Spike + Rust MCP launch shim + AIGUARD envelope + hygiene + language floor (44 items)                 |
 | `v0.5.1-beta` | 2026-05-03 | Scanner Signal & TUI Hotfixes       | Patch — secret/antipattern FP fixes, TUI zoom controls, audit env-template filtering, kernel import bug fixes, TS scanner archive cascade |
 
+**`v0.5.1-beta` closeout status:** shipped and verified. The private and public
+release records both point `/releases/latest` at `v0.5.1-beta`; both are normal
+GitHub releases because GitHub does not allow prereleases to be marked Latest.
+Install site returned HTTP `200`. WinGet follow-up PR
+[microsoft/winget-pkgs#367974](https://github.com/microsoft/winget-pkgs/pull/367974)
+merged after the generated-manifest `Icons:` correction. Tracking issue
+[#1233](https://github.com/eddacraft/anvil-001/issues/1233) remains open only as
+the durable release log.
+
 **`v0.5.0-beta` validation backend:** embedded-fallback-backed, **not**
 daemon-backed. RMCP-005's `DaemonValidationClient` defaulted to `Unavailable`,
 so MCP `tools/call` ran through the embedded `anvil-checks` pipeline. Daemon
 wiring is the headline carry-over (see A1 below).
 
-**`v0.5.0-beta` GUI dry-run gaps** (tracked outside the contract, still open):
+**`v0.5.0-beta` GUI dry-run gaps** (tracked outside the contract, now closed):
 
-- **#1194** — `anvil mcp install` lacks the `--command` override; `--verify` is
-  over-strict against non-default command values.
-- **#1195** — `anvil mcp install --client claude-code` writes to a path Claude
-  Code does not read (`~/.claude/mcp.json` vs `~/.claude.json`). Workaround:
-  `claude mcp add`.
-- **#1197** — aligned MCP clients do not invoke `anvil_validate_write` without
-  explicit prompt instruction. Proposed fix: MCP `instructions` field on the
-  initialise response.
+- **#1194** — closed: `anvil mcp install` now supports non-default command
+  validation for release-candidate / side-by-side binary dry-runs.
+- **#1195** — closed: Claude Code install/verify now targets the path Claude
+  Code reads instead of the obsolete `~/.claude/mcp.json` location.
+- **#1197** — closed: the Rust MCP shim now gives clients explicit pre-write
+  validation instructions for `anvil_validate_write`.
 
 ---
 
@@ -49,17 +56,27 @@ embedded fallback to the daemon-backed pipeline so the activation claim is
 literal. (See ROADMAP Horizon 1 + brainstorms in
 `plans/brainstorms/2026-05-02-wow-start-*.md`.) Adopt or replace at lock time.
 
+**Current progress snapshot:**
+
+| Area | State | What remains |
+| ---- | ----- | ------------ |
+| Release closeout | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed |
+| Wow-start activation (`LAUNCH`) | In Progress, 10/16 complete | LAUNCH-002, -006, -009, -010, -011, -014 |
+| Daemon-backed MCP (`RMCP`) | Complete, 8/8 | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate |
+| Carry-over hardening (`V050F`) | In Progress, 11/16 complete | V050F-006, -007, -008, -011, -015 |
+| `V060F` nominations | Complete, 1/1 | No open nomination work |
+
 ### Carry-over backlog (rides any tag, regardless of theme)
 
 These are non-blocking but should not accumulate as silent debt. Triage at lock
 time; pick the ones that match the cut.
 
-| Source                                                        | Open items                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`V050F`](./plans/modules/v050-release-followups.aps.md)      | 8/16 outstanding — hardening from `v0.5.0-beta` council (per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, allowlist regex compile cache, eager rayon pool init, CI-class bench baseline, `svix → uuid` override exception, etc.) |
-| [`V060F`](./plans/modules/v060-release-candidates.aps.md)     | 1 nomination — RCLI2-009 admin command parity (`anvil admin list/show/revoke/audit/send-migration-email/update`), retires `apps/admin-cli/`                                                                                                                       |
-| `v0.5.1-beta` GUI gaps                                        | #1194 / #1195 / #1197 (carried from `v0.5.0-beta`; not closed by 0.5.1 patch)                                                                                                                                                                                     |
-| [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | RTAI mid-edit baseline-comparison gating against the recorded 7-case ADR-031 corpus                                                                                                                                                                               |
+| Source | State | Open items |
+| ------ | ----- | ---------- |
+| [`V050F`](./plans/modules/v050-release-followups.aps.md) | 11/16 complete | 5 open: allowlist regex cache, eager rayon init, CI-class bench baseline, `scan_content` compile-error surfacing, `svix → uuid` override removal |
+| [`V060F`](./plans/modules/v060-release-candidates.aps.md) | 1/1 complete | None; RCLI2-009 admin command parity is done |
+| `v0.5.0-beta` GUI dry-run gaps | Closed | #1194, #1195, and #1197 are closed; validate their behaviours through LAUNCH-009 when activation wires Cursor / Claude Code |
+| [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | Closed | Keep the ADR-031 baseline-comparison check as the daemon-backed latency regression guard |
 
 ---
 
@@ -80,29 +97,25 @@ activation entrypoint on 2026-05-03.
   [`plans/brainstorms/2026-05-02-wow-start-{claude,codex,copilot,gemini,opencode}.md`](./plans/brainstorms/)
 - Executable plan:
   [`LAUNCH` module](./plans/modules/launch-flow-readiness.aps.md) — currently In
-  Progress 5/14.
+  Progress 10/16.
 - Adjacent re-architecture brainstorm:
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
-**Modules / work items (11 outstanding):**
+**Modules / work items (6 outstanding):**
 
-- **LAUNCH-002** — allow `--action` with TUI mode (watch flow ergonomics).
 - **LAUNCH-006** — make `anvil start` the activation entrypoint (the
   load-bearing surface).
-- **LAUNCH-008** — define activation protection states (literal protection
-  claim, no theatre).
 - **LAUNCH-009** — safely activate Cursor and Claude Code MCP paths via the Rust
   MCP launch shim.
 - **LAUNCH-010** — baseline old findings before first activation signal (so the
   first catch is genuinely new, not noise).
 - **LAUNCH-011** — honest watch-mode fallback when MCP cannot attach.
-- **LAUNCH-012** — activation verification + retry path.
-- **LAUNCH-013** — install-method-aware version + upgrade guidance.
 - **LAUNCH-014** — make the interactive tutorial prove value faster.
-- **LAUNCH-015** — profile repo languages during activation (honest accounting
-  of which languages are supported / partial / unsupported in this release).
-- **LAUNCH-016** — honour the language profile in scan and watch filters (skip
-  language-specific checks on unsupported files; secrets still run).
+- **LAUNCH-002** — allow `--action` with TUI mode (watch fallback ergonomics).
+
+**Recently completed:** LAUNCH-008 (protection states), LAUNCH-012
+(verification), LAUNCH-013 (version/upgrade guidance), LAUNCH-015 (language
+profile), and LAUNCH-016 (language-aware scan/watch filtering).
 
 **Prerequisites:**
 
@@ -112,9 +125,10 @@ activation entrypoint on 2026-05-03.
 - Editor reach is **scoped to Cursor and Claude Code in v1.** Windsurf, VS Code,
   Copilot CLI, Codex CLI, and process auto-attach are explicitly out-of-scope
   until RMCP / DRVR verifies them.
-- Resolve `v0.5.0-beta` GUI gaps **#1195** (Claude Code path mismatch) and
-  **#1197** (clients ignore `anvil_validate_write`) before LAUNCH-009 commits —
-  without them, the activation claim is a lie.
+- Confirm the closed `v0.5.0-beta` GUI gap fixes **#1195** (Claude Code path
+  mismatch) and **#1197** (clients ignored `anvil_validate_write`) in the
+  LAUNCH-009 validation path — without those behaviours, the activation claim is
+  a lie.
 
 **Out-of-scope (council-locked):**
 
@@ -146,7 +160,7 @@ support.
 
 **Recommendation: PICK. This is the next-tag headline. The five-brainstorm
 convergence + council ratification means the framing is locked; what's
-outstanding is execution against LAUNCH's 9 open items.**
+outstanding is execution against LAUNCH's 6 open items.**
 
 ---
 
@@ -156,11 +170,11 @@ outstanding is execution against LAUNCH's 9 open items.**
 daemon-backed pipeline, and bring the driver framework + at least one editor
 surface online. Same demo, real backend.
 
-**Modules / work items (~20 items):**
+**Modules / work items (~19 items):**
 
-- **RMCP-005 graduation** — replace the `DaemonValidationClient` `Unavailable`
-  stub with a live JSON-RPC client; verify `tools/call` matches the embedded
-  fallback envelope (RTAI contract test, AIGUARD-002 envelope shape).
+- **RMCP-005 graduation** — complete. The live JSON-RPC client is committed;
+  `tools/call` uses the daemon-backed path when owner-only IPC is available and
+  keeps the embedded path as the correctness-equivalent fallback.
 - **RTAI subset** (4 items): RTAI-004 (driver-side debouncer), RTAI-005 (editor
   mid-edit path), RTAI-007 (telemetry mirror), RTAI-009 (architecture doc +
   supersession links).
@@ -170,8 +184,8 @@ surface online. Same demo, real backend.
   integration, process-group interrupt, configuration loading, embedded mode,
   unregistered-change handling, status / diagnostics, Windows CI matrix,
   telemetry subscription scoping, DoS protection budgets.
-- **ADR-031 latency CI gating** (#1191) — baseline-comparison gating against the
-  recorded 7-case corpus.
+- **ADR-031 latency CI gating** (#1191) — closed; retain the
+  baseline-comparison check as the regression guard for the daemon-backed slice.
 
 **Prerequisites:**
 
@@ -183,8 +197,8 @@ surface online. Same demo, real backend.
 
 **Out-of-scope (protect the slice):**
 
-- RMCPF full parity port — separate Tier A candidate (A2).
-- Dashboard MVP and `anvil export` — A5.
+- RMCPF full parity port — separate Tier A candidate (A3).
+- Dashboard MVP and `anvil export` — A6.
 - INTL (intercept launcher / wrapped-launch v2) — Tier B.
 
 **Adversarial risk:** **Two backends, one envelope.** With embedded fallback +
@@ -513,7 +527,7 @@ cataloguing; promote on signal.
 These are prerequisites surfaced by councils. They aren't slices on their own —
 they're glue some Tier A picks need.
 
-1. **GUI gaps #1195 and #1197 closed** — required by A1 (LAUNCH-009). Without
+1. **GUI gaps #1195 and #1197 closed** — validate in A1 (LAUNCH-009). Without
    the Claude Code path fix and the MCP `instructions` directive, the activation
    claim is a lie.
 2. **`anvil export` CLI work item** — required by A6 (Dashboard MVP). One task
@@ -524,8 +538,8 @@ they're glue some Tier A picks need.
    cannot diverge silently.
 4. **Anchor re-scoring process owner** — required by A5 tail (OPSUP-006).
    Currently no permanent owner named.
-5. **ADR-031 latency CI gating (#1191)** — required by A2. Until it lands,
-   regressions are caught only by manual `cargo bench` runs.
+5. **ADR-031 latency CI gating (#1191)** — closed; required by A2 as an ongoing
+   regression guard for daemon-backed latency changes.
 6. **TS MCP parity oracle** — required by A3. The archived TS server in
    `archive/anvil-ts-scanner/` is the parity oracle until a Rust-side parity
    harness retires it.
@@ -536,8 +550,8 @@ they're glue some Tier A picks need.
 
 | Combo                                | Slices                      | Net items | Posture                                                                                               |
 | ------------------------------------ | --------------------------- | --------- | ----------------------------------------------------------------------------------------------------- |
-| **Patch-shaped tag**                 | Carry-over only             | ~12       | V050F tail + V060F + GUI gaps. Tags as `v0.5.2-beta`. Smallest credible cut.                          |
-| **Wow-start minimum**                | A1 + GUI gaps               | ~14       | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
+| **Patch-shaped tag**                 | Carry-over only             | ~12       | V050F tail + V060F. Tags as `v0.5.2-beta`. Smallest credible cut.                                      |
+| **Wow-start minimum**                | A1                          | ~11       | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
 | **Wow-start + daemon (recommended)** | A1 + A2 + carry-over        | ~43       | The headline + the literal-protection substrate. Tags as `v0.6.0-beta`. Highest confidence.           |
 | **Wow-start + parity**               | A1 + A2 + A3 + carry-over   | ~56       | Adds full Rust MCP parity. Strong narrative, real contention with A1.                                 |
 | **Wow-start + hygiene**              | A1 + A4 + A5                | ~33       | Activation + finishes the `v0.5.0-beta` tails. Skips daemon graduation — A2 follows in next window.   |

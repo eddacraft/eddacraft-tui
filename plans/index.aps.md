@@ -3,16 +3,11 @@
 
 # Anvil — Save-time Trust
 
-> **✅ Last release shipped 2026-05-01 as `v0.5.0-beta`:** A1 (RTAI Spike +
-> Rust MCP launch shim, embedded-fallback-backed) + A2 (AIGUARD) + A3
-> (Release Engineering smallest-viable cut) + A4 (Language Credibility Floor).
-> The next-release slate is **not yet locked**; staffing and follow-ups are
-> tracked in [`plans/next-steps.md`](./next-steps.md). Open follow-ups from
-> the release: V050F (8/16 done), the daemon-backed RMCP path
-> (RMCP-005 live daemon client committed in PR #1277), and #1194 / #1195 /
-> #1197 from the RMCP-008 GUI dry-run. See
-> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
-> and adversarial risks. See [`ROADMAP.md`](../ROADMAP.md) for thematic
+> **Latest shipped release: `v0.5.1-beta` (2026-05-03).** Scanner signal and TUI
+> hotfixes shipped after `v0.5.0-beta`; private and public `/releases/latest`
+> now resolve to `v0.5.1-beta`, and the WinGet follow-up PR merged. The next
+> release slate is **not yet locked**. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
+> for the current candidate menu and [`ROADMAP.md`](../ROADMAP.md) for thematic
 > context across horizons.
 
 ## Overview
@@ -84,6 +79,21 @@ class reaches across architectural contexts.
 
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
+
+### Current window — slate unlocked
+
+The current planning window starts after `v0.5.1-beta`. The likely headline is
+**Wow-Start activation + Daemon-Backed RTV**, but the slate must be locked before
+tagging. Candidate version remains TBD: `v0.5.2-beta` for a patch-shaped
+hardening cut, or `v0.6.0-beta` for a coherent feature slice.
+
+| Area | Status | Progress | Notes |
+| ---- | ------ | -------- | ----- |
+| Release closeout | Shipped | `v0.5.1-beta` verified | Tracking issue #1233 remains open as the durable release log |
+| Wow-start activation | In Progress | LAUNCH 10/16 | Open: LAUNCH-002/-006/-009/-010/-011/-014 |
+| Daemon-backed MCP launch path | Complete | RMCP 8/8 | RMCP-005 live daemon client committed; embedded fallback remains correctness-equivalent |
+| Release hardening follow-ups | In Progress | V050F 11/16 | Open: V050F-006/-007/-008/-011/-015 |
+| Release nominations | Complete | V060F 1/1 | RCLI2-009 admin command parity complete |
 
 ### Last release — `v0.5.0-beta` (shipped 2026-05-01)
 
