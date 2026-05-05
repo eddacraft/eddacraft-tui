@@ -118,7 +118,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 260 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 261 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1047,6 +1047,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `reqwest` | 0.13.3 | MIT License | https://github.com/seanmonstar/reqwest |
 | `sha2` | 0.11.0 | MIT License | https://github.com/RustCrypto/hashes |
 | `fnv` | 1.0.7 | MIT License | https://github.com/servo/rust-fnv |
+| `memoffset` | 0.9.1 | MIT License | https://github.com/Gilnaa/memoffset |
 | `stable_deref_trait` | 1.2.1 | MIT License | https://github.com/storyyeller/stable_deref_trait |
 | `h2` | 0.4.13 | MIT License | https://github.com/hyperium/h2 |
 | `http` | 1.4.0 | MIT License | https://github.com/hyperium/http |

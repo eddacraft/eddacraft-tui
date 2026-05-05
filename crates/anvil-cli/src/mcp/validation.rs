@@ -670,7 +670,9 @@ mod tests {
                 request.contains("\"method\":\"scan_buffer\""),
                 "unexpected request: {request}"
             );
-            write!(stream, "{response}").expect("fake daemon writes response");
+            stream
+                .write_all(response.as_bytes())
+                .expect("fake daemon writes response");
         });
         (socket, daemon)
     }
