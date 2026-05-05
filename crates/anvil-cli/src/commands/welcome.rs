@@ -883,6 +883,7 @@ fn run_watch_demo_from_tutorial(
             avg_duration_ms: 0,
             files_watched: 0,
         },
+        last_action: None,
     };
 
     let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);
@@ -935,6 +936,7 @@ fn start_watch_from_hub(
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            last_action: None,
         });
 
     let exit = crate::tui::run_watch_in(terminal, &mut state, &event_rx);

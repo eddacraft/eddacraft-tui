@@ -77,6 +77,32 @@ pub struct WatchStats {
     pub files_watched: usize,
 }
 
+/// Outcome of the most recent `--action` dispatch (LAUNCH-002 v1).
+///
+/// Surfaced as a single status-line footer below the 2x2 grid. Only the most
+/// recent action is retained; richer history (`Vec<ActionRun>`) is deferred
+/// to LAUNCH-002b against the TUIDASH-009 inheritance seam.
+///
+/// **Invariant:** written exclusively by
+/// `WatchEventAdapter::handle_action_result`. Action results MUST NOT mutate
+/// `WatchData.status`, `WatchData.stats`, or `WatchData.history` — those are
+/// kernel-event-only fields and an action failure must not flip the Status
+/// pane to Failing.
+#[derive(Debug, Clone)]
+pub struct ActionResultLine {
+    pub action: String,
+    pub exit_code: Option<i32>,
+    pub duration_ms: u64,
+    pub timestamp: String,
+}
+
+impl ActionResultLine {
+    #[must_use]
+    pub fn passed(&self) -> bool {
+        matches!(self.exit_code, Some(0))
+    }
+}
+
 /// All data needed by the watch dashboard.
 #[derive(Debug, Clone)]
 pub struct WatchData {
@@ -84,6 +110,9 @@ pub struct WatchData {
     pub queue: VecDeque<QueuedNotification>,
     pub history: Vec<RunHistory>,
     pub stats: WatchStats,
+    /// Most recent `--action` outcome (LAUNCH-002). `None` until the first
+    /// action completes. See `ActionResultLine` for the isolation invariant.
+    pub last_action: Option<ActionResultLine>,
 }
 
 /// Which panel is focused in the 2x2 grid.
@@ -409,6 +438,7 @@ mod tests {
                 avg_duration_ms: 1050,
                 files_watched: 128,
             },
+            last_action: None,
         }
     }
 
