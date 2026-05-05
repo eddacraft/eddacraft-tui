@@ -19,7 +19,7 @@ use anvil_checks::antipattern::WarningSeverity;
 pub struct InitArgs {
     /// Overwrite existing configuration without prompting.
     #[arg(long)]
-    force: bool,
+    pub force: bool,
 }
 
 /// Schema version for generated `.anvilrc` files.
@@ -50,7 +50,11 @@ pub fn run(args: &InitArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     run_in(args, global, &root)
 }
 
-fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<()> {
+/// Run the init flow against a specific root. Public to the crate so
+/// `activation::orchestrator` (LAUNCH-006) can compose init without going
+/// through the process-CWD-bound `run` entrypoint, which makes the
+/// orchestration unit-testable against a temp dir.
+pub(crate) fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<()> {
     // Use the shared `config_exists_in` helper so `init` and the onboarding
     // flow agree on whether a config exists — they previously diverged on
     // zero-byte `.anvilrc` files, leaving onboarding calling `init` and

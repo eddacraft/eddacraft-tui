@@ -73,10 +73,12 @@ enum Commands {
     Drift(commands::drift::DriftArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
+    /// Activate Anvil in this repository (LAUNCH-006). Composes init and
+    /// the activation diagnostic to land at one literal `ProtectionState`.
+    Start(commands::start::StartArgs),
     /// Interactive guided tutorial.
     Tutorial(commands::tutorial::TutorialArgs),
     /// Show the welcome screen with quick-start options.
-    #[command(alias = "start")]
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
@@ -143,6 +145,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Check(_) => "check",
         Commands::Doctor(_) => "doctor",
         Commands::Drift(_) => "drift",
+        Commands::Start(_) => "start",
         Commands::Status(_) => "status",
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
@@ -529,6 +532,7 @@ fn main() -> ExitCode {
         Commands::Check(args) => commands::check::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
         Commands::Drift(args) => commands::drift::run(args, &cli.global),
+        Commands::Start(args) => commands::start::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
@@ -665,7 +669,10 @@ mod tests {
     }
 
     #[test]
-    fn requires_auth_start_alias() {
+    fn requires_auth_start() {
+        // LAUNCH-006: `start` is its own command; gated like `welcome` /
+        // `init` / `status` / `watch`. Pre-LAUNCH-006 this test was
+        // `requires_auth_start_alias` and asserted the alias behaviour.
         assert!(requires_auth(&parse_command(&["start"])));
     }
 

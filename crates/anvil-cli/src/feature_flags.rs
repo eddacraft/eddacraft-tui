@@ -49,6 +49,7 @@ pub const CLI_GATED_COMMANDS: &[&str] = &[
     "mcp-install",
     "new",
     "policy",
+    "start",
     "status",
     "watch",
     "welcome",

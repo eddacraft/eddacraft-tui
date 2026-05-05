@@ -18,6 +18,7 @@ pub mod mcp;
 pub mod mcp_config;
 pub mod new;
 pub mod policy;
+pub mod start;
 pub mod status;
 pub mod tutorial;
 pub mod update;
