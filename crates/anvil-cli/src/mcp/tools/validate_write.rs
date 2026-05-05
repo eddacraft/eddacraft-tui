@@ -373,15 +373,14 @@ fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
 
 fn normalise_response_diagnostics(
     diagnostics: &[Diagnostic],
-    backend: ValidationBackend,
+    _backend: ValidationBackend,
 ) -> Vec<Diagnostic> {
     diagnostics
         .iter()
         .cloned()
         .map(|mut diagnostic| {
             if diagnostic.category == Category::Secret {
-                let strict_redaction = backend == ValidationBackend::Daemon;
-                diagnostic.id = redact_secret_id(&diagnostic.id, strict_redaction);
+                diagnostic.id = redact_secret_id(&diagnostic.id, false);
                 diagnostic.summary =
                     "Potential secret detected; remove it from the proposed write.".to_string();
                 diagnostic.location.file = redact_secret_values(&diagnostic.location.file);
@@ -772,19 +771,27 @@ mod tests {
     use super::descriptor;
     use super::{
         EnforcementResolver, MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client,
-        call_with_workspace, redact_secret_id,
+        redact_secret_id,
     };
     use crate::mcp::enforcement::EnforcementMode;
     use crate::mcp::validation::{
-        DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
-        ValidationBackendFailure,
+        DaemonValidationClient, DaemonValidationOutcome, LocalDaemonValidationClient,
+        PreWriteValidationRequest, ValidationBackendFailure,
     };
+    #[cfg(unix)]
+    use anvil_intercept::Shutdown;
+    #[cfg(unix)]
+    use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
     use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
     use serde_json::{Value, json};
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     #[cfg(unix)]
     use std::sync::Mutex;
     use tempfile::tempdir;
+    #[cfg(unix)]
+    use tokio::runtime::Runtime;
 
     /// Global lock for tests that mutate the process cwd. Cargo runs
     /// unit tests in parallel; without serialisation here, the
@@ -993,7 +1000,7 @@ mod tests {
         );
         let payload = parse_payload(&result);
         let response_text = serde_json::to_string(&payload).expect("payload serialises");
-        let expected_redacted_id = redact_secret_id(daemon_secret_id, true);
+        let expected_redacted_id = redact_secret_id(daemon_secret_id, false);
 
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["diagnostics"][0]["id"], "diag_reasoning_001");
@@ -1022,6 +1029,85 @@ mod tests {
             payload["diagnostics"][1]["source"]["source_module"],
             "daemon::[REDACTED]"
         );
+    }
+
+    #[test]
+    fn daemon_and_embedded_paths_emit_identical_diagnostic_envelopes() {
+        let workspace = tempdir().expect("workspace exists");
+        let arguments = json!({
+            "path": "src/secret.ts",
+            "operation": "create",
+            "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+        });
+        let embedded = parse_payload(&call_with_validation_client(
+            &arguments,
+            workspace.path(),
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+        let embedded_diagnostics: Vec<Diagnostic> =
+            serde_json::from_value(embedded["diagnostics"].clone())
+                .expect("embedded diagnostics deserialize");
+        let daemon = parse_payload(&call_with_validation_client(
+            &arguments,
+            workspace.path(),
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Diagnostics(embedded_diagnostics),
+            },
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+
+        assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn live_daemon_mcp_tool_call_matches_embedded_diagnostic_envelope() {
+        let runtime = Runtime::new().expect("tokio runtime starts");
+        let runtime_dir = tempdir().expect("runtime dir exists");
+        std::fs::set_permissions(runtime_dir.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("runtime dir permissions tightened");
+        let socket = runtime_dir.path().join("intercept.sock");
+        let _runtime_guard = runtime.enter();
+        let listener = IpcListener::bind(&socket, NoopDispatcher).expect("daemon socket binds");
+        let (shutdown, token) = Shutdown::new();
+        let server = runtime.spawn(listener.serve(token));
+
+        let workspace = tempdir().expect("workspace exists");
+        let arguments = json!({
+            "path": "src/secret.ts",
+            "operation": "create",
+            "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+        });
+        let embedded = parse_payload(&call_with_validation_client(
+            &arguments,
+            workspace.path(),
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+        let daemon = parse_payload(&call_with_validation_client(
+            &arguments,
+            workspace.path(),
+            &LocalDaemonValidationClient::with_socket_path(socket),
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+
+        shutdown.trigger();
+        runtime.block_on(async {
+            server
+                .await
+                .expect("daemon task joins")
+                .expect("daemon exits cleanly");
+        });
+
+        assert_eq!(daemon["correlation"]["backend"], "daemon");
+        assert_eq!(daemon["correlation"]["daemonStatus"], "available");
+        assert_eq!(daemon["decision"], embedded["decision"]);
+        assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
     }
 
     #[test]
@@ -1287,7 +1373,9 @@ mod tests {
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
             workspace.path(),
-            &super::LocalDaemonValidationClient,
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
             &FixedEnforcement(EnforcementMode::Block),
         );
         let payload = parse_payload(&result);
@@ -1313,7 +1401,9 @@ mod tests {
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
             workspace.path(),
-            &super::LocalDaemonValidationClient,
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
             &FixedEnforcement(EnforcementMode::Warn),
         );
         let payload = parse_payload(&result);
@@ -1342,7 +1432,9 @@ mod tests {
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
             workspace.path(),
-            &super::LocalDaemonValidationClient,
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
             &FixedEnforcement(EnforcementMode::Off),
         );
         let payload = parse_payload(&result);
@@ -1512,7 +1604,14 @@ mod tests {
     }
 
     fn call_payload(workspace_root: &std::path::Path, arguments: &Value) -> Value {
-        let result = call_with_workspace(arguments, workspace_root);
+        let result = call_with_validation_client(
+            arguments,
+            workspace_root,
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
+            &super::WorkspaceEnforcementResolver,
+        );
         assert_eq!(result["content"][0]["type"], "text");
         parse_payload(&result)
     }
