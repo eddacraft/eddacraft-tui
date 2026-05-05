@@ -46,7 +46,13 @@ workspace-hack.workspace = true
 # `forbid(unsafe_code)` lint stays honest. Pinned to 0.30 per INTD-002
 # guidance.
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.30", default-features = false, features = ["fs", "process", "signal", "user"] }
+nix = { version = "0.30", default-features = false, features = [
+  "fs",
+  "process",
+  "signal",
+  "socket",
+  "user",
+] }
 
 [target.'cfg(windows)'.dependencies]
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }

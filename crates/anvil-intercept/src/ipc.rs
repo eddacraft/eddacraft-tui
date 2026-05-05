@@ -123,6 +123,17 @@ pub enum IpcError {
     },
     #[error("socket path exists and is not a socket: {0}")]
     SocketPathNotASocket(PathBuf),
+    #[error(
+        "socket path has wrong permissions: {path} (mode={mode:o}, expected 0o600, owner={owner_uid}, current={current_uid})"
+    )]
+    SocketPathPermissions {
+        path: PathBuf,
+        mode: u32,
+        owner_uid: u32,
+        current_uid: u32,
+    },
+    #[error("socket peer has wrong owner: peer={peer_uid}, current={current_uid}")]
+    SocketPeerPermissions { peer_uid: u32, current_uid: u32 },
     #[error("another anvil-intercept daemon is already listening at {0}")]
     AnotherDaemonRunning(PathBuf),
     #[error("could not resolve socket directory: $XDG_RUNTIME_DIR is unset and $HOME is unset")]
@@ -177,6 +188,68 @@ fn resolve_socket_dir_with_env(
 #[cfg(unix)]
 pub fn resolve_socket_path() -> Result<PathBuf, IpcError> {
     Ok(resolve_socket_dir()?.join("intercept.sock"))
+}
+
+/// Validate the client side of the Unix daemon rendezvous before a peer
+/// sends proposed file content to the socket. Mirrors the listener's
+/// owner-only posture without creating or unlinking anything.
+#[cfg(unix)]
+pub fn validate_socket_path_for_client(path: &Path) -> Result<(), IpcError> {
+    use nix::unistd::Uid;
+    use std::os::unix::fs::FileTypeExt;
+
+    let current_uid = Uid::current().as_raw();
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "socket path has no parent",
+        )
+    })?;
+    unix_perms::ensure_existing_dir(parent, current_uid)?;
+
+    let meta = std::fs::symlink_metadata(path)?;
+    if meta.file_type().is_symlink() {
+        return Err(IpcError::SocketPathIsSymlink(path.to_path_buf()));
+    }
+    if !meta.file_type().is_socket() {
+        return Err(IpcError::SocketPathNotASocket(path.to_path_buf()));
+    }
+    unix_perms::ensure_socket_file(path, &meta, current_uid)?;
+
+    Ok(())
+}
+
+/// Validate the connected Unix peer before writing proposed content. The
+/// daemon IPC trust boundary is owner-only, so a peer with a different uid is
+/// rejected even if the path preflight passed.
+#[cfg(all(unix, target_os = "linux"))]
+pub fn validate_connected_peer_for_client(
+    stream: &std::os::unix::net::UnixStream,
+) -> Result<(), IpcError> {
+    use nix::sys::socket::{getsockopt, sockopt::PeerCredentials};
+    use nix::unistd::Uid;
+
+    let current_uid = Uid::current().as_raw();
+    let credentials = getsockopt(stream, PeerCredentials)
+        .map_err(|e| std::io::Error::other(format!("SO_PEERCRED: {e}")))?;
+    let peer_uid = credentials.uid();
+    if peer_uid != current_uid {
+        return Err(IpcError::SocketPeerPermissions {
+            peer_uid,
+            current_uid,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+pub fn validate_connected_peer_for_client(
+    _stream: &std::os::unix::net::UnixStream,
+) -> Result<(), IpcError> {
+    Err(std::io::Error::other(
+        "connected peer credential validation is not implemented on this Unix platform",
+    )
+    .into())
 }
 
 /// Resolve the Windows named-pipe path used by the daemon.
@@ -297,6 +370,42 @@ mod unix_perms {
             }
             Err(err) => Err(err.into()),
         }
+    }
+
+    pub fn ensure_existing_dir(dir: &Path, current_uid: u32) -> Result<(), IpcError> {
+        let meta = fs::symlink_metadata(dir)?;
+        if meta.file_type().is_symlink() {
+            return Err(IpcError::SocketDirIsSymlink(dir.to_path_buf()));
+        }
+        let mode = mode_bits(meta.permissions().mode());
+        let owner_uid = meta.uid();
+        if mode != 0o700 || owner_uid != current_uid {
+            return Err(IpcError::SocketDirPermissions {
+                path: dir.to_path_buf(),
+                mode,
+                owner_uid,
+                current_uid,
+            });
+        }
+        Ok(())
+    }
+
+    pub fn ensure_socket_file(
+        path: &Path,
+        meta: &std::fs::Metadata,
+        current_uid: u32,
+    ) -> Result<(), IpcError> {
+        let mode = mode_bits(meta.permissions().mode());
+        let owner_uid = meta.uid();
+        if mode != 0o600 || owner_uid != current_uid {
+            return Err(IpcError::SocketPathPermissions {
+                path: path.to_path_buf(),
+                mode,
+                owner_uid,
+                current_uid,
+            });
+        }
+        Ok(())
     }
 }
 
@@ -2231,6 +2340,52 @@ mod tests {
             let sock_meta = std::fs::symlink_metadata(&path).unwrap();
             assert_eq!(sock_meta.permissions().mode() & 0o777, 0o600);
 
+            drop(listener);
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn client_validation_accepts_bound_owner_only_socket() {
+            let (_tmp, path) = fresh_socket_path();
+            let listener: IpcListener<NoopDispatcher> =
+                IpcListener::bind(&path, NoopDispatcher).expect("bind");
+
+            validate_socket_path_for_client(&path).expect("client-side validation accepts socket");
+
+            drop(listener);
+        }
+
+        #[test]
+        fn client_validation_refuses_regular_file_socket_path() {
+            let (_tmp, path) = fresh_socket_path();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::set_permissions(
+                path.parent().unwrap(),
+                std::fs::Permissions::from_mode(0o700),
+            )
+            .unwrap();
+            std::fs::write(&path, b"not a socket").unwrap();
+
+            let err = validate_socket_path_for_client(&path).unwrap_err();
+
+            assert!(
+                matches!(err, IpcError::SocketPathNotASocket(_)),
+                "got {err:?}"
+            );
+        }
+
+        #[tokio::test(flavor = "current_thread")]
+        async fn client_validation_refuses_socket_with_wide_permissions() {
+            let (_tmp, path) = fresh_socket_path();
+            let listener: IpcListener<NoopDispatcher> =
+                IpcListener::bind(&path, NoopDispatcher).expect("bind");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o666)).unwrap();
+
+            let err = validate_socket_path_for_client(&path).unwrap_err();
+
+            assert!(
+                matches!(err, IpcError::SocketPathPermissions { mode: 0o666, .. }),
+                "got {err:?}"
+            );
             drop(listener);
         }
 
