@@ -56,23 +56,36 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
 /// captures may not handle the broader Unicode the rest of the TUI uses,
 /// and the watch dashboard is the demo path so a mojibake'd footer would
 /// be visible at exactly the wrong moment.
+///
+/// Spawn failures (`spawn_failed()`) render `[!] gate (spawn failed: <err>)`
+/// so the user can distinguish a missing binary from a killed action from a
+/// non-zero exit. Non-zero exits render `[x] gate (1.2s, exit 1)`.
 fn render_action_footer(
     frame: &mut Frame,
     area: Rect,
     line: &ActionResultLine,
     theme: &EddaCraftTheme,
 ) {
-    let (glyph, colour) = if line.passed() {
-        ("[*]", theme.success())
-    } else {
-        ("[x]", theme.error())
-    };
-
     #[allow(clippy::cast_precision_loss)]
     let secs = line.duration_ms as f64 / 1000.0;
-    let detail = match line.exit_code {
-        Some(0) | None => format!("{glyph} {} ({secs:.1}s)", line.action),
-        Some(code) => format!("{glyph} {} ({secs:.1}s, exit {code})", line.action),
+
+    let (colour, detail) = if line.spawn_failed() {
+        let cause = line
+            .error_detail
+            .as_deref()
+            .unwrap_or("could not start child process");
+        (
+            theme.error(),
+            format!("[!] {} (spawn failed: {cause})", line.action),
+        )
+    } else if line.passed() {
+        (theme.success(), format!("[*] {} ({secs:.1}s)", line.action))
+    } else {
+        let code = line.exit_code.unwrap_or(-1);
+        (
+            theme.error(),
+            format!("[x] {} ({secs:.1}s, exit {code})", line.action),
+        )
     };
 
     let para = Paragraph::new(Line::from(Span::styled(

@@ -958,6 +958,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "tracing",
  "walkdir",
  "wiremock",
  "workspace-hack",
