@@ -19,8 +19,8 @@ use serde_json::{Value, json};
 use super::super::diagnostic::{McpClientId, McpTier};
 use super::{
     AnvilEntry, ConfigCandidate, ConfigScope, DriftClass, McpClient, ParseError, ParsedConfig,
-    RenderError, classify_drift_by_args, command_to_string, merge_json_mcp, parse_json_mcp,
-    render_new_json_mcp,
+    RenderError, classify_drift_by_args, command_to_string, entries_equivalent, merge_json_mcp,
+    parse_json_mcp, render_new_json_mcp,
 };
 
 const SERVER_NAME: &str = "anvil";
@@ -64,7 +64,7 @@ impl McpClient for ClaudeCode {
                 };
             }
         };
-        if existing == &fresh_value {
+        if entries_equivalent(existing, &fresh_value) {
             return DriftClass::UpToDate;
         }
         classify_drift_by_args(existing, fresh)
@@ -94,7 +94,7 @@ impl McpClient for ClaudeCode {
         let Ok(fresh_value) = build_entry(fresh) else {
             return McpTier::ConfigPresent;
         };
-        if existing == &fresh_value {
+        if entries_equivalent(existing, &fresh_value) {
             McpTier::RestartRequired
         } else {
             McpTier::ConfigPresent
