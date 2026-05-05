@@ -12,8 +12,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
     // outcome (LAUNCH-002). Hidden when no action has run yet, so the 2x2
     // grid keeps the full area in the common case.
     let (grid_area, footer_area) = if state.data.last_action.is_some() {
-        let split =
-            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+        let split = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
         (split[0], Some(split[1]))
     } else {
         (area, None)
@@ -32,8 +31,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
         }
     } else {
         // 2x2 grid: split vertically into top/bottom rows, each row split horizontally
-        let rows = Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
-            .split(grid_area);
+        let rows =
+            Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(grid_area);
 
         let top_cols =
             Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[0]);
