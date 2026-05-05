@@ -233,59 +233,283 @@ fn validate_action(action: Option<&str>) -> Result<Option<&str>> {
 }
 
 /// Build the Command for action dispatch (extracted for testability).
+///
+/// `tui_parent` (LAUNCH-002): when true, the parent is in TUI mode. The child
+/// receives `--no-tui` regardless of the parent's `--no-tui` flag (otherwise
+/// two Ratatui sessions would fight over the same alternate-screen), and
+/// stdout/stderr are routed to `Stdio::null()` so child writes cannot
+/// corrupt the parent's render. We deliberately use `null()` not `piped()`:
+/// piped pipes that nobody reads will block the child once the OS pipe
+/// buffer fills (~64 KiB on Linux), which would deadlock long-running gates.
 fn build_action_command(
     exe: &std::path::Path,
     action: &str,
     workspace_root: &std::path::Path,
     json: bool,
     no_tui: bool,
+    tui_parent: bool,
 ) -> std::process::Command {
     let mut cmd = std::process::Command::new(exe);
     cmd.arg(action);
     if json {
         cmd.arg("--json");
     }
-    if no_tui {
+    if no_tui || tui_parent {
         cmd.arg("--no-tui");
     }
     cmd.current_dir(workspace_root);
-    if json {
+    if tui_parent {
         cmd.stdout(std::process::Stdio::null());
+        cmd.stderr(std::process::Stdio::null());
+    } else if json {
+        cmd.stdout(std::process::Stdio::null());
+        cmd.stderr(std::process::Stdio::inherit());
     } else {
         cmd.stdout(std::process::Stdio::inherit());
+        cmd.stderr(std::process::Stdio::inherit());
     }
-    cmd.stderr(std::process::Stdio::inherit());
     cmd
 }
 
-/// Run the specified action when a file change is detected.
-/// Uses inherited stdio for real-time output streaming (C-007).
-fn dispatch_action(action: &str, workspace_root: &std::path::Path, json: bool, no_tui: bool) {
-    // ASCII-only labels match the rest of the watch surface (the banner,
-    // the bare-exclude warning, and per-event print_event_plain) so a
-    // legacy-codepage Windows terminal or a CI log capture doesn't mojibake
-    // on the --action error path.
-    let exe = match std::env::current_exe() {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("[error] Cannot resolve current executable: {e}");
+/// Action dispatcher (LAUNCH-002).
+///
+/// Owns the worker thread, the in-flight `Child`, the rerun atomics, and a
+/// cancellation flag. `Drop` cancels, kills any in-flight child, and joins
+/// the worker — fixing a pre-existing leak where the previous fire-and-forget
+/// `thread::spawn` worker held child stdio descriptors and rerun atomics
+/// across the parent's exit.
+///
+/// Both watch.rs branches (TUI and non-TUI) use this. In TUI mode, a
+/// `SyncSender<ActionResultLine>` is provided and child stdio is discarded
+/// (the parent owns the alt-screen). In non-TUI mode, the sender is `None`
+/// and child stdio is inherited (bit-for-bit identical to the previous
+/// behaviour).
+pub(crate) struct ActionDispatcher(std::sync::Arc<DispatcherInner>);
+
+/// Bundle the TUI-side action plumbing so signatures don't grow two
+/// `Option<…>` parameters in lockstep.
+pub(crate) struct WatchActionLink<'a> {
+    pub action_rx: &'a std::sync::mpsc::Receiver<anvil_tui::surfaces::watch::ActionResultLine>,
+    pub dispatcher: &'a ActionDispatcher,
+}
+
+struct DispatcherInner {
+    action: String,
+    workspace_root: PathBuf,
+    json: bool,
+    no_tui_arg: bool,
+    /// Parent is in TUI mode → force `--no-tui` on the child and discard
+    /// child stdio. See `build_action_command` for the rationale.
+    tui_parent: bool,
+    sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
+    running: AtomicBool,
+    pending: AtomicBool,
+    cancel: AtomicBool,
+    /// In-flight child process. Held in a mutex so `shutdown()` can kill
+    /// it from another thread while the worker is polling `try_wait()`.
+    in_flight: std::sync::Mutex<Option<std::process::Child>>,
+    worker: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// Test-only override for `current_exe()`. None in production.
+    exe_override: Option<PathBuf>,
+}
+
+impl ActionDispatcher {
+    fn new(
+        action: String,
+        workspace_root: PathBuf,
+        json: bool,
+        no_tui_arg: bool,
+        tui_parent: bool,
+        sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
+    ) -> Self {
+        Self::new_with_exe(
+            action,
+            workspace_root,
+            json,
+            no_tui_arg,
+            tui_parent,
+            sender,
+            None,
+        )
+    }
+
+    fn new_with_exe(
+        action: String,
+        workspace_root: PathBuf,
+        json: bool,
+        no_tui_arg: bool,
+        tui_parent: bool,
+        sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
+        exe_override: Option<PathBuf>,
+    ) -> Self {
+        Self(std::sync::Arc::new(DispatcherInner {
+            action,
+            workspace_root,
+            json,
+            no_tui_arg,
+            tui_parent,
+            sender,
+            running: AtomicBool::new(false),
+            pending: AtomicBool::new(false),
+            cancel: AtomicBool::new(false),
+            in_flight: std::sync::Mutex::new(None),
+            worker: std::sync::Mutex::new(None),
+            exe_override,
+        }))
+    }
+
+    /// Trigger a dispatch (or mark a pending rerun if one is in flight).
+    /// Called from the watch loop on each post-initial Snapshot event.
+    pub(crate) fn on_snapshot(&self) {
+        if self.0.running.swap(true, Ordering::SeqCst) {
+            self.0.pending.store(true, Ordering::SeqCst);
             return;
         }
-    };
-    let mut cmd = build_action_command(&exe, action, workspace_root, json, no_tui);
+        let inner = std::sync::Arc::clone(&self.0);
+        let handle = std::thread::spawn(move || {
+            loop {
+                inner.run_one_action();
+                if inner.cancel.load(Ordering::SeqCst)
+                    || !inner.pending.swap(false, Ordering::SeqCst)
+                {
+                    break;
+                }
+            }
+            inner.running.store(false, Ordering::SeqCst);
+        });
+        // Replace any prior (already-completed) handle. The previous handle
+        // is dropped without joining; that's safe because `running` was just
+        // false, which means the previous worker had already returned.
+        let mut slot = self.0.worker.lock().expect("dispatcher worker mutex");
+        let _ = slot.replace(handle);
+    }
 
-    match cmd.spawn().and_then(|mut child| child.wait()) {
-        Ok(status) => {
-            if !status.success() {
-                eprintln!(
-                    "[warn] Action '{action}' exited with code {}",
-                    status.code().unwrap_or(-1)
-                );
+    /// Cancel any in-flight action and join the worker. Idempotent.
+    fn shutdown(&self) {
+        self.0.cancel.store(true, Ordering::SeqCst);
+        // Don't try to coalesce more reruns after a cancel — the worker
+        // checks `cancel` before re-iterating.
+        self.0.pending.store(false, Ordering::SeqCst);
+        if let Ok(mut slot) = self.0.in_flight.lock()
+            && let Some(mut child) = slot.take()
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        let handle_opt = self.0.worker.lock().ok().and_then(|mut g| g.take());
+        if let Some(handle) = handle_opt {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for ActionDispatcher {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+impl DispatcherInner {
+    fn run_one_action(&self) {
+        let exe = if let Some(p) = self.exe_override.as_ref() {
+            p.clone()
+        } else {
+            match std::env::current_exe() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("[error] Cannot resolve current executable: {e}");
+                    return;
+                }
+            }
+        };
+        let mut cmd = build_action_command(
+            &exe,
+            &self.action,
+            &self.workspace_root,
+            self.json,
+            self.no_tui_arg,
+            self.tui_parent,
+        );
+
+        let start = std::time::Instant::now();
+        let child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("[error] Failed to run action '{}': {e}", self.action);
+                self.maybe_send(None, start.elapsed());
+                return;
+            }
+        };
+
+        // Park the child so shutdown() can kill it from another thread.
+        if let Ok(mut slot) = self.in_flight.lock() {
+            *slot = Some(child);
+        }
+
+        // Poll for completion or cancellation. 50 ms keeps the cancel
+        // latency tight without busy-spinning on a long-running gate.
+        let exit_code = self.wait_for_completion();
+        if !self.tui_parent && exit_code.is_some_and(|c| c != 0) {
+            // Preserve the existing user-facing warning on the non-TUI
+            // path. In TUI mode the result surfaces via the footer line
+            // instead, so no stderr write.
+            eprintln!(
+                "[warn] Action '{}' exited with code {}",
+                self.action,
+                exit_code.unwrap_or(-1)
+            );
+        }
+        self.maybe_send(exit_code, start.elapsed());
+    }
+
+    fn wait_for_completion(&self) -> Option<i32> {
+        loop {
+            // Briefly take the slot. If shutdown took the child, we're done.
+            let mut slot = self.in_flight.lock().ok()?;
+            let child = slot.as_mut()?;
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let code = status.code();
+                    slot.take();
+                    return code;
+                }
+                Ok(None) => {
+                    drop(slot);
+                    if self.cancel.load(Ordering::SeqCst) {
+                        if let Ok(mut g) = self.in_flight.lock()
+                            && let Some(mut child) = g.take()
+                        {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                        return None;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(_) => {
+                    slot.take();
+                    return None;
+                }
             }
         }
-        Err(e) => {
-            eprintln!("[error] Failed to run action '{action}': {e}");
-        }
+    }
+
+    fn maybe_send(&self, exit_code: Option<i32>, elapsed: std::time::Duration) {
+        let Some(sender) = self.sender.as_ref() else {
+            return;
+        };
+        let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+        let line = anvil_tui::surfaces::watch::ActionResultLine {
+            action: self.action.clone(),
+            exit_code,
+            duration_ms,
+            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+        };
+        // SyncSender::send blocks if the buffer is full — that's the
+        // intended back-pressure when the TUI is not draining.
+        // try_send + drop would lose the most recent result, which is
+        // exactly the value we want to surface; block instead.
+        let _ = sender.send(line);
     }
 }
 
@@ -294,12 +518,9 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = crate::util::workspace_root()?;
     let action = validate_action(args.action.as_deref())?;
 
-    // Reject --action in TUI mode (action dispatch requires non-interactive output)
-    if action.is_some() && !(global.json || !std::io::stdout().is_terminal() || global.no_tui) {
-        bail!(
-            "--action requires --no-tui or --json mode (TUI action dispatch is not yet supported)"
-        );
-    }
+    // LAUNCH-002: --action is now allowed in TUI mode. The dispatcher forces
+    // --no-tui on the child and discards child stdio so two Ratatui sessions
+    // can't fight over the same alternate-screen.
 
     // Resolve watch root — if --file is given, scope to that path
     let watch_root = resolve_watch_root(&workspace_root, args.file.as_deref())?;
@@ -402,10 +623,32 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     })
     .context("setting Ctrl-C handler")?;
 
-    if global.json || !std::io::stdout().is_terminal() || global.no_tui {
+    let non_tui = global.json || !std::io::stdout().is_terminal() || global.no_tui;
+
+    // LAUNCH-002: in TUI mode, the dispatcher emits ActionResultLine records
+    // through a sync_channel(1) into the watch loop. The bound is intentional
+    // back-pressure: if the TUI hasn't drained the most recent result, the
+    // worker blocks on `send` until it does, naturally rate-limiting reruns.
+    let (action_tx, action_rx) = if action.is_some() && !non_tui {
+        let (tx, rx) = mpsc::sync_channel::<anvil_tui::surfaces::watch::ActionResultLine>(1);
+        (Some(tx), Some(rx))
+    } else {
+        (None, None)
+    };
+
+    let dispatcher = action.map(|act| {
+        ActionDispatcher::new(
+            act.to_string(),
+            workspace_root.clone(),
+            global.json,
+            global.no_tui,
+            !non_tui,
+            action_tx,
+        )
+    });
+
+    if non_tui {
         let mut snapshot_count: u64 = 0;
-        let action_running = Arc::new(AtomicBool::new(false));
-        let action_pending = Arc::new(AtomicBool::new(false));
 
         loop {
             if shutdown.load(Ordering::SeqCst) {
@@ -424,33 +667,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                         print_event_plain(&event);
                     }
 
-                    // Dispatch action on snapshot events (skip initial scan, guard concurrency)
-                    if let Some(action) = action
+                    // Dispatch action on snapshot events (skip initial scan).
+                    // Concurrency / rerun guarding lives in ActionDispatcher.
+                    if let Some(d) = dispatcher.as_ref()
                         && matches!(event.event_type, anvil_kernel_types::EventType::Snapshot)
                     {
                         snapshot_count += 1;
                         if snapshot_count > 1 {
-                            if action_running.swap(true, Ordering::SeqCst) {
-                                // Action already running — mark pending rerun
-                                action_pending.store(true, Ordering::SeqCst);
-                            } else {
-                                let flag = Arc::clone(&action_running);
-                                let pending = Arc::clone(&action_pending);
-                                let act = action.to_string();
-                                let ws = workspace_root.clone();
-                                let g_json = global.json;
-                                let g_no_tui = global.no_tui;
-                                std::thread::spawn(move || {
-                                    // Run action, then loop while pending reruns exist
-                                    loop {
-                                        dispatch_action(&act, &ws, g_json, g_no_tui);
-                                        if !pending.swap(false, Ordering::SeqCst) {
-                                            break;
-                                        }
-                                    }
-                                    flag.store(false, Ordering::SeqCst);
-                                });
-                            }
+                            d.on_snapshot();
                         }
                     }
                 }
@@ -472,9 +696,19 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                 },
                 last_action: None,
             });
-        crate::tui::run_watch(state, &event_rx, Some(&shutdown))?;
+        let link = action_rx
+            .as_ref()
+            .zip(dispatcher.as_ref())
+            .map(|(rx, d)| WatchActionLink {
+                action_rx: rx,
+                dispatcher: d,
+            });
+        crate::tui::run_watch(state, &event_rx, link.as_ref(), Some(&shutdown))?;
     }
 
+    // Dispatcher Drop cancels any in-flight action and joins the worker —
+    // closes the pre-existing Ctrl-C leak.
+    drop(dispatcher);
     handle.stop().context("stopping watcher")?;
     Ok(())
 }
@@ -656,11 +890,11 @@ mod tests {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/project");
 
-        let cmd = build_action_command(&exe, "gate", &ws, false, false);
+        let cmd = build_action_command(&exe, "gate", &ws, false, false, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(args, vec![std::ffi::OsStr::new("gate")]);
 
-        let cmd = build_action_command(&exe, "check", &ws, true, true);
+        let cmd = build_action_command(&exe, "check", &ws, true, true, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(
             args,
@@ -676,10 +910,180 @@ mod tests {
     fn build_action_command_sets_cwd() {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/my/project");
-        let cmd = build_action_command(&exe, "gate", &ws, false, false);
+        let cmd = build_action_command(&exe, "gate", &ws, false, false, false);
         assert_eq!(
             cmd.get_current_dir(),
             Some(std::path::Path::new("/my/project"))
+        );
+    }
+
+    // --- LAUNCH-002: --no-tui propagation in TUI parent context ---
+
+    #[test]
+    fn tui_parent_forces_no_tui_on_child_even_without_parent_flag() {
+        // The foot-gun the original guard was hiding: with the parent in TUI
+        // mode and no `--no-tui` flag set, a naive guard-drop would let the
+        // child enter its own Ratatui alt-screen and fight the parent.
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+
+        let cmd = build_action_command(
+            &exe, "gate", &ws, false, /* no_tui */ false, /* tui_parent */ true,
+        );
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert!(
+            args.iter().any(|a| *a == std::ffi::OsStr::new("--no-tui")),
+            "child must receive --no-tui when parent is in TUI mode, got {args:?}"
+        );
+    }
+
+    #[test]
+    fn tui_parent_does_not_duplicate_no_tui_when_parent_flag_also_set() {
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+
+        let cmd = build_action_command(
+            &exe, "gate", &ws, false, /* no_tui */ true, /* tui_parent */ true,
+        );
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        let count = args
+            .iter()
+            .filter(|a| **a == std::ffi::OsStr::new("--no-tui"))
+            .count();
+        assert_eq!(
+            count, 1,
+            "--no-tui should appear exactly once, got {args:?}"
+        );
+    }
+
+    #[test]
+    fn non_tui_parent_does_not_force_no_tui() {
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+
+        let cmd = build_action_command(
+            &exe, "gate", &ws, false, /* no_tui */ false, /* tui_parent */ false,
+        );
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert!(
+            !args.iter().any(|a| *a == std::ffi::OsStr::new("--no-tui")),
+            "non-TUI parent without explicit --no-tui must not force it on child, got {args:?}"
+        );
+    }
+
+    // --- LAUNCH-002: ActionDispatcher shutdown ---
+
+    /// Spawns a real `/bin/sleep 30` child via the dispatcher's exe override,
+    /// then calls `shutdown()` and asserts the worker joins promptly. Closes
+    /// the pre-existing leak where Ctrl-C orphaned the dispatch worker.
+    /// Unix-only because the test depends on `/bin/sleep`; Windows lacks an
+    /// equivalent at a stable path.
+    #[cfg(unix)]
+    #[test]
+    fn shutdown_kills_in_flight_child_and_joins_worker() {
+        let dispatcher = ActionDispatcher::new_with_exe(
+            "30".to_string(), // sleep 30 seconds
+            PathBuf::from("/tmp"),
+            false,
+            false,
+            false,
+            None,
+            Some(PathBuf::from("/bin/sleep")),
+        );
+
+        dispatcher.on_snapshot();
+
+        // Wait briefly for the worker to spawn /bin/sleep and park it in
+        // the in_flight slot. 250 ms is generous; the child usually appears
+        // within a few ms.
+        let parked = std::time::Instant::now();
+        loop {
+            if dispatcher
+                .0
+                .in_flight
+                .lock()
+                .ok()
+                .is_some_and(|g| g.is_some())
+            {
+                break;
+            }
+            assert!(
+                parked.elapsed() <= std::time::Duration::from_millis(500),
+                "child did not park in in_flight slot within 500 ms"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        let shutdown_started = std::time::Instant::now();
+        dispatcher.shutdown();
+        let shutdown_took = shutdown_started.elapsed();
+
+        // /bin/sleep 30 would not have exited naturally. If shutdown
+        // returned, the child was killed and the worker joined. The kill
+        // path includes a 50 ms poll grace; allow up to 1 s for slow CI.
+        assert!(
+            shutdown_took < std::time::Duration::from_secs(1),
+            "shutdown took {shutdown_took:?}; expected < 1 s — \
+             worker did not join promptly, child may have leaked"
+        );
+
+        // No child remains in the slot.
+        assert!(
+            dispatcher
+                .0
+                .in_flight
+                .lock()
+                .ok()
+                .is_some_and(|g| g.is_none()),
+            "in_flight slot should be empty after shutdown"
+        );
+
+        // Idempotent: a second shutdown is a no-op.
+        dispatcher.shutdown();
+    }
+
+    /// `Drop` must call `shutdown` so a panic or early-return path doesn't
+    /// leak the worker.
+    #[cfg(unix)]
+    #[test]
+    fn drop_invokes_shutdown() {
+        let parked = {
+            let dispatcher = ActionDispatcher::new_with_exe(
+                "30".to_string(),
+                PathBuf::from("/tmp"),
+                false,
+                false,
+                false,
+                None,
+                Some(PathBuf::from("/bin/sleep")),
+            );
+            dispatcher.on_snapshot();
+
+            // Wait for the child to park.
+            let waited = std::time::Instant::now();
+            loop {
+                if dispatcher
+                    .0
+                    .in_flight
+                    .lock()
+                    .ok()
+                    .is_some_and(|g| g.is_some())
+                {
+                    break;
+                }
+                assert!(
+                    waited.elapsed() <= std::time::Duration::from_millis(500),
+                    "child did not park within 500 ms"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            std::time::Instant::now()
+            // dispatcher dropped here; Drop -> shutdown -> kill+join
+        };
+
+        assert!(
+            parked.elapsed() < std::time::Duration::from_secs(1),
+            "Drop should kill child and join worker within 1 s"
         );
     }
 

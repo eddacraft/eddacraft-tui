@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
 use animate::is_animating;
-use anvil_kernel_types::EngineEvent;
+use anvil_kernel_types::{EngineEvent, EventType};
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::watch::WatchState;
@@ -330,6 +330,7 @@ pub fn run_watch_demo_in(
 pub fn run_watch(
     mut state: WatchState,
     event_rx: &Receiver<EngineEvent>,
+    action_link: Option<&crate::commands::watch::WatchActionLink<'_>>,
     shutdown: Option<&Arc<AtomicBool>>,
 ) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
@@ -339,7 +340,14 @@ pub fn run_watch(
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
-    let result = watch_loop(&mut terminal, &mut state, event_rx, shutdown, &theme);
+    let result = watch_loop(
+        &mut terminal,
+        &mut state,
+        event_rx,
+        action_link,
+        shutdown,
+        &theme,
+    );
 
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -349,13 +357,15 @@ pub fn run_watch(
 
 /// Run the watch surface inside an already-initialised terminal session.
 /// Used by the welcome hub to launch watch mode without teardown/setup.
+/// The welcome-hub path doesn't dispatch `--action`, so it always passes
+/// `None` for the action link.
 pub fn run_watch_in(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut WatchState,
     event_rx: &Receiver<EngineEvent>,
 ) -> anyhow::Result<SurfaceExit> {
     let theme = EddaCraftTheme;
-    watch_loop(terminal, state, event_rx, None, &theme)?;
+    watch_loop(terminal, state, event_rx, None, None, &theme)?;
     if state.should_quit() {
         Ok(SurfaceExit::Quit)
     } else {
@@ -367,17 +377,39 @@ fn watch_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut WatchState,
     event_rx: &Receiver<EngineEvent>,
+    action_link: Option<&crate::commands::watch::WatchActionLink<'_>>,
     shutdown: Option<&Arc<AtomicBool>>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
     let mut adapter = WatchEventAdapter::new();
     let mut last_tick = Instant::now();
+    // LAUNCH-002: gate snapshot-driven action dispatch the same way
+    // commands::watch's non-TUI branch does — skip the initial scan, then
+    // fire on each subsequent Snapshot.
+    let mut snapshot_count: u64 = 0;
 
     loop {
         // Drain all pending engine events.
         while let Ok(engine_event) = event_rx.try_recv() {
             adapter.handle_event(&engine_event, &mut state.data);
             state.mark_dirty();
+            if let Some(link) = action_link
+                && matches!(engine_event.event_type, EventType::Snapshot)
+            {
+                snapshot_count += 1;
+                if snapshot_count > 1 {
+                    link.dispatcher.on_snapshot();
+                }
+            }
+        }
+
+        // LAUNCH-002: drain pending action results and fold them into
+        // last_action via the adapter (single-writer invariant).
+        if let Some(link) = action_link {
+            while let Ok(result) = link.action_rx.try_recv() {
+                WatchEventAdapter::handle_action_result(&result, &mut state.data);
+                state.mark_dirty();
+            }
         }
 
         tick_animations(&mut last_tick, state.is_dirty(), || {
