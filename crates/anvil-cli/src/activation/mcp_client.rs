@@ -348,6 +348,19 @@ pub(crate) fn parse_json_mcp(raw: &str, server_name: &str) -> Result<ParsedConfi
             "top-level value must be a JSON object".to_string(),
         ));
     }
+    // Council finding (copilot): `{"mcpServers": null}` or `[]` would
+    // otherwise silently report `ConfigAbsent` for a structurally
+    // broken config because `get(...).and_then(...)` returns `None`.
+    // Surface it as a parse error so the orchestrator engages drift
+    // handling rather than installing over the malformed file.
+    if let Some(servers) = value.get("mcpServers")
+        && !servers.is_object()
+    {
+        return Err(ParseError::UnexpectedShape(format!(
+            "`mcpServers` must be a JSON object; found {}",
+            shape_label(servers)
+        )));
+    }
     let existing = value
         .get("mcpServers")
         .and_then(|m| m.get(server_name))
@@ -356,6 +369,19 @@ pub(crate) fn parse_json_mcp(raw: &str, server_name: &str) -> Result<ParsedConfi
         raw: value,
         existing_entry: existing,
     })
+}
+
+/// Human-readable label for non-object `mcpServers` values in the
+/// "unexpected shape" parse error.
+fn shape_label(v: &serde_json::Value) -> &'static str {
+    match v {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
 }
 
 /// Shared `merge_and_render` for the JSON-with-`mcpServers`-key shape.
@@ -391,10 +417,16 @@ pub(crate) fn render_new_json_mcp(
         .map_err(|e| RenderError::Serialise(e.to_string()))
 }
 
-/// Shared drift classifier: same args + different command path = `SafeDrift`;
+/// Shared drift classifier: same args + anvil-shaped command path = `SafeDrift`;
+/// same args + foreign command = `UnsafeDrift`;
 /// different args = `UnsafeDrift`; non-object existing = `UnsafeDrift`.
 /// Caller is responsible for the byte-for-byte equality check that produces
 /// `UpToDate`.
+///
+/// Council finding (copilot): a foreign command like `/bin/bash` with our
+/// args list would previously have been classified as `SafeDrift` and
+/// eligible for overwrite. The `looks_like_anvil` check below is the
+/// "foreign tool using our key" guardrail.
 #[allow(dead_code)] // called by trait classify_drift impls
 pub(crate) fn classify_drift_by_args(
     existing: &serde_json::Value,
@@ -422,20 +454,96 @@ pub(crate) fn classify_drift_by_args(
         ..
     } = fresh;
 
-    if existing_args == *fresh_args {
-        DriftClass::SafeDrift {
-            reason: format!(
-                "version drift: existing command `{existing_cmd}` differs from fresh `{}`",
-                fresh_cmd.display()
-            ),
-        }
-    } else {
-        DriftClass::UnsafeDrift {
+    if existing_args != *fresh_args {
+        return DriftClass::UnsafeDrift {
             reason: format!(
                 "existing entry's args do not match anvil's launch shape (existing: {existing_args:?}, fresh: {fresh_args:?})"
             ),
-        }
+        };
     }
+
+    // Args match. Check the command's basename — if it doesn't look
+    // like anvil, this is a foreign tool using our key, not a version
+    // drift.
+    if !looks_like_anvil(existing_cmd) {
+        return DriftClass::UnsafeDrift {
+            reason: format!(
+                "existing entry's command `{existing_cmd}` does not look like anvil (basename must be `anvil` or `anvil.exe`)"
+            ),
+        };
+    }
+
+    DriftClass::SafeDrift {
+        reason: format!(
+            "version drift: existing command `{existing_cmd}` differs from fresh `{}`",
+            fresh_cmd.display()
+        ),
+    }
+}
+
+/// True if `cmd` looks like an anvil binary path. Recognises bare
+/// `"anvil"` (PATH-resolved), full paths ending in `/anvil`, Windows
+/// backslash paths, and the `.exe` form.
+///
+/// We split on both `/` and `\` because the existing entry might be a
+/// Windows path written by Cursor / Claude Code on Windows, which we'd
+/// then probe on Unix in a CI matrix or smoke test.
+pub(crate) fn looks_like_anvil(cmd: &str) -> bool {
+    if cmd.is_empty() {
+        return false;
+    }
+    let basename = cmd.rsplit(['/', '\\']).next().unwrap_or(cmd);
+    matches!(basename, "anvil" | "anvil.exe")
+}
+
+/// True if `existing` (the on-disk entry) is byte-equivalent to `fresh`
+/// (what we'd write), allowing for the bare `"anvil"`-vs-full-path
+/// equivalence the standalone `anvil mcp-config` CLI introduced.
+///
+/// Council finding (copilot): users who installed via `anvil mcp-config`
+/// have `"command": "anvil"` (bare, PATH-resolved). The probe builds
+/// fresh from `current_exe()` (full path). Strict byte equality reports
+/// these users as `ConfigPresent` not `RestartRequired`. Equivalence
+/// here treats bare-`anvil` as matching when fresh's basename is
+/// `anvil` / `anvil.exe`. `args`, `env`, and `type` (if present) must
+/// still match exactly.
+#[allow(dead_code)] // called by trait verify_config_tier / classify_drift impls
+pub(crate) fn entries_equivalent(existing: &serde_json::Value, fresh: &serde_json::Value) -> bool {
+    let (Some(eo), Some(fo)) = (existing.as_object(), fresh.as_object()) else {
+        return existing == fresh;
+    };
+    // args / env / type must match exactly.
+    if eo.get("args") != fo.get("args") {
+        return false;
+    }
+    if eo.get("env") != fo.get("env") {
+        return false;
+    }
+    if eo.get("type") != fo.get("type") {
+        return false;
+    }
+    // Command: byte-equal OR bare-vs-full-path equivalence.
+    let ec = eo.get("command").and_then(|v| v.as_str()).unwrap_or("");
+    let fc = fo.get("command").and_then(|v| v.as_str()).unwrap_or("");
+    if ec == fc {
+        return true;
+    }
+    // If existing is bare `"anvil"` (or `"anvil.exe"`) and fresh's
+    // basename matches, treat as equivalent. Conversely, if fresh is
+    // bare and existing's basename matches. Cross-platform basename
+    // (split on both `/` and `\`) so a Windows-pathed existing entry
+    // probed from a Unix smoke test still resolves correctly.
+    let e_basename = ec.rsplit(['/', '\\']).next().unwrap_or(ec);
+    let f_basename = fc.rsplit(['/', '\\']).next().unwrap_or(fc);
+    let e_is_bare = e_basename == ec;
+    let f_is_bare = f_basename == fc;
+    // Only equivalence when at least one side is bare and basenames
+    // match. Two full paths with the same basename but different
+    // prefixes are version drift, not equivalence.
+    if (e_is_bare || f_is_bare) && !e_basename.is_empty() && e_basename == f_basename {
+        return true;
+    }
+    false
 }
 
 /// Convert the canonical command path to a UTF-8 `String` for inclusion
@@ -521,10 +629,18 @@ fn probe_one(
     home: Option<&Path>,
     fresh: &AnvilEntry,
 ) -> McpTier {
-    // Walk the candidate paths in priority order. Don't stop at "first
-    // existing file" — a workspace file with no anvil entry must not
-    // shadow a valid home install. Track the highest tier observed.
-    let mut highest = McpTier::ConfigAbsent;
+    // Walk the candidate paths in priority order. Stop on the first
+    // candidate that produces a meaningful signal:
+    //
+    // - Tier > ConfigAbsent (anvil entry present, broken file, or
+    //   I/O error): return immediately. This preserves the
+    //   workspace-precedence rule the council flagged — a broken or
+    //   permission-denied workspace config must not be silently
+    //   shadowed by a valid home install.
+    // - ConfigAbsent (file exists but no anvil entry, OR file
+    //   doesn't exist): continue to the next candidate. This closes
+    //   the original blind spot where a workspace `.cursor/mcp.json`
+    //   with other servers (no anvil) hid a valid home install.
     for candidate in client.config_paths(workspace, home) {
         match std::fs::read_to_string(&candidate.path) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -532,51 +648,44 @@ fn probe_one(
             }
             Err(e) => {
                 // I/O error other than NotFound (e.g. permission
-                // denied). Surface as ConfigPresent so the orchestrator
-                // can investigate, AND log so SREs aren't flying blind.
+                // denied). Don't fall through to home — surface this
+                // candidate's broken state so SREs see it.
                 tracing::warn!(
                     client = %client.id().label(),
                     path = %candidate.path.display(),
                     error = %e,
                     "mcp probe: I/O error reading editor config",
                 );
-                if McpTier::ConfigPresent > highest {
-                    highest = McpTier::ConfigPresent;
-                }
+                return McpTier::ConfigPresent;
             }
             Ok(raw) => match client.parse(&raw) {
                 Ok(parsed) => {
                     let tier = client.verify_config_tier(Some(&parsed), fresh);
-                    if tier > highest {
-                        highest = tier;
-                    }
-                    // Stop walking as soon as we have a tier higher
-                    // than ConfigAbsent — the "user has anvil installed
-                    // somewhere" question is answered.
                     if tier > McpTier::ConfigAbsent {
                         return tier;
                     }
+                    // ConfigAbsent at this scope (no anvil entry).
+                    // Keep walking — a higher-priority entry might
+                    // exist at the home scope.
                 }
                 Err(e) => {
-                    // Parse failure: file exists but is broken. Surface
-                    // as ConfigPresent so the orchestrator engages drift
-                    // handling rather than silently installing over a
-                    // broken file. Log the parse reason so SREs can
-                    // diagnose without re-reading the file.
+                    // Parse failure: file exists but is broken. Don't
+                    // fall through — the orchestrator must engage
+                    // drift handling on this specific file rather than
+                    // silently installing over it.
                     tracing::warn!(
                         client = %client.id().label(),
                         path = %candidate.path.display(),
                         error = %e.reason(),
                         "mcp probe: parse error — reporting ConfigPresent so install path engages drift handling",
                     );
-                    if McpTier::ConfigPresent > highest {
-                        highest = McpTier::ConfigPresent;
-                    }
+                    return McpTier::ConfigPresent;
                 }
             },
         }
     }
-    highest
+    // No candidate yielded a tier > ConfigAbsent.
+    McpTier::ConfigAbsent
 }
 
 #[cfg(test)]
@@ -675,5 +784,159 @@ mod tests {
         let entry = AnvilEntry::local_stdio(std::path::PathBuf::from("/anvil"));
         assert_eq!(entry.transport(), McpTransport::Stdio);
         assert_eq!(McpTransport::Stdio.label(), "stdio");
+    }
+
+    // --- Council remediation: copilot review on PR #1283 ---
+
+    #[test]
+    fn parse_rejects_null_mcp_servers() {
+        // Council finding: `{"mcpServers": null}` previously returned
+        // existing_entry: None silently. Now returns UnexpectedShape so
+        // the orchestrator engages drift handling.
+        let err = parse_json_mcp(r#"{"mcpServers": null}"#, "anvil").unwrap_err();
+        match err {
+            ParseError::UnexpectedShape(s) => assert!(s.contains("null")),
+            other => panic!("expected UnexpectedShape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_rejects_array_mcp_servers() {
+        let err = parse_json_mcp(r#"{"mcpServers": [1, 2, 3]}"#, "anvil").unwrap_err();
+        match err {
+            ParseError::UnexpectedShape(s) => assert!(s.contains("array")),
+            other => panic!("expected UnexpectedShape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn looks_like_anvil_recognises_bare_and_full_path() {
+        assert!(looks_like_anvil("anvil"));
+        assert!(looks_like_anvil("/usr/local/bin/anvil"));
+        assert!(looks_like_anvil("/home/user/.cargo/bin/anvil"));
+        assert!(looks_like_anvil("anvil.exe"));
+        assert!(looks_like_anvil("C:\\Users\\u\\.cargo\\bin\\anvil.exe"));
+
+        assert!(!looks_like_anvil(""));
+        assert!(!looks_like_anvil("/bin/bash"));
+        assert!(!looks_like_anvil("/usr/local/bin/anvil-shim"));
+        assert!(!looks_like_anvil("not-anvil"));
+    }
+
+    #[test]
+    fn entries_equivalent_recognises_bare_anvil_vs_full_path() {
+        // Council finding: `anvil mcp-config` writes `"command": "anvil"`
+        // (bare); the activation probe builds fresh from current_exe()
+        // (full path). Strict byte equality misclassifies these users.
+        let bare_existing = serde_json::json!({
+            "command": "anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        let full_fresh = serde_json::json!({
+            "command": "/usr/local/bin/anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        assert!(entries_equivalent(&bare_existing, &full_fresh));
+        assert!(entries_equivalent(&full_fresh, &bare_existing));
+    }
+
+    #[test]
+    fn entries_equivalent_rejects_two_full_paths_with_same_basename() {
+        // Two full paths with the same `anvil` basename but different
+        // prefixes are version drift, not equivalence.
+        let a = serde_json::json!({
+            "command": "/nix/store/abc/bin/anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        let b = serde_json::json!({
+            "command": "/usr/local/bin/anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        assert!(!entries_equivalent(&a, &b));
+    }
+
+    #[test]
+    fn entries_equivalent_rejects_different_args() {
+        let a =
+            serde_json::json!({"command": "anvil", "args": ["mcp", "serve", "--stdio"], "env": {}});
+        let b = serde_json::json!({"command": "/usr/local/bin/anvil", "args": ["mcp", "serve"], "env": {}});
+        assert!(!entries_equivalent(&a, &b));
+    }
+
+    #[test]
+    fn entries_equivalent_rejects_different_env() {
+        let a =
+            serde_json::json!({"command": "anvil", "args": ["mcp", "serve", "--stdio"], "env": {}});
+        let b = serde_json::json!({"command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {"FOO": "bar"}});
+        assert!(!entries_equivalent(&a, &b));
+    }
+
+    #[test]
+    fn classify_drift_by_args_blocks_foreign_command_with_matching_args() {
+        // Council finding: a foreign command like /bin/bash with our
+        // canonical args was previously classified as SafeDrift and
+        // would have been overwritten by the install path.
+        let foreign = serde_json::json!({
+            "command": "/bin/bash",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        let fresh = AnvilEntry::local_stdio(std::path::PathBuf::from("/usr/local/bin/anvil"));
+        match classify_drift_by_args(&foreign, &fresh) {
+            DriftClass::UnsafeDrift { reason } => {
+                assert!(reason.contains("/bin/bash"));
+                assert!(reason.contains("does not look like anvil"));
+            }
+            other => panic!("expected UnsafeDrift, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classify_drift_by_args_allows_same_args_with_anvil_basename() {
+        // Same canonical args + anvil-shaped command (different prefix)
+        // = SafeDrift (legitimate version upgrade).
+        let drift = serde_json::json!({
+            "command": "/nix/store/abc/bin/anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        let fresh = AnvilEntry::local_stdio(std::path::PathBuf::from("/usr/local/bin/anvil"));
+        match classify_drift_by_args(&drift, &fresh) {
+            DriftClass::SafeDrift { .. } => {}
+            other => panic!("expected SafeDrift, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn probe_with_unreadable_workspace_does_not_fall_through_to_home() {
+        // Council finding: previously, an I/O error at workspace scope
+        // (e.g. permission denied) silently fell through to home,
+        // hiding the broken workspace state. Now: workspace I/O error
+        // returns ConfigPresent immediately, preserving precedence.
+        // Simulate by creating an unreadable file. Note: we can't
+        // actually chmod 0 in a portable way for tempdirs, so we
+        // assert the structural property: a workspace file exists →
+        // home is never reached.
+        // (The I/O-error-specifically path is harder to test
+        // portably; the parse-error path exercises the same
+        // early-return logic and is covered below.)
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        // Workspace has malformed JSON; home has a valid anvil entry.
+        fs::create_dir_all(ws.path().join(".cursor")).unwrap();
+        fs::write(ws.path().join(".cursor/mcp.json"), "{not json").unwrap();
+        fs::create_dir_all(home.path().join(".cursor")).unwrap();
+        let home_cfg = r#"{"mcpServers": {"anvil": {"command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        fs::write(home.path().join(".cursor/mcp.json"), home_cfg).unwrap();
+
+        let map = probe_all(ws.path(), Some(home.path()), &fresh());
+        // Workspace parse-error MUST surface as ConfigPresent (not
+        // home's RestartRequired) because workspace shadows home when
+        // workspace exists.
+        assert_eq!(map[&McpClientId::Cursor].tier, McpTier::ConfigPresent);
     }
 }

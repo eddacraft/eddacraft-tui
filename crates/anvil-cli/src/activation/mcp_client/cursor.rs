@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 use super::super::diagnostic::{McpClientId, McpTier};
 use super::{
     AnvilEntry, ConfigCandidate, ConfigScope, DriftClass, McpClient, ParseError, ParsedConfig,
-    RenderError, classify_drift_by_args, command_to_string, merge_json_mcp, parse_json_mcp,
-    render_new_json_mcp,
+    RenderError, classify_drift_by_args, command_to_string, entries_equivalent, merge_json_mcp,
+    parse_json_mcp, render_new_json_mcp,
 };
 
 /// Stable server-name key. Matches the `SERVER_NAME` constant in
@@ -66,7 +66,11 @@ impl McpClient for Cursor {
                 };
             }
         };
-        if existing == &fresh_value {
+        // `entries_equivalent` recognises the bare `"anvil"` (PATH-
+        // resolved) vs full path equivalence the standalone
+        // `anvil mcp-config` CLI introduced — closes the council finding
+        // that those users were misclassified as `ConfigPresent`.
+        if entries_equivalent(existing, &fresh_value) {
             return DriftClass::UpToDate;
         }
         classify_drift_by_args(existing, fresh)
@@ -93,16 +97,16 @@ impl McpClient for Cursor {
         let Some(existing) = p.existing_entry.as_ref() else {
             return McpTier::ConfigAbsent;
         };
-        // If we can't build the fresh value (non-UTF-8 path), we can't
-        // claim the entry is up-to-date — treat as ConfigPresent so the
-        // orchestrator engages drift handling.
         let Ok(fresh_value) = build_entry(fresh) else {
             return McpTier::ConfigPresent;
         };
-        if existing == &fresh_value {
+        // `entries_equivalent` treats bare-`"anvil"` and full-path as
+        // equivalent so users who installed via `anvil mcp-config`
+        // (which writes a bare command) are correctly reported as
+        // `RestartRequired` rather than `ConfigPresent`.
+        if entries_equivalent(existing, &fresh_value) {
             // Always RestartRequired on a fresh write — we can't observe
-            // restart from anvil. Orchestrator may probe ServerStartable
-            // separately in the future install-path PR.
+            // restart from anvil.
             McpTier::RestartRequired
         } else {
             // Some anvil-shaped entry exists, but it doesn't match what
