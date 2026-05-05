@@ -438,7 +438,9 @@ impl DispatcherInner {
         match std::env::current_exe() {
             Ok(p) => Some(p),
             Err(e) => {
-                tracing::error!(error = %e, "cannot resolve current executable for action dispatch");
+                if !self.tui_parent {
+                    tracing::error!(error = %e, "cannot resolve current executable for action dispatch");
+                }
                 None
             }
         }
@@ -466,11 +468,16 @@ impl DispatcherInner {
         let child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
-                tracing::warn!(action = %self.action, error = %e, "failed to spawn action child");
                 if !self.tui_parent {
-                    // Non-TUI mode: stderr is inherited and visible to the
-                    // user. Keep the existing warning so behaviour is
-                    // bit-for-bit unchanged on that path.
+                    // Non-TUI: stderr is inherited (visible to the user)
+                    // and tracing's stderr-bound JSON layer is safe to
+                    // emit. In TUI mode both would corrupt the alt-screen,
+                    // so the footer's `error_detail` is the only surface.
+                    tracing::warn!(
+                        action = %self.action,
+                        error = %e,
+                        "failed to spawn action child",
+                    );
                     eprintln!("[error] Failed to run action '{}': {e}", self.action);
                 }
                 self.send_result(None, start.elapsed(), Some(e.to_string()));
@@ -497,18 +504,11 @@ impl DispatcherInner {
         }
 
         let exit_code = self.wait_for_completion();
-        if !self.tui_parent && exit_code.is_some_and(|c| c != 0) {
-            // Non-TUI path: preserve the existing user-facing warning so
-            // CI / piped sessions see the failure inline.
-            eprintln!(
-                "[warn] Action '{}' exited with code {}",
-                self.action,
-                exit_code.unwrap_or(-1)
-            );
-        }
-        if let Some(code) = exit_code
+        if !self.tui_parent
+            && let Some(code) = exit_code
             && code != 0
         {
+            eprintln!("[warn] Action '{}' exited with code {code}", self.action);
             tracing::info!(action = %self.action, exit_code = code, "action exited non-zero");
         }
         self.send_result(exit_code, start.elapsed(), None);
@@ -536,7 +536,9 @@ impl DispatcherInner {
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
                 Err(e) => {
-                    tracing::warn!(action = %self.action, error = %e, "child try_wait failed");
+                    if !self.tui_parent {
+                        tracing::warn!(action = %self.action, error = %e, "child try_wait failed");
+                    }
                     slot.take();
                     return None;
                 }
