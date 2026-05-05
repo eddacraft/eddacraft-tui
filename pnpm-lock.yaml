@@ -36,7 +36,7 @@ overrides:
   underscore@<=1.13.7: '>=1.13.8'
   '@hono/node-server@<1.19.13': '>=1.19.13'
   svgo@<3.3.3: '>=3.3.3'
-  axios@<1.15.0: '>=1.15.0'
+  axios@<1.15.2: '>=1.15.2'
   express-rate-limit@>=8.2.0 <8.2.2: '>=8.2.2 <9'
   '@nx/azure-cache>@nx/devkit': 22.7.1
   '@nx/js>verdaccio': '-'
@@ -6668,10 +6668,10 @@ packages:
   axios-retry@4.5.0:
     resolution: {integrity: sha512-aR99oXhpEDGo0UuAlYcn2iGRds30k366Zfa05XWScR9QaQD4JYiP3/1Qt1u7YlefUOK+cn0CcwoL1oefavQUlQ==}
     peerDependencies:
-      axios: '>=1.15.0'
+      axios: '>=1.15.2'
 
-  axios@1.15.0:
-    resolution: {integrity: sha512-wWyJDlAatxk30ZJer+GeCWS209sA42X+N5jU2jy6oHTp7ufw8uzUTVFBX9+wTfAlhiJXGS0Bq7X6efruWjuK9Q==}
+  axios@1.16.0:
+    resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
 
   b4a@1.8.1:
     resolution: {integrity: sha512-aiqre1Nr0B/6DgE2N5vwTc+2/oQZ4Wh1t4NznYY4E00y8LCt6NqdRv81so00oo27D8MVKTpUa/MwUUtBLXCoDw==}
@@ -16237,8 +16237,8 @@ snapshots:
   '@nx/key@5.0.4':
     dependencies:
       '@napi-rs/wasm-runtime': 0.2.12
-      axios: 1.15.0
-      axios-retry: 4.5.0(axios@1.15.0)
+      axios: 1.16.0
+      axios-retry: 4.5.0(axios@1.16.0)
       chalk: 4.1.2
       enquirer: 2.4.1
       ora: 5.4.1
@@ -18941,12 +18941,12 @@ snapshots:
       postcss: 8.5.13
       postcss-value-parser: 4.2.0
 
-  axios-retry@4.5.0(axios@1.15.0):
+  axios-retry@4.5.0(axios@1.16.0):
     dependencies:
-      axios: 1.15.0
+      axios: 1.16.0
       is-retry-allowed: 2.2.0
 
-  axios@1.15.0:
+  axios@1.16.0:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5
@@ -22573,7 +22573,7 @@ snapshots:
       ansi-styles: 4.3.0
       argparse: 2.0.1
       asynckit: 0.4.0
-      axios: 1.15.0
+      axios: 1.16.0
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
