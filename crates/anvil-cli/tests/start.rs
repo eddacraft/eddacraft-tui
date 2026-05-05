@@ -35,21 +35,30 @@ fn run_start(workdir: &std::path::Path, extra_args: &[&str]) -> std::process::Ou
 
 #[test]
 fn start_on_fresh_repo_runs_init_and_lands_needs_action() {
+    // #1280 review: don't assert on user-facing copy — those strings are
+    // owned by LAUNCH-014 and other UX work. Use stable filesystem
+    // signals (.anvilrc existence) and the structured `state:` line.
     let dir = tempfile::tempdir().unwrap();
+    assert!(
+        !dir.path().join(".anvilrc").exists(),
+        "pre-condition: fresh temp repo has no .anvilrc"
+    );
+
     let out = run_start(dir.path(), &[]);
     assert!(
         out.status.success(),
         "anvil start failed: stderr={}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let stdout = String::from_utf8_lossy(&out.stdout);
 
-    // Init ran (its success copy is in the output).
+    // Init ran — the only stable proof is .anvilrc on disk.
     assert!(
-        stdout.contains("Anvil initialised"),
-        "expected init success copy on fresh repo, got:\n{stdout}"
+        dir.path().join(".anvilrc").exists(),
+        ".anvilrc must exist after `anvil start` on a fresh repo"
     );
-    // Activation diagnostic ran with one literal final state.
+
+    // Activation diagnostic emitted one literal final state.
+    let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("state: needs_action"),
         "expected `state: needs_action` on fresh repo, got:\n{stdout}"
@@ -59,32 +68,43 @@ fn start_on_fresh_repo_runs_init_and_lands_needs_action() {
         !stdout.contains("state: protecting"),
         "fresh repo MUST NOT claim protection, got:\n{stdout}"
     );
-    // Config was written.
-    assert!(
-        dir.path().join(".anvilrc").exists(),
-        ".anvilrc should exist after `anvil start` on a fresh repo"
-    );
 }
 
 #[test]
 fn start_idempotent_rerun_skips_init() {
+    // #1280 review: prove idempotency by checking .anvilrc mtime
+    // (filesystem-stable) instead of asserting on the absence of a
+    // user-facing init banner.
     let dir = tempfile::tempdir().unwrap();
-    // First run: init + diagnostic.
     let first = run_start(dir.path(), &[]);
     assert!(first.status.success());
 
-    // Second run: only the diagnostic — init banner must not reappear.
+    let mtime_before = std::fs::metadata(dir.path().join(".anvilrc"))
+        .unwrap()
+        .modified()
+        .unwrap();
+
+    // Sleep past one-second mtime granularity so any rewrite would be
+    // detectable on filesystems with HFS+-style coarse mtimes.
+    std::thread::sleep(std::time::Duration::from_millis(1100));
     let second = run_start(dir.path(), &[]);
     assert!(
         second.status.success(),
         "second start failed: stderr={}",
         String::from_utf8_lossy(&second.stderr)
     );
-    let stdout = String::from_utf8_lossy(&second.stdout);
-    assert!(
-        !stdout.contains("Anvil initialised"),
-        "second start must not re-run init on a repo with valid config, got:\n{stdout}"
+
+    let mtime_after = std::fs::metadata(dir.path().join(".anvilrc"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    assert_eq!(
+        mtime_before, mtime_after,
+        "second start must not rewrite .anvilrc (idempotent rerun)"
     );
+
+    // Diagnostic still emitted on the second run.
+    let stdout = String::from_utf8_lossy(&second.stdout);
     assert!(
         stdout.contains("state: needs_action"),
         "second start must still emit the diagnostic, got:\n{stdout}"
@@ -92,7 +112,11 @@ fn start_idempotent_rerun_skips_init() {
 }
 
 #[test]
-fn start_verify_skips_init_on_fresh_repo() {
+fn start_verify_on_fresh_repo_reports_needs_action() {
+    // #1280 review: tighten the contract. `activation::verify` maps
+    // ConfigStatus::Absent → ProtectionState::NeedsAction (see
+    // diagnostic.rs:protection_state). Asserting either error or
+    // needs_action would hide a regression in that mapping.
     let dir = tempfile::tempdir().unwrap();
     let out = run_start(dir.path(), &["--verify"]);
     assert!(
@@ -100,21 +124,21 @@ fn start_verify_skips_init_on_fresh_repo() {
         "anvil start --verify failed: stderr={}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let stdout = String::from_utf8_lossy(&out.stdout);
 
-    // --verify is read-only: no init banner, no .anvilrc written.
-    assert!(
-        !stdout.contains("Anvil initialised"),
-        "--verify must not run init, got:\n{stdout}"
-    );
+    // --verify is read-only: .anvilrc must NOT be written.
     assert!(
         !dir.path().join(".anvilrc").exists(),
         "--verify must not write .anvilrc"
     );
-    // Diagnostic surfaces the config-absent state honestly.
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("state: error") || stdout.contains("state: needs_action"),
-        "--verify on fresh repo should report error (config absent) or needs_action, got:\n{stdout}"
+        stdout.contains("state: needs_action"),
+        "fresh-repo --verify should report needs_action (config absent → NeedsAction), got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("config: absent"),
+        "config status should be reported as absent, got:\n{stdout}"
     );
 }
 
@@ -148,9 +172,9 @@ fn start_json_emits_state_literal_in_status_verify_shape() {
 
 #[test]
 fn welcome_still_runs_after_start_promotion() {
-    // The smoke is `--help` because we don't want to drive the welcome
-    // TUI from a non-interactive test runner. `--help` proves the
-    // command still resolves.
+    // #1280 review: don't assert on welcome's description copy — that's
+    // owned by other UX work and likely to change. Just prove the
+    // command still resolves and shows its clap-generated usage block.
     let out = Command::new(ANVIL_BIN)
         .arg("welcome")
         .arg("--help")
@@ -162,9 +186,12 @@ fn welcome_still_runs_after_start_promotion() {
         String::from_utf8_lossy(&out.stderr)
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
+    // Stable: clap always emits a `Usage:` block with the subcommand
+    // name. If the alias-removal regressed, clap would error out before
+    // reaching this point (non-zero exit, caught above).
     assert!(
-        stdout.contains("welcome screen") || stdout.contains("quick-start"),
-        "welcome --help should still describe the welcome surface, got:\n{stdout}"
+        stdout.contains("Usage:") && stdout.contains("welcome"),
+        "welcome --help should emit clap's Usage block, got:\n{stdout}"
     );
 }
 
