@@ -145,7 +145,7 @@ pub struct ActivationDiagnostic {
     /// Tier reached for each detected MCP client. Clients below
     /// [`McpTier::ConfigPresent`] are still emitted so the surface
     /// can show "Cursor: not detected" without dropping the row.
-    pub mcp: BTreeMap<McpClientId, McpTier>,
+    pub mcp: BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
     /// Tier of the save-time watch fallback.
     pub watch: WatchTier,
     /// True when the repo has a baselined finding set (LAUNCH-010).
@@ -225,7 +225,7 @@ impl ActivationDiagnostic {
     }
 
     fn highest_mcp_tier(&self) -> Option<McpTier> {
-        self.mcp.values().copied().max()
+        self.mcp.values().map(|r| r.tier).max()
     }
 }
 
@@ -241,16 +241,34 @@ pub fn verify(root: &Path) -> ActivationDiagnostic {
     // path is in the orchestrator. The fresh entry uses
     // `current_exe()` as the canonical command path so tier
     // classification compares against what we'd actually install.
-    let fresh_entry = std::env::current_exe()
-        .ok()
-        .map(super::mcp_client::AnvilEntry::local_stdio);
-    let home = dirs::home_dir();
-    let mcp: BTreeMap<McpClientId, McpTier> = match fresh_entry.as_ref() {
-        Some(fresh) => super::mcp_client::probe_all(root, home.as_deref(), fresh),
-        None => {
-            // Couldn't resolve current_exe — degrade to the empty map
-            // so the diagnostic stays honest rather than guessing.
-            BTreeMap::new()
+    let (mcp, last_error): (
+        BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
+        Option<String>,
+    ) = match std::env::current_exe() {
+        Ok(exe) => {
+            let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
+            let home = dirs::home_dir();
+            (
+                super::mcp_client::probe_all(root, home.as_deref(), &fresh),
+                None,
+            )
+        }
+        Err(e) => {
+            // Couldn't resolve current_exe (rare — typically only fails
+            // in stripped containers without /proc). Set last_error so
+            // protection_state() returns Error and the user / SRE sees
+            // an actionable cause rather than a silent "needs_action"
+            // with no MCP clients reported. (Council finding: ops M3.)
+            tracing::warn!(
+                error = %e,
+                "verify: could not resolve current_exe; MCP probe skipped",
+            );
+            (
+                BTreeMap::new(),
+                Some(format!(
+                    "could not resolve current_exe; MCP probe skipped ({e})"
+                )),
+            )
         }
     };
 
@@ -269,7 +287,7 @@ pub fn verify(root: &Path) -> ActivationDiagnostic {
         mcp,
         watch,
         baseline_present,
-        last_error: None,
+        last_error,
         all_languages_unsupported,
         language_profile,
     }
@@ -389,7 +407,8 @@ mod tests {
     fn last_error_wins_over_everything() {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::LiveValidation);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::LiveValidation.into());
         d.last_error = Some("startup probe timed out".into());
         // Even with live MCP evidence the Error layer must win,
         // because the last activation attempt aborted.
@@ -400,7 +419,8 @@ mod tests {
     fn live_mcp_evidence_yields_protecting() {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::LiveValidation);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::LiveValidation.into());
         assert_eq!(d.protection_state(), ProtectionState::Protecting);
     }
 
@@ -409,7 +429,7 @@ mod tests {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
         d.mcp
-            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
         assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
     }
 
@@ -429,7 +449,8 @@ mod tests {
         // the user assume `Watching` is the best they can get.
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::RestartRequired);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
         d.watch = WatchTier::Running;
         assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
     }
@@ -442,7 +463,8 @@ mod tests {
         // fallback, never `ReadyRestartRequired`.
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::ServerStartable);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ServerStartable.into());
         d.watch = WatchTier::Running;
         assert_eq!(d.protection_state(), ProtectionState::Watching);
     }
@@ -455,7 +477,7 @@ mod tests {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
         d.mcp
-            .insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
+            .insert(McpClientId::ClaudeCode, McpTier::ServerStartable.into());
         assert_eq!(d.protection_state(), ProtectionState::NeedsAction);
     }
 
@@ -475,7 +497,8 @@ mod tests {
         // will produce coverage. Surface `Unsupported` instead.
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::ConfigPresent);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ConfigPresent.into());
         d.all_languages_unsupported = true;
         assert_eq!(d.protection_state(), ProtectionState::Unsupported);
     }
@@ -486,7 +509,8 @@ mod tests {
         // tell them, do not collapse to `Unsupported`.
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::RestartRequired);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
         d.all_languages_unsupported = true;
         assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
     }
@@ -497,7 +521,8 @@ mod tests {
         // through MCP. Live evidence wins.
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::LiveValidation);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::LiveValidation.into());
         d.all_languages_unsupported = true;
         assert_eq!(d.protection_state(), ProtectionState::Protecting);
     }
@@ -515,9 +540,10 @@ mod tests {
     #[test]
     fn highest_mcp_tier_picks_strongest() {
         let mut d = empty_diagnostic();
-        d.mcp.insert(McpClientId::Cursor, McpTier::ConfigPresent);
         d.mcp
-            .insert(McpClientId::ClaudeCode, McpTier::ServerStartable);
+            .insert(McpClientId::Cursor, McpTier::ConfigPresent.into());
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::ServerStartable.into());
         assert_eq!(d.highest_mcp_tier(), Some(McpTier::ServerStartable));
     }
 

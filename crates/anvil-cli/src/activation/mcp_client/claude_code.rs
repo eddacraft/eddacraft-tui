@@ -5,20 +5,22 @@
 //! Claude Code versions; the JSONC concern raised in council was based
 //! on a misread of `~/.claude/settings.json` (a different file). The
 //! MCP config file specifically is JSON-only — verified against the
-//! Claude Code 0.x docs.
+//! Claude Code docs.
 //!
 //! Server entries live under the top-level `mcpServers` key, indexed by
 //! a free-form server name (we use `"anvil"`).
 //!
 //! Reference: <https://docs.anthropic.com/en/docs/claude-code/mcp>
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use super::super::diagnostic::{McpClientId, McpTier};
 use super::{
     AnvilEntry, ConfigCandidate, ConfigScope, DriftClass, McpClient, ParseError, ParsedConfig,
+    RenderError, classify_drift_by_args, command_to_string, merge_json_mcp, parse_json_mcp,
+    render_new_json_mcp,
 };
 
 const SERVER_NAME: &str = "anvil";
@@ -47,64 +49,39 @@ impl McpClient for ClaudeCode {
     }
 
     fn parse(&self, raw: &str) -> Result<ParsedConfig, ParseError> {
-        let trimmed = raw.trim_start_matches('\u{feff}').trim();
-        if trimmed.is_empty() {
-            return Err(ParseError::Empty);
-        }
-        let value: Value = serde_json::from_str(trimmed)
-            .map_err(|e| ParseError::Invalid(format!("JSON parse error: {e}")))?;
-        if !value.is_object() {
-            return Err(ParseError::UnexpectedShape(
-                "top-level value must be a JSON object".to_string(),
-            ));
-        }
-        let existing = value
-            .get("mcpServers")
-            .and_then(|m| m.get(SERVER_NAME))
-            .cloned();
-        Ok(ParsedConfig {
-            raw: value,
-            existing_entry: existing,
-        })
+        parse_json_mcp(raw, SERVER_NAME)
     }
 
     fn classify_drift(&self, parsed: &ParsedConfig, fresh: &AnvilEntry) -> DriftClass {
         let Some(existing) = parsed.existing_entry.as_ref() else {
-            return DriftClass::UpToDate;
+            return DriftClass::NotPresent;
         };
-        let fresh_value = build_entry(fresh);
+        let fresh_value = match build_entry(fresh) {
+            Ok(v) => v,
+            Err(e) => {
+                return DriftClass::UnsafeDrift {
+                    reason: format!("could not build fresh entry: {e}"),
+                };
+            }
+        };
         if existing == &fresh_value {
             return DriftClass::UpToDate;
         }
-        classify_existing(existing, fresh)
+        classify_drift_by_args(existing, fresh)
     }
 
     fn merge_and_render(
         &self,
         parsed: &ParsedConfig,
         fresh: &AnvilEntry,
-    ) -> Result<String, String> {
-        let mut root = parsed.raw.clone();
-        let entry = build_entry(fresh);
-        let obj = root
-            .as_object_mut()
-            .ok_or_else(|| "config root is not an object".to_string())?;
-        let servers = obj
-            .entry("mcpServers".to_string())
-            .or_insert_with(|| Value::Object(Map::new()));
-        let map = servers
-            .as_object_mut()
-            .ok_or_else(|| "`mcpServers` is not an object".to_string())?;
-        map.insert(SERVER_NAME.to_string(), entry);
-        serde_json::to_string_pretty(&root).map_err(|e| format!("serialise: {e}"))
+    ) -> Result<String, RenderError> {
+        let entry = build_entry(fresh)?;
+        merge_json_mcp(parsed, SERVER_NAME, entry)
     }
 
-    fn render_new(&self, fresh: &AnvilEntry) -> Result<String, String> {
-        let mut servers = Map::new();
-        servers.insert(SERVER_NAME.to_string(), build_entry(fresh));
-        let mut root = Map::new();
-        root.insert("mcpServers".to_string(), Value::Object(servers));
-        serde_json::to_string_pretty(&Value::Object(root)).map_err(|e| format!("serialise: {e}"))
+    fn render_new(&self, fresh: &AnvilEntry) -> Result<String, RenderError> {
+        let entry = build_entry(fresh)?;
+        render_new_json_mcp(SERVER_NAME, entry)
     }
 
     fn verify_config_tier(&self, parsed: Option<&ParsedConfig>, fresh: &AnvilEntry) -> McpTier {
@@ -114,7 +91,10 @@ impl McpClient for ClaudeCode {
         let Some(existing) = p.existing_entry.as_ref() else {
             return McpTier::ConfigAbsent;
         };
-        if existing == &build_entry(fresh) {
+        let Ok(fresh_value) = build_entry(fresh) else {
+            return McpTier::ConfigPresent;
+        };
+        if existing == &fresh_value {
             McpTier::RestartRequired
         } else {
             McpTier::ConfigPresent
@@ -131,65 +111,25 @@ impl McpClient for ClaudeCode {
 /// `"type": "stdio"` discriminator added — kept in lockstep with
 /// `commands/mcp_config.rs::build_entry` so the activation flow and the
 /// standalone `anvil mcp-config` CLI produce drift-compatible entries.
-fn build_entry(fresh: &AnvilEntry) -> Value {
+fn build_entry(fresh: &AnvilEntry) -> Result<Value, RenderError> {
     match fresh {
-        AnvilEntry::Stdio { command, args, env } => json!({
-            "type": "stdio",
-            "command": command.to_string_lossy(),
-            "args": args,
-            "env": env,
-        }),
-    }
-}
-
-fn classify_existing(existing: &Value, fresh: &AnvilEntry) -> DriftClass {
-    let Some(obj) = existing.as_object() else {
-        return DriftClass::UnsafeDrift {
-            reason: "existing entry is not an object".to_string(),
-        };
-    };
-    let existing_args: Vec<String> = obj
-        .get("args")
-        .and_then(|a| a.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
-    let existing_cmd = obj.get("command").and_then(|c| c.as_str()).unwrap_or("");
-
-    let AnvilEntry::Stdio {
-        command: fresh_cmd,
-        args: fresh_args,
-        ..
-    } = fresh;
-
-    if existing_args == *fresh_args {
-        DriftClass::SafeDrift {
-            reason: format!(
-                "version drift: existing command `{existing_cmd}` differs from fresh `{}`",
-                fresh_cmd.display()
-            ),
-        }
-    } else {
-        DriftClass::UnsafeDrift {
-            reason: format!(
-                "existing entry's args do not match anvil's launch shape (existing: {existing_args:?}, fresh: {fresh_args:?})"
-            ),
+        AnvilEntry::Stdio { command, args, env } => {
+            let cmd = command_to_string(command)?;
+            Ok(json!({
+                "type": "stdio",
+                "command": cmd,
+                "args": args,
+                "env": env,
+            }))
         }
     }
-}
-
-#[allow(dead_code)] // used by orchestrator integration in a follow-up commit
-pub(crate) fn home_config_dir() -> Option<PathBuf> {
-    dirs::home_dir()
 }
 
 #[cfg(test)]
 #[allow(clippy::needless_raw_string_hashes)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn fresh() -> AnvilEntry {
         AnvilEntry::local_stdio(PathBuf::from("/usr/local/bin/anvil"))
@@ -213,12 +153,19 @@ mod tests {
 
     #[test]
     fn parse_with_anvil_entry_includes_type_stdio() {
-        // Claude Code config format uses an explicit `type: "stdio"`
-        // discriminator (different from Cursor's untyped shape).
         let raw = r#"{"mcpServers": {"anvil": {"type": "stdio", "command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         let parsed = ClaudeCode.parse(raw).unwrap();
         let existing = parsed.existing_entry.as_ref().unwrap();
         assert_eq!(existing.get("type"), Some(&json!("stdio")));
+    }
+
+    #[test]
+    fn classify_drift_no_existing_is_not_present() {
+        let parsed = ClaudeCode.parse(r#"{}"#).unwrap();
+        assert_eq!(
+            ClaudeCode.classify_drift(&parsed, &fresh()),
+            DriftClass::NotPresent
+        );
     }
 
     #[test]
