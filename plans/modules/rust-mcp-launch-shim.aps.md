@@ -9,11 +9,9 @@
 > **A1 launch slice complete.** RMCP-001..RMCP-008 are the entire A1 RMCP scope
 > and all eight items are now Complete. RMCP-001 (spec), RMCP-002
 > (`anvil mcp serve --stdio`), RMCP-003 (MCP protocol subset), RMCP-004
-> (validate-write tool), RMCP-005 (validation backend adapter + embedded
-> fallback against `anvil-checks` reasoning + secret rules; the default
-> `DaemonValidationClient` returns `Unavailable` so MCP `tools/call` runs
-> through the embedded path until the launch shim's daemon client is wired
-> to the shipped `scan_buffer` RPC — tracked as a follow-up RMCP/RMCPF task),
+> (validate-write tool), RMCP-005 (validation backend adapter with daemon-backed
+> `scan_buffer` JSON-RPC validation and embedded fallback for genuinely
+> unavailable daemon paths; daemon client wiring is committed in PR #1277),
 > RMCP-006 (canonical decision shape), RMCP-007 (`anvil mcp install --client X`
 > wrapper), and RMCP-008 (E2E smoke + demo runbook refresh + Cursor / Claude
 > Code GUI dry-run recorded in the runbook validation log on 2026-04-30).
@@ -134,8 +132,8 @@ daemon-client wiring task or RMCPF):
   Claude Code default path gap tracked as #1195; release dry-run used
   `claude mcp add` workaround.
 - [x] Decision recorded on daemon-first vs embedded-fallback validation order —
-  current release is embedded-fallback-backed; daemon-backed MCP client wiring
-  is a post-A1 RMCP/RMCPF follow-up.
+  current release shipped embedded-fallback-backed; daemon-backed MCP client
+  wiring is committed in PR #1277.
 - [x] Demo runbook updated to name this module as the MCP launch path.
 
 ---
