@@ -50,6 +50,17 @@ env:
   CARGO_ABOUT_VERSION: '0.8.4'
 
 jobs:
+  nxrust-smoke:
+    name: nxrust Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - name: Run nxrust check smoke
+        run: pnpm exec nx run eddacraft-anvil-policy:check --skip-nx-cache --outputStyle=static
+
   check:
     name: Check
     runs-on: ubuntu-latest
