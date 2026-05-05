@@ -1,9 +1,9 @@
 # Admin CLI Operator Runbook
 
-`anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP
-API (`/admin/*`). It is the supported way to approve waitlist signups, invite
-beta users, revoke tokens, browse the audit log, and send migration emails
-during beta.
+`anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP API
+(`/admin/*`). It is the supported way to approve waitlist signups, invite beta
+users, revoke tokens, browse the audit log, and send migration emails during
+beta.
 
 This runbook covers install, configuration, every command with an example, the
 exit-code taxonomy, and troubleshooting.
@@ -120,14 +120,14 @@ your hand.
   The key is never echoed, nor written to history. `unset ANVIL_ADMIN_KEY` when
   you're done.
 
-- **Private dotenv as last resort.** A `~/.anvil-rust-admin.env` with mode `0600`,
-  outside the repo, `source`'d into a scoped subshell. Never commit this file;
-  add its path to your global git ignore.
+- **Private dotenv as last resort.** A `~/.anvil-rust-admin.env` with mode
+  `0600`, outside the repo, `source`'d into a scoped subshell. Never commit this
+  file; add its path to your global git ignore.
 
 - **CI/automation.** Inject via the platform's secret store (GitHub Actions
   secrets, Azure Key Vault, Vercel env). Never echo the key to logs, and never
-  pass it on the command line. For pre-merge pipelines, prefer per-operator
-  keys (see **Per-operator admin keys**) over the shared key.
+  pass it on the command line. For pre-merge pipelines, prefer per-operator keys
+  (see **Per-operator admin keys**) over the shared key.
 
 **Rotation:** on suspected exposure or operator offboarding, rotate immediately.
 Per-operator keys: edit the row out of `infra/src/admin-keys.ts` and run
@@ -449,13 +449,13 @@ re-tags), and the operator's intent is "send to the exact set I just saw" — no
 The real-send request can fail with distinct, actionable codes. The CLI surfaces
 these with recovery-specific messages; the runbook equivalents:
 
-| HTTP | `code`                   | What it means                                                              | Recovery                                                                                           |
-| ---- | ------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 409  | `cohort_drift`           | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first       |
-| 410  | `preview_token_expired`  | The 10-minute TTL elapsed                                                  | Re-run `anvil admin send-migration --no-dry-run` (within 10 minutes next time)                     |
-| 410  | `preview_token_consumed` | A prior send call already used this token                                  | **Verify the previous send completed** in the audit log, then decide whether to re-send            |
-| 410  | `preview_token_missing`  | Token not found, reaped, or owned by a different operator                  | Re-run `anvil admin send-migration --no-dry-run` with the same per-operator admin key              |
-| 400  | `preview_token_required` | Should not occur via the CLI; indicates a client bug                       | File a ticket; workaround is to re-run the CLI (it always fetches a token first)                   |
+| HTTP | `code`                   | What it means                                                              | Recovery                                                                                     |
+| ---- | ------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 409  | `cohort_drift`           | Recipients changed since the preview. Response includes `added`, `removed` | Re-run `anvil admin send-migration --no-dry-run` — the CLI will fetch a fresh snapshot first |
+| 410  | `preview_token_expired`  | The 10-minute TTL elapsed                                                  | Re-run `anvil admin send-migration --no-dry-run` (within 10 minutes next time)               |
+| 410  | `preview_token_consumed` | A prior send call already used this token                                  | **Verify the previous send completed** in the audit log, then decide whether to re-send      |
+| 410  | `preview_token_missing`  | Token not found, reaped, or owned by a different operator                  | Re-run `anvil admin send-migration --no-dry-run` with the same per-operator admin key        |
+| 400  | `preview_token_required` | Should not occur via the CLI; indicates a client bug                       | File a ticket; workaround is to re-run the CLI (it always fetches a token first)             |
 
 For a `preview_token_consumed` recovery, confirm before re-sending:
 
@@ -489,13 +489,13 @@ existing beta user email.
 
 ## Exit codes
 
-| Code | Meaning                                   | Typical cause                                      |
-| ---- | ----------------------------------------- | -------------------------------------------------- |
-| `0`  | Success                                   | —                                                  |
-| `1`  | Command failed                            | API error, network error, invalid API URL, partial send failure, or non-TTY refusal |
-| `2`  | Usage error from clap                     | Out-of-range `--limit`, bad enum choice, missing required argument |
-| `3`  | Authentication required                   | `ANVIL_ADMIN_KEY` missing, invalid, or not authorised |
-| `4`  | Reserved Rust CLI configuration error     | Used by auth preflight surfaces, not currently by `anvil admin` |
+| Code | Meaning                               | Typical cause                                                                       |
+| ---- | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `0`  | Success                               | —                                                                                   |
+| `1`  | Command failed                        | API error, network error, invalid API URL, partial send failure, or non-TTY refusal |
+| `2`  | Usage error from clap                 | Out-of-range `--limit`, bad enum choice, missing required argument                  |
+| `3`  | Authentication required               | `ANVIL_ADMIN_KEY` missing, invalid, or not authorised                               |
+| `4`  | Reserved Rust CLI configuration error | Used by auth preflight surfaces, not currently by `anvil admin`                     |
 
 All errors go to stderr; `--json` payloads go to stdout. The Rust CLI currently
 uses the common `1` error path for HTTP, network, schema, and prompt-refusal
@@ -565,8 +565,11 @@ logs request/response metadata in the Vercel logs for 7 days.
 
 ## Related
 
-- Historical Node admin CLI design spec: `plans/specs/2026-04-16-admin-cli-design.md`
-- Historical Node admin CLI module plan (archived): `plans/archive/modules/admin-cli.aps.md`
-- Historical Node admin CLI hardening plan: `plans/archive/modules/admin-cli-hardening.aps.md`
+- Historical Node admin CLI design spec:
+  `plans/specs/2026-04-16-admin-cli-design.md`
+- Historical Node admin CLI module plan (archived):
+  `plans/archive/modules/admin-cli.aps.md`
+- Historical Node admin CLI hardening plan:
+  `plans/archive/modules/admin-cli-hardening.aps.md`
 - Waitlist email operations: `docs/runbooks/waitlist-email-operations.md`
 - Observability triage: `docs/runbooks/observability-triage.md`
