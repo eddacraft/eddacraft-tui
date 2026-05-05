@@ -395,10 +395,11 @@ new primitive, this module follows three rules:
 - **Intent:** A user can run `anvil watch --action gate` and still
   see the live dashboard.
 - **Expected Outcome:** The mutual-exclusion guard at
-  `crates/anvil-cli/src/commands/watch.rs:297-302` is removed; action
-  output reaches the user without freezing the TUI render loop. Action
-  runs surface in the TUI History pane alongside engine snapshots,
-  tagged so they don't pollute LAUNCH-003's `WatchStats.pass_rate`.
+  `crates/anvil-cli/src/commands/watch.rs:297-302` is removed. The
+  most recent action's outcome (name, exit code, duration) surfaces
+  as a single status-line footer below the existing 2x2 grid; no new
+  pane, no kind glyph in History, no stderr capture in v1. Non-TUI
+  mode is bit-for-bit identical (inherited stdio).
 - **Spike (precondition):** Before committing to a UI surface for
   action output, do a short investigation of the action dispatch path
   to confirm whether non-blocking integration is local or requires
@@ -408,31 +409,103 @@ new primitive, this module follows three rules:
   stdout/stderr (`watch.rs:243-258`); inherited output collides with
   the Ratatui alternate-screen buffer. The dispatch loop today lives
   only in the non-TUI branch of `run()` (`watch.rs:405-460`); the TUI
-  branch never sees `action`. **Decision: integrate, not suspend.**
-  Suspending the TUI per action would create exactly the no-args TUI
-  flicker the council banned. Plan:
-  1. Extract dispatch into an `ActionDispatcher` struct owning the
-     `action_running` / `action_pending` atomics; both branches use it.
-  2. In TUI mode, switch to `Stdio::piped()`; capture child exit
-     code, duration, and a 4 KiB tail of stderr-on-failure.
-  3. Worker sends `ActionRun { action, exit_code, duration_ms,
-     stderr_tail, timestamp }` records on a new `mpsc` channel that
-     the TUI loop drains alongside `EngineEvent`.
-  4. New field `WatchData.action_history: Vec<ActionRun>` (NOT
-     reusing `history`, which feeds `WatchStats.pass_rate` per
-     LAUNCH-003's contract — adversarial review surface). History
-     pane renders both lists with a kind glyph distinguishing them.
-  5. In non-TUI mode, dispatcher's TUI sender is `None`; behaviour
-     stays bit-for-bit (inherited stdio, no capture).
-- **Validation:** Integration test in `crates/anvil-cli/tests/` drives
-  the watch loop in TUI mode against a fixture repo with `--action
-  check`; asserts that (a) the render loop continues ticking after an
-  action completes, (b) `WatchData.action_history` records the run
-  with non-zero `duration_ms`, (c) `WatchStats.pass_rate` is unchanged
-  by action runs. Plus a unit test on the `ActionDispatcher` shared
-  helper covering the rerun-pending atomic. Manual smoke covers a
-  failing `gate` action's stderr tail.
-- **Confidence:** medium (was low — spike resolved scope).
+  branch never sees `action`. Initial proposal: capture stderr tail,
+  add `WatchData.action_history: Vec<ActionRun>`, render in History
+  pane with a kind glyph.
+- **Council revision (2026-05-05, plan-f684d971):** Standard pack
+  (architect + pragmatic-lead + adversarial) all returned COUNTER.
+  Convergent findings:
+  - **Scope creep.** The audit finding is only "users must choose
+    dashboard or automation". `Vec<ActionRun>` + History glyph +
+    stderr tail solves a richer problem than the finding asked for
+    and bundles cross-crate type movement into the same PR as
+    LAUNCH-006.
+  - **Cross-crate boundary undefined.** `anvil-tui` does not depend
+    on `anvil-cli`; `ActionRun` cannot be referenced by `WatchData`
+    while living in `anvil-cli` without inverting the dep edge.
+  - **Sole-writer invariant.** `WatchEventAdapter` is the only
+    writer of `WatchData` today. The original plan introduced a
+    second writer and did not define how `data.status` and
+    `WatchStats` arithmetic stayed isolated from action outcomes.
+  - **Worker shutdown leak (pre-existing).** Today's fire-and-forget
+    worker (`watch.rs:443`) is also leaked on Ctrl-C — holds the
+    child stdio and the rerun atomics across the parent's exit.
+    The dispatcher refactor must fix it.
+  - **Unfalsifiable test.** "Render loop continues ticking" passes
+    trivially; doesn't prove the surface redraws on action arrival.
+  - **Status-icon flip.** Action failure that writes `data.status`
+    would flip the Status pane to Failing despite no kernel
+    violation — TUI theatre regression.
+
+  Plus one finding the council missed: `build_action_command`
+  (`watch.rs:236-258`) appends `--no-tui` to the child only when the
+  parent's `--no-tui` flag is set. Drop the guard naively and a TUI
+  parent spawns a TUI child — two Ratatui sessions fight over the
+  same alternate-screen. The dispatcher must force `--no-tui` on the
+  child whenever the parent is in TUI mode, regardless of
+  `global.no_tui`.
+- **Revised plan:**
+  1. **Drop** the guard at `watch.rs:297-302`.
+  2. Extract dispatch into an `ActionDispatcher` struct owning
+     `action_running` / `action_pending` atomics, the worker
+     `JoinHandle`, and a cancellation token. On `Drop` (or explicit
+     `shutdown()`): cancel, `Child::kill()` if a child is in flight,
+     then join. Closes the pre-existing Ctrl-C leak.
+  3. **`--no-tui` propagation.** Dispatcher forces `--no-tui` on the
+     child whenever the parent is in TUI mode, regardless of the
+     parent's `global.no_tui`. Without this, two TUIs collide.
+  4. In TUI mode, switch the child to `Stdio::piped()`; capture
+     **only** action name, exit code, and duration. Discard stdout
+     and stderr in v1 — the audit finding does not require stderr
+     surfacing. Non-TUI mode keeps inherited stdio bit-for-bit.
+  5. **Channel seam — wrapping enum, not a second receiver.** Define
+     `WatchLoopEvent { Engine(EngineEvent), Action(ActionResultLine) }`
+     and change `run_watch` / `watch_loop` to consume
+     `Receiver<WatchLoopEvent>`. The welcome-hub callsite
+     (`tui.rs:352-364 run_watch_in`) is a type swap, not a signature
+     change. Action sender uses `sync_channel(1)` so producer
+     back-pressure is implicit (no unbounded buffer).
+  6. **Single-writer preserved.** `ActionResultLine` is a pure data
+     type living in `anvil-tui::surfaces::watch` (consumer side, no
+     CLI dependency edge). The adapter gains
+     `WatchEventAdapter::handle_action_result(&mut self, line:
+     &ActionResultLine, data: &mut WatchData)` — the only path that
+     writes `data.last_action`. Adapter remains the sole writer.
+  7. **Surface.** New scalar field `WatchData.last_action:
+     Option<ActionResultLine>` (NOT `Vec`). Render as a single
+     footer line below the 2x2 grid: `[*] gate (1.2s)` on success,
+     `[x] gate (1.2s, exit 1)` on failure. ASCII-only to match the
+     existing watch surface labels (`watch.rs:483-493`).
+  8. **Isolation invariant.** `handle_action_result` writes ONLY
+     `data.last_action` and dirties the surface. It MUST NOT touch
+     `data.status`, `data.stats.*`, or `data.history`. Unit test
+     asserts each field unchanged across an action result.
+  9. Non-TUI mode: dispatcher's TUI sender is `None`; behaviour stays
+     bit-for-bit (inherited stdio, no capture).
+  10. **Deferred to LAUNCH-002b** (against TUIDASH-009's inheritance
+      seam): `Vec<ActionRun>` history surface, kind glyph rendering,
+      stderr tail capture, scrollable action log.
+- **Validation:**
+  - Unit test on `ActionDispatcher`: rerun-pending atomic; on
+    `shutdown()`/`Drop` with an in-flight child, the child is killed
+    and the worker joins.
+  - Unit test on `build_action_command` (or dispatcher wrapper):
+    when caller is in TUI mode, child cmd includes `--no-tui`
+    regardless of `global.no_tui`.
+  - Unit test on `WatchEventAdapter::handle_action_result`: writes
+    `data.last_action`, dirties the surface, and leaves
+    `data.status`, `data.stats.pass_rate`, `data.stats.total_runs`,
+    `data.stats.avg_duration_ms`, and `data.history` unchanged.
+  - Smoke: drive the `WatchLoopEvent::Action` arm of the multiplex
+    with a fake `ActionResultLine` and assert `state.dirty == true`
+    afterwards. The unfalsifiable "render loop ticks" assertion is
+    dropped.
+- **LOC budget:** ~150-200 (dispatcher + cancellation ~80;
+  ActionResultLine + adapter handler + tests ~50; channel enum +
+  loop / run_watch_in update ~40; footer renderer ~20).
+- **Confidence:** medium (council revised; cross-crate boundary,
+  channel seam, single-writer invariant, and `--no-tui` propagation
+  now explicit).
 - **Status:** Todo
 
 ---
