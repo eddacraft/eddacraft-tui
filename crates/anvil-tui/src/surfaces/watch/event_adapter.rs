@@ -608,6 +608,7 @@ mod tests {
             exit_code,
             duration_ms: 1234,
             timestamp: "10:30:00".to_string(),
+            error_detail: None,
         }
     }
 

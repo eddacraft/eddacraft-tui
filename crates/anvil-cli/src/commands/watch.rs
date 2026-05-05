@@ -309,8 +309,22 @@ struct DispatcherInner {
     /// it from another thread while the worker is polling `try_wait()`.
     in_flight: std::sync::Mutex<Option<std::process::Child>>,
     worker: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
-    /// Test-only override for `current_exe()`. None in production.
+    /// Test-only override for `current_exe()`.
+    #[cfg(test)]
     exe_override: Option<PathBuf>,
+}
+
+/// Recover from a poisoned mutex by extracting the inner guard. The mutex
+/// protects only transient state (the in-flight `Child` or the worker
+/// `JoinHandle`); a poison from an unrelated panic must not leak the child
+/// or strand the worker. Council finding: kernel-maintainer.
+fn recover<'a, T>(
+    result: Result<
+        std::sync::MutexGuard<'a, T>,
+        std::sync::PoisonError<std::sync::MutexGuard<'a, T>>,
+    >,
+) -> std::sync::MutexGuard<'a, T> {
+    result.unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 impl ActionDispatcher {
@@ -322,17 +336,256 @@ impl ActionDispatcher {
         tui_parent: bool,
         sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
     ) -> Self {
-        Self::new_with_exe(
+        Self(std::sync::Arc::new(DispatcherInner {
             action,
             workspace_root,
             json,
             no_tui_arg,
             tui_parent,
             sender,
-            None,
-        )
+            running: AtomicBool::new(false),
+            pending: AtomicBool::new(false),
+            cancel: AtomicBool::new(false),
+            in_flight: std::sync::Mutex::new(None),
+            worker: std::sync::Mutex::new(None),
+            #[cfg(test)]
+            exe_override: None,
+        }))
     }
 
+    /// Trigger a dispatch (or mark a pending rerun if one is in flight).
+    /// Called from the watch loop on each post-initial Snapshot event.
+    ///
+    /// Race repair (council finding: kernel-maintainer): if the worker is
+    /// in the narrow window between `pending.swap(false)` and
+    /// `running.store(false)`, a `pending=true` write here would otherwise
+    /// be lost. The worker re-checks `pending` after releasing `running` —
+    /// see the worker loop below — so the pending bit is recovered.
+    pub(crate) fn on_snapshot(&self) {
+        if self.0.running.swap(true, Ordering::SeqCst) {
+            self.0.pending.store(true, Ordering::SeqCst);
+            return;
+        }
+        let inner = std::sync::Arc::clone(&self.0);
+        let handle = std::thread::spawn(move || worker_loop(&inner));
+        // Replace any prior (already-completed) handle. The previous handle
+        // is dropped without joining; that's safe because `running` was just
+        // false, which means the previous worker had already returned.
+        let mut slot = recover(self.0.worker.lock());
+        let _ = slot.replace(handle);
+    }
+
+    /// Cancel any in-flight action and join the worker. Idempotent.
+    fn shutdown(&self) {
+        self.0.cancel.store(true, Ordering::SeqCst);
+        // Don't try to coalesce more reruns after a cancel — the worker
+        // checks `cancel` before re-iterating.
+        self.0.pending.store(false, Ordering::SeqCst);
+        if let Some(mut child) = recover(self.0.in_flight.lock()).take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        let handle_opt = recover(self.0.worker.lock()).take();
+        if let Some(handle) = handle_opt {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for ActionDispatcher {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+/// Worker thread main loop. Lives outside `impl ActionDispatcher` because the
+/// worker holds an `Arc<DispatcherInner>` and the loop body is read-only —
+/// keeping it as a free function makes the lifetime obvious.
+///
+/// Implements the double-check pattern that closes the lost-pending-rerun
+/// race the kernel-maintainer flagged.
+fn worker_loop(inner: &DispatcherInner) {
+    loop {
+        inner.run_one_action();
+        if inner.cancel.load(Ordering::SeqCst) {
+            break;
+        }
+        if inner.pending.swap(false, Ordering::SeqCst) {
+            continue;
+        }
+        // No pending. Try to release `running`. Then re-check `pending` in
+        // case a caller raced in between our swap and our store.
+        inner.running.store(false, Ordering::SeqCst);
+        if !inner.pending.load(Ordering::SeqCst) {
+            return;
+        }
+        // A caller set `pending` after we cleared it. Reclaim `running`.
+        if inner.running.swap(true, Ordering::SeqCst) {
+            // Another worker has already been spawned; defer to it.
+            return;
+        }
+        // We have ownership again. Loop and run the pending action.
+    }
+    inner.running.store(false, Ordering::SeqCst);
+}
+
+impl DispatcherInner {
+    fn resolve_exe(&self) -> Option<PathBuf> {
+        #[cfg(test)]
+        if let Some(p) = self.exe_override.as_ref() {
+            return Some(p.clone());
+        }
+        match std::env::current_exe() {
+            Ok(p) => Some(p),
+            Err(e) => {
+                tracing::error!(error = %e, "cannot resolve current executable for action dispatch");
+                None
+            }
+        }
+    }
+
+    fn run_one_action(&self) {
+        let start = std::time::Instant::now();
+        let Some(exe) = self.resolve_exe() else {
+            self.send_result(
+                None,
+                start.elapsed(),
+                Some("cannot resolve current executable".to_string()),
+            );
+            return;
+        };
+        let mut cmd = build_action_command(
+            &exe,
+            &self.action,
+            &self.workspace_root,
+            self.json,
+            self.no_tui_arg,
+            self.tui_parent,
+        );
+
+        let child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(action = %self.action, error = %e, "failed to spawn action child");
+                if !self.tui_parent {
+                    // Non-TUI mode: stderr is inherited and visible to the
+                    // user. Keep the existing warning so behaviour is
+                    // bit-for-bit unchanged on that path.
+                    eprintln!("[error] Failed to run action '{}': {e}", self.action);
+                }
+                self.send_result(None, start.elapsed(), Some(e.to_string()));
+                return;
+            }
+        };
+
+        // Park the child so shutdown() can kill it from another thread.
+        // Council finding: a shutdown() arriving between spawn and park
+        // would skip the kill; check `cancel` immediately after parking
+        // to close that window.
+        *recover(self.in_flight.lock()) = Some(child);
+        if self.cancel.load(Ordering::SeqCst) {
+            if let Some(mut child) = recover(self.in_flight.lock()).take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            self.send_result(
+                None,
+                start.elapsed(),
+                Some("cancelled before start".to_string()),
+            );
+            return;
+        }
+
+        let exit_code = self.wait_for_completion();
+        if !self.tui_parent && exit_code.is_some_and(|c| c != 0) {
+            // Non-TUI path: preserve the existing user-facing warning so
+            // CI / piped sessions see the failure inline.
+            eprintln!(
+                "[warn] Action '{}' exited with code {}",
+                self.action,
+                exit_code.unwrap_or(-1)
+            );
+        }
+        if let Some(code) = exit_code
+            && code != 0
+        {
+            tracing::info!(action = %self.action, exit_code = code, "action exited non-zero");
+        }
+        self.send_result(exit_code, start.elapsed(), None);
+    }
+
+    fn wait_for_completion(&self) -> Option<i32> {
+        loop {
+            let mut slot = recover(self.in_flight.lock());
+            let child = slot.as_mut()?;
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let code = status.code();
+                    slot.take();
+                    return code;
+                }
+                Ok(None) => {
+                    drop(slot);
+                    if self.cancel.load(Ordering::SeqCst) {
+                        if let Some(mut child) = recover(self.in_flight.lock()).take() {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                        return None;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(e) => {
+                    tracing::warn!(action = %self.action, error = %e, "child try_wait failed");
+                    slot.take();
+                    return None;
+                }
+            }
+        }
+    }
+
+    fn send_result(
+        &self,
+        exit_code: Option<i32>,
+        elapsed: std::time::Duration,
+        error_detail: Option<String>,
+    ) {
+        let Some(sender) = self.sender.as_ref() else {
+            return;
+        };
+        let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+        let line = anvil_tui::surfaces::watch::ActionResultLine {
+            action: self.action.clone(),
+            exit_code,
+            duration_ms,
+            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            error_detail,
+        };
+        // Cancel-aware send (council finding: shutdown deadlock).
+        // SyncSender::send would block if the buffer is full while the
+        // TUI loop has stopped draining; if shutdown is in progress that
+        // would deadlock the worker on a `worker.join()` that depends on
+        // it returning. Poll cancel between try_send attempts so the
+        // worker can exit promptly during shutdown.
+        loop {
+            if self.cancel.load(Ordering::SeqCst) {
+                return;
+            }
+            match sender.try_send(line.clone()) {
+                Ok(()) | Err(std::sync::mpsc::TrySendError::Disconnected(_)) => return,
+                Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+impl ActionDispatcher {
+    /// Test-only constructor that overrides the resolved `exe`. Used for
+    /// kill-on-shutdown tests that spawn `/bin/sleep` directly without
+    /// going through the production `current_exe()` path.
     fn new_with_exe(
         action: String,
         workspace_root: PathBuf,
@@ -356,160 +609,6 @@ impl ActionDispatcher {
             worker: std::sync::Mutex::new(None),
             exe_override,
         }))
-    }
-
-    /// Trigger a dispatch (or mark a pending rerun if one is in flight).
-    /// Called from the watch loop on each post-initial Snapshot event.
-    pub(crate) fn on_snapshot(&self) {
-        if self.0.running.swap(true, Ordering::SeqCst) {
-            self.0.pending.store(true, Ordering::SeqCst);
-            return;
-        }
-        let inner = std::sync::Arc::clone(&self.0);
-        let handle = std::thread::spawn(move || {
-            loop {
-                inner.run_one_action();
-                if inner.cancel.load(Ordering::SeqCst)
-                    || !inner.pending.swap(false, Ordering::SeqCst)
-                {
-                    break;
-                }
-            }
-            inner.running.store(false, Ordering::SeqCst);
-        });
-        // Replace any prior (already-completed) handle. The previous handle
-        // is dropped without joining; that's safe because `running` was just
-        // false, which means the previous worker had already returned.
-        let mut slot = self.0.worker.lock().expect("dispatcher worker mutex");
-        let _ = slot.replace(handle);
-    }
-
-    /// Cancel any in-flight action and join the worker. Idempotent.
-    fn shutdown(&self) {
-        self.0.cancel.store(true, Ordering::SeqCst);
-        // Don't try to coalesce more reruns after a cancel — the worker
-        // checks `cancel` before re-iterating.
-        self.0.pending.store(false, Ordering::SeqCst);
-        if let Ok(mut slot) = self.0.in_flight.lock()
-            && let Some(mut child) = slot.take()
-        {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-        let handle_opt = self.0.worker.lock().ok().and_then(|mut g| g.take());
-        if let Some(handle) = handle_opt {
-            let _ = handle.join();
-        }
-    }
-}
-
-impl Drop for ActionDispatcher {
-    fn drop(&mut self) {
-        self.shutdown();
-    }
-}
-
-impl DispatcherInner {
-    fn run_one_action(&self) {
-        let exe = if let Some(p) = self.exe_override.as_ref() {
-            p.clone()
-        } else {
-            match std::env::current_exe() {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("[error] Cannot resolve current executable: {e}");
-                    return;
-                }
-            }
-        };
-        let mut cmd = build_action_command(
-            &exe,
-            &self.action,
-            &self.workspace_root,
-            self.json,
-            self.no_tui_arg,
-            self.tui_parent,
-        );
-
-        let start = std::time::Instant::now();
-        let child = match cmd.spawn() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[error] Failed to run action '{}': {e}", self.action);
-                self.maybe_send(None, start.elapsed());
-                return;
-            }
-        };
-
-        // Park the child so shutdown() can kill it from another thread.
-        if let Ok(mut slot) = self.in_flight.lock() {
-            *slot = Some(child);
-        }
-
-        // Poll for completion or cancellation. 50 ms keeps the cancel
-        // latency tight without busy-spinning on a long-running gate.
-        let exit_code = self.wait_for_completion();
-        if !self.tui_parent && exit_code.is_some_and(|c| c != 0) {
-            // Preserve the existing user-facing warning on the non-TUI
-            // path. In TUI mode the result surfaces via the footer line
-            // instead, so no stderr write.
-            eprintln!(
-                "[warn] Action '{}' exited with code {}",
-                self.action,
-                exit_code.unwrap_or(-1)
-            );
-        }
-        self.maybe_send(exit_code, start.elapsed());
-    }
-
-    fn wait_for_completion(&self) -> Option<i32> {
-        loop {
-            // Briefly take the slot. If shutdown took the child, we're done.
-            let mut slot = self.in_flight.lock().ok()?;
-            let child = slot.as_mut()?;
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    let code = status.code();
-                    slot.take();
-                    return code;
-                }
-                Ok(None) => {
-                    drop(slot);
-                    if self.cancel.load(Ordering::SeqCst) {
-                        if let Ok(mut g) = self.in_flight.lock()
-                            && let Some(mut child) = g.take()
-                        {
-                            let _ = child.kill();
-                            let _ = child.wait();
-                        }
-                        return None;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                }
-                Err(_) => {
-                    slot.take();
-                    return None;
-                }
-            }
-        }
-    }
-
-    fn maybe_send(&self, exit_code: Option<i32>, elapsed: std::time::Duration) {
-        let Some(sender) = self.sender.as_ref() else {
-            return;
-        };
-        let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
-        let line = anvil_tui::surfaces::watch::ActionResultLine {
-            action: self.action.clone(),
-            exit_code,
-            duration_ms,
-            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-        };
-        // SyncSender::send blocks if the buffer is full — that's the
-        // intended back-pressure when the TUI is not draining.
-        // try_send + drop would lose the most recent result, which is
-        // exactly the value we want to surface; block instead.
-        let _ = sender.send(line);
     }
 }
 
@@ -706,8 +805,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         crate::tui::run_watch(state, &event_rx, link.as_ref(), Some(&shutdown))?;
     }
 
-    // Dispatcher Drop cancels any in-flight action and joins the worker —
-    // closes the pre-existing Ctrl-C leak.
+    // Tear down in a deterministic order:
+    //   1. Drop the action receiver first so any worker mid-send sees a
+    //      Disconnected error immediately rather than blocking on a buffer
+    //      that nobody is draining (defence in depth — the dispatcher's
+    //      send_result is also cancel-aware).
+    //   2. Drop the dispatcher: cancel + kill in-flight child + join worker.
+    //   3. Stop the kernel watcher.
+    drop(action_rx);
     drop(dispatcher);
     handle.stop().context("stopping watcher")?;
     Ok(())
@@ -1038,8 +1143,78 @@ mod tests {
             "in_flight slot should be empty after shutdown"
         );
 
+        // Falsifiability: the worker handle slot must be empty after
+        // shutdown. If a future refactor removed the join() call, the
+        // handle would still occupy this slot. Council finding:
+        // adversarial M2.
+        assert!(
+            dispatcher.0.worker.lock().ok().is_some_and(|g| g.is_none()),
+            "worker slot should be empty after shutdown — handle was not joined"
+        );
+
         // Idempotent: a second shutdown is a no-op.
         dispatcher.shutdown();
+    }
+
+    /// **Deadlock regression test (council finding: adversarial + ops).**
+    ///
+    /// Reproduces the shutdown deadlock that hung the watch process on
+    /// Ctrl-C: with the channel buffer pre-filled and the receiver alive
+    /// (mirroring how `run()` declared `action_rx` outside the dispatcher),
+    /// a worker that produces a result faster than the TUI drains will
+    /// block on `sender.send()`. The shutdown path then deadlocks on
+    /// `worker.join()`. The fix (cancel-aware `try_send` in `send_result`)
+    /// breaks the loop within ~20 ms of `cancel` being set.
+    #[cfg(unix)]
+    #[test]
+    fn shutdown_does_not_deadlock_when_channel_buffer_full() {
+        let (tx, _rx) =
+            std::sync::mpsc::sync_channel::<anvil_tui::surfaces::watch::ActionResultLine>(1);
+
+        // Pre-fill the buffer so the worker's send blocks immediately.
+        tx.try_send(anvil_tui::surfaces::watch::ActionResultLine {
+            action: "preload".to_string(),
+            exit_code: Some(0),
+            duration_ms: 0,
+            timestamp: "00:00:00".to_string(),
+            error_detail: None,
+        })
+        .expect("preload send");
+
+        let dispatcher = ActionDispatcher::new_with_exe(
+            "0".to_string(), // sleep 0 — child exits immediately, worker
+            // immediately calls send_result and blocks on
+            // the full buffer.
+            PathBuf::from("/tmp"),
+            false,
+            false,
+            true, // tui_parent — sender path is exercised
+            Some(tx),
+            Some(PathBuf::from("/bin/sleep")),
+        );
+
+        dispatcher.on_snapshot();
+
+        // Give the worker time to spawn the child, complete it, and reach
+        // the blocking send. 200 ms is plenty for /bin/sleep 0.
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        // Shutdown must return promptly even though the worker is parked
+        // in send_result. Pre-fix this hung indefinitely; the cancel-aware
+        // try_send loop polls cancel every 20 ms.
+        let started = std::time::Instant::now();
+        dispatcher.shutdown();
+        let took = started.elapsed();
+
+        assert!(
+            took < std::time::Duration::from_secs(2),
+            "shutdown took {took:?}; expected < 2 s — \
+             worker is likely blocked on a non-cancel-aware sender.send()"
+        );
+
+        // _rx is still alive at this point (mirrors run()'s drop order
+        // before `drop(action_rx)` is called explicitly). The worker
+        // should have exited regardless.
     }
 
     /// `Drop` must call `shutdown` so a panic or early-return path doesn't

@@ -88,18 +88,40 @@ pub struct WatchStats {
 /// `WatchData.status`, `WatchData.stats`, or `WatchData.history` — those are
 /// kernel-event-only fields and an action failure must not flip the Status
 /// pane to Failing.
+///
+/// **`exit_code` semantics:**
+/// - `Some(0)` — child exited successfully.
+/// - `Some(n)` where `n != 0` — child exited with non-zero status.
+/// - `None` — child was killed by a signal, or never spawned (`error_detail`
+///   carries the cause).
+///
+/// `error_detail` is populated only when the child failed to spawn (e.g.
+/// missing binary) or was terminated abnormally; the footer surfaces it
+/// distinctly so the user can tell "spawn failed" from "killed" from
+/// "exited 1".
 #[derive(Debug, Clone)]
 pub struct ActionResultLine {
     pub action: String,
     pub exit_code: Option<i32>,
     pub duration_ms: u64,
     pub timestamp: String,
+    /// Populated only on spawn failure or abnormal termination. `None` for
+    /// successful exits (any `exit_code = Some(_)` is treated as ran-to-
+    /// completion regardless of code).
+    pub error_detail: Option<String>,
 }
 
 impl ActionResultLine {
     #[must_use]
     pub fn passed(&self) -> bool {
-        matches!(self.exit_code, Some(0))
+        matches!(self.exit_code, Some(0)) && self.error_detail.is_none()
+    }
+
+    /// Distinguishes spawn-failure from a non-zero exit. Useful for the
+    /// footer renderer to show actionable error text.
+    #[must_use]
+    pub fn spawn_failed(&self) -> bool {
+        self.exit_code.is_none()
     }
 }
 
