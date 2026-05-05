@@ -399,27 +399,42 @@ pub fn classify_extension(ext_with_dot: &str) -> Option<&'static str> {
 }
 
 /// True when a path has a directory component matching one of the
-/// well-known vendored / generated paths Anvil's scanners always
-/// skip. Mirrors the union of `DEFAULT_DIR_EXCLUDES` and
-/// `BUILD_ARTEFACT_DIRS` from `crates/anvil-checks/src/filter.rs`
-/// without depending on the crate (the activation walk runs before
-/// scan configuration, so a low-level list is appropriate here).
-/// Keep this list in sync with that source — additions there should
-/// land here too, or generated files will skew `repo_languages`.
+/// well-known vendored / generated paths the activation walk skips.
+///
+/// Drawn from two sources in
+/// `crates/anvil-checks/src/filter.rs`, plus one intentional addition:
+///
+/// - `DEFAULT_DIR_EXCLUDES` — fixtures / VCS / dependency caches /
+///   build trees the scanner always skips.
+/// - `BUILD_ARTEFACT_DIRS` — framework-specific generated trees the
+///   scanner doesn't always denylist (a user may want to scan `dist/`
+///   for secrets), but the activation language profile must not count
+///   generated files as first-party source. Without these, a repo
+///   using Angular or `SvelteKit` gets `.angular/` / `.svelte-kit/`
+///   generated TypeScript counted, which can flip the protection
+///   state away from `unsupported` incorrectly.
+/// - `.anvil` — intentional activation-only addition (the scanner
+///   doesn't denylist it because secret-scan call sites can target
+///   it explicitly, but the language profile should never count
+///   Anvil's own state as user source).
+///
+/// Keep the first two sections in sync with `anvil-checks::filter`
+/// — additions there should land here too. The `.anvil` entry is
+/// activation-specific and stays.
 fn is_excluded_directory(path: &Path) -> bool {
     const EXCLUDED: &[&str] = &[
-        // Always-excluded (DEFAULT_DIR_EXCLUDES)
-        ".git",
+        // DEFAULT_DIR_EXCLUDES — sync with anvil-checks::filter.
+        "__fixtures__",
+        "__mocks__",
+        "__tests__",
+        "test-data",
+        "fixtures",
         "node_modules",
         "target",
+        ".git",
+        // Activation-only addition (see doc above).
         ".anvil",
-        // BUILD_ARTEFACT_DIRS — not always denylisted by the
-        // scanner (a user may want to scan `dist/` for secrets), but
-        // the activation language profile must not count generated
-        // files as first-party source. A repo using Angular or
-        // SvelteKit otherwise gets `.angular/` / `.svelte-kit/`
-        // generated TypeScript counted, which can flip the
-        // protection state away from `unsupported` incorrectly.
+        // BUILD_ARTEFACT_DIRS — sync with anvil-checks::filter.
         "dist",
         "build",
         "out",
@@ -578,6 +593,30 @@ mod tests {
         touch(dir.path(), ".svelte-kit/output/server/bar.js");
         touch(dir.path(), "dist/index.js");
         touch(dir.path(), ".turbo/cache/baz.ts");
+        let profile = profile_repo(dir.path());
+        assert_eq!(
+            profile.entries.len(),
+            1,
+            "only src/app.ts should be counted: {profile:?}"
+        );
+        assert_eq!(profile.entries[0].name, "TypeScript");
+        assert_eq!(profile.entries[0].files_seen, 1);
+    }
+
+    #[test]
+    fn fixture_and_test_dirs_are_excluded() {
+        // Round-2 follow-up review (PR #1274): the doc-comment
+        // sync-contract claimed the list mirrors
+        // `DEFAULT_DIR_EXCLUDES`, but the fixture / mock / test
+        // directories were missing. Generated stub TS / Python in
+        // those locations would otherwise inflate `repo_languages`.
+        let dir = TempDir::new().unwrap();
+        touch(dir.path(), "src/app.ts");
+        touch(dir.path(), "__fixtures__/sample.ts");
+        touch(dir.path(), "__mocks__/api.ts");
+        touch(dir.path(), "__tests__/util.ts");
+        touch(dir.path(), "test-data/seed.py");
+        touch(dir.path(), "fixtures/payload.json");
         let profile = profile_repo(dir.path());
         assert_eq!(
             profile.entries.len(),
