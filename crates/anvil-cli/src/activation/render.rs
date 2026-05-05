@@ -114,10 +114,20 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
 /// no panic path for the binary to inherit.
 pub fn render_json(d: &ActivationDiagnostic) -> Value {
     let state = d.protection_state();
+    // LAUNCH-009: each MCP client entry carries a `transport` tag so the
+    // schema doesn't need a v2 migration when the future hosted-MCP
+    // server workstream lands. v1 always emits `"stdio"` because that's
+    // the only transport `AnvilEntry` constructs today.
     let mcp: Vec<Value> = d
         .mcp
         .iter()
-        .map(|(c, t)| json!({"client": c.label(), "tier": t.label()}))
+        .map(|(c, t)| {
+            json!({
+                "client": c.label(),
+                "tier": t.label(),
+                "transport": super::mcp_client::McpTransport::Stdio.label(),
+            })
+        })
         .collect();
     let repo_languages: Vec<Value> = d
         .language_profile
