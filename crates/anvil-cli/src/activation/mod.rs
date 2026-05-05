@@ -17,6 +17,7 @@
 
 pub mod diagnostic;
 pub mod language_profile;
+pub mod mcp_client;
 pub mod orchestrator;
 pub mod render;
 pub mod state;
