@@ -58,25 +58,25 @@ literal. (See ROADMAP Horizon 1 + brainstorms in
 
 **Current progress snapshot:**
 
-| Area | State | What remains |
-| ---- | ----- | ------------ |
-| Release closeout | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed |
-| Wow-start activation (`LAUNCH`) | In Progress, 10/16 complete | LAUNCH-002, -006, -009, -010, -011, -014 |
-| Daemon-backed MCP (`RMCP`) | Complete, 8/8 | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate |
-| Carry-over hardening (`V050F`) | In Progress, 11/16 complete | V050F-006, -007, -008, -011, -015 |
-| `V060F` nominations | Complete, 1/1 | No open nomination work |
+| Area                            | State                                                                      | What remains                                                       |
+| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Release closeout                | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed     |
+| Wow-start activation (`LAUNCH`) | In Progress, 10/16 complete                                                | LAUNCH-002, -006, -009, -010, -011, -014                           |
+| Daemon-backed MCP (`RMCP`)      | Complete, 8/8                                                              | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate |
+| Carry-over hardening (`V050F`)  | In Progress, 11/16 complete                                                | V050F-006, -007, -008, -011, -015                                  |
+| `V060F` nominations             | Complete, 1/1                                                              | No open nomination work                                            |
 
 ### Carry-over backlog (rides any tag, regardless of theme)
 
 These are non-blocking but should not accumulate as silent debt. Triage at lock
 time; pick the ones that match the cut.
 
-| Source | State | Open items |
-| ------ | ----- | ---------- |
-| [`V050F`](./plans/modules/v050-release-followups.aps.md) | 11/16 complete | 5 open: allowlist regex cache, eager rayon init, CI-class bench baseline, `scan_content` compile-error surfacing, `svix → uuid` override removal |
-| [`V060F`](./plans/modules/v060-release-candidates.aps.md) | 1/1 complete | None; RCLI2-009 admin command parity is done |
-| `v0.5.0-beta` GUI dry-run gaps | Closed | #1194, #1195, and #1197 are closed; validate their behaviours through LAUNCH-009 when activation wires Cursor / Claude Code |
-| [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | Closed | Keep the ADR-031 baseline-comparison check as the daemon-backed latency regression guard |
+| Source                                                        | State          | Open items                                                                                                                                       |
+| ------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`V050F`](./plans/modules/v050-release-followups.aps.md)      | 11/16 complete | 5 open: allowlist regex cache, eager rayon init, CI-class bench baseline, `scan_content` compile-error surfacing, `svix → uuid` override removal |
+| [`V060F`](./plans/modules/v060-release-candidates.aps.md)     | 1/1 complete   | None; RCLI2-009 admin command parity is done                                                                                                     |
+| `v0.5.0-beta` GUI dry-run gaps                                | Closed         | #1194, #1195, and #1197 are closed; validate their behaviours through LAUNCH-009 when activation wires Cursor / Claude Code                      |
+| [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | Closed         | Keep the ADR-031 baseline-comparison check as the daemon-backed latency regression guard                                                         |
 
 ---
 
@@ -184,8 +184,8 @@ surface online. Same demo, real backend.
   integration, process-group interrupt, configuration loading, embedded mode,
   unregistered-change handling, status / diagnostics, Windows CI matrix,
   telemetry subscription scoping, DoS protection budgets.
-- **ADR-031 latency CI gating** (#1191) — closed; retain the
-  baseline-comparison check as the regression guard for the daemon-backed slice.
+- **ADR-031 latency CI gating** (#1191) — closed; retain the baseline-comparison
+  check as the regression guard for the daemon-backed slice.
 
 **Prerequisites:**
 
@@ -550,7 +550,7 @@ they're glue some Tier A picks need.
 
 | Combo                                | Slices                      | Net items | Posture                                                                                               |
 | ------------------------------------ | --------------------------- | --------- | ----------------------------------------------------------------------------------------------------- |
-| **Patch-shaped tag**                 | Carry-over only             | ~12       | V050F tail + V060F. Tags as `v0.5.2-beta`. Smallest credible cut.                                      |
+| **Patch-shaped tag**                 | Carry-over only             | ~12       | V050F tail + V060F. Tags as `v0.5.2-beta`. Smallest credible cut.                                     |
 | **Wow-start minimum**                | A1                          | ~11       | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
 | **Wow-start + daemon (recommended)** | A1 + A2 + carry-over        | ~43       | The headline + the literal-protection substrate. Tags as `v0.6.0-beta`. Highest confidence.           |
 | **Wow-start + parity**               | A1 + A2 + A3 + carry-over   | ~56       | Adds full Rust MCP parity. Strong narrative, real contention with A1.                                 |
