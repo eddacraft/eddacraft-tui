@@ -9,8 +9,8 @@
 > The next-release slate is **not yet locked**; staffing and follow-ups are
 > tracked in [`plans/next-steps.md`](./next-steps.md). Open follow-ups from
 > the release: V050F (8/16 done), the daemon-backed RMCP path
-> (RMCP-005 `DaemonValidationClient` still defaults to `Unavailable`), and
-> #1194 / #1195 / #1197 from the RMCP-008 GUI dry-run. See
+> (RMCP-005 live daemon client committed in PR #1277), and #1194 / #1195 /
+> #1197 from the RMCP-008 GUI dry-run. See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the full menu, prerequisites,
 > and adversarial risks. See [`ROADMAP.md`](../ROADMAP.md) for thematic
 > context across horizons.
@@ -117,20 +117,16 @@ release cuts. `v0.5.0-beta` was explicitly validated as
 **embedded-fallback-backed, not daemon-backed**; the daemon wiring is the
 headline post-release follow-up:
 
-1. **Wire the daemon validation client:** RMCP-005's `DaemonValidationClient`
-   default impl still returns `Unavailable`; the daemon `scan_buffer` RPC
-   (RTAI-002) and the INTD-002 listener are both shipped, so the next slice
-   replaces the `Unavailable` stub with a live JSON-RPC call to the daemon and
-   migrates MCP `tools/call` from the embedded fallback to the daemon-backed
-   path. Tracking belongs in a follow-up RMCP/RMCPF task.
+1. **Wire the daemon validation client:** RMCP-005's live daemon-backed
+   `DaemonValidationClient` is committed in PR #1277. The client now calls the
+   daemon `scan_buffer` RPC when available and keeps the embedded path as the
+   correctness-equivalent fallback for genuinely unavailable daemon paths.
 
-**Daemon-path note:** RMCP-005's `DaemonValidationClient` ships with a
-default impl that returns `Unavailable`, falling back to the embedded
-`anvil-checks` rule pipeline. The daemon side (`scan_buffer` RPC, INTD-002
-listener) is in place; once the launch shim's daemon client is replaced with a
-live JSON-RPC implementation, MCP `tools/call` graduates from the embedded
-fallback to the daemon-backed pipeline. The embedded path remains the
-correctness-equivalent fallback when the daemon is not running.
+**Daemon-path note:** RMCP-005's `DaemonValidationClient` now has a live
+JSON-RPC implementation committed in PR #1277. MCP `tools/call` uses the
+daemon-backed pipeline when the owner-only IPC endpoint is available; the
+embedded path remains the correctness-equivalent fallback when the daemon is not
+running.
 
 **A1 ambiguities resolved by ship:**
 
