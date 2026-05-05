@@ -57,9 +57,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
 /// and the watch dashboard is the demo path so a mojibake'd footer would
 /// be visible at exactly the wrong moment.
 ///
-/// Spawn failures (`spawn_failed()`) render `[!] gate (spawn failed: <err>)`
-/// so the user can distinguish a missing binary from a killed action from a
-/// non-zero exit. Non-zero exits render `[x] gate (1.2s, exit 1)`.
+/// Glyphs:
+/// - `[*]` — child exited 0
+/// - `[x]` — child exited non-zero (footer shows the exit code)
+/// - `[!]` — child did not run to a recorded exit; `error_detail` carries
+///   the cause (spawn failure, cancellation, wait error). Rendered verbatim
+///   so the user can tell `(spawn failed: Permission denied)` apart from
+///   `(cancelled)` apart from `(wait failed: ...)` — fixes #1279 review:
+///   the previous "spawn failed: …" prefix lied about cancellations and
+///   signal-kills.
 fn render_action_footer(
     frame: &mut Frame,
     area: Rect,
@@ -69,15 +75,9 @@ fn render_action_footer(
     #[allow(clippy::cast_precision_loss)]
     let secs = line.duration_ms as f64 / 1000.0;
 
-    let (colour, detail) = if line.spawn_failed() {
-        let cause = line
-            .error_detail
-            .as_deref()
-            .unwrap_or("could not start child process");
-        (
-            theme.error(),
-            format!("[!] {} (spawn failed: {cause})", line.action),
-        )
+    let (colour, detail) = if line.errored() {
+        let cause = line.error_detail.as_deref().unwrap_or("did not complete");
+        (theme.error(), format!("[!] {} ({cause})", line.action))
     } else if line.passed() {
         (theme.success(), format!("[*] {} ({secs:.1}s)", line.action))
     } else {

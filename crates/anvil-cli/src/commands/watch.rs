@@ -293,6 +293,20 @@ pub(crate) struct WatchActionLink<'a> {
     pub dispatcher: &'a ActionDispatcher,
 }
 
+/// Outcome of waiting on an in-flight child. `wait_for_completion` returns
+/// this so the caller can populate `ActionResultLine.error_detail` with a
+/// cause-specific string instead of the generic "spawn failed: …" the
+/// footer used to print for cancellations and signal-kills (#1279 review).
+enum WaitOutcome {
+    /// Child exited; payload is the OS-reported exit code (None if the
+    /// child was terminated by a signal).
+    Exited(Option<i32>),
+    /// Cancellation (Ctrl-C / `shutdown()`) terminated the child.
+    Cancelled,
+    /// `try_wait()` returned `Err`. Payload is the human-readable reason.
+    WaitFailed(String),
+}
+
 struct DispatcherInner {
     action: String,
     workspace_root: PathBuf,
@@ -368,11 +382,20 @@ impl ActionDispatcher {
         }
         let inner = std::sync::Arc::clone(&self.0);
         let handle = std::thread::spawn(move || worker_loop(&inner));
-        // Replace any prior (already-completed) handle. The previous handle
-        // is dropped without joining; that's safe because `running` was just
-        // false, which means the previous worker had already returned.
+        // Replace any prior handle. When `running.swap(true)` returned
+        // `false`, the previous worker has executed `running.store(false)`
+        // (the last line of worker_loop) but the closure may not have
+        // returned yet. Join the prior handle: cost is microseconds in
+        // the common case, and joining captures any panic in the prior
+        // worker rather than silently detaching it (#1279 review:
+        // copilot flagged the lost panic propagation).
         let mut slot = recover(self.0.worker.lock());
-        let _ = slot.replace(handle);
+        if let Some(prior) = slot.replace(handle) {
+            // Discard the panic payload — in TUI mode we can't render it
+            // without corrupting the alt-screen, and in non-TUI mode
+            // panics already write to stderr via the default hook.
+            let _ = prior.join();
+        }
     }
 
     /// Cancel any in-flight action and join the worker. Idempotent.
@@ -480,7 +503,7 @@ impl DispatcherInner {
                     );
                     eprintln!("[error] Failed to run action '{}': {e}", self.action);
                 }
-                self.send_result(None, start.elapsed(), Some(e.to_string()));
+                self.send_result(None, start.elapsed(), Some(format!("spawn failed: {e}")));
                 return;
             }
         };
@@ -495,34 +518,50 @@ impl DispatcherInner {
                 let _ = child.kill();
                 let _ = child.wait();
             }
-            self.send_result(
-                None,
-                start.elapsed(),
-                Some("cancelled before start".to_string()),
-            );
+            self.send_result(None, start.elapsed(), Some("cancelled".to_string()));
             return;
         }
 
-        let exit_code = self.wait_for_completion();
-        if !self.tui_parent
-            && let Some(code) = exit_code
-            && code != 0
-        {
-            eprintln!("[warn] Action '{}' exited with code {code}", self.action);
-            tracing::info!(action = %self.action, exit_code = code, "action exited non-zero");
+        match self.wait_for_completion() {
+            WaitOutcome::Exited(code) => {
+                if !self.tui_parent
+                    && let Some(c) = code
+                    && c != 0
+                {
+                    eprintln!("[warn] Action '{}' exited with code {c}", self.action);
+                    tracing::info!(action = %self.action, exit_code = c, "action exited non-zero");
+                }
+                self.send_result(code, start.elapsed(), None);
+            }
+            WaitOutcome::Cancelled => {
+                // Footer renders `error_detail` verbatim — say what
+                // happened, not "spawn failed" (#1279 review).
+                self.send_result(None, start.elapsed(), Some("cancelled".to_string()));
+            }
+            WaitOutcome::WaitFailed(reason) => {
+                self.send_result(
+                    None,
+                    start.elapsed(),
+                    Some(format!("wait failed: {reason}")),
+                );
+            }
         }
-        self.send_result(exit_code, start.elapsed(), None);
     }
 
-    fn wait_for_completion(&self) -> Option<i32> {
+    fn wait_for_completion(&self) -> WaitOutcome {
         loop {
             let mut slot = recover(self.in_flight.lock());
-            let child = slot.as_mut()?;
+            let Some(child) = slot.as_mut() else {
+                // Slot was emptied by `shutdown()` racing with us — the
+                // child has been killed. Treat as cancelled so the
+                // footer renders accurately.
+                return WaitOutcome::Cancelled;
+            };
             match child.try_wait() {
                 Ok(Some(status)) => {
                     let code = status.code();
                     slot.take();
-                    return code;
+                    return WaitOutcome::Exited(code);
                 }
                 Ok(None) => {
                     drop(slot);
@@ -531,16 +570,17 @@ impl DispatcherInner {
                             let _ = child.kill();
                             let _ = child.wait();
                         }
-                        return None;
+                        return WaitOutcome::Cancelled;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
                 Err(e) => {
+                    let reason = e.to_string();
                     if !self.tui_parent {
                         tracing::warn!(action = %self.action, error = %e, "child try_wait failed");
                     }
                     slot.take();
-                    return None;
+                    return WaitOutcome::WaitFailed(reason);
                 }
             }
         }
@@ -1156,6 +1196,73 @@ mod tests {
 
         // Idempotent: a second shutdown is a no-op.
         dispatcher.shutdown();
+    }
+
+    /// **#1279 review: cause-specific `error_detail`.**
+    ///
+    /// Cancellation produces `error_detail = "cancelled"`, not the
+    /// generic "spawn failed: ..." the previous footer rendered for
+    /// every `exit_code = None` case. The renderer reads this verbatim,
+    /// so the user can tell "spawn failed: Permission denied" apart
+    /// from "cancelled" apart from "wait failed: ...".
+    #[cfg(unix)]
+    #[test]
+    fn cancellation_emits_cancelled_error_detail_not_spawn_failed() {
+        let (tx, rx) =
+            std::sync::mpsc::sync_channel::<anvil_tui::surfaces::watch::ActionResultLine>(1);
+
+        let dispatcher = ActionDispatcher::new_with_exe(
+            "30".to_string(),
+            PathBuf::from("/tmp"),
+            false,
+            false,
+            true, // tui_parent — sender path active
+            Some(tx),
+            Some(PathBuf::from("/bin/sleep")),
+        );
+
+        dispatcher.on_snapshot();
+
+        // Wait for the child to park, then shutdown.
+        let parked = std::time::Instant::now();
+        loop {
+            if dispatcher
+                .0
+                .in_flight
+                .lock()
+                .ok()
+                .is_some_and(|g| g.is_some())
+            {
+                break;
+            }
+            assert!(
+                parked.elapsed() <= std::time::Duration::from_millis(500),
+                "child did not park within 500 ms"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        dispatcher.shutdown();
+
+        // The worker's `send_result` for the cancelled action races with
+        // shutdown's cancel flag — it may try_send before or after
+        // shutdown completes. Drain the channel and accept either: a
+        // cancellation result is delivered with the right error_detail,
+        // OR the worker bailed before sending (cancel-aware send_result
+        // returns early). The behaviour we explicitly forbid is a
+        // result with `error_detail` claiming "spawn failed".
+        if let Ok(line) = rx.try_recv() {
+            assert!(line.errored(), "cancelled action should report errored()");
+            let detail = line.error_detail.as_deref().unwrap_or("");
+            assert!(
+                !detail.contains("spawn failed"),
+                "cancelled action must not be reported as spawn failure, got: {detail:?}"
+            );
+            assert!(
+                detail.contains("cancelled"),
+                "expected `error_detail` to contain `cancelled`, got: {detail:?}"
+            );
+        }
     }
 
     /// **Deadlock regression test (council finding: adversarial + ops).**
