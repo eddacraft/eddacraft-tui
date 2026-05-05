@@ -624,13 +624,22 @@ new primitive, this module follows three rules:
   6. **`--json` parity:** reuse the `anvil status --verify --json`
      shape (LAUNCH-012 already shipped this) so CI consumers see a
      consistent schema between `start` and `status`.
-  7. **Exit code:** 0 on every state except `error` (matches the
-     project's "warnings over blocks, exit 0 by default" rule from
-     `architecture.md`).
-  8. **No `--verify` flag on `start`** — `anvil status --verify`
-     already covers that need (LAUNCH-012); a duplicate flag would
-     fragment the surface.
-  9. **Behavioural promotion, not breaking change.** `anvil start`
+  7. **Exit code:** 0 on every state including `error` — matches the
+     project's "warnings over blocks, exit 0 by default" rule
+     (`architecture.md`). The literal `state: error` in stdout is the
+     signal; CI consumers parse the JSON `state` field, not the exit
+     code.
+  8. **`--verify` flag** mirrors `anvil status --verify` (LAUNCH-012's
+     comment in `commands/status.rs` already anticipates this). Read-
+     only equivalent: skips init / first-scan, just probes and
+     renders. No fragmentation — both surfaces forward to the same
+     `activation::verify` backend.
+  9. **`--json` implies read-only.** Init's own JSON output (the
+     `AnvilConfig` record it prints in `--json` mode) would otherwise
+     concatenate with the activation diagnostic JSON and break
+     parseable consumers. JSON mode behaves like `--verify` — single
+     activation diagnostic JSON document on stdout.
+  10. **Behavioural promotion, not breaking change.** `anvil start`
      today is an undocumented clap alias. Pre-1.0 (`v0.5.1-beta`)
      this is a sub-major behavioural change; CHANGELOG carries the
      note, no deprecation cycle needed.
