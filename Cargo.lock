@@ -936,6 +936,7 @@ dependencies = [
  "eddacraft-anvil-architecture",
  "eddacraft-anvil-checks",
  "eddacraft-anvil-intercept",
+ "eddacraft-anvil-intercept-rules",
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-observability",

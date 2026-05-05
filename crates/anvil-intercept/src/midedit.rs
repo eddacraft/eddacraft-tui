@@ -20,19 +20,22 @@ pub const SCAN_BUFFER_TIMEOUT: Duration = Duration::from_secs(2);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScanBufferMode {
     MidEdit,
+    PreWrite,
 }
 
 impl ScanBufferMode {
     pub fn parse(value: &str) -> Result<Self, ScanBufferError> {
         match value {
             "midEdit" | "mid-edit" => Ok(Self::MidEdit),
+            "preWrite" | "pre-write" => Ok(Self::PreWrite),
             _ => Err(ScanBufferError::UnsupportedMode),
         }
     }
 
-    const fn diagnostic_mode(self) -> Mode {
+    fn diagnostic_mode(self) -> Mode {
         match self {
             Self::MidEdit => Mode::known(KnownMode::MidEdit),
+            Self::PreWrite => Mode::Unknown("pre-write".to_string()),
         }
     }
 }
@@ -54,7 +57,7 @@ pub struct ScanBufferResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ScanBufferError {
-    #[error("unsupported scan_buffer mode; supported modes: midEdit")]
+    #[error("unsupported scan_buffer mode; supported modes: midEdit, preWrite")]
     UnsupportedMode,
     #[error("path exceeds {cap} byte cap")]
     PathTooLong { len: usize, cap: usize },
@@ -258,6 +261,22 @@ mod tests {
             response.diagnostics[0].mode,
             Mode::known(KnownMode::MidEdit)
         );
+    }
+
+    #[test]
+    fn scan_buffer_pre_write_mode_emits_pre_write_diagnostics() {
+        let mut request = secret_request();
+        request.mode = ScanBufferMode::PreWrite;
+
+        let pipeline = EnforcementPipeline::default();
+        let response = scan_buffer_with_pipeline(&request, &pipeline).expect("scan buffer");
+
+        assert_eq!(response.diagnostics.len(), 1);
+        assert_eq!(
+            response.diagnostics[0].mode,
+            Mode::Unknown("pre-write".to_string())
+        );
+        assert!(response.diagnostics[0].id.contains("pre_write"));
     }
 
     #[test]
