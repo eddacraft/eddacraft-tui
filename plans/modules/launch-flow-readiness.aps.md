@@ -580,19 +580,75 @@ new primitive, this module follows three rules:
 - **Intent:** A new user can run one command in a repo and reach the
   shortest safe path to local protection without learning Anvil's
   command taxonomy.
-- **Expected Outcome:** `anvil start` routes to an activation flow that
-  composes existing init, first-scan, MCP, doctor/status, and watch
-  primitives. `anvil welcome` remains the explicit menu/tutorial
-  surface. No new top-level `activate` or `connect` command is added
-  for the MVP.
-- **Coordinates with:** RMCP for MCP install/verify, RTAI for pre-write
-  semantics, INTD for live-status evidence, and DRVR for future editor
-  expansion. This task supersedes the narrower watch-only shortcut
-  originally described here.
-- **Validation:** End-to-end test on a fresh temp repo asserts that
-  `anvil start` enters activation, preserves access to `anvil welcome`,
-  and emits one literal final state.
-- **Confidence:** medium
+- **Expected Outcome:** `anvil start` is promoted from a clap alias for
+  `welcome` to its own `Commands::Start` variant backed by a thin
+  orchestrator that composes only the read-safe / idempotent
+  primitives shipped today: ensure config (init if absent), first-scan,
+  and `activation::verify`. The orchestrator lands at whatever
+  `ProtectionState` `verify` reports — `needs_action` for fresh repos
+  with no editor wired, `unsupported` for unsupported-language repos,
+  `ready_restart_required` once MCP install is wired (post LAUNCH-009).
+  `anvil welcome` remains the explicit menu/tutorial surface. No new
+  top-level `activate` or `connect` command is added for the MVP.
+- **Council revision (2026-05-05):** Standard pack interrogated the
+  original "compose init/first-scan/MCP/doctor/status/watch" framing.
+  Adversarial returned 3 criticals tied to composing those unsafe
+  primitives in v1: MCP install `bail!`s on malformed editor JSON,
+  first-run marker semantics undefined, alias-breakage migration
+  unspecified. Architect + pragmatic-lead converged on a thinner
+  scope. Adopted: orchestrator runs ONLY safe / idempotent primitives.
+  MCP install, doctor composition, and watch-fallback spawn are
+  deferred to LAUNCH-009 / LAUNCH-011 — those tasks plug into the
+  diagnostic stubs `activation::verify` already exposes.
+- **Revised plan:**
+  1. Remove `#[command(alias = "start")]` from `Commands::Welcome` and
+     add a `Commands::Start(StartArgs)` variant in `crates/anvil-cli/src/main.rs`.
+  2. New thin `crates/anvil-cli/src/commands/start.rs` that calls
+     `activation::orchestrator::run`.
+  3. New `crates/anvil-cli/src/activation/orchestrator.rs`:
+     - Probe config status. If `.anvilrc` absent, call existing
+       `commands::init::run`. If valid, skip init (idempotent rerun).
+       If invalid, surface as `ProtectionState::Error` via verify.
+     - Run `services::sample_analyser::run_post_init_analysis` for
+       the first-scan step (LAUNCH-004 primitive — read-only,
+       budget-bounded).
+     - Call `activation::verify(repo_root)`; render via the existing
+       `activation::render` module.
+  4. **NOT included in v1:** MCP install (LAUNCH-009 territory),
+     watch spawn (LAUNCH-011), doctor composition. Each would
+     `bail!` on edge cases that turn the composed flow into an
+     unrecoverable trace; deferring is the safe v1 cut.
+  5. **First-run marker invariant:** `start` does NOT write
+     `.anvil/first-run`. `welcome` keeps sole ownership of that
+     marker.
+  6. **`--json` parity:** reuse the `anvil status --verify --json`
+     shape (LAUNCH-012 already shipped this) so CI consumers see a
+     consistent schema between `start` and `status`.
+  7. **Exit code:** 0 on every state except `error` (matches the
+     project's "warnings over blocks, exit 0 by default" rule from
+     `architecture.md`).
+  8. **No `--verify` flag on `start`** — `anvil status --verify`
+     already covers that need (LAUNCH-012); a duplicate flag would
+     fragment the surface.
+  9. **Behavioural promotion, not breaking change.** `anvil start`
+     today is an undocumented clap alias. Pre-1.0 (`v0.5.1-beta`)
+     this is a sub-major behavioural change; CHANGELOG carries the
+     note, no deprecation cycle needed.
+- **Coordinates with:** RMCP / LAUNCH-009 (MCP probes plug into the
+  diagnostic's `mcp` map), LAUNCH-011 (watch fallback adds the
+  `watching` final state), LAUNCH-010 (baseline plug-in to
+  diagnostic), LAUNCH-014 (tutorial copy reuses the same vocabulary).
+- **Validation:**
+  - Subprocess test on a fresh temp repo: `anvil start` exits 0
+    with a `ProtectionState` literal in stdout.
+  - Subprocess test that `anvil welcome` still launches the
+    welcome surface unchanged.
+  - Unit test on `orchestrator::run`: matrix covering config
+    absent (calls init), config valid (skips init), and the
+    fresh-repo `needs_action` final state.
+- **LOC budget:** ~250-300 production + ~150 test = ~450 total.
+- **Confidence:** medium (was medium; council resolved the scope
+  ambiguity that was the source of the risk).
 - **Status:** Todo
 
 ---
