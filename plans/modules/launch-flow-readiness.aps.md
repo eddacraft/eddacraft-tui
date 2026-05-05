@@ -394,18 +394,45 @@ new primitive, this module follows three rules:
 
 - **Intent:** A user can run `anvil watch --action gate` and still
   see the live dashboard.
-- **Expected Outcome:** The mutual-exclusion guard between `--action`
-  and TUI mode at `commands/watch.rs:236` is removed; action output
-  reaches the user without freezing the TUI render loop. Whether
-  output lands in a dedicated action-output pane or is routed to the
-  existing history pane / stdout is decided by the spike below.
+- **Expected Outcome:** The mutual-exclusion guard at
+  `crates/anvil-cli/src/commands/watch.rs:297-302` is removed; action
+  output reaches the user without freezing the TUI render loop. Action
+  runs surface in the TUI History pane alongside engine snapshots,
+  tagged so they don't pollute LAUNCH-003's `WatchStats.pass_rate`.
 - **Spike (precondition):** Before committing to a UI surface for
   action output, do a short investigation of the action dispatch path
   to confirm whether non-blocking integration is local or requires
   reshaping the dispatcher. Record the decision in the task comment.
-- **Validation:** Manual smoke test plus an integration test asserting
-  the TUI render loop continues ticking while an action runs.
-- **Confidence:** low — outcome scope depends on the spike result.
+- **Spike outcome (2026-05-05):** The guard exists because
+  `dispatch_action` spawns the child with `Stdio::inherit()` for
+  stdout/stderr (`watch.rs:243-258`); inherited output collides with
+  the Ratatui alternate-screen buffer. The dispatch loop today lives
+  only in the non-TUI branch of `run()` (`watch.rs:405-460`); the TUI
+  branch never sees `action`. **Decision: integrate, not suspend.**
+  Suspending the TUI per action would create exactly the no-args TUI
+  flicker the council banned. Plan:
+  1. Extract dispatch into an `ActionDispatcher` struct owning the
+     `action_running` / `action_pending` atomics; both branches use it.
+  2. In TUI mode, switch to `Stdio::piped()`; capture child exit
+     code, duration, and a 4 KiB tail of stderr-on-failure.
+  3. Worker sends `ActionRun { action, exit_code, duration_ms,
+     stderr_tail, timestamp }` records on a new `mpsc` channel that
+     the TUI loop drains alongside `EngineEvent`.
+  4. New field `WatchData.action_history: Vec<ActionRun>` (NOT
+     reusing `history`, which feeds `WatchStats.pass_rate` per
+     LAUNCH-003's contract — adversarial review surface). History
+     pane renders both lists with a kind glyph distinguishing them.
+  5. In non-TUI mode, dispatcher's TUI sender is `None`; behaviour
+     stays bit-for-bit (inherited stdio, no capture).
+- **Validation:** Integration test in `crates/anvil-cli/tests/` drives
+  the watch loop in TUI mode against a fixture repo with `--action
+  check`; asserts that (a) the render loop continues ticking after an
+  action completes, (b) `WatchData.action_history` records the run
+  with non-zero `duration_ms`, (c) `WatchStats.pass_rate` is unchanged
+  by action runs. Plus a unit test on the `ActionDispatcher` shared
+  helper covering the rerun-pending atomic. Manual smoke covers a
+  failing `gate` action's stderr tail.
+- **Confidence:** medium (was low — spike resolved scope).
 - **Status:** Todo
 
 ---
