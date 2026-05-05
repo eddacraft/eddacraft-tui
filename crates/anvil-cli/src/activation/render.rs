@@ -32,8 +32,13 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
         out.push_str("  mcp: not detected\n");
     } else {
         out.push_str("  mcp:\n");
-        for (client, tier) in &d.mcp {
-            let _ = writeln!(out, "    {}: {}", client.display_name(), tier.label());
+        for (client, result) in &d.mcp {
+            let _ = writeln!(
+                out,
+                "    {}: {}",
+                client.display_name(),
+                result.tier.label()
+            );
         }
     }
 
@@ -114,18 +119,20 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
 /// no panic path for the binary to inherit.
 pub fn render_json(d: &ActivationDiagnostic) -> Value {
     let state = d.protection_state();
-    // LAUNCH-009: each MCP client entry carries a `transport` tag so the
-    // schema doesn't need a v2 migration when the future hosted-MCP
-    // server workstream lands. v1 always emits `"stdio"` because that's
-    // the only transport `AnvilEntry` constructs today.
+    // LAUNCH-009: each MCP client entry carries a `transport` tag from
+    // the per-client probe result, so the schema is honest about the
+    // transport actually used. v1 always emits `"stdio"` because that's
+    // the only transport `AnvilEntry` constructs today; future hosted-
+    // MCP-server variants populate `RemoteSse` / `RemoteHttp` from the
+    // same source of truth.
     let mcp: Vec<Value> = d
         .mcp
         .iter()
-        .map(|(c, t)| {
+        .map(|(c, r)| {
             json!({
                 "client": c.label(),
-                "tier": t.label(),
-                "transport": super::mcp_client::McpTransport::Stdio.label(),
+                "tier": r.tier.label(),
+                "transport": r.transport.label(),
             })
         })
         .collect();
@@ -178,7 +185,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // The match arms below only handle tiers strictly weaker
             // than `LiveValidation`; if a future refactor breaks the
             // invariant, the assertion fires in debug builds.
-            let highest_mcp = d.mcp.values().copied().max();
+            let highest_mcp = d.mcp.values().map(|r| r.tier).max();
             debug_assert!(
                 !matches!(highest_mcp, Some(McpTier::LiveValidation)),
                 "Watching unreachable when MCP at LiveValidation"
@@ -199,7 +206,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
         ProtectionState::NeedsAction => {
             if matches!(d.config, super::diagnostic::ConfigStatus::Absent) {
                 Some("run `anvil init` to create a config, then `anvil start` to activate.")
-            } else if d.mcp.values().all(|t| *t < McpTier::ConfigPresent) {
+            } else if d.mcp.values().all(|r| r.tier < McpTier::ConfigPresent) {
                 Some(
                     "run `anvil start` to wire Cursor and Claude Code MCP paths, or `anvil watch` for save-time fallback.",
                 )
@@ -245,7 +252,8 @@ mod tests {
     fn protecting() -> ActivationDiagnostic {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::LiveValidation);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::LiveValidation.into());
         d
     }
 
@@ -253,7 +261,7 @@ mod tests {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
         d.mcp
-            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
         d
     }
 
@@ -356,9 +364,10 @@ mod tests {
     fn json_render_emits_one_mcp_entry_per_client() {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::ConfigPresent);
         d.mcp
-            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired);
+            .insert(McpClientId::Cursor, McpTier::ConfigPresent.into());
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
         let v = render_json(&d);
         let arr = v["mcp"].as_array().unwrap();
         assert_eq!(arr.len(), 2);
@@ -423,7 +432,8 @@ mod tests {
         // restart their editor, not reinstall.
         let mut d = empty();
         d.config = ConfigStatus::Valid;
-        d.mcp.insert(McpClientId::Cursor, McpTier::ServerStartable);
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ServerStartable.into());
         d.watch = WatchTier::Running;
         let h = render_human(&d);
         assert!(

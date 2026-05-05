@@ -133,7 +133,14 @@ impl McpTransport {
 /// `bool drifted` flag conflated "old anvil version" with "foreign tool
 /// using our key" and silently overwrote the latter.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // returned by trait method; consumed by orchestrator install path (LAUNCH-006 follow-up)
 pub enum DriftClass {
+    /// No existing anvil entry in the parsed config. The install path
+    /// should write a fresh entry. Distinct from `UpToDate` because
+    /// `UpToDate` implies the entry is already present and correct;
+    /// `NotPresent` is a clear "nothing to drift from" signal so the
+    /// orchestrator's install gate can be `matches!(NotPresent | SafeDrift)`.
+    NotPresent,
     /// Existing entry matches our `AnvilEntry` byte-for-byte.
     UpToDate,
     /// Same shape (recognisable as anvil), different binary path. The
@@ -159,6 +166,7 @@ pub enum DriftClass {
 /// pick the right parser (strict JSON for v1; JSONC reserved for Zed's
 /// future support).
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // raw is read by merge_and_render via the trait — used by orchestrator install path
 pub struct ParsedConfig {
     /// Raw parsed value (kept generic so JSON / JSONC impls share a
     /// type). v1 always uses `serde_json::Value` under the hood.
@@ -172,8 +180,6 @@ pub struct ParsedConfig {
 #[derive(Debug)]
 #[allow(dead_code)] // payloads are read by the orchestrator install path (LAUNCH-006 follow-up)
 pub enum ParseError {
-    /// File does not exist on disk.
-    NotFound,
     /// File exists but is empty / whitespace only.
     Empty,
     /// Parser returned an error — payload carries the human-readable
@@ -185,8 +191,52 @@ pub enum ParseError {
     UnexpectedShape(String),
 }
 
+impl ParseError {
+    /// Human-readable reason for `tracing::warn!` and the diagnostic's
+    /// `last_error` field.
+    pub fn reason(&self) -> String {
+        match self {
+            ParseError::Empty => "config file is empty".to_string(),
+            ParseError::Invalid(s) | ParseError::UnexpectedShape(s) => s.clone(),
+        }
+    }
+}
+
+/// Render-failure modes returned by `merge_and_render` and `render_new`.
+/// Typed (rather than `String`) so the install-path follow-up doesn't have
+/// to string-match error messages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // variants are returned by trait methods; consumed by orchestrator install path
+pub enum RenderError {
+    /// Existing config root is not a JSON object.
+    BadRoot,
+    /// `mcpServers` (or equivalent) is present but not an object.
+    BadServersKey,
+    /// `serde_json::to_string_pretty` failed — payload carries the
+    /// underlying reason (rare; usually I/O or invalid Value content).
+    Serialise(String),
+    /// `AnvilEntry` could not be serialised because the binary path
+    /// is not valid UTF-8 (Windows non-ANSI paths). Surfaces as a
+    /// loud error instead of silently writing a U+FFFD-corrupted path.
+    InvalidCommandPath,
+}
+
+impl std::fmt::Display for RenderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RenderError::BadRoot => write!(f, "config root is not a JSON object"),
+            RenderError::BadServersKey => write!(f, "`mcpServers` is present but not an object"),
+            RenderError::Serialise(s) => write!(f, "serialise: {s}"),
+            RenderError::InvalidCommandPath => {
+                write!(f, "anvil binary path is not valid UTF-8")
+            }
+        }
+    }
+}
+
 /// Probe candidate config path with platform-aware resolution.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // scope is consumed by the orchestrator install path (LAUNCH-006 follow-up)
 pub struct ConfigCandidate {
     pub path: PathBuf,
     /// Workspace-local (`.anvil-relative`) vs user-global (`$HOME` /
@@ -208,6 +258,7 @@ pub enum ConfigScope {
 /// Implementations live in submodules (`cursor`, `claude_code`). Each is
 /// a zero-sized struct so the trait can be used as `&dyn McpClient` in a
 /// static registry without lifetime gymnastics.
+#[allow(dead_code)] // classify_drift / merge_and_render / render_new are called by the orchestrator install path (LAUNCH-006 follow-up)
 pub trait McpClient: Send + Sync {
     /// Stable identifier — matches the `McpClientId` enum.
     fn id(&self) -> McpClientId;
@@ -224,18 +275,22 @@ pub trait McpClient: Send + Sync {
 
     /// Classify drift between the existing entry (if any) and the
     /// freshly-built `AnvilEntry`. The orchestrator decides whether to
-    /// write based on the returned `DriftClass`.
+    /// write based on the returned `DriftClass`. Returns `NotPresent`
+    /// when no anvil entry exists in the parsed config.
     fn classify_drift(&self, parsed: &ParsedConfig, fresh: &AnvilEntry) -> DriftClass;
 
     /// Merge `fresh` into `parsed.raw` and return the rendered config
     /// text ready to write atomically. Caller is responsible for the
     /// drift check before calling — this method always installs.
-    fn merge_and_render(&self, parsed: &ParsedConfig, fresh: &AnvilEntry)
-    -> Result<String, String>;
+    fn merge_and_render(
+        &self,
+        parsed: &ParsedConfig,
+        fresh: &AnvilEntry,
+    ) -> Result<String, RenderError>;
 
     /// Render the freshly-built config when no existing file is present.
     /// Distinct from `merge_and_render` because there's nothing to merge.
-    fn render_new(&self, fresh: &AnvilEntry) -> Result<String, String>;
+    fn render_new(&self, fresh: &AnvilEntry) -> Result<String, RenderError>;
 
     /// Determine the [`McpTier`] reached for `fresh` given the parsed
     /// config (or absence). Tier transitions are documented in the
@@ -273,31 +328,189 @@ pub fn all_clients() -> &'static [&'static dyn McpClient] {
     &[&cursor::Cursor, &claude_code::ClaudeCode]
 }
 
-/// Probe each registered client against the user's filesystem and return
-/// the tier each has reached.
+// ---------------------------------------------------------------------------
+// Shared helpers used by every (current and future) JSON-based MCP client
+// impl. Reduces ~80% duplication between cursor.rs and claude_code.rs;
+// each impl now wraps these with its server-name + entry-builder.
+// ---------------------------------------------------------------------------
+
+/// Shared `parse` for the JSON-with-`mcpServers`-key shape Cursor and
+/// Claude Code (and any future MCP-spec-compliant client) all use.
+pub(crate) fn parse_json_mcp(raw: &str, server_name: &str) -> Result<ParsedConfig, ParseError> {
+    let trimmed = raw.trim_start_matches('\u{feff}').trim();
+    if trimmed.is_empty() {
+        return Err(ParseError::Empty);
+    }
+    let value: serde_json::Value = serde_json::from_str(trimmed)
+        .map_err(|e| ParseError::Invalid(format!("JSON parse error: {e}")))?;
+    if !value.is_object() {
+        return Err(ParseError::UnexpectedShape(
+            "top-level value must be a JSON object".to_string(),
+        ));
+    }
+    let existing = value
+        .get("mcpServers")
+        .and_then(|m| m.get(server_name))
+        .cloned();
+    Ok(ParsedConfig {
+        raw: value,
+        existing_entry: existing,
+    })
+}
+
+/// Shared `merge_and_render` for the JSON-with-`mcpServers`-key shape.
+/// Preserves all unrelated keys; only writes the `mcpServers.<server_name>`
+/// leaf.
+#[allow(dead_code)] // called by trait merge_and_render impls; orchestrator-driven (LAUNCH-006 follow-up)
+pub(crate) fn merge_json_mcp(
+    parsed: &ParsedConfig,
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<String, RenderError> {
+    let mut root = parsed.raw.clone();
+    let obj = root.as_object_mut().ok_or(RenderError::BadRoot)?;
+    let servers = obj
+        .entry("mcpServers".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let map = servers.as_object_mut().ok_or(RenderError::BadServersKey)?;
+    map.insert(server_name.to_string(), entry);
+    serde_json::to_string_pretty(&root).map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+/// Shared `render_new` for the JSON-with-`mcpServers`-key shape.
+#[allow(dead_code)] // called by trait render_new impls; orchestrator-driven (LAUNCH-006 follow-up)
+pub(crate) fn render_new_json_mcp(
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<String, RenderError> {
+    let mut servers = serde_json::Map::new();
+    servers.insert(server_name.to_string(), entry);
+    let mut root = serde_json::Map::new();
+    root.insert("mcpServers".to_string(), serde_json::Value::Object(servers));
+    serde_json::to_string_pretty(&serde_json::Value::Object(root))
+        .map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+/// Shared drift classifier: same args + different command path = `SafeDrift`;
+/// different args = `UnsafeDrift`; non-object existing = `UnsafeDrift`.
+/// Caller is responsible for the byte-for-byte equality check that produces
+/// `UpToDate`.
+#[allow(dead_code)] // called by trait classify_drift impls
+pub(crate) fn classify_drift_by_args(
+    existing: &serde_json::Value,
+    fresh: &AnvilEntry,
+) -> DriftClass {
+    let Some(obj) = existing.as_object() else {
+        return DriftClass::UnsafeDrift {
+            reason: "existing entry is not an object".to_string(),
+        };
+    };
+    let existing_args: Vec<String> = obj
+        .get("args")
+        .and_then(|a| a.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let existing_cmd = obj.get("command").and_then(|c| c.as_str()).unwrap_or("");
+
+    let AnvilEntry::Stdio {
+        command: fresh_cmd,
+        args: fresh_args,
+        ..
+    } = fresh;
+
+    if existing_args == *fresh_args {
+        DriftClass::SafeDrift {
+            reason: format!(
+                "version drift: existing command `{existing_cmd}` differs from fresh `{}`",
+                fresh_cmd.display()
+            ),
+        }
+    } else {
+        DriftClass::UnsafeDrift {
+            reason: format!(
+                "existing entry's args do not match anvil's launch shape (existing: {existing_args:?}, fresh: {fresh_args:?})"
+            ),
+        }
+    }
+}
+
+/// Convert the canonical command path to a UTF-8 `String` for inclusion
+/// in JSON. Returns an explicit error on non-UTF-8 paths instead of
+/// silently substituting U+FFFD via `to_string_lossy` — closes the
+/// kernel-maintainer's Windows-non-UTF-8 footgun.
+pub(crate) fn command_to_string(command: &Path) -> Result<String, RenderError> {
+    command
+        .to_str()
+        .map(str::to_string)
+        .ok_or(RenderError::InvalidCommandPath)
+}
+
+/// Per-client probe result emitted by [`probe_all`].
 ///
-/// This is the function that replaces the
-/// `BTreeMap::new()` stub at `activation/diagnostic.rs::verify` — when
-/// activation runs, it walks the registry, parses each client's config
-/// (if found), and reports the resulting tier.
+/// Carries the transport tag alongside the tier so the diagnostic JSON
+/// renderer can emit `{"tier": "...", "transport": "..."}` from a single
+/// source of truth — closes the council finding that the previous
+/// renderer hardcoded `"stdio"` regardless of the entry's actual
+/// transport. v1 always reports `Stdio`; future hosted-MCP-server
+/// variants populate `RemoteSse` / `RemoteHttp` here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpProbeResult {
+    pub tier: McpTier,
+    pub transport: McpTransport,
+}
+
+impl McpProbeResult {
+    /// Convenience constructor for the local-stdio v1 case. Tests
+    /// (and the rare orchestrator path that needs to fabricate a
+    /// result) can use this without naming the transport explicitly.
+    pub fn stdio(tier: McpTier) -> Self {
+        Self {
+            tier,
+            transport: McpTransport::Stdio,
+        }
+    }
+}
+
+impl From<McpTier> for McpProbeResult {
+    fn from(tier: McpTier) -> Self {
+        Self::stdio(tier)
+    }
+}
+
+/// Probe each registered client against the user's filesystem and return
+/// the per-client probe result.
 ///
 /// **Read-only.** This function does not write any editor config; it
 /// only reads. Install paths (`merge_and_render` + `atomic_write`)
 /// are driven by the orchestrator separately.
 ///
 /// `fresh` is the canonical anvil entry the activation flow would
-/// install. It's required because tier classification depends on
-/// matching against what we'd write — we can't tell `RestartRequired`
-/// from `ConfigPresent` without comparing.
+/// install. Tier classification depends on matching against what we'd
+/// write — we can't tell `RestartRequired` from `ConfigPresent` without
+/// comparing.
+///
+/// Walks `config_paths` in priority order, and **continues past
+/// candidates that have no anvil entry** — closing the council finding
+/// that a workspace `.cursor/mcp.json` containing other servers (but no
+/// anvil) silently shadowed a valid home install. The first candidate
+/// whose anvil entry is `ConfigPresent` or higher wins; if every
+/// candidate is `ConfigAbsent`, the result is `ConfigAbsent`.
 pub fn probe_all(
     workspace: &Path,
     home: Option<&Path>,
     fresh: &AnvilEntry,
-) -> BTreeMap<McpClientId, McpTier> {
+) -> BTreeMap<McpClientId, McpProbeResult> {
     let mut out = BTreeMap::new();
     for client in all_clients() {
-        let tier = probe_one(*client, workspace, home, fresh);
-        out.insert(client.id(), tier);
+        let result = McpProbeResult {
+            tier: probe_one(*client, workspace, home, fresh),
+            transport: fresh.transport(),
+        };
+        out.insert(client.id(), result);
     }
     out
 }
@@ -308,31 +521,62 @@ fn probe_one(
     home: Option<&Path>,
     fresh: &AnvilEntry,
 ) -> McpTier {
-    // Walk the candidate paths; first existing+parseable wins.
+    // Walk the candidate paths in priority order. Don't stop at "first
+    // existing file" — a workspace file with no anvil entry must not
+    // shadow a valid home install. Track the highest tier observed.
+    let mut highest = McpTier::ConfigAbsent;
     for candidate in client.config_paths(workspace, home) {
         match std::fs::read_to_string(&candidate.path) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => {
-                // I/O error other than NotFound — treat as no config so
-                // the diagnostic doesn't blame the user for transient
-                // permission issues. The orchestrator's install path
-                // will surface a more specific error if writing fails.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // No file at this scope — keep walking.
+            }
+            Err(e) => {
+                // I/O error other than NotFound (e.g. permission
+                // denied). Surface as ConfigPresent so the orchestrator
+                // can investigate, AND log so SREs aren't flying blind.
+                tracing::warn!(
+                    client = %client.id().label(),
+                    path = %candidate.path.display(),
+                    error = %e,
+                    "mcp probe: I/O error reading editor config",
+                );
+                if McpTier::ConfigPresent > highest {
+                    highest = McpTier::ConfigPresent;
+                }
             }
             Ok(raw) => match client.parse(&raw) {
-                Ok(parsed) => return client.verify_config_tier(Some(&parsed), fresh),
-                Err(_) => {
-                    // Parse failure is not the same as no config — the
-                    // file exists but is broken. Surface as
-                    // `ConfigPresent` so the orchestrator knows to
-                    // engage drift handling, not as `ConfigAbsent`
-                    // which would silently install.
-                    return McpTier::ConfigPresent;
+                Ok(parsed) => {
+                    let tier = client.verify_config_tier(Some(&parsed), fresh);
+                    if tier > highest {
+                        highest = tier;
+                    }
+                    // Stop walking as soon as we have a tier higher
+                    // than ConfigAbsent — the "user has anvil installed
+                    // somewhere" question is answered.
+                    if tier > McpTier::ConfigAbsent {
+                        return tier;
+                    }
+                }
+                Err(e) => {
+                    // Parse failure: file exists but is broken. Surface
+                    // as ConfigPresent so the orchestrator engages drift
+                    // handling rather than silently installing over a
+                    // broken file. Log the parse reason so SREs can
+                    // diagnose without re-reading the file.
+                    tracing::warn!(
+                        client = %client.id().label(),
+                        path = %candidate.path.display(),
+                        error = %e.reason(),
+                        "mcp probe: parse error — reporting ConfigPresent so install path engages drift handling",
+                    );
+                    if McpTier::ConfigPresent > highest {
+                        highest = McpTier::ConfigPresent;
+                    }
                 }
             },
         }
     }
-    // No candidate path existed.
-    McpTier::ConfigAbsent
+    highest
 }
 
 #[cfg(test)]
@@ -361,8 +605,8 @@ mod tests {
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         let map = probe_all(ws.path(), Some(home.path()), &fresh());
-        assert_eq!(map[&McpClientId::Cursor], McpTier::ConfigAbsent);
-        assert_eq!(map[&McpClientId::ClaudeCode], McpTier::ConfigAbsent);
+        assert_eq!(map[&McpClientId::Cursor], McpTier::ConfigAbsent.into());
+        assert_eq!(map[&McpClientId::ClaudeCode], McpTier::ConfigAbsent.into());
     }
 
     #[test]
@@ -375,9 +619,9 @@ mod tests {
         let cfg = r#"{"mcpServers": {"anvil": {"command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         fs::write(ws.path().join(".cursor/mcp.json"), cfg).unwrap();
         let map = probe_all(ws.path(), Some(home.path()), &fresh());
-        assert_eq!(map[&McpClientId::Cursor], McpTier::RestartRequired);
+        assert_eq!(map[&McpClientId::Cursor], McpTier::RestartRequired.into());
         // Claude Code still absent.
-        assert_eq!(map[&McpClientId::ClaudeCode], McpTier::ConfigAbsent);
+        assert_eq!(map[&McpClientId::ClaudeCode], McpTier::ConfigAbsent.into());
     }
 
     #[test]
@@ -393,7 +637,7 @@ mod tests {
         )
         .unwrap();
         let map = probe_all(ws.path(), Some(home.path()), &fresh());
-        assert_eq!(map[&McpClientId::Cursor], McpTier::ConfigPresent);
+        assert_eq!(map[&McpClientId::Cursor], McpTier::ConfigPresent.into());
     }
 
     #[test]
@@ -411,7 +655,7 @@ mod tests {
 
         let map = probe_all(ws.path(), Some(home.path()), &fresh());
         // Workspace wins → RestartRequired (matching).
-        assert_eq!(map[&McpClientId::Cursor], McpTier::RestartRequired);
+        assert_eq!(map[&McpClientId::Cursor], McpTier::RestartRequired.into());
     }
 
     #[test]
