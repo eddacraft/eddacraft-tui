@@ -1,12 +1,17 @@
 //! RMCP-002: `anvil mcp serve --stdio` starts a Rust stdio MCP server.
 
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use anvil_intercept::Shutdown;
+use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 use serde_json::{Value, json};
+use tempfile::TempDir;
+use tokio::runtime::Runtime;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const CHILD_TIMEOUT: Duration = Duration::from_secs(3);
@@ -386,7 +391,8 @@ fn mcp_serve_stdio_tools_call_missing_arguments_blocks_write() {
 
 #[test]
 fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content() {
-    let mut child = spawn_mcp_server_with_dev_bypass();
+    let daemon = LiveDaemon::start();
+    let mut child = spawn_mcp_server_with_dev_bypass_and_daemon(daemon.xdg_runtime_dir());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -434,12 +440,14 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content() {
     assert_eq!(payload["diagnostics"], json!([]));
     assert_eq!(payload["correlation"]["surface"], "mcp");
     assert_eq!(payload["correlation"]["mode"], "preWrite");
-    assert_eq!(payload["correlation"]["backend"], "embedded");
+    assert_eq!(payload["correlation"]["backend"], "daemon");
+    assert_eq!(payload["correlation"]["daemonStatus"], "available");
 }
 
 #[test]
 fn mcp_serve_stdio_tools_call_blocks_secret_content() {
-    let mut child = spawn_mcp_server_with_dev_bypass();
+    let daemon = LiveDaemon::start();
+    let mut child = spawn_mcp_server_with_dev_bypass_and_daemon(daemon.xdg_runtime_dir());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -493,6 +501,8 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content() {
         payload["diagnostics"][0]["source"]["rule_id"],
         "secret-detection"
     );
+    assert_eq!(payload["correlation"]["backend"], "daemon");
+    assert_eq!(payload["correlation"]["daemonStatus"], "available");
 }
 
 #[test]
@@ -552,6 +562,67 @@ fn spawn_mcp_server_with_dev_bypass() -> Child {
         .stderr(Stdio::null())
         .spawn()
         .expect("failed to spawn anvil mcp serve --stdio")
+}
+
+fn spawn_mcp_server_with_dev_bypass_and_daemon(xdg_runtime_dir: &Path) -> Child {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("mcp")
+        .arg("serve")
+        .arg("--stdio")
+        .env("ANVIL_DEV", "1")
+        .env("XDG_RUNTIME_DIR", xdg_runtime_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("failed to spawn anvil mcp serve --stdio")
+}
+
+struct LiveDaemon {
+    runtime: Runtime,
+    shutdown: Shutdown,
+    server: Option<tokio::task::JoinHandle<Result<(), anvil_intercept::ipc::IpcError>>>,
+    runtime_dir: TempDir,
+}
+
+impl LiveDaemon {
+    fn start() -> Self {
+        let runtime = Runtime::new().expect("tokio runtime starts");
+        let runtime_dir = tempfile::tempdir().expect("runtime dir exists");
+        let socket_path = daemon_socket_path(runtime_dir.path());
+        let _runtime_guard = runtime.enter();
+        let listener =
+            IpcListener::bind(&socket_path, NoopDispatcher).expect("daemon socket binds");
+        let (shutdown, token) = Shutdown::new();
+        let server = runtime.spawn(listener.serve(token));
+
+        Self {
+            runtime,
+            shutdown,
+            server: Some(server),
+            runtime_dir,
+        }
+    }
+
+    fn xdg_runtime_dir(&self) -> &Path {
+        self.runtime_dir.path()
+    }
+}
+
+impl Drop for LiveDaemon {
+    fn drop(&mut self) {
+        self.shutdown.trigger();
+        if let Some(server) = self.server.take() {
+            self.runtime.block_on(async {
+                let _ = server.await;
+            });
+        }
+    }
+}
+
+fn daemon_socket_path(xdg_runtime_dir: &Path) -> PathBuf {
+    xdg_runtime_dir.join("anvil").join("intercept.sock")
 }
 
 fn spawn_stdout_reader(stdout: ChildStdout) -> Receiver<std::io::Result<String>> {
