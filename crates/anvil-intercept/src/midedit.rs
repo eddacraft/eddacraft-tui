@@ -57,7 +57,9 @@ pub struct ScanBufferResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ScanBufferError {
-    #[error("unsupported scan_buffer mode; supported modes: midEdit, preWrite")]
+    #[error(
+        "unsupported scan_buffer mode; canonical modes: midEdit, preWrite (aliases: mid-edit, pre-write)"
+    )]
     UnsupportedMode,
     #[error("path exceeds {cap} byte cap")]
     PathTooLong { len: usize, cap: usize },
