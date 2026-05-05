@@ -418,6 +418,7 @@ fn mock_watch_data() -> WatchData {
             avg_duration_ms: 450,
             files_watched: 87,
         },
+        last_action: None,
     }
 }
 

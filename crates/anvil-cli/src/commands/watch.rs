@@ -470,6 +470,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     avg_duration_ms: 0,
                     files_watched: 0,
                 },
+                last_action: None,
             });
         crate::tui::run_watch(state, &event_rx, Some(&shutdown))?;
     }

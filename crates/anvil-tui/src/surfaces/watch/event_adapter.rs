@@ -5,7 +5,7 @@ use anvil_kernel_types::{
     NotificationPriority,
 };
 
-use super::{QueuedNotification, RunHistory, WatchData, WatchStatus};
+use super::{ActionResultLine, QueuedNotification, RunHistory, WatchData, WatchStatus};
 
 /// Maximum number of entries retained in the change queue.
 const MAX_QUEUE_LEN: usize = 200;
@@ -78,6 +78,17 @@ impl WatchEventAdapter {
                 self.handle_error(&err.message, err.file.as_deref(), &event.timestamp, data);
             }
         }
+    }
+
+    /// Fold an `--action` outcome into the dashboard (LAUNCH-002).
+    ///
+    /// **Isolation invariant:** writes ONLY `data.last_action`. Action
+    /// outcomes must not flip the kernel-derived status icon or pollute
+    /// `WatchStats` arithmetic — those are kernel-event-only fields. A
+    /// failing `gate` is not the same signal as a kernel violation, and
+    /// the Status pane must not conflate them.
+    pub fn handle_action_result(line: &ActionResultLine, data: &mut WatchData) {
+        data.last_action = Some(line.clone());
     }
 
     fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
@@ -258,6 +269,7 @@ mod tests {
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            last_action: None,
         }
     }
 
@@ -586,5 +598,85 @@ mod tests {
         assert_eq!(data.history.len(), 1);
         assert!(!data.history[0].passed);
         assert_eq!(data.stats.total_runs, 1);
+    }
+
+    // --- LAUNCH-002: action result isolation ---
+
+    fn action_result(action: &str, exit_code: Option<i32>) -> ActionResultLine {
+        ActionResultLine {
+            action: action.to_string(),
+            exit_code,
+            duration_ms: 1234,
+            timestamp: "10:30:00".to_string(),
+        }
+    }
+
+    #[test]
+    fn action_result_writes_last_action() {
+        let mut data = empty_data();
+        WatchEventAdapter::handle_action_result(&action_result("gate", Some(0)), &mut data);
+
+        let last = data.last_action.as_ref().expect("last_action set");
+        assert_eq!(last.action, "gate");
+        assert_eq!(last.exit_code, Some(0));
+        assert_eq!(last.duration_ms, 1234);
+        assert!(last.passed());
+    }
+
+    #[test]
+    fn action_result_overwrites_previous() {
+        let mut data = empty_data();
+        WatchEventAdapter::handle_action_result(&action_result("gate", Some(0)), &mut data);
+        WatchEventAdapter::handle_action_result(&action_result("check", Some(1)), &mut data);
+
+        let last = data.last_action.as_ref().expect("last_action set");
+        assert_eq!(last.action, "check");
+        assert_eq!(last.exit_code, Some(1));
+        assert!(!last.passed());
+    }
+
+    #[test]
+    fn action_result_does_not_mutate_kernel_state() {
+        // Drive a full kernel cycle so the adapter has populated state.
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+        adapter.handle_event(&progress_event("scan", 0, 5), &mut data);
+        adapter.handle_event(&progress_event("scan", 5, 5), &mut data);
+        adapter.handle_event(&snapshot_event(42), &mut data);
+
+        let status_before = data.status;
+        let total_runs_before = data.stats.total_runs;
+        let pass_rate_before = data.stats.pass_rate;
+        let avg_duration_before = data.stats.avg_duration_ms;
+        let files_watched_before = data.stats.files_watched;
+        let history_len_before = data.history.len();
+        let queue_len_before = data.queue.len();
+
+        // A failing action must not touch any kernel-derived field.
+        WatchEventAdapter::handle_action_result(&action_result("gate", Some(1)), &mut data);
+
+        assert_eq!(data.status, status_before, "status must not change");
+        assert_eq!(
+            data.stats.total_runs, total_runs_before,
+            "total_runs must not change"
+        );
+        assert!(
+            (data.stats.pass_rate - pass_rate_before).abs() < f64::EPSILON,
+            "pass_rate must not change"
+        );
+        assert_eq!(
+            data.stats.avg_duration_ms, avg_duration_before,
+            "avg_duration_ms must not change"
+        );
+        assert_eq!(
+            data.stats.files_watched, files_watched_before,
+            "files_watched must not change"
+        );
+        assert_eq!(
+            data.history.len(),
+            history_len_before,
+            "history must not change"
+        );
+        assert_eq!(data.queue.len(), queue_len_before, "queue must not change");
     }
 }

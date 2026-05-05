@@ -5,35 +5,82 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use super::{WatchPanel, WatchState, WatchStatus};
+use super::{ActionResultLine, WatchPanel, WatchState, WatchStatus};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
+    // Reserve a 1-line footer at the bottom for the most recent --action
+    // outcome (LAUNCH-002). Hidden when no action has run yet, so the 2x2
+    // grid keeps the full area in the common case.
+    let (grid_area, footer_area) = if state.data.last_action.is_some() {
+        let split =
+            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+        (split[0], Some(split[1]))
+    } else {
+        (area, None)
+    };
+
     // Zoom mode: collapse the 2x2 grid to the focused panel filling the
-    // whole area. Useful at narrow widths where the four-up layout
+    // whole grid area. Useful at narrow widths where the four-up layout
     // becomes unreadable. Toggle via `z`; `esc` exits zoom first, then
     // navigates back on a subsequent press.
     if state.zoomed {
         match state.focused_panel {
-            WatchPanel::Status => render_status_panel(frame, area, state, theme),
-            WatchPanel::Queue => render_queue_panel(frame, area, state, theme),
-            WatchPanel::History => render_history_panel(frame, area, state, theme),
-            WatchPanel::Stats => render_stats_panel(frame, area, state, theme),
+            WatchPanel::Status => render_status_panel(frame, grid_area, state, theme),
+            WatchPanel::Queue => render_queue_panel(frame, grid_area, state, theme),
+            WatchPanel::History => render_history_panel(frame, grid_area, state, theme),
+            WatchPanel::Stats => render_stats_panel(frame, grid_area, state, theme),
         }
-        return;
+    } else {
+        // 2x2 grid: split vertically into top/bottom rows, each row split horizontally
+        let rows = Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+            .split(grid_area);
+
+        let top_cols =
+            Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[0]);
+        let bottom_cols =
+            Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[1]);
+
+        render_status_panel(frame, top_cols[0], state, theme);
+        render_queue_panel(frame, top_cols[1], state, theme);
+        render_history_panel(frame, bottom_cols[0], state, theme);
+        render_stats_panel(frame, bottom_cols[1], state, theme);
     }
 
-    // 2x2 grid: split vertically into top/bottom rows, each row split horizontally
-    let rows = Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
+    if let (Some(footer), Some(line)) = (footer_area, state.data.last_action.as_ref()) {
+        render_action_footer(frame, footer, line, theme);
+    }
+}
 
-    let top_cols =
-        Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[0]);
-    let bottom_cols =
-        Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[1]);
+/// One-line footer summarising the most recent `--action` outcome.
+/// ASCII-only to match the rest of the watch surface (the banner, per-event
+/// labels, bare-exclude warning) — Windows legacy code-pages and CI log
+/// captures may not handle the broader Unicode the rest of the TUI uses,
+/// and the watch dashboard is the demo path so a mojibake'd footer would
+/// be visible at exactly the wrong moment.
+fn render_action_footer(
+    frame: &mut Frame,
+    area: Rect,
+    line: &ActionResultLine,
+    theme: &EddaCraftTheme,
+) {
+    let (glyph, colour) = if line.passed() {
+        ("[*]", theme.success())
+    } else {
+        ("[x]", theme.error())
+    };
 
-    render_status_panel(frame, top_cols[0], state, theme);
-    render_queue_panel(frame, top_cols[1], state, theme);
-    render_history_panel(frame, bottom_cols[0], state, theme);
-    render_stats_panel(frame, bottom_cols[1], state, theme);
+    #[allow(clippy::cast_precision_loss)]
+    let secs = line.duration_ms as f64 / 1000.0;
+    let detail = match line.exit_code {
+        Some(0) | None => format!("{glyph} {} ({secs:.1}s)", line.action),
+        Some(code) => format!("{glyph} {} ({secs:.1}s, exit {code})", line.action),
+    };
+
+    let para = Paragraph::new(Line::from(Span::styled(
+        detail,
+        Style::default().fg(colour).add_modifier(Modifier::BOLD),
+    )));
+    frame.render_widget(para, area);
 }
 
 fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {
@@ -351,6 +398,7 @@ mod tests {
                 avg_duration_ms: 1050,
                 files_watched: 128,
             },
+            last_action: None,
         })
     }
 
@@ -415,6 +463,7 @@ mod tests {
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            last_action: None,
         });
         let theme = EddaCraftTheme;
 

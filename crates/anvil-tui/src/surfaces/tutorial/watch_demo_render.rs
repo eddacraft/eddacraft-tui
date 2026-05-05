@@ -82,6 +82,7 @@ mod tests {
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            last_action: None,
         }
     }
 
