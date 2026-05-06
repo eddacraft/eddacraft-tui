@@ -486,7 +486,37 @@ a new lane.
   plus an assertion that the status payload carries `latency.midEdit.p50`
   and `latency.midEdit.p95` fields (or their textual rollup) when the
   daemon has observed at least one mid-edit call.
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave3-daemon-status-latency`)
+- **Progress (2026-05-07, A2 wave 3):** `crates/anvil-intercept/src/latency.rs`
+  ships `LatencyAggregator` — a `Mutex<VecDeque<Sample>>` over the
+  daemon's `validation.service` measurements for `mode = midEdit`,
+  bounded by the last 100 samples or 60 seconds (whichever fires
+  first). Lock hold is bounded to a `pop_front` while-loop +
+  `push_back`; benchmarked at ~54 ns/op (well under 1 µs) on the
+  warm-window path via the inline `aggregator_record_is_sub_microsecond`
+  microbench. `crates/anvil-intercept/src/midedit.rs` records the
+  worker-thread `validation.service` boundary into the aggregator
+  on the success path of mid-edit `scan_buffer` calls only —
+  pre-write samples and timed-out calls are excluded so the rollup
+  is honest about budget-class scope. `crates/anvil-intercept/src/status.rs`
+  ships `DaemonStatus` (sessions / worktrees / fences / health /
+  `latency.mid_edit`) and the `render_latency_line` helper. The
+  rendered line is contract-pinned at `latency: p50 <X>ms p95 <Y>ms
+  (mid-edit)` with traffic and `latency: (no mid-edit traffic yet)`
+  without — `None` (not zero) is the no-traffic carrier. The
+  proto crate gains `anvil_intercept_proto::status::DaemonStatusV1`
+  + `LatencyRollupV1` so DriverClient consumers parse the wire
+  shape directly. `crates/anvil-intercept/src/ipc.rs` adds the
+  `query_status` JSON-RPC method, gated by the same daemon-minted
+  peer-credentials posture as the rest of IPC (UDS 0700/0600 +
+  Linux SO_PEERCRED uid match per INTD-002; named-pipe owner-only
+  DACL on Windows). `crates/anvil-cli/src/commands/intercept.rs`
+  adds `anvil intercept status` (text + `--json`) which renders
+  the runbook §1.5 trust-signal line. The demo runbook §1.5 is
+  updated to match the contract pin literally. New tests: 9 status
+  + 11 latency unit tests, 3 midedit latency-recording tests, 4
+  jsonrpc_conformance fixtures, 4 CLI render tests. Lib suite:
+  192 passing (was 169). Conformance suite: 37 passing (was 33).
 
 ### INTD-012: Windows CI Matrix
 
