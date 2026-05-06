@@ -966,3 +966,164 @@ async fn scan_buffer_malformed_request_returns_structured_error() {
     assert_eq!(response["error"]["message"], "Invalid params");
     assert!(response["error"].get("data").is_some());
 }
+
+// ----- INTD-011 query_status fixtures ---------------------------------
+
+#[tokio::test]
+async fn query_status_returns_no_traffic_when_aggregator_empty() {
+    // Default IPC listener gets a NoopStatusProvider — empty
+    // snapshot. The wire shape MUST carry latency.mid_edit = null
+    // (NOT zero) so consumers can distinguish "no traffic yet" from
+    // "0ms".
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "query_status",
+        "id": "status-empty"
+    }))
+    .await;
+
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "status-empty");
+    assert!(response.get("error").is_none(), "error: {response}");
+    let result = &response["result"];
+    assert_eq!(result["sessions"], json!([]));
+    assert_eq!(result["worktrees"], json!([]));
+    assert_eq!(result["fences"], json!([]));
+    assert!(result["health"]["uptime_seconds"].is_u64());
+    assert!(result["health"]["version"].is_string());
+    assert_eq!(result["health"]["ipc_state"], "serving");
+    assert!(
+        result["latency"]["mid_edit"].is_null(),
+        "no traffic must wire as null, got {result}",
+    );
+}
+
+#[tokio::test]
+async fn query_status_with_traffic_carries_p50_and_p95() {
+    use anvil_intercept::status::{DaemonStatus, IpcState, build_status};
+    use anvil_intercept_proto::status::DaemonStatusV1;
+
+    // Stub provider that pretends a few mid-edit calls were observed —
+    // we test the wire shape carries p50/p95 milliseconds without
+    // wiring a real ScanBufferService through.
+    struct WithRollup;
+    impl anvil_intercept::status::StatusProvider for WithRollup {
+        fn query_status(&self) -> DaemonStatus {
+            // Build a synthetic rollup. The aggregator's own tests
+            // pin the percentile maths; this fixture just needs the
+            // wire shape to carry the numbers through.
+            let started = std::time::Instant::now();
+            let now = started;
+            let rollup = anvil_intercept::latency::LatencyRollup {
+                p50_ms: 12.5,
+                p95_ms: 47.3,
+                sample_count: 17,
+                window_seconds: 22.4,
+            };
+            build_status(
+                vec![],
+                &[],
+                Some(rollup),
+                started,
+                now,
+                "test-version",
+                IpcState::Serving,
+            )
+        }
+    }
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o700))
+        .expect("secure tempdir permissions");
+    let socket = tmp.path().join("intercept.sock");
+    let listener = anvil_intercept::ipc::IpcListener::bind_with_scan_buffer_service(
+        &socket,
+        anvil_intercept::ipc::NoopDispatcher,
+        anvil_intercept::midedit::ScanBufferService::default(),
+    )
+    .expect("bind listener")
+    .with_status_provider(std::sync::Arc::new(WithRollup));
+    let (shutdown, token) = anvil_intercept::Shutdown::new();
+    let handle = tokio::spawn(async move { listener.serve(token).await });
+
+    let mut client = tokio::net::UnixStream::connect(&socket)
+        .await
+        .expect("connect");
+    client
+        .write_all(
+            br#"{"jsonrpc":"2.0","method":"query_status","id":"status-traffic"}
+"#,
+        )
+        .await
+        .expect("write request");
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+        .await
+        .expect("response timeout")
+        .expect("read response");
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+
+    let response: Value = serde_json::from_str(line.trim_end()).expect("response json");
+    assert_eq!(response["id"], "status-traffic");
+    let mid_edit = &response["result"]["latency"]["mid_edit"];
+    assert!(
+        mid_edit.is_object(),
+        "mid_edit must be an object: {response}"
+    );
+    assert!((mid_edit["p50_ms"].as_f64().unwrap() - 12.5).abs() < 1e-9);
+    assert!((mid_edit["p95_ms"].as_f64().unwrap() - 47.3).abs() < 1e-9);
+    assert_eq!(mid_edit["sample_count"], 17);
+
+    // Sanity: the wire shape parses back into the proto type. Driver
+    // consumers parse this directly per ADR-031 vocabulary.
+    let parsed: DaemonStatusV1 =
+        serde_json::from_value(response["result"].clone()).expect("parse via proto");
+    let mid = parsed.latency.mid_edit.expect("mid_edit Some");
+    assert!((mid.p50_ms - 12.5).abs() < 1e-9);
+    assert!((mid.p95_ms - 47.3).abs() < 1e-9);
+}
+
+#[tokio::test]
+async fn query_status_rejects_params() {
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "query_status",
+        "params": {"unexpected": true},
+        "id": "status-bad-params"
+    }))
+    .await;
+
+    assert_eq!(response["id"], "status-bad-params");
+    assert_eq!(response["error"]["code"], -32602);
+    assert_eq!(response["error"]["message"], "Invalid params");
+}
+
+#[tokio::test]
+async fn query_status_notification_is_silently_dropped() {
+    // JSON-RPC 2.0: notifications never get a response. Status query
+    // is request-shaped — a notification form is treated as a no-op.
+    let (shutdown, handle, mut client, _tmp) = with_client().await;
+    client
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"query_status\"}\n")
+        .await
+        .expect("write notification");
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    let read = tokio::time::timeout(Duration::from_millis(100), reader.read_line(&mut line)).await;
+    assert!(
+        read.is_err(),
+        "query_status notification must not produce response: {line}",
+    );
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(1), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+}
