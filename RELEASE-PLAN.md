@@ -61,7 +61,7 @@ literal. (See ROADMAP Horizon 1 + brainstorms in
 | Area                            | State                                                                      | What remains                                                       |
 | ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Release closeout                | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed     |
-| Wow-start activation (`LAUNCH`) | In Progress, 10/16 complete                                                | LAUNCH-002, -006, -009, -010, -011, -014                           |
+| Wow-start activation (`LAUNCH`) | In Progress, 11/17 complete                                                | LAUNCH-002, -010, -011, -014, -009.5                               |
 | Daemon-backed MCP (`RMCP`)      | Complete, 8/8                                                              | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate |
 | Carry-over hardening (`V050F`)  | In Progress, 11/16 complete                                                | V050F-006, -007, -008, -011, -015                                  |
 | `V060F` nominations             | Complete, 1/1                                                              | No open nomination work                                            |
@@ -97,7 +97,7 @@ activation entrypoint on 2026-05-03.
   [`plans/brainstorms/2026-05-02-wow-start-{claude,codex,copilot,gemini,opencode}.md`](./plans/brainstorms/)
 - Executable plan:
   [`LAUNCH` module](./plans/modules/launch-flow-readiness.aps.md) — currently In
-  Progress 10/16.
+  Progress 11/17.
 - Adjacent re-architecture brainstorm:
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
@@ -129,11 +129,12 @@ for acceptance criteria, passes council review before opening, remediates all
 council findings, and follows up with reviewer comments after PR open. PR 3 must
 also validate or honestly surface #1195 and #1197.
 
-**Execution notes:** `anvil start` is currently a clap alias for `welcome`
-(`crates/anvil-cli/src/main.rs:78`); LAUNCH-006 promotes it to the activation
-entrypoint. The APS LAUNCH file is authoritative for counts (`10/16` Complete).
-`v0.5.1-beta` shipped on 2026-05-03, but the APS index header still anchors
-prose to `v0.5.0-beta`; fix that in a separate docs PR.
+**Execution notes:** PR 1 (LAUNCH-006) promoted `anvil start` from a clap alias
+for `welcome` to the dedicated activation entrypoint, so the prose references in
+this plan describe state-after-PR-1. The APS LAUNCH file is authoritative for
+counts (currently In Progress, 11/17). `v0.5.1-beta` shipped on 2026-05-03, but
+the APS index header still anchors prose to `v0.5.0-beta`; fix that in a
+separate docs PR.
 
 **Modules / work items (6 outstanding):**
 
