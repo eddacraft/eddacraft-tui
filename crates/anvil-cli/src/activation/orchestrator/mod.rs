@@ -36,8 +36,10 @@ use std::path::Path;
 use anyhow::Context;
 
 use crate::GlobalArgs;
+use crate::activation::baseline;
 use crate::activation::diagnostic::{ActivationDiagnostic, ConfigStatus, verify_with_home};
 use crate::commands::init;
+use crate::services::sample_analyser;
 
 pub mod install;
 
@@ -74,6 +76,29 @@ pub(crate) fn run_with_home(
     if matches!(initial.config, ConfigStatus::Absent) {
         let args = init::InitArgs { force: false };
         init::run_in(&args, global, root).context("init step of `anvil start` failed")?;
+    }
+
+    // Step 1b — write `.anvil/baseline.json` if absent (LAUNCH-010).
+    // The baseline captures the set of antipattern + secret findings
+    // present at first activation so future scans (post-LAUNCH-010
+    // PRs across watch / check) can surface only NEW findings. We
+    // write it only when absent — this is the activation-time
+    // snapshot; subsequent `anvil start` runs are idempotent.
+    //
+    // Failures here MUST NOT propagate. The baseline is a future-
+    // change-tracking aid, not a blocker for activation. A failed
+    // write logs and continues; the diagnostic's
+    // `baseline_present == false` is the honest signal.
+    if !baseline::baseline_exists(root)
+        && let Some(scan) = sample_analyser::run_baseline_scan(root)
+    {
+        let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
+        if let Err(e) = baseline::write_baseline(root, &new_baseline) {
+            tracing::warn!(
+                error = %e,
+                "orchestrator: failed to write activation baseline; continuing without",
+            );
+        }
     }
 
     // Step 2 — install MCP entries for the user-selected (or auto-
@@ -288,6 +313,119 @@ mod tests {
             ),
             "post-install fresh repo should land at ready_restart_required \
              (or unsupported when no covered languages), got {state:?}"
+        );
+    }
+
+    #[test]
+    fn orchestrator_writes_baseline_when_absent() {
+        // LAUNCH-010: a fresh repo with at least one analysable file
+        // must end with `.anvil/baseline.json` on disk, populated
+        // with whatever findings the activation scan saw.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        // Plant a `.ts` file so the antipattern scanner has something
+        // to scan; even if it produces zero findings, the baseline
+        // writer still runs and writes an empty fingerprint set.
+        std::fs::write(
+            dir.path().join("hello.ts"),
+            "export const greet = () => console.log('hi');\n",
+        )
+        .unwrap();
+
+        let baseline_path = crate::activation::baseline::baseline_path(dir.path());
+        assert!(
+            !baseline_path.exists(),
+            "precondition: baseline must be absent on a fresh repo"
+        );
+
+        let (diag, _) = run_in_isolated(dir.path(), home.path(), &global);
+
+        assert!(
+            baseline_path.exists(),
+            "orchestrator must write baseline.json on first activation"
+        );
+        assert!(
+            diag.baseline_present,
+            "diagnostic must report baseline_present after first activation"
+        );
+        assert!(
+            diag.baseline_summary.is_some(),
+            "diagnostic must carry a parsed baseline summary"
+        );
+    }
+
+    #[test]
+    fn orchestrator_baseline_write_is_idempotent() {
+        // LAUNCH-010: re-running activation must NOT rewrite an
+        // existing baseline. The activation snapshot is captured once
+        // — refreshing requires the user to delete the file and re-
+        // run start.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        std::fs::write(
+            dir.path().join("hello.ts"),
+            "export const greet = () => console.log('hi');\n",
+        )
+        .unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let baseline_path = crate::activation::baseline::baseline_path(dir.path());
+        let mtime_before = std::fs::metadata(&baseline_path)
+            .unwrap()
+            .modified()
+            .unwrap();
+
+        // Sleep a beat so any rewrite would be detectable on filesystems
+        // with one-second mtime granularity (mirrors the existing
+        // `orchestrator_skips_init_when_config_valid` pattern).
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        run_in_isolated(dir.path(), home.path(), &global);
+        let mtime_after = std::fs::metadata(&baseline_path)
+            .unwrap()
+            .modified()
+            .unwrap();
+
+        assert_eq!(
+            mtime_before, mtime_after,
+            "orchestrator must not rewrite baseline.json on re-run"
+        );
+    }
+
+    #[test]
+    fn orchestrator_records_findings_in_baseline() {
+        // LAUNCH-010 spec: a fixture repo with a finding-shaped line
+        // must produce a baseline whose total > 0. Uses a secret-like
+        // pattern (AWS access key) to keep the assertion deterministic
+        // without depending on the antipattern catalog. Pinning to
+        // total > 0 keeps the test useful even as the catalog evolves.
+        use crate::activation::baseline;
+
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        // Plant content that reliably triggers an antipattern
+        // finding. `@ts-ignore` is AP-004 in the compiled registry
+        // and `: any` is AP-003 — both are TS-shape, both predate any
+        // recent registry churn, and neither relies on the secret
+        // scanner's allowlist behaviour.
+        std::fs::write(
+            dir.path().join("leak.ts"),
+            "// @ts-ignore\nconst x: any = 5;\n",
+        )
+        .unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let b = baseline::read_baseline(dir.path())
+            .expect("baseline read must succeed")
+            .expect("baseline must be present");
+        assert!(
+            b.total() > 0,
+            "baseline must contain at least one fingerprint, got: {b:?}"
         );
     }
 

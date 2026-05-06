@@ -45,15 +45,39 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     }
 
     let _ = writeln!(out, "  watch: {}", d.watch.label());
-    let _ = writeln!(
-        out,
-        "  baseline: {}",
-        if d.baseline_present {
-            "present"
-        } else {
-            "absent"
+    // LAUNCH-010: render the baseline summary when known. Copy never
+    // claims the repo is clean — even a zero-finding baseline only
+    // says "no findings tracked yet", because the sample is bounded
+    // (~50 files). When secret-shaped findings are present, name
+    // them as the headline security signal.
+    match (&d.baseline_summary, d.baseline_present) {
+        (Some(s), _) if s.secret > 0 => {
+            let _ = writeln!(
+                out,
+                "  baseline: present ({} tracked — {} antipattern, {} secret-shaped; future changes are checked)",
+                s.total, s.antipattern, s.secret,
+            );
+            let _ = writeln!(
+                out,
+                "  note: secret-shaped findings were captured at activation time; activation does not imply the repo is clean of further secrets."
+            );
         }
-    );
+        (Some(s), _) => {
+            let _ = writeln!(
+                out,
+                "  baseline: present ({} tracked; future changes are checked)",
+                s.total,
+            );
+        }
+        (None, true) => {
+            // File on disk but unreadable — `last_error` is set with
+            // the cause; do not over-claim a count we don't have.
+            out.push_str("  baseline: present (unreadable — see last_error)\n");
+        }
+        (None, false) => {
+            out.push_str("  baseline: absent\n");
+        }
+    }
 
     // Language profile (LAUNCH-015): surface the per-language
     // breakdown so the user sees coverage tier alongside protection
@@ -196,6 +220,18 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
             })
         })
         .collect();
+    // LAUNCH-010: emit the per-kind baseline summary alongside the
+    // back-compat `baseline_present` flag. `baseline` is `null` when
+    // absent or unreadable; consumers MUST treat a missing key the
+    // same as `null`, so adding the key is additive.
+    let baseline = d.baseline_summary.as_ref().map(|s| {
+        json!({
+            "total": s.total,
+            "antipattern": s.antipattern,
+            "secret": s.secret,
+            "created_at": s.created_at,
+        })
+    });
     json!({
         "state": state.label(),
         "headline": state.headline(),
@@ -203,6 +239,7 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
         "mcp": mcp,
         "watch": d.watch.label(),
         "baseline_present": d.baseline_present,
+        "baseline": baseline,
         "last_error": d.last_error,
         "all_languages_unsupported": d.all_languages_unsupported,
         "repo_languages": repo_languages,
@@ -290,6 +327,7 @@ mod tests {
             mcp: BTreeMap::new(),
             watch: WatchTier::NotRequested,
             baseline_present: false,
+            baseline_summary: None,
             last_error: None,
             all_languages_unsupported: false,
             language_profile: super::super::language_profile::RepoLanguageProfile::default(),
@@ -384,6 +422,9 @@ mod tests {
             "mcp",
             "watch",
             "baseline_present",
+            // LAUNCH-010 added: per-kind baseline summary. Null when
+            // absent or unreadable; populated when the file parses.
+            "baseline",
             "last_error",
             "all_languages_unsupported",
             // PR 5 (LAUNCH-015) added: pin both the per-language

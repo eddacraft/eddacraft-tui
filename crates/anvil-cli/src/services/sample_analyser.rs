@@ -3,8 +3,9 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use anvil_checks::antipattern::{
-    AntipatternCheckConfig, WarningSeverity, WarningSummary, run_antipattern_check,
+    AntipatternCheckConfig, Warning, WarningSeverity, WarningSummary, run_antipattern_check,
 };
+use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content};
 use walkdir::WalkDir;
 
 /// Maximum number of files we will scan in the post-init analysis.
@@ -156,6 +157,75 @@ pub fn run_post_init_analysis(root: &Path) -> Option<AnalysisOutcome> {
         elapsed,
         exceeded_budget: elapsed > ANALYSIS_TIME_BUDGET,
         top_warnings,
+    })
+}
+
+/// Outcome of a baseline-targeted scan: every finding the activation
+/// flow can use to seed `.anvil/baseline.json`. Distinct from
+/// [`AnalysisOutcome`] (which is shaped for the inline summary
+/// renderer) — this one is shaped for the baseline writer.
+///
+/// LAUNCH-010: emitted by [`run_baseline_scan`]. Empty when the repo
+/// has no analysable files.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct BaselineScanOutcome {
+    pub warnings: Vec<Warning>,
+    pub secrets: Vec<SecretFinding>,
+}
+
+/// Run the same sample selection as [`run_post_init_analysis`] but
+/// return raw `Warning` / `SecretFinding` lists for baseline
+/// construction. Returns `None` when no analysable files are present.
+///
+/// Antipattern + secret scanners both run on the same sample so the
+/// baseline reflects what a single first-activation scan saw, not two
+/// drift-prone snapshots. Secret scanning is content-only — no git
+/// history walk — to keep this bounded by the analyser's existing
+/// time budget.
+#[must_use]
+pub(crate) fn run_baseline_scan(root: &Path) -> Option<BaselineScanOutcome> {
+    let antipattern_config = AntipatternCheckConfig::default();
+    let (sample, _source) = select_sample(
+        root,
+        SAMPLE_SIZE_LIMIT,
+        SAMPLE_HISTORY_DAYS,
+        &antipattern_config,
+    );
+    if sample.is_empty() {
+        return None;
+    }
+
+    let file_strs: Vec<String> = sample
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+    let file_refs: Vec<&str> = file_strs.iter().map(String::as_str).collect();
+
+    let workspace_root = root
+        .canonicalize()
+        .ok()
+        .map(|p| p.to_string_lossy().to_string());
+
+    let antipattern_result =
+        run_antipattern_check(&file_refs, &antipattern_config, workspace_root.as_deref());
+
+    // Secret scan: content-based, per file. Skip files we can't read or
+    // that the antipattern scanner already counted as scanned but whose
+    // bytes we can't get (e.g. transient I/O error). A file we can't
+    // read can't have a finding here, so the silent skip is correct.
+    let secret_config = SecretCheckConfig::default();
+    let mut secrets: Vec<SecretFinding> = Vec::new();
+    for path in &sample {
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let path_str = path.to_string_lossy();
+        secrets.extend(scan_content(&content, &path_str, &secret_config));
+    }
+
+    Some(BaselineScanOutcome {
+        warnings: antipattern_result.warnings.warnings,
+        secrets,
     })
 }
 

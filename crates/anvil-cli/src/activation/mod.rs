@@ -15,6 +15,7 @@
 //! mapping in [`ActivationDiagnostic::protection_state`] derives the
 //! single literal vocabulary word users see.
 
+pub mod baseline;
 pub mod diagnostic;
 pub mod language_profile;
 pub mod mcp_client;
