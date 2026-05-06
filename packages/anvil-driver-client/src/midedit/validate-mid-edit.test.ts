@@ -101,6 +101,10 @@ describe('validateMidEdit — wire shape', () => {
         respond(line, push) {
           const env = line as { id: string; method: string; params: Record<string, unknown> };
           expect(env.method).toBe(SCAN_BUFFER_METHOD);
+          // Literal-value pin: the daemon's `Mode::parse` accepts both
+          // `midEdit` and `mid-edit`, but the canonical wire form is
+          // camelCase `midEdit`. A typo regression is caught here.
+          expect(env.params.mode).toBe('midEdit');
           expect(env.params.mode).toBe(SCAN_BUFFER_MODE_MID_EDIT);
           expect(env.params.path).toBe('src/foo.ts');
           expect(env.params.text).toBe('const x = 1;\n');
