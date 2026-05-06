@@ -260,9 +260,11 @@ new primitive, this module follows three rules:
   --verify`. The four legacy paths (Policy / Architecture / Drift /
   CI) remain as the deeper-learning track. Copy invariants are
   test-pinned: `protection_loop_copy_uses_activation_state_vocabulary`
-  enforces every LAUNCH-008 literal (`protecting`,
+  enforces the five user-actionable LAUNCH-008 literals (`protecting`,
   `ready_restart_required`, `watching`, `needs_action`,
-  `unsupported`) is referenced by name;
+  `unsupported`) are referenced by name — the sixth `error` variant
+  is intentionally not asserted here because the tutorial does not
+  pre-walk failure modes;
   `protection_loop_copy_does_not_claim_pre_write_protection` rejects
   present-tense protection claims and requires the final step to
   point at `anvil start --verify`. Round-1 review feedback closed
