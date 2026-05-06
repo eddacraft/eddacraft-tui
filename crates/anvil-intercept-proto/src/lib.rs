@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 
 pub mod enforcement_config;
+pub mod status;
 
 use std::path::PathBuf;
 
@@ -76,6 +77,11 @@ pub enum IpcCommand {
     /// query — used by `anvil intercept status` (INTD-011) and the
     /// launcher's reconciliation flow.
     ListSessions,
+    /// Query the daemon's full status snapshot — sessions, worktrees,
+    /// fences, health, and latency rollups. INTD-011. The wire-level
+    /// JSON-RPC method name is `query_status` (resolved by the IPC
+    /// layer); this enum variant is the in-memory dispatch shape.
+    QueryStatus,
 }
 
 /// Single NDJSON envelope. One line on the wire = one envelope. The
