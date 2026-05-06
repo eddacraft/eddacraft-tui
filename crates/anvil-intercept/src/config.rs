@@ -214,8 +214,9 @@ pub enum LoadError {
 /// `Default` matches the daemon's no-config baseline:
 /// `mode = Warn`, `on_ambiguous_ownership = Warn`,
 /// `observe_only = false`,
-/// `telemetry_allow_cross_session = false`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// `telemetry_allow_cross_session = false`,
+/// `ipc_limits = IpcLimits::default()` (INTD-016 baseline).
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Resolved {
     pub mode: Mode,
     pub on_ambiguous_ownership: AmbiguousOwnership,
@@ -230,6 +231,15 @@ pub struct Resolved {
     /// wins over the other side's `true`. The opt-in is the
     /// weaker choice.
     pub telemetry_allow_cross_session: bool,
+    /// INTD-016: `DoS` protection budgets resolved from
+    /// `enforcement.dos.*`. The daemon's IPC listener reads these
+    /// at startup; weakening (`max_connections = 0`, etc.) is
+    /// clamped inside `IpcLimits::from_config`. Project + user
+    /// merge for these fields uses **stricter-wins**: a smaller
+    /// `max_connections`, a smaller `rps_*`, a smaller
+    /// `*_timeout_seconds`, and a smaller `control_frame_max_bytes`
+    /// each represent the more restrictive enforcement posture.
+    pub ipc_limits: crate::dos::IpcLimits,
 }
 
 impl Resolved {
@@ -313,11 +323,14 @@ impl Resolved {
                 project_cross.or(user_cross).unwrap_or(false)
             };
 
+        let ipc_limits = resolve_ipc_limits(project.map(|p| &p.dos), user.map(|u| &u.dos));
+
         Self {
             mode,
             on_ambiguous_ownership,
             observe_only,
             telemetry_allow_cross_session,
+            ipc_limits,
         }
     }
 
@@ -357,6 +370,56 @@ impl Resolved {
             crate::fanout::CrossSessionPolicy::Deny
         }
     }
+}
+
+/// Stricter-wins merge for the INTD-016 `DoS` budgets. Each side may
+/// declare `enforcement.dos.*`; the merge picks the **more
+/// restrictive** value per field:
+///
+/// - `max_connections`: smaller wins (fewer simultaneous peers).
+/// - `rps_sustained` / `rps_burst`: smaller wins (lower throughput).
+/// - `handshake_timeout_seconds` / `idle_timeout_seconds`: smaller
+///   wins (faster cut-off for slow / idle peers).
+/// - `control_frame_max_bytes`: smaller wins (smaller attack
+///   surface).
+///
+/// A field absent on both sides falls through to
+/// [`crate::dos::IpcLimits::default`]. Clamping of unsafe values
+/// (zero connection cap, etc.) happens inside
+/// `IpcLimits::from_config` so this layer can stay symmetric.
+fn resolve_ipc_limits(
+    project: Option<&anvil_intercept_proto::enforcement_config::DosConfigFile>,
+    user: Option<&anvil_intercept_proto::enforcement_config::DosConfigFile>,
+) -> crate::dos::IpcLimits {
+    use anvil_intercept_proto::enforcement_config::DosConfigFile;
+
+    fn pick<T: Ord + Copy>(a: Option<T>, b: Option<T>) -> Option<T> {
+        match (a, b) {
+            (Some(x), Some(y)) => Some(x.min(y)),
+            (Some(x), None) | (None, Some(x)) => Some(x),
+            (None, None) => None,
+        }
+    }
+    fn pick_f64(a: Option<f64>, b: Option<f64>) -> Option<f64> {
+        match (a, b) {
+            (Some(x), Some(y)) => Some(if x <= y { x } else { y }),
+            (Some(x), None) | (None, Some(x)) => Some(x),
+            (None, None) => None,
+        }
+    }
+
+    let p = project.copied().unwrap_or_default();
+    let u = user.copied().unwrap_or_default();
+
+    let merged = DosConfigFile {
+        max_connections: pick(p.max_connections, u.max_connections),
+        rps_sustained: pick_f64(p.rps_sustained, u.rps_sustained),
+        rps_burst: pick(p.rps_burst, u.rps_burst),
+        handshake_timeout_seconds: pick(p.handshake_timeout_seconds, u.handshake_timeout_seconds),
+        idle_timeout_seconds: pick(p.idle_timeout_seconds, u.idle_timeout_seconds),
+        control_frame_max_bytes: pick(p.control_frame_max_bytes, u.control_frame_max_bytes),
+    };
+    crate::dos::IpcLimits::from_config(&merged)
 }
 
 fn read_config_file(path: &Path) -> Result<Option<AnvilConfigFile>, LoadError> {
@@ -677,6 +740,7 @@ mod tests {
             mode: Some("fence".to_string()),
             on_ambiguous_ownership: Some("fence".to_string()),
             observe_only: Some(true),
+            ..EnforcementConfigFile::default()
         };
         let resolved = Resolved::from_config_files(None, Some(&user));
         assert_eq!(resolved.mode, Mode::Fence);

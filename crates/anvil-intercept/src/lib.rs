@@ -30,6 +30,7 @@
 
 pub mod auth;
 pub mod config;
+pub mod dos;
 pub mod embedded;
 pub mod enforcement;
 pub mod fanout;

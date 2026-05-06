@@ -121,7 +121,36 @@ The following were stated as non-negotiable during interrogation:
   - gRPC -- rejected per ADR in design spec; local control plane does not
     need service-mesh complexity
   - Split control/telemetry lanes -- deferred to v2 per design spec phasing
-- **Status:** Accepted
+- **Amendment (2026-05-06, INTD-016):** AD-4's "single socket for v1" stance
+  is unchanged, but the wire posture now ships explicit DoS budgets:
+  - Connection cap: 64 simultaneous driver connections (default), enforced at
+    the listener via `tokio::sync::Semaphore`. Over-cap connections are
+    dropped at accept.
+  - Per-connection RPS: 100 sustained / 1000 burst (default), enforced via a
+    per-connection token bucket. **Bucket exhaustion returns a structured
+    `-32005 Server busy` JSON-RPC error and KEEPS the connection open** —
+    closing on rate-limit would cause innocent retries to escalate.
+  - Handshake timeout: 5 s from `accept()` to first NDJSON line. Slow-loris
+    peers are dropped with the standard idle-timeout log.
+  - Idle timeout: 60 s (matches the existing per-read deadline). Separate
+    from the session heartbeat TTL.
+  - Control-lane NDJSON frame cap: 64 KiB (default) for non-`scan_buffer`
+    methods. The 1 MiB scan_buffer payload cap survives untouched. Frame
+    size is enforced **before parsing** so a maliciously-shaped payload
+    cannot consume parser stack.
+  - **Plaintext-local-only TLS stance:** v1 IPC stays plaintext over the
+    owner-only UDS / named pipe. TLS does not arrive until a remote-shell
+    driver is in scope; until then, the trust boundary is the per-user
+    socket / pipe ACL. This is recorded explicitly so a future maintainer
+    does not silently bolt TLS onto a transport whose ACL already enforces
+    per-user isolation.
+
+  Limits are loaded from `enforcement.dos.*` in `.anvil.yaml` per INTD-008's
+  reserved keys; project + user merge picks the **stricter** value per field.
+  The `IpcLimits` struct surfaces the effective values to operator-visible
+  status surfaces (INTD-011). See `crates/anvil-intercept/src/dos.rs` for
+  the implementation.
+- **Status:** Accepted (amended 2026-05-06 for INTD-016)
 
 ### AD-5: Daemon Lifecycle Model
 

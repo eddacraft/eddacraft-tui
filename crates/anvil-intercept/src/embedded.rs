@@ -281,6 +281,7 @@ mod tests {
             on_ambiguous_ownership: AmbiguousOwnership::Warn,
             observe_only: false,
             telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
         };
 
         let outcome = embedded_evaluate_with_diagnostics(&batch, &config, &pipeline);
@@ -352,6 +353,7 @@ mod tests {
             on_ambiguous_ownership: AmbiguousOwnership::Warn,
             observe_only: false,
             telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
         };
         let decision = embedded_evaluate(&batch, &config, &pipeline);
         match decision {
@@ -374,6 +376,7 @@ mod tests {
             on_ambiguous_ownership: AmbiguousOwnership::Warn,
             observe_only: false,
             telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
         };
         let outcome = embedded_evaluate_with_diagnostics(&batch, &config, &pipeline);
         match outcome.decision {
@@ -401,6 +404,7 @@ mod tests {
                 on_ambiguous_ownership: AmbiguousOwnership::Warn,
                 observe_only: true,
                 telemetry_allow_cross_session: false,
+                ipc_limits: crate::dos::IpcLimits::default(),
             };
             let decision = embedded_evaluate(&batch, &config, &pipeline);
             assert!(
@@ -424,6 +428,7 @@ mod tests {
             on_ambiguous_ownership: AmbiguousOwnership::Warn,
             observe_only: false,
             telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
         };
         let decision = embedded_evaluate(&batch, &config, &pipeline);
         assert!(
@@ -449,6 +454,7 @@ mod tests {
             on_ambiguous_ownership: AmbiguousOwnership::Warn,
             observe_only: false,
             telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
         };
         let outcome = embedded_evaluate_with_diagnostics(&batch, &config, &pipeline);
         match outcome.decision {
@@ -479,6 +485,7 @@ mod tests {
             on_ambiguous_ownership: AmbiguousOwnership::Warn,
             observe_only: false,
             telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
         };
         let decision = embedded_evaluate(&batch, &config, &pipeline);
         // The default registry only contains content-bearing rules

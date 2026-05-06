@@ -191,8 +191,7 @@ mod tests {
         Resolved {
             mode: ConfigMode::Fence,
             on_ambiguous_ownership: amb,
-            observe_only: false,
-            telemetry_allow_cross_session: false,
+            ..Resolved::default()
         }
     }
 
