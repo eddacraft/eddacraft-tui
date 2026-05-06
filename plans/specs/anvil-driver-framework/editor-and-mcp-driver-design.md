@@ -388,21 +388,44 @@ What the mcp-driver *cannot* do:
 
 ### 4.3 Translation model
 
-The MCP server's tool handlers remain the agent-facing contract. Each
-handler becomes a thin translator:
+> **DRVR-006 resolution (2026-05-06, A2 Wave 1):** The current release
+> ships [RMCP](../../modules/rust-mcp-launch-shim.aps.md) (the narrow
+> Rust MCP launch shim) as the agent-facing MCP path. Full TS-MCP parity
+> moves to [RMCPF](../../modules/rust-mcp-full-port.aps.md) and is
+> tracked under RMCPF-002 / RMCPF-010. DRVR-006's scope-resolution
+> question — which MCP tools round-trip through the daemon vs which
+> compose against MCP-driver-local helpers — has been resolved via
+> **option (b) Distinguish**: the table below splits each MCP tool into
+> the category it belongs to, with a daemon-RPC name only where INTD
+> already exposes the surface (or where RMCPF-010 will). Tools that
+> need behaviour the daemon does not own (`npm audit`, OPA evaluation,
+> coverage JSON reads) stay as MCP-driver-local composition that
+> invokes the CLI / external tools directly. No new INTD work items
+> are filed by this resolution; option (c) was rejected because RMCP
+> already ships and adding daemon RPCs purely to satisfy parity prose
+> would slip RMCPF without product benefit.
 
-| MCP tool          | Before DRVR                                        | After DRVR                                   |
-|-------------------|----------------------------------------------------|----------------------------------------------|
-| `anvil_check`     | `GateRunner.analyzeFiles(files, root, opts)` in-process | `driver.request('scan.files', {...})` against daemon |
-| `anvil_fix`       | In-process deterministic fixers                    | `driver.request('fix.apply', {...})`         |
-| `anvil_gate`      | `GateRunner.runGates(...)` in-process              | `driver.request('gate.run', {...})`          |
-| `anvil_suppress`  | Write suppression directly to file                 | `driver.request('suppression.apply', {...})` which validates and returns the normalised comment |
-| `anvil_status`    | In-process check registry reflection               | `driver.request('status.query')` — daemon returns authoritative state |
-| `anvil_query_boundary` | In-process boundary lookup                     | `driver.request('architecture.queryBoundary', {...})` |
+The MCP server's tool handlers remain the agent-facing contract. Each
+handler is classified as either a **daemon-RPC translator** (round-trips
+through `anvil-intercept`) or **MCP-driver-local composition** (handler
+invokes the CLI or runs the work in-process under the MCP server). The
+agent-visible input/output schemas are identical for both classes; the
+difference is internal sequencing and where authority lives.
+
+| MCP tool               | Class                          | Daemon RPC (if any)                     | Notes                                                                                                                                              |
+|------------------------|--------------------------------|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `anvil_check`          | Daemon-RPC translator          | `scan.files` / `scan_buffer` (mid-edit) | Daemon owns the rule run. RMCPF-010 wires the parity port; RMCP today calls the embedded fallback when the daemon is unavailable.                  |
+| `anvil_status`         | Daemon-RPC translator          | `status.query`                          | Authoritative session / fence state lives in the daemon registry (INTD-003) and fence store (INTD-005).                                            |
+| `anvil_suppress`       | Daemon-RPC translator          | `suppression.apply`                     | Daemon owns ADR-004 suppression-format validation; the MCP handler is a thin translator returning the normalised comment.                          |
+| `anvil_fix`            | MCP-driver-local composition   | —                                       | Deterministic fixers run in the MCP server / CLI. Daemon does not own a `fix.apply` RPC; redaction contract in §4.4 still applies to the response. |
+| `anvil_gate`           | MCP-driver-local composition   | —                                       | `GateRunner` invokes `npm audit`, OPA, and coverage readers — work the daemon deliberately does not do. Handler shells to `anvil gate` instead.    |
+| `anvil_query_boundary` | MCP-driver-local composition   | —                                       | Architecture-boundary lookup is a `crates/anvil-architecture` query reachable from the MCP host process; no daemon round-trip needed.              |
 
 All MCP tool input/output schemas remain unchanged. Agents that use
 the MCP server continue to work. The change is invisible above the
-MCP transport.
+MCP transport. Per §4.4 below, **redaction is class-independent**: every
+MCP-bound response payload (daemon-round-tripped or local) passes
+through the redaction contract before it leaves the MCP transport.
 
 ### 4.4 Degraded behaviour
 

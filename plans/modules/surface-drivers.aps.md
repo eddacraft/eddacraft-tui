@@ -346,45 +346,49 @@ define graph schema.
 
 ### DRVR-006: Pin MCP daemon-RPC surface — deferred to RMCPF
 
-- **Status:** Superseded for the current release by RMCP and deferred for full
-  parity to RMCPF-002/RMCPF-010.
-- **Intent:** The MCP translation table in
+- **Status:** Superseded — recorded in PR (A2 Wave 1, branch
+  `a2/wave1-driver-scope-trust`, 2026-05-06). Resolution: option **(b)
+  Distinguish** — the §4.3 translation table now classifies each MCP
+  tool as either **daemon-RPC translator** (`anvil_check`,
+  `anvil_status`, `anvil_suppress`) or **MCP-driver-local composition**
+  (`anvil_fix`, `anvil_gate`, `anvil_query_boundary`). Full RMCPF
+  parity continues to track this resolution under RMCPF-002 and
+  RMCPF-010 expected outcomes.
+- **Intent (historical):** The MCP translation table in
   `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`
-  §4.3 names six RPCs (`scan.files`, `fix.apply`, `gate.run`,
+  §4.3 named six RPCs (`scan.files`, `fix.apply`, `gate.run`,
   `suppression.apply`, `status.query`, `architecture.queryBoundary`)
-  that have no backing in INTD-001..-016, and the `GateRunner` they
-  replace currently runs `npm audit`, OPA, and coverage JSON reads
-  that the daemon does not do. This work item decides which path is
-  the actual design. Must complete before DRVR-002 sign-off.
-- **Expected Outcome:** Pick and record one of:
-  - **(a) Shrink** the §4.3 table to RPCs INTD actually exposes
-    (scan + suppression), move the rest to MCP-server-local helpers
-    that invoke the CLI / external tools directly.
-  - **(b) Distinguish** daemon-round-tripped RPCs from
-    MCP-driver-local composition in the table; record which category
-    each MCP tool belongs to and why.
-  - **(c) Expand** INTD scope with new work items for the missing
-    RPCs, acknowledging the cost and slipping the RMCPF schedule.
-  Whichever path lands, the design-spec §4.3 and the RMCPF/DRVR full-port
-  expected outcomes are rewritten to match. If (c) is chosen, file
-  the new INTD items as part of the DRVR-006 execution work (not
-  the current docs PR, which will already be merged by the time
-  this decision lands).
-- **Scope:** `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`,
-  `plans/modules/rust-mcp-full-port.aps.md` (RMCPF expected outcomes),
-  `plans/modules/intercept-daemon.aps.md` (only if path (c) is
-  chosen)
-- **Dependencies:** none (this is a scope-resolution task blocking
-  DRVR-002)
-- **Validation:** Design spec §4.3 updated, RMCPF expected outcomes updated to
-  match, inline prose contains no references to RPC names
-  that lack a backing INTD item (or driver-local helper).
+  that had no backing in INTD-001..-016, and the `GateRunner` they
+  replaced runs `npm audit`, OPA, and coverage JSON reads that the
+  daemon does not do. This work item decides which path is the actual
+  design.
+- **Resolution rationale (2026-05-06):**
+  - **(a) Shrink** was rejected because it under-described
+    `anvil_status` / `anvil_check`, which legitimately are daemon
+    round-trips today via the RMCP-005 `DaemonValidationClient`.
+  - **(b) Distinguish** was selected. RMCP is shipped; the table is
+    rewritten to record which MCP tools round-trip through the daemon
+    and which compose locally against the CLI / in-process Rust
+    helpers. The redaction contract added by DRVR-007 §4.4 applies to
+    both classes, so the local-composition tools do not get a free
+    pass on payload hygiene.
+  - **(c) Expand** was rejected to avoid slipping RMCPF's schedule by
+    filing daemon RPCs whose only consumer is parity prose.
+- **Outcome (recorded):** Design spec §4.3 updated; RMCPF-002 and
+  RMCPF-010 expected outcomes updated to match; no new INTD items
+  filed.
+- **Scope:** `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`
+  §4.3, `plans/modules/rust-mcp-full-port.aps.md` (RMCPF-002 and
+  RMCPF-010 expected outcomes)
+- **Dependencies:** none (scope-resolution task)
+- **Validation:** Design spec §4.3 updated, RMCPF expected outcomes
+  updated to match, inline prose contains no references to daemon RPC
+  names that lack a backing INTD item or that are not explicitly
+  classified as MCP-driver-local composition.
 - **Source:** 2026-04-24 council review C2 (adversarial reviewer +
-  council-reviewer, judge-upgraded) — tracked in
-  PR #1063.
+  council-reviewer, judge-upgraded) — tracked in PR #1063.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Draft
 
 ---
 
@@ -433,7 +437,7 @@ define graph schema.
   PR #1063.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Draft
+- **Status:** In Progress (A2 Wave 1 — branch `a2/wave1-driver-scope-trust`)
 
 ---
 
