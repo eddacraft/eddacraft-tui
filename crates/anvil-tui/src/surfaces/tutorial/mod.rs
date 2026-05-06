@@ -25,8 +25,18 @@ pub const STATIC_MODE_WATCHER_UNAVAILABLE: &str =
     "Live file watcher unavailable \u{2014} file saves won't retrigger checks.";
 
 /// Available tutorial paths.
+///
+/// LAUNCH-014 introduced [`TutorialPath::ProtectionLoop`] as the
+/// default first path: a short repo-local value walk that explains
+/// Anvil's protection loop, simulates a high-signal check on safe
+/// fixture content, and points the user at `anvil start --verify` as
+/// the next step. The remaining four paths are the deeper-learning
+/// track for users who want the full taxonomy walk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TutorialPath {
+    /// LAUNCH-014: the value-first default. Demonstrates the loop in
+    /// 60 seconds without claiming pre-write protection.
+    ProtectionLoop,
     Policy,
     Architecture,
     Drift,
@@ -36,6 +46,7 @@ pub enum TutorialPath {
 impl TutorialPath {
     pub fn label(self) -> &'static str {
         match self {
+            Self::ProtectionLoop => "Anvil's protection loop",
             Self::Policy => "Policy checks",
             Self::Architecture => "Boundary findings",
             Self::Drift => "Configuration drift",
@@ -47,7 +58,10 @@ impl TutorialPath {
         // Legacy labels ("Policy", "Architecture", "Drift", "CI Integration")
         // are kept so progress files written by older builds still round-trip
         // into the correct enum variant after the onboarding rename.
+        // LAUNCH-014's "Anvil's protection loop" is new — no legacy
+        // alias is required.
         match s {
+            "Anvil's protection loop" => Some(Self::ProtectionLoop),
             "Policy checks" | "Policy" => Some(Self::Policy),
             "Boundary findings" | "Architecture" => Some(Self::Architecture),
             "Configuration drift" | "Drift" => Some(Self::Drift),
@@ -58,6 +72,9 @@ impl TutorialPath {
 
     pub fn description(self) -> &'static str {
         match self {
+            Self::ProtectionLoop => {
+                "60-second walk: see what Anvil checks, then activate in this repo"
+            }
             Self::Policy => "Define checks that produce findings and influence the gate",
             Self::Architecture => "See how boundary checks turn imports into actionable findings",
             Self::Drift => "Capture state changes and review the findings between snapshots",
@@ -148,7 +165,12 @@ impl TutorialState {
     pub fn new() -> Self {
         Self {
             phase: TutorialPhase::PathSelect,
+            // LAUNCH-014: the value-first ProtectionLoop path is
+            // listed first AND pre-selected so the default Enter
+            // press lands the user on the concrete first-win walk
+            // rather than the deeper-learning taxonomy paths.
             paths: vec![
+                TutorialPath::ProtectionLoop,
                 TutorialPath::Policy,
                 TutorialPath::Architecture,
                 TutorialPath::Drift,
@@ -239,6 +261,7 @@ impl TutorialState {
 
     pub fn load_steps(&mut self, path: TutorialPath) {
         self.steps = match path {
+            TutorialPath::ProtectionLoop => paths::protection_loop_steps(),
             TutorialPath::Policy => paths::policy_steps(),
             TutorialPath::Architecture => paths::architecture_steps(),
             TutorialPath::Drift => paths::drift_steps(),
@@ -704,17 +727,25 @@ mod tests {
     fn starts_at_path_select() {
         let state = TutorialState::new();
         assert_eq!(state.phase, TutorialPhase::PathSelect);
-        assert_eq!(state.paths.len(), 4);
+        // LAUNCH-014: paths now include the value-first
+        // ProtectionLoop default plus the four deeper-learning
+        // tracks. ProtectionLoop is index 0 / pre-selected.
+        assert_eq!(state.paths.len(), 5);
+        assert_eq!(state.paths[0], TutorialPath::ProtectionLoop);
         assert_eq!(state.path_selected, 0);
         assert!(state.chosen_path.is_none());
     }
 
     #[test]
     fn path_selection_advances_to_running() {
+        // LAUNCH-014: hitting Enter from the default selection lands
+        // the user on the ProtectionLoop walk, not the Policy
+        // taxonomy path. The chosen_path assertion is the visible
+        // pin against accidental reordering.
         let mut state = TutorialState::new();
         state.handle_key(Action::Select);
         assert_eq!(state.phase, TutorialPhase::Running);
-        assert_eq!(state.chosen_path, Some(TutorialPath::Policy));
+        assert_eq!(state.chosen_path, Some(TutorialPath::ProtectionLoop));
         assert!(!state.steps.is_empty());
         assert_eq!(state.current_step, 0);
     }
@@ -741,9 +772,13 @@ mod tests {
 
     #[test]
     fn step_progression_informational() {
-        // Policy step 0 is "Introduction" — no command — so Select advances it.
+        // LAUNCH-014: ProtectionLoop step 0 is "Anvil's protection
+        // loop in 60 seconds" — no command — so Select advances it.
+        // (Was the Policy "Introduction" step before LAUNCH-014
+        // reordered the default path; the assertion is identical
+        // because both are informational.)
         let mut state = TutorialState::new();
-        state.handle_key(Action::Select); // choose Policy
+        state.handle_key(Action::Select); // choose ProtectionLoop
         let total_steps = state.steps.len();
         assert!(total_steps > 1);
 
@@ -767,7 +802,7 @@ mod tests {
     #[test]
     fn back_from_running_exits_tutorial() {
         let mut state = TutorialState::new();
-        state.handle_key(Action::Select); // choose Policy
+        state.handle_key(Action::Select); // choose default ProtectionLoop
         assert_eq!(state.phase, TutorialPhase::Running);
 
         state.handle_key(Action::Back);
@@ -792,7 +827,11 @@ mod tests {
     fn back_from_running_sets_wants_back() {
         let mut state = TutorialState::new();
 
-        // Select Architecture (index 1)
+        // LAUNCH-014 reordering: ProtectionLoop is index 0, Policy
+        // index 1, Architecture index 2. Press Down twice to land
+        // on Architecture so the original assertion still pins the
+        // running-phase exit semantics rather than path selection.
+        state.handle_key(Action::Down);
         state.handle_key(Action::Down);
         state.handle_key(Action::Select);
         assert_eq!(state.chosen_path, Some(TutorialPath::Architecture));
@@ -817,10 +856,112 @@ mod tests {
 
     #[test]
     fn path_labels() {
+        assert_eq!(
+            TutorialPath::ProtectionLoop.label(),
+            "Anvil's protection loop"
+        );
         assert_eq!(TutorialPath::Policy.label(), "Policy checks");
         assert_eq!(TutorialPath::Architecture.label(), "Boundary findings");
         assert_eq!(TutorialPath::Drift.label(), "Configuration drift");
         assert_eq!(TutorialPath::CI.label(), "CI gate integration");
+    }
+
+    // --- LAUNCH-014: protection-loop path copy invariants ---
+
+    #[test]
+    fn protection_loop_path_is_default_first_path() {
+        // The Enter key on a fresh tutorial must land the user on
+        // the ProtectionLoop walk, not the Policy taxonomy. This is
+        // the load-bearing invariant of LAUNCH-014.
+        let state = TutorialState::new();
+        assert_eq!(state.paths.first(), Some(&TutorialPath::ProtectionLoop));
+        assert_eq!(state.path_selected, 0);
+    }
+
+    #[test]
+    fn protection_loop_copy_uses_activation_state_vocabulary() {
+        // The path body must reference the LAUNCH-008 activation
+        // state literals so users recognise them when `anvil status
+        // --verify` prints one. This pin protects the cross-surface
+        // vocabulary contract.
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::ProtectionLoop);
+        let body: String = state
+            .steps
+            .iter()
+            .map(|s| format!("{}\n{}\n{}", s.title, s.description, s.instruction))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        for state_word in [
+            "protecting",
+            "ready_restart_required",
+            "watching",
+            "needs_action",
+            "unsupported",
+        ] {
+            assert!(
+                body.contains(state_word),
+                "ProtectionLoop copy must reference state `{state_word}` so it stays \
+                 vocabulary-aligned with `anvil start --verify` / LAUNCH-008. body:\n{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn protection_loop_copy_does_not_claim_pre_write_protection() {
+        // The tutorial does not have activation evidence, so its copy
+        // must not promise pre-write protection or call the user's
+        // repo "protected". The final step points at `anvil start
+        // --verify` instead — the only surface that produces a
+        // literal `ProtectionState`.
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::ProtectionLoop);
+        let body: String = state
+            .steps
+            .iter()
+            .map(|s| format!("{}\n{}\n{}", s.title, s.description, s.instruction))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .to_lowercase();
+
+        // Allow the literal state word `protecting` (referenced in
+        // the vocabulary explainer) but reject phrasings that claim
+        // present-tense protection of the user's repo. This pin
+        // would catch copy edits like "you are now protected" or
+        // "pre-write validation enabled".
+        for forbidden in [
+            "you are now protected",
+            "you're now protected",
+            "your repo is protected",
+            "pre-write validation enabled",
+            "pre-write validation active",
+            "anvil is now intercepting",
+        ] {
+            assert!(
+                !body.contains(forbidden),
+                "ProtectionLoop copy must not include `{forbidden}` — only \
+                 `anvil start --verify` is allowed to produce that claim. body:\n{body}"
+            );
+        }
+
+        // The final step must point at `anvil start --verify` so the
+        // user gets a real evidence-backed answer instead of trusting
+        // the tutorial's word.
+        assert!(
+            body.contains("anvil start --verify"),
+            "final ProtectionLoop step must direct users at `anvil start --verify`, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn protection_loop_round_trips_through_label() {
+        // The progress-file label round-trip must work for the new
+        // path so completed-state checkmarks survive a process
+        // restart. (Mirrors `path_labels_round_trip` for the
+        // existing four paths.)
+        let path = TutorialPath::ProtectionLoop;
+        assert_eq!(TutorialPath::from_label(path.label()), Some(path));
     }
 
     // --- Command execution tests ---
@@ -1260,6 +1401,10 @@ mod tests {
     #[test]
     fn from_label_roundtrips() {
         for path in &[
+            // LAUNCH-014: include the new ProtectionLoop default in
+            // the round-trip pin so a label rename can't silently
+            // break the resumption seam.
+            TutorialPath::ProtectionLoop,
             TutorialPath::Policy,
             TutorialPath::Architecture,
             TutorialPath::Drift,
