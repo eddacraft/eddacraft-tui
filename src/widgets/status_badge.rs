@@ -19,8 +19,8 @@ pub enum BadgeStatus {
 
 impl BadgeStatus {
     /// Resolve the severity to a [`Style`] using the supplied theme. Shared
-    /// between widgets that surface badge status (modal, toast, status bar) so
-    /// the mapping stays in one place.
+    /// between widgets that surface badge status (currently `Modal` and
+    /// `Toast`) so the mapping stays in one place.
     #[must_use]
     pub fn severity_style<T: Theme>(self, theme: &T) -> Style {
         match self {
