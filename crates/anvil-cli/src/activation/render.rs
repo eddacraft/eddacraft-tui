@@ -262,11 +262,16 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
 ///    (e.g. `current_exe()` resolution, malformed editor config files
 ///    encountered while reading them). Install-time write failures
 ///    cannot occur here because no install runs.
-/// 2. `mcp[].tier` — the on-disk tier each client has reached
+/// 2. `mcp[].tier` — the observed tier each client has reached
 ///    (`config_present` / `restart_required` /
 ///    `restart_handshake_verified` / `server_startable` /
 ///    `live_validation`). This is the canonical signal for "is anvil
-///    wired into this client?" in `--json` mode.
+///    wired into this client?" in `--json` mode. Tiers up to and
+///    including `restart_required` are derived from on-disk config;
+///    `restart_handshake_verified` and `server_startable` reflect a
+///    runtime handshake probe done at verify time and are not
+///    persisted, so consumers should treat the field as observed
+///    state rather than durable state.
 /// 3. `last_error` — populated on probe failure with the underlying
 ///    cause. Empty on a clean read-only probe even when `mcp[].tier`
 ///    indicates `config_absent`.

@@ -11,9 +11,9 @@
 //!
 //! These integration tests verify:
 //!
-//! 1. The probe runs without breaking the diagnostic surface — install
-//!    + verify promotes to `restart_handshake_verified` and renders
-//!    normally.
+//! 1. The probe runs without breaking the diagnostic surface —
+//!    `install` followed by `verify` promotes the entry to
+//!    `restart_handshake_verified` and renders normally.
 //! 2. When no install has happened, the probe is skipped (no spawn
 //!    overhead, tier stays at `config_absent`).
 //! 3. End-to-end timing — the probe completes within its 1-second
