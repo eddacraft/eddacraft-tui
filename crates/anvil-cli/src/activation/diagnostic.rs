@@ -289,7 +289,9 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     ) = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
-            (super::mcp_client::probe_all(root, home, &fresh), None)
+            let probe_results = super::mcp_client::probe_all(root, home, &fresh);
+            probe_handshake_for_observability(&probe_results, &fresh);
+            (probe_results, None)
         }
         Err(e) => {
             // Couldn't resolve current_exe (rare — typically only fails
@@ -334,6 +336,62 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
         last_error,
         all_languages_unsupported,
         language_profile,
+    }
+}
+
+/// Drive an MCP `initialize` handshake against `fresh` to verify the
+/// installed entry's binary actually serves MCP, and emit a tracing
+/// event with the result (LAUNCH-009.5).
+///
+/// **Tier semantics deviation from the original LAUNCH-009 spec:** the
+/// task body for LAUNCH-009 / LAUNCH-009.5 describes the probe as
+/// "promote `RestartRequired → ServerStartable` on success". The
+/// actual `McpTier` enum and the tests in this module deliberately
+/// position `ServerStartable` as a **weaker** tier than
+/// `RestartRequired` (it means "the server runs but we have no
+/// evidence of client wiring" — useful when anvil is installed in
+/// `PATH` but no client config matches). Promoting from
+/// `RestartRequired` (config wired + matching) to `ServerStartable`
+/// would lose information.
+///
+/// Until the tier semantics are reconciled (tracked in LAUNCH-009.6 in
+/// the launch module), this function runs the probe purely for
+/// **observability**: the result is logged via `tracing` so SREs can
+/// see whether the binary actually serves MCP, but the diagnostic
+/// tier is not modified.
+///
+/// The probe spawns `fresh.command` once (v1 entries are identical
+/// across clients), so a single handshake answers for every
+/// `RestartRequired` row in the map. The probe is skipped entirely
+/// when no client is at `RestartRequired` — fresh repos and
+/// already-protecting tiers add zero latency.
+///
+/// **Cost:** at most one [`super::mcp_client::PROBE_HANDSHAKE_TIMEOUT`]
+/// (1s) added to `verify_with_home`, only when at least one client is
+/// at `RestartRequired`.
+fn probe_handshake_for_observability(
+    map: &BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
+    fresh: &super::mcp_client::AnvilEntry,
+) {
+    let any_restart_required = map.values().any(|r| r.tier == McpTier::RestartRequired);
+    if !any_restart_required {
+        return;
+    }
+    match super::mcp_client::probe_startable(fresh) {
+        Ok(()) => {
+            tracing::info!(
+                "mcp probe: handshake against installed binary succeeded \
+                 (clients remain at RestartRequired pending tier-semantic \
+                 reconciliation in LAUNCH-009.6)",
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "mcp probe: handshake failed — installed binary does not \
+                 serve MCP cleanly; clients remain at RestartRequired",
+            );
+        }
     }
 }
 

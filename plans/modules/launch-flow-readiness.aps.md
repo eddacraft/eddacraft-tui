@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 15/17    |
+| LAUNCH | —     | In Progress | 16/18    |
 
 ## Purpose
 
@@ -186,9 +186,10 @@ new primitive, this module follows three rules:
 
 > Status: In Progress. LAUNCH-001, LAUNCH-002, LAUNCH-003, LAUNCH-004,
 > LAUNCH-005, LAUNCH-006, LAUNCH-007, LAUNCH-008, LAUNCH-009,
-> LAUNCH-010, LAUNCH-012, LAUNCH-013, LAUNCH-014, LAUNCH-015, and
-> LAUNCH-016 are complete; remaining LAUNCH-009.5 and LAUNCH-011 stay
-> Todo until picked up.
+> LAUNCH-009.5, LAUNCH-010, LAUNCH-012, LAUNCH-013, LAUNCH-014,
+> LAUNCH-015, and LAUNCH-016 are complete; LAUNCH-009.6
+> (tier-semantic reconciliation) and LAUNCH-011 stay Todo until
+> picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -985,6 +986,74 @@ new primitive, this module follows three rules:
   - `--json` install schema test (whichever direction the decision
     goes — extended block or documented omission).
 - **LOC budget:** ~250-400 production + ~150-200 test.
+- **Confidence:** medium.
+- **Status:** Complete — split into two PRs:
+  - **Cleanup half** (PR #1291): dropped `Target::Windsurf` and
+    `Target::Vscode`, added the symlink-parent guard (scoped to MCP
+    install path per council review), documented the SafeDrift
+    wholesale-replace policy, and clarified the `--json`
+    install-report omission contract.
+  - **Spawn-probe half** (this PR): added
+    `mcp_client::probe_startable` and wired it into `verify_with_home`
+    via `probe_handshake_for_observability`. The probe drives a real
+    JSON-RPC `initialize` handshake against the installed binary
+    within a 1-second budget. **Tier promotion deferred to LAUNCH-009.6**
+    (see deviation note below) — the probe runs purely for tracing
+    observability in v1.
+
+  **Tier-promotion deviation:** the original spec described
+  `RestartRequired → ServerStartable` as a promotion. The actual
+  `McpTier` enum and the diagnostic test harness deliberately position
+  `ServerStartable` as a **weaker** tier than `RestartRequired`
+  (it means "server runs but no client wiring detected"). Promoting
+  on probe success would lose information and break the existing
+  `protection_state()` mapping. Reconciling the tier semantics
+  is a discrete refactor and lives in **LAUNCH-009.6** below.
+
+  Hosted-transport `type` field handling, telemetry counters, and
+  the JSON install-block decision remain deferred per the original
+  task body.
+
+---
+
+### LAUNCH-009.6: Reconcile MCP tier semantics
+
+- **Intent:** Resolve the `ServerStartable` / `RestartRequired` ladder
+  inconsistency surfaced during LAUNCH-009.5 implementation so the
+  spawn probe can graduate from observability-only to a real tier
+  promotion.
+- **Background:** the LAUNCH-008 council placed `ServerStartable`
+  *below* `RestartRequired` in the `McpTier` enum on the reading that
+  ServerStartable means "server can spawn but no client wiring is
+  detected". The LAUNCH-009 spec text described the spawn probe as
+  promoting `RestartRequired → ServerStartable`, which conflicts with
+  this ordering: a successful probe of an installed entry would lose
+  the "config wired and matching" information by sliding the tier
+  back down the ladder. LAUNCH-009.5 ships the probe under
+  observability-only semantics to avoid the regression; this task
+  fixes the ambiguity end-to-end.
+- **Expected Outcome:** one of:
+  1. **Reorder the enum** so `ServerStartable > RestartRequired`,
+     update `protection_state()` to treat `ServerStartable` as at
+     least as strong as `RestartRequired`, refresh the existing
+     diagnostic tests that encode the older reading, and let
+     `probe_handshake_for_observability` promote on success.
+  2. **Add a new tier** between `RestartRequired` and `LiveValidation`
+     (e.g. `RestartHandshakeVerified`) that captures "config wired
+     AND server starts" without overloading `ServerStartable`.
+- **Coordinates with:** LAUNCH-009.5 (probe code is already in place;
+  this task swaps the stub `probe_handshake_for_observability` body
+  for a real promotion path), LAUNCH-008 (tier vocabulary owner),
+  and any future INTD-driven `LiveValidation` work.
+- **Validation:**
+  - Existing `watch_running_plus_server_startable_does_not_overclaim`
+    and `server_startable_without_watch_falls_to_needs_action` tests
+    are updated or replaced with the new semantic.
+  - End-to-end: `anvil status --verify` after install +
+    successful probe lands at the chosen elevated state (likely
+    `ReadyRestartRequired` until LiveValidation lands).
+- **LOC budget:** ~50-150 production + ~50-100 test (pure refactor;
+  most of the cost is updating tests that encode the old reading).
 - **Confidence:** medium.
 - **Status:** Todo
 
