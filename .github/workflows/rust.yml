@@ -197,6 +197,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           cargo llvm-cov nextest --workspace --json --output-path coverage-rust.json
+          cargo llvm-cov report --html --output-dir target/llvm-cov
           cargo llvm-cov report --summary-only | tee coverage-rust-summary.txt
 
       # nextest does not run doctests, so we run them separately to preserve
@@ -234,6 +235,7 @@ jobs:
           path: |
             coverage-rust.json
             coverage-rust-summary.txt
+            target/llvm-cov/html/
 
   clippy:
     name: Clippy
