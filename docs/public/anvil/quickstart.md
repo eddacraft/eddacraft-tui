@@ -119,18 +119,23 @@ policy, secrets, and other gate checks.
 Most projects have something. Here is typical `check` output:
 
 ```
-Checking anti-patterns...
-  [AP-003] Explicit any type detected
-    src/utils/parser.ts:42
-    Using 'any' defeats type safety
-    Fix: Define a proper type or use 'unknown'
+Checked 12 file(s)
 
-  [AP-006] Empty catch block
-    src/services/auth.ts:87
-    Empty catch blocks hide errors
-    Fix: Log the error or re-throw
+Warnings
+----------------------------------------
+  ⚠ [AP-003] Explicit any type detected
+  src/utils/parser.ts:42
+  Using 'any' defeats type safety
 
-2 warnings found.
+  ⚠ [AP-006] Empty catch block
+  src/services/auth.ts:87
+  Empty catch blocks hide errors
+
+Summary
+----------------------------------------
+  Total            2
+  Warnings         2
+  Time             42ms
 ```
 
 If everything passes, you will see:
@@ -138,9 +143,7 @@ If everything passes, you will see:
 ```
 Checked 12 file(s)
 
-Checking anti-patterns... done
-
-No warnings found
+  ✓ No warnings found
 ```
 
 To run the broader gate surface, use:
