@@ -15,23 +15,38 @@
 //!
 //! ## Watch fallback (LAUNCH-011)
 //!
-//! When MCP cannot pre-write attach (no client has reached
-//! `RestartRequired+`), `anvil start --watch` runs the activation
-//! orchestrator and then hands off to the kernel watcher inline,
-//! scoped to the current repo. The diagnostic block is rendered first
-//! (carrying the explicit "MCP pre-write validation is not attached"
-//! note from `activation::render_human`); the watcher then takes over
-//! the foreground until Ctrl-C.
+//! When MCP pre-write validation is not live AND the repo is in a
+//! state where save-time fallback would actually produce coverage,
+//! `anvil start --watch` runs the activation orchestrator and then
+//! hands off to the kernel watcher inline, scoped to the current
+//! repo. The diagnostic block is rendered first (carrying the
+//! explicit "MCP pre-write validation is not attached" note from
+//! `activation::render_human` and a synthesised `state: watching`
+//! literal so the printed state matches the protection layer about
+//! to take over); the watcher then takes over the foreground until
+//! Ctrl-C.
 //!
 //! Honesty contract:
 //!
-//! - `--watch` does NOT make the orchestrator claim a tier the
-//!   diagnostic does not back. The render still emits the literal
-//!   `WatchTier::Offered` line up to the moment the kernel watcher
-//!   starts running.
-//! - When MCP IS pre-write attached, `--watch` is a no-op: pre-write
+//! - `--watch` synthesises `WatchTier::Running` in the pre-handoff
+//!   diagnostic ONLY when the spawn is going to happen this run, so
+//!   the printed `state:` literal matches the protection layer about
+//!   to enter. The synthesis never claims a tier stronger than the
+//!   `protection_state` mapping would already permit at
+//!   `WatchTier::Running` (`Watching` or `ReadyRestartRequired` —
+//!   never `Protecting`).
+//! - When MCP IS at `LiveValidation`, `--watch` is a no-op: pre-write
 //!   validation already covers the save path, so spawning the watcher
-//!   would only generate redundant fallback noise.
+//!   would only generate redundant fallback noise. The user sees the
+//!   explicit "redundant" message; no watcher is spawned.
+//! - When the repo is in a state where watch fallback would NOT
+//!   produce useful coverage (config invalid / absent, `last_error`
+//!   set, all detected languages out of scope), `--watch` skips the
+//!   spawn with a state-specific explanation instead of running a
+//!   watcher that would generate noise without findings. The user
+//!   sees the diagnostic + the skip reason; the actionable next step
+//!   (fix config, run init, name the language gap) is the same as
+//!   the bare `anvil start` repair hint.
 //! - `--watch --verify` is rejected — read-only probes do not spawn
 //!   processes, and reporting `state: watching` synthetically would
 //!   over-claim.
@@ -104,20 +119,31 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         activation::orchestrator::run(root, global)?
     };
 
-    // LAUNCH-011: when `--watch` is set and the orchestrator's MCP
-    // tier is below `LiveValidation`, the process is about to enter
-    // the kernel watcher. Synthesise that final state in the
-    // diagnostic BEFORE rendering so the printed `state:` line
-    // matches the protection layer the user is moments away from
-    // running — never let the rendered state lag behind the actual
-    // post-handoff state.
-    //
-    // When MCP is already live, the synthesis is skipped; the
-    // diagnostic stays at `Protecting` and the post-render skip path
-    // surfaces an explicit "redundant" message instead of spawning
-    // a watcher that would only produce save-time noise.
-    let will_spawn_watcher = args.watch && !diagnostic.mcp_pre_write_live();
-    if will_spawn_watcher {
+    // LAUNCH-011 (council remediation, Copilot review): the watch
+    // spawn must be gated on the SAME conditions that gate the
+    // diagnostic's `WatchTier::Offered` line — otherwise `anvil
+    // start --watch` could synthesise `state: watching` and spawn
+    // a watcher in states where the offer was deliberately
+    // suppressed (config absent / invalid, last_error set,
+    // `all_languages_unsupported`). Compute the spawn decision once
+    // and reuse it for both the synthesis and the hand-off branch
+    // so the two cannot drift.
+    let watch_decision = if args.watch {
+        WatchDecision::for_diagnostic(&diagnostic)
+    } else {
+        WatchDecision::NotRequested
+    };
+
+    // When the spawn is going to happen this run, synthesise that
+    // final state in the diagnostic BEFORE rendering so the printed
+    // `state:` line matches the protection layer the user is moments
+    // away from running. The synthesis is bounded by the spawn
+    // decision: any path that does NOT spawn (NoOpRedundant,
+    // SkipConfigBlocked, SkipNoCoverage, SkipError, NotRequested)
+    // leaves the diagnostic at the orchestrator's reported tier so
+    // the user sees the same state they would see without `--watch`,
+    // plus the skip reason below.
+    if matches!(watch_decision, WatchDecision::Spawn) {
         diagnostic.watch = activation::diagnostic::WatchTier::Running;
     }
 
@@ -150,38 +176,106 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         bail!("MCP install failed: {err}");
     }
 
-    // LAUNCH-011: hand off to the kernel watcher when `--watch` was
-    // requested AND MCP did not reach `LiveValidation`. We deliberately
-    // skip the spawn when MCP is already live (pre-write validation
-    // covers the save path; a fallback layer is redundant) but still
-    // run the spawn for `RestartRequired` because the user has chosen
-    // explicitly to layer save-time protection on top of the
-    // restart-pending state — that is honest belt-and-braces, not
-    // theatre.
-    if args.watch {
-        if !will_spawn_watcher {
-            // MCP pre-write validation is already live. The
-            // diagnostic above already rendered `state: protecting`
-            // — this trailing line just tells the user we honoured
-            // the flag without spawning a redundant watcher.
+    // LAUNCH-011: hand off to the kernel watcher OR print the
+    // appropriate skip reason. Each non-spawn variant carries its
+    // own copy so the user sees a state-specific explanation, not
+    // a generic "watch declined" line.
+    match watch_decision {
+        WatchDecision::NotRequested => Ok(()),
+        WatchDecision::Spawn => {
+            // Print the explicit watch hand-off marker so subprocess
+            // consumers (and humans reading the stream) see the
+            // moment activation stops and the kernel watcher takes
+            // over. The language is conservative on purpose — never
+            // "fully protected", never "MCP attached".
+            println!(
+                "  watch: starting save-time fallback — MCP pre-write validation is not attached; this layer validates files after they are saved."
+            );
+            let watch_args = watch_cmd::WatchArgs::fallback_for_repo();
+            watch_cmd::run(&watch_args, global)
+        }
+        WatchDecision::NoOpRedundant => {
             println!(
                 "  watch: skipped — MCP pre-write validation is live; save-time fallback is redundant."
             );
-            return Ok(());
+            Ok(())
         }
-
-        // Print the explicit watch hand-off marker so subprocess
-        // consumers (and humans reading the stream) see the moment
-        // activation stops and the kernel watcher takes over. The
-        // language is conservative on purpose — never "fully
-        // protected", never "MCP attached".
-        println!(
-            "  watch: starting save-time fallback — MCP pre-write validation is not attached; this layer validates files after they are saved."
-        );
-
-        let watch_args = watch_cmd::WatchArgs::fallback_for_repo();
-        return watch_cmd::run(&watch_args, global);
+        WatchDecision::SkipConfigInvalid => {
+            println!(
+                "  watch: skipped — `.anvilrc` is invalid; fix the config error first, then re-run `anvil start --watch`."
+            );
+            Ok(())
+        }
+        WatchDecision::SkipConfigAbsent => {
+            println!(
+                "  watch: skipped — no `.anvilrc` to honour; run `anvil init` first, then re-run `anvil start --watch` for save-time fallback."
+            );
+            Ok(())
+        }
+        WatchDecision::SkipError => {
+            println!(
+                "  watch: skipped — activation error must be cleared before save-time fallback can run; see `last_error` above."
+            );
+            Ok(())
+        }
+        WatchDecision::SkipNoCoverage => {
+            println!(
+                "  watch: skipped — repo languages are out of scope for the current release; the watcher would not produce findings."
+            );
+            Ok(())
+        }
     }
+}
 
-    Ok(())
+/// What `--watch` should do based on the orchestrator's diagnostic.
+///
+/// Splitting the decision into a single enum keeps the synthesis
+/// branch (`Spawn` → set `WatchTier::Running` before render) and the
+/// post-render branch (each variant prints its skip copy or hands
+/// off) reading from the same source of truth — they cannot drift
+/// silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WatchDecision {
+    /// `--watch` was not passed — neither synthesis nor skip copy.
+    NotRequested,
+    /// Spawn the kernel watcher inline. Synthesis sets
+    /// `WatchTier::Running`; the post-render branch prints the
+    /// hand-off marker and enters `watch_cmd::run`.
+    Spawn,
+    /// MCP is at `LiveValidation` — pre-write covers the save path,
+    /// so a watcher would be redundant noise.
+    NoOpRedundant,
+    /// `.anvilrc` did not parse. The user must fix config first.
+    SkipConfigInvalid,
+    /// No `.anvilrc` on disk. The user must run `anvil init` first.
+    SkipConfigAbsent,
+    /// `last_error` is set — activation aborted somewhere upstream.
+    SkipError,
+    /// All detected languages are out of scope for the current
+    /// release; the watcher would not produce findings.
+    SkipNoCoverage,
+}
+
+impl WatchDecision {
+    /// Decide what `--watch` should do given the orchestrator's
+    /// diagnostic. The order matters: hard errors win over coverage
+    /// gaps win over the spawn path so the user always sees the
+    /// most actionable skip reason.
+    fn for_diagnostic(d: &activation::ActivationDiagnostic) -> Self {
+        if d.mcp_pre_write_live() {
+            return Self::NoOpRedundant;
+        }
+        if d.last_error.is_some() {
+            return Self::SkipError;
+        }
+        match d.config {
+            activation::diagnostic::ConfigStatus::Invalid => return Self::SkipConfigInvalid,
+            activation::diagnostic::ConfigStatus::Absent => return Self::SkipConfigAbsent,
+            activation::diagnostic::ConfigStatus::Valid => {}
+        }
+        if d.all_languages_unsupported {
+            return Self::SkipNoCoverage;
+        }
+        Self::Spawn
+    }
 }
