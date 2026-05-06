@@ -355,7 +355,23 @@ a new lane.
   on_ambiguous_ownership (warn/fence), and observe_only flag per worktree;
   ambiguous ownership hard-capped at fence regardless of config
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib config`
-- **Status:** In Progress
+- **Status:** In Progress (Pending merge of `a2/wave1-intd-config-telemetry`)
+- **Progress (2026-05-06, A2 wave 1):** `crates/anvil-intercept/src/config.rs`
+  resolves the daemon's runtime enforcement policy with stricter-wins
+  merging across project (`<workspace_root>/.anvil.yaml`) and an optional
+  user-level config. Ambiguous ownership is hard-capped at `Fence` per
+  `plans/decisions/015-intercept-loop-enforcement.md` AD-3 — the parse
+  table itself rejects any over-strict alias. Reserved keys for INTD-016
+  (`enforcement.dos.*`) declared at the proto layer; consumers ignore
+  unknown keys silently. Wire shape extracted to
+  `anvil-intercept-proto::enforcement_config` so RTAI-006's MCP shim
+  (`crates/anvil-cli/src/mcp/enforcement.rs`) and the daemon parse one
+  struct — alias table reconciliation `block`↔`interrupt` is documented
+  in both consumers. Existing RTAI-006 fixtures pass identically (4 e2e
+  + 19 unit). 24 new unit tests cover missing-file defaults, malformed
+  YAML, project + user merge in both directions, observe_only stricter-
+  wins, ambiguous-ownership hard-cap, INTD-015 cross-session policy
+  routing, and forwards-compat for INTD-016 reserved keys.
 
 ### INTD-009: Embedded Mode
 
@@ -519,7 +535,26 @@ a new lane.
   on cross-session allowlist hit.
 - **Source:** 2026-04-24 council review M5 (security-analyst) —
   tracked in PR #1063.
-- **Status:** In Progress
+- **Status:** In Progress (Pending merge of `a2/wave1-intd-config-telemetry`)
+- **Progress (2026-05-06, A2 wave 1):** `crates/anvil-intercept/src/fanout.rs`
+  adds the daemon-side filter as the enforceable replacement for the
+  deprecated driver-promised cross-session filter (KERN-052
+  supersession note updated). Each envelope carries
+  `correlation.originating_session_id` and
+  `correlation.originating_driver_id`; both are minted by the daemon —
+  the driver id is sourced from socket-peer credentials, not from any
+  driver-supplied `driverName`, so a hostile same-UID peer cannot
+  impersonate another driver by self-declaring a name. Cross-session
+  delivery defaults to deny; operators opt in to redacted delivery
+  (`rule_id` + `hash_of_path`) via INTD-008's
+  `telemetry.allow_cross_session: true` flag. The IPC subscribe surface
+  that mints `SubscriberId` from peer credentials and routes broadcast
+  envelopes through `Fanout::route` lands when telemetry subscription
+  IPC frames are added (INTD-011 / DRVR-001). Tests cover the three
+  council-required cases (own-session honoured, cross-session rejected,
+  redaction on opt-in) plus default-deny on missing originator,
+  daemon-minted identity defence, hash determinism, subscriber lifecycle,
+  and the INTD-008 ↔ INTD-015 wiring contract.
 
 ### INTD-016: DoS Protection Budgets — Connection Cap, Rate Limits, Timeouts
 
