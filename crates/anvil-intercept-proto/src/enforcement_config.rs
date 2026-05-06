@@ -66,7 +66,7 @@ use serde::Deserialize;
 /// explicitly" (honour it). For project↔user merging
 /// (INTD-008), `None` on the project side defers to the user
 /// side; if both are `None`, the consumer applies its default.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 pub struct EnforcementConfigFile {
     /// Top-level enforcement strictness.
     ///
@@ -116,6 +116,63 @@ pub struct EnforcementConfigFile {
     /// which is mapped from the `mode` key, not `observe_only`).
     #[serde(default)]
     pub observe_only: Option<bool>,
+
+    /// INTD-016 `DoS` protection budgets — connection cap, RPS,
+    /// handshake / idle timeouts, control-lane frame size cap.
+    /// Reserved at the proto layer in INTD-008; consumed by the
+    /// daemon's `IpcLimits::from_config` in INTD-016. RTAI-006
+    /// ignores this field.
+    #[serde(default)]
+    pub dos: DosConfigFile,
+}
+
+/// INTD-016 `DoS` protection budgets. Reserved at this layer by
+/// INTD-008's wave-1 work; the daemon's `IpcLimits` reads these
+/// keys in INTD-016.
+///
+/// Each field is `Option<...>` so an unset value falls through to
+/// the daemon's compile-time default. Values that would weaken
+/// the daemon (e.g. `max_connections: 0`) are clamped at
+/// `IpcLimits::from_config` rather than rejected at this layer —
+/// the proto deliberately stays forgiving so an operator's typo
+/// never wedges the daemon.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Deserialize)]
+pub struct DosConfigFile {
+    /// Maximum simultaneous driver connections. Default 64; the
+    /// listener uses a `tokio::sync::Semaphore` of this size at
+    /// the accept loop.
+    #[serde(default)]
+    pub max_connections: Option<usize>,
+
+    /// Sustained per-connection request rate, requests per second.
+    /// Default 100. Drives the token-bucket refill rate.
+    #[serde(default)]
+    pub rps_sustained: Option<f64>,
+
+    /// Burst capacity for the per-connection token bucket. Default
+    /// 1000. The bucket starts full at this value.
+    #[serde(default)]
+    pub rps_burst: Option<u32>,
+
+    /// Handshake timeout from `accept()` to first manifest frame.
+    /// Default 5 s. Uses seconds because operators reason in
+    /// seconds; sub-second resolution is overkill for a slow-loris
+    /// defence.
+    #[serde(default)]
+    pub handshake_timeout_seconds: Option<u64>,
+
+    /// Driver-connection idle timeout. Default 60 s. Separate
+    /// from session heartbeat TTL — this is the per-connection
+    /// quiescence cap.
+    #[serde(default)]
+    pub idle_timeout_seconds: Option<u64>,
+
+    /// Maximum NDJSON frame size for control-lane methods (every
+    /// method that is not `scan_buffer`). Default 64 KiB. The
+    /// existing 1 MiB `scan_buffer` payload cap is preserved
+    /// separately by the daemon's IPC reader.
+    #[serde(default)]
+    pub control_frame_max_bytes: Option<usize>,
 }
 
 /// Telemetry stream config (INTD-015 fan-out scope).
@@ -154,7 +211,7 @@ pub struct TelemetryConfigFile {
 /// carrying keys for unrelated subsystems must not break
 /// enforcement resolution). INTD-008 may add sibling top-level
 /// keys when it lands further config surfaces.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 pub struct AnvilConfigFile {
     #[serde(default)]
     pub enforcement: EnforcementConfigFile,

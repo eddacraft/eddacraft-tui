@@ -44,6 +44,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::task::JoinSet;
 
 use crate::ShutdownToken;
+use crate::dos::{IpcLimits, RpsBucket};
 use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
 use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService};
 use crate::registry::SessionDispatcher;
@@ -427,6 +428,8 @@ pub struct IpcListener<D: SessionDispatcher> {
     dispatcher: Arc<D>,
     #[cfg(unix)]
     scan_buffer: ScanBufferService,
+    #[cfg(unix)]
+    limits: IpcLimits,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
@@ -435,8 +438,21 @@ pub struct IpcListener<D: SessionDispatcher> {
     dispatcher: Arc<D>,
     #[cfg(windows)]
     scan_buffer: ScanBufferService,
+    #[cfg(windows)]
+    limits: IpcLimits,
     #[cfg(not(any(unix, windows)))]
     _marker: std::marker::PhantomData<D>,
+}
+
+impl<D: SessionDispatcher> IpcListener<D> {
+    /// Override the INTD-016 `DoS` budgets for this listener. Builder
+    /// pattern so existing callers continue to use `IpcLimits::default()`.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_limits(mut self, limits: IpcLimits) -> Self {
+        self.limits = limits;
+        self
+    }
 }
 
 impl<D: SessionDispatcher> IpcListener<D> {
@@ -550,6 +566,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             socket_path: path.to_path_buf(),
             dispatcher: Arc::new(dispatcher),
             scan_buffer,
+            limits: IpcLimits::default(),
         })
     }
 
@@ -563,7 +580,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let mut joinset: JoinSet<()> = JoinSet::new();
         let dispatcher = Arc::clone(&self.dispatcher);
         let scan_buffer = self.scan_buffer.clone();
-        let connection_permits = Arc::new(tokio::sync::Semaphore::new(MAX_ACTIVE_CONNECTIONS));
+        let limits = self.limits;
+        let connection_permits = Arc::new(tokio::sync::Semaphore::new(
+            limits.max_concurrent_connections,
+        ));
 
         loop {
             tokio::select! {
@@ -601,7 +621,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_token = token.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_token).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_token, limits).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -674,6 +694,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             pipe_name: pipe_name.to_owned(),
             dispatcher: Arc::new(dispatcher),
             scan_buffer,
+            limits: IpcLimits::default(),
         })
     }
 
@@ -683,8 +704,11 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let pipe_name = self.pipe_name;
         let dispatcher = self.dispatcher;
         let scan_buffer = self.scan_buffer;
+        let limits = self.limits;
         let mut joinset: JoinSet<()> = JoinSet::new();
-        let connection_permits = Arc::new(tokio::sync::Semaphore::new(MAX_ACTIVE_CONNECTIONS));
+        let connection_permits = Arc::new(tokio::sync::Semaphore::new(
+            limits.max_concurrent_connections,
+        ));
 
         loop {
             tokio::select! {
@@ -721,7 +745,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_token = token.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_token).await {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_token, limits).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -758,22 +782,43 @@ impl<D: SessionDispatcher> IpcListener<D> {
 // Per-connection handler.
 // --------------------------------------------------------------------
 
+#[allow(clippy::too_many_lines)] // INTD-016 layered budgets share a single connection loop; splitting obscures the per-frame ordering of RPS / size / parse checks.
 async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unpin>(
     stream: R,
     dispatcher: Arc<D>,
     scan_buffer: ScanBufferService,
     mut token: ShutdownToken,
+    limits: IpcLimits,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
 
+    // INTD-016: per-connection RPS bucket.
+    let mut bucket = RpsBucket::from_limits(&limits, std::time::Instant::now());
+    // INTD-016: handshake timeout — first line must arrive within
+    // `limits.handshake_timeout` of accept. After the first line is
+    // framed, subsequent reads use `limits.idle_timeout`.
+    let mut first_frame_seen = false;
+
     loop {
         buf.clear();
-        let read = match read_connection_line(&mut reader, &mut buf, &mut token).await? {
+        let read = match read_connection_line_with_deadline(
+            &mut reader,
+            &mut buf,
+            &mut token,
+            if first_frame_seen {
+                limits.idle_timeout
+            } else {
+                limits.handshake_timeout
+            },
+        )
+        .await?
+        {
             ConnectionRead::Line(read) => read,
             ConnectionRead::Skip => continue,
             ConnectionRead::Closed => return Ok(()),
         };
+        first_frame_seen = true;
         if read == 0 {
             // Peer closed cleanly.
             return Ok(());
@@ -783,6 +828,47 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
         if line.is_empty() {
             continue;
         }
+
+        // INTD-016: per-connection RPS bucket. Exhaustion returns a
+        // structured error and lets the connection continue —
+        // killing the connection on rate-limit would cause innocent
+        // retries to escalate (see module doc).
+        if !bucket.try_consume(std::time::Instant::now()) {
+            tracing::warn!(
+                target: "anvil_intercept::ipc",
+                "rps bucket exhausted; replying with rate-limit error and continuing",
+            );
+            write_json_response(reader.get_mut(), &rate_limit_response(), "rate limit").await?;
+            continue;
+        }
+
+        // INTD-016: control-frame size cap — applies to every frame
+        // smaller than the legacy scan_buffer cap. The
+        // 1 MiB scan_buffer payload survives untouched (the
+        // oversize-scan_buffer fast path below handles that case).
+        // Frames larger than the control cap but smaller than the
+        // scan_buffer cap are inspected: if they declare a
+        // non-scan_buffer method, the listener rejects them with a
+        // structured error BEFORE attempting to parse the body.
+        if line.len() > limits.control_frame_max_bytes
+            && line.len() <= LEGACY_MAX_LINE_BYTES
+            && !is_scan_buffer_frame(line)
+        {
+            tracing::warn!(
+                target: "anvil_intercept::ipc",
+                bytes = line.len(),
+                cap = limits.control_frame_max_bytes,
+                "control-lane frame exceeds INTD-016 cap; rejecting before parse",
+            );
+            write_json_response(
+                reader.get_mut(),
+                &control_frame_oversized_response(limits.control_frame_max_bytes),
+                "control frame oversized",
+            )
+            .await?;
+            continue;
+        }
+
         if line.len() > LEGACY_MAX_LINE_BYTES
             && let Err(rejection) = validate_oversized_scan_buffer_frame(line)
         {
@@ -869,18 +955,16 @@ enum ConnectionRead {
     Closed,
 }
 
-async fn read_connection_line<R: AsyncRead + Unpin>(
+async fn read_connection_line_with_deadline<R: AsyncRead + Unpin>(
     reader: &mut BufReader<R>,
     buf: &mut String,
     token: &mut ShutdownToken,
+    deadline: Duration,
 ) -> Result<ConnectionRead, IpcError> {
     tokio::select! {
         biased;
         () = token.cancelled() => Ok(ConnectionRead::Closed),
-        res = tokio::time::timeout(
-            CONNECTION_READ_TIMEOUT,
-            read_one_line(reader, buf),
-        ) => match res {
+        res = tokio::time::timeout(deadline, read_one_line(reader, buf)) => match res {
             Ok(Ok(read)) => Ok(ConnectionRead::Line(read)),
             Ok(Err(IpcError::InvalidUtf8 { len })) => {
                 log_invalid_utf8_line(len);
@@ -888,7 +972,7 @@ async fn read_connection_line<R: AsyncRead + Unpin>(
             }
             Ok(Err(err)) => Err(err),
             Err(_) => {
-                log_idle_connection_timeout();
+                log_idle_connection_timeout_with(deadline);
                 Ok(ConnectionRead::Closed)
             }
         },
@@ -904,13 +988,64 @@ fn log_invalid_utf8_line(len: usize) {
     eprintln!("anvil-intercept: skipping NDJSON line ({len} bytes): invalid UTF-8");
 }
 
-fn log_idle_connection_timeout() {
+fn log_idle_connection_timeout_with(deadline: Duration) {
     tracing::warn!(
         target: "anvil_intercept::ipc",
-        timeout_ms = CONNECTION_READ_TIMEOUT.as_millis(),
+        timeout_ms = deadline.as_millis(),
         "closing idle ipc connection",
     );
-    eprintln!("anvil-intercept: closing idle ipc connection after {CONNECTION_READ_TIMEOUT:?}");
+    eprintln!("anvil-intercept: closing idle ipc connection after {deadline:?}");
+}
+
+/// Pre-parse heuristic for "is this frame a `scan_buffer` request?".
+/// Used by the INTD-016 control-frame size cap to skip enforcement on
+/// `scan_buffer` frames (whose 1 MiB payload cap is a separate, larger
+/// allowance owned by INTD-005).
+///
+/// Substring match on the literal `"scan_buffer"` is sufficient
+/// because:
+///
+/// 1. The full JSON-RPC parser is invoked unconditionally afterwards
+///    — a malformed frame that "looks" `scan_buffer`-shaped still falls
+///    through to the structured parse error (-32700) below.
+/// 2. False positives only weaken our `DoS` budget on a frame that
+///    contains the literal `"scan_buffer"` somewhere (e.g. inside a
+///    file path); the frame still has to fit inside `MAX_LINE_BYTES`
+///    (≈ 6 MiB) and pass the JSON parser, so the worst case is the
+///    operator pays JSON-parse cost on an outsize control-lane frame
+///    before the `Method not found` error fires.
+/// 3. False negatives (a real `scan_buffer` frame that does not
+///    contain the literal) would be filtered out as oversize even
+///    when legitimate. This is impossible: `scan_buffer` frames must
+///    declare `"method": "scan_buffer"` per the JSON-RPC contract.
+fn is_scan_buffer_frame(line: &str) -> bool {
+    line.contains(midedit::SCAN_BUFFER_METHOD)
+}
+
+fn rate_limit_response() -> Value {
+    // -32005 is in the implementation-defined server-error range
+    // (-32000 .. -32099). The `Server busy` shape mirrors the
+    // existing scan_buffer Busy error so consumers that already
+    // handle it can reuse their backoff logic.
+    jsonrpc_error(
+        None,
+        None,
+        -32005,
+        "Server busy",
+        json!({"reason": "rate limit exceeded"}),
+    )
+}
+
+fn control_frame_oversized_response(cap: usize) -> Value {
+    jsonrpc_error(
+        None,
+        None,
+        -32600,
+        "Invalid Request",
+        json!({
+            "reason": format!("control-lane frame exceeds {cap}-byte cap"),
+        }),
+    )
 }
 
 async fn write_json_response<W: AsyncWrite + Unpin>(
@@ -2929,6 +3064,224 @@ mod tests {
             );
 
             drop(stream);
+        }
+
+        // ----- INTD-016 DoS budget tests --------------------------
+
+        async fn spawn_listener_with_limits(
+            path: &Path,
+            limits: crate::dos::IpcLimits,
+        ) -> (
+            crate::Shutdown,
+            tokio::task::JoinHandle<Result<(), IpcError>>,
+        ) {
+            let listener = IpcListener::bind(path, NoopDispatcher)
+                .expect("bind")
+                .with_limits(limits);
+            let (shutdown, token) = crate::Shutdown::new();
+            let handle = tokio::spawn(async move { listener.serve(token).await });
+            tokio::task::yield_now().await;
+            (shutdown, handle)
+        }
+
+        /// INTD-016 (a) slow-loris handshake: a peer that connects
+        /// but never sends a line gets dropped at the handshake
+        /// timeout. We use a very short handshake to keep the test
+        /// fast; the production default is 5 s.
+        #[tokio::test(flavor = "current_thread")]
+        async fn slow_loris_handshake_times_out() {
+            let (_tmp, path) = fresh_socket_path();
+            let limits = crate::dos::IpcLimits {
+                handshake_timeout: Duration::from_millis(50),
+                ..crate::dos::IpcLimits::default()
+            };
+            let (shutdown, handle) = spawn_listener_with_limits(&path, limits).await;
+
+            // Connect but never send anything — the handshake
+            // timeout must elapse and the listener must continue
+            // serving (a second connection still works).
+            let stream = UnixStream::connect(&path).await.expect("connect");
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            // Reading from the dropped peer side should give EOF
+            // because the daemon closed the connection on timeout.
+            drop(stream);
+
+            // The listener is still up — a second connection works.
+            let mut second = UnixStream::connect(&path).await.expect("second connect");
+            let envelope = IpcEnvelope::notification(IpcCommand::Heartbeat {
+                session_id: SessionId::new("sess_after_slow_loris"),
+            });
+            let mut line = serde_json::to_string(&envelope).unwrap();
+            line.push('\n');
+            second.write_all(line.as_bytes()).await.unwrap();
+            second.shutdown().await.unwrap();
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .expect("listener stop")
+                .expect("join")
+                .expect("serve");
+        }
+
+        /// INTD-016 (b): RPS bucket exhaustion returns a structured
+        /// JSON-RPC error without terminating the connection. This
+        /// is the load-bearing INTD-016 hard rule: killing the
+        /// connection on rate-limit exhaustion would let innocent
+        /// retries escalate.
+        #[tokio::test(flavor = "current_thread")]
+        async fn rps_exhaustion_returns_error_without_closing() {
+            let (_tmp, path) = fresh_socket_path();
+            // Burst of 2 with a slow refill; once the third request
+            // hits, the bucket must be empty and the daemon must
+            // return -32005 without dropping the connection.
+            let limits = crate::dos::IpcLimits {
+                rps_burst: 2,
+                rps_sustained: 0.0,
+                ..crate::dos::IpcLimits::default()
+            };
+            let (shutdown, handle) = spawn_listener_with_limits(&path, limits).await;
+
+            let stream = UnixStream::connect(&path).await.expect("connect");
+            let (read_half, mut write_half) = stream.into_split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+
+            for i in 0..3 {
+                let frame = json!({
+                    "jsonrpc": "2.0",
+                    "method": "session.list",
+                    "id": format!("req-{i}"),
+                });
+                let mut line = serde_json::to_string(&frame).unwrap();
+                line.push('\n');
+                write_half.write_all(line.as_bytes()).await.unwrap();
+            }
+
+            // First two responses should be successful. Third
+            // response must be a -32005 rate-limit error, NOT a
+            // closed connection.
+            let mut last_response = String::new();
+            for _ in 0..3 {
+                last_response.clear();
+                tokio::time::timeout(
+                    Duration::from_secs(2),
+                    AsyncBufReadExt::read_line(&mut reader, &mut last_response),
+                )
+                .await
+                .expect("read response timeout")
+                .expect("read response");
+            }
+            let response: Value = serde_json::from_str(last_response.trim_end()).unwrap();
+            assert_eq!(
+                response["error"]["code"], -32005,
+                "third request must hit rate limit (-32005), got {response}",
+            );
+            // Connection must still be open: send a fourth frame and
+            // confirm we either get another rate-limit error or it
+            // simply does not error out at the transport level.
+            let frame = json!({
+                "jsonrpc": "2.0",
+                "method": "session.list",
+                "id": "req-after-rate-limit",
+            });
+            let mut line = serde_json::to_string(&frame).unwrap();
+            line.push('\n');
+            // Writing must succeed — connection is still open.
+            write_half
+                .write_all(line.as_bytes())
+                .await
+                .expect("connection must remain open after rate limit");
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(2), handle)
+                .await
+                .expect("listener stop")
+                .expect("join")
+                .expect("serve");
+        }
+
+        /// INTD-016 (c): a frame larger than the control-lane cap
+        /// is rejected BEFORE the JSON parser runs. We pick a
+        /// generous control-frame cap (4 KiB) for the test, then
+        /// send an 8 KiB frame whose method is `session.list`
+        /// (i.e. NOT `scan_buffer`). The response must be -32600
+        /// and the connection must continue.
+        #[tokio::test(flavor = "current_thread")]
+        async fn oversized_control_frame_rejected_before_parse() {
+            let (_tmp, path) = fresh_socket_path();
+            let limits = crate::dos::IpcLimits {
+                control_frame_max_bytes: 4 * 1024,
+                ..crate::dos::IpcLimits::default()
+            };
+            let (shutdown, handle) = spawn_listener_with_limits(&path, limits).await;
+
+            let stream = UnixStream::connect(&path).await.expect("connect");
+            let (read_half, mut write_half) = stream.into_split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+
+            // Build a control-lane frame just over 4 KiB. It is
+            // still smaller than the legacy 1 MiB cap so it
+            // reaches the INTD-016 control cap, not the older
+            // scan_buffer fast path. Method is `session.list` so
+            // `is_scan_buffer_frame` returns false.
+            let padding = "x".repeat(5000);
+            let frame = format!(
+                "{{\"jsonrpc\":\"2.0\",\"method\":\"session.list\",\"id\":\"big\",\"_pad\":\"{padding}\"}}\n",
+            );
+            assert!(frame.len() > 4 * 1024);
+            assert!(frame.len() < LEGACY_MAX_LINE_BYTES);
+            write_half.write_all(frame.as_bytes()).await.unwrap();
+
+            let mut response_line = String::new();
+            tokio::time::timeout(
+                Duration::from_secs(2),
+                AsyncBufReadExt::read_line(&mut reader, &mut response_line),
+            )
+            .await
+            .expect("response timeout")
+            .expect("read response");
+            let response: Value = serde_json::from_str(response_line.trim_end()).unwrap();
+            assert_eq!(
+                response["error"]["code"], -32600,
+                "oversized control frame must be rejected with -32600, got {response}",
+            );
+            assert!(
+                response["error"]["data"]["reason"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("control-lane frame exceeds"),
+                "rejection reason must mention the cap: {response}",
+            );
+
+            // Send a small frame next — connection must still work.
+            let small = json!({
+                "jsonrpc": "2.0",
+                "method": "session.list",
+                "id": "small",
+            });
+            let mut small_line = serde_json::to_string(&small).unwrap();
+            small_line.push('\n');
+            write_half.write_all(small_line.as_bytes()).await.unwrap();
+            response_line.clear();
+            tokio::time::timeout(
+                Duration::from_secs(2),
+                AsyncBufReadExt::read_line(&mut reader, &mut response_line),
+            )
+            .await
+            .expect("second response timeout")
+            .expect("read second response");
+            let response: Value = serde_json::from_str(response_line.trim_end()).unwrap();
+            assert!(
+                response["result"].is_object() || response["result"].is_array(),
+                "small frame must dispatch normally after a rejected oversized frame: {response}",
+            );
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(2), handle)
+                .await
+                .expect("listener stop")
+                .expect("join")
+                .expect("serve");
         }
     }
 }

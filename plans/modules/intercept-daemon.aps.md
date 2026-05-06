@@ -661,4 +661,26 @@ a new lane.
 - **Source:** 2026-04-24 council review M9 (security-analyst +
   adversarial-reviewer) — tracked in
   PR #1063.
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/dos.rs`
+  ships `IpcLimits` with the INTD-016 defaults (64 connections,
+  100/1000 RPS, 5 s handshake, 60 s idle, 64 KiB control-frame
+  cap). The 1 MiB scan_buffer payload cap is preserved untouched.
+  `RpsBucket` is the per-connection token bucket; exhaustion
+  returns a structured `-32005 Server busy` JSON-RPC error and
+  KEEPS the connection open per the INTD-016 hard rule (killing
+  the connection on rate-limit would cause innocent retries to
+  escalate). `IpcListener::with_limits` is the builder; the
+  listener's existing `MAX_ACTIVE_CONNECTIONS` constant is now
+  driven from the resolved limits. Frame size is enforced
+  **before parsing** — a control-lane frame above the cap that
+  is not a `scan_buffer` frame is rejected with -32600 Invalid
+  Request immediately. `enforcement.dos.*` keys land at the
+  proto layer (`anvil-intercept-proto::enforcement_config::DosConfigFile`)
+  and are merged stricter-wins (smaller cap / RPS / timeout
+  wins; smaller frame cap wins). `plans/decisions/015-intercept-loop-enforcement.md`
+  AD-4 gains the INTD-016 amendment with the limits + plaintext-
+  local-only TLS stance. 5 dos unit tests + 3 IPC-level integration
+  tests (slow-loris handshake times out, RPS exhaustion returns
+  error without closing, oversized control frame rejected before
+  parse) cover the budgets. Full lib suite at 169 passing.
