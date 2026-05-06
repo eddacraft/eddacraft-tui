@@ -385,13 +385,18 @@ fn start_verify_on_fresh_repo_with_absent_config_does_not_advertise_watch() {
 }
 
 #[test]
-fn start_after_install_surfaces_partial_protection_note() {
-    // Council remediation: at `ready_restart_required`, MCP is wired
-    // but the editor has not yet loaded the entry — pre-write is not
-    // attached. The honesty contract forbids claiming attachment
-    // based on configuration alone, so the partial-protection note
-    // MUST appear here. The user reading this should understand that
-    // a restart is required before MCP enforcement is real.
+fn start_after_install_communicates_restart_required_via_headline() {
+    // Council round-2 remediation: at `ready_restart_required`, the
+    // headline already conveys the partial state ("restart your
+    // editor or agent so the MCP server attaches"). The
+    // partial-protection NOTE is suppressed here because:
+    //   1. The headline already says MCP isn't yet attached.
+    //   2. There is no `watch: offered` line — appending the watch-
+    //      fallback note alone would orphan watch copy and nudge the
+    //      user toward watch when they should restart.
+    // The honesty contract is preserved by the headline. This test
+    // pins the headline language as the load-bearing partial-state
+    // signal so a future copy edit cannot silently drop it.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let out = run_start_with_home(dir.path(), home.path(), &[]);
@@ -401,18 +406,34 @@ fn start_after_install_surfaces_partial_protection_note() {
         stdout.contains("state: ready_restart_required"),
         "post-install state should be ready_restart_required, got:\n{stdout}"
     );
-    assert!(
-        stdout.contains("MCP pre-write validation is not attached"),
-        "post-install render at ready_restart_required must include \
-         the partial-protection note — MCP is wired but not yet \
-         attached, got:\n{stdout}"
-    );
-    // The headline must still drive the action: restart, not watch.
     let lower = stdout.to_lowercase();
     assert!(
         lower.contains("restart your editor") || lower.contains("restart required"),
-        "ready_restart_required render must surface the restart action, \
-         got:\n{stdout}"
+        "ready_restart_required render must surface the restart action \
+         in headline / hint, got:\n{stdout}"
+    );
+    assert!(
+        lower.contains("attach") || lower.contains("mcp server"),
+        "ready_restart_required render must explain MCP is not yet \
+         attached, got:\n{stdout}"
+    );
+    // The note belongs with `Watching` / `NeedsAction (config valid)` /
+    // the `Offered` watch tier. At ready_restart_required, suppress.
+    assert!(
+        !stdout.contains("MCP pre-write validation is not attached"),
+        "ready_restart_required render must NOT include the orphaned \
+         watch-fallback note (the headline already conveys the \
+         partial state), got:\n{stdout}"
+    );
+    // Truthfulness guardrails.
+    let lower = stdout.to_lowercase();
+    assert!(
+        !lower.contains("fully protected"),
+        "ready_restart_required must never claim fully protected, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("state: protecting"),
+        "ready_restart_required must never claim state: protecting, got:\n{stdout}"
     );
 }
 
@@ -494,6 +515,16 @@ fn start_watch_renders_partial_protection_and_starts_watcher() {
     use std::time::{Duration, Instant};
 
     let dir = tempfile::tempdir().unwrap();
+    // Seed the workspace so the diagnostic does not depend on
+    // orchestrator init behaviour — config is `Valid` from the start
+    // and a TS file forces a supported-language profile, locking the
+    // path that the assertions below exercise.
+    fs::write(
+        dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
     let home = tempfile::tempdir().unwrap();
 
     let mut child = Command::new(ANVIL_BIN)

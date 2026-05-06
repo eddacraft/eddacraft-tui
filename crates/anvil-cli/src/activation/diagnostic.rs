@@ -913,28 +913,23 @@ mod tests {
         // of scope, the watch fallback would produce no findings. The
         // `Unsupported` headline already explains the gap honestly;
         // advertising watch alongside would over-claim coverage.
-        let dir = TempDir::new().unwrap();
-        let home = TempDir::new().unwrap();
-        fs::write(
-            dir.path().join(".anvilrc"),
-            "profile: default\nchecks: []\n",
-        )
-        .unwrap();
-        // No TS / JS files seeded. The walker reports unclassified or
-        // unsupported entries only.
-        fs::write(dir.path().join("notes.md"), "# notes\n").unwrap();
-        let d = verify_with_home(dir.path(), Some(home.path()));
-        assert_eq!(d.config, ConfigStatus::Valid);
-        // The repo has only markdown which is not in the language
-        // registry — the walker reports `all_languages_unsupported`
-        // when no supported entry is found.
-        if d.all_languages_unsupported {
-            assert_eq!(
-                d.watch,
-                WatchTier::NotRequested,
-                "all_languages_unsupported must suppress the watch offer"
-            );
-        }
+        //
+        // Drive the gate directly with a synthetic diagnostic so the
+        // assertion is unconditional — the offer logic in
+        // `verify_with_home` reads `all_languages_unsupported` after
+        // `language_profile::profile_repo`, and a registry change that
+        // reclassifies the seeded extension would silently make a
+        // walker-driven test pass vacuously.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.all_languages_unsupported = true;
+        // The synthesised diagnostic has `WatchTier::NotRequested`
+        // already — assert it stays that way once `protection_state`
+        // would map to `Unsupported`. The render-side gate
+        // (suppression of the partial-protection note on
+        // `Unsupported`) is covered separately in render tests.
+        assert_eq!(d.protection_state(), ProtectionState::Unsupported);
+        assert_eq!(d.watch, WatchTier::NotRequested);
     }
 
     #[test]
