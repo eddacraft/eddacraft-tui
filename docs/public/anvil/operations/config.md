@@ -9,14 +9,15 @@ sidebar_position: 1
 
 anvil uses project files plus CLI flags for runtime options. The most important
 file today is `.anvilrc`; the architecture file powers import-boundary checks;
-`gate-config.json` is a planning surface that is not yet consumed by `anvil gate`.
+`gate-config.json` is a planning surface that is not yet consumed by
+`anvil gate`.
 
 ## Configuration Files
 
-| File                       | Current status                                           |
-| -------------------------- | -------------------------------------------------------- |
-| `.anvilrc`                 | Active project settings read by `anvil gate`             |
-| `.anvil/architecture.yaml` | Active layer and boundary definitions                    |
+| File                       | Current status                                                 |
+| -------------------------- | -------------------------------------------------------------- |
+| `.anvilrc`                 | Active project settings read by `anvil gate`                   |
+| `.anvil/architecture.yaml` | Active layer and boundary definitions                          |
 | `.anvil/gate-config.json`  | Forward-looking gate composition record, not active gate input |
 
 ## `.anvilrc`

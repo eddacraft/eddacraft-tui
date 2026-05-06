@@ -121,7 +121,8 @@ These checks can participate in gate evaluation:
 - **Test** — runs the project test suite
 - **Coverage** — enforces coverage thresholds when configured
 - **Dependency** — checks dependency risk and blocked packages
-- **Command safety** — detects dangerous shell commands in plan-described scripts
+- **Command safety** — detects dangerous shell commands in plan-described
+  scripts
 
 ## Gate Results
 

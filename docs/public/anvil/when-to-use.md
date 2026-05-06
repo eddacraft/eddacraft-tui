@@ -103,7 +103,8 @@ Ask yourself:
 1. **Do I use AI coding tools?** → If no, consider skipping anvil
 2. **Do I have architectural boundaries?** → If no, value is limited
 3. **Do I want save-time feedback?** → If no, use CI-only mode
-4. **Do I need deterministic validation output?** → capture Anvil's CLI or JSON output
+4. **Do I need deterministic validation output?** → capture Anvil's CLI or JSON
+   output
 
 If you answered "yes" to 2+ questions, anvil will likely add value.
 

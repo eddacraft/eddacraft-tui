@@ -75,8 +75,8 @@ output and add a workflow step that formats the result.
 
 ✓ All gates passed
 
-| Check         | Status | Duration |
-| ------------- | ------ | -------- |
+| Check             | Status | Duration |
+| ----------------- | ------ | -------- |
 | Import boundaries | ✓ Pass | 23ms     |
 | Anti-pattern scan | ✓ Pass | 15ms     |
 | Secret detection  | ✓ Pass | 8ms      |

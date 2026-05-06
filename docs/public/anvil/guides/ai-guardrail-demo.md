@@ -211,7 +211,8 @@ pointing at a dead socket.
 1. Check `anvil intercept status` — is a session registered for this worktree?
    If `sessions: 0`, the editor isn't talking to the shim.
 2. Run `anvil config show` and confirm the rule isn't suppressed or downgraded
-   to `severity: info` in your Anvil configuration when that option is available.
+   to `severity: info` in your Anvil configuration when that option is
+   available.
 3. Some clients perform in-buffer edits without calling a write tool; those
    bypass the MCP path entirely. If your client does this, switch clients or
    prefix the prompt with the explicit `anvil_validate_write` instruction.
