@@ -2257,6 +2257,169 @@ mod tests {
             .expect("listener ok");
     }
 
+    // INTD-012 (A2 Wave 1) parity-test response shapes. Re-implemented
+    // here (rather than reused from anvil-cli) so the test does not
+    // couple to cli-internal struct definitions; hoisted out of the
+    // test body to satisfy clippy's `too_many_lines` and
+    // `items_after_statements` lints.
+    #[cfg(target_os = "windows")]
+    #[derive(Debug, serde::Deserialize)]
+    struct WindowsParityScanBufferResult {
+        version: u64,
+        diagnostics: Vec<anvil_kernel_types::Diagnostic>,
+        truncated: bool,
+    }
+    #[cfg(target_os = "windows")]
+    #[derive(Debug, serde::Deserialize)]
+    struct WindowsParityJsonRpcResponse {
+        jsonrpc: String,
+        id: Option<Value>,
+        #[serde(default)]
+        result: Option<WindowsParityScanBufferResult>,
+        #[serde(default)]
+        error: Option<Value>,
+    }
+
+    // INTD-012 (A2 Wave 1): mirror of the Linux UDS parity assertion
+    // at `crates/anvil-cli/src/mcp/validation.rs::tests::
+    // local_daemon_client_returns_scan_buffer_diagnostics_with_embedded_parity`.
+    //
+    // Pinned where the surface lives (the `IpcListener` named-pipe
+    // path) rather than in `anvil-cli`, because the cli's
+    // `request_daemon_diagnostics` is `#[cfg(unix)]` only and rewiring
+    // it for Windows would change daemon error semantics — out of
+    // scope for INTD-012 per the A2 Wave 1 hard rules.
+    //
+    // The intent is a fail-closed gate: if a future change desyncs the
+    // Windows daemon-backed `scan_buffer` envelope from the embedded
+    // `EnforcementPipeline` path (e.g. a new diagnostic field added on
+    // one side but not the other, or a serialisation difference), this
+    // test breaks at the next release-path Windows run rather than
+    // shipping silently.
+    #[cfg(target_os = "windows")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn named_pipe_scan_buffer_envelope_parity_with_embedded() {
+        use serde_json::json;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        use crate::enforcement::{EnforcementPipeline, ProposedChange, default_rule_registry};
+        use anvil_intercept_rules::ChangeKind;
+        use anvil_kernel_types::Mode;
+
+        // Same fixture content as the Linux parity test in anvil-cli; a
+        // unique pipe name per test run keeps concurrent runners from
+        // colliding on the singleton-claiming first instance.
+        const PRE_WRITE_MODE: &str = "pre-write";
+        let path = "src/secret.ts";
+        let content = "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-parity-test-{}",
+            std::process::id(),
+        );
+
+        // Embedded reference: the canonical pipeline path that the
+        // `EnforcementPipeline::default()` chain feeds inside
+        // `embedded_validate_pre_write` in `anvil-cli`. Keeping the
+        // registry construction identical (`default_rule_registry()`)
+        // is the load-bearing part of "parity".
+        let embedded_pipeline = EnforcementPipeline::new(default_rule_registry());
+        let embedded_change = ProposedChange {
+            path: std::path::Path::new(path),
+            change_kind: ChangeKind::Modified,
+            content: Some(content.as_bytes()),
+        };
+        let embedded_diagnostics = embedded_pipeline.diagnostics_for_proposed_changes(
+            &[embedded_change],
+            &Mode::Unknown(PRE_WRITE_MODE.to_string()),
+        );
+
+        // Sanity: secret detection must produce at least one diagnostic
+        // for this fixture. If this regresses, the test stops being a
+        // meaningful parity gate.
+        assert!(
+            !embedded_diagnostics.is_empty(),
+            "embedded pipeline must produce diagnostics for the secret fixture",
+        );
+        assert_eq!(embedded_diagnostics[0].source.rule_id, "secret-detection");
+
+        // Daemon-backed: same registry behind the IPC listener so any
+        // diagnostic-shape difference must come from the JSON-RPC
+        // transport itself, not the rule pipeline.
+        let daemon_pipeline = EnforcementPipeline::new(default_rule_registry());
+        let listener = IpcListener::bind_with_scan_buffer_service(
+            &pipe_name,
+            NoopDispatcher,
+            ScanBufferService::new(daemon_pipeline),
+        )
+        .expect("bind named-pipe listener");
+        let (shutdown, token) = crate::Shutdown::new();
+        let handle = tokio::spawn(async move { listener.serve(token).await });
+
+        let mut client = ClientOptions::new().open(&pipe_name).expect("open pipe");
+        let frame = json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": path,
+                "text": content,
+                "version": 1,
+                "mode": "preWrite"
+            },
+            "id": "windows-parity"
+        });
+        client
+            .write_all(format!("{frame}\n").as_bytes())
+            .await
+            .expect("write request");
+
+        let mut reader = BufReader::new(client);
+        let mut line = String::new();
+        tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+            .await
+            .expect("response timeout")
+            .expect("read response");
+
+        // Stop the listener as soon as we have the response; assertions
+        // run after teardown so a panic still tears the daemon down.
+        shutdown.trigger();
+        tokio::time::timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("listener timeout")
+            .expect("listener join")
+            .expect("listener ok");
+
+        let response: WindowsParityJsonRpcResponse =
+            serde_json::from_str(line.trim_end()).expect("response json");
+
+        assert_eq!(response.jsonrpc, "2.0");
+        assert_eq!(
+            response.id,
+            Some(Value::String("windows-parity".to_string()))
+        );
+        assert!(
+            response.error.is_none(),
+            "daemon must not return a JSON-RPC error for the secret fixture: {:?}",
+            response.error,
+        );
+        let result = response.result.expect("result populated");
+        assert_eq!(result.version, 1, "scan_buffer result version pinned at 1");
+        assert!(
+            !result.truncated,
+            "single-secret fixture must not exceed the diagnostic cap",
+        );
+
+        // The load-bearing parity assertion. `Diagnostic` derives
+        // PartialEq, so this compares every field of every diagnostic
+        // including `schema_version` (the `anvil.diagnostic.v1` pin),
+        // `mode`, `source`, `location`, `category`, and the optional
+        // `remediation_hint`.
+        assert_eq!(
+            result.diagnostics, embedded_diagnostics,
+            "named-pipe scan_buffer diagnostics must match embedded pipeline byte-for-byte",
+        );
+    }
+
     // ----- Unix permission and bind tests. --------------------------
 
     #[cfg(unix)]
