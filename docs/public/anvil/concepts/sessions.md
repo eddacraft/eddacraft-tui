@@ -52,7 +52,10 @@ Sessions track:
 - **Evidence generated** — audit trail
 - **Active task** — if working within a plan
 
-### Commands
+### Planned Commands
+
+These commands describe the intended session-management surface and are not yet
+available in the public CLI.
 
 ```bash
 # Start a new session
@@ -114,7 +117,9 @@ Runs produce artefacts—files and data for later reference.
 | Coverage  | Code coverage data              |
 | Snapshots | Pre-change state (for rollback) |
 
-### Artefact Storage
+### Planned Artefact Storage
+
+The intended session artefact layout is:
 
 ```
 .anvil/
@@ -128,7 +133,10 @@ Runs produce artefacts—files and data for later reference.
     └── file_hashes.json
 ```
 
-### Accessing Artefacts
+### Planned Access Commands
+
+These commands are part of the intended evidence/session surface and are not yet
+available in the public CLI.
 
 ```bash
 # List sessions

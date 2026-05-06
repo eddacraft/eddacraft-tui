@@ -83,7 +83,7 @@ Right-click context menu:
 
 - **Anvil: Suppress this issue**
 - **Anvil: Run check on file**
-- **Anvil: View evidence**
+- **Anvil: Show Output**
 
 ## Configuration
 
@@ -160,7 +160,8 @@ anvil doesn't interfere with formatter extensions.
 
 ### GitLens
 
-anvil evidence can be viewed alongside GitLens blame info.
+GitLens and Anvil can be used side by side: GitLens explains who last changed a
+line, while Anvil explains whether the current change violates a rule.
 
 ## Troubleshooting
 

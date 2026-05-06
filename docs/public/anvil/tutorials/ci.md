@@ -54,6 +54,14 @@ and which to pick — file mode remains the default.
 
 The final gate. Runs a full check on every push or pull request.
 
+:::tip CI authentication
+
+If your gate checks require beta access, set `ANVIL_LICENSE` from your CI secret
+store before running Anvil. Locally you use `anvil auth login`; CI should use a
+secret value, not an interactive login.
+
+:::
+
 ### GitHub Actions (Linux)
 
 ```yaml
@@ -75,6 +83,8 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
         run: anvil gate --profile ci
 ```
 
@@ -100,6 +110,8 @@ jobs:
         run: irm https://install.eddacraft.ai/windows | iex
 
       - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
         run: anvil gate --profile ci
 ```
 
@@ -127,6 +139,8 @@ jobs:
         run: ${{ matrix.install }}
 
       - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
         run: anvil gate --profile ci
 ```
 
@@ -136,6 +150,8 @@ jobs:
 # .gitlab-ci.yml
 anvil:
   stage: test
+  variables:
+    ANVIL_LICENSE: $ANVIL_LICENSE
   before_script:
     - curl -fsSL https://install.eddacraft.ai | sh
   script:

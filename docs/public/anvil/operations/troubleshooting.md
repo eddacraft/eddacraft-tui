@@ -224,8 +224,8 @@ anvil consuming too much CPU.
 **Solutions:**
 
 1. Increase debounce time
-2. Narrow the watch scope with `--file`, or use `--exclude` for obvious
-   generated/build directories by name
+2. Narrow the watch scope with `--file`, or use `--exclude` with glob patterns
+   for generated/build directories
 3. Disable `validateOnType` in VS Code
 4. Check for circular watch triggers
 
@@ -236,8 +236,8 @@ Out of memory errors.
 **Solutions:**
 
 - Reduce watch scope with `anvil watch --file <path>`
-- Exclude large generated directories by name with `--exclude` (for example
-  `node_modules,dist,.next`)
+- Exclude large generated directories with glob patterns (for example
+  `anvil watch --source --exclude "node_modules/**,dist/**,.next/**"`)
 - Check for very large files being scanned
 - Check `inotify` limits on Linux (see File Watching section above)
 - If RSS exceeds expected bounds (~30-50MB for a medium project), file a bug
@@ -256,24 +256,9 @@ anvil flagging code that's actually fine.
    // @anvil-ignore AP-003 Using any for JSON.parse result
    ```
 
-2. Add pattern suppression in `.anvil/suppressions.json`:
-
-   ```json
-   {
-     "suppressions": [
-       {
-         "pattern_id": "AP-003",
-         "file": "src/types/external.ts",
-         "reason": "External type definitions",
-         "scope": "file",
-         "expires_at": "2026-07-01T00:00:00Z"
-       }
-     ]
-   }
-   ```
-
-   `expires_at` is optional — omit it for a permanent suppression. Additional
-   fields are ignored by the parser.
+2. If the same finding appears repeatedly, keep a suppression inventory for
+   review using `anvil export` outputs or your team's own report, but use inline
+   `@anvil-ignore` comments for current scan suppression.
 
 ### Missing Issues
 
@@ -283,10 +268,10 @@ anvil not catching problems it should.
 
 ```bash
 # Verify check is enabled
-cat .anvilrc | grep -A5 antiPatterns
+cat .anvilrc
 
 # Run verbose
-anvil check --all --verbose
+anvil --verbose check --all
 ```
 
 ### Architecture Check Slow
@@ -318,15 +303,16 @@ anvil passing when it should fail.
 - Config is being read (check `anvil gate --list-profiles`)
 - Exit code `2` indicates gate failure (not `1`, which is a general error)
 
-### GitHub Action Timeout
+### GitHub Actions Timeout
 
-Action taking too long.
+The workflow step running Anvil is taking too long.
 
 **Solutions:**
 
 ```yaml
-- uses: eddacraft/anvil-action@v1
+- name: Run anvil
   timeout-minutes: 10
+  run: anvil gate --profile ci
 ```
 
 Or:
@@ -337,13 +323,13 @@ Or:
 
 ### PR Comments Not Appearing
 
-Action runs but no comment.
+The Anvil workflow runs, but your custom comment step does not post anything.
 
 **Check:**
 
-- `github_token` is provided
-- Token has `pull-requests: write` permission
-- `comment: true` is set
+- The workflow grants `pull-requests: write` if it posts PR comments
+- The comment step runs only on `pull_request` events
+- The comment step reads the path where you wrote `anvil --json gate` output
 
 ## VS Code Extension Issues
 
@@ -434,7 +420,7 @@ anvil works in both native Windows (PowerShell/cmd) and WSL. If using WSL:
 Run with verbose output:
 
 ```bash
-anvil check --all --verbose
+anvil --verbose check --all
 ```
 
 ### Log Collection
@@ -443,12 +429,12 @@ Collect logs for bug reports:
 
 ```bash
 # macOS / Linux
-anvil check --all --verbose 2>&1 | tee anvil.log
+anvil --verbose check --all 2>&1 | tee anvil.log
 ```
 
 ```powershell
 # Windows (PowerShell)
-anvil check --all --verbose 2>&1 | Tee-Object anvil.log
+anvil --verbose check --all 2>&1 | Tee-Object anvil.log
 ```
 
 ### Filing Issues

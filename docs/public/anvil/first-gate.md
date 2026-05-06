@@ -9,6 +9,12 @@ sidebar_position: 5
 
 This page walks through the experience of anvil catching an issue in real-time.
 
+## Before You Start
+
+This example assumes you have already run `anvil init`, created
+`.anvil/architecture.yaml`, and started watch mode. If you have not done that
+yet, follow [First Project](/anvil/first-project) first.
+
 ## The Scenario
 
 You're using an AI coding assistant to add a new endpoint. The AI generates

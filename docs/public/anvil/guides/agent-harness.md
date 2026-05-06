@@ -112,9 +112,9 @@ validation:
 {
   "mcpServers": {
     "anvil": {
-      "command": "npx",
-      "args": ["@eddacraft/anvil-mcp-server"],
-      "cwd": "/path/to/your/project"
+      "command": "anvil",
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {}
     }
   }
 }
@@ -122,9 +122,11 @@ validation:
 
 The agent can then:
 
-- Query architecture layer and boundary rules via `anvil://boundaries`
-- Validate changes before proposing via `anvil_check`
-- Check current violations via `anvil_status`
+- Validate proposed writes before applying them via `anvil_validate_write`
+- Use `anvil mcp-config` when you need editor-specific config generation or
+  verification
+- Use the legacy Node.js MCP server only if you need the broader legacy tool and
+  resource surface today
 
 See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
 reference.
