@@ -69,7 +69,9 @@ It has the following shape:
     "session_id": "sess_01HW...",
     "worktree": "feat/notify",
     "run_id": "run_2026-04-22T14:03:17Z",
-    "source": "watch"
+    "source": "watch",
+    "originating_session_id": "sess_01HW...",
+    "originating_driver_id": "intercept-daemon-v1"
   },
   "notification": {
     "class": "finding",
@@ -106,10 +108,12 @@ It has the following shape:
 
 | Field | Type | Required | Purpose |
 | --- | --- | :---: | --- |
-| `session_id` | string | optional | Driver-framework session id if the emitter runs inside a managed session. |
+| `session_id` | string | optional | Driver-framework session id if the emitter runs inside a managed session. Operator-visible context — distinct from `originating_session_id`. |
 | `worktree` | string | optional | Worktree or branch identifier for routing. |
 | `run_id` | string | optional | Gate/check run id for correlating multiple events from one invocation. |
 | `source` | string | yes | Producer surface name (`check`, `gate`, `watch`, `doctor`, `audit`, `tutorial`, `onboarding-hooks`, `intercept`). Matches `notification.context.source`. |
+| `originating_session_id` | string | optional (yes for `intercept`) | INTD-015 scoping field. The session that **produced** this event in the daemon's view, set by the daemon from the change-attribution path — **not** from any driver claim. The fan-out filter reads this to decide cross-session redaction. Subscribers MUST treat unknown / absent values as "not authorised". For non-`intercept` producers (e.g. `gate`, `check`) this field MAY be absent because there is no managed session. |
+| `originating_driver_id` | string | optional (yes for `intercept`) | INTD-015 scoping field. Stable identity of the driver that produced the event, minted by the daemon from socket-peer credentials — **not** from a driver-supplied `driverName`. A same-UID peer self-declaring `"driverName": "vscode"` cannot impersonate another driver because this id comes from `SO_PEERCRED` / equivalent. |
 
 ### `notification` sub-fields
 
@@ -191,6 +195,54 @@ Present only when the notification mirrors a control-lane decision:
 - Infer control-lane ack state from telemetry alone.
 - Use this stream as the source of truth for fence or session state.
 - Require new fields that are not in the current schema.
+
+### Subscribers MUST (Cross-Session Redaction — INTD-015)
+
+The producer side enforces telemetry subscription scoping daemon-side
+(`crates/anvil-intercept/src/fanout.rs`). Subscribers see one of three
+delivery shapes for any given envelope:
+
+1. **Full envelope** — the subscriber owns the originating session
+   (their daemon-minted identity matches the session's registered
+   driver in INTD-003 + INTD-007's fence registry). They see every
+   field unchanged.
+2. **Redacted envelope** — only emitted when the operator opts in
+   via the daemon-side `telemetry.allow_cross_session: true` flag
+   (routed through INTD-008's loader, default `false`). The
+   `notification.title` keeps the rule_id (the safe payload by the
+   diagnostic-envelope coordination spec lines 222-229);
+   `notification.message` becomes the fixed `[redacted]` marker;
+   `notification.context.file`, `correlation.worktree`, and
+   `grouping.key` become `[redacted:<hex>]` strings keyed off
+   `hash_of_path` (SHA-256, hex-encoded). `correlation.run_id` and
+   `mirror.control_correlation_id` are dropped.
+3. **No delivery** — the default for cross-session events when the
+   operator has not opted into redacted delivery. The fan-out drops
+   the event for that subscriber.
+
+Subscribers MUST therefore:
+
+- Treat unknown `correlation.originating_session_id` values
+  (including absent / null) as **not authorised**. Default-deny is
+  the rule the producer enforces; subscribers must not work around
+  it by guessing the originator from `correlation.session_id` or
+  any other field.
+- Preserve `correlation.originating_session_id` and
+  `correlation.originating_driver_id` verbatim. These are the
+  daemon-minted scoping fields; subscribers MUST NOT rewrite them
+  or compute them from `notification.title` / `mirror.driver`.
+- Treat any `[redacted:<hex>]` value as opaque. Two events sharing
+  the same hash refer to the same underlying path / worktree, so
+  dedup logic remains valid; reverse-engineering the hash is not.
+- NOT infer the originating session id from the redacted form.
+  Anything carrying a `[redacted:` prefix is an opaque hash; it is
+  NOT a session id.
+
+Producers MUST NOT bypass the fan-out — a producer that would
+otherwise broadcast an envelope is required to route through
+`Fanout::route` (or an embedded equivalent) so the
+`SubscriberId`-keyed allowlist is consulted before any bytes leave
+the daemon process.
 
 ## Producer Contract
 

@@ -118,20 +118,48 @@ pub struct EnforcementConfigFile {
     pub observe_only: Option<bool>,
 }
 
+/// Telemetry stream config (INTD-015 fan-out scope).
+///
+/// Routed through INTD-008's loader so the same project + user
+/// merge applies to subscription scoping as to the enforcement
+/// block. This struct is read only by the daemon — RTAI-006 has
+/// no telemetry surface.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+pub struct TelemetryConfigFile {
+    /// INTD-015 cross-session policy. When `Some(true)`, the
+    /// fan-out delivers a **redacted** envelope (`rule_id` +
+    /// `hash_of_path`) to subscribers that did not originate the
+    /// event. When `Some(false)` or `None`, cross-session events
+    /// are dropped entirely — the safe default per the 2026-04-24
+    /// council review M5 (security-analyst).
+    ///
+    /// "Redacted" here means the diagnostic-envelope coordination
+    /// spec lines 222-229 form: `rule_id` preserved,
+    /// `notification.message` replaced with `[redacted]`,
+    /// path-bearing fields hashed. Operators opt in by setting
+    /// this flag; INTD-008's stricter-wins merge means a project
+    /// `.anvil.yaml` that disables cross-session sharing always
+    /// wins over a user-level config that enables it.
+    #[serde(default)]
+    pub allow_cross_session: Option<bool>,
+}
+
 /// Top-level `.anvil.yaml` shape that both consumers
 /// deserialise. Wraps [`EnforcementConfigFile`] under the
-/// `enforcement` key.
+/// `enforcement` key and (INTD-015) [`TelemetryConfigFile`]
+/// under `telemetry`.
 ///
-/// Top-level keys other than `enforcement` are silently
-/// ignored (forwards-compat policy: a workspace carrying
-/// keys for unrelated subsystems must not break enforcement
-/// resolution). INTD-008 may add sibling top-level keys when
-/// it lands further config surfaces — until then, only
-/// `enforcement` is consumed here.
+/// Top-level keys other than the ones declared here are
+/// silently ignored (forwards-compat policy: a workspace
+/// carrying keys for unrelated subsystems must not break
+/// enforcement resolution). INTD-008 may add sibling top-level
+/// keys when it lands further config surfaces.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
 pub struct AnvilConfigFile {
     #[serde(default)]
     pub enforcement: EnforcementConfigFile,
+    #[serde(default)]
+    pub telemetry: TelemetryConfigFile,
 }
 
 #[cfg(test)]

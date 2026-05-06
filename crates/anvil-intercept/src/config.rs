@@ -65,7 +65,9 @@
 
 use std::path::{Path, PathBuf};
 
-use anvil_intercept_proto::enforcement_config::{AnvilConfigFile, EnforcementConfigFile};
+use anvil_intercept_proto::enforcement_config::{
+    AnvilConfigFile, EnforcementConfigFile, TelemetryConfigFile,
+};
 use thiserror::Error;
 
 /// Resolved enforcement strictness for the daemon.
@@ -211,12 +213,23 @@ pub enum LoadError {
 ///
 /// `Default` matches the daemon's no-config baseline:
 /// `mode = Warn`, `on_ambiguous_ownership = Warn`,
-/// `observe_only = false`.
+/// `observe_only = false`,
+/// `telemetry_allow_cross_session = false`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Resolved {
     pub mode: Mode,
     pub on_ambiguous_ownership: AmbiguousOwnership,
     pub observe_only: bool,
+    /// INTD-015: when `true`, telemetry subscribers see a redacted
+    /// envelope (`rule_id` + `hash_of_path`) for cross-session
+    /// events. Default `false` — cross-session events are dropped
+    /// entirely, matching the 2026-04-24 council review M5
+    /// (security-analyst) safe default.
+    ///
+    /// Stricter-wins merge: any side requesting `false` (deny)
+    /// wins over the other side's `true`. The opt-in is the
+    /// weaker choice.
+    pub telemetry_allow_cross_session: bool,
 }
 
 impl Resolved {
@@ -227,10 +240,27 @@ impl Resolved {
     /// `None` on either side means "no file present" or "no
     /// `enforcement` block present" — the corresponding fields
     /// fall through to the other side, then to the daemon default.
+    ///
+    /// INTD-015's `telemetry.allow_cross_session` flag defaults to
+    /// `false` — see [`Resolved::from_config_files_with_telemetry`]
+    /// for the variant that consumes the telemetry block.
     #[must_use]
     pub fn from_config_files(
         project: Option<&EnforcementConfigFile>,
         user: Option<&EnforcementConfigFile>,
+    ) -> Self {
+        Self::from_config_files_with_telemetry(project, user, None, None)
+    }
+
+    /// Variant of [`Resolved::from_config_files`] that also
+    /// consumes the project + user `telemetry` blocks (INTD-015).
+    /// Used by [`Resolved::load`].
+    #[must_use]
+    pub fn from_config_files_with_telemetry(
+        project: Option<&EnforcementConfigFile>,
+        user: Option<&EnforcementConfigFile>,
+        project_telemetry: Option<&TelemetryConfigFile>,
+        user_telemetry: Option<&TelemetryConfigFile>,
     ) -> Self {
         let project_mode = project
             .and_then(|p| p.mode.as_deref())
@@ -271,10 +301,23 @@ impl Resolved {
             project_observe.or(user_observe).unwrap_or(false)
         };
 
+        // INTD-015: stricter-wins for `allow_cross_session`. The
+        // safe choice is `false` (deny). If either side requests
+        // deny, the resolved value is deny.
+        let project_cross = project_telemetry.and_then(|t| t.allow_cross_session);
+        let user_cross = user_telemetry.and_then(|t| t.allow_cross_session);
+        let telemetry_allow_cross_session =
+            if project_cross == Some(false) || user_cross == Some(false) {
+                false
+            } else {
+                project_cross.or(user_cross).unwrap_or(false)
+            };
+
         Self {
             mode,
             on_ambiguous_ownership,
             observe_only,
+            telemetry_allow_cross_session,
         }
     }
 
@@ -293,10 +336,26 @@ impl Resolved {
             Some(path) => read_config_file(path)?,
             None => None,
         };
-        Ok(Self::from_config_files(
+        Ok(Self::from_config_files_with_telemetry(
             project.as_ref().map(|p| &p.enforcement),
             user.as_ref().map(|u| &u.enforcement),
+            project.as_ref().map(|p| &p.telemetry),
+            user.as_ref().map(|u| &u.telemetry),
         ))
+    }
+
+    /// Map the resolved `telemetry_allow_cross_session` flag onto
+    /// the [`crate::fanout::CrossSessionPolicy`] the fan-out
+    /// reads. Centralised here so the policy mapping has a single
+    /// source of truth — adding a future variant (e.g. per-rule
+    /// allow, per-driver allow) only touches this function.
+    #[must_use]
+    pub fn cross_session_policy(&self) -> crate::fanout::CrossSessionPolicy {
+        if self.telemetry_allow_cross_session {
+            crate::fanout::CrossSessionPolicy::Redact
+        } else {
+            crate::fanout::CrossSessionPolicy::Deny
+        }
     }
 }
 
@@ -623,5 +682,59 @@ mod tests {
         assert_eq!(resolved.mode, Mode::Fence);
         assert_eq!(resolved.on_ambiguous_ownership, AmbiguousOwnership::Fence,);
         assert!(resolved.observe_only);
+    }
+
+    // -------- INTD-015 telemetry.allow_cross_session --------
+
+    #[test]
+    fn telemetry_allow_cross_session_defaults_to_deny() {
+        let workspace = tempdir().expect("workspace");
+        // No telemetry block at all → safe default.
+        write_anvil_yaml(workspace.path(), "enforcement:\n  mode: warn\n");
+        let resolved = Resolved::load(workspace.path(), None).expect("load");
+        assert!(
+            !resolved.telemetry_allow_cross_session,
+            "default MUST be deny — council finding M5 (security-analyst), 2026-04-24",
+        );
+        assert_eq!(
+            resolved.cross_session_policy(),
+            crate::fanout::CrossSessionPolicy::Deny,
+        );
+    }
+
+    #[test]
+    fn telemetry_allow_cross_session_true_maps_to_redact_policy() {
+        let workspace = tempdir().expect("workspace");
+        write_anvil_yaml(
+            workspace.path(),
+            "telemetry:\n  allow_cross_session: true\n",
+        );
+        let resolved = Resolved::load(workspace.path(), None).expect("load");
+        assert!(resolved.telemetry_allow_cross_session);
+        assert_eq!(
+            resolved.cross_session_policy(),
+            crate::fanout::CrossSessionPolicy::Redact,
+        );
+    }
+
+    #[test]
+    fn telemetry_allow_cross_session_project_deny_overrides_user_allow() {
+        let workspace = tempdir().expect("workspace");
+        let user_dir = tempdir().expect("user dir");
+        let user_path = user_dir.path().join("anvil.yaml");
+
+        // Project explicitly denies cross-session sharing; user
+        // tries to allow it. Stricter (deny) wins.
+        write_anvil_yaml(
+            workspace.path(),
+            "telemetry:\n  allow_cross_session: false\n",
+        );
+        write_user_config(&user_path, "telemetry:\n  allow_cross_session: true\n");
+
+        let resolved = Resolved::load(workspace.path(), Some(&user_path)).expect("load");
+        assert!(
+            !resolved.telemetry_allow_cross_session,
+            "project deny must win over user allow",
+        );
     }
 }

@@ -31,6 +31,7 @@
 pub mod auth;
 pub mod config;
 pub mod enforcement;
+pub mod fanout;
 pub mod fence;
 pub mod ipc;
 pub mod midedit;

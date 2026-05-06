@@ -24,6 +24,24 @@ pub struct TelemetryCorrelation {
     pub worktree: Option<String>,
     pub run_id: Option<String>,
     pub control_correlation_id: Option<String>,
+    /// INTD-015: identifier of the session that produced this event.
+    /// When set, the fanout (`crates/anvil-intercept/src/fanout.rs`)
+    /// uses this — NOT `session_id` — to enforce cross-session
+    /// redaction. `session_id` describes "the session this envelope
+    /// is *about* in the operator-visible telemetry sense";
+    /// `originating_session_id` is the **load-bearing scoping key**
+    /// that the fanout reads to decide redaction. They are equal in
+    /// the common case; carrying both lets future producers (e.g. a
+    /// driver that proxies an event for another session) keep the
+    /// scoping invariant explicit.
+    pub originating_session_id: Option<String>,
+    /// INTD-015: stable identity of the driver that produced this
+    /// event, in the daemon's view. The daemon mints this from the
+    /// connection's socket-peer credentials (UID + binary path /
+    /// install-time token) — **not** from a driver-supplied
+    /// `driverName`. The fanout uses this for telemetry rate-limiting
+    /// and quarantine; subscribers see it for diagnostic purposes.
+    pub originating_driver_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +76,27 @@ impl TelemetryEmitter {
     #[must_use]
     pub fn producer_instance_id(&self) -> &str {
         &self.producer_instance_id
+    }
+
+    /// Convenience builder used by callers that have a single
+    /// session+driver pair and want the `originating_*` fields
+    /// populated without naming each one. The fanout (INTD-015)
+    /// reads `originating_session_id` regardless of whether the
+    /// caller used this helper or set the field directly.
+    pub fn delivered_envelope_for_decision_from(
+        &mut self,
+        session_id: impl Into<String>,
+        driver_id: impl Into<String>,
+        decision: &EnforcementDecision,
+    ) -> NotificationEnvelope {
+        let session_id = session_id.into();
+        let correlation = TelemetryCorrelation {
+            session_id: Some(session_id.clone()),
+            originating_session_id: Some(session_id),
+            originating_driver_id: Some(driver_id.into()),
+            ..TelemetryCorrelation::default()
+        };
+        self.delivered_envelope_for_decision(correlation, decision)
     }
 
     pub fn delivered_envelope_for_decision(
@@ -103,6 +142,17 @@ impl TelemetryEmitter {
     fn next_context(&mut self, correlation: TelemetryCorrelation) -> TelemetryContext {
         let seq = self.next_seq;
         self.next_seq = self.next_seq.saturating_add(1);
+        // INTD-015: when only one of `session_id` / `originating_session_id`
+        // is set, mirror the value across both so subscribers and the
+        // fanout always see a consistent originator. This preserves
+        // backwards-compat with pre-INTD-015 callers (which only set
+        // `session_id`) without weakening the scoping check — the
+        // mirroring goes one direction only, and only when no
+        // explicit originator is provided.
+        let originating_session_id = correlation
+            .originating_session_id
+            .clone()
+            .or_else(|| correlation.session_id.clone());
         TelemetryContext {
             producer_instance_id: self.producer_instance_id.clone(),
             seq,
@@ -111,6 +161,8 @@ impl TelemetryEmitter {
             worktree: correlation.worktree,
             run_id: correlation.run_id,
             control_correlation_id: correlation.control_correlation_id,
+            originating_session_id,
+            originating_driver_id: correlation.originating_driver_id,
         }
     }
 
@@ -137,6 +189,8 @@ pub(crate) struct TelemetryContext {
     worktree: Option<String>,
     run_id: Option<String>,
     control_correlation_id: Option<String>,
+    originating_session_id: Option<String>,
+    originating_driver_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,6 +216,22 @@ pub struct NotificationCorrelation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<String>,
     pub source: String,
+    /// INTD-015: identifier of the session that originated this
+    /// event. The fanout (`fanout.rs`) reads this to enforce
+    /// cross-session subscription redaction; subscribers MUST treat
+    /// unknown / absent values as "not authorised" (default deny).
+    /// Distinct from [`session_id`] (operator-visible context) —
+    /// both fields exist so future producers that proxy events for
+    /// another session keep the scoping invariant explicit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub originating_session_id: Option<String>,
+    /// INTD-015: stable identity of the driver that produced the
+    /// event. Minted by the daemon from socket-peer credentials —
+    /// **not** from a driver-supplied `driverName` — so a hostile
+    /// same-UID peer cannot impersonate another driver by self-
+    /// declaring a name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub originating_driver_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -307,6 +377,8 @@ fn envelope(
             worktree: context.worktree.clone(),
             run_id: context.run_id.clone(),
             source: INTERCEPT_SOURCE.to_string(),
+            originating_session_id: context.originating_session_id.clone(),
+            originating_driver_id: context.originating_driver_id.clone(),
         },
         notification,
         grouping,
@@ -373,6 +445,8 @@ mod tests {
             worktree: Some("feat/intd".to_string()),
             run_id: Some("run-1".to_string()),
             control_correlation_id: Some("ctrl-1".to_string()),
+            originating_session_id: Some("sess-1".to_string()),
+            originating_driver_id: Some("intercept-daemon-v1".to_string()),
         }
     }
 
