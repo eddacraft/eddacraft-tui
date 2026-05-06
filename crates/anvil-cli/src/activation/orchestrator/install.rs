@@ -5,17 +5,25 @@
 //!
 //! ## Two execution modes
 //!
-//! - **Interactive** (TTY, not `--no-tui`, not `--json`): probe each
-//!   registered client, render a [`demand`] `MultiSelect` listing what
-//!   was found, pre-selecting `NotPresent` + `SafeDrift` candidates,
-//!   and let the user confirm or trim the set. Cancellation (Ctrl-C /
-//!   `Esc`) returns an empty selection — the install step becomes a
-//!   no-op without aborting the orchestration.
+//! - **Interactive** (TTY, not `--no-tui`): probe each registered
+//!   client, render a [`demand`] `MultiSelect` listing what was found,
+//!   pre-selecting `NotPresent` + `SafeDrift` candidates, and let the
+//!   user confirm or trim the set. Cancellation (Ctrl-C / `Esc`)
+//!   returns an empty selection — the install step becomes a no-op
+//!   without aborting the orchestration.
 //!
-//! - **Non-interactive** (`--no-tui`, `--json`, no TTY, or CI):
-//!   auto-install for every `NotPresent` + `SafeDrift` candidate. No
-//!   prompt is shown. `UnsafeDrift` is always skipped with the drift
-//!   reason recorded in the install report.
+//! - **Non-interactive** (`--no-tui`, no TTY, or CI envs like
+//!   `CI=true` / `GIT_DIR` set): auto-install for every `NotPresent`
+//!   + `SafeDrift` candidate. No prompt is shown. `UnsafeDrift` is
+//!   always skipped with the drift reason recorded in the install
+//!   report.
+//!
+//! `--json` is **not** routed through this module. `anvil start
+//! --json` short-circuits to a read-only `activation::verify` probe
+//! at `commands/start.rs` so stdout stays a single JSON document
+//! (init has its own JSON output that would otherwise concatenate).
+//! Users who want a side-effecting `--json` flow run `anvil init
+//! --json` and `anvil start --json` separately.
 //!
 //! ## Drift policy
 //!
