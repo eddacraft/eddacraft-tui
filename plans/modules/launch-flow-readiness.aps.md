@@ -1120,7 +1120,11 @@ new primitive, this module follows three rules:
   activation reaches watch fallback, scopes it to the repo, and renders
   `watching` rather than `protecting`.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** In Progress — branch `launch/a1-watch-fallback`. Diagnostic
+  gains explicit MCP pre-write predicates so surfaces can label fallback
+  honestly; `verify` sets `WatchTier::Offered` when MCP cannot attach;
+  `anvil start --watch` runs the kernel watcher inline scoped to the
+  repo when MCP is below `LiveValidation`.
 
 ---
 
