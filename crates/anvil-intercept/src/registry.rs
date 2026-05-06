@@ -106,6 +106,26 @@ impl PartialEq for RegistryError {
 
 impl Eq for RegistryError {}
 
+/// Outcome of [`SessionRegistry::attribute_path`] — used by INTD-004
+/// (watcher integration) to decide whether a change goes through the
+/// owning session's enforcement pipeline or through INTD-010's
+/// unregistered-change path.
+///
+/// `Unknown` carries no payload because the watcher / fan-out code
+/// builds the `attribution: unknown-agent` envelope from the change
+/// itself. Treating "unknown" and "no record" identically here keeps
+/// the call sites linear: `match attribute_path { Owned(s) => ..., Unknown => ... }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Attribution {
+    /// The change lives under a registered session's worktree.
+    Owned { session: SessionRecord },
+    /// No registered session claims this path. The watcher routes the
+    /// change through INTD-010's `attribution: unknown-agent` pipeline,
+    /// honouring the `on_ambiguous_ownership` policy from INTD-008
+    /// (hard-capped at `Fence` per AD-3).
+    Unknown,
+}
+
 /// Process info that the launcher feeds back into the registry once it
 /// has spawned the agent and has a pid / pgid to report. `None` fields
 /// mean "no update" — they do not clobber an existing `Some`. To
@@ -301,6 +321,76 @@ impl SessionRegistry {
         let inner = self.lock();
         let id = inner.by_worktree.get(&canonical)?;
         inner.sessions.get(id).map(|entry| entry.record.clone())
+    }
+
+    /// Resolve the [`Attribution`] for an arbitrary changed path —
+    /// used by INTD-004 (watcher integration) and INTD-010
+    /// (unregistered change handling). The caller passes a path that
+    /// may live anywhere on disk (e.g. a child of a registered
+    /// worktree); the registry walks the path's ancestor chain
+    /// looking for the longest prefix that maps to an active session.
+    ///
+    /// **Canonicalisation:** the path is canonicalised once before
+    /// the ancestor walk so symlinked / dotted spellings do not
+    /// silently miss. A path that cannot be canonicalised (missing
+    /// file on a `Removed` event, broken link, etc.) is treated as
+    /// `Unknown` rather than producing a registry error — the
+    /// watcher must still surface unattributed events under
+    /// INTD-010's `attribution: unknown-agent` policy.
+    ///
+    /// **Multiple matches:** if the changed path is nested under
+    /// more than one registered worktree (a worktree-inside-a-
+    /// worktree configuration that v1 does not actively support but
+    /// also does not refuse), the **longest matching prefix** wins.
+    /// Returning the deepest match keeps attribution correct when an
+    /// operator registers both a parent and a child worktree, and
+    /// matches the v1 "single session per canonicalised worktree"
+    /// rule the constructor enforces.
+    #[must_use]
+    pub fn attribute_path(&self, changed: &Path) -> Attribution {
+        let canonical = std::fs::canonicalize(changed)
+            .ok()
+            .or_else(|| {
+                // Canonicalisation can fail for `Removed` events
+                // (the file no longer exists). Walk up to the first
+                // ancestor that does exist, canonicalise that, and
+                // re-attach the missing tail. The exact filename
+                // does not affect prefix-matching.
+                let mut probe = changed.parent();
+                while let Some(p) = probe {
+                    if let Ok(c) = std::fs::canonicalize(p) {
+                        return Some(c);
+                    }
+                    probe = p.parent();
+                }
+                None
+            });
+        let Some(canonical) = canonical else {
+            return Attribution::Unknown;
+        };
+
+        let inner = self.lock();
+        let mut best: Option<(&PathBuf, &SessionId)> = None;
+        for (worktree, id) in &inner.by_worktree {
+            if canonical.starts_with(worktree)
+                && best.is_none_or(|(current, _)| worktree.as_os_str().len() > current.as_os_str().len())
+            {
+                best = Some((worktree, id));
+            }
+        }
+        match best {
+            Some((_, id)) => match inner.sessions.get(id) {
+                Some(entry) => Attribution::Owned {
+                    session: entry.record.clone(),
+                },
+                // Should not happen: invariants keep `by_worktree`
+                // and `sessions` aligned. Surfacing as `Unknown`
+                // rather than panicking keeps the watcher resilient
+                // to a transient inconsistency.
+                None => Attribution::Unknown,
+            },
+            None => Attribution::Unknown,
+        }
     }
 
     /// All currently active sessions, sorted deterministically by

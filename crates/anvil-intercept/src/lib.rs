@@ -37,10 +37,12 @@ pub mod ipc;
 pub mod midedit;
 pub mod registry;
 pub mod telemetry;
+pub mod watcher;
 
 pub use auth::{AuthError, DriverManifest, is_driver_allowed};
 pub use registry::{
-    DEFAULT_HEARTBEAT_TTL, ProcessInfo, RegistryError, SessionDispatcher, SessionRegistry,
+    Attribution, DEFAULT_HEARTBEAT_TTL, ProcessInfo, RegistryError, SessionDispatcher,
+    SessionRegistry,
 };
 
 use std::env;

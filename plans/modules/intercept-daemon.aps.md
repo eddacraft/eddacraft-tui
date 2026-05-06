@@ -253,7 +253,23 @@ a new lane.
 - **Expected Outcome:** Change batches from the watcher are received, coalesced,
   and forwarded to the enforcement pipeline with session attribution
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib watcher`
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/watcher.rs`
+  ships the `WatcherIntegration` consumer — receives `WatcherChangeBatch`
+  values (a 1:1 structural mirror of `anvil_kernel::watcher::events::ChangeBatch`
+  to keep `anvil-intercept` off the heavy parser/graph deps), routes each
+  changed path through `SessionRegistry::attribute_path`, coalesces
+  per-session bursts on a 50 ms default window, and dispatches the
+  coalesced batches to `EnforcementPipeline::evaluate_filesystem_changes`.
+  Unattributed changes are forwarded to a pluggable
+  `UnregisteredHandler` (INTD-010 will plug in the
+  `attribution: unknown-agent` policy; this PR ships
+  `NoopUnregisteredHandler` plus a recording double for tests).
+  `SessionRegistry::attribute_path` adds longest-prefix matching with
+  canonicalisation fallback for `Removed` events. Tests cover
+  attributed routing, unattributed routing, burst coalescing, two
+  independent sessions flushing in stable order, and shutdown
+  flush_all. 5 watcher unit tests pass.
 
 ### INTD-005: Enforcement Decision Pipeline
 
