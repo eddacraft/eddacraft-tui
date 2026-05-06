@@ -73,13 +73,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // from the JSON document; the `last_error` field carries every
     // failure, aggregated).
     if !read_only
-        && let Some(err) = install_report
-            .per_client
-            .values()
-            .find_map(|o| match o {
-                InstallOutcome::Failed { error } => Some(error.as_str()),
-                _ => None,
-            })
+        && let Some(err) = install_report.per_client.values().find_map(|o| match o {
+            InstallOutcome::Failed { error } => Some(error.as_str()),
+            _ => None,
+        })
     {
         bail!("MCP install failed: {err}");
     }

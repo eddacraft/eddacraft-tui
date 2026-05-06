@@ -157,7 +157,10 @@ pub fn install_for_clients(
     // are surfaced in the post-install human render block instead.
     let mut picker_inputs: Vec<&Candidate> = candidates.iter().collect();
     picker_inputs.retain(|c| {
-        !matches!(c.drift, DriftClass::UpToDate | DriftClass::UnsafeDrift { .. })
+        !matches!(
+            c.drift,
+            DriftClass::UpToDate | DriftClass::UnsafeDrift { .. }
+        )
     });
 
     let chosen_ids: Vec<McpClientId> = if interactive && !picker_inputs.is_empty() {
@@ -177,7 +180,12 @@ pub fn install_for_clients(
         // NotPresent + SafeDrift.
         picker_inputs
             .iter()
-            .filter(|c| matches!(c.drift, DriftClass::NotPresent | DriftClass::SafeDrift { .. }))
+            .filter(|c| {
+                matches!(
+                    c.drift,
+                    DriftClass::NotPresent | DriftClass::SafeDrift { .. }
+                )
+            })
             .map(|c| c.id)
             .collect()
     };
@@ -528,8 +536,12 @@ mod tests {
     fn fresh_repo_auto_installs_to_global_scope() {
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), /* interactive */ false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            /* interactive */ false,
+        );
 
         // Both clients should have written to the home scope (global).
         let cursor_path = home.path().join(".cursor/mcp.json");
@@ -573,8 +585,7 @@ mod tests {
         // detectable.
         std::thread::sleep(std::time::Duration::from_millis(1100));
 
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Skipped {
@@ -584,7 +595,10 @@ mod tests {
         }
 
         let mtime_after = fs::metadata(&cursor_path).unwrap().modified().unwrap();
-        assert_eq!(mtime_before, mtime_after, "must not rewrite up-to-date file");
+        assert_eq!(
+            mtime_before, mtime_after,
+            "must not rewrite up-to-date file"
+        );
     }
 
     #[test]
@@ -598,8 +612,7 @@ mod tests {
         fs::write(&cursor_path, cfg).unwrap();
         let bytes_before = fs::read(&cursor_path).unwrap();
 
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Skipped {
@@ -623,8 +636,7 @@ mod tests {
         fs::write(&cursor_path, "{not json").unwrap();
         let bytes_before = fs::read(&cursor_path).unwrap();
 
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Skipped {
@@ -647,8 +659,7 @@ mod tests {
         let cursor_path = home.path().join(".cursor/mcp.json");
         fs::write(&cursor_path, cfg).unwrap();
 
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Installed {
@@ -679,8 +690,7 @@ mod tests {
         let cursor_path = home.path().join(".cursor/mcp.json");
         fs::write(&cursor_path, cfg).unwrap();
 
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
         assert!(matches!(
             report_outcome(&report, McpClientId::Cursor),
             InstallOutcome::Installed { .. }
@@ -754,7 +764,10 @@ mod tests {
         }
         // Workspace config must not have been touched.
         let ws_after = std::fs::read_to_string(ws.path().join(".cursor/mcp.json")).unwrap();
-        assert!(!ws_after.contains("anvil"), "workspace must not have anvil entry written: {ws_after}");
+        assert!(
+            !ws_after.contains("anvil"),
+            "workspace must not have anvil entry written: {ws_after}"
+        );
     }
 
     #[test]
@@ -798,8 +811,7 @@ mod tests {
         let ws_path = ws.path().join(".cursor/mcp.json");
         fs::write(&ws_path, ws_cfg).unwrap();
 
-        let report =
-            install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Installed { path, .. } => {
                 assert_eq!(path, &ws_path);

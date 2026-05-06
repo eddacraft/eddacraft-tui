@@ -262,10 +262,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     ) = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
-            (
-                super::mcp_client::probe_all(root, home, &fresh),
-                None,
-            )
+            (super::mcp_client::probe_all(root, home, &fresh), None)
         }
         Err(e) => {
             // Couldn't resolve current_exe (rare — typically only fails
