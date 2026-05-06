@@ -755,6 +755,121 @@ mod tests {
         assert_eq!(d.highest_mcp_tier(), Some(McpTier::ServerStartable));
     }
 
+    // LAUNCH-011: predicates that gate fallback messaging and the
+    // `start --watch` hand-off. The tier boundary is the only honest
+    // place the surface can split "MCP can attach on restart" from
+    // "MCP cannot attach"; the tests pin every relevant tier so a
+    // future refactor cannot silently slide the boundary.
+
+    #[test]
+    fn mcp_pre_write_attached_is_false_when_no_clients_probed() {
+        let d = empty_diagnostic();
+        assert!(!d.mcp_pre_write_attached());
+        assert!(!d.mcp_pre_write_live());
+    }
+
+    #[test]
+    fn mcp_pre_write_attached_is_false_below_restart_required() {
+        for weak_tier in [
+            McpTier::NotDetected,
+            McpTier::ConfigAbsent,
+            McpTier::ConfigPresent,
+            McpTier::ServerStartable,
+        ] {
+            let mut d = empty_diagnostic();
+            d.mcp.insert(McpClientId::Cursor, weak_tier.into());
+            assert!(
+                !d.mcp_pre_write_attached(),
+                "tier {weak_tier:?} must not register as attached"
+            );
+            assert!(
+                !d.mcp_pre_write_live(),
+                "tier {weak_tier:?} must not register as live"
+            );
+        }
+    }
+
+    #[test]
+    fn mcp_pre_write_attached_is_true_at_restart_required() {
+        let mut d = empty_diagnostic();
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
+        assert!(d.mcp_pre_write_attached());
+        assert!(!d.mcp_pre_write_live());
+    }
+
+    #[test]
+    fn mcp_pre_write_live_only_at_live_validation() {
+        let mut d = empty_diagnostic();
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::LiveValidation.into());
+        assert!(d.mcp_pre_write_attached());
+        assert!(d.mcp_pre_write_live());
+    }
+
+    #[test]
+    fn mcp_pre_write_attached_picks_strongest_across_clients() {
+        // Adversarial guard: a single weak entry must not mask a
+        // stronger tier on another client.
+        let mut d = empty_diagnostic();
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ConfigPresent.into());
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        assert!(d.mcp_pre_write_attached());
+    }
+
+    #[test]
+    fn verify_offers_watch_when_mcp_below_restart_required() {
+        // No HOME → no MCP entry on disk → highest tier is at most
+        // `ConfigAbsent`. The diagnostic must surface `Offered` so the
+        // surface can advertise the watch fallback honestly.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let d = verify_with_home(dir.path(), Some(home.path()));
+        assert!(
+            !d.mcp_pre_write_attached(),
+            "fresh tempdir HOME must report MCP not attached"
+        );
+        assert_eq!(
+            d.watch,
+            WatchTier::Offered,
+            "fallback must be offered when MCP cannot attach"
+        );
+    }
+
+    #[test]
+    fn verify_does_not_offer_watch_on_invalid_config() {
+        // The fallback note belongs to honest "MCP not attached"
+        // states. When config itself is broken, the user must fix
+        // that first — surfacing watch fallback would dilute the
+        // error signal.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::write(dir.path().join(".anvilrc"), "{not json::").unwrap();
+        let d = verify_with_home(dir.path(), Some(home.path()));
+        assert_eq!(d.config, ConfigStatus::Invalid);
+        assert_eq!(
+            d.watch,
+            WatchTier::NotRequested,
+            "do not offer watch when config is the active error"
+        );
+    }
+
+    #[test]
+    fn watch_running_plus_no_mcp_renders_state_watching_not_protecting() {
+        // LAUNCH-011 acceptance: when MCP cannot attach and the watch
+        // fallback is live, the protection_state must collapse to
+        // `Watching` — never `Protecting`. This is the synthetic
+        // analogue of the end-to-end test the spec calls for; the
+        // real CLI test exercises the same path through subprocess.
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.watch = WatchTier::Running;
+        assert!(!d.mcp_pre_write_attached());
+        assert_eq!(d.protection_state(), ProtectionState::Watching);
+    }
+
     #[test]
     fn verify_handles_missing_anvilrc() {
         let dir = TempDir::new().unwrap();
