@@ -343,13 +343,9 @@ mod tests {
         symlink(&real_dir, &symlinked_parent).unwrap();
 
         let path = symlinked_parent.join("mcp.json");
-        let err = refuse_if_parent_is_symlink(&path)
-            .expect_err("symlinked parent must be refused");
+        let err = refuse_if_parent_is_symlink(&path).expect_err("symlinked parent must be refused");
         let msg = format!("{err:#}");
-        assert!(
-            msg.contains("symlink"),
-            "error must mention symlink: {msg}"
-        );
+        assert!(msg.contains("symlink"), "error must mention symlink: {msg}");
     }
 
     #[test]
