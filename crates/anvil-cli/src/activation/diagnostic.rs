@@ -260,6 +260,32 @@ impl ActivationDiagnostic {
     fn highest_mcp_tier(&self) -> Option<McpTier> {
         self.mcp.values().map(|r| r.tier).max()
     }
+
+    /// True when at least one MCP client has reached the
+    /// "configured + ready to attach on restart" tier or stronger.
+    ///
+    /// This is the only honest place to draw the boundary between
+    /// "MCP pre-write validation may be (or shortly will be) attached"
+    /// and "MCP pre-write validation is not attached". Tiers strictly
+    /// below `RestartRequired` mean the editor has no anvil entry the
+    /// user could pick up on restart, so claiming attachment would
+    /// over-claim. LAUNCH-011 uses this predicate to decide whether
+    /// the watch fallback should be offered or rendered as the active
+    /// protection layer.
+    pub fn mcp_pre_write_attached(&self) -> bool {
+        matches!(
+            self.highest_mcp_tier(),
+            Some(McpTier::RestartRequired | McpTier::LiveValidation)
+        )
+    }
+
+    /// True when at least one MCP client has produced
+    /// `LiveValidation` evidence inside this repo. This is the only
+    /// tier that justifies a `Protecting` claim; everything weaker
+    /// must defer to watch fallback or restart-required messaging.
+    pub fn mcp_pre_write_live(&self) -> bool {
+        matches!(self.highest_mcp_tier(), Some(McpTier::LiveValidation))
+    }
 }
 
 /// Probe activation state at `root`. PR 2 lands the contract; deeper
@@ -312,10 +338,6 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
         }
     };
 
-    // Until PR 3 (LAUNCH-011) lands, we do not introspect the
-    // running watcher process. Surfaces render "watch: not requested".
-    let watch = WatchTier::NotRequested;
-
     // LAUNCH-015: walk the working tree and classify languages so the
     // protection-state mapping can return `Unsupported` honestly when
     // the repo has no covered languages.
@@ -326,6 +348,31 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     // signals. MCP error wins when both fire so SRE diagnosis follows
     // the same priority as before.
     let last_error = mcp_last_error.or(baseline_load_error);
+
+    // LAUNCH-011: when MCP cannot pre-write attach (no client has
+    // reached `RestartRequired+`) and we have not already hit a hard
+    // error, surface the watch fallback as `Offered`. This is purely
+    // informational — `Offered` does not change `protection_state()`
+    // (the watcher process is not running). It signals to the renderer
+    // that watch is the available next step so the user gets honest
+    // partial-protection language instead of a silent gap.
+    //
+    // Skipped when:
+    // - config is invalid (already an error state — fix config first)
+    // - any layer recorded `last_error` (don't add fallback noise on
+    //   top of an aborted activation)
+    // - MCP is at `RestartRequired+` (the user is ready to attach on
+    //   restart; offering a fallback would dilute that nudge)
+    let watch = if matches!(config, ConfigStatus::Valid | ConfigStatus::Absent)
+        && last_error.is_none()
+        && !matches!(
+            mcp.values().map(|r| r.tier).max(),
+            Some(McpTier::RestartRequired | McpTier::LiveValidation)
+        ) {
+        WatchTier::Offered
+    } else {
+        WatchTier::NotRequested
+    };
 
     ActivationDiagnostic {
         config,
@@ -725,7 +772,11 @@ mod tests {
         assert_eq!(d.mcp.len(), 2);
         assert!(d.mcp.contains_key(&McpClientId::Cursor));
         assert!(d.mcp.contains_key(&McpClientId::ClaudeCode));
-        assert_eq!(d.watch, WatchTier::NotRequested);
+        // LAUNCH-011: watch tier is `Offered` when MCP cannot pre-write
+        // attach (no client at RestartRequired+) and `NotRequested`
+        // otherwise. Either is consistent here — pin the invariant
+        // that ties the two layers together rather than a literal.
+        assert_eq!(d.watch == WatchTier::Offered, !d.mcp_pre_write_attached());
         assert!(!d.baseline_present);
         assert!(d.last_error.is_none());
         // protection_state() depends on highest mcp tier across clients;
