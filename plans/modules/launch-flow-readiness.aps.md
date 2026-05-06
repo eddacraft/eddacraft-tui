@@ -683,13 +683,17 @@ new primitive, this module follows three rules:
   on `Commands::Welcome` was removed and `welcome` keeps sole
   ownership of the `.anvil/first-run` marker. Thin
   `crates/anvil-cli/src/commands/start.rs` delegates to
-  `activation::orchestrator::run`, which composes only the read-safe
-  primitives shipped today: `verify_with_home` → init-if-absent
+  `activation::orchestrator::run`. As shipped under this task, the
+  orchestrator composed only the read-safe / idempotent primitives
+  the plan above pinned: `verify_with_home` → init-if-absent
   (LAUNCH-004's `services::sample_analyser` runs inline through
-  `init::run_in`) → MCP install (the LAUNCH-009 part-2 install path,
-  added in the same release window) → re-verify. `--verify` and
-  `--json` short-circuit to the read-only path so init's own JSON
-  record can't concatenate with the activation diagnostic. The
+  `init::run_in`) → re-verify. MCP install was deliberately deferred
+  here per the council revision; LAUNCH-009 part 2 (PR #1284, in the
+  same release window) subsequently extended the orchestrator with
+  the install step, which is why current `crates/anvil-cli/src/activation/orchestrator/mod.rs`
+  includes a write-side step inside the same composition. `--verify`
+  and `--json` short-circuit to the read-only path so init's own
+  JSON record can't concatenate with the activation diagnostic. The
   diagnostic is rendered via the existing `activation::render_*`
   module so `start`, `status --verify`, and the JSON schema all
   share one literal `ProtectionState` vocabulary. Server-startable
