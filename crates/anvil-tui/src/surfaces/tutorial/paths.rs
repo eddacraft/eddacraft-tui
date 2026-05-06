@@ -84,6 +84,57 @@ fn step_with_watch(
     }
 }
 
+/// LAUNCH-014: the value-first default tutorial path. Walks the
+/// protection loop in five informational steps without claiming
+/// pre-write protection — the final step points users at
+/// `anvil start --verify` (LAUNCH-006 / LAUNCH-012), the only
+/// surface that produces a literal `ProtectionState`.
+///
+/// Copy invariants (covered by tests in `tutorial::tests::protection_loop_*`):
+///   - The headline never says "protected", "protecting", or
+///     "pre-write" without `anvil start --verify` evidence in the
+///     same step. Activation evidence does not exist inside the
+///     tutorial; the tutorial points at the verifier instead of
+///     claiming the state itself.
+///   - The vocabulary lines (`protecting` / `ready_restart_required`
+///     / `watching` / `needs_action` / `unsupported`) are referenced
+///     by name so the user recognises them when `anvil status
+///     --verify` prints one.
+///   - "Future changes are checked" is the LAUNCH-010 baseline copy
+///     and lands honestly here regardless of whether the user has
+///     run `anvil start` yet — it describes the activation contract,
+///     not present-tense protection.
+pub fn protection_loop_steps() -> Vec<TutorialStep> {
+    vec![
+        step(
+            "Anvil's protection loop in 60 seconds",
+            "Anvil watches your code for the patterns that turn into incidents — silent escape hatches, unexplained TODOs, console.log slipping into prod. The loop has three steps: scan the change, surface findings, and let your editor or watch process react. This walk shows the loop on a deliberate fixture; afterwards we'll point you at `anvil start` to wire it up against your real repo.",
+            "Press enter to see what we'll check.",
+        ),
+        step(
+            "What we'll check",
+            "The fixture is a tiny TypeScript file with two well-known antipatterns: `// @ts-ignore` (silently disables every type check on the next line) and `: any` (escape hatch from the type system). Both are catalogued by Anvil as escape-hatch findings — the kind that compound into bugs nobody can trace.",
+            "Press enter to run the check.",
+        ),
+        step(
+            "Run the check (simulated)",
+            "Imagine running `anvil check fixture.ts`. The catalogue returns:\n  • [AP-004] @ts-ignore suppresses all errors — fixture.ts:1\n  • [AP-003] Explicit any type usage — fixture.ts:2\n\nNo network call, no telemetry, no fixture deployed to your repo. Findings are deterministic — the same input always produces the same output.",
+            "Press enter to see what to do with this.",
+        ),
+        step(
+            "What protection actually means here",
+            "Anvil's activation vocabulary names exactly five honest states:\n  • `protecting` — pre-write validation is live (MCP attached + verified)\n  • `ready_restart_required` — config wired, waiting for editor restart\n  • `watching` — save-time fallback running, weaker than pre-write\n  • `needs_action` — config absent or no editor wired yet\n  • `unsupported` — Anvil does not yet cover this repo's languages\n\nThis tutorial does not promote any of those states on its own — only `anvil start` and `anvil status --verify` produce evidence-backed labels. Activation does not imply the repo is clean of further findings; first activation baselines existing findings so future changes are checked.",
+            "Press enter to activate in this repo.",
+        ),
+        step_with_command(
+            "Activate in this repo",
+            "Now run the safe verifier. `anvil start --verify` is read-only — it probes config, MCP clients (Cursor, Claude Code), and the watch fallback, then prints one literal `ProtectionState` line. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
+            "Run: anvil start --verify",
+            "anvil start --verify",
+        ),
+    ]
+}
+
 pub fn policy_steps() -> Vec<TutorialStep> {
     vec![
         step(

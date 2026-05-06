@@ -105,6 +105,11 @@ impl ScanResults {
 
     /// Filter findings relevant to a tutorial domain.
     ///
+    /// - `ProtectionLoop` -> all findings (LAUNCH-014: the value-first
+    ///   walk previews the loop on a deliberate fixture and does not
+    ///   carve up the user's repo findings; downstream PRs may
+    ///   narrow this to a high-signal subset, but blanket inclusion
+    ///   is the honest v1 default).
     /// - Policy -> `AntiPattern` + Secret findings (policy rules catch these)
     /// - Architecture -> Architecture findings
     /// - Drift / CI -> all findings (these are cross-cutting)
@@ -123,7 +128,9 @@ impl ScanResults {
                 .filter(|f| matches!(f.source, FindingSource::Architecture))
                 .cloned()
                 .collect(),
-            TutorialPath::Drift | TutorialPath::CI => self.findings.clone(),
+            TutorialPath::ProtectionLoop | TutorialPath::Drift | TutorialPath::CI => {
+                self.findings.clone()
+            }
         };
         ScanResults {
             findings: filtered_findings,
