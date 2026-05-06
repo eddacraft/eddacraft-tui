@@ -307,9 +307,11 @@ pub trait McpClient: Send + Sync {
     /// - `LiveValidation`: out-of-scope for v1. INTD-only.
     ///
     /// This method returns the tier based on the on-disk evidence
-    /// (config absent / present / matches fresh entry). The orchestrator
-    /// promotes to `RestartHandshakeVerified` separately via
-    /// [`probe_startable`].
+    /// (config absent / present / matches fresh entry). The promotion
+    /// to `RestartHandshakeVerified` happens later in the diagnostic
+    /// verification probe — that probe runs [`probe_startable`] against
+    /// the installed entry and applies the promotion in
+    /// `activation::diagnostic`, not here.
     fn verify_config_tier(&self, parsed: Option<&ParsedConfig>, fresh: &AnvilEntry) -> McpTier;
 
     /// Human-readable hint shown when the tier caps at `RestartRequired`.
