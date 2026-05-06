@@ -355,7 +355,7 @@ a new lane.
   on_ambiguous_ownership (warn/fence), and observe_only flag per worktree;
   ambiguous ownership hard-capped at fence regardless of config
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib config`
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTD-009: Embedded Mode
 
@@ -519,7 +519,7 @@ a new lane.
   on cross-session allowlist hit.
 - **Source:** 2026-04-24 council review M5 (security-analyst) —
   tracked in PR #1063.
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTD-016: DoS Protection Budgets — Connection Cap, Rate Limits, Timeouts
 
