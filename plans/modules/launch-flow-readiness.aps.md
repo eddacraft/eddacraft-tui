@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 13/17    |
+| LAUNCH | —     | In Progress | 15/17    |
 
 ## Purpose
 
@@ -186,9 +186,9 @@ new primitive, this module follows three rules:
 
 > Status: In Progress. LAUNCH-001, LAUNCH-002, LAUNCH-003, LAUNCH-004,
 > LAUNCH-005, LAUNCH-006, LAUNCH-007, LAUNCH-008, LAUNCH-009,
-> LAUNCH-012, LAUNCH-013, LAUNCH-015, and LAUNCH-016 are complete;
-> remaining activation, tutorial, and watch work stays Todo until
-> picked up.
+> LAUNCH-010, LAUNCH-012, LAUNCH-013, LAUNCH-014, LAUNCH-015, and
+> LAUNCH-016 are complete; remaining LAUNCH-009.5 and LAUNCH-011 stay
+> Todo until picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -250,7 +250,28 @@ new primitive, this module follows three rules:
   no-config / already-initialised repo states, and copy that avoids claiming
   pre-write protection unless activation evidence supports it.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete — landed via PR #1294
+  ([`feat/launch-014-tutorial`](https://github.com/eddacraft/anvil-001/pull/1294)).
+  New `TutorialPath::ProtectionLoop` variant is listed first and pre-
+  selected in `TutorialState::new()`, so hitting Enter on `anvil
+  tutorial` lands the user on a five-step value-first walk:
+  protection-loop intro → fixture description → simulated check
+  result → activation-state vocabulary explainer → run `anvil start
+  --verify`. The four legacy paths (Policy / Architecture / Drift /
+  CI) remain as the deeper-learning track. Copy invariants are
+  test-pinned: `protection_loop_copy_uses_activation_state_vocabulary`
+  enforces every LAUNCH-008 literal (`protecting`,
+  `ready_restart_required`, `watching`, `needs_action`,
+  `unsupported`) is referenced by name;
+  `protection_loop_copy_does_not_claim_pre_write_protection` rejects
+  present-tense protection claims and requires the final step to
+  point at `anvil start --verify`. Round-1 review feedback closed
+  the watch-fallback over-claim — the final step now enumerates
+  what `--verify` actually probes today (config, MCP entries,
+  baseline, language profile) and explicitly notes watch-liveness
+  probing is unwired pending LAUNCH-011. `filter_by_domain` returns
+  every finding for `ProtectionLoop` (no narrowing in v1; pinned by
+  `filter_by_domain_protection_loop_gets_all_and_preserves_metadata`).
 
 ---
 
@@ -984,7 +1005,32 @@ new primitive, this module follows three rules:
   findings asserts that legacy findings are baselined, new findings are
   surfaced, and the final copy does not claim zero risk.
 - **Confidence:** medium
-- **Status:** Todo
+- **Status:** Complete — landed via PR #1293
+  ([`feat/launch-010-baseline`](https://github.com/eddacraft/anvil-001/pull/1293)).
+  New `crates/anvil-cli/src/activation/baseline.rs` defines the
+  on-disk schema (`Baseline` / `BaselineCounts` with `schema_version`,
+  `created_at`, `fingerprints` set, per-kind counts), the atomic
+  writer (tempfile + persist), and a fingerprint-based reader with
+  schema-version guard. Fingerprints are namespaced by kind
+  (`antipattern:` vs `secret:`) so a same-line collision can't merge
+  across check kinds; secret paths are normalised to repo-relative
+  forward slashes so baselines round-trip across checkouts and OSes.
+  `services::sample_analyser::run_baseline_scan` re-uses the
+  LAUNCH-004 sample selection and runs both antipattern and secret
+  scanners on the same files. Orchestrator step 1b writes the
+  baseline once on first activation, idempotent on re-runs;
+  failures log and continue rather than blocking activation. The
+  diagnostic gains `baseline_summary: Option<BaselineSummary>` and
+  the JSON schema gains a `baseline` object alongside the existing
+  `baseline_present` boolean (additive — old consumers keep
+  working). Render copy is honest about the deferred wiring:
+  "future scans will diff against this set as wiring lands". The
+  contract surface (`Baseline::contains_warning`,
+  `Baseline::contains_secret`) ships here so downstream PRs can
+  wire watch / check / audit filtering without further refactor.
+  Round-1 review remediation closed eight Copilot findings on path
+  portability, error-variant naming, counts/fingerprints
+  documentation, and over-claiming copy.
 
 ---
 
