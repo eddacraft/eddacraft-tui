@@ -68,6 +68,35 @@
 //!   *authority*.
 //! - **Not the rate-limiter or `DoS` budget.** INTD-016 owns `DoS`
 //!   budgets; INTD-015 only filters per-event.
+//!
+//! ## Deployment posture (wave-1 partial)
+//!
+//! INTD-015 in this PR ships the **filter, contract, and tests**.
+//! The IPC subscribe surface that actually mints `SubscriberId`
+//! values from `SO_PEERCRED` / `GetNamedPipeClientProcessId` and
+//! routes broadcast envelopes through [`Fanout::route`] does **not
+//! yet exist** — there is no `IpcCommand::SubscribeTelemetry` frame
+//! in `anvil-intercept-proto` today, and no producer in the daemon
+//! currently broadcasts envelopes to network subscribers. The
+//! [`crate::telemetry::TelemetryEmitter`] continues to construct
+//! envelopes; nothing delivers them to a remote subscriber yet.
+//!
+//! When the IPC subscribe frame lands (likely INTD-011 status /
+//! diagnostics surface or DRVR-001 driver client), the wiring is:
+//!
+//! 1. The IPC accept loop reads peer credentials from the
+//!    connected socket / pipe and constructs a `SubscriberId` from
+//!    the resulting tuple. Drivers cannot influence the value.
+//! 2. The accept loop calls [`Fanout::register`] with that id.
+//! 3. The producer side (currently
+//!    `delivered_envelope_for_decision`) calls [`Fanout::route`]
+//!    on every envelope it would otherwise broadcast and writes
+//!    only the per-subscriber output the fan-out approves.
+//!
+//! Until that wiring lands the filter is dead code in production —
+//! but the contract and tests below are the authoritative
+//! specification, and any producer that adds broadcast must go
+//! through `Fanout::route` from day one.
 
 use std::collections::HashSet;
 use std::sync::Mutex;
