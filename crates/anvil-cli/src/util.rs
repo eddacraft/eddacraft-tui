@@ -210,17 +210,19 @@ fn current_user_sid() -> Result<String> {
 /// Uses the current user's SID (via `whoami /user`) instead of the
 /// USERNAME environment variable to avoid granting permissions to
 /// well-known group names like "Everyone" that happen to be
-/// alphanumeric. Best-effort: emits a warning to stderr if the
-/// restriction cannot be applied but does not fail the write operation.
-/// This mirrors the Unix 0o600 set at creation time.
+/// alphanumeric. Best-effort: emits a warning to the `tracing`
+/// stream if the restriction cannot be applied but does not fail
+/// the write operation. This mirrors the Unix 0o600 set at creation
+/// time.
 #[cfg(windows)]
 fn restrict_windows_permissions(path: &Path) {
     let sid = match current_user_sid() {
         Ok(sid) => sid,
         Err(e) => {
-            eprintln!(
-                "Warning: cannot restrict file permissions on {}: could not determine current user SID: {e}",
-                path.display()
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "cannot restrict file permissions: could not determine current user SID",
             );
             return;
         }
@@ -236,12 +238,16 @@ fn restrict_windows_permissions(path: &Path) {
 
     match status {
         Ok(s) if s.success() => {}
-        Ok(s) => eprintln!(
-            "Warning: failed to restrict file permissions on {} (icacls exit {})",
-            path.display(),
-            s
+        Ok(s) => tracing::warn!(
+            path = %path.display(),
+            exit = %s,
+            "failed to restrict file permissions: icacls exited non-zero",
         ),
-        Err(e) => eprintln!("Warning: failed to run icacls for {}: {e}", path.display()),
+        Err(e) => tracing::warn!(
+            path = %path.display(),
+            error = %e,
+            "failed to run icacls",
+        ),
     }
 }
 

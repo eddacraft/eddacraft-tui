@@ -15,6 +15,8 @@ use std::fmt::Write as _;
 use serde_json::{Value, json};
 
 use super::diagnostic::{ActivationDiagnostic, McpTier};
+use super::mcp_client::DriftClass;
+use super::orchestrator::{InstallOutcome, InstallReport, SkipReason};
 use super::state::ProtectionState;
 
 /// Render the diagnostic as a multi-line plain-text block ending with
@@ -99,6 +101,51 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
         let _ = writeln!(out, "  next: {hint}");
     }
 
+    out
+}
+
+/// Render the diagnostic followed by a per-client install summary.
+///
+/// Used by `anvil start` to surface what the orchestrator just did
+/// (or refused to do) — the diagnostic alone shows the after-state
+/// tier per client, but it can't tell the user "we wrote the entry
+/// just now" vs "you already had it". The install block fills that
+/// gap and is the only place `SkipReason::UnsafeDrift` reasons get
+/// surfaced to the user.
+pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallReport) -> String {
+    let mut out = render_human(d);
+    if install.per_client.is_empty() {
+        return out;
+    }
+    out.push_str("  install:\n");
+    for (client, outcome) in &install.per_client {
+        let line = match outcome {
+            InstallOutcome::Installed { path, drift } => {
+                let kind = match drift {
+                    DriftClass::NotPresent => "fresh",
+                    DriftClass::SafeDrift { .. } => "rewrote drifted entry",
+                    // Unreachable: the install gate refuses UpToDate /
+                    // UnsafeDrift before calling install_one. If a
+                    // future refactor lets one through, the surface
+                    // text stays informative rather than panicking.
+                    DriftClass::UpToDate => "rewrote up-to-date entry",
+                    DriftClass::UnsafeDrift { .. } => "rewrote unsafe entry",
+                };
+                format!("installed at {} ({kind})", path.display())
+            }
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate,
+            } => "skipped — already up to date".to_string(),
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected,
+            } => "skipped — not selected".to_string(),
+            InstallOutcome::Skipped {
+                reason: SkipReason::UnsafeDrift(reason),
+            } => format!("skipped — refused to overwrite ({reason})"),
+            InstallOutcome::Failed { error } => format!("FAILED — {error}"),
+        };
+        let _ = writeln!(out, "    {}: {line}", client.display_name());
+    }
     out
 }
 

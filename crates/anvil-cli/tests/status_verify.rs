@@ -4,21 +4,32 @@
 //!
 //! These tests are guard-rails for the council-locked truthfulness
 //! requirement: surfaces must NEVER claim `protecting` unless the
-//! diagnostic literally backs it. Until LAUNCH-009 / LAUNCH-011 land,
-//! a fresh repo can only legitimately reach `needs_action`.
+//! diagnostic literally backs it.
+//!
+//! ## HOME isolation
+//!
+//! Every test overrides `HOME` (and `USERPROFILE` on Windows) to a
+//! per-test tempdir so the MCP probe sees an empty home regardless
+//! of what's on the developer's machine. Without this, the tests
+//! would silently pass or fail depending on whether the developer
+//! happens to have `~/.cursor/mcp.json` configured for anvil.
 
 use std::fs;
-use std::process::Command;
+use std::path::Path;
+use std::process::{Command, Output};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
-fn run_status_verify(workdir: &std::path::Path, extra_args: &[&str]) -> std::process::Output {
+fn run_status_verify_with_home(workdir: &Path, home: &Path, extra_args: &[&str]) -> Output {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui")
         .arg("status")
         .arg("--verify")
         .args(extra_args)
         .current_dir(workdir)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
     cmd.output().expect("failed to invoke anvil binary")
@@ -27,7 +38,8 @@ fn run_status_verify(workdir: &std::path::Path, extra_args: &[&str]) -> std::pro
 #[test]
 fn status_verify_on_fresh_repo_renders_needs_action() {
     let dir = tempfile::tempdir().unwrap();
-    let out = run_status_verify(dir.path(), &[]);
+    let home = tempfile::tempdir().unwrap();
+    let out = run_status_verify_with_home(dir.path(), home.path(), &[]);
     assert!(
         out.status.success(),
         "anvil status --verify failed: stderr={}",
@@ -53,7 +65,8 @@ fn status_verify_on_repo_with_invalid_config_renders_error() {
     )
     .unwrap();
 
-    let out = run_status_verify(dir.path(), &[]);
+    let home = tempfile::tempdir().unwrap();
+    let out = run_status_verify_with_home(dir.path(), home.path(), &[]);
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
@@ -69,6 +82,7 @@ fn status_verify_on_repo_with_invalid_config_renders_error() {
 #[test]
 fn status_verify_json_keys_are_stable() {
     let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(".anvilrc"),
         "profile: default\nchecks: []\n",
@@ -78,7 +92,7 @@ fn status_verify_json_keys_are_stable() {
     // Both human and JSON modes must agree on `needs_action` for a
     // repo with valid config but no MCP install — the test covers
     // both invocations so a regression in either path is caught.
-    let human_out = run_status_verify(dir.path(), &[]);
+    let human_out = run_status_verify_with_home(dir.path(), home.path(), &[]);
     assert!(human_out.status.success());
     let human_stdout = String::from_utf8_lossy(&human_out.stdout);
     assert!(
@@ -92,6 +106,9 @@ fn status_verify_json_keys_are_stable() {
         .arg("status")
         .arg("--verify")
         .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
         .output()
@@ -132,6 +149,7 @@ fn status_verify_json_keys_are_stable() {
 #[test]
 fn status_default_json_embeds_activation_block() {
     let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(".anvilrc"),
         "profile: default\nchecks: []\n",
@@ -142,6 +160,9 @@ fn status_default_json_embeds_activation_block() {
         .arg("--json")
         .arg("status")
         .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
         .output()
@@ -164,6 +185,7 @@ fn status_verify_is_idempotent_and_does_not_mutate_workdir() {
     // to `.anvil/`, a sibling file, or a freshly-created path is
     // caught — not just `.anvilrc`.
     let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(".anvilrc"),
         "profile: default\nchecks: []\n",
@@ -186,8 +208,8 @@ fn status_verify_is_idempotent_and_does_not_mutate_workdir() {
     };
 
     let before = snapshot(dir.path());
-    let _ = run_status_verify(dir.path(), &[]);
-    let _ = run_status_verify(dir.path(), &[]);
+    let _ = run_status_verify_with_home(dir.path(), home.path(), &[]);
+    let _ = run_status_verify_with_home(dir.path(), home.path(), &[]);
     let after = snapshot(dir.path());
 
     assert_eq!(

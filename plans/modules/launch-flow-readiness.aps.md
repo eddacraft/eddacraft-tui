@@ -855,9 +855,71 @@ new primitive, this module follows three rules:
   - Trait contract test: `AnvilEntry::Stdio` round-trips through
     every impl's `merge()` and `render()` cleanly.
 - **LOC budget:** ~750-900 production + ~250-350 test = ~1000-1250
-  total. Single PR.
+  total. Originally planned as a single PR; split into two for review
+  scope. Part 1 (trait + read probe) merged as PR #1283. Part 2
+  (install path + picker + orchestrator integration) is the second
+  PR (~640 LOC install + tests). The remaining
+  spawn-probe step (`RestartRequired → ServerStartable`) and the
+  cleanup follow-ups live in the new LAUNCH-009.5 task below.
 - **Confidence:** medium (council resolved scope; spec gaps closed
   in the plan).
+- **Status:** In Progress
+
+---
+
+### LAUNCH-009.5: MCP install follow-ups and spawn probe
+
+- **Intent:** Close the remaining `LAUNCH-009` deltas — the spawn
+  probe that promotes `RestartRequired → ServerStartable`, the
+  dead-Target cleanup, and the four council deferrals from the
+  LAUNCH-009 part-2 review that were judged "not blocking for v1
+  but worth fixing before A1 release week."
+- **Expected Outcome:**
+  1. `anvil mcp serve --stdio` is spawned against each installed
+     entry and a clean MCP handshake is observed within a 1-second
+     budget; on success the per-client tier promotes from
+     `RestartRequired` to `ServerStartable`.
+  2. `Target::Windsurf` and the broken `Target::Vscode` paths in
+     `commands/mcp_config.rs` are removed (council-banned in
+     LAUNCH-009 v1 scope; kept in part-2 because the diff was
+     already large).
+  3. Council follow-ups from PR #1284 review (LAUNCH-009 part 2):
+     - **Symlink-parent guard:** refuse to install when the target
+       file's parent directory is itself a symlink (`lstat` check
+       before `tempfile_in`). Closes kernel MAJOR; current threat
+       model requires attacker-controlled HOME, but the cost is one
+       call.
+     - **Hosted-transport `type` field handling:** `classify_drift_by_args`
+       must classify a `type: sse` / `type: http` existing entry as
+       `UnsafeDrift` rather than falling through to `SafeDrift` and
+       overwriting with the `stdio` shape. Lands together with the
+       `RemoteSse`/`RemoteHttp` variants in the hosted-server
+       workstream — defer until either lands.
+     - **SafeDrift extra-key behaviour:** document the wholesale
+       replacement policy in the user-facing copy (or migrate to a
+       per-key merge that preserves unrecognised top-level keys in
+       the anvil entry). Default in v1 is wholesale replace; revisit
+       once we observe real configs in the wild.
+     - **Install report in `--json`:** the `render_json` shape
+       intentionally omits per-client install outcomes (only the
+       post-install diagnostic state is in the JSON contract).
+       Decide whether CI dashboards need an `install:` block; either
+       extend the schema or document the limitation in `render_json`'s
+       doc comment.
+  4. Telemetry counters for install attempts / outcomes (deferred
+     pending a metrics framework in `anvil-cli`).
+- **NOT included:** `LiveValidation` tier promotion (still INTD-only,
+  separate PR), hosted MCP server itself, OAuth UX.
+- **Coordinates with:** the same surfaces as LAUNCH-009 plus
+  RMCP-level handshake helpers.
+- **Validation:**
+  - Spawn probe round-trip integration test (Cursor + Claude Code
+    fixture configs).
+  - Symlink-parent refusal unit test.
+  - `--json` install schema test (whichever direction the decision
+    goes — extended block or documented omission).
+- **LOC budget:** ~250-400 production + ~150-200 test.
+- **Confidence:** medium.
 - **Status:** Todo
 
 ---
