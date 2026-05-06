@@ -1,19 +1,19 @@
-//! LAUNCH-009.5 integration: `anvil status --verify` runs the MCP
-//! initialize handshake probe (observability-only in v1) without
-//! breaking the diagnostic surface.
+//! LAUNCH-009.6 integration: `anvil status --verify` runs the MCP
+//! initialize handshake probe and promotes the installed client to the
+//! configured-plus-handshake tier without claiming live validation.
 //!
 //! The probe spawns `anvil mcp serve --stdio` against the installed
 //! entry and observes a JSON-RPC `initialize` exchange within a 1-second
-//! budget. In v1, the probe result is logged via `tracing` but does NOT
-//! change the user-facing tier (the original LAUNCH-009 spec described
-//! a `RestartRequired → ServerStartable` promotion that conflicts with
-//! the existing tier ladder where `ServerStartable < RestartRequired`;
-//! the semantic alignment is deferred to LAUNCH-009.6).
+//! budget. LAUNCH-009.6 promotes only installed `restart_required`
+//! entries whose actual configured command handshakes successfully; it
+//! does not reuse `server_startable`, which remains the weaker "server
+//! runs but client wiring is not confirmed" tier.
 //!
 //! These integration tests verify:
 //!
 //! 1. The probe runs without breaking the diagnostic surface — install
-//!    + verify stays at `restart_required` and renders normally.
+//!    + verify promotes to `restart_handshake_verified` and renders
+//!    normally.
 //! 2. When no install has happened, the probe is skipped (no spawn
 //!    overhead, tier stays at `config_absent`).
 //! 3. End-to-end timing — the probe completes within its 1-second
@@ -33,7 +33,12 @@ use std::process::{Command, Output};
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
 fn run_status_verify(workdir: &Path, home: &Path) -> Output {
-    Command::new(ANVIL_BIN)
+    run_status_verify_with_path(workdir, home, None)
+}
+
+fn run_status_verify_with_path(workdir: &Path, home: &Path, path: Option<&Path>) -> Output {
+    let mut command = Command::new(ANVIL_BIN);
+    command
         .arg("--no-tui")
         .arg("status")
         .arg("--verify")
@@ -42,9 +47,11 @@ fn run_status_verify(workdir: &Path, home: &Path) -> Output {
         .env("USERPROFILE", home)
         .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
-        .env("ANVIL_SKIP_WELCOME", "1")
-        .output()
-        .expect("failed to invoke anvil binary")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    if let Some(path) = path {
+        command.env("PATH", path);
+    }
+    command.output().expect("failed to invoke anvil binary")
 }
 
 /// Pre-populate `~/.cursor/mcp.json` with an anvil entry whose `command`
@@ -68,14 +75,32 @@ fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
     .unwrap();
 }
 
+fn install_claude_code_entry_pointing_at_bare_anvil(home: &Path) {
+    let cfg = serde_json::json!({
+        "mcpServers": {
+            "anvil": {
+                "type": "stdio",
+                "command": "anvil",
+                "args": ["mcp", "serve", "--stdio"],
+                "env": {},
+            }
+        }
+    });
+    fs::write(
+        home.join(".claude.json"),
+        serde_json::to_string_pretty(&cfg).unwrap(),
+    )
+    .unwrap();
+}
+
 #[test]
-fn handshake_against_real_anvil_does_not_break_diagnostic() {
+fn handshake_against_real_anvil_promotes_restart_required_client() {
     // Install a Cursor entry that points at the real test binary, then
     // run `status --verify`. The probe should spawn `anvil mcp serve
     // --stdio` against the test bin, drive the JSON-RPC initialize
-    // handshake successfully, log it via tracing, and let the rendered
-    // tier remain at `restart_required`. The diagnostic must complete
-    // and render normally.
+    // handshake successfully, promote the rendered tier to
+    // `restart_handshake_verified`, and still avoid claiming live
+    // validation. The diagnostic must complete and render normally.
     let workdir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     install_cursor_entry_pointing_at_test_bin(home.path());
@@ -92,15 +117,18 @@ fn handshake_against_real_anvil_does_not_break_diagnostic() {
     let stdout = String::from_utf8_lossy(&out.stdout);
 
     assert!(
-        stdout.contains("Cursor: restart_required"),
-        "Cursor tier should be restart_required after install (probe is \
-         observability-only in v1; tier promotion deferred to \
-         LAUNCH-009.6), got:\n{stdout}"
+        stdout.contains("Cursor: restart_handshake_verified"),
+        "Cursor tier should be restart_handshake_verified after a successful \
+         installed-entry handshake, got:\n{stdout}"
     );
     assert!(
         !stdout.contains("Cursor: server_startable"),
-        "Cursor must not be promoted to server_startable in v1 — that \
-         direction conflicts with the existing tier ladder, got:\n{stdout}"
+        "Cursor must not be promoted to server_startable — that tier is \
+         weaker than configured-plus-handshake, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("state: protecting"),
+        "handshake verification must not overclaim live validation, got:\n{stdout}"
     );
 
     // Performance guard: the probe has a 1-second handshake budget and
@@ -140,5 +168,40 @@ fn probe_is_skipped_when_no_install_yet() {
     assert!(
         !stdout.contains("server_startable"),
         "no client should be at server_startable when home is empty, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("restart_handshake_verified"),
+        "no client should be promoted when home is empty, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn handshake_promotion_is_per_client() {
+    // Cursor points at the exact test binary and should promote. Claude Code
+    // uses a bare `anvil`; with PATH set to an empty tempdir, that installed
+    // entry is still equivalent for config matching but cannot handshake, so
+    // it must remain at restart_required.
+    let workdir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let empty_path = tempfile::tempdir().unwrap();
+    install_cursor_entry_pointing_at_test_bin(home.path());
+    install_claude_code_entry_pointing_at_bare_anvil(home.path());
+
+    let out = run_status_verify_with_path(workdir.path(), home.path(), Some(empty_path.path()));
+
+    assert!(
+        out.status.success(),
+        "anvil status --verify failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+
+    assert!(
+        stdout.contains("Cursor: restart_handshake_verified"),
+        "Cursor should promote after its installed entry handshakes, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Claude Code: restart_required"),
+        "Claude Code should not promote from Cursor's handshake, got:\n{stdout}"
     );
 }

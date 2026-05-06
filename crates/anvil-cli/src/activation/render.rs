@@ -263,7 +263,8 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
 ///    encountered while reading them). Install-time write failures
 ///    cannot occur here because no install runs.
 /// 2. `mcp[].tier` — the on-disk tier each client has reached
-///    (`config_present` / `restart_required` / `server_startable` /
+///    (`config_present` / `restart_required` /
+///    `restart_handshake_verified` / `server_startable` /
 ///    `live_validation`). This is the canonical signal for "is anvil
 ///    wired into this client?" in `--json` mode.
 /// 3. `last_error` — populated on probe failure with the underlying
@@ -373,7 +374,11 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             );
             if matches!(
                 highest_mcp,
-                Some(McpTier::ServerStartable | McpTier::RestartRequired)
+                Some(
+                    McpTier::ServerStartable
+                        | McpTier::RestartRequired
+                        | McpTier::RestartHandshakeVerified,
+                )
             ) {
                 Some(
                     "watch is the save-time fallback — your MCP server is configured; restart your editor and re-run `anvil start --verify` to upgrade to pre-write validation.",

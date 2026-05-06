@@ -72,9 +72,12 @@ pub enum McpTier {
     /// Anvil MCP server starts cleanly when invoked from the same
     /// command shape the client will use.
     ServerStartable,
-    /// Server is configured and startable, but the client must be
-    /// restarted before it picks up the entry.
+    /// Server config is wired to an anvil-shaped entry, but the client
+    /// must be restarted before it picks up the entry.
     RestartRequired,
+    /// Server is configured, restart is still required, and the exact
+    /// installed command has completed an MCP initialize handshake.
+    RestartHandshakeVerified,
     /// Live MCP `anvil_validate_write` invocation has been observed
     /// from this client inside this repo.
     LiveValidation,
@@ -88,6 +91,7 @@ impl McpTier {
             McpTier::ConfigPresent => "config_present",
             McpTier::ServerStartable => "server_startable",
             McpTier::RestartRequired => "restart_required",
+            McpTier::RestartHandshakeVerified => "restart_handshake_verified",
             McpTier::LiveValidation => "live_validation",
         }
     }
@@ -220,13 +224,15 @@ impl ActivationDiagnostic {
             return ProtectionState::Protecting;
         }
 
-        // `RestartRequired` is the literal "one restart from live"
-        // tier. `ServerStartable` is earlier in the chain (the server
-        // spawns, but we have no evidence a client restart will pick
-        // it up) — collapsing it to `ReadyRestartRequired` would
-        // over-claim, so it falls through to `NeedsAction` /
-        // `Watching` like the weaker tiers.
-        let restart_pending = matches!(highest_mcp, Some(McpTier::RestartRequired));
+        // `RestartRequired` and `RestartHandshakeVerified` are the
+        // literal "one restart from live" tiers. The latter additionally
+        // proves the exact installed command serves MCP. `ServerStartable`
+        // remains weaker: the server can spawn, but client wiring is not
+        // confirmed.
+        let restart_pending = matches!(
+            highest_mcp,
+            Some(McpTier::RestartRequired | McpTier::RestartHandshakeVerified)
+        );
 
         if matches!(self.watch, WatchTier::Running) {
             // Watch is honest fallback coverage. If MCP is literally
@@ -334,8 +340,8 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     ) = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
-            let probe_results = super::mcp_client::probe_all(root, home, &fresh);
-            probe_handshake_for_observability(root, home, &probe_results, &fresh);
+            let mut probe_results = super::mcp_client::probe_all(root, home, &fresh);
+            promote_restart_required_after_handshake(root, home, &mut probe_results, &fresh);
             (probe_results, None)
         }
         Err(e) => {
@@ -415,83 +421,94 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     }
 }
 
-/// Drive an MCP `initialize` handshake against `fresh` to verify the
-/// installed entry's binary actually serves MCP, and emit a tracing
-/// event with the result (LAUNCH-009.5).
+/// Drive an MCP `initialize` handshake against the installed entry and
+/// promote `RestartRequired` clients to `RestartHandshakeVerified` when
+/// the exact command serves MCP (LAUNCH-009.6).
 ///
-/// **Tier semantics deviation from the original LAUNCH-009 spec:** the
-/// task body for LAUNCH-009 / LAUNCH-009.5 describes the probe as
-/// "promote `RestartRequired → ServerStartable` on success". The
-/// actual `McpTier` enum and the tests in this module deliberately
-/// position `ServerStartable` as a **weaker** tier than
-/// `RestartRequired` (it means "the server runs but we have no
-/// evidence of client wiring" — useful when anvil is installed in
-/// `PATH` but no client config matches). Promoting from
-/// `RestartRequired` (config wired + matching) to `ServerStartable`
-/// would lose information.
+/// This intentionally does **not** promote to `ServerStartable`:
+/// `ServerStartable` means the server can spawn without confirmed client
+/// wiring, while `RestartHandshakeVerified` preserves both facts — the
+/// client config matches and the configured command handshakes.
 ///
-/// Until the tier semantics are reconciled (tracked in LAUNCH-009.6 in
-/// the launch module), this function runs the probe purely for
-/// **observability**: the result is logged via `tracing` so SREs can
-/// see whether the binary actually serves MCP, but the diagnostic
-/// tier is not modified.
-///
-/// The probe targets the **actual installed entry** of the first
-/// `RestartRequired` client (via
-/// [`super::mcp_client::first_installed_restart_required_entry`]) so
+/// The probe targets each `RestartRequired` client's installed entry
+/// (via [`super::mcp_client::installed_restart_required_entries`]) so
 /// the handshake reflects what the editor would really spawn — including
 /// bare `"anvil"` entries from `anvil mcp-config` that PATH-resolve to a
-/// different binary than `current_exe()`. If extraction fails (config
-/// re-parse error, missing `command` field, etc.), the probe falls back
-/// to `fresh` and the failure mode is logged.
+/// different binary than `current_exe()`. If extraction fails for every
+/// restart-required client (config re-parse error, missing `command`
+/// field, etc.), the probe falls back to `fresh` for observability only
+/// and logs that no client was promoted.
 ///
-/// In v1 the probe runs once per `verify_with_home` call. Even when
-/// multiple clients are `RestartRequired`, we only handshake against the
-/// first installed entry — the v1 install path writes the same shape to
-/// every client, so a single handshake is representative. Per-client
-/// probes will become useful when client-specific entries (different
-/// commands per client) become a real configuration.
+/// In v1 the probe runs once per extracted `RestartRequired` client.
+/// This avoids overclaiming when one client uses a full path and another
+/// uses a bare command resolved through a different PATH.
 ///
 /// The probe is skipped entirely when no client is at
 /// `RestartRequired` — fresh repos and already-protecting tiers add
 /// zero latency.
 ///
 /// **Cost:** at most one [`super::mcp_client::PROBE_HANDSHAKE_TIMEOUT`]
-/// (1s) added to `verify_with_home`, only when at least one client is
-/// at `RestartRequired`.
-fn probe_handshake_for_observability(
+/// (1s) per extracted `RestartRequired` client, only when at least one
+/// client is at `RestartRequired`.
+fn promote_restart_required_after_handshake(
     root: &Path,
     home: Option<&Path>,
-    map: &BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
+    map: &mut BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
     fresh: &super::mcp_client::AnvilEntry,
 ) {
     let any_restart_required = map.values().any(|r| r.tier == McpTier::RestartRequired);
     if !any_restart_required {
         return;
     }
-    let probe_target = super::mcp_client::first_installed_restart_required_entry(root, home, fresh)
-        .unwrap_or_else(|| {
-            tracing::warn!(
-                "mcp probe: could not extract installed entry; \
+    let installed = super::mcp_client::installed_restart_required_entries(root, home, fresh);
+    if installed.is_empty() {
+        tracing::warn!(
+            "mcp probe: could not extract installed entry; \
                      falling back to current_exe — log result reflects \
                      fresh, not the editor's actual spawn target",
-            );
-            fresh.clone()
-        });
-    match super::mcp_client::probe_startable(&probe_target) {
-        Ok(()) => {
-            tracing::info!(
-                "mcp probe: handshake against installed binary succeeded \
-                 (clients remain at RestartRequired pending tier-semantic \
-                 reconciliation in LAUNCH-009.6)",
-            );
+        );
+        match super::mcp_client::probe_startable(fresh) {
+            Ok(()) => {
+                tracing::info!(
+                    "mcp probe: handshake against fallback binary succeeded \
+                     (clients remain at RestartRequired because installed entry \
+                     could not be extracted)",
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "mcp probe: handshake against fallback binary failed \
+                     (clients remain at RestartRequired because installed entry \
+                     could not be extracted)",
+                );
+            }
         }
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                "mcp probe: handshake failed — installed binary does not \
-                 serve MCP cleanly; clients remain at RestartRequired",
-            );
+        return;
+    }
+
+    for (client_id, probe_target) in installed {
+        match super::mcp_client::probe_startable(&probe_target) {
+            Ok(()) => {
+                if let Some(result) = map.get_mut(&client_id)
+                    && result.tier == McpTier::RestartRequired
+                {
+                    result.tier = McpTier::RestartHandshakeVerified;
+                }
+                tracing::info!(
+                    client = %client_id.label(),
+                    "mcp probe: handshake against installed binary succeeded \
+                     (client promoted to RestartHandshakeVerified)",
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    client = %client_id.label(),
+                    error = %e,
+                    "mcp probe: handshake against installed binary failed \
+                     (client remains at RestartRequired)",
+                );
+            }
         }
     }
 }
@@ -671,6 +688,17 @@ mod tests {
     }
 
     #[test]
+    fn restart_handshake_verified_yields_ready_restart_required() {
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(
+            McpClientId::ClaudeCode,
+            McpTier::RestartHandshakeVerified.into(),
+        );
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+    }
+
+    #[test]
     fn watch_running_alone_yields_watching() {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
@@ -688,6 +716,18 @@ mod tests {
         d.config = ConfigStatus::Valid;
         d.mcp
             .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
+        d.watch = WatchTier::Running;
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+    }
+
+    #[test]
+    fn watch_running_plus_restart_handshake_verified_prefers_restart_label() {
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(
+            McpClientId::Cursor,
+            McpTier::RestartHandshakeVerified.into(),
+        );
         d.watch = WatchTier::Running;
         assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
     }
