@@ -11,9 +11,9 @@ See: plans/aps-rules.md
 
 # Launch Flow Readiness
 
-| ID     | Owner | Status      | Progress |
-| ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 17/18    |
+| ID     | Owner | Status   | Progress |
+| ------ | ----- | -------- | -------- |
+| LAUNCH | —     | Complete | 18/18    |
 
 ## Purpose
 
@@ -184,11 +184,9 @@ new primitive, this module follows three rules:
 
 ## Tasks
 
-> Status: In Progress. LAUNCH-001, LAUNCH-002, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, LAUNCH-006, LAUNCH-007, LAUNCH-008, LAUNCH-009,
-> LAUNCH-009.5, LAUNCH-009.6, LAUNCH-010, LAUNCH-012, LAUNCH-013,
-> LAUNCH-014, LAUNCH-015, and LAUNCH-016 are complete; LAUNCH-011
-> stays Todo until picked up.
+> Status: Complete (18/18). LAUNCH-011 landed via PR #1300 (initial
+> watch-fallback slice), PR #1301 (Copilot review follow-up), and the
+> round-2 council remediations on the same chain.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -1130,11 +1128,14 @@ new primitive, this module follows three rules:
   activation reaches watch fallback, scopes it to the repo, and renders
   `watching` rather than `protecting`.
 - **Confidence:** medium
-- **Status:** In Progress — branch `launch/a1-watch-fallback`. Diagnostic
-  gains explicit MCP pre-write predicates so surfaces can label fallback
+- **Status:** Complete — landed via PR #1300 (initial watch-fallback
+  slice on `launch/a1-watch-fallback`) and PR #1301 (Copilot review
+  follow-up on `launch/a1-watch-fallback-followup`). Diagnostic gains
+  explicit MCP pre-write predicates so surfaces can label fallback
   honestly; `verify` sets `WatchTier::Offered` when MCP cannot attach;
   `anvil start --watch` runs the kernel watcher inline scoped to the
-  repo when MCP is below `LiveValidation`.
+  repo when MCP is below `LiveValidation`. Two rounds of council
+  remediations plus clippy pedantic cleanup precede the merge.
 
 ---
 

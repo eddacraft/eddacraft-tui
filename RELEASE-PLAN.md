@@ -58,13 +58,13 @@ literal. (See ROADMAP Horizon 1 + brainstorms in
 
 **Current progress snapshot:**
 
-| Area                            | State                                                                      | What remains                                                       |
-| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Release closeout                | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed     |
-| Wow-start activation (`LAUNCH`) | In Progress, 17/18 complete                                                | LAUNCH-011                                                         |
-| Daemon-backed MCP (`RMCP`)      | Complete, 8/8                                                              | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate |
-| Carry-over hardening (`V050F`)  | In Progress, 11/16 complete                                                | V050F-006, -007, -008, -011, -015                                  |
-| `V060F` nominations             | Complete, 1/1                                                              | No open nomination work                                            |
+| Area                            | State                                                                      | What remains                                                             |
+| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Release closeout                | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed           |
+| Wow-start activation (`LAUNCH`) | Complete, 18/18                                                            | LAUNCH-009.6 (PR #1303) + LAUNCH-011 (PRs #1300/#1301) merged 2026-05-06 |
+| Daemon-backed MCP (`RMCP`)      | Complete, 8/8                                                              | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate       |
+| Carry-over hardening (`V050F`)  | In Progress, 11/16 complete                                                | V050F-006, -007, -008, -011, -015                                        |
+| `V060F` nominations             | Complete, 1/1                                                              | No open nomination work                                                  |
 
 ### Carry-over backlog (rides any tag, regardless of theme)
 
@@ -96,8 +96,8 @@ activation entrypoint on 2026-05-03.
 - Pitch (5 brainstorm docs):
   [`plans/brainstorms/2026-05-02-wow-start-{claude,codex,copilot,gemini,opencode}.md`](./plans/brainstorms/)
 - Executable plan:
-  [`LAUNCH` module](./plans/modules/launch-flow-readiness.aps.md) — currently In
-  Progress 17/18.
+  [`LAUNCH` module](./plans/modules/launch-flow-readiness.aps.md) — Complete
+  18/18 as of 2026-05-06.
 - Adjacent re-architecture brainstorm:
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
@@ -117,15 +117,15 @@ PR 3 (LAUNCH-009/-011)  ── MCP + watch fallback ──┘  (depends on PR 2)
 PR 7 (LAUNCH-009.6)     ── MCP tier semantics ────┘  (follow-up to PR 3)
 ```
 
-| Order | PR   | Items                  | Branch                               | Status                            |
-| ----- | ---- | ---------------------- | ------------------------------------ | --------------------------------- |
-| 1     | PR 2 | LAUNCH-008, LAUNCH-012 | `launch/a1-protection-states`        | Complete                          |
-| 2     | PR 5 | LAUNCH-015, LAUNCH-016 | `launch/a1-language-profile-filters` | Complete                          |
-| 3     | PR 6 | LAUNCH-013             | `launch/a1-install-upgrade-guidance` | Complete                          |
-| 4     | PR 1 | LAUNCH-002, LAUNCH-006 | `launch/a1-start-entrypoint`         | Complete                          |
-| 5     | PR 3 | LAUNCH-009, LAUNCH-011 | `launch/a1-mcp-activation-fallback`  | Partial — LAUNCH-011 remains open |
-| 6     | PR 4 | LAUNCH-010, LAUNCH-014 | `launch/a1-first-signal-integrity`   | Complete                          |
-| 7     | PR 7 | LAUNCH-009.6           | `launch/0096-tier-semantics`         | Complete                          |
+| Order | PR   | Items                  | Branch                               | Status                                             |
+| ----- | ---- | ---------------------- | ------------------------------------ | -------------------------------------------------- |
+| 1     | PR 2 | LAUNCH-008, LAUNCH-012 | `launch/a1-protection-states`        | Complete                                           |
+| 2     | PR 5 | LAUNCH-015, LAUNCH-016 | `launch/a1-language-profile-filters` | Complete                                           |
+| 3     | PR 6 | LAUNCH-013             | `launch/a1-install-upgrade-guidance` | Complete                                           |
+| 4     | PR 1 | LAUNCH-002, LAUNCH-006 | `launch/a1-start-entrypoint`         | Complete                                           |
+| 5     | PR 3 | LAUNCH-009, LAUNCH-011 | `launch/a1-mcp-activation-fallback`  | Complete — LAUNCH-011 closeout via PRs #1300/#1301 |
+| 6     | PR 4 | LAUNCH-010, LAUNCH-014 | `launch/a1-first-signal-integrity`   | Complete                                           |
+| 7     | PR 7 | LAUNCH-009.6           | `launch/0096-tier-semantics`         | Complete                                           |
 
 **Execution constraints:** Each PR references its LAUNCH item(s), includes tests
 for acceptance criteria, passes council review before opening, remediates all
@@ -135,20 +135,19 @@ also validate or honestly surface #1195 and #1197.
 **Execution notes:** PR 1 (LAUNCH-006) promoted `anvil start` from a clap alias
 for `welcome` to the dedicated activation entrypoint, so the prose references in
 this plan describe state-after-PR-1. The APS LAUNCH file is authoritative for
-counts (currently In Progress, 17/18). `v0.5.1-beta` shipped on 2026-05-03, and
-the APS index header has been refreshed to that release.
+counts (Complete, 18/18). `v0.5.1-beta` shipped on 2026-05-03, and the APS index
+header has been refreshed to that release.
 
-**Modules / work items (1 outstanding):**
+**Modules / work items:** all 18 LAUNCH items complete as of 2026-05-06.
 
-- **LAUNCH-011** — honest watch-mode fallback when MCP cannot attach.
-
-**Recently completed:** LAUNCH-002 (watch action/TUI coexistence), LAUNCH-006
+**Shipped:** LAUNCH-002 (watch action/TUI coexistence), LAUNCH-006
 (`anvil start` activation entrypoint), LAUNCH-008 (protection states),
 LAUNCH-009 (Cursor / Claude Code MCP activation), LAUNCH-009.5 (MCP spawn probe
-observability), LAUNCH-009.6 (MCP tier semantics), LAUNCH-010 (activation
-baseline), LAUNCH-012 (verification), LAUNCH-013 (version/upgrade guidance),
-LAUNCH-014 (protection-loop tutorial), LAUNCH-015 (language profile), and
-LAUNCH-016 (language-aware scan/watch filtering).
+observability), LAUNCH-009.6 (MCP tier semantics, PR #1303), LAUNCH-010
+(activation baseline), LAUNCH-011 (honest watch fallback, PRs #1300/#1301),
+LAUNCH-012 (verification), LAUNCH-013 (version/upgrade guidance), LAUNCH-014
+(protection-loop tutorial), LAUNCH-015 (language profile), and LAUNCH-016
+(language-aware scan/watch filtering).
 
 **Prerequisites:**
 
