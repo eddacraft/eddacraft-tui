@@ -104,16 +104,21 @@ Created files:
 
 ## Scan Your Project
 
-This is the moment you see what anvil catches. Run a full scan:
+This is the moment you see what anvil catches. Run the fast source scan first:
 
 ```bash
 anvil check --all
 ```
 
-Most projects have something. Here is typical output:
+`anvil check` is the targeted source-analysis command. In the current Rust CLI it
+scans source artefacts for Anvil's registry-backed anti-pattern rules, including
+architecture-category findings emitted by that scanner. Use `anvil gate` when you
+want the full workflow judgement across architecture, policy, secrets, and other
+gate checks.
+
+Most projects have something. Here is typical `check` output:
 
 ```
-Checking architecture... done
 Checking anti-patterns...
   [AP-003] Explicit any type detected
     src/utils/parser.ts:42
@@ -131,11 +136,17 @@ Checking anti-patterns...
 If everything passes, you will see:
 
 ```
-Checking architecture... done
-Checking anti-patterns... done
-Checking secrets... done
+Checked 12 file(s)
 
-All gates passed.
+Checking anti-patterns... done
+
+No warnings found
+```
+
+To run the broader gate surface, use:
+
+```bash
+anvil gate --profile dev
 ```
 
 ## Turn On Watch Mode

@@ -7,15 +7,17 @@ sidebar_position: 1
 
 # Configuration
 
-anvil uses two configuration files and CLI flags for runtime options.
+anvil uses project files plus CLI flags for runtime options. The most important
+file today is `.anvilrc`; the architecture file powers import-boundary checks;
+`gate-config.json` is a planning surface that is not yet consumed by `anvil gate`.
 
 ## Configuration Files
 
-| File                       | Purpose                                         |
-| -------------------------- | ----------------------------------------------- |
-| `.anvilrc`                 | Project-level settings (checks, format, paths)  |
-| `.anvil/gate-config.json`  | Checks used by `anvil gate` and gate thresholds |
-| `.anvil/architecture.yaml` | Architecture layer and boundary definitions     |
+| File                       | Current status                                           |
+| -------------------------- | -------------------------------------------------------- |
+| `.anvilrc`                 | Active project settings read by `anvil gate`             |
+| `.anvil/architecture.yaml` | Active layer and boundary definitions                    |
+| `.anvil/gate-config.json`  | Forward-looking gate composition record, not active gate input |
 
 ## `.anvilrc`
 
@@ -80,18 +82,27 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 | `import-boundaries` | Enforce module import boundaries      |
 | `antipattern-scan`  | Detect common code anti-patterns      |
 | `policy`            | Evaluate OPA policy rules             |
+| `command-safety`    | Detect dangerous shell commands       |
 
 ## Gate Configuration
 
 Managed by `anvil gate-config`. Stored at `.anvil/gate-config.json`.
+
+:::caution Current limitation
+
+`gate-config.json` is visible in the CLI, but it is not the file to edit when
+you want to change what `anvil gate` runs today. Use `.anvilrc#checks` for the
+project default, or pass `--only-checks` / `--skip-checks` for one run.
+
+:::
 
 Use `anvil gate-config --list` to view the current configuration, and
 `--enable <check>` / `--disable <check>` to toggle individual checks.
 
 This file records the intended gate composition — which build-and-CI checks
 (`lint`, `test`, `coverage`, `dependency`) and Anvil analysis checks
-(`secret-detection`, `import-boundaries`, `antipattern-scan`, `policy`) belong
-to the gate, plus the scoring threshold.
+(`secret-detection`, `import-boundaries`, `antipattern-scan`, `policy`,
+`command-safety`) belong to the gate, plus the scoring threshold.
 
 :::note
 
@@ -159,6 +170,11 @@ canonical names above.
     {
       "name": "policy",
       "description": "Evaluate OPA policy rules",
+      "enabled": true
+    },
+    {
+      "name": "command-safety",
+      "description": "Detect dangerous shell commands in plan-described scripts",
       "enabled": true
     }
   ],
@@ -250,8 +266,9 @@ options:
     - '**/node_modules/**'
 ```
 
-Validate with `anvil architecture validate` and inspect with
-`anvil architecture show`.
+Validate basic structure and layer references with `anvil architecture validate`
+and inspect the parsed file with `anvil architecture show`. Boundary enforcement
+happens when the import-boundaries gate runs.
 
 ## Anti-Patterns
 
@@ -360,12 +377,12 @@ anvil gate --profile production   # All checks
 anvil gate --list-profiles        # Show available profiles
 ```
 
-| Profile      | Skips                | Use case                     |
-| ------------ | -------------------- | ---------------------------- |
-| `dev`        | coverage, dependency | Local development            |
-| `ci`         | (none)               | CI pipelines                 |
-| `production` | (none)               | Release validation           |
-| `ai`         | (none)               | AI guardrail / agent surface |
+| Profile      | Skips                            | Use case                     |
+| ------------ | -------------------------------- | ---------------------------- |
+| `dev`        | coverage, dependency             | Local development            |
+| `ci`         | (none)                           | CI pipelines                 |
+| `production` | (none)                           | Release validation           |
+| `ai`         | lint, test, coverage, dependency | AI guardrail / agent surface |
 
 The `ai` profile selects the curated AI guardrail check set, treats missing or
 invalid governance config as blocking, and emits the canonical

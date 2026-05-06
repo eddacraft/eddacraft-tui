@@ -93,8 +93,8 @@ in CI or pre-commit to fail when a checked-in config has drifted from what
 
 ## Manual Configuration
 
-If you'd rather wire anvil up by hand, the configuration shapes below are what
-`anvil mcp-config` writes for each client.
+If you'd rather wire anvil up by hand, the configuration shapes below match the
+current Rust stdio path that `anvil mcp-config` writes for each client.
 
 Add anvil to your MCP configuration:
 
@@ -102,13 +102,17 @@ Add anvil to your MCP configuration:
 {
   "mcpServers": {
     "anvil": {
-      "command": "npx",
-      "args": ["@eddacraft/anvil-mcp-server"],
-      "cwd": "/path/to/your/project"
+      "command": "anvil",
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {}
     }
   }
 }
 ```
+
+The legacy Node.js MCP server remains available for the broader legacy tool
+surface described below, but it is not what `anvil mcp-config` writes for the
+Rust stdio launch path.
 
 For HTTP transport (e.g. remote or multi-client setups), start the HTTP server
 and configure your client to connect via URL:
@@ -161,8 +165,11 @@ response carries a `decision` (`allow` or `block`) and the same
 ```
 
 The remaining tools (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
-`anvil_status`, `anvil_query_boundary`) are served by the legacy Node MCP server
-(`@eddacraft/anvil-mcp-server`). The Rust shim does not expose them yet.
+`anvil_status`, `anvil_query_boundary`) are **legacy Node MCP tools** served by
+`@eddacraft/anvil-mcp-server`. The Rust shim does not expose them yet. Use the
+legacy server only when you specifically need this broader tool surface.
+
+## Legacy Node MCP Tools
 
 ### anvil_check
 
@@ -178,7 +185,8 @@ Validate files against architecture rules and anti-patterns:
 }
 ```
 
-Optional `checks` parameter limits which checks run (default: all):
+Optional `checks` parameter limits which checks run (default: all). These are
+legacy tool parameters, not the canonical Rust CLI check names:
 
 ```json
 {
@@ -268,9 +276,9 @@ Check whether an import between two files is allowed by architecture rules:
 }
 ```
 
-## Resources
+## Legacy Node MCP Resources
 
-The MCP server exposes read-only resources:
+The legacy Node MCP server exposes read-only resources:
 
 | Resource                       | Description                                   |
 | ------------------------------ | --------------------------------------------- |
@@ -283,9 +291,9 @@ The MCP server exposes read-only resources:
 | `anvil://patterns`             | Anti-pattern catalogue                        |
 | `anvil://suppressions`         | Active suppressions with expiry dates         |
 
-## Example: Agent Loop
+## Legacy Node MCP Agent Loop
 
-An AI agent using anvil MCP:
+An AI agent using the legacy Node MCP server:
 
 ```python
 # Pseudocode — adapt to your agent framework
@@ -316,9 +324,9 @@ if result["status"] != "pass":
     # ...
 ```
 
-## Prompts
+## Legacy Node MCP Prompts
 
-The MCP server provides helpful prompts:
+The legacy Node MCP server provides helpful prompts:
 
 | Prompt                | Description                                   |
 | --------------------- | --------------------------------------------- |

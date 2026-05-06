@@ -9,6 +9,14 @@ sidebar_position: 1
 
 anvil integrates with GitHub for CI/CD validation and PR feedback.
 
+:::info Current integration shape
+
+Use the CLI directly in GitHub Actions today. A packaged first-party GitHub
+Action and automatic hosted evidence links are not part of the current public
+surface.
+
+:::
+
 ## CI Setup
 
 Install the anvil binary and run the gate check in your workflow:
@@ -32,6 +40,8 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
         run: anvil gate --profile ci
 ```
 
@@ -51,25 +61,27 @@ For Windows runners, use the PowerShell installer:
 | `1`  | General error    | Investigate       |
 | `2`  | Gate failure     | Block merge       |
 | `3`  | Auth required    | Check credentials |
+| `4`  | Config error     | Fix configuration |
 
 ## PR Comments
 
-When enabled, anvil posts a summary comment:
+Anvil does not post PR comments by itself. If you want a comment, run with JSON
+output and add a workflow step that formats the result.
 
 ```markdown
 <!-- anvil-check-results -->
 
-## 🔨 Anvil Check Results
+## Anvil Gate Results
 
 ✓ All gates passed
 
 | Check         | Status | Duration |
 | ------------- | ------ | -------- |
-| Architecture  | ✓ Pass | 23ms     |
-| Anti-patterns | ✓ Pass | 15ms     |
-| Secrets       | ✓ Pass | 8ms      |
+| Import boundaries | ✓ Pass | 23ms     |
+| Anti-pattern scan | ✓ Pass | 15ms     |
+| Secret detection  | ✓ Pass | 8ms      |
 
-[View full evidence](link-to-evidence)
+Generated from `anvil --json gate --profile ci`.
 ```
 
 ### Comment on Failure
@@ -77,7 +89,7 @@ When enabled, anvil posts a summary comment:
 ```markdown
 <!-- anvil-check-results -->
 
-## 🔨 Anvil Check Results
+## Anvil Gate Results
 
 ✗ 2 issues found
 
@@ -108,20 +120,24 @@ Require anvil before merge:
 1. **Repository Settings** → **Branches**
 2. **Add branch protection rule** for `main`
 3. Enable **Require status checks to pass**
-4. Search for and select **Anvil Check**
+4. Search for and select the workflow job name, usually **anvil**
 5. Save changes
 
 Now PRs cannot merge until anvil passes.
 
 ## Check Runs
 
-anvil creates GitHub Check Runs for detailed inline feedback:
+Anvil does not create GitHub Check Runs by itself. You can create one from the
+JSON output if you want detailed inline feedback:
 
 - Annotations appear on specific lines in the PR diff
 - Expandable details for each issue
 - Links to documentation
 
 ### Manual Check Run Creation
+
+The snippet below is a starting point. Adapt the field mapping to the JSON shape
+you get from `anvil --json gate --profile ci` in your version.
 
 ```yaml
 - name: Create Check Run
@@ -169,13 +185,15 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
         working-directory: packages/${{ matrix.package }}
         run: anvil gate --profile ci
 ```
 
 ## Caching
 
-Speed up CI with caching:
+If your workflow persists Anvil caches, use a normal GitHub Actions cache step:
 
 ```yaml
 - uses: actions/cache@v4

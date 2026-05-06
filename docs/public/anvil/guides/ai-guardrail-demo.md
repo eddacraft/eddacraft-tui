@@ -52,8 +52,9 @@ Initialise anvil:
 anvil init
 ```
 
-You should see a first-touch analysis run, `.anvil.yaml` written, and an empty
-findings list. anvil is now watching the repo.
+You should see a first-touch analysis run, `.anvilrc` written, and either an
+empty findings list or a small set of starter findings. Start watch mode in a
+second terminal if you want save-time feedback during the demo.
 
 ## 2. Connect your editor
 
@@ -210,7 +211,7 @@ pointing at a dead socket.
 1. Check `anvil intercept status` — is a session registered for this worktree?
    If `sessions: 0`, the editor isn't talking to the shim.
 2. Run `anvil config show` and confirm the rule isn't suppressed or downgraded
-   to `severity: info` in `.anvil.yaml`.
+   to `severity: info` in your Anvil configuration when that option is available.
 3. Some clients perform in-buffer edits without calling a write tool; those
    bypass the MCP path entirely. If your client does this, switch clients or
    prefix the prompt with the explicit `anvil_validate_write` instruction.

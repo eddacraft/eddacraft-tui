@@ -82,12 +82,10 @@ using standard OPA test conventions. :::
 ## 4. Run the Policy
 
 ```bash
-anvil check --all
+anvil gate --only-checks policy
 ```
 
 ```
-Checking architecture... done
-Checking anti-patterns... done
 Checking policies...
   [POLICY] max_file_length
     src/services/legacy-handler.ts exceeds 300 lines (487)

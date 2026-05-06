@@ -6,8 +6,24 @@ sidebar_position: 1
 
 # Tutorials
 
-Step-by-step guides for every major anvil feature. Each tutorial is
-self-contained -- you can follow any of them independently.
+Step-by-step guides for the public anvil workflow. If you are new, follow the
+recommended path below; each feature tutorial also stands alone when you already
+know which surface you need.
+
+## Recommended Path
+
+1. [Quickstart](/anvil/quickstart) — install, authenticate, initialise, and run a
+   first scan.
+2. [First Project](/anvil/first-project) — add architecture boundaries to a real
+   repository.
+3. [Architecture Boundaries](/anvil/tutorials/architecture) — tune the boundary
+   file and run the import-boundary gate.
+4. [CI Integration](/anvil/tutorials/ci) — make the same checks run on pull
+   requests.
+5. Add [Custom Policies](/anvil/tutorials/policies),
+   [Drift Detection](/anvil/tutorials/drift), and
+   [Suppressions](/anvil/tutorials/suppressions) when you need those specific
+   workflows.
 
 ## Getting Started
 
@@ -18,8 +34,7 @@ self-contained -- you can follow any of them independently.
 
 ## Feature Tutorials
 
-We recommend following these in order — each builds on concepts from the
-previous one:
+Use these when you are ready for a specific capability:
 
 | #   | Tutorial                                                 | Description                                                 | Prerequisites        |
 | --- | -------------------------------------------------------- | ----------------------------------------------------------- | -------------------- |

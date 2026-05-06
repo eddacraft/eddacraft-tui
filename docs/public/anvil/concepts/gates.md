@@ -31,15 +31,21 @@ project -> checks -> findings -> gate decision
 
 Checks are the smallest user-facing unit of evaluation.
 
-Examples (the names `anvil gate` uses at runtime):
+Examples using the public names you should pass to `--only-checks`,
+`--skip-checks`, and `.anvilrc#checks`:
 
-- `secret`
-- `architecture`
+- `secret-detection`
+- `import-boundaries`
+- `antipattern-scan`
 - `policy`
 - `lint`
 - `test`
 - `coverage`
 - `dependency`
+- `command-safety`
+
+Older aliases such as `secret` and `architecture` still work in some places, but
+the public docs use the canonical names above.
 
 Each check answers one question about the codebase.
 
@@ -115,6 +121,7 @@ These checks can participate in gate evaluation:
 - **Test** — runs the project test suite
 - **Coverage** — enforces coverage thresholds when configured
 - **Dependency** — checks dependency risk and blocked packages
+- **Command safety** — detects dangerous shell commands in plan-described scripts
 
 ## Gate Results
 

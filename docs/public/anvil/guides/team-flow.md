@@ -48,6 +48,8 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
         run: anvil gate --profile ci
 ```
 
@@ -60,7 +62,7 @@ The `ci` profile adjusts behaviour for pipeline environments:
 | Output    | Terminal UI             | Plain text              |
 | Colours   | Yes                     | No (TTY detection)      |
 | Exit code | 0 (pass) / 1 / 2 (fail) | 0 (pass) / 1 / 2 (fail) |
-| Checks    | Profile-dependent       | All checks enabled      |
+| Checks    | Profile-dependent       | No profile-level skips  |
 
 ### Exit Codes
 
@@ -70,15 +72,13 @@ The `ci` profile adjusts behaviour for pipeline environments:
 | 1    | General error    | Investigate       |
 | 2    | Gate failure     | Block merge       |
 | 3    | Auth required    | Check credentials |
+| 4    | Config error     | Fix configuration |
 
-Configure warning behaviour:
+Configure which checks run by using `.anvilrc#checks` as the persistent default
+filter, or `--only-checks` / `--skip-checks` for a specific command invocation:
 
-```json
-{
-  "ci": {
-    "fail_on_warnings": false
-  }
-}
+```bash
+anvil gate --profile ci --skip-checks coverage,dependency
 ```
 
 ## PR Comments
@@ -87,7 +87,7 @@ anvil can post results as PR comments:
 
 ```yaml
 - name: Run anvil
-  run: anvil gate --profile ci --json > anvil-results.json
+  run: anvil --json gate --profile ci > anvil-results.json
 
 - name: Comment on PR
   if: github.event_name == 'pull_request'
@@ -132,7 +132,7 @@ config. For example:
 ```bash
 anvil watch --source --debounce 500
 anvil watch --source --file src/payments/
-anvil watch --source --exclude "dist,node_modules"
+anvil watch --source --exclude "dist/**,node_modules/**"
 ```
 
 If your team still uses local config overrides for non-watch settings, keep them
@@ -142,9 +142,9 @@ out of git:
 .anvilrc.local
 ```
 
-Use `--file` and `--debounce` as the primary day-to-day tuning knobs.
-`--exclude` currently works best for obvious generated/build directories by
-name.
+Use `--file` and `--debounce` as the primary day-to-day tuning knobs. Use glob
+patterns such as `dist/**` for `--exclude`; bare names only match that exact
+path.
 
 ### Team-Wide Suppressions
 
@@ -222,34 +222,28 @@ Run anvil in CI without blocking:
 
 ```yaml
 - name: Run anvil (Shadow)
+  env:
+    ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
   run: anvil gate --profile ci || true
   continue-on-error: true
 ```
 
 Collect data on what would fail.
 
-### Phase 2: Warn Mode
+### Phase 2: Focused Gate
 
-Fail on errors, warn on anti-patterns:
+Start by enforcing the checks your team is ready to act on:
 
-```json
-{
-  "ci": {
-    "fail_on_warnings": false
-  }
-}
+```bash
+anvil gate --profile ci --only-checks import-boundaries,antipattern-scan,secret-detection
 ```
 
 ### Phase 3: Strict Mode
 
-All issues block:
+Expand the gate to the full CI profile:
 
-```json
-{
-  "ci": {
-    "fail_on_warnings": true
-  }
-}
+```bash
+anvil gate --profile ci
 ```
 
 ### Phase 4: Full Governance

@@ -95,10 +95,10 @@ Validate the definition:
 anvil architecture validate
 ```
 
-## Step 3: Run Initial Check
+## Step 3: Run Initial Gate
 
 ```bash
-anvil check --all
+anvil gate --only-checks import-boundaries,antipattern-scan
 ```
 
 You might see existing violations:
@@ -170,6 +170,8 @@ Add anvil to your CI pipeline:
   run: curl -fsSL https://install.eddacraft.ai | sh
 
 - name: Run anvil
+  env:
+    ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
   run: anvil gate --profile ci
 ```
 
@@ -182,11 +184,14 @@ For Windows runners:
   run: irm https://install.eddacraft.ai/windows | iex
 
 - name: Run anvil
+  env:
+    ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
   run: anvil gate --profile ci
 ```
 
-The `ci` profile runs all checks and produces machine-readable output with
-appropriate exit codes.
+The `ci` profile runs the configured CI gate checks and returns appropriate exit
+codes. Add `--json` before the subcommand (`anvil --json gate --profile ci`) if
+your workflow needs machine-readable output.
 
 ## What You've Achieved
 

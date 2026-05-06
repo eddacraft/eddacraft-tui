@@ -15,8 +15,9 @@ runs but is not yet exposed via dedicated CLI commands.
 
 :::
 
-Every action in anvil produces an auditable record. This page explains how
-provenance works and why it matters.
+Anvil's validation pipeline is designed around auditable records. Dedicated
+evidence commands are not yet public, so this page explains the model and shows
+the planned operator surface.
 
 ## Why Audit Trails?
 
@@ -117,7 +118,10 @@ Session: session_abc123
 └── Commit: abc123def456
 ```
 
-## Querying the Audit Trail
+## Planned Evidence Commands
+
+The examples below show the intended command shape. They are not available in
+the current public CLI.
 
 ### List Recent Evidence
 
@@ -166,7 +170,8 @@ anvil evidence export --session session_abc123 --format json > audit.json
 
 ## Integration with Git
 
-anvil can attach evidence to commits:
+Today, use a normal Git trailer if your team wants to record a CI artefact or
+validation report ID manually:
 
 ```bash
 # Include evidence reference in commit
@@ -174,15 +179,15 @@ git commit -m "feat: add login endpoint" \
   --trailer "anvil-evidence: evidence_001"
 ```
 
-anvil's own commit helper (`anvil commit`) is planned for a future release.
+Anvil's own commit helper (`anvil commit`) is planned for a future release.
 
 The evidence ID in the commit trailer links to the full audit record.
 
 ## Retention and Storage
 
-### Default Storage
+### Planned Default Storage
 
-Evidence is stored in `.anvil/evidence/`:
+The planned local evidence store is `.anvil/evidence/`:
 
 ```
 .anvil/
@@ -196,7 +201,7 @@ Evidence is stored in `.anvil/evidence/`:
 
 ### Retention Policy
 
-Configure retention:
+Planned retention configuration:
 
 ```json
 {
@@ -212,7 +217,7 @@ Configure retention:
 
 ### Remote Storage
 
-For compliance, evidence can be pushed to remote storage:
+For compliance, a future release is expected to support remote evidence storage:
 
 ```json
 {

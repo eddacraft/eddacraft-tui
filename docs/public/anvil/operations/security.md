@@ -68,7 +68,9 @@ High-entropy strings (random-looking) trigger alerts:
 
 ### Best Practices
 
-1. **Use `.env` files** — gitignored, not scanned
+1. **Use `.env` files carefully** — gitignore real secret-bearing files, and
+   expect Anvil to scan `.env`, `.envrc`, and `.env.*` content when those files
+   are present
 2. **Use secret managers** — Vault, AWS Secrets, etc.
 3. **Review alerts** — don't just suppress
 4. **Check history** — enable `checkGitHistory` for initial audit
@@ -88,35 +90,24 @@ Evidence is cryptographically signed:
 
 Tampering changes the hash, invalidating the evidence.
 
-### Storage
+### Planned Evidence Storage
 
-Default: local `.anvil/evidence/`
+Dedicated evidence export commands and remote evidence storage are planned, not
+part of the current public CLI.
 
-For compliance:
+For compliance in the current beta:
 
-- Use remote storage (S3, GCS)
-- Enable encryption at rest
-- Configure retention policies
-
-```json
-{
-  "evidence": {
-    "remote": {
-      "type": "s3",
-      "bucket": "company-anvil-evidence",
-      "encryption": "AES256"
-    }
-  }
-}
-```
+- Store CI logs and JSON gate output in your existing artefact system
+- Restrict access with your CI provider's permissions
+- Keep retention aligned with your organisation's normal build-log policy
 
 ### Access Control
 
-Evidence files are read-only after creation. Control access via:
+Control access to captured Anvil output via:
 
-- File permissions (local)
-- IAM policies (remote)
-- RBAC (enterprise)
+- File permissions for local artefacts
+- CI artefact permissions
+- Your organisation's normal RBAC and retention controls
 
 ## Configuration Security
 
@@ -175,8 +166,8 @@ Use CODEOWNERS:
 
 ### Track Suppressions
 
-Search for `@anvil-ignore` comments and review the `suppressions` array in
-`.anvilrc` to audit active suppressions:
+Search for `@anvil-ignore` comments and review any exported suppression reports
+your team keeps for governance:
 
 ```bash
 grep -rn "@anvil-ignore" src/

@@ -92,11 +92,11 @@ This prints the resolved layers, allowed/denied imports, and file counts.
 
 ## 5. Check Your Code Against Boundaries
 
-This command runs checks across your codebase. In this tutorial, the relevant
-findings come from the architecture check family.
+This command runs the import-boundary gate across your codebase. In this
+tutorial, the relevant findings come from the architecture check family.
 
 ```bash
-anvil check --all
+anvil gate --only-checks import-boundaries
 ```
 
 ```

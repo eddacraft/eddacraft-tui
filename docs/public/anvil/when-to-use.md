@@ -33,10 +33,11 @@ anvil's watch mode gives you instant feedback. If you only want CI-time
 validation, you can use anvil in CI mode—but you lose the developer experience
 benefit.
 
-### You value audit trails
+### You value deterministic records
 
-Every anvil run produces evidence. If compliance, traceability, or post-incident
-analysis matters to you, this is valuable.
+Anvil is moving toward dedicated evidence and session commands. Today, the
+public value is deterministic CLI output that can be captured in CI logs or JSON
+files for review.
 
 ## anvil is NOT for you if...
 
@@ -92,7 +93,7 @@ anvil integrates with your existing workflow, not replaces it:
 | ESLint         | anvil runs ESLint as a gate check    |
 | Formatter      | anvil doesn't touch formatting       |
 | Jest/Vitest    | anvil can gate on test pass/coverage |
-| GitHub Actions | anvil provides a GitHub Action       |
+| GitHub Actions | run the anvil CLI in a workflow      |
 | VS Code        | anvil provides an extension          |
 
 ## Decision Framework
@@ -102,7 +103,7 @@ Ask yourself:
 1. **Do I use AI coding tools?** → If no, consider skipping anvil
 2. **Do I have architectural boundaries?** → If no, value is limited
 3. **Do I want save-time feedback?** → If no, use CI-only mode
-4. **Do I need audit trails?** → anvil provides this automatically
+4. **Do I need deterministic validation output?** → capture Anvil's CLI or JSON output
 
 If you answered "yes" to 2+ questions, anvil will likely add value.
 
