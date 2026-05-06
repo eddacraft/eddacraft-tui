@@ -80,10 +80,25 @@ pub fn format_user_error(err: &anyhow::Error, verbose: bool) -> String {
 /// Uses `tempfile` for unpredictable filenames (prevents symlink attacks).
 /// On Unix the temp file is created with mode 0o600.
 ///
+/// **Symlink-parent guard (LAUNCH-009.5):** if the immediate parent
+/// directory is itself a symlink, the function refuses to write. POSIX
+/// `rename(2)` replaces a symlink at the *target* path safely (the symlink
+/// is destroyed, not followed), but the *temp file* is created via
+/// `tempfile_in(parent)`, which writes through the parent's symlink. A
+/// `~/.cursor` symlink pointing outside `$HOME` would let the install path
+/// land a sensitive config file (e.g. `~/.claude.json` carries auth tokens)
+/// in an unintended directory. Users with intentionally-symlinked editor
+/// config dirs should resolve the symlink (`mv` the real dir into place)
+/// before running `anvil start`. This is a stricter check than necessary
+/// but the simplest portable guard; a per-target HOME-containment check
+/// would be platform-fragile.
+///
 /// Note: this provides process-crash atomicity, not power-loss durability
 /// (no `fsync` before rename).
 pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
+
+    refuse_if_parent_is_symlink(dir, path)?;
 
     #[cfg_attr(not(unix), allow(unused_mut))]
     let mut builder = tempfile::Builder::new();
@@ -132,13 +147,37 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Refuse if `dir` (the immediate parent of the write target) exists and
+/// is a symlink. A non-existent parent is allowed — `tempfile_in` will
+/// surface the I/O error from there. A real directory is allowed.
+///
+/// See the doc comment on [`atomic_write`] for the threat model.
+fn refuse_if_parent_is_symlink(dir: &Path, target: &Path) -> Result<()> {
+    match std::fs::symlink_metadata(dir) {
+        Ok(md) if md.file_type().is_symlink() => {
+            anyhow::bail!(
+                "refusing to write {} — its parent directory {} is a symlink. \
+                 Resolve the symlink (move the real directory into place) \
+                 and re-run.",
+                target.display(),
+                dir.display(),
+            )
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Create `path` exclusively and write `data`. Fails with `AlreadyExists` if
 /// the file is already present — use this instead of `atomic_write` when the
 /// caller has already decided "only create, do not overwrite", so the
 /// check-then-write window cannot be exploited by a concurrent writer.
 ///
-/// On Unix the file is created with mode 0o600.
+/// On Unix the file is created with mode 0o600. Inherits the
+/// symlink-parent guard from [`atomic_write`] — see that doc for rationale.
 pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    refuse_if_parent_is_symlink(dir, path)?;
+
     #[cfg_attr(not(unix), allow(unused_mut))]
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create_new(true);
@@ -275,6 +314,65 @@ mod tests {
         atomic_write(&path, b"new").unwrap();
 
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_refuses_when_parent_is_symlink() {
+        // LAUNCH-009.5 council remediation: a symlinked parent dir would
+        // let `tempfile_in` write through the link to an unintended
+        // location. Refuse loudly instead of silently following.
+        use std::os::unix::fs::symlink;
+
+        let real = tempfile::tempdir().unwrap();
+        let real_dir = real.path().join("real-config-dir");
+        std::fs::create_dir(&real_dir).unwrap();
+
+        let staging = tempfile::tempdir().unwrap();
+        let symlinked_parent = staging.path().join("editor-config");
+        symlink(&real_dir, &symlinked_parent).unwrap();
+
+        let path = symlinked_parent.join("mcp.json");
+        let err = atomic_write(&path, b"{}").expect_err("symlinked parent must be refused");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink"),
+            "error must explain the refusal mentions symlink: {msg}"
+        );
+        assert!(
+            !path.exists(),
+            "no file should have been written when the guard refuses"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_new_refuses_when_parent_is_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let real = tempfile::tempdir().unwrap();
+        let real_dir = real.path().join("real-config-dir");
+        std::fs::create_dir(&real_dir).unwrap();
+
+        let staging = tempfile::tempdir().unwrap();
+        let symlinked_parent = staging.path().join("editor-config");
+        symlink(&real_dir, &symlinked_parent).unwrap();
+
+        let path = symlinked_parent.join("config.json");
+        let err = write_new(&path, b"{}").expect_err("symlinked parent must be refused");
+        assert!(format!("{err:#}").contains("symlink"));
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn atomic_write_succeeds_when_parent_is_a_real_dir() {
+        // Sanity guard: the symlink check must not produce false positives
+        // on ordinary directories.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("subdir").join("file.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        atomic_write(&path, b"ok").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "ok");
     }
 
     #[test]

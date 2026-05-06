@@ -385,8 +385,24 @@ fn shape_label(v: &serde_json::Value) -> &'static str {
 }
 
 /// Shared `merge_and_render` for the JSON-with-`mcpServers`-key shape.
-/// Preserves all unrelated keys; only writes the `mcpServers.<server_name>`
-/// leaf.
+///
+/// **Preservation contract:**
+/// - Every key OUTSIDE `mcpServers.<server_name>` is preserved
+///   byte-for-byte: other server entries (`mcpServers.other`),
+///   top-level keys (`profile`, `unrelatedKey`), trailing keys, etc.
+/// - The `mcpServers.<server_name>` value is **replaced wholesale** with
+///   the freshly-built `entry`. Any keys the user added inside their
+///   anvil entry (e.g. a custom `timeout`, `disabled`, `description`)
+///   are dropped on a `SafeDrift` rewrite.
+///
+/// The wholesale-replacement policy is deliberate (LAUNCH-009.5): the
+/// drift classifier (`classify_drift_by_args`, `entries_equivalent`)
+/// only treats the entry as anvil's when `args` and `command` match the
+/// canonical shape, so we are confident the entry was anvil-installed
+/// in the first place. A per-key merge would also need a schema for
+/// "anvil-owned vs user-owned keys", which we do not have. If you
+/// observe real-world configs that need preserved fields inside the
+/// anvil entry, revisit via LAUNCH-009.5 follow-up.
 #[allow(dead_code)] // called by trait merge_and_render impls; orchestrator-driven (LAUNCH-006 follow-up)
 pub(crate) fn merge_json_mcp(
     parsed: &ParsedConfig,

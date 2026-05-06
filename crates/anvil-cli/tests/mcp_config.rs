@@ -100,15 +100,29 @@ fn write_creates_cursor_config_at_dot_cursor_mcp_json() {
 }
 
 #[test]
-fn write_creates_vscode_config_with_type_field() {
+fn vscode_target_is_rejected_by_clap() {
+    // LAUNCH-009.5: dropped Target::Vscode (wrote the wrong file shape;
+    // VS Code 1.99+ uses .vscode/mcp.json with `servers`, not
+    // .vscode/settings.json with `mcp.servers`). Re-add via a fresh,
+    // verified impl. clap should now reject the value.
     let dir = tempfile::tempdir().unwrap();
     let out = run(dir.path(), &["--target", "vscode", "--write"]);
-    assert!(out.status.success());
+    assert!(
+        !out.status.success(),
+        "vscode target removed in LAUNCH-009.5; clap must reject it"
+    );
+}
 
-    let path = dir.path().join(".vscode").join("settings.json");
-    let raw = fs::read_to_string(&path).unwrap();
-    let parsed: Value = serde_json::from_str(&raw).unwrap();
-    assert_eq!(parsed["mcp"]["servers"]["anvil"]["type"], "stdio");
+#[test]
+fn windsurf_target_is_rejected_by_clap() {
+    // LAUNCH-009.5: dropped Target::Windsurf (council-banned in the
+    // 2026-05-03 activation council; no protocol-compliance evidence).
+    let dir = tempfile::tempdir().unwrap();
+    let out = run(dir.path(), &["--target", "windsurf", "--write"]);
+    assert!(
+        !out.status.success(),
+        "windsurf target removed in LAUNCH-009.5; clap must reject it"
+    );
 }
 
 #[test]
@@ -683,28 +697,6 @@ fn mcp_install_refuses_non_object_config_root() {
     assert!(
         !install.status.success(),
         "non-object config root must fail instead of being replaced"
-    );
-}
-
-#[test]
-fn mcp_config_write_refuses_non_object_vscode_servers_container() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join(".vscode").join("settings.json");
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        serde_json::to_string_pretty(&serde_json::json!({
-            "mcp": { "servers": [] }
-        }))
-        .unwrap(),
-    )
-    .unwrap();
-
-    let write = run(dir.path(), &["--target", "vscode", "--write"]);
-
-    assert!(
-        !write.status.success(),
-        "non-object mcp.servers must fail instead of silently skipping insert"
     );
 }
 
