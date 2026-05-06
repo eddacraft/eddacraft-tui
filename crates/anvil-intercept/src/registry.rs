@@ -348,23 +348,21 @@ impl SessionRegistry {
     /// rule the constructor enforces.
     #[must_use]
     pub fn attribute_path(&self, changed: &Path) -> Attribution {
-        let canonical = std::fs::canonicalize(changed)
-            .ok()
-            .or_else(|| {
-                // Canonicalisation can fail for `Removed` events
-                // (the file no longer exists). Walk up to the first
-                // ancestor that does exist, canonicalise that, and
-                // re-attach the missing tail. The exact filename
-                // does not affect prefix-matching.
-                let mut probe = changed.parent();
-                while let Some(p) = probe {
-                    if let Ok(c) = std::fs::canonicalize(p) {
-                        return Some(c);
-                    }
-                    probe = p.parent();
+        let canonical = std::fs::canonicalize(changed).ok().or_else(|| {
+            // Canonicalisation can fail for `Removed` events
+            // (the file no longer exists). Walk up to the first
+            // ancestor that does exist, canonicalise that, and
+            // re-attach the missing tail. The exact filename
+            // does not affect prefix-matching.
+            let mut probe = changed.parent();
+            while let Some(p) = probe {
+                if let Ok(c) = std::fs::canonicalize(p) {
+                    return Some(c);
                 }
-                None
-            });
+                probe = p.parent();
+            }
+            None
+        });
         let Some(canonical) = canonical else {
             return Attribution::Unknown;
         };
@@ -373,7 +371,9 @@ impl SessionRegistry {
         let mut best: Option<(&PathBuf, &SessionId)> = None;
         for (worktree, id) in &inner.by_worktree {
             if canonical.starts_with(worktree)
-                && best.is_none_or(|(current, _)| worktree.as_os_str().len() > current.as_os_str().len())
+                && best.is_none_or(|(current, _)| {
+                    worktree.as_os_str().len() > current.as_os_str().len()
+                })
             {
                 best = Some((worktree, id));
             }
