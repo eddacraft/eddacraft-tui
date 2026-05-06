@@ -45,7 +45,10 @@ pub mod telemetry;
 pub mod unregistered;
 pub mod watcher;
 
-pub use auth::{AuthError, DriverManifest, is_driver_allowed};
+pub use auth::{
+    AuthError, CapabilityDowngrade, CapabilityDowngradeReason, DriverManifest, is_driver_allowed,
+    negotiate_capability,
+};
 pub use registry::{
     Attribution, DEFAULT_HEARTBEAT_TTL, ProcessInfo, RegistryError, SessionDispatcher,
     SessionRegistry,

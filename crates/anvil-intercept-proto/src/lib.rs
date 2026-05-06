@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 
 pub mod enforcement_config;
+pub mod protocol;
 pub mod status;
 
 use std::path::PathBuf;
