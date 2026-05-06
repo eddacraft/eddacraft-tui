@@ -62,7 +62,7 @@ fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
         }
     });
     fs::write(
-        home.join(".cursor/mcp.json"),
+        home.join(".cursor").join("mcp.json"),
         serde_json::to_string_pretty(&cfg).unwrap(),
     )
     .unwrap();

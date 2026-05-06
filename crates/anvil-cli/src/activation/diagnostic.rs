@@ -290,7 +290,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
             let probe_results = super::mcp_client::probe_all(root, home, &fresh);
-            probe_handshake_for_observability(&probe_results, &fresh);
+            probe_handshake_for_observability(root, home, &probe_results, &fresh);
             (probe_results, None)
         }
         Err(e) => {
@@ -360,16 +360,32 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
 /// see whether the binary actually serves MCP, but the diagnostic
 /// tier is not modified.
 ///
-/// The probe spawns `fresh.command` once (v1 entries are identical
-/// across clients), so a single handshake answers for every
-/// `RestartRequired` row in the map. The probe is skipped entirely
-/// when no client is at `RestartRequired` — fresh repos and
-/// already-protecting tiers add zero latency.
+/// The probe targets the **actual installed entry** of the first
+/// `RestartRequired` client (via
+/// [`super::mcp_client::first_installed_restart_required_entry`]) so
+/// the handshake reflects what the editor would really spawn — including
+/// bare `"anvil"` entries from `anvil mcp-config` that PATH-resolve to a
+/// different binary than `current_exe()`. If extraction fails (config
+/// re-parse error, missing `command` field, etc.), the probe falls back
+/// to `fresh` and the failure mode is logged.
+///
+/// In v1 the probe runs once per `verify_with_home` call. Even when
+/// multiple clients are `RestartRequired`, we only handshake against the
+/// first installed entry — the v1 install path writes the same shape to
+/// every client, so a single handshake is representative. Per-client
+/// probes will become useful when client-specific entries (different
+/// commands per client) become a real configuration.
+///
+/// The probe is skipped entirely when no client is at
+/// `RestartRequired` — fresh repos and already-protecting tiers add
+/// zero latency.
 ///
 /// **Cost:** at most one [`super::mcp_client::PROBE_HANDSHAKE_TIMEOUT`]
 /// (1s) added to `verify_with_home`, only when at least one client is
 /// at `RestartRequired`.
 fn probe_handshake_for_observability(
+    root: &Path,
+    home: Option<&Path>,
     map: &BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
     fresh: &super::mcp_client::AnvilEntry,
 ) {
@@ -377,7 +393,16 @@ fn probe_handshake_for_observability(
     if !any_restart_required {
         return;
     }
-    match super::mcp_client::probe_startable(fresh) {
+    let probe_target = super::mcp_client::first_installed_restart_required_entry(root, home, fresh)
+        .unwrap_or_else(|| {
+            tracing::warn!(
+                "mcp probe: could not extract installed entry; \
+                     falling back to current_exe — log result reflects \
+                     fresh, not the editor's actual spawn target",
+            );
+            fresh.clone()
+        });
+    match super::mcp_client::probe_startable(&probe_target) {
         Ok(()) => {
             tracing::info!(
                 "mcp probe: handshake against installed binary succeeded \

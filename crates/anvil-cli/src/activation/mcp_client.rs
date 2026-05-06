@@ -712,8 +712,85 @@ fn probe_one(
 }
 
 // ---------------------------------------------------------------------------
-// Spawn probe (LAUNCH-009.5): promote `RestartRequired → ServerStartable`
+// Spawn probe (LAUNCH-009.5): observability-only handshake against the
+// installed entry. Tier promotion deferred to LAUNCH-009.6 — see the
+// `probe_handshake_for_observability` doc in `diagnostic.rs` for the
+// semantic deviation rationale.
 // ---------------------------------------------------------------------------
+
+/// Walk each registered client's config paths and return the first
+/// installed `AnvilEntry` whose tier is `RestartRequired`.
+///
+/// Used by the spawn probe so the handshake spawns the **actual command
+/// the editor would run** (e.g. a bare `"anvil"` entry from
+/// `anvil mcp-config` that PATH-resolves to a different binary than
+/// `current_exe()`), not just `fresh`. Closes the council finding that
+/// probing `fresh` could mislead users with `entries_equivalent`-matched
+/// bare-command entries.
+///
+/// Returns `None` when no client is at `RestartRequired`, when the
+/// installed entry can't be re-parsed, or when the entry's `command`
+/// field is missing/non-string. The caller should fall back to `fresh`
+/// in any of those cases — the probe is observability-only so a
+/// fallback target is informative even when not perfectly truthful.
+pub fn first_installed_restart_required_entry(
+    workspace: &Path,
+    home: Option<&Path>,
+    fresh: &AnvilEntry,
+) -> Option<AnvilEntry> {
+    for client in all_clients() {
+        for candidate in client.config_paths(workspace, home) {
+            let raw = std::fs::read_to_string(&candidate.path).ok()?;
+            let Ok(parsed) = client.parse(&raw) else {
+                continue;
+            };
+            if client.verify_config_tier(Some(&parsed), fresh) != McpTier::RestartRequired {
+                continue;
+            }
+            let Some(existing) = parsed.existing_entry.as_ref() else {
+                continue;
+            };
+            if let Some(entry) = stdio_entry_from_value(existing) {
+                return Some(entry);
+            }
+        }
+    }
+    None
+}
+
+/// Best-effort: parse an installed JSON entry back into an
+/// [`AnvilEntry::Stdio`]. Returns `None` if the shape doesn't match
+/// (missing or non-string `command`, args not a string array, etc.).
+fn stdio_entry_from_value(v: &serde_json::Value) -> Option<AnvilEntry> {
+    let obj = v.as_object()?;
+    let command = obj.get("command")?.as_str()?;
+    if command.is_empty() {
+        return None;
+    }
+    let args: Vec<String> = obj
+        .get("args")
+        .and_then(|a| a.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let env: BTreeMap<String, String> = obj
+        .get("env")
+        .and_then(|e| e.as_object())
+        .map(|m| {
+            m.iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(AnvilEntry::Stdio {
+        command: PathBuf::from(command),
+        args,
+        env,
+    })
+}
 
 /// Wire-format protocol version the probe announces. Server echoes whatever
 /// the client supplies, so picking a published value is fine; mismatches do
@@ -786,14 +863,21 @@ impl std::fmt::Display for ProbeError {
 ///
 /// **Caller contract:** call this only when [`McpClient::verify_config_tier`]
 /// has already returned [`McpTier::RestartRequired`] for `entry`. A
-/// `ConfigAbsent` or `ConfigPresent` tier means we wouldn't trust a
-/// successful handshake to mean the editor will pick up the entry on its
-/// own (we'd promote a tier that is structurally too high).
+/// `ConfigAbsent` or `ConfigPresent` tier means a successful handshake
+/// would not yet imply the editor will pick up the entry, so spawning
+/// the probe would just burn CPU.
 ///
-/// **Tier transition (LAUNCH-009 spec):** the orchestrator promotes
-/// `RestartRequired → ServerStartable` on `Ok`. On any error variant the
-/// tier stays at `RestartRequired` and the failure is logged via
-/// `tracing::warn!` so SREs can diagnose.
+/// **Tier behaviour (v1):** the diagnostic surface treats this probe as
+/// **observability-only** — `Ok` and `Err` results are both logged via
+/// `tracing` but neither changes the per-client `McpTier` in the
+/// returned diagnostic. The original LAUNCH-009 spec described a
+/// `RestartRequired → ServerStartable` promotion on `Ok`, but the
+/// existing tier ladder positions `ServerStartable` *below*
+/// `RestartRequired` (LAUNCH-008 council reading), so promoting would
+/// slide the tier down the ladder. Tier-semantic reconciliation is
+/// tracked as **LAUNCH-009.6** in the launch APS module — when that
+/// lands, `probe_handshake_for_observability` in `diagnostic.rs` swaps
+/// from logging-only to actual tier promotion.
 ///
 /// **Process management:**
 /// - Stdio is piped; stderr is silenced (the server's `tracing` output
@@ -830,12 +914,17 @@ fn probe_stdio(
     let mut stdin = child.stdin.take().ok_or(ProbeError::NoPipes)?;
     let stdout = child.stdout.take().ok_or(ProbeError::NoPipes)?;
 
-    let (tx, rx) = std::sync::mpsc::channel();
+    // Read raw bytes until newline so we can distinguish (a) child closed
+    // pipe with no output, (b) I/O error mid-read, and (c) non-UTF-8
+    // bytes that `read_line(&mut String)` would have silently lost. The
+    // channel carries an `io::Result<Vec<u8>>` so the caller maps each
+    // case to the right `ProbeError` variant.
+    let (tx, rx) = std::sync::mpsc::channel::<std::io::Result<Vec<u8>>>();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        let _ = reader.read_line(&mut line);
-        let _ = tx.send(line);
+        let mut buf = Vec::new();
+        let result = reader.read_until(b'\n', &mut buf).map(|_| buf);
+        let _ = tx.send(result);
     });
 
     let request = format!(
@@ -850,13 +939,20 @@ fn probe_stdio(
     }
     drop(stdin);
 
-    let response = match rx.recv_timeout(PROBE_HANDSHAKE_TIMEOUT) {
-        Ok(line) if line.trim().is_empty() => {
+    let response_bytes = match rx.recv_timeout(PROBE_HANDSHAKE_TIMEOUT) {
+        Ok(Ok(bytes)) if bytes.iter().all(u8::is_ascii_whitespace) => {
             let _ = child.kill();
             let _ = child.wait();
             return Err(ProbeError::EmptyResponse);
         }
-        Ok(line) => line,
+        Ok(Ok(bytes)) => bytes,
+        Ok(Err(io_err)) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(ProbeError::ParseResponse(format!(
+                "I/O error reading stdout: {io_err}"
+            )));
+        }
         Err(_) => {
             let _ = child.kill();
             let _ = child.wait();
@@ -866,6 +962,8 @@ fn probe_stdio(
     let _ = child.kill();
     let _ = child.wait();
 
+    let response = std::str::from_utf8(&response_bytes)
+        .map_err(|e| ProbeError::ParseResponse(format!("response is not UTF-8: {e}")))?;
     validate_initialize_response(response.trim())
 }
 
