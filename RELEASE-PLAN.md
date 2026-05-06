@@ -102,7 +102,8 @@ activation entrypoint on 2026-05-03.
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
 **Execution sequence (2026-05-04):** Deliver the LAUNCH activation slice as six
-reviewable PRs against `dev`. APS ownership and progress remain in
+original reviewable PRs against `dev`, plus the LAUNCH-009.6 follow-up that was
+split out during MCP spawn-probe review. APS ownership and progress remain in
 [`plans/modules/launch-flow-readiness.aps.md`](./plans/modules/launch-flow-readiness.aps.md).
 
 ```text
@@ -113,6 +114,7 @@ PR 5 (LAUNCH-015/-016)  ── repo-language profile ──┤
 PR 6 (LAUNCH-013)       ── install detector ──── (independent)
                                                    │
 PR 3 (LAUNCH-009/-011)  ── MCP + watch fallback ──┘  (depends on PR 2)
+PR 7 (LAUNCH-009.6)     ── MCP tier semantics ────┘  (follow-up to PR 3)
 ```
 
 | Order | PR   | Items                  | Branch                               | Risk                                  |
@@ -560,9 +562,9 @@ cataloguing; promote on signal.
 These are prerequisites surfaced by councils. They aren't slices on their own —
 they're glue some Tier A picks need.
 
-1. **GUI gaps #1195 and #1197 closed** — validate in A1 (LAUNCH-009). Without
-   the Claude Code path fix and the MCP `instructions` directive, the activation
-   claim is a lie.
+1. **GUI gaps #1195 and #1197 closed** — validated through A1 / LAUNCH-009; keep
+   the Claude Code path fix and MCP `instructions` directive in the final
+   release smoke so the activation claim stays literal.
 2. **`anvil export` CLI work item** — required by A6 (Dashboard MVP). One task
    in `crates/anvil-cli`. Without it, dashboard has no canonical `.anvil/*.json`
    to read.
@@ -581,15 +583,15 @@ they're glue some Tier A picks need.
 
 ## Suggested first-pick combinations
 
-| Combo                                | Slices                      | Net items | Posture                                                                                               |
-| ------------------------------------ | --------------------------- | --------- | ----------------------------------------------------------------------------------------------------- |
-| **Patch-shaped tag**                 | Carry-over only             | ~12       | V050F tail + V060F. Tags as `v0.5.2-beta`. Smallest credible cut.                                     |
-| **Wow-start minimum**                | A1                          | ~11       | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
-| **Wow-start + daemon (recommended)** | A1 + A2 + carry-over        | ~43       | The headline + the literal-protection substrate. Tags as `v0.6.0-beta`. Highest confidence.           |
-| **Wow-start + parity**               | A1 + A2 + A3 + carry-over   | ~56       | Adds full Rust MCP parity. Strong narrative, real contention with A1.                                 |
-| **Wow-start + hygiene**              | A1 + A4 + A5                | ~33       | Activation + finishes the `v0.5.0-beta` tails. Skips daemon graduation — A2 follows in next window.   |
-| **Founder-pitch slate**              | A1 + A2 + A6                | ~55       | Activation + daemon + dashboard. Largest persona expansion. Highest A6/A1 bandwidth contention.       |
-| **Full slate**                       | A1 + A2 + A3 + A4 + A5 + A6 | ~77       | All Tier A. Most ambitious; only realistic if A1 ships clean and bandwidth holds.                     |
+| Combo                                | Slices                      | Open scope                              | Posture                                                                                               |
+| ------------------------------------ | --------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Patch-shaped tag**                 | Carry-over only             | V050F 5 open                            | Tags as `v0.5.2-beta`. Smallest credible cut.                                                         |
+| **Wow-start minimum**                | A1                          | LAUNCH 2 open                           | Just the activation council outcome. Tags as `v0.5.2-beta` if scoped tight, `v0.6.0-beta` if broader. |
+| **Wow-start + daemon (recommended)** | A1 + A2 + carry-over        | LAUNCH 2 + A2 remaining + V050F 5       | The headline + the literal-protection substrate. Tags as `v0.6.0-beta`. Highest confidence.           |
+| **Wow-start + parity**               | A1 + A2 + A3 + carry-over   | A1/A2/carry-over + RMCPF scope          | Adds full Rust MCP parity. Strong narrative, real contention with A1.                                 |
+| **Wow-start + hygiene**              | A1 + A4 + A5                | LAUNCH 2 + release/language tails       | Activation + finishes the `v0.5.0-beta` tails. Skips daemon graduation — A2 follows in next window.   |
+| **Founder-pitch slate**              | A1 + A2 + A6                | LAUNCH 2 + A2 remaining + dashboard MVP | Activation + daemon + dashboard. Largest persona expansion. Highest A6/A1 bandwidth contention.       |
+| **Full slate**                       | A1 + A2 + A3 + A4 + A5 + A6 | All Tier A remaining                    | Most ambitious; only realistic if A1 ships clean and bandwidth holds.                                 |
 
 The councils' lesson from `v0.5.0-beta` plus the 2026-05-03 activation council:
 **A1 + A2 + carry-over** is the highest-confidence cut for the next tag. A1
