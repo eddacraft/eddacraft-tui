@@ -139,6 +139,26 @@ impl ConfigStatus {
     }
 }
 
+/// Per-kind counts surfaced from `.anvil/baseline.json` (LAUNCH-010).
+/// Mirrors the on-disk `BaselineCounts` shape from
+/// `super::baseline` — duplicated here so the diagnostic does not
+/// re-export internals and so downstream JSON consumers see a single
+/// flat key set.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BaselineSummary {
+    /// Total fingerprint count in the baseline.
+    pub total: usize,
+    /// Antipattern findings recorded at activation time.
+    pub antipattern: usize,
+    /// Secret-shaped findings recorded at activation time. When > 0,
+    /// activation copy may name secrets as the headline security
+    /// signal (LAUNCH-010 spec) — but does so without claiming the
+    /// repo is clean of further secrets.
+    pub secret: usize,
+    /// RFC3339 timestamp the baseline was first written.
+    pub created_at: String,
+}
+
 /// Layered probe result for the wow-start activation flow.
 ///
 /// Surfaces should NOT compute `ProtectionState` from a subset of
@@ -158,6 +178,13 @@ pub struct ActivationDiagnostic {
     /// Surfaces use this to decide whether to label the next signal
     /// as "first new finding" vs "first finding".
     pub baseline_present: bool,
+    /// Per-kind summary of the baseline contents when present
+    /// (LAUNCH-010). Lets surfaces phrase the activation copy
+    /// honestly ("3 antipattern, 1 secret" vs the bare boolean
+    /// flag). `None` when no baseline is on disk OR when the file
+    /// could not be read — the latter case also sets `last_error`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline_summary: Option<BaselineSummary>,
     /// Last activation error, if any. Set by retry / verification
     /// flows when a previous activation attempt aborted. Cleared on
     /// the first successful re-run.
@@ -249,14 +276,14 @@ pub fn verify(root: &Path) -> ActivationDiagnostic {
 /// developer's real `~/.cursor/mcp.json` or `~/.claude.json`.
 pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnostic {
     let config = probe_config_status(root);
-    let baseline_present = probe_baseline_present(root);
+    let (baseline_present, baseline_summary, baseline_load_error) = probe_baseline(root);
 
     // LAUNCH-009: probe each registered MCP client. The probe is
     // read-only — it only reads each editor's config; the install
     // path is in the orchestrator. The fresh entry uses
     // `current_exe()` as the canonical command path so tier
     // classification compares against what we'd actually install.
-    let (mcp, last_error): (
+    let (mcp, mcp_last_error): (
         BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
         Option<String>,
     ) = match std::env::current_exe() {
@@ -293,11 +320,17 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     let language_profile = super::language_profile::profile_repo(root);
     let all_languages_unsupported = language_profile.all_unsupported();
 
+    // Compose the final `last_error` from MCP and baseline-load
+    // signals. MCP error wins when both fire so SRE diagnosis follows
+    // the same priority as before.
+    let last_error = mcp_last_error.or(baseline_load_error);
+
     ActivationDiagnostic {
         config,
         mcp,
         watch,
         baseline_present,
+        baseline_summary,
         last_error,
         all_languages_unsupported,
         language_profile,
@@ -375,12 +408,45 @@ fn is_semantically_empty_toml(v: &toml::Value) -> bool {
     }
 }
 
-fn probe_baseline_present(root: &Path) -> bool {
-    // The baseline file shape is owned by LAUNCH-010 (PR 4). PR 2
-    // probes only the directory existence so this layer is safe to
-    // ship before the writer lands; PR 4 narrows the probe to the
-    // exact file shape it picks.
-    root.join(".anvil").join("baseline.json").exists()
+/// Probe `.anvil/baseline.json` (LAUNCH-010). Returns
+/// `(present, summary, load_error)`:
+///
+/// - `present` is the back-compat boolean used by `protection_state`
+///   call sites that don't need the count. True iff the file is on
+///   disk, regardless of whether it parsed cleanly.
+/// - `summary` carries per-kind counts when the file parses; `None`
+///   when the file is absent OR could not be parsed. The latter case
+///   also populates `load_error` so the diagnostic surfaces an
+///   actionable signal instead of silently falling back to "absent".
+/// - `load_error` is the human-readable parse / I/O / schema error,
+///   suitable for `ActivationDiagnostic.last_error`.
+fn probe_baseline(root: &Path) -> (bool, Option<BaselineSummary>, Option<String>) {
+    let present = super::baseline::baseline_exists(root);
+    if !present {
+        return (false, None, None);
+    }
+    match super::baseline::read_baseline(root) {
+        Ok(Some(b)) => {
+            let summary = BaselineSummary {
+                total: b.total(),
+                antipattern: b.counts.antipattern_findings,
+                secret: b.counts.secret_findings,
+                created_at: b.created_at.clone(),
+            };
+            (true, Some(summary), None)
+        }
+        Ok(None) => {
+            // Race: file vanished between `exists()` and `read`.
+            // Honest answer is "absent now"; no error.
+            (false, None, None)
+        }
+        Err(e) => {
+            // File on disk but unreadable / malformed / wrong schema.
+            // Surface honestly so the user knows to regenerate.
+            tracing::warn!(error = %e, "verify: could not read baseline.json");
+            (true, None, Some(format!("baseline read failed: {e}")))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -395,6 +461,7 @@ mod tests {
             mcp: BTreeMap::new(),
             watch: WatchTier::NotRequested,
             baseline_present: false,
+            baseline_summary: None,
             last_error: None,
             all_languages_unsupported: false,
             language_profile: super::super::language_profile::RepoLanguageProfile::default(),
