@@ -289,7 +289,11 @@ impl ActivationDiagnostic {
     pub fn mcp_pre_write_wired_or_live(&self) -> bool {
         matches!(
             self.highest_mcp_tier(),
-            Some(McpTier::RestartRequired | McpTier::LiveValidation)
+            Some(
+                McpTier::RestartRequired
+                    | McpTier::RestartHandshakeVerified
+                    | McpTier::LiveValidation,
+            )
         )
     }
 
@@ -301,9 +305,10 @@ impl ActivationDiagnostic {
     ///
     /// **Honesty note suppression** is owned by
     /// [`Self::mcp_pre_write_wired_or_live`], not this predicate.
-    /// At `RestartRequired` the headline already says "restart your
-    /// editor or agent so the MCP server attaches", which carries
-    /// the partial-protection language without needing the watch-
+    /// At `RestartRequired` (and now `RestartHandshakeVerified` per
+    /// LAUNCH-009.6) the headline already says "restart your editor
+    /// or agent so the MCP server attaches", which carries the
+    /// partial-protection language without needing the watch-
     /// fallback note (firing the note there would orphan watch copy
     /// next to a `watch: not_requested` line). See the suppression
     /// gate in `activation::render::render_human` for the full set
@@ -402,7 +407,11 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
         && !all_languages_unsupported
         && !matches!(
             mcp.values().map(|r| r.tier).max(),
-            Some(McpTier::RestartRequired | McpTier::LiveValidation)
+            Some(
+                McpTier::RestartRequired
+                    | McpTier::RestartHandshakeVerified
+                    | McpTier::LiveValidation,
+            )
         ) {
         WatchTier::Offered
     } else {
@@ -863,6 +872,17 @@ mod tests {
         let mut d = empty_diagnostic();
         d.mcp
             .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
+        assert!(d.mcp_pre_write_wired_or_live());
+        assert!(!d.mcp_pre_write_live());
+    }
+
+    #[test]
+    fn mcp_pre_write_wired_or_live_is_true_at_restart_handshake_verified() {
+        let mut d = empty_diagnostic();
+        d.mcp.insert(
+            McpClientId::Cursor,
+            McpTier::RestartHandshakeVerified.into(),
+        );
         assert!(d.mcp_pre_write_wired_or_live());
         assert!(!d.mcp_pre_write_live());
     }
