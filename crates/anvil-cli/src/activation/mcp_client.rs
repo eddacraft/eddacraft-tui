@@ -386,10 +386,17 @@ fn shape_label(v: &serde_json::Value) -> &'static str {
 
 /// Shared `merge_and_render` for the JSON-with-`mcpServers`-key shape.
 ///
-/// **Preservation contract:**
-/// - Every key OUTSIDE `mcpServers.<server_name>` is preserved
-///   byte-for-byte: other server entries (`mcpServers.other`),
-///   top-level keys (`profile`, `unrelatedKey`), trailing keys, etc.
+/// **Preservation contract (semantic):**
+/// - Every JSON value OUTSIDE `mcpServers.<server_name>` is preserved
+///   semantically: other server entries (`mcpServers.other`),
+///   top-level keys (`profile`, `unrelatedKey`), and any other
+///   sub-trees survive intact. The output goes through
+///   `serde_json::to_string_pretty`, which **may** rewrite whitespace,
+///   indentation, and (for non-`Object` values) byte-level layout.
+///   `serde_json::Map` preserves insertion order, so object key order
+///   is also preserved in practice; document comments, trailing
+///   commas, or other JSONC artefacts would not be (we use strict
+///   JSON parsing).
 /// - The `mcpServers.<server_name>` value is **replaced wholesale** with
 ///   the freshly-built `entry`. Any keys the user added inside their
 ///   anvil entry (e.g. a custom `timeout`, `disabled`, `description`)

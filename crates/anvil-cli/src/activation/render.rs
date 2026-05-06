@@ -196,16 +196,29 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
 /// `anvil start --json` short-circuits to a read-only
 /// [`super::diagnostic::verify`] probe (see `commands/start.rs`) so
 /// stdout stays a single JSON document; the install path is never
-/// exercised under `--json`. CI consumers wanting a per-client install
-/// signal should:
+/// exercised under `--json`. The non-JSON path
+/// (`activation::orchestrator::run`) is the only place install
+/// failures occur today.
 ///
-/// 1. Read `state` (collapses to `error` whenever any install attempt
-///    failed, via `last_error`).
-/// 2. Read `mcp[].tier` to confirm each client reached the expected
-///    tier (`config_present` / `restart_required` / `server_startable`
-///    / `live_validation`).
-/// 3. Read `last_error` for a comma-separated list of `[client] reason`
-///    entries when state is `error`.
+/// What CI consumers see in `--json` mode (read-only probe):
+///
+/// 1. `state` — collapses to `error` only on **probe-time** failures
+///    (e.g. `current_exe()` resolution, malformed editor config files
+///    encountered while reading them). Install-time write failures
+///    cannot occur here because no install runs.
+/// 2. `mcp[].tier` — the on-disk tier each client has reached
+///    (`config_present` / `restart_required` / `server_startable` /
+///    `live_validation`). This is the canonical signal for "is anvil
+///    wired into this client?" in `--json` mode.
+/// 3. `last_error` — populated on probe failure with the underlying
+///    cause. Empty on a clean read-only probe even when `mcp[].tier`
+///    indicates `config_absent`.
+///
+/// In the non-JSON path (`anvil start` without `--json`), install
+/// failures DO surface via `last_error`, which the orchestrator
+/// populates from the per-client `InstallReport`. CI hooks running
+/// `anvil start && next-step` see this as a non-zero exit code from
+/// `commands/start.rs`.
 ///
 /// If a future workflow needs the structured install block in JSON,
 /// the design choice is documented in LAUNCH-009.5: either route
