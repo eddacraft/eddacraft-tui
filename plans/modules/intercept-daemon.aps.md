@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress                                                |
 | ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 7/16 complete |
+| INTD | @aneki | In Progress | 8/16 complete |
 
 **Last reviewed:** 2026-04-30
 
@@ -406,7 +406,23 @@ a new lane.
   `.github/workflows/rust.yml`; this task blocks all other tasks from being
   marked Complete
 - **Validation:** `gh run list --workflow=rust.yml` shows passing Windows jobs
-- **Status:** Draft
+- **Status:** Complete
+- **Progress (2026-05-06, A2 Wave 1 — `a2/wave1-windows-confidence`):** Triage
+  of recent `rust.yml` runs confirms the `Cross (x86_64-pc-windows-msvc)` job
+  is green for the four intercept crates (`anvil-intercept`,
+  `anvil-intercept-proto`, `anvil-intercept-rules`, `anvil-intercept-win32`)
+  with stable test counts (intercept-lib 58, intercept-proto 10, intercept-rules
+  34, intercept-win32 4). The `cross-compile` job only fires on push to `main`
+  and on PRs targeting `main`; dev-targeted PRs and pushes to `dev` skip the
+  Windows matrix — recorded as a deliberate cost/coverage trade-off in
+  `docs/runbooks/intd-012-windows-evidence.md`. Adding a separate Windows job
+  on dev push is **explicitly out of scope** per the A2 Wave 1 hard rules.
+  In addition, this slice adds a Windows-only fail-closed parity gate at
+  `crates/anvil-intercept/src/ipc.rs::tests::named_pipe_scan_buffer_envelope_parity_with_embedded`
+  that mirrors the Linux UDS parity test and asserts named-pipe daemon-backed
+  `scan_buffer` diagnostics match the embedded `EnforcementPipeline` path
+  byte-for-byte. The test uses `#[cfg(target_os = "windows")]` and is picked up
+  automatically by `cargo test --workspace --target x86_64-pc-windows-msvc`.
 
 ### INTD-013: Mirror Enforcement Decisions Onto Notification Telemetry
 
