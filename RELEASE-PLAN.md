@@ -61,7 +61,7 @@ literal. (See ROADMAP Horizon 1 + brainstorms in
 | Area                            | State                                                                      | What remains                                                       |
 | ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Release closeout                | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed     |
-| Wow-start activation (`LAUNCH`) | In Progress, 11/17 complete                                                | LAUNCH-002, -010, -011, -014, -009.5                               |
+| Wow-start activation (`LAUNCH`) | In Progress, 16/18 complete                                                | LAUNCH-009.6, LAUNCH-011                                           |
 | Daemon-backed MCP (`RMCP`)      | Complete, 8/8                                                              | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate |
 | Carry-over hardening (`V050F`)  | In Progress, 11/16 complete                                                | V050F-006, -007, -008, -011, -015                                  |
 | `V060F` nominations             | Complete, 1/1                                                              | No open nomination work                                            |
@@ -97,7 +97,7 @@ activation entrypoint on 2026-05-03.
   [`plans/brainstorms/2026-05-02-wow-start-{claude,codex,copilot,gemini,opencode}.md`](./plans/brainstorms/)
 - Executable plan:
   [`LAUNCH` module](./plans/modules/launch-flow-readiness.aps.md) — currently In
-  Progress 11/17.
+  Progress 16/18.
 - Adjacent re-architecture brainstorm:
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
@@ -115,14 +115,15 @@ PR 6 (LAUNCH-013)       ── install detector ──── (independent)
 PR 3 (LAUNCH-009/-011)  ── MCP + watch fallback ──┘  (depends on PR 2)
 ```
 
-| Order | PR   | Items                  | Branch                               | Risk                                   |
-| ----- | ---- | ---------------------- | ------------------------------------ | -------------------------------------- |
-| 1     | PR 2 | LAUNCH-008, LAUNCH-012 | `launch/a1-protection-states`        | Complete                               |
-| 2     | PR 5 | LAUNCH-015, LAUNCH-016 | `launch/a1-language-profile-filters` | Complete                               |
-| 3     | PR 6 | LAUNCH-013             | `launch/a1-install-upgrade-guidance` | Complete                               |
-| 4     | PR 1 | LAUNCH-002, LAUNCH-006 | `launch/a1-start-entrypoint`         | medium (composes existing primitives)  |
-| 5     | PR 3 | LAUNCH-009, LAUNCH-011 | `launch/a1-mcp-activation-fallback`  | **high** — mandatory follow-up council |
-| 6     | PR 4 | LAUNCH-010, LAUNCH-014 | `launch/a1-first-signal-integrity`   | medium                                 |
+| Order | PR   | Items                  | Branch                               | Risk                                  |
+| ----- | ---- | ---------------------- | ------------------------------------ | ------------------------------------- |
+| 1     | PR 2 | LAUNCH-008, LAUNCH-012 | `launch/a1-protection-states`        | Complete                              |
+| 2     | PR 5 | LAUNCH-015, LAUNCH-016 | `launch/a1-language-profile-filters` | Complete                              |
+| 3     | PR 6 | LAUNCH-013             | `launch/a1-install-upgrade-guidance` | Complete                              |
+| 4     | PR 1 | LAUNCH-002, LAUNCH-006 | `launch/a1-start-entrypoint`         | Complete                              |
+| 5     | PR 3 | LAUNCH-009, LAUNCH-011 | `launch/a1-mcp-activation-fallback`  | Partial — LAUNCH-011 remains open     |
+| 6     | PR 4 | LAUNCH-010, LAUNCH-014 | `launch/a1-first-signal-integrity`   | Complete                              |
+| 7     | PR 7 | LAUNCH-009.6           | TBD                                  | medium — tier-semantic reconciliation |
 
 **Execution constraints:** Each PR references its LAUNCH item(s), includes tests
 for acceptance criteria, passes council review before opening, remediates all
@@ -132,25 +133,22 @@ also validate or honestly surface #1195 and #1197.
 **Execution notes:** PR 1 (LAUNCH-006) promoted `anvil start` from a clap alias
 for `welcome` to the dedicated activation entrypoint, so the prose references in
 this plan describe state-after-PR-1. The APS LAUNCH file is authoritative for
-counts (currently In Progress, 11/17). `v0.5.1-beta` shipped on 2026-05-03, but
-the APS index header still anchors prose to `v0.5.0-beta`; fix that in a
-separate docs PR.
+counts (currently In Progress, 16/18). `v0.5.1-beta` shipped on 2026-05-03, and
+the APS index header has been refreshed to that release.
 
-**Modules / work items (6 outstanding):**
+**Modules / work items (2 outstanding):**
 
-- **LAUNCH-006** — make `anvil start` the activation entrypoint (the
-  load-bearing surface).
-- **LAUNCH-009** — safely activate Cursor and Claude Code MCP paths via the Rust
-  MCP launch shim.
-- **LAUNCH-010** — baseline old findings before first activation signal (so the
-  first catch is genuinely new, not noise).
+- **LAUNCH-009.6** — reconcile MCP tier semantics so the spawn probe can promote
+  the diagnostic without losing `RestartRequired` meaning.
 - **LAUNCH-011** — honest watch-mode fallback when MCP cannot attach.
-- **LAUNCH-014** — make the interactive tutorial prove value faster.
-- **LAUNCH-002** — allow `--action` with TUI mode (watch fallback ergonomics).
 
-**Recently completed:** LAUNCH-008 (protection states), LAUNCH-012
-(verification), LAUNCH-013 (version/upgrade guidance), LAUNCH-015 (language
-profile), and LAUNCH-016 (language-aware scan/watch filtering).
+**Recently completed:** LAUNCH-002 (watch action/TUI coexistence), LAUNCH-006
+(`anvil start` activation entrypoint), LAUNCH-008 (protection states),
+LAUNCH-009 (Cursor / Claude Code MCP activation), LAUNCH-009.5 (MCP spawn probe
+observability), LAUNCH-010 (activation baseline), LAUNCH-012 (verification),
+LAUNCH-013 (version/upgrade guidance), LAUNCH-014 (protection-loop tutorial),
+LAUNCH-015 (language profile), and LAUNCH-016 (language-aware scan/watch
+filtering).
 
 **Prerequisites:**
 
@@ -195,7 +193,7 @@ support.
 
 **Recommendation: PICK. This is the next-tag headline. The five-brainstorm
 convergence + council ratification means the framing is locked; what's
-outstanding is execution against LAUNCH's 6 open items.**
+outstanding is execution against LAUNCH's 2 open items.**
 
 ---
 
