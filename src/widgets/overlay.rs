@@ -171,9 +171,9 @@ impl<T: Theme> Widget for OverlayStack<'_, T> {
     /// the wrapper widgets (`Hideable`, `Padded`) and ratatui layout helpers
     /// when you only need scrim + clear + a single rendering pass.
     ///
-    /// Layers receive a synthetic [`Frame`] is not available here; the
-    /// closures inside layers cannot call `frame.render_widget` and so will
-    /// be skipped. For full overlay rendering use
+    /// A synthetic [`Frame`] is not available in this code path, so the
+    /// per-layer render closures cannot call `frame.render_widget` and are
+    /// skipped. For full overlay rendering use
     /// [`OverlayStack::render_to_frame`] from inside a draw closure instead.
     fn render(self, area: Rect, buf: &mut Buffer) {
         let want_scrim = self.layers.iter().any(|l| l.scrim);

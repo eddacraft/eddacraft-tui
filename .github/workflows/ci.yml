@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main, dev]
 
+# Default GITHUB_TOKEN to read-only at the workflow level. Individual
+# jobs/steps can opt into broader scopes if ever needed (none currently
+# require write access). Addresses CodeQL "Workflow does not contain
+# permissions" advisories.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
