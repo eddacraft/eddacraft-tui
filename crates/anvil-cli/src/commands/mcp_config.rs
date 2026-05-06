@@ -1,9 +1,21 @@
 //! `anvil mcp-config` — generate MCP server configuration for AI editors.
 //!
-//! RCLI3-016. Produces editor-specific JSON for `claude-code`, `cursor`,
-//! `windsurf`, and `vscode` so the RTAI launch demo runbook
+//! RCLI3-016 / LAUNCH-009.5. Produces editor-specific JSON for `claude-code`
+//! and `cursor` so the RTAI launch demo runbook
 //! (`plans/specs/2026-04-26-rtai-demo-runbook.md`) has a one-command install
-//! step before Cursor / Claude Code can consume the daemon.
+//! step before each editor can consume the daemon.
+//!
+//! ## Removed in LAUNCH-009.5: `windsurf` and `vscode`
+//!
+//! - **Windsurf** was banned in the 2026-05-03 activation council and never
+//!   reached protocol-compliance verification in the repo.
+//! - **`vscode`** wrote to the wrong file shape (`.vscode/settings.json` with
+//!   the `mcp.servers` key); VS Code 1.99+ moved MCP to `.vscode/mcp.json`
+//!   with the `servers` key. The old emitter was a no-op for current VS Code
+//!   builds, which over-claimed coverage. Re-add via a fresh, verified impl.
+//!
+//! Both removals close the LAUNCH-009 v1-scope cleanup the original task
+//! body deferred to part-2 because the diff was already large.
 
 use std::fs;
 use std::io::{BufRead, IsTerminal, Write};
@@ -75,10 +87,6 @@ pub enum Target {
     ClaudeCode,
     /// Cursor (`.cursor/mcp.json`).
     Cursor,
-    /// Windsurf (`.windsurf/mcp.json`).
-    Windsurf,
-    /// `VSCode` workspace settings (`.vscode/settings.json`, `mcp.servers` key).
-    Vscode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -329,7 +337,7 @@ fn validate_rust_stdio_entry(
     let args_ok = entry.get("args") == Some(&json!(["mcp", "serve", "--stdio",]));
     let type_ok = match entry.get("type") {
         Some(value) => value.as_str() == Some("stdio"),
-        None => !matches!(target, Target::ClaudeCode | Target::Vscode),
+        None => !matches!(target, Target::ClaudeCode),
     };
 
     if command_ok && args_ok && type_ok {
@@ -368,13 +376,13 @@ fn validate_rust_stdio_entry(
 }
 
 fn type_required(target: Target) -> bool {
-    matches!(target, Target::ClaudeCode | Target::Vscode)
+    matches!(target, Target::ClaudeCode)
 }
 
 fn expected_type_label(target: Target) -> &'static str {
     match target {
-        Target::ClaudeCode | Target::Vscode => "`stdio`",
-        Target::Cursor | Target::Windsurf => "`stdio` when present",
+        Target::ClaudeCode => "`stdio`",
+        Target::Cursor => "`stdio` when present",
     }
 }
 
@@ -412,13 +420,10 @@ fn read_existing_entry(target: Target, config_path: &Path) -> Result<Option<Valu
 
 /// Build the editor-specific JSON value that goes on disk.
 ///
-/// Note the `VSCode` shape diverges: it nests the entry under `mcp.servers`
-/// with a `type` field (`stdio`/`streamable-http`) per the `VSCode` MCP
-/// convention. `streamable-http` superseded the legacy `sse` type from VS
-/// Code 1.99 onwards; older builds still parse it via the same code path.
-/// Other targets share a `mcpServers` map keyed by server name with
-/// `command` / `args` (for stdio) or `url` (for http); Claude Code also
-/// carries `type: "stdio"` in the same map for its user-scope config.
+/// Both surviving targets (Claude Code, Cursor) share the `mcpServers` map
+/// keyed by server name with `command` / `args` (for stdio) or `url` (for
+/// http); Claude Code also carries `type: "stdio"` in the same map for its
+/// user-scope config.
 pub(crate) fn build_config(
     target: Target,
     transport: Transport,
@@ -427,24 +432,11 @@ pub(crate) fn build_config(
 ) -> Value {
     let command = command_override.unwrap_or("anvil");
     let entry = build_entry(target, transport, port, command);
-    match target {
-        Target::ClaudeCode | Target::Cursor | Target::Windsurf => {
-            json!({
-                "mcpServers": {
-                    SERVER_NAME: entry,
-                }
-            })
+    json!({
+        "mcpServers": {
+            SERVER_NAME: entry,
         }
-        Target::Vscode => {
-            json!({
-                "mcp": {
-                    "servers": {
-                        SERVER_NAME: entry,
-                    }
-                }
-            })
-        }
-    }
+    })
 }
 
 fn build_entry(target: Target, transport: Transport, port: u16, command: &str) -> Value {
@@ -454,15 +446,6 @@ fn build_entry(target: Target, transport: Transport, port: u16, command: &str) -
             "command": command,
             "args": ["mcp", "serve", "--stdio"],
             "env": {},
-        }),
-        (Target::Vscode, Transport::Stdio) => json!({
-            "type": "stdio",
-            "command": command,
-            "args": ["mcp", "serve", "--stdio"],
-        }),
-        (Target::Vscode, Transport::Http) => json!({
-            "type": "streamable-http",
-            "url": format!("http://127.0.0.1:{port}/mcp"),
         }),
         (_, Transport::Stdio) => json!({
             "command": command,
@@ -478,18 +461,10 @@ fn build_entry(target: Target, transport: Transport, port: u16, command: &str) -
 
 /// Pluck the existing `anvil` entry out of an on-disk config so `--verify`
 /// can report it and `--write` can do an idempotent merge.
-fn extract_entry(target: Target, root: &Value) -> Option<Value> {
-    match target {
-        Target::ClaudeCode | Target::Cursor | Target::Windsurf => root
-            .get("mcpServers")
-            .and_then(|m| m.get(SERVER_NAME))
-            .cloned(),
-        Target::Vscode => root
-            .get("mcp")
-            .and_then(|m| m.get("servers"))
-            .and_then(|s| s.get(SERVER_NAME))
-            .cloned(),
-    }
+fn extract_entry(_target: Target, root: &Value) -> Option<Value> {
+    root.get("mcpServers")
+        .and_then(|m| m.get(SERVER_NAME))
+        .cloned()
 }
 
 /// Merge the freshly-built entry into any existing config file at
@@ -533,36 +508,15 @@ fn merge_into_existing(target: Target, config_path: &Path, fresh: &Value) -> Res
     Ok(serde_json::to_string_pretty(&merged)?)
 }
 
-fn insert_entry(target: Target, root: &mut Value, entry: Value) -> Result<()> {
-    match target {
-        Target::ClaudeCode | Target::Cursor | Target::Windsurf => {
-            let obj = ensure_object(root);
-            let servers = obj
-                .entry("mcpServers".to_string())
-                .or_insert_with(|| Value::Object(Map::new()));
-            let Value::Object(map) = servers else {
-                bail!("existing config has non-object `mcpServers`; refusing to overwrite");
-            };
-            map.insert(SERVER_NAME.to_string(), entry);
-        }
-        Target::Vscode => {
-            let obj = ensure_object(root);
-            let mcp = obj
-                .entry("mcp".to_string())
-                .or_insert_with(|| Value::Object(Map::new()));
-            let Value::Object(mcp_map) = mcp else {
-                bail!("existing config has non-object `mcp`; refusing to overwrite");
-            };
-            let servers = mcp_map
-                .entry("servers".to_string())
-                .or_insert_with(|| Value::Object(Map::new()));
-            let Value::Object(map) = servers else {
-                bail!("existing config has non-object `mcp.servers`; refusing to overwrite");
-            };
-            map.insert(SERVER_NAME.to_string(), entry);
-        }
-    }
-
+fn insert_entry(_target: Target, root: &mut Value, entry: Value) -> Result<()> {
+    let obj = ensure_object(root);
+    let servers = obj
+        .entry("mcpServers".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    let Value::Object(map) = servers else {
+        bail!("existing config has non-object `mcpServers`; refusing to overwrite");
+    };
+    map.insert(SERVER_NAME.to_string(), entry);
     Ok(())
 }
 
@@ -674,8 +628,6 @@ fn relative_path_for(target: Target) -> PathBuf {
     match target {
         Target::ClaudeCode => PathBuf::from(".claude.json"),
         Target::Cursor => PathBuf::from(".cursor").join("mcp.json"),
-        Target::Windsurf => PathBuf::from(".windsurf").join("mcp.json"),
-        Target::Vscode => PathBuf::from(".vscode").join("settings.json"),
     }
 }
 
@@ -683,8 +635,6 @@ fn target_label(target: Target) -> &'static str {
     match target {
         Target::ClaudeCode => "claude-code",
         Target::Cursor => "cursor",
-        Target::Windsurf => "windsurf",
-        Target::Vscode => "vscode",
     }
 }
 
@@ -721,44 +671,6 @@ mod tests {
         assert_eq!(entry["command"], "anvil");
         let raw = serde_json::to_string_pretty(&v).unwrap();
         let _: Value = serde_json::from_str(&raw).unwrap();
-    }
-
-    #[test]
-    fn windsurf_stdio_shape() {
-        let v = build_config(Target::Windsurf, Transport::Stdio, 0, None);
-        assert_anvil_entry(Target::Windsurf, &v);
-        let raw = serde_json::to_string_pretty(&v).unwrap();
-        let _: Value = serde_json::from_str(&raw).unwrap();
-    }
-
-    #[test]
-    fn vscode_stdio_shape_has_type_field() {
-        // VSCode's MCP convention is type-tagged (stdio / sse) and sits
-        // under `mcp.servers`, not the shared `mcpServers` map.
-        let v = build_config(Target::Vscode, Transport::Stdio, 0, None);
-        assert!(v.get("mcp").is_some(), "vscode nests under mcp.servers");
-        assert!(
-            v.get("mcpServers").is_none(),
-            "vscode must not use the shared mcpServers key"
-        );
-        let entry = extract_entry(Target::Vscode, &v).unwrap();
-        assert_eq!(entry["type"], "stdio");
-        assert_eq!(entry["command"], "anvil");
-        let raw = serde_json::to_string_pretty(&v).unwrap();
-        let _: Value = serde_json::from_str(&raw).unwrap();
-    }
-
-    #[test]
-    fn vscode_http_uses_streamable_http_type() {
-        // VS Code 1.99+ uses `streamable-http`; the legacy `sse` type was
-        // deprecated. Older builds still accept the new name.
-        let v = build_config(Target::Vscode, Transport::Http, 7616, None);
-        let entry = extract_entry(Target::Vscode, &v).unwrap();
-        assert_eq!(entry["type"], "streamable-http");
-        assert!(
-            entry["url"].as_str().unwrap().contains("7616"),
-            "url should embed the chosen port",
-        );
     }
 
     #[test]
@@ -830,14 +742,6 @@ mod tests {
         assert_eq!(
             relative_path_for(Target::Cursor),
             PathBuf::from(".cursor").join("mcp.json"),
-        );
-        assert_eq!(
-            relative_path_for(Target::Windsurf),
-            PathBuf::from(".windsurf").join("mcp.json"),
-        );
-        assert_eq!(
-            relative_path_for(Target::Vscode),
-            PathBuf::from(".vscode").join("settings.json"),
         );
     }
 }

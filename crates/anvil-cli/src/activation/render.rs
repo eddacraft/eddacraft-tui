@@ -192,6 +192,27 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
 /// set; downstream PRs add fields, they do not rename or remove
 /// existing ones.
 ///
+/// **Per-client install outcomes are intentionally NOT in this contract.**
+/// `anvil start --json` short-circuits to a read-only
+/// [`super::diagnostic::verify`] probe (see `commands/start.rs`) so
+/// stdout stays a single JSON document; the install path is never
+/// exercised under `--json`. CI consumers wanting a per-client install
+/// signal should:
+///
+/// 1. Read `state` (collapses to `error` whenever any install attempt
+///    failed, via `last_error`).
+/// 2. Read `mcp[].tier` to confirm each client reached the expected
+///    tier (`config_present` / `restart_required` / `server_startable`
+///    / `live_validation`).
+/// 3. Read `last_error` for a comma-separated list of `[client] reason`
+///    entries when state is `error`.
+///
+/// If a future workflow needs the structured install block in JSON,
+/// the design choice is documented in LAUNCH-009.5: either route
+/// `--json` through the orchestrator with init's stdout suppressed,
+/// or add an `install:` block here and emit two top-level objects
+/// (which would break the single-document contract).
+///
 /// The body uses `serde_json::json!` so the value is constructed
 /// directly from primitives — no fallible `to_value` round-trip and
 /// no panic path for the binary to inherit.
