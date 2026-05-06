@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anvil_intercept_rules::ChangeKind;
 use anvil_kernel_types::diagnostics::KnownMode;
@@ -10,6 +10,7 @@ use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 
 use crate::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipeline, ProposedChange};
+use crate::latency::LatencyAggregator;
 
 pub const SCAN_BUFFER_METHOD: &str = "scan_buffer";
 pub const MAX_CONCURRENT_SCAN_BUFFERS: usize = 2;
@@ -82,6 +83,12 @@ pub struct ScanBufferService {
     pipeline: Arc<EnforcementPipeline>,
     permits: Arc<Semaphore>,
     timeout: Duration,
+    /// INTD-011: sliding-window aggregator for the daemon-handled
+    /// portion of mid-edit `scan_buffer` RPCs. Pre-write samples and
+    /// IPC-roundtrip costs are deliberately excluded — ADR-031 names
+    /// those `validation.roundtrip` and treats them as a separate
+    /// dimension owned by the driver-side benchmarks.
+    latency: LatencyAggregator,
 }
 
 impl std::fmt::Debug for ScanBufferService {
@@ -108,7 +115,16 @@ impl ScanBufferService {
             pipeline: Arc::new(pipeline),
             permits: Arc::new(Semaphore::new(MAX_CONCURRENT_SCAN_BUFFERS)),
             timeout,
+            latency: LatencyAggregator::new(),
         }
+    }
+
+    /// Borrow the latency aggregator. The IPC `query_status` handler
+    /// uses this to read the rollup without taking ownership of the
+    /// service.
+    #[must_use]
+    pub fn latency(&self) -> &LatencyAggregator {
+        &self.latency
     }
 
     pub async fn scan_buffer(
@@ -130,17 +146,54 @@ impl ScanBufferService {
                 TryAcquireError::NoPermits => ScanBufferError::Busy,
                 TryAcquireError::Closed => ScanBufferError::ServiceUnavailable,
             })?;
+        // INTD-011: capture the request mode before moving `request`
+        // into the worker thread. Only `mode = midEdit` samples are
+        // recorded — the latency aggregator is the daemon-side
+        // `validation.service` boundary per ADR-031, scoped to the
+        // mid-edit budget class. Pre-write timings get a separate
+        // mode if RTAI-006 ever needs them.
+        let request_mode = request.mode;
         let pipeline = Arc::clone(&self.pipeline);
         let (sender, receiver) = tokio::sync::oneshot::channel();
         std::thread::Builder::new()
             .name("anvil-scan-buffer".to_owned())
             .spawn(move || {
-                let _ = sender.send(scan_buffer_with_pipeline(&request, &pipeline));
+                // ADR-031: `validation.service` boundary — start at
+                // "daemon has accepted a complete validation request"
+                // (the worker thread has been spawned with the parsed
+                // `request`), end at "daemon has produced the response
+                // payload" (the pipeline call returns). Measuring on
+                // the worker thread keeps the aggregator off the IPC
+                // event loop's hot path. Not all platforms guarantee
+                // monotonic `Instant` under VM clock skew — the
+                // aggregator handles backwards steps with
+                // `saturating_duration_since`.
+                let started = Instant::now();
+                let result = scan_buffer_with_pipeline(&request, &pipeline);
+                let elapsed = started.elapsed();
+                // Send the (result, elapsed) pair so the caller can
+                // record into the aggregator AFTER awaiting — the
+                // worker thread does not import the aggregator
+                // because keeping the recording on the awaiting
+                // side keeps the timeout path correct (a timed-out
+                // call MUST NOT poison the aggregator with the
+                // worker's straggler duration).
+                let _ = sender.send((result, elapsed));
             })
             .map_err(|err| ScanBufferError::WorkerFailed(err.to_string()))?;
 
         match tokio::time::timeout(self.timeout, receiver).await {
-            Ok(Ok(result)) => result,
+            Ok(Ok((result, elapsed))) => {
+                // Only record if the request mode is mid-edit — pre-
+                // write traffic is intentionally excluded from the
+                // mid-edit rollup. The recording happens on the
+                // success path here (NOT inside the worker) so a
+                // timed-out call does not contribute to the rollup.
+                if matches!(request_mode, ScanBufferMode::MidEdit) && result.is_ok() {
+                    self.latency.record(Instant::now(), elapsed);
+                }
+                result
+            }
             Ok(Err(err)) => Err(ScanBufferError::WorkerFailed(err.to_string())),
             Err(_) => {
                 eprintln!(
@@ -444,6 +497,86 @@ mod tests {
         barrier.wait();
         first.await.expect("first task").expect("first scan");
         second.await.expect("second task").expect("second scan");
+    }
+
+    /// INTD-011: the service records `validation.service` durations
+    /// for `mode = midEdit` calls. Pre-write calls do NOT contribute
+    /// to the rollup — pre-write is a separate budget class per
+    /// ADR-031, and mixing the two would muddy the demo trust signal.
+    #[tokio::test]
+    async fn scan_buffer_records_mid_edit_latency_into_aggregator() {
+        let service = ScanBufferService::new(EnforcementPipeline::default());
+        // Mid-edit call -> recorded.
+        service
+            .scan_buffer(secret_request())
+            .await
+            .expect("scan_buffer ok");
+        let snapshot = service.latency().snapshot(Instant::now());
+        let snapshot = snapshot.expect("mid-edit call must record at least one sample");
+        assert_eq!(snapshot.sample_count, 1);
+        assert!(snapshot.p50_ms >= 0.0);
+        assert!(snapshot.p95_ms >= 0.0);
+    }
+
+    #[tokio::test]
+    async fn scan_buffer_timeout_does_not_poison_latency_aggregator() {
+        // A timed-out call MUST NOT contribute to the rollup — the
+        // recorded duration would be the worker's straggler timing,
+        // which is unbounded above and would skew p95 wildly. The
+        // recording lives on the success branch of the await, so a
+        // TimedOut return path skips the record() call.
+        struct SleepingRule;
+
+        impl InterceptRule for SleepingRule {
+            fn rule_id(&self) -> &'static str {
+                "sleeping-rule"
+            }
+
+            fn needs_content(&self) -> bool {
+                true
+            }
+
+            fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+                RuleDecision::Allow
+            }
+
+            fn diagnostics_with_limit(
+                &self,
+                _input: &RuleInput<'_>,
+                _mode: &Mode,
+                _limit: usize,
+            ) -> Vec<Diagnostic> {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                Vec::new()
+            }
+        }
+
+        let registry = RuleRegistry::with_rules(vec![Box::new(SleepingRule)]).expect("unique rule");
+        let service = ScanBufferService::with_timeout(
+            EnforcementPipeline::new(registry),
+            std::time::Duration::from_millis(20),
+        );
+        let outcome = service.scan_buffer(secret_request()).await;
+        assert!(matches!(outcome, Err(ScanBufferError::TimedOut)));
+        // Aggregator must remain empty.
+        assert!(
+            service.latency().snapshot(Instant::now()).is_none(),
+            "TimedOut path must not record into the aggregator",
+        );
+    }
+
+    #[tokio::test]
+    async fn scan_buffer_does_not_record_pre_write_latency_into_mid_edit_rollup() {
+        let service = ScanBufferService::new(EnforcementPipeline::default());
+        let mut request = secret_request();
+        request.mode = ScanBufferMode::PreWrite;
+        service.scan_buffer(request).await.expect("scan_buffer ok");
+        // Pre-write samples MUST NOT contribute to the mid-edit
+        // rollup — the aggregator is mode-scoped.
+        assert!(
+            service.latency().snapshot(Instant::now()).is_none(),
+            "pre-write must not pollute the mid-edit rollup",
+        );
     }
 
     /// A runaway rule that outlives the caller's timeout MUST NOT
