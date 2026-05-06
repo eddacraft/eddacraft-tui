@@ -292,6 +292,45 @@ a new lane.
   fence applied immediately on any delivery failure
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib interrupt`
 - **Status:** Draft
+- **Notes (pitchfork survey, 2026-05-06):** Surveyed `endevco/pitchfork@cea18d7`
+  (MIT, jdx's company; same SHA as `jdx/pitchfork@HEAD`) for the cross-platform
+  termination code INTD-006 needs.
+
+  What lifts:
+  - `src/procs.rs::kill` + `kill_process_group` (Unix only). Adaptive
+    10 ms / 50 ms poll between `libc::kill` / `libc::killpg` and SIGKILL
+    escalation; drops into `crates/anvil-intercept/src/interrupt.rs`. The
+    PID-reuse defence INTD-006 already requires (proc starttime match
+    before delivery) is added on top — pitchfork does not do this.
+
+  What gets rewritten (not present in pitchfork):
+  - **Windows Job Object termination.** Pitchfork delegates Windows kills
+    to `sysinfo::Process::kill()` (TerminateProcess on the leader only,
+    no job-object scoping). The `CreateJobObject` /
+    `AssignProcessToJobObject` / `TerminateJobObject` path is on us — put
+    it in `anvil-intercept-win32` so the `unsafe` stays quarantined,
+    matching the IPC-side split landed in INTD-002.
+  - **PID-1 zombie reap / signal forward.** No init/container mode in
+    pitchfork despite README claims; if a container surface ever lands
+    it will not come from this codebase.
+
+  What we explicitly do not lift:
+  - `src/supervisor/retry.rs`. Pitchfork is a supervisor (retries on
+    fail); INTD is enforcement (fence on fail). Copying the retry path
+    into the interrupt loop would invert the threat model.
+
+  Adjacent lifts (tracked outside INTD-006 scope):
+  - Readiness-probe enum (`Delay | OutputRegex | Http | Tcp | Cmd`) from
+    `src/pitchfork_toml.rs` → INTL-002 daemon-up check. Type design
+    only; the runtime is fused into `supervisor/lifecycle.rs::run_once`
+    and is not worth extracting.
+  - Lifecycle-hook variants (`OnReady | OnFail | OnRetry | OnStop |
+    OnExit`) from `src/supervisor/hooks.rs` → DRVR / launcher contract.
+    Skip the Tera-templated fire-and-forget runtime; just match the
+    vocabulary.
+
+  License: MIT. Add to `THIRD-PARTY-NOTICES` on import. Reference pin:
+  `https://github.com/endevco/pitchfork/tree/cea18d7`.
 
 ### INTD-007: Fence Persistence
 
