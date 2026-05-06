@@ -300,15 +300,16 @@ pub trait McpClient: Send + Sync {
     ///   the file.
     /// - `ConfigPresent → RestartRequired`: ALWAYS emit `RestartRequired`
     ///   on a fresh write — we cannot observe restart without IPC.
-    /// - `RestartRequired → ServerStartable`: caller spawns the entry
-    ///   and observes a clean MCP handshake. (Implemented by the
-    ///   orchestrator, not here, because the spawn probe is shared
-    ///   across impls.)
+    /// - `RestartRequired → RestartHandshakeVerified`: caller spawns
+    ///   the installed entry and observes a clean MCP handshake.
+    ///   (Implemented by the diagnostic probe, not here, because the
+    ///   spawn probe is shared across impls.)
     /// - `LiveValidation`: out-of-scope for v1. INTD-only.
     ///
     /// This method returns the tier based on the on-disk evidence
     /// (config absent / present / matches fresh entry). The orchestrator
-    /// promotes to `ServerStartable` separately via [`probe_startable`].
+    /// promotes to `RestartHandshakeVerified` separately via
+    /// [`probe_startable`].
     fn verify_config_tier(&self, parsed: Option<&ParsedConfig>, fresh: &AnvilEntry) -> McpTier;
 
     /// Human-readable hint shown when the tier caps at `RestartRequired`.
@@ -712,35 +713,36 @@ fn probe_one(
 }
 
 // ---------------------------------------------------------------------------
-// Spawn probe (LAUNCH-009.5): observability-only handshake against the
-// installed entry. Tier promotion deferred to LAUNCH-009.6 — see the
-// `probe_handshake_for_observability` doc in `diagnostic.rs` for the
-// semantic deviation rationale.
+// Spawn probe (LAUNCH-009.6): handshake against the installed entry. The
+// diagnostic promotes `RestartRequired` to `RestartHandshakeVerified` on
+// success so `ServerStartable` can keep its weaker no-client-wiring meaning.
 // ---------------------------------------------------------------------------
 
-/// Walk each registered client's config paths and return the first
-/// installed `AnvilEntry` whose tier is `RestartRequired`.
+/// Walk each registered client's config paths and return installed entries
+/// whose tier is currently `RestartRequired`, keyed by client.
 ///
-/// Used by the spawn probe so the handshake spawns the **actual command
-/// the editor would run** (e.g. a bare `"anvil"` entry from
+/// Used by the spawn probe so each handshake spawns the command that
+/// specific editor would run (e.g. a bare `"anvil"` entry from
 /// `anvil mcp-config` that PATH-resolves to a different binary than
-/// `current_exe()`), not just `fresh`. Closes the council finding that
-/// probing `fresh` could mislead users with `entries_equivalent`-matched
-/// bare-command entries.
+/// `current_exe()`), not just `fresh`.
 ///
-/// Returns `None` when no client is at `RestartRequired`, when the
-/// installed entry can't be re-parsed, or when the entry's `command`
-/// field is missing/non-string. The caller should fall back to `fresh`
-/// in any of those cases — the probe is observability-only so a
-/// fallback target is informative even when not perfectly truthful.
-pub fn first_installed_restart_required_entry(
+/// Skips a client when it is not at `RestartRequired`, when the installed
+/// entry can't be re-parsed, or when the entry's `command` field is
+/// missing/non-string. The caller may still probe `fresh` for
+/// observability if this returns empty, but it must not promote a client
+/// tier from fallback evidence because that is not the editor's actual
+/// spawn target.
+pub fn installed_restart_required_entries(
     workspace: &Path,
     home: Option<&Path>,
     fresh: &AnvilEntry,
-) -> Option<AnvilEntry> {
+) -> BTreeMap<McpClientId, AnvilEntry> {
+    let mut entries = BTreeMap::new();
     for client in all_clients() {
         for candidate in client.config_paths(workspace, home) {
-            let raw = std::fs::read_to_string(&candidate.path).ok()?;
+            let Ok(raw) = std::fs::read_to_string(&candidate.path) else {
+                continue;
+            };
             let Ok(parsed) = client.parse(&raw) else {
                 continue;
             };
@@ -751,11 +753,12 @@ pub fn first_installed_restart_required_entry(
                 continue;
             };
             if let Some(entry) = stdio_entry_from_value(existing) {
-                return Some(entry);
+                entries.insert(client.id(), entry);
+                break;
             }
         }
     }
-    None
+    entries
 }
 
 /// Best-effort: parse an installed JSON entry back into an
@@ -867,17 +870,10 @@ impl std::fmt::Display for ProbeError {
 /// would not yet imply the editor will pick up the entry, so spawning
 /// the probe would just burn CPU.
 ///
-/// **Tier behaviour (v1):** the diagnostic surface treats this probe as
-/// **observability-only** — `Ok` and `Err` results are both logged via
-/// `tracing` but neither changes the per-client `McpTier` in the
-/// returned diagnostic. The original LAUNCH-009 spec described a
-/// `RestartRequired → ServerStartable` promotion on `Ok`, but the
-/// existing tier ladder positions `ServerStartable` *below*
-/// `RestartRequired` (LAUNCH-008 council reading), so promoting would
-/// slide the tier down the ladder. Tier-semantic reconciliation is
-/// tracked as **LAUNCH-009.6** in the launch APS module — when that
-/// lands, `probe_handshake_for_observability` in `diagnostic.rs` swaps
-/// from logging-only to actual tier promotion.
+/// **Tier behaviour:** LAUNCH-009.6 maps `Ok(())` to
+/// `RestartHandshakeVerified`, not `ServerStartable`, preserving the
+/// distinction between "server can spawn" and "configured client entry
+/// can spawn".
 ///
 /// **Process management:**
 /// - Stdio is piped; stderr is silenced (the server's `tracing` output
@@ -990,14 +986,18 @@ fn validate_initialize_response(raw: &str) -> Result<(), ProbeError> {
             value["error"]
         )));
     }
-    if value
-        .get("result")
-        .and_then(|r| r.get("serverInfo"))
-        .is_none()
-    {
+    let Some(server_info) = value.get("result").and_then(|r| r.get("serverInfo")) else {
         return Err(ProbeError::BadResponse(
             "missing result.serverInfo".to_string(),
         ));
+    };
+    if server_info.get("name").and_then(|v| v.as_str()) != Some("anvil") {
+        return Err(ProbeError::BadResponse(format!(
+            "expected result.serverInfo.name=anvil, got {}",
+            server_info
+                .get("name")
+                .map_or_else(|| "<missing>".to_string(), serde_json::Value::to_string)
+        )));
     }
     Ok(())
 }
@@ -1311,6 +1311,16 @@ mod tests {
         }
     }
 
+    #[test]
+    fn validate_initialize_rejects_non_anvil_server() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"other-mcp","version":"1.0.0"}}}"#;
+        let err = validate_initialize_response(raw).expect_err("non-anvil server must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("serverInfo.name=anvil")),
+            other => panic!("expected BadResponse(serverInfo.name), got {other:?}"),
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn probe_startable_fails_when_command_does_not_exist() {
@@ -1362,12 +1372,13 @@ mod tests {
             env: BTreeMap::new(),
         };
         let err = probe_startable(&entry).expect_err("garbage line must fail");
-        // Could be ParseResponse (echo prints "not-jsonrpc") or
-        // BadResponse depending on how /bin/echo's output parses.
+        // Could be Write if /bin/echo exits before stdin is written,
+        // ParseResponse if echo prints "not-jsonrpc", or BadResponse
+        // depending on how /bin/echo's output parses.
         assert!(
             matches!(
                 err,
-                ProbeError::ParseResponse(_) | ProbeError::BadResponse(_)
+                ProbeError::Write(_) | ProbeError::ParseResponse(_) | ProbeError::BadResponse(_)
             ),
             "got {err:?}",
         );
@@ -1384,6 +1395,9 @@ mod tests {
             env: BTreeMap::new(),
         };
         let err = probe_startable(&entry).expect_err("immediate exit must fail");
-        assert!(matches!(err, ProbeError::EmptyResponse), "got {err:?}");
+        assert!(
+            matches!(err, ProbeError::Write(_) | ProbeError::EmptyResponse),
+            "got {err:?}",
+        );
     }
 }

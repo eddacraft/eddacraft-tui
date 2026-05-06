@@ -13,12 +13,11 @@
 //!    drift policy and atomicity guarantees.
 //! 3. Re-probe and return the diagnostic for the caller to render.
 //!
-//! **Deliberately NOT in v1** (deferred to LAUNCH-009.5 / LAUNCH-011 —
-//! the tasks that own the safe versions of these steps):
-//! - **Server startable spawn probe.** Spawning `anvil mcp serve --stdio`
-//!   and observing a clean handshake promotes a tier from
-//!   `RestartRequired` to `ServerStartable`. Out of scope here; lives
-//!   in LAUNCH-009.5 once the spawn helper is verified.
+//! **Deliberately NOT in this orchestrator** (owned by diagnostic probes /
+//! LAUNCH-011 — the tasks that own the safe versions of these steps):
+//! - **Server startable spawn probe.** `activation::verify` owns the
+//!   read-only MCP handshake and promotes `RestartRequired` to
+//!   `RestartHandshakeVerified` when the installed entry serves MCP.
 //! - **Watch fallback spawn.** LAUNCH-011 owns the in-process / detached
 //!   watcher that lets `start` end in the `watching` state. Until then,
 //!   `WatchTier::NotRequested` is the honest answer.

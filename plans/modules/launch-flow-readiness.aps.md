@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 16/18    |
+| LAUNCH | —     | In Progress | 17/18    |
 
 ## Purpose
 
@@ -186,10 +186,9 @@ new primitive, this module follows three rules:
 
 > Status: In Progress. LAUNCH-001, LAUNCH-002, LAUNCH-003, LAUNCH-004,
 > LAUNCH-005, LAUNCH-006, LAUNCH-007, LAUNCH-008, LAUNCH-009,
-> LAUNCH-009.5, LAUNCH-010, LAUNCH-012, LAUNCH-013, LAUNCH-014,
-> LAUNCH-015, and LAUNCH-016 are complete; LAUNCH-009.6
-> (tier-semantic reconciliation) and LAUNCH-011 stay Todo until
-> picked up.
+> LAUNCH-009.5, LAUNCH-009.6, LAUNCH-010, LAUNCH-012, LAUNCH-013,
+> LAUNCH-014, LAUNCH-015, and LAUNCH-016 are complete; LAUNCH-011
+> stays Todo until picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -1041,10 +1040,10 @@ new primitive, this module follows three rules:
   2. **Add a new tier** between `RestartRequired` and `LiveValidation`
      (e.g. `RestartHandshakeVerified`) that captures "config wired
      AND server starts" without overloading `ServerStartable`.
-- **Coordinates with:** LAUNCH-009.5 (probe code is already in place;
-  this task swaps the stub `probe_handshake_for_observability` body
-  for a real promotion path), LAUNCH-008 (tier vocabulary owner),
-  and any future INTD-driven `LiveValidation` work.
+- **Coordinates with:** LAUNCH-009.5 (probe code was already in place;
+  this task swaps the observability-only path for a real promotion
+  path), LAUNCH-008 (tier vocabulary owner), and any future INTD-driven
+  `LiveValidation` work.
 - **Validation:**
   - Existing `watch_running_plus_server_startable_does_not_overclaim`
     and `server_startable_without_watch_falls_to_needs_action` tests
@@ -1055,7 +1054,18 @@ new primitive, this module follows three rules:
 - **LOC budget:** ~50-150 production + ~50-100 test (pure refactor;
   most of the cost is updating tests that encode the old reading).
 - **Confidence:** medium.
-- **Status:** Todo
+- **Status:** Complete — implemented the additive tier option as
+  `McpTier::RestartHandshakeVerified`, preserving `ServerStartable` as
+  the weaker "server can spawn without confirmed client wiring" tier.
+  `activation::verify` now promotes each `RestartRequired` client to
+  `RestartHandshakeVerified` only after that client's installed entry is
+  extracted and its configured command completes the MCP initialise
+  handshake. If extraction falls back to `current_exe`, the probe stays
+  informational and does not promote. `protection_state()` treats the
+  new tier as `ReadyRestartRequired`, not `Protecting`; `LiveValidation`
+  remains the only `Protecting` evidence. Validation covers the new
+  tier in activation diagnostic unit tests and the end-to-end
+  `anvil status --verify` spawn-probe integration.
 
 ---
 
