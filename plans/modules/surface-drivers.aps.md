@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| DRVR | —     | In Progress | 0/4 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 In Progress on `a2/wave1-driver-scope-trust`; DRVR-006 supersession recorded in same PR; DRVR-001 In Progress on `a2/wave2-shared-driver-client` (Wave 2) |
+| DRVR | —     | In Progress | 0/4 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 In Progress on `a2/wave1-driver-scope-trust`; DRVR-006 supersession recorded in same PR; DRVR-001 In Progress (Pending merge of `a2/wave2-shared-driver-client`) |
 
 **Last reviewed:** 2026-05-06
 
@@ -198,7 +198,7 @@ define graph schema.
   wrong-owner socket refused on connect.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** In Progress (Wave 2 — `a2/wave2-shared-driver-client`)
+- **Status:** In Progress (Pending merge of `a2/wave2-shared-driver-client`)
 - **Council review (2026-04-24):** Partial-failure surface bullet added
   for M13 (operations-reviewer); driver-side socket-owner check for
   M8 (security-analyst).

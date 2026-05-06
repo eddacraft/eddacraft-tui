@@ -113,10 +113,12 @@ pnpm --filter @eddacraft/anvil-driver-client typecheck
 
 Unit tests run against an in-memory fake transport. The integration
 test (`src/__tests__/integration-real-daemon.test.ts`) requires a
-built daemon binary at `target/{debug,release}/eddacraft-anvil-intercept`.
-If the binary is missing the test skips gracefully — the standard
-validation gate runs without it; CI's Rust job is responsible for
-building the daemon before invoking this suite.
+built daemon binary at `target/{debug,release}/anvil-intercept`
+(crate `eddacraft-anvil-intercept`). If the binary is missing the
+test skips gracefully — the standard validation gate runs without
+it; CI's Rust job is responsible for building the daemon before
+invoking this suite. Override the location via
+`ANVIL_INTERCEPT_BIN=/path/to/anvil-intercept`.
 
 ## Out-of-scope (deferred)
 
