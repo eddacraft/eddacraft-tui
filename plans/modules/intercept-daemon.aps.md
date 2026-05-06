@@ -422,7 +422,25 @@ a new lane.
   decisions synchronously, reusing the same rule evaluation and session logic
   as the daemon
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib embedded`
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/embedded.rs`
+  ships `embedded_evaluate(&ChangeBatch, &Resolved, &EnforcementPipeline) ->
+  EnforcementDecision` plus the `with_diagnostics` variant. Reuses the
+  same `EnforcementPipeline` / `RuleRegistry` / proposed-content code
+  path the daemon uses, so the diagnostic envelope is byte-identical
+  to the daemon-backed path on the same fixture (parity test
+  `embedded_path_emits_same_envelope_as_daemon_path` mirrors the
+  existing `local_daemon_client_returns_scan_buffer_diagnostics_with_embedded_parity`
+  in `anvil-cli`). The function signature deliberately takes only
+  the request and the resolved config — no daemon-failure
+  parameter — so embedded mode cannot be a silent fallback path
+  for a failed daemon (`embedded_does_not_auto_promote_from_failed_daemon_path`
+  pins this with a compile-time `fn` pointer assignment). Honours
+  INTD-008 `enforcement.mode` (Warn downgrades interrupt → Allow,
+  Fence/Interrupt propagate the pipeline result for the caller to
+  enforce) and `observe_only` (always Allow regardless of mode).
+  7 embedded unit tests pass; the daemon-backed parity contract
+  test in `anvil-cli` continues to pass unchanged.
 
 ### INTD-010: Unregistered Change Handling
 
