@@ -51,21 +51,23 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     let _ = writeln!(out, "  watch: {}", d.watch.label());
 
     // LAUNCH-011: surface the literal "MCP pre-write validation is
-    // not attached" note whenever the diagnostic does not have live
-    // evidence AND the surrounding state makes the note actionable.
+    // not attached" note whenever the diagnostic does not have an
+    // already-conveys-the-partial-state signal AND the surrounding
+    // state makes the note actionable.
     //
-    // Council remediation: the original gate used
-    // `mcp_pre_write_wired_or_live()` to suppress the note at
-    // `RestartRequired`, which was wrong — at that tier the editor
-    // has not yet loaded the entry, so MCP is configured but not
-    // attached. The honesty contract requires the note to fire
-    // there too. The new gate uses `mcp_pre_write_live()` so the
-    // suppression only kicks in when there is literal evidence of
-    // pre-write validation.
+    // Council remediation (round 2): suppress the note when MCP is
+    // wired-or-live (`RestartRequired+`). At `RestartRequired`, the
+    // headline already says "Ready, restart required — restart your
+    // editor or agent so the MCP server attaches", which carries the
+    // partial-protection message without needing the note. Adding
+    // the note there with no `watch: offered` line just produces
+    // orphaned watch-fallback copy that nudges the user toward watch
+    // when they should restart. The renamed `mcp_pre_write_wired_or_live`
+    // predicate is the honest gate for this.
     //
-    // Suppressed in three states:
-    // - `Protecting` (covered by the `!live` check; explicit match
-    //   here makes the intent clear)
+    // Suppressed in five cases:
+    // - MCP at `RestartRequired+` (headline + restart hint already
+    //   communicate the partial state; note would orphan watch copy)
     // - `Error` — the surface should report the cause, not hedge
     //   with a fallback advisory the user cannot act on until the
     //   error clears
@@ -77,7 +79,9 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     //   not run `anvil init` yet; the actionable next step is init,
     //   not watch fallback. The note distracts from that primary
     //   action.
-    let suppress_note = d.mcp_pre_write_live()
+    // - `Protecting` (also covered by `mcp_pre_write_wired_or_live`,
+    //   but the explicit match is kept for readability)
+    let suppress_note = d.mcp_pre_write_wired_or_live()
         || matches!(
             state,
             ProtectionState::Error | ProtectionState::Unsupported | ProtectionState::Protecting
@@ -731,18 +735,31 @@ mod tests {
     }
 
     #[test]
-    fn human_render_includes_fallback_note_when_ready_restart_required() {
-        // Council remediation: at `RestartRequired`, MCP is configured
-        // but the editor has NOT yet loaded the entry, so MCP is not
-        // attached. The honesty contract forbids claiming attachment
-        // based on configuration alone. The note must fire here so a
-        // user reading `state: ready_restart_required` cannot mistake
-        // it for "MCP intercepting writes already".
+    fn human_render_omits_fallback_note_when_ready_restart_required() {
+        // Council round-2 remediation: the `ReadyRestartRequired`
+        // headline already says "restart your editor or agent so the
+        // MCP server attaches", which honestly communicates the
+        // partial state. Appending the watch-fallback note at this
+        // tier produces orphaned copy ("watch fallback exists" with
+        // no `watch: offered` line to act on), nudging the user
+        // toward watch when they should restart. The honesty contract
+        // is preserved by the headline; the note is redundant here.
         let h = render_human(&restart_required());
         assert!(
-            h.contains("MCP pre-write validation is not attached"),
-            "ready_restart_required render must include the partial-\
-             protection note — MCP is wired but not yet attached, got:\n{h}"
+            !h.contains("MCP pre-write validation is not attached"),
+            "ready_restart_required render must NOT include the \
+             partial-protection note — the headline already \
+             communicates the restart-required state, got:\n{h}"
+        );
+        // Belt-and-braces: the headline must carry the partial-state
+        // language. If a future copy edit drops it, the absence of
+        // the note plus a "fully protected"-style headline would be
+        // a regression.
+        let lower = h.to_lowercase();
+        assert!(
+            lower.contains("restart") && (lower.contains("attach") || lower.contains("mcp server")),
+            "ready_restart_required headline must communicate the \
+             restart-pending state directly, got:\n{h}"
         );
     }
 
