@@ -57,7 +57,11 @@ const DEFAULT_SCHEDULER: DebouncerScheduler = {
   setTimeout: (cb, ms) => globalThis.setTimeout(cb, ms),
   clearTimeout: (handle) =>
     globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>),
-  now: () => Date.now(),
+  // Monotonic clock — Date.now() can move backwards under NTP / leap-second
+  // adjustments, which would treat aged cache entries as still fresh
+  // (negative duration < window) and contradict the docstring above.
+  // performance.now() is available in Node 16+ and all modern browsers.
+  now: () => globalThis.performance.now(),
 };
 
 export interface DebouncerOptions {
@@ -206,10 +210,19 @@ export class MidEditDebouncer<R> {
       cached.hash === hash &&
       nowMs - cached.recordedAt <= this.dedupWindowMs
     ) {
-      // Identical content within the window — short-circuit without
-      // touching the pending entry. If a pending entry exists for a
-      // different (now stale) hash, it stays pending; the user's
-      // *next* keystroke resolves the contention.
+      // Identical content within the window — short-circuit AND coalesce
+      // any in-flight dispatch for this key. If a pending request exists
+      // for newer-but-superseded content, leaving it pending would let
+      // a stale daemon call fire later (extra round-trip + a promise
+      // resolving with diagnostics for content that is no longer
+      // current). Cancel the pending dispatch so only the cached
+      // outcome is observable for this `submit` epoch.
+      const stalePending = this.pending.get(key);
+      if (stalePending !== undefined) {
+        this.scheduler.clearTimeout(stalePending.timeoutHandle);
+        this.pending.delete(key);
+        stalePending.resolve({ kind: 'coalesced' });
+      }
       return { promise: Promise.resolve({ kind: 'cached', value: cached.value }) };
     }
     if (cached !== undefined && nowMs - cached.recordedAt > this.dedupWindowMs) {

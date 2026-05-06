@@ -293,6 +293,48 @@ describe('MidEditDebouncer — content-hash dedup', () => {
     expect(secondOutcome).toEqual({ kind: 'fresh', value: 'result-world' });
     expect(dispatchCount).toBe(2);
   });
+
+  it('cache hit on revert coalesces a pending dispatch for newer content', async () => {
+    // Scenario: type X (cached). Type Y (pending). Revert to X (cache
+    // hit). The pending Y must be coalesced — without this, Y fires
+    // later and resolves with diagnostics for content that is no
+    // longer current. Pinned by Copilot review on PR #1311.
+    const sched = manualScheduler();
+    const debouncer = new MidEditDebouncer<string>({
+      debounceMs: 80,
+      dedupWindowMs: 1_000,
+      scheduler: sched,
+    });
+
+    let dispatchCount = 0;
+    const dispatch = async (text: string): Promise<string> => {
+      dispatchCount += 1;
+      return `result-${text}`;
+    };
+
+    // 1. Type X. Dispatch fires, X cached.
+    const first = debouncer.submit('file:///x', 'X', dispatch);
+    await sched.advance(80);
+    await first.promise;
+    expect(dispatchCount).toBe(1);
+
+    // 2. Type Y. Pending dispatch is queued (will fire at +80ms).
+    const pending = debouncer.submit('file:///x', 'Y', dispatch);
+
+    // 3. Before Y fires, revert to X. Cache hit MUST coalesce Y.
+    const cacheHit = debouncer.submit('file:///x', 'X', dispatch);
+
+    const cacheOutcome = await cacheHit.promise;
+    const pendingOutcome = await pending.promise;
+
+    expect(cacheOutcome).toEqual({ kind: 'cached', value: 'result-X' });
+    expect(pendingOutcome).toEqual({ kind: 'coalesced' });
+
+    // Advance past Y's old debounce window — the cancelled pending
+    // must NOT have fired.
+    await sched.advance(200);
+    expect(dispatchCount).toBe(1);
+  });
 });
 
 describe('MidEditDebouncer — cancellation', () => {
