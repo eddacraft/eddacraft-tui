@@ -90,7 +90,7 @@ hardening cut, or `v0.6.0-beta` for a coherent feature slice.
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
 | Release closeout | Shipped | `v0.5.1-beta` verified | Tracking issue #1233 remains open as the durable release log |
-| Wow-start activation | In Progress | LAUNCH 15/17 | Open: LAUNCH-009.5/-011 |
+| Wow-start activation | In Progress | LAUNCH 16/18 | Open: LAUNCH-009.6/-011 |
 | Daemon-backed MCP launch path | Complete | RMCP 8/8 | RMCP-005 live daemon client committed; embedded fallback remains correctness-equivalent |
 | Release hardening follow-ups | In Progress | V050F 11/16 | Open: V050F-006/-007/-008/-011/-015 |
 | Release nominations | Complete | V060F 1/1 | RCLI2-009 admin command parity complete |
