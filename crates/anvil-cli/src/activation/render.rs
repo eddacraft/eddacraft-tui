@@ -625,4 +625,129 @@ mod tests {
             "Unsupported hint must not pair `secret` and `watch` to imply coverage: {h}"
         );
     }
+
+    // ---- LAUNCH-011: explicit fallback honesty ----------------------
+
+    /// Helper: a `Watching` diagnostic where MCP is genuinely below
+    /// `RestartRequired` — the most common shape `anvil start --watch`
+    /// renders before the kernel watcher takes over.
+    fn watching_no_mcp() -> ActivationDiagnostic {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.watch = WatchTier::Running;
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ConfigAbsent.into());
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::ConfigAbsent.into());
+        d
+    }
+
+    /// Helper: `WatchTier::Offered` shape produced by `verify` on a
+    /// fresh repo where MCP cannot pre-write attach.
+    fn watch_offered_no_mcp() -> ActivationDiagnostic {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.watch = WatchTier::Offered;
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ConfigAbsent.into());
+        d
+    }
+
+    #[test]
+    fn human_render_states_pre_write_not_attached_when_watching() {
+        let h = render_human(&watching_no_mcp());
+        assert!(
+            h.contains("MCP pre-write validation is not attached"),
+            "watching render must explicitly say MCP pre-write validation is \
+             not attached, got:\n{h}"
+        );
+        assert!(
+            h.contains("save-time fallback") || h.contains("saved file changes"),
+            "watching render must label fallback as save-time only, got:\n{h}"
+        );
+        assert!(
+            !h.contains("fully protected"),
+            "watching render must NEVER claim full protection, got:\n{h}"
+        );
+        assert!(
+            !h.contains("MCP attached"),
+            "watching render must not claim MCP attached, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn human_render_states_pre_write_not_attached_when_watch_offered() {
+        let h = render_human(&watch_offered_no_mcp());
+        assert!(
+            h.contains("watch: offered"),
+            "rendered watch tier line must show offered, got:\n{h}"
+        );
+        assert!(
+            h.contains("MCP pre-write validation is not attached"),
+            "offered fallback render must explicitly say MCP pre-write \
+             validation is not attached, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn human_render_omits_fallback_note_when_protecting() {
+        // Adversarial guard: live MCP must not get the partial-protection
+        // note appended — that would sow doubt where the diagnostic has
+        // literal evidence of pre-write validation.
+        let h = render_human(&protecting());
+        assert!(
+            !h.contains("MCP pre-write validation is not attached"),
+            "protecting render must not include the fallback note, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn human_render_omits_fallback_note_when_ready_restart_required() {
+        // RestartRequired means MCP IS attached — the user just needs
+        // to restart to see live evidence. Adding the "not attached"
+        // note here would contradict the headline state.
+        let h = render_human(&restart_required());
+        assert!(
+            !h.contains("MCP pre-write validation is not attached"),
+            "ready_restart_required render must not claim pre-write \
+             validation is not attached, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn human_render_omits_fallback_note_on_error() {
+        // Error states should report the cause, not hedge with a
+        // separate fallback advisory. The user's first action is to
+        // fix the error, not run a watcher on top of it.
+        let h = render_human(&config_error());
+        assert!(
+            !h.contains("MCP pre-write validation is not attached"),
+            "error render must not append the fallback note, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn needs_action_hint_points_at_start_watch_for_fallback() {
+        // LAUNCH-011: when MCP is below `ConfigPresent`, the repair
+        // hint should advertise the composed `anvil start --watch`
+        // entry-point (a single command produces fallback protection)
+        // rather than asking the user to discover `anvil watch`
+        // separately.
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil start --watch"),
+            "NeedsAction hint must advertise `anvil start --watch`, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn json_render_propagates_offered_watch_tier() {
+        // The `watch` field carries the literal label so machine
+        // consumers can distinguish "available" (`offered`) from
+        // "not part of the picture" (`not_requested`).
+        let v = render_json(&watch_offered_no_mcp());
+        assert_eq!(v["watch"], "offered");
+    }
 }

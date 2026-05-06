@@ -291,3 +291,230 @@ fn start_on_invalid_config_emits_error_state_not_panic() {
         "expected `state: error` on malformed config, got:\n{stdout}"
     );
 }
+
+// ---- LAUNCH-011: honest watch fallback --------------------------
+
+#[test]
+fn start_verify_on_fresh_repo_surfaces_partial_protection_note() {
+    // LAUNCH-011 acceptance: when MCP cannot pre-write attach (no
+    // client at `RestartRequired+`), the human render must say so
+    // explicitly — never let the user infer protection from a
+    // weaker tier or from config-only state.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
+    assert!(
+        out.status.success(),
+        "anvil start --verify failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+
+    // The diagnostic must include the literal honesty note.
+    assert!(
+        stdout.contains("MCP pre-write validation is not attached"),
+        "fresh-repo --verify must include the partial-protection note, got:\n{stdout}"
+    );
+
+    // It must surface the offered watch tier so the user sees the
+    // fallback option in the structured output, not just in the prose
+    // hint.
+    assert!(
+        stdout.contains("watch: offered"),
+        "fresh-repo --verify must show watch tier as `offered`, got:\n{stdout}"
+    );
+
+    // Truthfulness guardrails — the language LAUNCH-011 explicitly
+    // forbids must NOT appear anywhere in the rendered output.
+    let lower = stdout.to_lowercase();
+    assert!(
+        !lower.contains("fully protected"),
+        "rendered output must never claim `fully protected`, got:\n{stdout}"
+    );
+    assert!(
+        !lower.contains("mcp activated"),
+        "rendered output must never claim `MCP activated`, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("state: protecting"),
+        "fresh-repo --verify MUST NOT claim `state: protecting`, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn start_after_install_does_not_surface_partial_protection_note() {
+    // Adversarial guard against a regression that always appends the
+    // fallback note. After the install step, MCP is at
+    // `RestartRequired` — the headline is `ready_restart_required`,
+    // and the partial-protection note must NOT appear because MCP
+    // IS attached (just pending a restart).
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_start_with_home(dir.path(), home.path(), &[]);
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("state: ready_restart_required"),
+        "post-install state should be ready_restart_required, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("MCP pre-write validation is not attached"),
+        "post-install render must not claim MCP pre-write validation is \
+         not attached — the user is one restart from live, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn start_watch_with_verify_is_rejected() {
+    // LAUNCH-011: `--watch` spawns a process; `--verify` is read-only.
+    // Combining them would silently downgrade one or synthesise watch
+    // state without actually starting it. Reject the combination so
+    // the user gets a clear error instead.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_start_with_home(dir.path(), home.path(), &["--watch", "--verify"]);
+    assert!(
+        !out.status.success(),
+        "`--watch --verify` must fail, stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("`--watch` and `--verify` are mutually exclusive"),
+        "error message must explain the conflict, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn start_watch_with_json_is_rejected() {
+    // LAUNCH-011: the watcher streams event lines; `--json` expects a
+    // single parseable document. Reject the combination explicitly.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("--json")
+        .arg("start")
+        .arg("--watch")
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    let out = cmd.output().expect("failed to invoke anvil binary");
+    assert!(
+        !out.status.success(),
+        "`--watch --json` must fail, stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("`--watch` and `--json` are mutually exclusive"),
+        "error message must explain the conflict, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn start_watch_renders_partial_protection_and_starts_watcher() {
+    // LAUNCH-011 acceptance: with no supported MCP client live,
+    // `anvil start --watch` runs the orchestrator, prints the
+    // diagnostic, and lands the user in the kernel watcher. The
+    // pre-handoff render must:
+    //
+    //   1. Not claim `state: protecting` (no LiveValidation evidence).
+    //   2. Include the explicit "MCP pre-write validation is not
+    //      attached" note.
+    //   3. Print the watch hand-off marker so the user sees the
+    //      transition into the fallback.
+    //
+    // Implementation note: the watcher is long-running. We read
+    // stdout in a separate thread until we see the hand-off marker
+    // or the deadline expires, then SIGKILL the child via
+    // `Child::kill` (cross-platform). The test process is the parent
+    // and is fine; we deliberately do not assert on graceful shutdown
+    // — that path is covered by `commands::watch` unit tests.
+    use std::io::Read;
+    use std::process::Stdio;
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let mut child = Command::new(ANVIL_BIN)
+        .arg("--no-tui")
+        .arg("start")
+        .arg("--watch")
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn anvil start --watch");
+
+    let mut stdout_handle = child.stdout.take().expect("piped stdout");
+
+    // Drain stdout in a worker thread so the parent can enforce a
+    // wall-clock deadline. A blocking read on the main thread would
+    // hang if the child wrote nothing for some reason.
+    let buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let buf_clone = Arc::clone(&buf);
+    let reader = std::thread::spawn(move || {
+        let mut chunk = [0u8; 1024];
+        loop {
+            match stdout_handle.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => {
+                    if let Ok(mut guard) = buf_clone.lock() {
+                        guard.push_str(&String::from_utf8_lossy(&chunk[..n]));
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    // Poll the buffer for the hand-off marker.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline {
+        if let Ok(guard) = buf.lock()
+            && guard.contains("watch: starting save-time fallback")
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    // Stop the child; the reader thread will exit on EOF.
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = reader.join();
+
+    let captured = buf.lock().map(|g| g.clone()).unwrap_or_default();
+
+    assert!(
+        captured.contains("MCP pre-write validation is not attached"),
+        "pre-handoff render must include the partial-protection note, got:\n{captured}"
+    );
+    assert!(
+        captured.contains("watch: starting save-time fallback"),
+        "must print the watch hand-off marker before entering the watcher, \
+         got:\n{captured}"
+    );
+    assert!(
+        !captured.contains("state: protecting"),
+        "fallback path MUST NOT claim `state: protecting`, got:\n{captured}"
+    );
+    let lower = captured.to_lowercase();
+    assert!(
+        !lower.contains("fully protected"),
+        "fallback path MUST NEVER claim `fully protected`, got:\n{captured}"
+    );
+}
