@@ -201,9 +201,9 @@ pub(crate) fn run_baseline_scan(root: &Path) -> Option<BaselineScanOutcome> {
         .collect();
     let file_refs: Vec<&str> = file_strs.iter().map(String::as_str).collect();
 
-    let workspace_root = root
-        .canonicalize()
-        .ok()
+    let canonical_root = root.canonicalize().ok();
+    let workspace_root = canonical_root
+        .as_ref()
         .map(|p| p.to_string_lossy().to_string());
 
     let antipattern_result =
@@ -213,14 +213,27 @@ pub(crate) fn run_baseline_scan(root: &Path) -> Option<BaselineScanOutcome> {
     // that the antipattern scanner already counted as scanned but whose
     // bytes we can't get (e.g. transient I/O error). A file we can't
     // read can't have a finding here, so the silent skip is correct.
+    //
+    // PR #1293 review fix (Copilot): pass repo-relative forward-slash
+    // paths to `scan_content` so the resulting `SecretFinding.file`
+    // values — which feed `secret_fingerprint` — are portable across
+    // checkouts and OSes. Without this, baselines written on
+    // `/home/alice/repo/...` would never match findings later observed
+    // at `/Users/bob/repo/...` or `C:\Users\bob\repo\...`.
     let secret_config = SecretCheckConfig::default();
     let mut secrets: Vec<SecretFinding> = Vec::new();
     for path in &sample {
         let Ok(content) = std::fs::read_to_string(path) else {
             continue;
         };
-        let path_str = path.to_string_lossy();
-        secrets.extend(scan_content(&content, &path_str, &secret_config));
+        let display_path = canonical_root
+            .as_ref()
+            .and_then(|root| path.strip_prefix(root).ok())
+            .map_or_else(
+                || path.to_string_lossy().replace('\\', "/"),
+                |rel| rel.to_string_lossy().replace('\\', "/"),
+            );
+        secrets.extend(scan_content(&content, &display_path, &secret_config));
     }
 
     Some(BaselineScanOutcome {

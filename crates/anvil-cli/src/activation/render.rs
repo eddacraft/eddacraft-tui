@@ -50,11 +50,18 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     // says "no findings tracked yet", because the sample is bounded
     // (~50 files). When secret-shaped findings are present, name
     // them as the headline security signal.
+    //
+    // PR #1293 review fix (Copilot): the original copy said "future
+    // changes are checked", which over-claimed — this PR ships the
+    // baseline contract but does not yet wire watch / check / audit
+    // to filter on it. The wording is now future-tense ("future
+    // scans will diff against this set") and explicitly notes that
+    // the diffing wiring lands in follow-up PRs.
     match (&d.baseline_summary, d.baseline_present) {
         (Some(s), _) if s.secret > 0 => {
             let _ = writeln!(
                 out,
-                "  baseline: present ({} tracked — {} antipattern, {} secret-shaped; future changes are checked)",
+                "  baseline: present ({} recorded — {} antipattern, {} secret-shaped)",
                 s.total, s.antipattern, s.secret,
             );
             let _ = writeln!(
@@ -65,7 +72,7 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
         (Some(s), _) => {
             let _ = writeln!(
                 out,
-                "  baseline: present ({} tracked; future changes are checked)",
+                "  baseline: present ({} findings recorded; future scans will diff against this set as wiring lands)",
                 s.total,
             );
         }

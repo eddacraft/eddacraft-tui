@@ -398,21 +398,23 @@ mod tests {
     #[test]
     fn orchestrator_records_findings_in_baseline() {
         // LAUNCH-010 spec: a fixture repo with a finding-shaped line
-        // must produce a baseline whose total > 0. Uses a secret-like
-        // pattern (AWS access key) to keep the assertion deterministic
-        // without depending on the antipattern catalog. Pinning to
-        // total > 0 keeps the test useful even as the catalog evolves.
+        // must produce a baseline whose total > 0.
+        //
+        // PR #1293 review fix (Copilot): the test relies on
+        // antipattern findings, not secret findings. `@ts-ignore` is
+        // AP-004 in the compiled registry and `: any` is AP-003 —
+        // both are TS-shape and predate recent registry churn. The
+        // earlier comment incorrectly named an "AWS access key"
+        // approach; the actual fixture deliberately avoids the
+        // secret-scanner allowlist (which captures `EXAMPLE`
+        // patterns) so the assertion stays deterministic regardless
+        // of allowlist evolution.
         use crate::activation::baseline;
 
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         let global = default_global();
 
-        // Plant content that reliably triggers an antipattern
-        // finding. `@ts-ignore` is AP-004 in the compiled registry
-        // and `: any` is AP-003 — both are TS-shape, both predate any
-        // recent registry churn, and neither relies on the secret
-        // scanner's allowlist behaviour.
         std::fs::write(
             dir.path().join("leak.ts"),
             "// @ts-ignore\nconst x: any = 5;\n",
