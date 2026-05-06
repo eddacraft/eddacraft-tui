@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| DRVR | —     | In Progress | 0/4 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 In Progress on `a2/wave1-driver-scope-trust`; DRVR-006 supersession recorded in same PR; DRVR-001 In Progress (Pending merge of `a2/wave2-shared-driver-client`) |
+| DRVR | —     | In Progress | 0/4 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 In Progress on `a2/wave1-driver-scope-trust`; DRVR-006 supersession recorded in same PR; DRVR-001 In Progress (Pending merge of `a2/wave2-shared-driver-client`); DRVR-002 + DRVR-008 In Progress on `a2/wave3-driver-protocol-capabilities` |
 
 **Last reviewed:** 2026-05-06
 
@@ -260,7 +260,7 @@ define graph schema.
   checklists confirm coverage.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave3-driver-protocol-capabilities`)
 - **Council review (2026-04-24):** Expected-outcome expanded with
   M2 / M3 / M4 / M6 / M12 / S6 / S7 prerequisites.
 
@@ -484,7 +484,7 @@ define graph schema.
   PR #1063.
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave3-driver-protocol-capabilities`)
 
 ## Risks
 
