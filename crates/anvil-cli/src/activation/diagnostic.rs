@@ -261,18 +261,26 @@ impl ActivationDiagnostic {
         self.mcp.values().map(|r| r.tier).max()
     }
 
-    /// True when at least one MCP client has reached the
-    /// "configured + ready to attach on restart" tier or stronger.
+    /// True when at least one MCP client is wired (entry on disk +
+    /// ready to attach on restart) or already producing live
+    /// validation evidence — i.e. tier ≥ `RestartRequired`.
     ///
-    /// This is the only honest place to draw the boundary between
-    /// "MCP pre-write validation may be (or shortly will be) attached"
-    /// and "MCP pre-write validation is not attached". Tiers strictly
-    /// below `RestartRequired` mean the editor has no anvil entry the
-    /// user could pick up on restart, so claiming attachment would
-    /// over-claim. LAUNCH-011 uses this predicate to decide whether
-    /// the watch fallback should be offered or rendered as the active
-    /// protection layer.
-    pub fn mcp_pre_write_attached(&self) -> bool {
+    /// Council remediation: the original name was
+    /// `mcp_pre_write_attached`, which was misleading at
+    /// `RestartRequired` — that tier means "configured" not
+    /// "attached", because the editor has not yet loaded the entry.
+    /// The honesty contract forbids claiming attachment based on
+    /// configuration alone, so the predicate's name now reflects
+    /// what it actually tests. The watch-fallback offer logic in
+    /// [`verify_with_home`] inlines the same boundary; this method
+    /// is a stable contract for downstream surfaces (`status`,
+    /// `doctor`) that need to ask the same question without
+    /// duplicating the tier-set literal.
+    #[allow(
+        dead_code,
+        reason = "stable predicate for downstream surfaces; the inlined offer-gate uses the same tier set"
+    )]
+    pub fn mcp_pre_write_wired_or_live(&self) -> bool {
         matches!(
             self.highest_mcp_tier(),
             Some(McpTier::RestartRequired | McpTier::LiveValidation)
@@ -281,8 +289,11 @@ impl ActivationDiagnostic {
 
     /// True when at least one MCP client has produced
     /// `LiveValidation` evidence inside this repo. This is the only
-    /// tier that justifies a `Protecting` claim; everything weaker
-    /// must defer to watch fallback or restart-required messaging.
+    /// tier that justifies a `Protecting` claim, and the only tier
+    /// that lets surfaces suppress the "MCP pre-write validation is
+    /// not attached" honesty note — every weaker tier (including
+    /// `RestartRequired`) must surface the note because the editor
+    /// is not yet intercepting writes.
     pub fn mcp_pre_write_live(&self) -> bool {
         matches!(self.highest_mcp_tier(), Some(McpTier::LiveValidation))
     }
@@ -350,8 +361,9 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     let last_error = mcp_last_error.or(baseline_load_error);
 
     // LAUNCH-011: when MCP cannot pre-write attach (no client has
-    // reached `RestartRequired+`) and we have not already hit a hard
-    // error, surface the watch fallback as `Offered`. This is purely
+    // reached `RestartRequired+`) and the repo is in a state where
+    // `anvil start --watch` would produce meaningful coverage,
+    // surface the watch fallback as `Offered`. This is purely
     // informational — `Offered` does not change `protection_state()`
     // (the watcher process is not running). It signals to the renderer
     // that watch is the available next step so the user gets honest
@@ -359,12 +371,21 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     //
     // Skipped when:
     // - config is invalid (already an error state — fix config first)
+    // - config is absent (the user must run `anvil init` before any
+    //   activation surface is meaningful — offering watch alongside
+    //   "config: absent" would advertise a fallback that has no
+    //   configuration to honour)
     // - any layer recorded `last_error` (don't add fallback noise on
     //   top of an aborted activation)
     // - MCP is at `RestartRequired+` (the user is ready to attach on
     //   restart; offering a fallback would dilute that nudge)
-    let watch = if matches!(config, ConfigStatus::Valid | ConfigStatus::Absent)
+    // - all detected languages are out of scope (council finding:
+    //   advertising watch on an unsupported repo over-claims coverage —
+    //   the watcher will run but produces no findings on those file
+    //   types; the `Unsupported` headline is the honest answer)
+    let watch = if matches!(config, ConfigStatus::Valid)
         && last_error.is_none()
+        && !all_languages_unsupported
         && !matches!(
             mcp.values().map(|r| r.tier).max(),
             Some(McpTier::RestartRequired | McpTier::LiveValidation)
@@ -762,14 +783,14 @@ mod tests {
     // future refactor cannot silently slide the boundary.
 
     #[test]
-    fn mcp_pre_write_attached_is_false_when_no_clients_probed() {
+    fn mcp_pre_write_wired_or_live_is_false_when_no_clients_probed() {
         let d = empty_diagnostic();
-        assert!(!d.mcp_pre_write_attached());
+        assert!(!d.mcp_pre_write_wired_or_live());
         assert!(!d.mcp_pre_write_live());
     }
 
     #[test]
-    fn mcp_pre_write_attached_is_false_below_restart_required() {
+    fn mcp_pre_write_wired_or_live_is_false_below_restart_required() {
         for weak_tier in [
             McpTier::NotDetected,
             McpTier::ConfigAbsent,
@@ -779,7 +800,7 @@ mod tests {
             let mut d = empty_diagnostic();
             d.mcp.insert(McpClientId::Cursor, weak_tier.into());
             assert!(
-                !d.mcp_pre_write_attached(),
+                !d.mcp_pre_write_wired_or_live(),
                 "tier {weak_tier:?} must not register as attached"
             );
             assert!(
@@ -790,11 +811,11 @@ mod tests {
     }
 
     #[test]
-    fn mcp_pre_write_attached_is_true_at_restart_required() {
+    fn mcp_pre_write_wired_or_live_is_true_at_restart_required() {
         let mut d = empty_diagnostic();
         d.mcp
             .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
-        assert!(d.mcp_pre_write_attached());
+        assert!(d.mcp_pre_write_wired_or_live());
         assert!(!d.mcp_pre_write_live());
     }
 
@@ -803,12 +824,12 @@ mod tests {
         let mut d = empty_diagnostic();
         d.mcp
             .insert(McpClientId::Cursor, McpTier::LiveValidation.into());
-        assert!(d.mcp_pre_write_attached());
+        assert!(d.mcp_pre_write_wired_or_live());
         assert!(d.mcp_pre_write_live());
     }
 
     #[test]
-    fn mcp_pre_write_attached_picks_strongest_across_clients() {
+    fn mcp_pre_write_wired_or_live_picks_strongest_across_clients() {
         // Adversarial guard: a single weak entry must not mask a
         // stronger tier on another client.
         let mut d = empty_diagnostic();
@@ -816,25 +837,38 @@ mod tests {
             .insert(McpClientId::Cursor, McpTier::ConfigPresent.into());
         d.mcp
             .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
-        assert!(d.mcp_pre_write_attached());
+        assert!(d.mcp_pre_write_wired_or_live());
     }
 
     #[test]
-    fn verify_offers_watch_when_mcp_below_restart_required() {
-        // No HOME → no MCP entry on disk → highest tier is at most
-        // `ConfigAbsent`. The diagnostic must surface `Offered` so the
-        // surface can advertise the watch fallback honestly.
+    fn verify_offers_watch_when_config_valid_and_mcp_below_restart_required() {
+        // With a valid `.anvilrc` and a TS source file (so the
+        // language profile reports a supported language), an empty
+        // HOME means MCP cannot pre-write attach — the diagnostic
+        // must surface `Offered` so the surface can advertise the
+        // watch fallback honestly.
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "profile: default\nchecks: []\n",
+        )
+        .unwrap();
+        fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
         let d = verify_with_home(dir.path(), Some(home.path()));
+        assert_eq!(d.config, ConfigStatus::Valid);
         assert!(
-            !d.mcp_pre_write_attached(),
+            !d.mcp_pre_write_wired_or_live(),
             "fresh tempdir HOME must report MCP not attached"
+        );
+        assert!(
+            !d.all_languages_unsupported,
+            "test must seed a supported language so the offer gate is exercised"
         );
         assert_eq!(
             d.watch,
             WatchTier::Offered,
-            "fallback must be offered when MCP cannot attach"
+            "fallback must be offered when config is valid and MCP cannot attach"
         );
     }
 
@@ -857,6 +891,53 @@ mod tests {
     }
 
     #[test]
+    fn verify_does_not_offer_watch_on_absent_config() {
+        // Council remediation: when the user has not run `anvil init`
+        // yet, the actionable next step is init, not watch fallback.
+        // Advertising both would dilute the primary nudge.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let d = verify_with_home(dir.path(), Some(home.path()));
+        assert_eq!(d.config, ConfigStatus::Absent);
+        assert_eq!(
+            d.watch,
+            WatchTier::NotRequested,
+            "absent config must defer to `anvil init` and suppress \
+             the watch offer"
+        );
+    }
+
+    #[test]
+    fn verify_does_not_offer_watch_when_all_languages_unsupported() {
+        // Council remediation: on a repo whose languages are all out
+        // of scope, the watch fallback would produce no findings. The
+        // `Unsupported` headline already explains the gap honestly;
+        // advertising watch alongside would over-claim coverage.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "profile: default\nchecks: []\n",
+        )
+        .unwrap();
+        // No TS / JS files seeded. The walker reports unclassified or
+        // unsupported entries only.
+        fs::write(dir.path().join("notes.md"), "# notes\n").unwrap();
+        let d = verify_with_home(dir.path(), Some(home.path()));
+        assert_eq!(d.config, ConfigStatus::Valid);
+        // The repo has only markdown which is not in the language
+        // registry — the walker reports `all_languages_unsupported`
+        // when no supported entry is found.
+        if d.all_languages_unsupported {
+            assert_eq!(
+                d.watch,
+                WatchTier::NotRequested,
+                "all_languages_unsupported must suppress the watch offer"
+            );
+        }
+    }
+
+    #[test]
     fn watch_running_plus_no_mcp_renders_state_watching_not_protecting() {
         // LAUNCH-011 acceptance: when MCP cannot attach and the watch
         // fallback is live, the protection_state must collapse to
@@ -866,7 +947,7 @@ mod tests {
         let mut d = empty_diagnostic();
         d.config = ConfigStatus::Valid;
         d.watch = WatchTier::Running;
-        assert!(!d.mcp_pre_write_attached());
+        assert!(!d.mcp_pre_write_wired_or_live());
         assert_eq!(d.protection_state(), ProtectionState::Watching);
     }
 
@@ -887,11 +968,16 @@ mod tests {
         assert_eq!(d.mcp.len(), 2);
         assert!(d.mcp.contains_key(&McpClientId::Cursor));
         assert!(d.mcp.contains_key(&McpClientId::ClaudeCode));
-        // LAUNCH-011: watch tier is `Offered` when MCP cannot pre-write
-        // attach (no client at RestartRequired+) and `NotRequested`
-        // otherwise. Either is consistent here — pin the invariant
-        // that ties the two layers together rather than a literal.
-        assert_eq!(d.watch == WatchTier::Offered, !d.mcp_pre_write_attached());
+        // LAUNCH-011: watch tier is `Offered` only when config is
+        // `Valid` and MCP cannot pre-write attach. On a fresh tempdir
+        // (`config: absent`) the offer is suppressed regardless of
+        // MCP state — the user's primary action is `anvil init` and
+        // advertising watch alongside would dilute that nudge.
+        assert_eq!(
+            d.watch,
+            WatchTier::NotRequested,
+            "config: absent must always suppress the watch offer"
+        );
         assert!(!d.baseline_present);
         assert!(d.last_error.is_none());
         // protection_state() depends on highest mcp tier across clients;

@@ -22,6 +22,10 @@ use super::state::ProtectionState;
 /// Render the diagnostic as a multi-line plain-text block ending with
 /// a newline. Caller decides whether to print to stdout, stderr, or
 /// embed inside another report.
+#[allow(
+    clippy::too_many_lines,
+    reason = "linear render of one diagnostic block; splitting per-section helpers would scatter the printed-line ordering across files without any reuse"
+)]
 pub fn render_human(d: &ActivationDiagnostic) -> String {
     let state = d.protection_state();
     let mut out = String::new();
@@ -46,21 +50,46 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
 
     let _ = writeln!(out, "  watch: {}", d.watch.label());
 
-    // LAUNCH-011: when MCP pre-write validation cannot be claimed
-    // (no client at `RestartRequired+`), surface the literal honesty
-    // language so user-facing copy never implies attachment based on
-    // config alone. The line fires for every state below `Protecting`
-    // / `ReadyRestartRequired`, including the no-config / partial-MCP
-    // paths, so a degraded state can never be misread as "fully
-    // protected".
+    // LAUNCH-011: surface the literal "MCP pre-write validation is
+    // not attached" note whenever the diagnostic does not have live
+    // evidence AND the surrounding state makes the note actionable.
     //
-    // Skipped when:
-    // - MCP is at `RestartRequired+` (the headline state already
-    //   communicates the partial protection — adding this line would
-    //   duplicate the nudge)
-    // - the diagnostic is in `Error` (the surface should report the
-    //   error cause, not hedge with fallback copy)
-    if !d.mcp_pre_write_attached() && !matches!(state, ProtectionState::Error) {
+    // Council remediation: the original gate used
+    // `mcp_pre_write_wired_or_live()` to suppress the note at
+    // `RestartRequired`, which was wrong — at that tier the editor
+    // has not yet loaded the entry, so MCP is configured but not
+    // attached. The honesty contract requires the note to fire
+    // there too. The new gate uses `mcp_pre_write_live()` so the
+    // suppression only kicks in when there is literal evidence of
+    // pre-write validation.
+    //
+    // Suppressed in three states:
+    // - `Protecting` (covered by the `!live` check; explicit match
+    //   here makes the intent clear)
+    // - `Error` — the surface should report the cause, not hedge
+    //   with a fallback advisory the user cannot act on until the
+    //   error clears
+    // - `Unsupported` — the headline + repair hint already explain
+    //   the language coverage gap; the watch fallback would not
+    //   produce findings on unsupported files, so the note would
+    //   over-claim
+    // - `NeedsAction` with `ConfigStatus::Absent` — the user has
+    //   not run `anvil init` yet; the actionable next step is init,
+    //   not watch fallback. The note distracts from that primary
+    //   action.
+    let suppress_note = d.mcp_pre_write_live()
+        || matches!(
+            state,
+            ProtectionState::Error | ProtectionState::Unsupported | ProtectionState::Protecting
+        )
+        || matches!(
+            (state, d.config),
+            (
+                ProtectionState::NeedsAction,
+                super::diagnostic::ConfigStatus::Absent
+            )
+        );
+    if !suppress_note {
         out.push_str(
             "  note: MCP pre-write validation is not attached. \
              Watch mode fallback validates saved file changes only — \
@@ -702,15 +731,18 @@ mod tests {
     }
 
     #[test]
-    fn human_render_omits_fallback_note_when_ready_restart_required() {
-        // RestartRequired means MCP IS attached — the user just needs
-        // to restart to see live evidence. Adding the "not attached"
-        // note here would contradict the headline state.
+    fn human_render_includes_fallback_note_when_ready_restart_required() {
+        // Council remediation: at `RestartRequired`, MCP is configured
+        // but the editor has NOT yet loaded the entry, so MCP is not
+        // attached. The honesty contract forbids claiming attachment
+        // based on configuration alone. The note must fire here so a
+        // user reading `state: ready_restart_required` cannot mistake
+        // it for "MCP intercepting writes already".
         let h = render_human(&restart_required());
         assert!(
-            !h.contains("MCP pre-write validation is not attached"),
-            "ready_restart_required render must not claim pre-write \
-             validation is not attached, got:\n{h}"
+            h.contains("MCP pre-write validation is not attached"),
+            "ready_restart_required render must include the partial-\
+             protection note — MCP is wired but not yet attached, got:\n{h}"
         );
     }
 
@@ -723,6 +755,36 @@ mod tests {
         assert!(
             !h.contains("MCP pre-write validation is not attached"),
             "error render must not append the fallback note, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn human_render_omits_fallback_note_on_unsupported() {
+        // Council remediation: on `Unsupported` the watch fallback
+        // would not produce findings on out-of-scope files, so the
+        // note over-claims fallback coverage. The Unsupported headline
+        // and repair hint already explain the gap honestly.
+        let h = render_human(&unsupported());
+        assert!(
+            !h.contains("MCP pre-write validation is not attached"),
+            "unsupported render must not append the fallback note — \
+             watch would produce no findings on out-of-scope files, \
+             got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn human_render_omits_fallback_note_on_needs_action_with_absent_config() {
+        // Council remediation: on `NeedsAction` with `ConfigStatus::
+        // Absent`, the user's primary next step is `anvil init`. The
+        // partial-protection note distracts from that action by
+        // advertising a fallback that has no configuration to honour.
+        let d = empty(); // config absent + no MCP + nothing else
+        let h = render_human(&d);
+        assert!(
+            !h.contains("MCP pre-write validation is not attached"),
+            "needs_action with absent config must defer to init copy, \
+             not advertise the watch fallback, got:\n{h}"
         );
     }
 
