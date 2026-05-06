@@ -379,7 +379,7 @@ convention" section). Concretely:
   short-circuits, transport drop cancels in-flight cleanly,
   daemon error surfaces structured (not as a thrown exception).
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress (Pending merge of a2/wave3-rtai-mid-edit-envelope, blocked on DRVR-002 protocol/envelope compatibility confirmation)
 
 ---
 
