@@ -299,6 +299,60 @@ describe('validateMidEdit — debounce + dedup', () => {
     await client.close();
   });
 
+  it('cached path echoes the caller current params.version, not the cached daemon version', async () => {
+    // Editors increment version on every change, including a revert
+    // to earlier content. Consumers that drop stale results by version
+    // would ignore a cached hit if we echoed the cached daemon
+    // response's version. Pinned by Copilot review on PR #1311.
+    const tf = makeFakeTransportFactory([
+      {
+        respond(line, push) {
+          const env = line as { id: string; params: { version: number } };
+          // Daemon answered version=1 on first dispatch.
+          push({
+            jsonrpc: '2.0',
+            id: env.id,
+            result: {
+              version: env.params.version,
+              diagnostics: [makeDiagnostic({ id: 'cached-test' })],
+              truncated: false,
+            },
+          });
+        },
+      },
+    ]);
+    const client = new DriverClient({
+      transportFactory: tf.factory,
+      midEdit: { debounceMs: 0, dedupWindowMs: 1_000 },
+    });
+    await client.connect();
+
+    // First call at version=1, daemon responds with version=1.
+    const first = await client.validateMidEdit({
+      uri: 'a.ts',
+      content: 'hello',
+      workspaceRoot: '/x',
+      version: 1,
+    });
+    expect(first.kind).toBe('diagnostics');
+
+    // Second call at version=42 with same content (revert to 'hello'
+    // after the editor incremented its version). Cache hit. The
+    // returned envelope must echo 42, not 1.
+    const second = await client.validateMidEdit({
+      uri: 'a.ts',
+      content: 'hello',
+      workspaceRoot: '/x',
+      version: 42,
+    });
+    expect(second.kind).toBe('cached');
+    if (second.kind === 'cached') {
+      expect(second.version).toBe(42);
+      expect(second.fromCache).toBe(true);
+    }
+    await client.close();
+  });
+
   it('per-call debounceMs override works (debounceMs: 0 fires immediately)', async () => {
     const sched = manualScheduler();
     const tf = makeFakeTransportFactory([

@@ -188,11 +188,13 @@ export function createMidEditValidator(
           return response;
         } catch (err) {
           // Translate the structured DriverClientError into our
-          // first-class error envelope. We CANNOT reject the
-          // dispatcher promise without breaking the dedup cache (a
-          // rejection short-circuits the cache write), so we capture
-          // the error in a closure and signal upstream by throwing
-          // the same value — the catch outside re-routes it.
+          // first-class error envelope. We rethrow so the debouncer
+          // promise rejects — that rejection is what prevents the
+          // dispatcher's outcome from seeding the dedup cache (we
+          // must not cache failures). The `try` block at the call
+          // site below catches the rejection and translates it back
+          // into a structured `{ kind: 'error' }` envelope so the
+          // public API never throws.
           if (err instanceof DriverClientError) {
             dispatcherErrorBox.error = err.toJSON();
           } else {
@@ -238,9 +240,15 @@ export function createMidEditValidator(
           fromCache: false,
         };
       case 'cached':
+        // Echo the caller's current `params.version` rather than the
+        // cached response's version, so consumers that drop stale
+        // results by version (editor that increments on every change,
+        // including a revert to earlier content) still see the cached
+        // diagnostics as current. Diagnostics + truncated come from
+        // cache; only the version field is rebound to the caller.
         return {
           kind: 'cached',
-          version: outcome.value.version,
+          version,
           diagnostics: outcome.value.diagnostics,
           truncated: outcome.value.truncated,
           fromCache: true,
