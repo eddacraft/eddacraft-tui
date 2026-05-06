@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| LAUNCH | —     | In Progress | 10/16    |
+| LAUNCH | —     | In Progress | 13/17    |
 
 ## Purpose
 
@@ -184,10 +184,11 @@ new primitive, this module follows three rules:
 
 ## Tasks
 
-> Status: In Progress. LAUNCH-001, LAUNCH-003, LAUNCH-004,
-> LAUNCH-005, LAUNCH-007, LAUNCH-008, LAUNCH-012, LAUNCH-015, and
-> LAUNCH-016 are complete; remaining activation, tutorial, upgrade,
-> and watch work stays Todo until picked up.
+> Status: In Progress. LAUNCH-001, LAUNCH-002, LAUNCH-003, LAUNCH-004,
+> LAUNCH-005, LAUNCH-006, LAUNCH-007, LAUNCH-008, LAUNCH-009,
+> LAUNCH-012, LAUNCH-013, LAUNCH-015, and LAUNCH-016 are complete;
+> remaining activation, tutorial, and watch work stays Todo until
+> picked up.
 
 ### LAUNCH-013: Make version and upgrade guidance install-method aware
 
@@ -506,7 +507,24 @@ new primitive, this module follows three rules:
 - **Confidence:** medium (council revised; cross-crate boundary,
   channel seam, single-writer invariant, and `--no-tui` propagation
   now explicit).
-- **Status:** Todo
+- **Status:** Complete — landed via PR #1279
+  ([`launch/a1-start-entrypoint`](https://github.com/eddacraft/anvil-001/pull/1279)).
+  The mutual-exclusion guard at the old `watch.rs:297-302` is gone;
+  `ActionDispatcher` (now `crates/anvil-cli/src/commands/watch.rs:287-420`)
+  owns the worker, cancellation token, and in-flight child, and joins
+  on `Drop` so Ctrl-C no longer leaks the prior fire-and-forget
+  worker. `build_action_command` forces `--no-tui` on the child
+  whenever the parent is in TUI mode, regardless of `global.no_tui`,
+  so two Ratatui sessions can't fight over the alt-screen.
+  `WatchLoopEvent { Engine, Action }` multiplexes engine + action
+  events through the existing single receiver; `ActionResultLine`
+  lives in `anvil-tui::surfaces::watch` (consumer-side, no CLI
+  dependency edge); `WatchEventAdapter::handle_action_result` is the
+  only writer of `WatchData.last_action` and asserts in tests that
+  `data.status`, `data.stats.*`, and `data.history` are unchanged
+  across an action result. Footer renders as `[*] gate (1.2s)` /
+  `[x] gate (1.2s, exit 1)` below the 2x2 grid; non-TUI mode keeps
+  inherited stdio bit-for-bit.
 
 ---
 
@@ -658,7 +676,25 @@ new primitive, this module follows three rules:
 - **LOC budget:** ~250-300 production + ~150 test = ~450 total.
 - **Confidence:** medium (was medium; council resolved the scope
   ambiguity that was the source of the risk).
-- **Status:** Todo
+- **Status:** Complete — landed via PR #1280
+  ([`launch/a1-anvil-start`](https://github.com/eddacraft/anvil-001/pull/1280)).
+  `Commands::Start(StartArgs)` is its own variant in
+  `crates/anvil-cli/src/main.rs`; the `#[command(alias = "start")]`
+  on `Commands::Welcome` was removed and `welcome` keeps sole
+  ownership of the `.anvil/first-run` marker. Thin
+  `crates/anvil-cli/src/commands/start.rs` delegates to
+  `activation::orchestrator::run`, which composes only the read-safe
+  primitives shipped today: `verify_with_home` → init-if-absent
+  (LAUNCH-004's `services::sample_analyser` runs inline through
+  `init::run_in`) → MCP install (the LAUNCH-009 part-2 install path,
+  added in the same release window) → re-verify. `--verify` and
+  `--json` short-circuit to the read-only path so init's own JSON
+  record can't concatenate with the activation diagnostic. The
+  diagnostic is rendered via the existing `activation::render_*`
+  module so `start`, `status --verify`, and the JSON schema all
+  share one literal `ProtectionState` vocabulary. Server-startable
+  spawn probes, watch fallback, and doctor composition remain
+  deferred to LAUNCH-009.5 / LAUNCH-011 as planned.
 
 ---
 
