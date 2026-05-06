@@ -121,12 +121,29 @@ type DriverManifest = {
     // token: driver presents a token obtained out of band (future)
     token?: string
   }
+  // DRVR-008: explicit advertisement of `anvil/` JSON-RPC methods this
+  // driver implements. An empty list models a stock LSP client speaking
+  // only the LSP subset; it is NOT a default-trust signal. Promotion to
+  // `Participating` requires `anvil/enforcement/ack` to appear in this
+  // list (see §3.3 capability state and §4 of the editor-driver
+  // protocol design at
+  // `plans/specs/2026-05-06-editor-driver-protocol.md`).
+  // Wire-format snake_case to match the Rust serde default.
+  supported_anvil_methods: string[]
 }
 ```
 
 The daemon validates `protocolVersion` against its supported range.
 Mismatch → `handshake.reject` with a machine-readable reason so the
 driver can surface "please upgrade / please downgrade".
+
+`supported_anvil_methods` is consumed by the daemon's
+`negotiate_capability` gate (DRVR-008): drivers that omit
+`anvil/enforcement/ack` are capped at `Attached` regardless of what the
+workspace `.anvil.yaml` requests, with a structured warning emitted via
+`anvil/capability/downgrade`. The Rust authoritative slice lives in
+`crates/anvil-intercept/src/auth.rs::DriverManifest`; the full §2.2
+decoder is DRVR-001's responsibility.
 
 ### 2.3 Driver identity
 
@@ -329,15 +346,28 @@ Anvil-specific methods (under the `anvil/` namespace):
 
 | Method                                     | Direction | Purpose                              |
 |--------------------------------------------|-----------|--------------------------------------|
-| `anvil/driver/capabilities/update`         | client → server | Promote Attached → Participating |
+| `anvil/publishDiagnostics`                 | server → client (notification) | Anvil-shape diagnostics carrying canonical `anvil.diagnostic.v1` |
+| `anvil/scan_buffer`                        | client → server | Mid-edit buffer scan request (RTAI substrate) |
+| `anvil/driver/capabilities/update`         | client → server | Promote Attached → Participating (gated by DRVR-008 manifest advertisement) |
+| `anvil/capability/downgrade`               | server → client (notification) | DRVR-008 structured warning when promotion is refused |
 | `anvil/enforcement/decision`               | server → client (notification) | Enforcement decision target = this driver |
 | `anvil/enforcement/ack`                    | client → server | Confirm decision carried out |
 | `anvil/enforcement/refuse`                 | client → server | Could not carry out; daemon escalates |
 | `anvil/suppression/state`                  | server → client | Current suppression map for a file  |
 | `anvil/suppression/apply`                  | client → server | User applied `@anvil-ignore` via code action |
+| `anvil/gate/request`                       | client → server | Request a gate-result stream / one-shot snapshot (M3) |
 | `anvil/gate/result`                        | server → client | Latest gate result snapshot         |
+| `anvil/status/query`                       | client → server | Snapshot of session / fence / driver state for a worktree |
 | `anvil/nudge/metadata`                     | server → client | Extra metadata (explanation URL, recommended rewrite) for a warning |
 | `anvil/correlation`                        | server → client (embedded in every diagnostic) | Correlation ID for log lookup |
+
+The authoritative method table — including the wire-string constants
+both Rust and TS use — is pinned in
+`plans/specs/2026-05-06-editor-driver-protocol.md` §2 and in
+`crates/anvil-intercept-proto/src/protocol.rs`. The constants on the
+Rust side are the single source of truth; TS bindings in
+`packages/anvil-driver-client/src/protocol/types.ts` mirror them
+byte-for-byte.
 
 The design rule: **no new `anvil/` method without a concrete editor
 feature that can't be expressed in LSP.** DRVR-002 bakes this in so
@@ -347,20 +377,42 @@ the Anvil namespace doesn't sprawl.
 
 The three states the user can see:
 
-1. **Read-only:** diagnostics render, code actions work, no
+1. **Read-only / Attached:** diagnostics render, code actions work, no
    enforcement. This is the default. VSCode status bar: "Anvil: on".
+   On the wire and in `crates/anvil-intercept-proto`'s `Capability`
+   enum this serialises as `attached`.
 2. **Enforcement-participating:** diagnostics + enforcement acks.
    Opt-in per workspace via `.anvil.yaml` or a one-time
-   accept-dialog. Status bar: "Anvil: enforcing".
+   accept-dialog. Status bar: "Anvil: enforcing". Wire form:
+   `participating`.
 3. **Degraded:** daemon unreachable. No diagnostics, no gate results.
    Status bar: "Anvil: offline (last seen 14:22)". The user can
    retry from a command palette action.
 
 The transitions between Read-only and Enforcement-participating
-happen via `anvil/driver/capabilities/update`. The Degraded state is
-driven by the transport heartbeat; loss of heartbeat moves the UX to
-Degraded without unmounting diagnostics immediately (grace period,
-configurable, default 5s) so a brief daemon blip doesn't flap the UI.
+happen via `anvil/driver/capabilities/update` AND are gated by the
+DRVR-008 `negotiate_capability` daemon-side check (see
+`plans/specs/2026-05-06-editor-driver-protocol.md` §4): a driver that
+did not advertise `anvil/enforcement/ack` in its manifest's
+`supported_anvil_methods` cannot be promoted to Participating, even
+if `.anvil.yaml` requests it. The daemon emits a structured
+`anvil/capability/downgrade` notification with a kebab-case reason
+(`missing-enforcement-ack-method`) so the editor's status surface can
+render "Anvil: enforcement requested but downgraded" rather than
+silently demoting.
+
+The negotiation function is **a pure function of (request, manifest)**
+— there is no daemon-side state for the negotiation result. A
+reconnecting driver must re-present its manifest and the daemon
+re-runs the gate. A driver cannot smuggle a stale `Participating`
+capability across reconnects.
+
+The Degraded state is driven by the transport heartbeat; loss of
+heartbeat moves the UX to Degraded without unmounting diagnostics
+immediately (grace period, configurable, default 5s) so a brief daemon
+blip doesn't flap the UI. Per the editor-driver protocol design §5.1
+the driver does NOT block saves or pseudo-fence on its own when in
+Degraded state — fence authority lives only with the daemon.
 
 ### 3.4 Save-time latency budget
 

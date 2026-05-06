@@ -110,8 +110,13 @@ daemon. The latter is strictly better because:
 - The daemon already scans for enforcement purposes. Adding editor /
   MCP read paths is additive, not a parallel engine.
 - Every additional editor (Cursor, JetBrains, Zed, Neovim) gets Anvil
-  for free if the editor path is LSP-shaped, versus building a
-  per-editor napi wrapper.
+  *diagnostics* for free if the editor path is LSP-shaped, versus
+  building a per-editor napi wrapper. **Enforcement-participation,
+  however, requires explicit `anvil/` support** — a stock LSP client
+  reaches `Attached` (read-only) but cannot be promoted to
+  `Participating` without advertising `anvil/enforcement/ack` in its
+  manifest's `supported_anvil_methods`. This is the DRVR-008 gate; see
+  `plans/specs/2026-05-06-editor-driver-protocol.md` §4.
 - MCP's own ADR in `plans/specs/anvil-driver-framework/` explicitly
   downgrades it from foundational to fallback driver; routing it
   through the daemon aligns code with that decision.
@@ -127,7 +132,7 @@ daemon. The latter is strictly better because:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Drivers on intercept daemon (chosen)** | Aligns surfaces with existing INT* and driver-framework plans; every LSP client gets Anvil; MCP positioned per its own ADR | Blocked on INTD v1 stable IPC surface; custom JSON-RPC extensions needed where LSP doesn't cover suppressions/gates |
+| **Drivers on intercept daemon (chosen)** | Aligns surfaces with existing INT* and driver-framework plans; every LSP client gets Anvil *diagnostics* for free (enforcement-participation gated on explicit `anvil/` support per DRVR-008); MCP positioned per its own ADR | Blocked on INTD v1 stable IPC surface; custom JSON-RPC extensions needed where LSP doesn't cover suppressions/gates |
 | TSRET as written (napi in-process) | Smallest diff from current state; unblocks immediately | Two engines on the roadmap doing the same work (napi hot path + intercept daemon); editor reach stays VSCode-only; npm publication stack for a package nobody external consumes |
 | Typed napi surface (no JSON) | Faster hot path than JSON-over-IPC, no marshalling | Still one-consumer-at-a-time; does not unify with daemon; locks a Rust↔TS type boundary |
 | Keep both engines, back out ADR-026 | Zero migration | Rule changes cost 2x forever; parity harness forever; contradicts ADR-026 explicitly |
