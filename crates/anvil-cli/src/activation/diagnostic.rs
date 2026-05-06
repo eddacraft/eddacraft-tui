@@ -289,11 +289,19 @@ impl ActivationDiagnostic {
 
     /// True when at least one MCP client has produced
     /// `LiveValidation` evidence inside this repo. This is the only
-    /// tier that justifies a `Protecting` claim, and the only tier
-    /// that lets surfaces suppress the "MCP pre-write validation is
-    /// not attached" honesty note — every weaker tier (including
-    /// `RestartRequired`) must surface the note because the editor
-    /// is not yet intercepting writes.
+    /// tier that justifies a `Protecting` claim and the only tier at
+    /// which `anvil start --watch` becomes a no-op (the
+    /// `WatchDecision::NoOpRedundant` path in `commands/start.rs`).
+    ///
+    /// **Honesty note suppression** is owned by
+    /// [`Self::mcp_pre_write_wired_or_live`], not this predicate.
+    /// At `RestartRequired` the headline already says "restart your
+    /// editor or agent so the MCP server attaches", which carries
+    /// the partial-protection language without needing the watch-
+    /// fallback note (firing the note there would orphan watch copy
+    /// next to a `watch: not_requested` line). See the suppression
+    /// gate in `activation::render::render_human` for the full set
+    /// of states the note is suppressed in.
     pub fn mcp_pre_write_live(&self) -> bool {
         matches!(self.highest_mcp_tier(), Some(McpTier::LiveValidation))
     }
@@ -909,27 +917,41 @@ mod tests {
 
     #[test]
     fn verify_does_not_offer_watch_when_all_languages_unsupported() {
-        // Council remediation: on a repo whose languages are all out
-        // of scope, the watch fallback would produce no findings. The
-        // `Unsupported` headline already explains the gap honestly;
-        // advertising watch alongside would over-claim coverage.
+        // Council remediation (Copilot review): drive the gate
+        // through `verify_with_home` end-to-end so the assertion
+        // pins the `WatchTier::Offered` suppression in the live
+        // probe path, not just on a synthetic diagnostic. A
+        // synthetic test would pass vacuously if a future bug let
+        // the offer fire when `all_languages_unsupported` is set.
         //
-        // Drive the gate directly with a synthetic diagnostic so the
-        // assertion is unconditional — the offer logic in
-        // `verify_with_home` reads `all_languages_unsupported` after
-        // `language_profile::profile_repo`, and a registry change that
-        // reclassifies the seeded extension would silently make a
-        // walker-driven test pass vacuously.
-        let mut d = empty_diagnostic();
-        d.config = ConfigStatus::Valid;
-        d.all_languages_unsupported = true;
-        // The synthesised diagnostic has `WatchTier::NotRequested`
-        // already — assert it stays that way once `protection_state`
-        // would map to `Unsupported`. The render-side gate
-        // (suppression of the partial-protection note on
-        // `Unsupported`) is covered separately in render tests.
-        assert_eq!(d.protection_state(), ProtectionState::Unsupported);
-        assert_eq!(d.watch, WatchTier::NotRequested);
+        // The repo is seeded with config valid + only Python files.
+        // Python is registered as `Unsupported` (PYLAN anchor not
+        // shipped); if a future registry change promotes Python to
+        // `Supported`, the explicit `assert!(d.all_languages_unsupported)`
+        // below will fail loudly so the test cannot pass vacuously.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            "profile: default\nchecks: []\n",
+        )
+        .unwrap();
+        fs::write(dir.path().join("main.py"), "print('hello')\n").unwrap();
+        let d = verify_with_home(dir.path(), Some(home.path()));
+        assert_eq!(d.config, ConfigStatus::Valid);
+        assert!(
+            d.all_languages_unsupported,
+            "test invariant: seeded `.py` must classify as unsupported \
+             — if this fires, the language registry has changed and the \
+             test needs a different unsupported extension"
+        );
+        assert_eq!(
+            d.watch,
+            WatchTier::NotRequested,
+            "verify_with_home must suppress the watch offer when all \
+             languages are unsupported, got watch={:?}",
+            d.watch
+        );
     }
 
     #[test]
