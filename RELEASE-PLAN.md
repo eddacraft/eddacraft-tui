@@ -117,7 +117,7 @@ PR 3 (LAUNCH-009/-011)  ── MCP + watch fallback ──┘  (depends on PR 2)
 PR 7 (LAUNCH-009.6)     ── MCP tier semantics ────┘  (follow-up to PR 3)
 ```
 
-| Order | PR   | Items                  | Branch                               | Risk                                  |
+| Order | PR   | Items                  | Branch                               | Status                                |
 | ----- | ---- | ---------------------- | ------------------------------------ | ------------------------------------- |
 | 1     | PR 2 | LAUNCH-008, LAUNCH-012 | `launch/a1-protection-states`        | Complete                              |
 | 2     | PR 5 | LAUNCH-015, LAUNCH-016 | `launch/a1-language-profile-filters` | Complete                              |
