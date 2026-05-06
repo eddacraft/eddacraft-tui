@@ -83,7 +83,6 @@ export {
   type Severity,
 } from './diagnostics/index.js';
 
-export {
   ALL_ANVIL_METHODS,
   ALL_CAPABILITIES,
   ANVIL_ENFORCEMENT_ACK,
@@ -106,3 +105,21 @@ export {
   type CapabilityDowngradeReason,
   type DriverManifestSlice,
 } from './protocol/index.js';
+
+export {
+  contentHashSha256,
+  createMidEditValidator,
+  DEFAULT_DEBOUNCE_MS,
+  DEFAULT_DEDUP_WINDOW_MS,
+  MidEditDebouncer,
+  SCAN_BUFFER_METHOD,
+  SCAN_BUFFER_MODE_MID_EDIT,
+  type DebouncedOutcome,
+  type DebouncedRequest,
+  type DebouncerOptions,
+  type DebouncerScheduler,
+  type ScanBufferResponse,
+  type ValidateMidEditOptions,
+  type ValidateMidEditParams,
+  type ValidateMidEditResult,
+} from './midedit/index.js';
