@@ -101,6 +101,40 @@ activation entrypoint on 2026-05-03.
 - Adjacent re-architecture brainstorm:
   [`plans/brainstorms/2026-05-01-hearth-rearchitecture.md`](./plans/brainstorms/2026-05-01-hearth-rearchitecture.md)
 
+**Execution sequence (2026-05-04):** Deliver the LAUNCH activation slice as six
+reviewable PRs against `dev`. APS ownership and progress remain in
+[`plans/modules/launch-flow-readiness.aps.md`](./plans/modules/launch-flow-readiness.aps.md).
+
+```text
+PR 2 (LAUNCH-008/-012)  ── state vocabulary ──┐
+                                              ├──► PR 1 (LAUNCH-002/-006)
+PR 5 (LAUNCH-015/-016)  ── repo-language profile ──┤
+                                                   ├──► PR 4 (LAUNCH-010/-014)
+PR 6 (LAUNCH-013)       ── install detector ──── (independent)
+                                                   │
+PR 3 (LAUNCH-009/-011)  ── MCP + watch fallback ──┘  (depends on PR 2)
+```
+
+| Order | PR | Items | Branch | Risk |
+| ----- | -- | ----- | ------ | ---- |
+| 1 | PR 2 | LAUNCH-008, LAUNCH-012 | `launch/a1-protection-states` | Complete |
+| 2 | PR 5 | LAUNCH-015, LAUNCH-016 | `launch/a1-language-profile-filters` | Complete |
+| 3 | PR 6 | LAUNCH-013 | `launch/a1-install-upgrade-guidance` | Complete |
+| 4 | PR 1 | LAUNCH-002, LAUNCH-006 | `launch/a1-start-entrypoint` | medium (composes existing primitives) |
+| 5 | PR 3 | LAUNCH-009, LAUNCH-011 | `launch/a1-mcp-activation-fallback` | **high** — mandatory follow-up council |
+| 6 | PR 4 | LAUNCH-010, LAUNCH-014 | `launch/a1-first-signal-integrity` | medium |
+
+**Execution constraints:** Each PR references its LAUNCH item(s), includes tests
+for acceptance criteria, passes council review before opening, remediates all
+council findings, and follows up with reviewer comments after PR open. PR 3
+must also validate or honestly surface #1195 and #1197.
+
+**Execution notes:** `anvil start` is currently a clap alias for `welcome`
+(`crates/anvil-cli/src/main.rs:78`); LAUNCH-006 promotes it to the activation
+entrypoint. The APS LAUNCH file is authoritative for counts (`10/16` Complete).
+`v0.5.1-beta` shipped on 2026-05-03, but the APS index header still anchors
+prose to `v0.5.0-beta`; fix that in a separate docs PR.
+
 **Modules / work items (6 outstanding):**
 
 - **LAUNCH-006** — make `anvil start` the activation entrypoint (the
