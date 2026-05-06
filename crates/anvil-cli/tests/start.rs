@@ -470,13 +470,12 @@ fn start_watch_renders_partial_protection_and_starts_watcher() {
         let mut chunk = [0u8; 1024];
         loop {
             match stdout_handle.read(&mut chunk) {
-                Ok(0) => break,
+                Ok(0) | Err(_) => break,
                 Ok(n) => {
                     if let Ok(mut guard) = buf_clone.lock() {
                         guard.push_str(&String::from_utf8_lossy(&chunk[..n]));
                     }
                 }
-                Err(_) => break,
             }
         }
     });

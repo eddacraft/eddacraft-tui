@@ -52,7 +52,7 @@ impl WatchArgs {
     /// Build the args used by `anvil start --watch` to enter the
     /// watch fallback (LAUNCH-011). Scopes the watcher to the
     /// workspace root (no `--file` override) and accepts the
-    /// FileFilter denylist as the only scope filter — same default
+    /// `FileFilter` denylist as the only scope filter — same default
     /// shape as bare `anvil watch`.
     pub fn fallback_for_repo() -> Self {
         Self {
