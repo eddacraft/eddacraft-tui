@@ -711,6 +711,199 @@ fn probe_one(
     McpTier::ConfigAbsent
 }
 
+// ---------------------------------------------------------------------------
+// Spawn probe (LAUNCH-009.5): promote `RestartRequired → ServerStartable`
+// ---------------------------------------------------------------------------
+
+/// Wire-format protocol version the probe announces. Server echoes whatever
+/// the client supplies, so picking a published value is fine; mismatches do
+/// not error out at the protocol level.
+const PROBE_PROTOCOL_VERSION: &str = "2025-06-18";
+
+/// Maximum wall-clock time the probe waits for the server's first response
+/// frame. The server's `initialize` handler is in-process and synchronous,
+/// so anything close to 1s indicates a stuck child or a binary that does
+/// not actually serve MCP. The orchestrator runs the probe per-client (with
+/// the v1 cache, once total), so this directly bounds the added latency on
+/// `anvil status --verify` and `anvil start`.
+const PROBE_HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Why a [`probe_startable`] attempt did not promote the tier.
+///
+/// Carried into `tracing::warn!` for SREs. Returned variants are not
+/// public: callers should treat the function as `Result<(), _>` and only
+/// promote on `Ok`. Failure rendering goes through the renderer's
+/// per-client outcome strings, which never include this enum's payload.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // payloads are read via Debug in tracing::warn!
+pub enum ProbeError {
+    /// `Command::spawn` failed (binary missing, ENOENT, permission denied).
+    Spawn(String),
+    /// Couldn't take the child's stdin or stdout pipe (extremely rare).
+    NoPipes,
+    /// Failed to write the initialize request to the child's stdin.
+    Write(String),
+    /// First-line read from stdout produced no bytes before the child
+    /// closed the pipe (process exited before responding).
+    EmptyResponse,
+    /// First-line read did not arrive within
+    /// [`PROBE_HANDSHAKE_TIMEOUT`].
+    Timeout,
+    /// Response was non-UTF-8 or could not be parsed as JSON.
+    ParseResponse(String),
+    /// Response parsed as JSON but does not look like a JSON-RPC 2.0
+    /// success response to our initialize call (missing `jsonrpc`,
+    /// wrong `id`, missing `result`, or `error` field present).
+    BadResponse(String),
+    /// `current_exe()` resolution or the entry's command is non-UTF-8 in
+    /// a way that prevents spawning.
+    InvalidCommand(String),
+}
+
+impl std::fmt::Display for ProbeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProbeError::Spawn(s) => write!(f, "spawn: {s}"),
+            ProbeError::NoPipes => write!(f, "child stdin/stdout pipes were not captured"),
+            ProbeError::Write(s) => write!(f, "write initialize request: {s}"),
+            ProbeError::EmptyResponse => write!(f, "child closed stdout before responding"),
+            ProbeError::Timeout => write!(
+                f,
+                "no response within {}s",
+                PROBE_HANDSHAKE_TIMEOUT.as_secs_f32()
+            ),
+            ProbeError::ParseResponse(s) => write!(f, "parse response: {s}"),
+            ProbeError::BadResponse(s) => write!(f, "bad response: {s}"),
+            ProbeError::InvalidCommand(s) => write!(f, "invalid command: {s}"),
+        }
+    }
+}
+
+/// Drive an MCP `initialize` handshake against the child the editor would
+/// spawn for `entry`, and return `Ok(())` if the server responds with a
+/// well-formed JSON-RPC 2.0 success frame within
+/// [`PROBE_HANDSHAKE_TIMEOUT`].
+///
+/// **Caller contract:** call this only when [`McpClient::verify_config_tier`]
+/// has already returned [`McpTier::RestartRequired`] for `entry`. A
+/// `ConfigAbsent` or `ConfigPresent` tier means we wouldn't trust a
+/// successful handshake to mean the editor will pick up the entry on its
+/// own (we'd promote a tier that is structurally too high).
+///
+/// **Tier transition (LAUNCH-009 spec):** the orchestrator promotes
+/// `RestartRequired → ServerStartable` on `Ok`. On any error variant the
+/// tier stays at `RestartRequired` and the failure is logged via
+/// `tracing::warn!` so SREs can diagnose.
+///
+/// **Process management:**
+/// - Stdio is piped; stderr is silenced (the server's `tracing` output
+///   would otherwise pollute logs).
+/// - A reader thread drains the first response frame so the main thread
+///   can `recv_timeout` cleanly without blocking on the child's writes.
+/// - Stdin is closed after the request so a graceful child can exit on
+///   EOF; if it doesn't, the function calls `child.kill()` before
+///   returning either way.
+/// - The reader thread is detached. When `child.kill()` closes stdout
+///   the thread sees EOF and exits, so it does not leak across calls.
+pub fn probe_startable(entry: &AnvilEntry) -> Result<(), ProbeError> {
+    let AnvilEntry::Stdio { command, args, env } = entry;
+    probe_stdio(command, args, env)
+}
+
+fn probe_stdio(
+    command: &Path,
+    args: &[String],
+    env: &BTreeMap<String, String>,
+) -> Result<(), ProbeError> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::process::{Command, Stdio};
+
+    let mut child = Command::new(command)
+        .args(args)
+        .envs(env)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| ProbeError::Spawn(e.to_string()))?;
+
+    let mut stdin = child.stdin.take().ok_or(ProbeError::NoPipes)?;
+    let stdout = child.stdout.take().ok_or(ProbeError::NoPipes)?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        let _ = reader.read_line(&mut line);
+        let _ = tx.send(line);
+    });
+
+    let request = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{"protocolVersion":"{ver}","capabilities":{{}},"clientInfo":{{"name":"anvil-probe","version":"{cli_version}"}}}}}}"#,
+        ver = PROBE_PROTOCOL_VERSION,
+        cli_version = env!("CARGO_PKG_VERSION"),
+    );
+    if let Err(e) = writeln!(stdin, "{request}") {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(ProbeError::Write(e.to_string()));
+    }
+    drop(stdin);
+
+    let response = match rx.recv_timeout(PROBE_HANDSHAKE_TIMEOUT) {
+        Ok(line) if line.trim().is_empty() => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(ProbeError::EmptyResponse);
+        }
+        Ok(line) => line,
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(ProbeError::Timeout);
+        }
+    };
+    let _ = child.kill();
+    let _ = child.wait();
+
+    validate_initialize_response(response.trim())
+}
+
+/// Validate that `raw` is a JSON-RPC 2.0 success response to our
+/// initialize request. Split out so the unit tests can exercise the
+/// validator without spawning a child.
+fn validate_initialize_response(raw: &str) -> Result<(), ProbeError> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|e| ProbeError::ParseResponse(e.to_string()))?;
+    if value.get("jsonrpc").and_then(|v| v.as_str()) != Some("2.0") {
+        return Err(ProbeError::BadResponse("missing jsonrpc=2.0".to_string()));
+    }
+    if value.get("id").and_then(serde_json::Value::as_u64) != Some(1) {
+        return Err(ProbeError::BadResponse(format!(
+            "expected id=1, got {}",
+            value
+                .get("id")
+                .map_or_else(|| "<missing>".to_string(), serde_json::Value::to_string)
+        )));
+    }
+    if value.get("error").is_some() {
+        return Err(ProbeError::BadResponse(format!(
+            "server returned JSON-RPC error: {}",
+            value["error"]
+        )));
+    }
+    if value
+        .get("result")
+        .and_then(|r| r.get("serverInfo"))
+        .is_none()
+    {
+        return Err(ProbeError::BadResponse(
+            "missing result.serverInfo".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::needless_raw_string_hashes)]
 mod tests {
@@ -961,5 +1154,138 @@ mod tests {
         // home's RestartRequired) because workspace shadows home when
         // workspace exists.
         assert_eq!(map[&McpClientId::Cursor].tier, McpTier::ConfigPresent);
+    }
+
+    // ---------------------------------------------------------------
+    // Spawn-probe handshake validator (LAUNCH-009.5)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn validate_initialize_accepts_a_well_formed_success_response() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"anvil","version":"0.5.1"}}}"#;
+        validate_initialize_response(raw).expect("well-formed response should validate");
+    }
+
+    #[test]
+    fn validate_initialize_rejects_garbage_json() {
+        let err =
+            validate_initialize_response("not even json").expect_err("garbage must be rejected");
+        assert!(matches!(err, ProbeError::ParseResponse(_)), "got {err:?}");
+    }
+
+    #[test]
+    fn validate_initialize_rejects_missing_jsonrpc_version() {
+        let raw = r#"{"id":1,"result":{"serverInfo":{}}}"#;
+        let err = validate_initialize_response(raw).expect_err("missing jsonrpc must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("jsonrpc")),
+            other => panic!("expected BadResponse(missing jsonrpc), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_initialize_rejects_wrong_id() {
+        let raw = r#"{"jsonrpc":"2.0","id":42,"result":{"serverInfo":{}}}"#;
+        let err = validate_initialize_response(raw).expect_err("wrong id must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("id=1") || s.contains("expected id")),
+            other => panic!("expected BadResponse(wrong id), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_initialize_rejects_jsonrpc_error_response() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}"#;
+        let err = validate_initialize_response(raw).expect_err("error response must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("error")),
+            other => panic!("expected BadResponse(error), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_initialize_rejects_missing_serverinfo() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"capabilities":{}}}"#;
+        let err = validate_initialize_response(raw).expect_err("missing serverInfo must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("serverInfo")),
+            other => panic!("expected BadResponse(serverInfo), got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_startable_fails_when_command_does_not_exist() {
+        // ENOENT path: the binary does not exist, spawn fails.
+        let entry = AnvilEntry::Stdio {
+            command: std::path::PathBuf::from("/nonexistent/path/to/anvil-shim"),
+            args: vec!["mcp".into(), "serve".into(), "--stdio".into()],
+            env: BTreeMap::new(),
+        };
+        let err = probe_startable(&entry).expect_err("nonexistent command must fail");
+        assert!(matches!(err, ProbeError::Spawn(_)), "got {err:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_startable_times_out_when_child_does_not_respond() {
+        // /bin/cat reads stdin and echoes — but it won't produce a
+        // valid initialize response. Since cat echoes our request,
+        // the response IS our request which is NOT a valid response,
+        // so this exercises the BadResponse path. Use /bin/sleep for
+        // a true timeout: it never reads or writes anything.
+        let entry = AnvilEntry::Stdio {
+            command: std::path::PathBuf::from("/bin/sleep"),
+            args: vec!["10".into()],
+            env: BTreeMap::new(),
+        };
+        let start = std::time::Instant::now();
+        let err = probe_startable(&entry).expect_err("non-responsive child must fail");
+        let elapsed = start.elapsed();
+        assert!(matches!(err, ProbeError::Timeout), "got {err:?}");
+        // The timeout is 1s; allow generous slack for slow CI but
+        // fail if the call blocked far longer (suggests the kill
+        // didn't actually terminate the child or recv_timeout was
+        // ignored).
+        assert!(
+            elapsed < std::time::Duration::from_secs(3),
+            "probe should return within ~1s timeout + slack, took {elapsed:?}",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_startable_rejects_child_that_responds_with_garbage() {
+        // /bin/echo prints its argument and exits — the line on
+        // stdout is not a JSON-RPC response.
+        let entry = AnvilEntry::Stdio {
+            command: std::path::PathBuf::from("/bin/echo"),
+            args: vec!["not-jsonrpc".into()],
+            env: BTreeMap::new(),
+        };
+        let err = probe_startable(&entry).expect_err("garbage line must fail");
+        // Could be ParseResponse (echo prints "not-jsonrpc") or
+        // BadResponse depending on how /bin/echo's output parses.
+        assert!(
+            matches!(
+                err,
+                ProbeError::ParseResponse(_) | ProbeError::BadResponse(_)
+            ),
+            "got {err:?}",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_startable_rejects_child_that_exits_immediately() {
+        // /bin/true exits with status 0 producing no output. The
+        // reader thread sees EOF immediately, sending an empty line.
+        let entry = AnvilEntry::Stdio {
+            command: std::path::PathBuf::from("/bin/true"),
+            args: vec![],
+            env: BTreeMap::new(),
+        };
+        let err = probe_startable(&entry).expect_err("immediate exit must fail");
+        assert!(matches!(err, ProbeError::EmptyResponse), "got {err:?}");
     }
 }
