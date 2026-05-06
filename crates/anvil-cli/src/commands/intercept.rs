@@ -141,7 +141,7 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
         anyhow::bail!("daemon closed the connection before responding");
     }
     if (buf.len() as u64) > RESPONSE_LINE_BYTES {
-        anyhow::bail!("query_status response exceeded {RESPONSE_LINE_BYTES} byte cap",);
+        anyhow::bail!("query_status response exceeded {RESPONSE_LINE_BYTES} byte cap");
     }
     let line = std::str::from_utf8(buf.trim_ascii_end())
         .context("query_status response is not valid UTF-8")?;
