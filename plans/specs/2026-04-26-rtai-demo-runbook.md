@@ -154,18 +154,32 @@ extension reaches the daemon.
 anvil intercept status
 ```
 
-Expected:
+Expected (with mid-edit traffic flowing):
 
 ```
-daemon:    running (pid <N>)
-sessions:  1 active   (cursor / rust-mcp)
+daemon:    running (uptime <N>s, version <V>)
+sessions:  1 active   (session)
 fences:    0
-latency:   p50 <X>ms  p95 <Y>ms  (mid-edit)
+latency: p50 <X>ms p95 <Y>ms (mid-edit)
 ```
 
-The latency line is the demo's quiet trust signal. Numbers must be inside
-the budget pinned by ADR-031. If they are not, jump to
+When the daemon has not yet observed any mid-edit calls (e.g. first
+seconds after `anvil intercept start --foreground`), the last line
+reads:
+
+```
+latency: (no mid-edit traffic yet)
+```
+
+The latency line is the demo's quiet trust signal — it is sourced from
+real `validation.service` measurements (INTD-011), not pre-seeded
+estimates. Numbers must be inside the budget pinned by ADR-031. If
+they are not, jump to
 [Failure modes — latency exceeds budget](#latency-exceeds-budget).
+
+The exact rendered text is a contract pin: any change to the
+`latency: p50 <X>ms p95 <Y>ms (mid-edit)` line MUST land in the same
+commit as the runbook update.
 
 ### 1.6 Run the three scenarios
 
@@ -572,12 +586,12 @@ items in the appropriate module:
   RMCP-007 alongside the install wrapper and existing RCLI3-016b
   config resolver. Feedback to: RMCP / RCLI3.
 - **`anvil intercept status` command + latency line** — used in §1.5
-  and §4.4. INTD-011 (daemon status) covers shape; the **mid-edit
-  latency rollup line** (p50 / p95) is not currently in INTD-011's
-  expected outcome. Feedback to: INTD-011 (extend) or RTAI-007
-  (telemetry) — file a coordination question. The runbook needs the
-  latency line to be visible to the operator, not just on the
-  telemetry lane.
+  and §4.4. INTD-011 (daemon status) now ships the **mid-edit
+  latency rollup line** sourced from real
+  `validation.service` measurements. The render line is a contract
+  pin (`latency: p50 <X>ms p95 <Y>ms (mid-edit)` with traffic;
+  `latency: (no mid-edit traffic yet)` without). Any change to the
+  text MUST update §1.5 in the same commit.
 - **`anvil intercept unblock --worktree` command** — used in §3.1.
   INTD-007 covers the data path (fence persistence + manual unblock)
   but the CLI surface is not pinned to a work-item home today.
