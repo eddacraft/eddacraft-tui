@@ -95,7 +95,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
-    let (diagnostic, install_report) = if read_only {
+    let (mut diagnostic, install_report) = if read_only {
         (
             activation::verify(root),
             activation::orchestrator::InstallReport::default(),
@@ -103,6 +103,23 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     } else {
         activation::orchestrator::run(root, global)?
     };
+
+    // LAUNCH-011: when `--watch` is set and the orchestrator's MCP
+    // tier is below `LiveValidation`, the process is about to enter
+    // the kernel watcher. Synthesise that final state in the
+    // diagnostic BEFORE rendering so the printed `state:` line
+    // matches the protection layer the user is moments away from
+    // running — never let the rendered state lag behind the actual
+    // post-handoff state.
+    //
+    // When MCP is already live, the synthesis is skipped; the
+    // diagnostic stays at `Protecting` and the post-render skip path
+    // surfaces an explicit "redundant" message instead of spawning
+    // a watcher that would only produce save-time noise.
+    let will_spawn_watcher = args.watch && !diagnostic.mcp_pre_write_live();
+    if will_spawn_watcher {
+        diagnostic.watch = activation::diagnostic::WatchTier::Running;
+    }
 
     if global.json {
         let json = serde_json::to_string_pretty(&activation::render_json(&diagnostic))?;
@@ -142,11 +159,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // restart-pending state — that is honest belt-and-braces, not
     // theatre.
     if args.watch {
-        if diagnostic.mcp_pre_write_live() {
-            // No-op message: MCP pre-write validation is already live.
-            // The diagnostic above already rendered `state: protecting`
-            // — this trailing line just tells the user we honoured the
-            // flag without spawning a redundant watcher.
+        if !will_spawn_watcher {
+            // MCP pre-write validation is already live. The
+            // diagnostic above already rendered `state: protecting`
+            // — this trailing line just tells the user we honoured
+            // the flag without spawning a redundant watcher.
             println!(
                 "  watch: skipped — MCP pre-write validation is live; save-time fallback is redundant."
             );

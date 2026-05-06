@@ -295,12 +295,26 @@ fn start_on_invalid_config_emits_error_state_not_panic() {
 // ---- LAUNCH-011: honest watch fallback --------------------------
 
 #[test]
-fn start_verify_on_fresh_repo_surfaces_partial_protection_note() {
-    // LAUNCH-011 acceptance: when MCP cannot pre-write attach (no
-    // client at `RestartRequired+`), the human render must say so
-    // explicitly — never let the user infer protection from a
+fn start_verify_on_initialised_repo_surfaces_partial_protection_note() {
+    // LAUNCH-011 acceptance: on an initialised repo (config valid)
+    // where MCP cannot pre-write attach, the human render must say
+    // so explicitly — never let the user infer protection from a
     // weaker tier or from config-only state.
+    //
+    // The repo is pre-initialised with a valid `.anvilrc` so the
+    // diagnostic does not bypass the offer logic via the
+    // `ConfigStatus::Absent` suppression (council remediation: the
+    // primary action on Absent is `anvil init`, not watch fallback).
     let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    )
+    .unwrap();
+    // Drop a TS file so the language profile reports a supported
+    // language and the diagnostic does not collapse to `Unsupported`
+    // (which would also suppress the offer).
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
     let home = tempfile::tempdir().unwrap();
     let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
     assert!(
@@ -313,7 +327,7 @@ fn start_verify_on_fresh_repo_surfaces_partial_protection_note() {
     // The diagnostic must include the literal honesty note.
     assert!(
         stdout.contains("MCP pre-write validation is not attached"),
-        "fresh-repo --verify must include the partial-protection note, got:\n{stdout}"
+        "initialised-repo --verify must include the partial-protection note, got:\n{stdout}"
     );
 
     // It must surface the offered watch tier so the user sees the
@@ -321,7 +335,7 @@ fn start_verify_on_fresh_repo_surfaces_partial_protection_note() {
     // hint.
     assert!(
         stdout.contains("watch: offered"),
-        "fresh-repo --verify must show watch tier as `offered`, got:\n{stdout}"
+        "initialised-repo --verify must show watch tier as `offered`, got:\n{stdout}"
     );
 
     // Truthfulness guardrails — the language LAUNCH-011 explicitly
@@ -337,17 +351,47 @@ fn start_verify_on_fresh_repo_surfaces_partial_protection_note() {
     );
     assert!(
         !stdout.contains("state: protecting"),
-        "fresh-repo --verify MUST NOT claim `state: protecting`, got:\n{stdout}"
+        "initialised-repo --verify MUST NOT claim `state: protecting`, got:\n{stdout}"
     );
 }
 
 #[test]
-fn start_after_install_does_not_surface_partial_protection_note() {
-    // Adversarial guard against a regression that always appends the
-    // fallback note. After the install step, MCP is at
-    // `RestartRequired` — the headline is `ready_restart_required`,
-    // and the partial-protection note must NOT appear because MCP
-    // IS attached (just pending a restart).
+fn start_verify_on_fresh_repo_with_absent_config_does_not_advertise_watch() {
+    // Council remediation: when config is absent, the user's primary
+    // action is `anvil init`, not watch fallback. The note and the
+    // `Offered` tier must both be suppressed so the init nudge is
+    // not diluted.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("config: absent"),
+        "expected config: absent on fresh repo, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("watch: offered"),
+        "fresh repo with absent config MUST NOT advertise watch, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("MCP pre-write validation is not attached"),
+        "fresh repo with absent config must defer to init copy, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("anvil init"),
+        "fresh repo with absent config must surface the init nudge, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn start_after_install_surfaces_partial_protection_note() {
+    // Council remediation: at `ready_restart_required`, MCP is wired
+    // but the editor has not yet loaded the entry — pre-write is not
+    // attached. The honesty contract forbids claiming attachment
+    // based on configuration alone, so the partial-protection note
+    // MUST appear here. The user reading this should understand that
+    // a restart is required before MCP enforcement is real.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let out = run_start_with_home(dir.path(), home.path(), &[]);
@@ -358,9 +402,17 @@ fn start_after_install_does_not_surface_partial_protection_note() {
         "post-install state should be ready_restart_required, got:\n{stdout}"
     );
     assert!(
-        !stdout.contains("MCP pre-write validation is not attached"),
-        "post-install render must not claim MCP pre-write validation is \
-         not attached — the user is one restart from live, got:\n{stdout}"
+        stdout.contains("MCP pre-write validation is not attached"),
+        "post-install render at ready_restart_required must include \
+         the partial-protection note — MCP is wired but not yet \
+         attached, got:\n{stdout}"
+    );
+    // The headline must still drive the action: restart, not watch.
+    let lower = stdout.to_lowercase();
+    assert!(
+        lower.contains("restart your editor") || lower.contains("restart required"),
+        "ready_restart_required render must surface the restart action, \
+         got:\n{stdout}"
     );
 }
 
@@ -506,6 +558,24 @@ fn start_watch_renders_partial_protection_and_starts_watcher() {
         captured.contains("watch: starting save-time fallback"),
         "must print the watch hand-off marker before entering the watcher, \
          got:\n{captured}"
+    );
+
+    // LAUNCH-011 spec acceptance: the rendered state must literally
+    // be `watching`, not `protecting`. The pre-handoff diagnostic
+    // synthesises `WatchTier::Running` so the printed `state:` line
+    // matches the protection layer about to take over.
+    //
+    // Two acceptable renderings (depending on the test runner's HOME
+    // contents):
+    //   - empty HOME → MCP at `ConfigAbsent` → `state: watching`
+    //   - HOME with stale anvil entry → MCP at `RestartRequired` →
+    //     `state: ready_restart_required` (watch + restart-pending
+    //     prefers the stronger label per the diagnostic mapping)
+    // Either is honest; the forbidden literal is `state: protecting`.
+    assert!(
+        captured.contains("state: watching") || captured.contains("state: ready_restart_required"),
+        "pre-handoff state must be `watching` or `ready_restart_required` \
+         (the only honest options when MCP is below LiveValidation), got:\n{captured}"
     );
     assert!(
         !captured.contains("state: protecting"),
