@@ -230,6 +230,28 @@ surface online. Same demo, real backend.
 - Pin the AIGUARD envelope contract test before RTAI-004 commits, so driver +
   daemon paths cannot diverge.
 
+**Execution order:** Treat A2 as four dependency waves. Completed anchors are
+AIGUARD-001..-004, RMCP-005, RTAI-002/-003/-006/-008, and the shipped INTD
+foundation (INTD-002/-003/-005/-013/-014). Start new work only after confirming
+those anchors still pass their contract tests.
+
+| Wave | Items | Purpose | Parallel delivery |
+| ---- | ----- | ------- | ----------------- |
+| 0 | AIGUARD envelope contract, RMCP-005 daemon fallback, RTAI-008 errors contract | Lock the shared response envelope before more consumers are added | Already complete; only re-run validation as an A2 gate |
+| 1 | DRVR-006, DRVR-007, INTD-015, INTD-008, INTD-012 | Resolve driver/MCP scope, trust boundary, telemetry scoping, config loading, and Windows confidence | DRVR design decisions can run in parallel with INTD implementation; INTD-012 can land at any point but blocks final A2 completion |
+| 2 | INTD-004, INTD-006, INTD-009, INTD-010, INTD-016, DRVR-001 | Complete daemon runtime behaviours and the shared driver client | INTD watcher/interrupt/embedded/unregistered tracks can run independently once INTD-008 is available where needed; DRVR-001 can run against fake daemon fixtures while INTD items finish |
+| 3 | DRVR-002, DRVR-008, RTAI-004, INTD-011 | Pin the editor-driver protocol, capability negotiation, mid-edit client envelope, and daemon-visible status/latency rollup | DRVR-002 and RTAI-004 can overlap after DRVR-001, but RTAI-004 must not merge before protocol/envelope compatibility is confirmed |
+| 4 | RTAI-005, RTAI-007, RTAI-009, DRVR-003 if unpaused | Bring the editor mid-edit path online, mirror telemetry, and update architecture docs | RTAI-007 can run once INTD-015 is in; RTAI-009 waits for the actual consumer state; DRVR-003/RTAI-005 require an explicit ADR-033 unpause or replacement editor-surface decision |
+
+**Parallelisation notes:** The safe parallel split is **daemon hardening**
+(INTD-004/-006/-008/-009/-010/-015/-016), **driver contract**
+(DRVR-006/-007/-001/-002/-008), and **RTAI consumer semantics**
+(RTAI-004/-005/-007/-009). Do not parallelise work that changes the diagnostic
+envelope or daemon error semantics after RTAI-004 starts; route those through the
+Wave 0 contract first. If the release cut wants daemon-backed MCP only, Waves
+1-3 are sufficient; Wave 4's editor-surface items are a separate delivery lane
+because ADR-033 currently keeps the VSCode extension archived.
+
 **Out-of-scope (protect the slice):**
 
 - RMCPF full parity port — separate Tier A candidate (A3).
