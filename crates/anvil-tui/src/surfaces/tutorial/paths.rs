@@ -87,8 +87,8 @@ fn step_with_watch(
 /// LAUNCH-014: the value-first default tutorial path. Walks the
 /// protection loop in five informational steps without claiming
 /// pre-write protection — the final step points users at
-/// `anvil start --verify` (LAUNCH-006 / LAUNCH-012), the only
-/// surface that produces a literal `ProtectionState`.
+/// `anvil start --verify` (LAUNCH-006 / LAUNCH-012), which exposes
+/// a literal `ProtectionState` via the verifier output.
 ///
 /// Copy invariants (covered by tests in `tutorial::tests::protection_loop_*`):
 ///   - The headline never says "protected", "protecting", or
