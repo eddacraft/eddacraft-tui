@@ -554,6 +554,21 @@ Incrementalupdate at 10µs is 10,000x under the 100ms target.
   on the daemon side, exactly where the original KERN-052 placed
   it; INTD-015 restores that. Council review S5 (adversarial) added
   the INTD-007 pointer; M5 (security) prompted the INTD-015 filing.
+- **Implementation pointer (2026-05-06, A2 wave 1):** The
+  daemon-side filter now lives at
+  `crates/anvil-intercept/src/fanout.rs` and is the
+  **enforceable replacement** for the deprecated
+  driver-promised filter that earlier KERN-052 framing implied.
+  Subscribers cannot bypass the filter by self-declaring a
+  `driverName` — identities are minted by the daemon from
+  socket-peer credentials, not from any driver-supplied string.
+  Cross-session events default to deny; operators opt in to
+  redacted delivery (`rule_id` + `hash_of_path`) through
+  INTD-008's `telemetry.allow_cross_session: true` flag. The
+  redaction shape is pinned in the diagnostic-envelope
+  coordination spec lines 222-229 and in the "Subscribers MUST
+  (Cross-Session Redaction — INTD-015)" section of
+  `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`.
 
 ---
 
