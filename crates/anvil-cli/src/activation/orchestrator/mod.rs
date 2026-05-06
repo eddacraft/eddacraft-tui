@@ -116,7 +116,11 @@ pub(crate) fn run_with_home(
 }
 
 /// Decide whether to surface the interactive picker. We require:
-/// - not `--json` (machine-readable output must not include prompts)
+/// - not `--json` (defensive: in practice `commands/start.rs` short-
+///   circuits to read-only verify on `--json` so the orchestrator
+///   never runs in that mode, but the gate stays here so any future
+///   caller of `run_with_home` under `--json` cannot accidentally
+///   prompt)
 /// - not `--no-tui` (explicit user opt-out)
 /// - stdin is a TTY (`demand` reads keystrokes from stdin)
 /// - stderr is a TTY (`demand` renders the prompt to stderr; piping
