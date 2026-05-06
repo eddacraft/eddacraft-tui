@@ -130,9 +130,19 @@ Change status to **Ready** when:
   the daemon, driver framework, Graph v2, and legacy TS server.
 - **Expected Outcome:** Spec defines command layout, protocol support,
   validation paths, resource serving, prompt strategy, transport support, and
-  retirement gates for the TS package.
+  retirement gates for the TS package. The spec MUST adopt the DRVR-006
+  resolution (see
+  `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3,
+  recorded 2026-05-06 in A2 Wave 1): each ported tool is classified as either
+  a **daemon-RPC translator** (`anvil_check`, `anvil_status`, `anvil_suppress`)
+  or **MCP-driver-local composition** (`anvil_fix`, `anvil_gate`,
+  `anvil_query_boundary`). The architecture spec MUST NOT introduce new
+  daemon RPCs whose only consumer is parity prose; if RMCPF needs additional
+  daemon authority it MUST file new INTD work items rather than expanding the
+  RPC surface implicitly.
 - **Validation:** Council review confirms the spec does not regress the RMCP
-  single-binary launch path
+  single-binary launch path, and confirms each tool's class matches the
+  DRVR-006 table above (or records a deliberate amendment with rationale).
 - **Files:** `docs/architecture/rust-mcp-server-spec.md`
 - **Confidence:** medium
 - **Priority:** Critical
@@ -149,8 +159,22 @@ Change status to **Ready** when:
   Rust while preserving response contracts or documenting intentional changes.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_check`,
   `anvil_gate`, and `anvil_status` or their explicitly versioned successors.
+  Per the DRVR-006 resolution
+  (`plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3):
+  - `anvil_check` and `anvil_status` are **daemon-RPC translators**. Their
+    handlers call the daemon's `scan.files` / `scan_buffer` and `status.query`
+    surfaces (with the embedded fallback when the daemon is unavailable, as
+    RMCP-005 already wires).
+  - `anvil_gate` is **MCP-driver-local composition**: the handler shells to
+    `anvil gate` (or invokes the equivalent in-process gate path) because
+    `GateRunner` runs `npm audit`, OPA, and coverage JSON reads that the
+    daemon deliberately does not do.
+  - All response payloads pass through the redaction contract recorded in
+    §4 of the design spec (DRVR-007) before leaving the MCP transport.
 - **Validation:** Compatibility tests compare TS and Rust responses on fixture
-  workspaces
+  workspaces; tests assert the DRVR-006 classification (e.g. `anvil_gate`
+  results are reachable when the daemon is offline, `anvil_check` falls back
+  to embedded scan).
 - **Files:** `crates/anvil-cli/src/mcp/tools/`,
   `archive/anvil-mcp-server/src/tools/`
 - **Confidence:** medium
