@@ -73,8 +73,10 @@ enum Commands {
     Drift(commands::drift::DriftArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
-    /// Activate Anvil in this repository (LAUNCH-006). Composes init and
-    /// the activation diagnostic to land at one literal `ProtectionState`.
+    /// Activate Anvil in this repository. Writes `.anvilrc` if missing
+    /// and installs MCP config entries for Cursor and Claude Code into
+    /// your home directory (`~/.cursor/mcp.json`, `~/.claude.json`).
+    /// Pass `--verify` to run a read-only probe instead.
     Start(commands::start::StartArgs),
     /// Interactive guided tutorial.
     Tutorial(commands::tutorial::TutorialArgs),
@@ -308,7 +310,7 @@ fn should_offer_interactive_login(
 ///   alone is not enough.
 /// - `GIT_DIR` / `GIT_INDEX_FILE` — reliably set by git when it invokes a
 ///   hook. Prompting from a commit hook would hold git's index lock.
-fn is_non_interactive_env() -> bool {
+pub(crate) fn is_non_interactive_env() -> bool {
     // Presence-only: matches the common shell convention that
     // `export FOO=` is still "set". Empty-string should count as opt-out.
     let is_set = |k: &str| std::env::var_os(k).is_some();

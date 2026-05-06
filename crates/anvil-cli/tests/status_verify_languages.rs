@@ -4,6 +4,11 @@
 //! tier; an all-unsupported repo (e.g. Python-only) maps the
 //! protection state to `unsupported` rather than claiming generic
 //! coverage.
+//!
+//! Every test bench overrides `HOME` to a per-test tempdir so the
+//! MCP probe sees an empty home. Without this, the tests would
+//! pick up the developer's real `~/.cursor/mcp.json` and report
+//! state changes the test isn't trying to assert.
 
 use std::fs;
 use std::path::Path;
@@ -19,12 +24,16 @@ fn write(path: &Path, contents: &str) {
 }
 
 fn run_verify_json(workdir: &Path) -> serde_json::Value {
+    let home = tempfile::tempdir().unwrap();
     let out = Command::new(ANVIL_BIN)
         .arg("--no-tui")
         .arg("--json")
         .arg("status")
         .arg("--verify")
         .current_dir(workdir)
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
         .output()
@@ -43,11 +52,15 @@ fn run_verify_json(workdir: &Path) -> serde_json::Value {
 }
 
 fn run_verify_human(workdir: &Path) -> String {
+    let home = tempfile::tempdir().unwrap();
     let out = Command::new(ANVIL_BIN)
         .arg("--no-tui")
         .arg("status")
         .arg("--verify")
         .current_dir(workdir)
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
         .output()

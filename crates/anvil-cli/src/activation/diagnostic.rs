@@ -47,6 +47,12 @@ impl McpClientId {
     }
 }
 
+impl std::fmt::Display for McpClientId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
 /// Tier of MCP attachment for a given client.
 ///
 /// Variants form a strict ladder from "no config" up to "live evidence
@@ -233,6 +239,15 @@ impl ActivationDiagnostic {
 /// probes (real MCP detection, baseline, watch identity) plug into
 /// this function in PR 3, PR 4, and PR 5.
 pub fn verify(root: &Path) -> ActivationDiagnostic {
+    verify_with_home(root, dirs::home_dir().as_deref())
+}
+
+/// Like [`verify`] but with an explicit `home` override.
+///
+/// Used by the orchestrator and its unit tests to probe against a
+/// tempdir-scoped home, so install-path tests don't pollute the
+/// developer's real `~/.cursor/mcp.json` or `~/.claude.json`.
+pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnostic {
     let config = probe_config_status(root);
     let baseline_present = probe_baseline_present(root);
 
@@ -247,9 +262,8 @@ pub fn verify(root: &Path) -> ActivationDiagnostic {
     ) = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
-            let home = dirs::home_dir();
             (
-                super::mcp_client::probe_all(root, home.as_deref(), &fresh),
+                super::mcp_client::probe_all(root, home, &fresh),
                 None,
             )
         }
