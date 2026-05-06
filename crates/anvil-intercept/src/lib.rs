@@ -37,8 +37,10 @@ pub mod fanout;
 pub mod fence;
 pub mod interrupt;
 pub mod ipc;
+pub mod latency;
 pub mod midedit;
 pub mod registry;
+pub mod status;
 pub mod telemetry;
 pub mod unregistered;
 pub mod watcher;
@@ -759,6 +761,22 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             Arc::clone(&daemon_state.fence_store),
         );
         let scan_buffer = opts.scan_buffer.clone();
+        // INTD-011: the production status provider reads sessions from
+        // the daemon's registry, fences from the persisted store, and
+        // the latency rollup from the same `ScanBufferService` the
+        // listener serves with — so `query_status` reflects exactly
+        // the state the daemon is currently using to evaluate
+        // `scan_buffer` calls. The provider is built BEFORE the
+        // listener so the listener gets a status feed wired in from
+        // the first connection.
+        let status_provider: Arc<dyn status::StatusProvider> =
+            Arc::new(status::DaemonStatusProvider::new(
+                Arc::clone(&daemon_state.registry),
+                Arc::clone(&daemon_state.fence_store),
+                scan_buffer.latency().clone(),
+                Instant::now(),
+                env!("CARGO_PKG_VERSION"),
+            ));
 
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
@@ -766,6 +784,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         } else {
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
+        .map(|listener| listener.with_status_provider(Arc::clone(&status_provider)))
         .context("failed to bind intercept IPC listener")?;
 
         #[cfg(windows)]
@@ -774,6 +793,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         } else {
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
+        .map(|listener| listener.with_status_provider(Arc::clone(&status_provider)))
         .context("failed to bind intercept IPC listener")?;
 
         let listener_token = token.clone();
