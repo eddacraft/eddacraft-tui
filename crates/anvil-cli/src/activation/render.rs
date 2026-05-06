@@ -45,6 +45,29 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     }
 
     let _ = writeln!(out, "  watch: {}", d.watch.label());
+
+    // LAUNCH-011: when MCP pre-write validation cannot be claimed
+    // (no client at `RestartRequired+`), surface the literal honesty
+    // language so user-facing copy never implies attachment based on
+    // config alone. The line fires for every state below `Protecting`
+    // / `ReadyRestartRequired`, including the no-config / partial-MCP
+    // paths, so a degraded state can never be misread as "fully
+    // protected".
+    //
+    // Skipped when:
+    // - MCP is at `RestartRequired+` (the headline state already
+    //   communicates the partial protection — adding this line would
+    //   duplicate the nudge)
+    // - the diagnostic is in `Error` (the surface should report the
+    //   error cause, not hedge with fallback copy)
+    if !d.mcp_pre_write_attached() && !matches!(state, ProtectionState::Error) {
+        out.push_str(
+            "  note: MCP pre-write validation is not attached. \
+             Watch mode fallback validates saved file changes only — \
+             it cannot intercept MCP tool writes before they happen.\n",
+        );
+    }
+
     // LAUNCH-010: render the baseline summary when known. Copy never
     // claims the repo is clean — even a zero-finding baseline only
     // says "no findings tracked yet", because the sample is bounded
@@ -332,8 +355,11 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             if matches!(d.config, super::diagnostic::ConfigStatus::Absent) {
                 Some("run `anvil init` to create a config, then `anvil start` to activate.")
             } else if d.mcp.values().all(|r| r.tier < McpTier::ConfigPresent) {
+                // LAUNCH-011: nudge toward the explicit watch fallback
+                // composition (`anvil start --watch`) so the user does
+                // not have to discover the two surfaces independently.
                 Some(
-                    "run `anvil start` to wire Cursor and Claude Code MCP paths, or `anvil watch` for save-time fallback.",
+                    "run `anvil start` to wire Cursor and Claude Code MCP paths, or `anvil start --watch` for save-time fallback protection.",
                 )
             } else {
                 Some("run `anvil start --verify` to re-check activation.")
