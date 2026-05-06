@@ -82,3 +82,27 @@ export {
   type Mode,
   type Severity,
 } from './diagnostics/index.js';
+
+export {
+  ALL_ANVIL_METHODS,
+  ALL_CAPABILITIES,
+  ANVIL_ENFORCEMENT_ACK,
+  ANVIL_GATE_REQUEST,
+  ANVIL_PUBLISH_DIAGNOSTICS,
+  ANVIL_SCAN_BUFFER,
+  ANVIL_STATUS_QUERY,
+  ANVIL_SUPPRESSION_APPLY,
+  type AnvilEnforcementAckParams,
+  type AnvilGateRequestParams,
+  type AnvilMethodName,
+  type AnvilPublishDiagnosticsParams,
+  type AnvilScanBufferParams,
+  type AnvilScanBufferResult,
+  type AnvilStatusQueryParams,
+  type AnvilSuppressionApplyParams,
+  type AnvilSuppressionApplyResult,
+  type Capability,
+  type CapabilityDowngrade,
+  type CapabilityDowngradeReason,
+  type DriverManifestSlice,
+} from './protocol/index.js';
