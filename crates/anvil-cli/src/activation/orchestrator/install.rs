@@ -14,7 +14,7 @@
 //!
 //! - **Non-interactive** (`--no-tui`, no TTY, or CI envs like
 //!   `CI=true` / `GIT_DIR` set): auto-install for every `NotPresent`
-//!   + `SafeDrift` candidate. No prompt is shown. `UnsafeDrift` is
+//!   and `SafeDrift` candidate. No prompt is shown. `UnsafeDrift` is
 //!   always skipped with the drift reason recorded in the install
 //!   report.
 //!
