@@ -876,6 +876,25 @@ mod tests {
     }
 
     #[test]
+    fn filter_by_domain_protection_loop_gets_all_and_preserves_metadata() {
+        // LAUNCH-014: the value-first ProtectionLoop default returns
+        // every finding (no domain narrowing in v1) AND preserves the
+        // scan metadata. PR #1294 review fix (Copilot) — without this
+        // pin, accidentally narrowing the new default path's findings
+        // would break the spec invariant silently.
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::ProtectionLoop);
+        assert_eq!(
+            filtered.findings.len(),
+            3,
+            "ProtectionLoop must return every finding regardless of source"
+        );
+        assert_eq!(filtered.files_scanned, 150);
+        assert_eq!(filtered.duration_ms, 300);
+        assert!(!filtered.truncated);
+    }
+
+    #[test]
     fn filter_by_domain_preserves_metadata() {
         let results = make_mixed_findings();
         let filtered = results.filter_by_domain(TutorialPath::Policy);

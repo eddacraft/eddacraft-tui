@@ -128,7 +128,7 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
         ),
         step_with_command(
             "Activate in this repo",
-            "Now run the safe verifier. `anvil start --verify` is read-only — it probes config, MCP clients (Cursor, Claude Code), and the watch fallback, then prints one literal `ProtectionState` line. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
+            "Now run the safe verifier. `anvil start --verify` is read-only — it probes config (.anvilrc), MCP client entries (Cursor, Claude Code), the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. Watch-fallback liveness probing is not yet wired; the verifier reports `watch: not requested` until a future PR introspects a running watcher. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
             "Run: anvil start --verify",
             "anvil start --verify",
         ),
