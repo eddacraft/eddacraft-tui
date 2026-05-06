@@ -8,11 +8,11 @@ See: plans/aps-rules.md
 
 # Surface Drivers
 
-| ID   | Owner | Status | Progress |
-| ---- | ----- | ------ | -------- |
-| DRVR | —     | Draft  | 0/4 active (2 superseded, 1 deferred under ADR-033) |
+| ID   | Owner | Status      | Progress |
+| ---- | ----- | ----------- | -------- |
+| DRVR | —     | In Progress | 0/4 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 In Progress on `a2/wave1-driver-scope-trust`; DRVR-006 supersession recorded in same PR |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-05-06
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The IDE/MCP surfaces this module integrates are **archived**
@@ -437,7 +437,7 @@ define graph schema.
   PR #1063.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** In Progress (A2 Wave 1 — branch `a2/wave1-driver-scope-trust`)
+- **Status:** Pending merge of `a2/wave1-driver-scope-trust` (A2 Wave 1) — spec contract (§2.3a, §4.4) and v1 auth API (`crates/anvil-intercept/src/auth.rs`) shipped; DRVR-001 (Wave 2) wires the consumer; reliability-budget quarantine ledger lands with DRVR-001.
 
 ---
 

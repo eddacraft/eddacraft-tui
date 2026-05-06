@@ -144,6 +144,86 @@ could request enforcement acks it has no intent to honour.
 - **Never:** reliance on `driverName` alone. It's metadata, not an
   auth factor.
 
+### 2.3a Driver trust boundary (v1)
+
+Same-UID is the default trust factor (§2.3). Same-UID is **not**
+unconditional trust: a hostile process running as the user can speak
+the driver protocol and request capabilities the daemon can grant. The
+v1 trust boundary enumerates what same-UID buys, what it does not, and
+which capabilities require stronger identity before they are granted
+to a new driver.
+
+This subsection is the security contract for DRVR-007. It is binding
+on the v1 implementation in `crates/anvil-intercept/src/auth.rs` and on
+every consumer that DRVR-001 / RMCPF wire later.
+
+#### (a) What a same-UID driver CAN do (v1)
+
+A driver that completes a `SO_PEERCRED` check against the daemon's UID
+and presents a well-formed `DriverManifest` (§2.2):
+
+- Connect, complete the handshake, and reach the **Attached**
+  (read-only) state.
+- Subscribe to telemetry events scoped to a session that lists the
+  driver's claimed `workspaceRoots` (subject to INTD-015 telemetry
+  scoping rules).
+- Render diagnostics in the editor / MCP host process.
+- Apply suppression edits via `anvil/suppression/apply`, which the
+  daemon validates per ADR-004 before normalising the comment.
+- Receive `correlationId` chains for log lookup.
+
+#### (b) What a same-UID driver CANNOT do (v1)
+
+A same-UID driver, even one that passes peer credential checks, MUST
+NOT be able to:
+
+- Promote itself to **Participating** (enforcement-candidate) without
+  passing the manifest allowlist check below. `SO_PEERCRED` alone is
+  insufficient because any same-UID process can satisfy it.
+- Subscribe to telemetry events for sessions whose `workspaceRoots` it
+  did not claim. The daemon performs the cross-check against
+  `SessionRecord` worktree paths in INTD-003 before adding the driver
+  to the broadcast set; unknown roots downgrade the driver to a
+  read-only observer of its own claimed roots only.
+- Receive un-redacted MCP-driver response payloads (§4.4 redaction
+  contract). Default-deny on secret-detection content excerpts and
+  absolute paths crossing the MCP transport applies regardless of
+  same-UID trust.
+- Bypass the daemon's reliability-budget quarantine by reconnecting
+  with a fresh `driverName`. Quarantine identity in v1 is keyed off
+  manifest fields stronger than `driverName` (§2.6); v2+ tightens this
+  further to a signed token / install-time UUID. The full quarantine
+  implementation is deferred to DRVR-001 (Wave 2).
+- Force a fence on a worktree it does not own. Fence authority is
+  daemon-side and bounded by INTD-003 / INTD-005; drivers can ack or
+  refuse decisions, but cannot synthesise them.
+
+#### (c) Capabilities requiring stronger identity (v1+ vs deferred)
+
+| Capability                                          | v1 gate                                                                                                                              | v2+ gate (deferred)                                                  |
+|-----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `capability.enforcementCandidate: true`             | Manifest allowlist (`~/.config/anvil/drivers.allow`) — driver binary path resolved via `/proc/<pid>/exe` etc., must match a listed path | Signed capability token / install-time UUID                          |
+| Subscribe to other-session telemetry                | Refused in v1 (drivers see only their own `workspaceRoots`)                                                                          | Possible with operator-issued multi-session capability               |
+| Cross-user / cross-host attach                      | Refused in v1 (`SO_PEERCRED` enforces same-UID)                                                                                      | OIDC-style token (remote-shell driver, future)                       |
+| Quarantine bypass via fresh `driverName`            | Refused: quarantine documented to key off stable identity (binary hash / token)                                                       | Signed identity tied to install                                      |
+| Daemon redaction opt-out for `scan.files` excerpts  | Refused — default-deny; no v1 escape hatch                                                                                           | Per-rule-family opt-in via project policy                            |
+
+**Implementation surface (v1):** `crates/anvil-intercept/src/auth.rs`
+exposes `is_driver_allowed(binary_path, allowlist)` for the
+allowlist check and `DriverManifest::validate_workspace_roots(&[...])`
+for the worktree cross-check. The driver consumer that wires these
+into the handshake is DRVR-001 (Wave 2). This subsection is the
+contract DRVR-001 will satisfy; it is intentionally written so the
+auth API can be reviewed and shipped before any consumer side-effects
+land.
+
+**Reliability-budget quarantine on stable identity:** the design
+contract (above) requires quarantine to key off something stronger
+than `driverName`. The v1 implementation of the quarantine ledger
+(stable-identity keying, cooldown survival across reconnects) lands
+with DRVR-001 in Wave 2. This Wave 1 PR ships the trust-boundary spec
+and the auth API; the quarantine ledger itself is explicitly deferred.
+
 ### 2.4 Version negotiation
 
 `protocolVersion` is a single integer. Breaking changes bump it.
@@ -427,7 +507,56 @@ MCP transport. Per §4.4 below, **redaction is class-independent**: every
 MCP-bound response payload (daemon-round-tripped or local) passes
 through the redaction contract before it leaves the MCP transport.
 
-### 4.4 Degraded behaviour
+### 4.4 Redaction contract (DRVR-007, v1)
+
+MCP-driver response payloads cross a transport that may be observed by
+an agent process the daemon does not control. Same-UID trust (§2.3) is
+not a licence to leak secret-detection content excerpts or absolute
+filesystem paths through MCP responses. The v1 redaction contract
+defaults closed: payloads are redacted unless explicitly opted in.
+
+**In scope (v1):** the three MCP responses that carry rule-driven
+content or file location data — `scan.files`, `fix.apply`, and
+`status.query`. The contract applies to every response payload that
+crosses the MCP transport, regardless of whether the underlying handler
+is a daemon-RPC translator or MCP-driver-local composition (§4.3).
+
+**Default-deny rules (v1):**
+
+| Field class                                        | Default disposition                                                                                  |
+|----------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| Secret-detection content excerpts                  | Redacted to `<<redacted: secret>>` placeholder; rule id and category preserved                       |
+| Absolute filesystem paths in `location.file`       | Replaced with workspace-relative paths; daemon stores the absolute mapping for correlation but does not emit it |
+| Absolute paths embedded in `remediation_hint`      | Replaced with workspace-relative paths via the same resolver                                         |
+| `fix.apply` diff payloads referencing absolute paths | Workspace-relative; pre/post excerpts redacted by the same secret-detection mask before emission   |
+| `status.query` worktree paths                      | Workspace-relative roots only; daemon never emits the absolute parent into MCP                       |
+
+**Out of scope (v1):**
+
+- Rule families other than secret detection. Antipattern, boundary,
+  policy, and reasoning excerpts may pass through unredacted in v1
+  pending a per-family review (deferred to RMCPF-010 hardening).
+- Per-rule opt-in escape hatches. The contract is default-deny and v1
+  exposes no opt-out path for `scan.files` excerpts. v2+ may add
+  per-rule-family opt-in via project policy.
+- Editor-driver responses. Editor surfaces are scoped to the same UID
+  and the user's own editor process; redaction policy for editor
+  payloads is handled by INTD-015 telemetry scoping, not this contract.
+
+**Implementation surface (v1):** the redaction step is a daemon-side
+filter applied before payloads are written to the MCP transport. The
+contract is documented here as the v1 specification; the runtime
+implementation is wired by the MCP driver consumer (RMCPF-010 owns the
+filter integration). DRVR-007's auth API in
+`crates/anvil-intercept/src/auth.rs` does not include the redaction
+filter — it is a separate concern, called out here so DRVR-001 / RMCPF
+cannot claim the contract was implicit.
+
+**Validation surface (v1):** the contract is testable today via spec
+fixtures; runtime parity tests land with RMCPF-010. The Wave 1 PR ships
+the spec; the runtime tests follow when the consumer wires up.
+
+### 4.5 Degraded behaviour
 
 MCP driver handling of a daemon-down state differs from the editor
 driver:
@@ -442,7 +571,7 @@ driver:
 Agents are expected to reason about retriable errors. If they can't,
 the error at least names the problem clearly.
 
-### 4.5 Distribution
+### 4.6 Distribution
 
 MCP driver ships as part of the existing `archive/anvil-mcp-server/`
 package, consuming the shared `packages/anvil-driver-client/` library
