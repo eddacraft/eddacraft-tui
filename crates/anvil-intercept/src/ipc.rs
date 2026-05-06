@@ -48,6 +48,7 @@ use crate::dos::{IpcLimits, RpsBucket};
 use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
 use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService};
 use crate::registry::SessionDispatcher;
+use crate::status::{DaemonStatus, StatusProvider};
 
 /// Maximum size of a single NDJSON line, in bytes. Lines larger than
 /// this cause the connection to be torn down with [`IpcError::OversizedLine`]
@@ -76,6 +77,29 @@ pub const SHUTDOWN_DRAIN_DEADLINE: Duration = Duration::from_millis(250);
 /// [`SessionRegistry`](crate::registry::SessionRegistry).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoopDispatcher;
+
+/// Default empty status used by listeners that have not been wired
+/// to a daemon. The IPC handler treats `query_status` as a stable
+/// JSON-RPC method even on these listeners — a `NoopDispatcher`
+/// listener answers with the empty snapshot rather than
+/// `Method not found`, so test fixtures and embedded callers can
+/// exercise the wire shape without a full daemon mock.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoopStatusProvider;
+
+impl StatusProvider for NoopStatusProvider {
+    fn query_status(&self) -> DaemonStatus {
+        crate::status::build_status(
+            Vec::new(),
+            &[],
+            None,
+            std::time::Instant::now(),
+            std::time::Instant::now(),
+            env!("CARGO_PKG_VERSION"),
+            crate::status::IpcState::Serving,
+        )
+    }
+}
 
 impl SessionDispatcher for NoopDispatcher {
     fn register(
@@ -430,6 +454,8 @@ pub struct IpcListener<D: SessionDispatcher> {
     scan_buffer: ScanBufferService,
     #[cfg(unix)]
     limits: IpcLimits,
+    #[cfg(unix)]
+    status_provider: Arc<dyn StatusProvider>,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
@@ -440,6 +466,8 @@ pub struct IpcListener<D: SessionDispatcher> {
     scan_buffer: ScanBufferService,
     #[cfg(windows)]
     limits: IpcLimits,
+    #[cfg(windows)]
+    status_provider: Arc<dyn StatusProvider>,
     #[cfg(not(any(unix, windows)))]
     _marker: std::marker::PhantomData<D>,
 }
@@ -451,6 +479,17 @@ impl<D: SessionDispatcher> IpcListener<D> {
     #[must_use]
     pub fn with_limits(mut self, limits: IpcLimits) -> Self {
         self.limits = limits;
+        self
+    }
+
+    /// Plug the INTD-011 status provider. Listeners default to
+    /// [`NoopStatusProvider`] (an empty snapshot) so existing
+    /// callers — fanout tests, fixture servers, parity probes —
+    /// keep working without a daemon-backed status feed.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_status_provider(mut self, provider: Arc<dyn StatusProvider>) -> Self {
+        self.status_provider = provider;
         self
     }
 }
@@ -567,6 +606,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             dispatcher: Arc::new(dispatcher),
             scan_buffer,
             limits: IpcLimits::default(),
+            status_provider: Arc::new(NoopStatusProvider),
         })
     }
 
@@ -581,6 +621,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let dispatcher = Arc::clone(&self.dispatcher);
         let scan_buffer = self.scan_buffer.clone();
         let limits = self.limits;
+        let status_provider = Arc::clone(&self.status_provider);
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
         ));
@@ -618,10 +659,11 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             };
                             let dispatcher = Arc::clone(&dispatcher);
                             let scan_buffer = scan_buffer.clone();
+                            let conn_status = Arc::clone(&status_provider);
                             let conn_token = token.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_token, limits).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -695,6 +737,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             dispatcher: Arc::new(dispatcher),
             scan_buffer,
             limits: IpcLimits::default(),
+            status_provider: Arc::new(NoopStatusProvider),
         })
     }
 
@@ -705,6 +748,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let dispatcher = self.dispatcher;
         let scan_buffer = self.scan_buffer;
         let limits = self.limits;
+        let status_provider = Arc::clone(&self.status_provider);
         let mut joinset: JoinSet<()> = JoinSet::new();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
@@ -742,10 +786,11 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             };
                             let dispatcher = Arc::clone(&dispatcher);
                             let scan_buffer = scan_buffer.clone();
+                            let conn_status = Arc::clone(&status_provider);
                             let conn_token = token.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_token, limits).await {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -787,6 +832,7 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     stream: R,
     dispatcher: Arc<D>,
     scan_buffer: ScanBufferService,
+    status_provider: Arc<dyn StatusProvider>,
     mut token: ShutdownToken,
     limits: IpcLimits,
 ) -> Result<(), IpcError> {
@@ -897,7 +943,8 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
             Ok(value) => {
                 if is_jsonrpc_frame(&value) {
                     if let Some(response) =
-                        handle_jsonrpc_value(value, &dispatcher, &scan_buffer).await
+                        handle_jsonrpc_value(value, &dispatcher, &scan_buffer, &status_provider)
+                            .await
                     {
                         write_json_response(reader.get_mut(), &response, "response").await?;
                     }
@@ -1079,7 +1126,8 @@ pub async fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
     dispatcher: &Arc<D>,
     scan_buffer: &ScanBufferService,
 ) -> Option<Value> {
-    handle_jsonrpc_value(value, dispatcher, scan_buffer).await
+    let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status).await
 }
 
 fn is_jsonrpc_frame(value: &Value) -> bool {
@@ -1541,6 +1589,7 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
     scan_buffer: &ScanBufferService,
+    status_provider: &Arc<dyn StatusProvider>,
 ) -> Option<Value> {
     match value {
         Value::Array(items) => {
@@ -1589,7 +1638,8 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                     }
                     continue;
                 }
-                if let Some(response) = handle_jsonrpc_request(item, dispatcher, scan_buffer).await
+                if let Some(response) =
+                    handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider).await
                 {
                     responses.push(response);
                 }
@@ -1600,7 +1650,7 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                 Some(Value::Array(responses))
             }
         }
-        item => handle_jsonrpc_request(item, dispatcher, scan_buffer).await,
+        item => handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider).await,
     }
 }
 
@@ -1641,6 +1691,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
     scan_buffer: &ScanBufferService,
+    status_provider: &Arc<dyn StatusProvider>,
 ) -> Option<Value> {
     let Value::Object(map) = value else {
         return Some(jsonrpc_error(
@@ -1723,6 +1774,16 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         .await;
     }
 
+    if method == QUERY_STATUS_METHOD {
+        return handle_query_status_jsonrpc(
+            params,
+            response_id,
+            traceparent,
+            is_notification,
+            status_provider,
+        );
+    }
+
     dispatch_session_jsonrpc(
         method,
         params,
@@ -1731,6 +1792,50 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         is_notification,
         dispatcher,
     )
+}
+
+/// JSON-RPC method name for INTD-011 daemon status queries. Pinned at
+/// the `query_status` literal — driver consumers and the
+/// `anvil intercept status` CLI command both use this exact string.
+pub const QUERY_STATUS_METHOD: &str = "query_status";
+
+fn handle_query_status_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    status_provider: &Arc<dyn StatusProvider>,
+) -> Option<Value> {
+    if !matches!(params, Value::Null) {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            is_notification,
+            -32602,
+            "Invalid params",
+            json!({"reason": "query_status does not accept params"}),
+        );
+    }
+    if is_notification {
+        // INTD-011 status is a request-shaped query — treating a
+        // notification as a no-op matches the JSON-RPC contract for
+        // notifications and avoids spamming an unanswered status
+        // computation on the worker thread.
+        return None;
+    }
+    let snapshot = status_provider.query_status();
+    let wire = snapshot.to_wire();
+    match serde_json::to_value(&wire) {
+        Ok(result) => Some(jsonrpc_success(response_id, traceparent, result)),
+        Err(err) => jsonrpc_request_error(
+            response_id,
+            traceparent,
+            is_notification,
+            -32603,
+            "Internal error",
+            json!({"error": err.to_string()}),
+        ),
+    }
 }
 
 fn dispatch_session_jsonrpc<D: SessionDispatcher>(
@@ -2203,6 +2308,21 @@ fn dispatch_command<D: SessionDispatcher>(
         IpcCommand::ListSessions => {
             let sessions = dispatcher.list();
             serde_json::to_value(sessions).map_err(|err| err.to_string())
+        }
+        IpcCommand::QueryStatus => {
+            // INTD-011: the legacy NDJSON path does not carry
+            // `query_status` payloads — drivers send the JSON-RPC
+            // `query_status` method directly (see
+            // `handle_query_status_jsonrpc`). The variant exists in
+            // `IpcCommand` so future NDJSON consumers can opt in
+            // without a proto break, but here the dispatch returns
+            // a method-not-found-shaped error so an accidentally
+            // routed frame surfaces honestly instead of silently
+            // returning `null`.
+            Err(
+                "query_status is a JSON-RPC-only method; use the query_status JSON-RPC frame"
+                    .to_owned(),
+            )
         }
     }
 }
