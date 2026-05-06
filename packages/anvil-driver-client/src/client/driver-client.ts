@@ -33,6 +33,12 @@ import {
   type JsonRpcResponse,
 } from '../framing/jsonrpc.js';
 import { NdjsonFramer, type FramingError } from '../framing/ndjson.js';
+import {
+  createMidEditValidator,
+  type ValidateMidEditOptions,
+  type ValidateMidEditParams,
+  type ValidateMidEditResult,
+} from '../midedit/validate-mid-edit.js';
 import { ReliabilityBudget } from '../reliability/budget.js';
 import { defaultTransportFactory } from '../transport/index.js';
 import type { Transport, TransportFactory } from '../transport/types.js';
@@ -89,6 +95,10 @@ export class DriverClient {
   private readonly reconnectConfig: ReconnectConfig;
   private readonly scheduler: Scheduler;
   private readonly reliability: ReliabilityBudget;
+  private readonly midEditOptions: ValidateMidEditOptions | undefined;
+  private midEditValidator:
+    | ((params: ValidateMidEditParams) => Promise<ValidateMidEditResult>)
+    | undefined;
   private driverIdentity: string | undefined;
 
   private transport: Transport | null = null;
@@ -143,6 +153,7 @@ export class DriverClient {
       this.reliability = new ReliabilityBudget(options.reliabilityBudget ?? {});
     }
     this.driverIdentity = options.driverIdentity;
+    this.midEditOptions = options.midEdit;
   }
 
   // ----------------------------------------------------------------
@@ -230,6 +241,28 @@ export class DriverClient {
     }
     const envelope = buildNotification(method, params);
     await this.transport.send(encodeNdjsonLine(envelope));
+  }
+
+  /**
+   * Mid-edit validation entry point — RTAI-004.
+   *
+   * Bound method form of `createMidEditValidator(this, ...)`. The
+   * validator is constructed lazily on first call and reused across
+   * subsequent calls, so the debouncer + dedup cache survive the
+   * lifetime of the client.
+   *
+   * Returns a {@link ValidateMidEditResult} envelope rather than
+   * throwing on daemon errors — preserves RTAI-008's
+   * "errors-as-first-class" contract.
+   *
+   * The default debounce is 80ms (the typing cycle, per the brief);
+   * override per-call via `params.debounceMs` (e.g. `0` in tests).
+   */
+  public validateMidEdit(params: ValidateMidEditParams): Promise<ValidateMidEditResult> {
+    if (this.midEditValidator === undefined) {
+      this.midEditValidator = createMidEditValidator(this, this.midEditOptions ?? {});
+    }
+    return this.midEditValidator(params);
   }
 
   /**

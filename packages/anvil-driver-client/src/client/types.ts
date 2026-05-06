@@ -7,6 +7,7 @@
 
 import type { Diagnostic } from '../diagnostics/types.js';
 import type { JsonRpcId } from '../framing/jsonrpc.js';
+import type { ValidateMidEditOptions } from '../midedit/validate-mid-edit.js';
 import type { ReliabilityBudget, ReliabilityBudgetOptions } from '../reliability/budget.js';
 import type { TransportFactory } from '../transport/types.js';
 
@@ -153,6 +154,11 @@ export interface DriverClientOptions {
     setTimeout: (cb: () => void, ms: number) => unknown;
     clearTimeout: (handle: unknown) => void;
   };
+  /** RTAI-004 mid-edit configuration. The {@link DriverClient.validateMidEdit}
+   *  method constructs its debouncer + dedup cache lazily on first
+   *  call, using these options. Per-call `params.debounceMs` overrides
+   *  the default. */
+  midEdit?: ValidateMidEditOptions;
 }
 
 export type { JsonRpcId };
