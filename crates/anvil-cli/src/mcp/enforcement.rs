@@ -32,10 +32,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use anvil_intercept_proto::enforcement_config::AnvilConfigFile;
 use anvil_kernel_types::Diagnostic;
 use anvil_kernel_types::Severity;
 use anvil_kernel_types::diagnostics::ControlDecision;
-use serde::Deserialize;
 
 /// Workspace-level enforcement mode for the MCP `validate_write` tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -118,49 +118,26 @@ pub fn decision_for(diagnostics: &[Diagnostic], mode: EnforcementMode) -> Contro
     }
 }
 
-/// Subset of the `.anvil.yaml` config we read. INTD-008 will eventually
-/// own this struct in a shared crate; until then we duplicate just the
-/// fields RTAI-006 needs.
-///
-/// TODO(INTD-008): replace this stub with the shared loader. When that
-/// lands, the canonical mode term may flip from `block` to `interrupt`
-/// (see `EnforcementMode::parse` doc); callers of `EnforcementMode` are
-/// unaffected because the variants stay the same.
-///
-/// Intentionally **not** `#[serde(deny_unknown_fields)]`: INTD-008 will
-/// extend this section with fields like `on_ambiguous_ownership` and
-/// `observe_only`. We want a forwards-compatible loader that ignores
-/// unknown keys silently rather than tripping over future config that
-/// the INTD-008 daemon understands but this stub does not.
-#[derive(Debug, Default, Deserialize)]
-struct AnvilConfig {
-    #[serde(default)]
-    enforcement: EnforcementSection,
-}
-
-/// See `AnvilConfig` for the rationale around omitting
-/// `deny_unknown_fields`. INTD-008 will add sibling keys (e.g.
-/// `on_ambiguous_ownership`, `observe_only`) and we must not break the
-/// loader when a workspace already carries them.
-#[derive(Debug, Default, Deserialize)]
-struct EnforcementSection {
-    #[serde(default)]
-    mode: Option<String>,
-}
-
 /// Resolve the enforcement mode for a workspace.
 ///
-/// Reads `<workspace_root>/.anvil.yaml` and returns the parsed
-/// `enforcement.mode`. Missing file, missing field, unparseable YAML,
-/// and unknown mode strings all fall back to `EnforcementMode::default()`
-/// (`block`).
+/// Reads `<workspace_root>/.anvil.yaml` via the shared
+/// `anvil_intercept_proto::enforcement_config::AnvilConfigFile`
+/// deserialiser (INTD-008 owns the wire shape so the daemon and the
+/// MCP shim cannot drift on which keys / aliases are accepted).
+/// Missing file, missing field, unparseable YAML, and unknown mode
+/// strings all fall back to `EnforcementMode::default()` (`block`) —
+/// the MCP shim's longstanding fail-closed default. INTD-008's
+/// daemon-side loader surfaces a structured `LoadError` on malformed
+/// YAML; the MCP shim's stdout is reserved for JSON-RPC frames so we
+/// keep the silent-fallback behaviour that pre-dates the shared
+/// proto extraction.
 #[must_use]
 pub fn load_for_workspace(workspace_root: &Path) -> EnforcementMode {
     let path = anvil_yaml_path(workspace_root);
     let Ok(content) = fs::read_to_string(&path) else {
         return EnforcementMode::default();
     };
-    let Ok(config) = serde_yaml::from_str::<AnvilConfig>(&content) else {
+    let Ok(config) = serde_yaml::from_str::<AnvilConfigFile>(&content) else {
         return EnforcementMode::default();
     };
     config
