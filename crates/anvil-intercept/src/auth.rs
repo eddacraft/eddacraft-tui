@@ -42,6 +42,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use anvil_intercept_proto::SessionRecord;
+use anvil_intercept_proto::protocol::{
+    ANVIL_ENFORCEMENT_ACK, ANVIL_GATE_REQUEST, ANVIL_PUBLISH_DIAGNOSTICS, ANVIL_SCAN_BUFFER,
+    ANVIL_STATUS_QUERY, ANVIL_SUPPRESSION_APPLY, Capability,
+};
 use thiserror::Error;
 
 /// Errors returned by the v1 driver trust boundary surface.
@@ -236,11 +240,24 @@ pub fn is_driver_allowed(binary_path: &Path, allowlist: &Path) -> Result<bool, A
 /// session set; unknown roots downgrade the driver to a read-only
 /// observer of its claimed roots only.
 ///
+/// In Wave 3 (DRVR-008) the manifest also carries
+/// [`Self::supported_anvil_methods`] — the list of `anvil/` JSON-RPC
+/// methods this driver implements. Drivers that omit a method from
+/// the list are advertising "I do not understand this method"; the
+/// daemon caps such drivers at [`Capability::Attached`] and emits a
+/// [`CapabilityDowngrade`] event so the operator and the driver both
+/// see why enforcement was refused. Stock LSP clients (Neovim, Zed,
+/// Helix) that connect without speaking the Anvil namespace satisfy
+/// this contract by sending an empty list — they get diagnostics for
+/// free without being silently fenced for missing
+/// `anvil/enforcement/ack`.
+///
 /// We do not import the full §2.2 manifest type into this crate to
 /// keep the dependency surface small — the trust boundary cares
-/// about exactly one field. DRVR-001 (Wave 2) will own the full
-/// `DriverManifest` decoder; this is the v1 slice the daemon needs to
-/// run the workspace-root validation contract.
+/// about exactly two fields (workspace roots + supported methods).
+/// DRVR-001 (Wave 2) owns the full `DriverManifest` decoder; this is
+/// the v1 slice the daemon needs to run the workspace-root validation
+/// and capability-negotiation contracts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriverManifest {
     /// Absolute paths the driver claims it operates on. Empty is a
@@ -248,6 +265,20 @@ pub struct DriverManifest {
     /// daemon refuses to attach a driver to "all sessions" without
     /// explicit scope.
     pub workspace_roots: Vec<PathBuf>,
+
+    /// `anvil/` JSON-RPC method names this driver advertises support
+    /// for. Use the `ANVIL_*` constants in
+    /// `anvil_intercept_proto::protocol`; arbitrary strings are
+    /// accepted at this layer so the wire format can evolve without
+    /// the auth API blocking unknown future methods.
+    ///
+    /// **Default-deny semantics (DRVR-008):** a driver requesting
+    /// [`Capability::Participating`] but missing
+    /// `anvil/enforcement/ack` from this list is automatically capped
+    /// at [`Capability::Attached`]. The `.anvil.yaml` workspace
+    /// config has no power to override this — capability promotion
+    /// requires the method present in the advertised list.
+    pub supported_anvil_methods: Vec<String>,
 }
 
 impl DriverManifest {
@@ -255,9 +286,40 @@ impl DriverManifest {
     /// deferred to [`Self::validate_workspace_roots`] so callers can
     /// hand off raw inputs (e.g. JSON-decoded paths) without first
     /// touching the filesystem.
+    ///
+    /// Use [`Self::with_supported_anvil_methods`] (or assign directly)
+    /// to populate the DRVR-008 method-advertisement list. The default
+    /// is an empty list, which models a stock LSP client that does
+    /// not speak the `anvil/` namespace at all.
     #[must_use]
     pub fn new(workspace_roots: Vec<PathBuf>) -> Self {
-        Self { workspace_roots }
+        Self {
+            workspace_roots,
+            supported_anvil_methods: Vec::new(),
+        }
+    }
+
+    /// Builder helper: replace the supported-methods list. Convenience
+    /// for tests and for the DRVR-001 manifest decoder; the daemon
+    /// reads the field directly when negotiating capability.
+    #[must_use]
+    pub fn with_supported_anvil_methods<I, S>(mut self, methods: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.supported_anvil_methods = methods.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// True iff the manifest advertises `method` in
+    /// [`Self::supported_anvil_methods`]. Comparison is exact-match;
+    /// callers MUST use the constants from
+    /// `anvil_intercept_proto::protocol` rather than re-typing the
+    /// strings.
+    #[must_use]
+    pub fn advertises(&self, method: &str) -> bool {
+        self.supported_anvil_methods.iter().any(|m| m == method)
     }
 
     /// Cross-check the manifest's `workspace_roots` against the live
@@ -308,6 +370,173 @@ impl DriverManifest {
         Ok(())
     }
 }
+
+/// Reasons a [`Capability::Participating`] request can be downgraded
+/// at handshake time. Each variant maps to a structured warning the
+/// daemon surfaces back to the driver and emits to its log so an
+/// operator can see why their `.anvil.yaml`-mandated enforcement was
+/// refused.
+///
+/// The variants are deliberately specific — the operator-facing
+/// remediation is different for each (allowlist vs missing method
+/// vs absent capability advertisement). Collapsing them into a single
+/// "downgraded" string would force the operator back into the daemon
+/// log to figure out which fix to apply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CapabilityDowngradeReason {
+    /// The driver advertised `enforcement_candidate: false` (or
+    /// equivalent in §2.2 manifest terms). The handshake never asked
+    /// for participation; the daemon honours that.
+    NotEnforcementCandidate,
+    /// The driver requested participation but did not advertise
+    /// [`ANVIL_ENFORCEMENT_ACK`] in
+    /// [`DriverManifest::supported_anvil_methods`]. DRVR-008's central
+    /// case: a stock LSP client cannot be silently fenced for missing
+    /// a method it never claimed to implement.
+    MissingEnforcementAckMethod,
+}
+
+impl CapabilityDowngradeReason {
+    /// Stable wire string for log / telemetry emission. Kebab-case to
+    /// match the rest of the daemon's structured-log vocabulary.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::NotEnforcementCandidate => "not-enforcement-candidate",
+            Self::MissingEnforcementAckMethod => "missing-enforcement-ack-method",
+        }
+    }
+}
+
+/// Structured event the daemon emits when a driver's requested
+/// capability is downgraded at handshake. Sibling consumers
+/// (DRVR-001, RMCPF) surface this back to the driver alongside the
+/// accepted capability so the operator sees a clear "enforcement
+/// requested but downgraded because <reason>" message rather than a
+/// silent demotion.
+///
+/// `negotiated` is always less-than-or-equal-to `requested` per the
+/// capability lattice: v1 only ever downgrades, never promotes,
+/// regardless of operator request. This is the contract DRVR-008
+/// hardens: a stock LSP client (no `anvil/` methods) connecting to a
+/// project with `enforcement_required: true` in `.anvil.yaml` cannot
+/// be promoted to [`Capability::Participating`] regardless of
+/// configuration; the manifest is the floor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityDowngrade {
+    /// What the driver / config asked for at handshake.
+    pub requested: Capability,
+    /// What the daemon actually granted.
+    pub negotiated: Capability,
+    /// Why the downgrade fired. See [`CapabilityDowngradeReason`].
+    pub reason: CapabilityDowngradeReason,
+    /// Methods the driver advertised. Captured at downgrade time so
+    /// the log entry is reproducible without re-reading the manifest;
+    /// this is what the operator inspects when triaging.
+    pub advertised_methods: Vec<String>,
+}
+
+/// Negotiate a driver's capability against its manifest.
+///
+/// **Contract (DRVR-008):**
+///
+/// - If `requested` is [`Capability::Attached`] (or weaker), the result
+///   is `(Attached, None)` — no negotiation needed; read-only is the
+///   default and is always available.
+/// - If `requested` is [`Capability::Participating`] but the manifest
+///   does not advertise [`ANVIL_ENFORCEMENT_ACK`], the result is
+///   `(Attached, Some(downgrade))` with reason
+///   [`CapabilityDowngradeReason::MissingEnforcementAckMethod`]. The
+///   daemon caps the driver at read-only and surfaces the structured
+///   warning in the downgrade event.
+/// - If `requested` is [`Capability::Participating`] AND
+///   [`ANVIL_ENFORCEMENT_ACK`] is advertised, the result is
+///   `(Participating, None)`. (DRVR-007's allowlist gate is a
+///   *separate* layer that the caller must ALSO satisfy via
+///   [`is_driver_allowed`]; this function does not consult the
+///   allowlist because it operates on the manifest claim alone.)
+///
+/// **Why the manifest, not `.anvil.yaml`, is the floor:** an LSP
+/// client speaking only stock LSP cannot honour
+/// `anvil/enforcement/ack`. If the workspace config could override
+/// the manifest, a team-mandated enforcement policy would silently
+/// fence Neovim users whose plugins do not implement the namespace.
+/// The §2.2 manifest is what the driver itself signed up for; it is
+/// the tightest authentic source. `.anvil.yaml` decides *whether* to
+/// request enforcement from drivers that can support it.
+///
+/// **Reconnect survival:** the negotiation reads only the manifest
+/// (an in-memory clone) and method-name constants. There is no
+/// daemon-side state for the negotiation result; a reconnecting
+/// driver MUST re-present its manifest, and the daemon MUST re-run
+/// this function. A driver cannot smuggle a stale `Participating`
+/// capability across reconnects by relying on the daemon to remember
+/// the previous handshake. This is the property that survives
+/// daemon restart per the §3.3 capability state machine.
+#[must_use]
+pub fn negotiate_capability(
+    requested: Capability,
+    manifest: &DriverManifest,
+) -> (Capability, Option<CapabilityDowngrade>) {
+    match requested {
+        // Attached is always available.
+        Capability::Attached => (Capability::Attached, None),
+        Capability::Participating => {
+            if manifest.advertises(ANVIL_ENFORCEMENT_ACK) {
+                (Capability::Participating, None)
+            } else {
+                let downgrade = CapabilityDowngrade {
+                    requested: Capability::Participating,
+                    negotiated: Capability::Attached,
+                    reason: CapabilityDowngradeReason::MissingEnforcementAckMethod,
+                    advertised_methods: manifest.supported_anvil_methods.clone(),
+                };
+                emit_downgrade_log(&downgrade);
+                (Capability::Attached, Some(downgrade))
+            }
+        }
+    }
+}
+
+/// Emit a structured `tracing` event for an operator log when a
+/// downgrade fires. The event is at `WARN` because the operator
+/// configured enforcement and is not getting it; INFO would be too
+/// quiet for the actual policy gap, ERROR is reserved for failures
+/// the daemon could not work around.
+fn emit_downgrade_log(downgrade: &CapabilityDowngrade) {
+    tracing::warn!(
+        target: "anvil_intercept::auth",
+        requested = %downgrade.requested.as_str(),
+        negotiated = %downgrade.negotiated.as_str(),
+        reason = %downgrade.reason.as_str(),
+        advertised_method_count = downgrade.advertised_methods.len(),
+        "driver capability downgraded at handshake (DRVR-008)",
+    );
+}
+
+/// Constants re-exported for callers who only need the
+/// `anvil/`-method names. Mirrors the `protocol` module in
+/// `anvil-intercept-proto` without forcing every consumer of
+/// [`DriverManifest`] to import it twice. The constants stay
+/// authoritative in the proto crate; this re-export is convenience
+/// only.
+pub mod methods {
+    pub use anvil_intercept_proto::protocol::{
+        ANVIL_ENFORCEMENT_ACK, ANVIL_GATE_REQUEST, ANVIL_PUBLISH_DIAGNOSTICS, ANVIL_SCAN_BUFFER,
+        ANVIL_STATUS_QUERY, ANVIL_SUPPRESSION_APPLY,
+    };
+}
+
+// Compile-time assertion: keep the `methods` re-exports in lockstep
+// with the imports. If a method moves out of the proto crate this
+// fails to compile; if a new method is added it should be added in
+// both places.
+const _: &str = ANVIL_ENFORCEMENT_ACK;
+const _: &str = ANVIL_GATE_REQUEST;
+const _: &str = ANVIL_PUBLISH_DIAGNOSTICS;
+const _: &str = ANVIL_SCAN_BUFFER;
+const _: &str = ANVIL_STATUS_QUERY;
+const _: &str = ANVIL_SUPPRESSION_APPLY;
 
 #[cfg(test)]
 mod tests {
@@ -532,6 +761,173 @@ mod tests {
         manifest
             .validate_workspace_roots(&[])
             .expect("non-empty manifest with no live sessions must not error");
+    }
+
+    // -------- DRVR-008 capability negotiation tests --------
+    //
+    // The fixtures below deliberately use stub `DriverManifest`s. The
+    // daemon-minted driver identity (`originating_driver_id` from
+    // INTD-015) is the input to the callers that build a manifest;
+    // the manifest itself stays self-contained at this layer so the
+    // negotiation function is unit-testable. The reconnect-survival
+    // property is exercised by `negotiate_capability_is_pure_recompute`.
+
+    #[test]
+    fn negotiate_capability_attached_is_always_granted() {
+        // Every successful handshake reaches Attached; this is the
+        // §3.3 read-only floor. Even an empty manifest gets it.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")]);
+        let (granted, downgrade) = negotiate_capability(Capability::Attached, &manifest);
+        assert_eq!(granted, Capability::Attached);
+        assert!(
+            downgrade.is_none(),
+            "attached request never produces a downgrade event"
+        );
+    }
+
+    #[test]
+    fn negotiate_capability_participating_with_ack_is_granted() {
+        // Driver advertises enforcement/ack; daemon promotes.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")])
+            .with_supported_anvil_methods([
+                ANVIL_PUBLISH_DIAGNOSTICS,
+                ANVIL_ENFORCEMENT_ACK,
+                ANVIL_SCAN_BUFFER,
+            ]);
+        let (granted, downgrade) = negotiate_capability(Capability::Participating, &manifest);
+        assert_eq!(granted, Capability::Participating);
+        assert!(
+            downgrade.is_none(),
+            "honoured promotion does not emit a downgrade event"
+        );
+    }
+
+    #[test]
+    fn negotiate_capability_downgrades_when_ack_method_missing() {
+        // Stock LSP client that connects without the `anvil/`
+        // namespace: the manifest's supported methods list is empty.
+        // A request to participate must be capped at Attached and
+        // surface a structured warning.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")]);
+        let (granted, downgrade) = negotiate_capability(Capability::Participating, &manifest);
+        assert_eq!(granted, Capability::Attached);
+        let downgrade = downgrade.expect("downgrade event must fire");
+        assert_eq!(downgrade.requested, Capability::Participating);
+        assert_eq!(downgrade.negotiated, Capability::Attached);
+        assert_eq!(
+            downgrade.reason,
+            CapabilityDowngradeReason::MissingEnforcementAckMethod
+        );
+        assert!(
+            downgrade.advertised_methods.is_empty(),
+            "advertised methods captured at downgrade time"
+        );
+    }
+
+    #[test]
+    fn negotiate_capability_downgrades_when_ack_advertised_via_unrelated_methods() {
+        // The driver advertises some `anvil/` methods but NOT
+        // enforcement/ack — same downgrade as the empty case. This
+        // is the M10 council finding: the daemon must not rely on a
+        // partial advertisement to imply enforcement support.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")])
+            .with_supported_anvil_methods([
+                ANVIL_PUBLISH_DIAGNOSTICS,
+                ANVIL_SCAN_BUFFER,
+                ANVIL_STATUS_QUERY,
+            ]);
+        let (granted, downgrade) = negotiate_capability(Capability::Participating, &manifest);
+        assert_eq!(granted, Capability::Attached);
+        let downgrade = downgrade.expect("downgrade event must fire");
+        assert_eq!(
+            downgrade.reason,
+            CapabilityDowngradeReason::MissingEnforcementAckMethod
+        );
+        // Surface the exact advertised set in the event so the
+        // operator-facing log can name what the driver claimed.
+        assert_eq!(
+            downgrade.advertised_methods,
+            vec![
+                ANVIL_PUBLISH_DIAGNOSTICS.to_string(),
+                ANVIL_SCAN_BUFFER.to_string(),
+                ANVIL_STATUS_QUERY.to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn negotiate_capability_is_pure_recompute() {
+        // Reconnect-survival contract (DRVR-008): the negotiation
+        // function is a pure function of (request, manifest). Two
+        // calls with the same inputs produce the same outputs, so a
+        // reconnecting driver cannot smuggle a stale `Participating`
+        // capability across a reconnect — the daemon recomputes from
+        // the freshly-presented manifest each time.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")]);
+        let (granted_a, downgrade_a) = negotiate_capability(Capability::Participating, &manifest);
+        let (granted_b, downgrade_b) = negotiate_capability(Capability::Participating, &manifest);
+        assert_eq!(granted_a, granted_b);
+        assert_eq!(downgrade_a, downgrade_b);
+
+        // Now mutate the manifest to advertise the method and
+        // confirm the second call produces a different result. This
+        // pins the property that the function reads ONLY the
+        // manifest passed in — no hidden daemon-side state.
+        let promoted = manifest
+            .clone()
+            .with_supported_anvil_methods([ANVIL_ENFORCEMENT_ACK]);
+        let (granted_c, downgrade_c) = negotiate_capability(Capability::Participating, &promoted);
+        assert_eq!(granted_c, Capability::Participating);
+        assert!(downgrade_c.is_none());
+    }
+
+    #[test]
+    fn negotiate_capability_attached_request_ignores_advertised_methods() {
+        // A driver that asked for read-only is granted read-only
+        // regardless of what it advertises — no upgrade ever happens
+        // implicitly. v1's lattice only ever downgrades.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")])
+            .with_supported_anvil_methods([ANVIL_ENFORCEMENT_ACK]);
+        let (granted, downgrade) = negotiate_capability(Capability::Attached, &manifest);
+        assert_eq!(granted, Capability::Attached);
+        assert!(downgrade.is_none());
+    }
+
+    #[test]
+    fn driver_manifest_advertises_returns_true_only_for_listed_methods() {
+        // Pin the method-name comparison policy: exact-match string
+        // equality. A driver advertising `anvil/enforcement` (without
+        // the `/ack` suffix) must NOT count as advertising
+        // `anvil/enforcement/ack`, otherwise an over-eager driver
+        // could fake support.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")])
+            .with_supported_anvil_methods(["anvil/enforcement"]);
+        assert!(!manifest.advertises(ANVIL_ENFORCEMENT_ACK));
+        assert!(manifest.advertises("anvil/enforcement"));
+    }
+
+    #[test]
+    fn driver_manifest_supported_anvil_methods_defaults_empty() {
+        // Newly-minted manifests advertise nothing. DRVR-001's
+        // decoder will populate the list from §2.2 manifest input;
+        // the constructor default is the safe-deny case.
+        let manifest = DriverManifest::new(vec![PathBuf::from("/tmp/wt")]);
+        assert!(manifest.supported_anvil_methods.is_empty());
+    }
+
+    #[test]
+    fn capability_downgrade_reason_strings_are_kebab_case() {
+        // Pin the wire vocabulary so an operator-facing log entry
+        // doesn't drift from `missing-enforcement-ack-method` to
+        // `MissingEnforcementAck` after a future refactor.
+        assert_eq!(
+            CapabilityDowngradeReason::NotEnforcementCandidate.as_str(),
+            "not-enforcement-candidate"
+        );
+        assert_eq!(
+            CapabilityDowngradeReason::MissingEnforcementAckMethod.as_str(),
+            "missing-enforcement-ack-method"
+        );
     }
 
     #[test]
