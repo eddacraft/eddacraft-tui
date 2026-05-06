@@ -230,10 +230,11 @@ surface online. Same demo, real backend.
 - Pin the AIGUARD envelope contract test before RTAI-004 commits, so driver +
   daemon paths cannot diverge.
 
-**Execution order:** Treat A2 as four dependency waves. Completed anchors are
-AIGUARD-001..-004, RMCP-005, RTAI-002/-003/-006/-008, and the shipped INTD
-foundation (INTD-002/-003/-005/-013/-014). Start new work only after confirming
-those anchors still pass their contract tests.
+**Execution order:** Treat A2 as a pre-wave contract gate plus four dependency
+waves. Completed anchors are AIGUARD-001..-004, RMCP-005,
+RTAI-002/-003/-006/-008, and the shipped INTD foundation
+(INTD-002/-003/-005/-013/-014). Start new work only after confirming those
+anchors still pass their contract tests.
 
 | Wave | Items                                                                         | Purpose                                                                                                                    | Parallel delivery                                                                                                                                                                        |
 | ---- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -250,7 +251,7 @@ those anchors still pass their contract tests.
 envelope or daemon error semantics after RTAI-004 starts; route those through
 the Wave 0 contract first. If the release cut wants daemon-backed MCP only,
 Waves 1-3 are sufficient; Wave 4's editor-surface items are a separate delivery
-lane because ADR-033 currently keeps the VSCode extension archived.
+lane because ADR-033 currently keeps the VS Code extension archived.
 
 **Out-of-scope (protect the slice):**
 
