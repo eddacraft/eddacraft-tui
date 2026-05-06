@@ -11,7 +11,10 @@
 //!   - Build a baseline from the first-activation sample scan.
 //!   - Surface a `baseline:` summary line in the activation render so
 //!     `anvil start` / `anvil status --verify` can show the count.
-//!   - The diagnostic gains a `baseline_size` field consumers can read.
+//!   - The diagnostic gains an
+//!     [`ActivationDiagnostic::baseline_summary`](super::diagnostic::ActivationDiagnostic::baseline_summary)
+//!     field (per-kind counts + `created_at`) alongside the back-
+//!     compat `baseline_present` boolean.
 //!
 //! Out of v1 scope (follow-ups under separate work items):
 //!   - Wiring the baseline into `anvil watch` / `anvil check` filtering.
@@ -45,13 +48,26 @@ const BASELINE_FILE: &str = "baseline.json";
 
 /// Errors from baseline read / write. Manually implemented (no
 /// `thiserror` dep on `anvil-cli`) to keep the dep surface tight.
+///
+/// PR #1293 review fix (Copilot): the read and write paths use
+/// distinct variants so a serialisation failure on write does not
+/// surface as `"invalid baseline JSON"` — that message is only ever
+/// honest when we read back something we couldn't parse.
 #[derive(Debug)]
 pub enum BaselineError {
     Io {
         path: String,
         source: std::io::Error,
     },
+    /// `serde_json` failed to parse the on-disk baseline. Set only
+    /// from the read path.
     InvalidJson(String),
+    /// `serde_json` failed to serialise the in-memory baseline. Set
+    /// only from the write path. In practice unreachable for the
+    /// `Baseline` shape this module owns, but we propagate rather
+    /// than panic if a future schema change introduces a non-
+    /// serialisable field.
+    Serialise(String),
     UnsupportedSchema {
         found: u32,
     },
@@ -62,6 +78,7 @@ impl fmt::Display for BaselineError {
         match self {
             Self::Io { path, source } => write!(f, "I/O error at {path}: {source}"),
             Self::InvalidJson(msg) => write!(f, "invalid baseline JSON: {msg}"),
+            Self::Serialise(msg) => write!(f, "could not serialise baseline: {msg}"),
             Self::UnsupportedSchema { found } => write!(
                 f,
                 "unsupported baseline schema_version {found} (this build understands version {SCHEMA_VERSION}); \
@@ -75,7 +92,7 @@ impl std::error::Error for BaselineError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
-            Self::InvalidJson(_) | Self::UnsupportedSchema { .. } => None,
+            Self::InvalidJson(_) | Self::Serialise(_) | Self::UnsupportedSchema { .. } => None,
         }
     }
 }
@@ -110,12 +127,28 @@ pub struct Baseline {
     /// Snapshot only — `fingerprints.len()` is the authoritative
     /// total, but split counts let surfaces phrase the summary
     /// honestly ("3 antipattern, 1 secret" vs "4 findings").
+    ///
+    /// **Counts vs `fingerprints.len()`:** these are RAW finding
+    /// counts and may exceed `fingerprints.len()` when multiple
+    /// findings collapse to the same fingerprint (e.g. two secret
+    /// regex hits on the same line + pattern, or two antipattern
+    /// rules with identical id/file/line/pattern). Surfaces that
+    /// need the deduped total should read [`Baseline::total`];
+    /// surfaces that want raw kind breakdowns read these counts.
     pub counts: BaselineCounts,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BaselineCounts {
+    /// Raw count of non-suppressed antipattern warnings the
+    /// activation scan saw. May exceed the unique antipattern
+    /// fingerprint count when multiple warnings collapse to the
+    /// same `id:file:line:pattern` fingerprint.
     pub antipattern_findings: usize,
+    /// Raw count of secret findings the activation scan saw. May
+    /// exceed the unique secret fingerprint count for the same
+    /// reason as above (e.g. two regex hits on the same line +
+    /// pattern collapse to one fingerprint).
     pub secret_findings: usize,
 }
 
@@ -220,7 +253,7 @@ pub fn write_baseline(root: &Path, baseline: &Baseline) -> Result<(), BaselineEr
     let path = baseline_path(root);
     let path_str = path.display().to_string();
     let body = serde_json::to_string_pretty(baseline)
-        .map_err(|e| BaselineError::InvalidJson(e.to_string()))?;
+        .map_err(|e| BaselineError::Serialise(e.to_string()))?;
 
     // tempfile_in writes into the target directory so the rename below
     // is a same-filesystem move (atomic on POSIX, atomic-replace on
@@ -260,8 +293,15 @@ fn warning_fingerprint(w: &Warning) -> String {
 /// is a defensible fingerprint: secret pattern names are stable across
 /// releases, and the redacted match is intentionally non-deterministic
 /// (different redaction lengths) so it would be a poor key.
+///
+/// Path normalisation: backslashes are collapsed to forward slashes so
+/// the same finding on Windows and POSIX produces the same fingerprint.
+/// Callers are expected to feed repo-relative paths (see
+/// `services::sample_analyser::run_baseline_scan`); this normalisation
+/// is the defensive last line for any future call site that forgets.
 fn secret_fingerprint(s: &SecretFinding) -> String {
-    format!("secret:{}:{}:{}", s.file, s.line, s.pattern_name)
+    let normalised_file = s.file.replace('\\', "/");
+    format!("secret:{}:{}:{}", normalised_file, s.line, s.pattern_name)
 }
 
 #[cfg(test)]
