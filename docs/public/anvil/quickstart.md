@@ -110,11 +110,11 @@ This is the moment you see what anvil catches. Run the fast source scan first:
 anvil check --all
 ```
 
-`anvil check` is the targeted source-analysis command. In the current Rust CLI it
-scans source artefacts for Anvil's registry-backed anti-pattern rules, including
-architecture-category findings emitted by that scanner. Use `anvil gate` when you
-want the full workflow judgement across architecture, policy, secrets, and other
-gate checks.
+`anvil check` is the targeted source-analysis command. In the current Rust CLI
+it scans source artefacts for Anvil's registry-backed anti-pattern rules,
+including architecture-category findings emitted by that scanner. Use
+`anvil gate` when you want the full workflow judgement across architecture,
+policy, secrets, and other gate checks.
 
 Most projects have something. Here is typical `check` output:
 

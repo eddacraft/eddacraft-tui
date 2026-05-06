@@ -12,8 +12,8 @@ know which surface you need.
 
 ## Recommended Path
 
-1. [Quickstart](/anvil/quickstart) — install, authenticate, initialise, and run a
-   first scan.
+1. [Quickstart](/anvil/quickstart) — install, authenticate, initialise, and run
+   a first scan.
 2. [First Project](/anvil/first-project) — add architecture boundaries to a real
    repository.
 3. [Architecture Boundaries](/anvil/tutorials/architecture) — tune the boundary
