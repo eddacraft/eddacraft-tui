@@ -19,6 +19,7 @@ aho-corasick = { version = "1" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 clap = { version = "4", features = ["derive"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "help", "std", "suggestions", "usage"] }
+console = { version = "0.16" }
 crossbeam-utils = { version = "0.8" }
 eddacraft-tui = { version = "0.1", default-features = false, features = ["test-utils"] }
 either = { version = "1", default-features = false, features = ["use_std"] }
@@ -26,6 +27,7 @@ futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = { version = "0.3" }
 futures-sink = { version = "0.3" }
 indexmap = { version = "2" }
+itertools = { version = "0.14" }
 memchr = { version = "2" }
 num-traits = { version = "0.2" }
 once_cell = { version = "1" }
@@ -123,6 +125,7 @@ cc = { version = "1", default-features = false, features = ["parallel"] }
 libc = { version = "0.2", features = ["extra_traits"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
+errno = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom = { version = "0.4", default-features = false, features = ["std", "sys_rng"] }
@@ -138,6 +141,7 @@ windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_Fil
 cc = { version = "1", default-features = false, features = ["parallel"] }
 
 [target.aarch64-pc-windows-msvc.dependencies]
+errno = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom = { version = "0.4", default-features = false, features = ["std", "sys_rng"] }

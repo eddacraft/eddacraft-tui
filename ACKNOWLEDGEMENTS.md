@@ -118,7 +118,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 261 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 267 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1055,6 +1055,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `signal-hook-mio` | 0.2.5 | MIT License | https://github.com/vorner/signal-hook |
 | `signal-hook-registry` | 1.4.8 | MIT License | https://github.com/vorner/signal-hook |
 | `signal-hook` | 0.3.18 | MIT License | https://github.com/vorner/signal-hook |
+| `signal-hook` | 0.4.4 | MIT License | https://github.com/vorner/signal-hook |
 | `digest` | 0.11.3 | MIT License | https://github.com/RustCrypto/traits |
 | `bytes` | 1.11.1 | MIT License | https://github.com/tokio-rs/bytes |
 | `smallvec` | 1.15.1 | MIT License | https://github.com/servo/rust-smallvec |
@@ -1136,6 +1137,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `compact_str` | 0.9.0 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
+| `demand` | 2.0.0 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.7 | MIT License | https://github.com/ratatui/line-clipping |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
@@ -1215,6 +1217,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `zmij` | 1.0.21 | MIT License | https://github.com/dtolnay/zmij |
 | `allocator-api2` | 0.2.21 | MIT License | https://github.com/zakarumych/allocator-api2 |
 | `winnow` | 1.0.2 | MIT License | https://github.com/winnow-rs/winnow |
+| `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
 | `typenum` | 1.20.0 | MIT License | https://github.com/paholg/typenum |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
@@ -1223,6 +1226,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `globset` | 0.4.18 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/globset |
 | `ignore` | 0.4.25 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/ignore |
 | `memchr` | 2.8.0 | MIT License | https://github.com/BurntSushi/memchr |
+| `termcolor` | 1.4.1 | MIT License | https://github.com/BurntSushi/termcolor |
 | `walkdir` | 2.5.0 | MIT License | https://github.com/BurntSushi/walkdir |
 | `nix` | 0.30.1 | MIT License | https://github.com/nix-rust/nix |
 | `nix` | 0.31.2 | MIT License | https://github.com/nix-rust/nix |
@@ -1236,9 +1240,11 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `derive_more` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `same-file` | 1.0.6 | MIT License | https://github.com/BurntSushi/same-file |
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
+| `console` | 0.16.3 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `tree-sitter` | 0.26.8 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.12.1 | MIT License | https://github.com/BurntSushi/bstr |
+| `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
 | `crossbeam-deque` | 0.8.6 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-epoch` | 0.9.18 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | 0.8.21 | MIT License | https://github.com/crossbeam-rs/crossbeam |
