@@ -297,8 +297,8 @@ targeted builds, affected-only runs, and task graph visualisation.
 ## Test Coverage
 
 Coverage data changes frequently enough that the repository README should point
-to the commands and CI artefacts rather than freeze a per-project table that
-goes stale.
+to the commands, generated reports, and CI artefacts rather than freeze a
+per-project table that goes stale.
 
 ### Running coverage
 
@@ -316,8 +316,22 @@ pnpm test:coverage:rust
 pnpm test:e2e:harness
 ```
 
-Coverage output is written to the root `coverage/` directory (HTML, JSON, and
-JSON summary), which is the path used by the built-in coverage gate check.
+TypeScript coverage is emitted by each Vitest project under its local
+`coverage/` directory, with JSON summaries in `coverage/coverage-summary.json`
+where the project config enables them. The CI unit-test job uploads the root,
+package, and app `coverage/` directories as `coverage-report-22.x` and writes a
+per-project line/branch/function/statement table to the GitHub Actions job
+summary.
+
+Rust coverage uses `cargo-llvm-cov` and writes the local HTML report to
+`target/llvm-cov/html/`. The local command also prints the workspace summary. On
+non-PR CI runs, the Rust workflow uploads `coverage-rust.json`,
+`coverage-rust-summary.txt`, and the HTML report directory as
+`coverage-report-rust`; pull requests run affected Rust tests without coverage
+to keep feedback fast.
+
+The E2E harness is reported separately from unit coverage totals. Its JSON
+result is uploaded as `e2e-results` from `coverage/e2e-results.json`.
 
 ## Rust Kernel Benchmarks
 
