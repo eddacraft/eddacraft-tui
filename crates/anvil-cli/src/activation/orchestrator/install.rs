@@ -54,7 +54,7 @@ use crate::activation::diagnostic::McpClientId;
 use crate::activation::mcp_client::{
     AnvilEntry, ConfigCandidate, ConfigScope, DriftClass, McpClient, ParsedConfig, all_clients,
 };
-use crate::util::atomic_write;
+use crate::util::{atomic_write, refuse_if_parent_is_symlink};
 
 /// Outcome for a single client. Returned per-client in the
 /// [`InstallReport`] so the renderer can show "installed Cursor at
@@ -435,6 +435,26 @@ fn install_one(
         };
     }
 
+    // Symlink-parent guard (LAUNCH-009.5 council remediation, scoped
+    // to the MCP install path). Editor configs in `$HOME` carry
+    // sensitive data (`.claude.json` has auth tokens); a symlinked
+    // `~/.cursor` or `~/.claude.json` parent would let `tempfile_in`
+    // write through the link. The guard is opt-in (see
+    // `util::refuse_if_parent_is_symlink` doc) so unrelated
+    // `atomic_write` callers (`.anvilrc`, snapshots) keep working
+    // inside legitimately-symlinked workspace roots.
+    if let Err(e) = refuse_if_parent_is_symlink(&candidate.target_path) {
+        tracing::warn!(
+            client = %candidate.id,
+            path = %candidate.target_path.display(),
+            error = %format!("{e:#}"),
+            "mcp install: refusing to write — parent is a symlink",
+        );
+        return InstallOutcome::Failed {
+            error: format!("{e:#}"),
+        };
+    }
+
     // Council remediation (#14): match `mcp_config.rs` and end the
     // file with a trailing newline so editor "format on save" passes
     // don't flip the file back and forth between forms.
@@ -654,6 +674,44 @@ mod tests {
         }
         let bytes_after = fs::read(&cursor_path).unwrap();
         assert_eq!(bytes_before, bytes_after, "must not write over broken file");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn install_refuses_when_target_parent_is_a_symlink() {
+        // LAUNCH-009.5 council remediation: a symlinked `~/.cursor`
+        // (or any parent of the target file) would let `tempfile_in`
+        // write through the symlink. The install path opts in to
+        // `refuse_if_parent_is_symlink`; this test exercises the
+        // opt-in end-to-end so a future refactor that drops the call
+        // surfaces immediately.
+        use std::os::unix::fs::symlink;
+
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        // Create a real dir somewhere unrelated, then symlink
+        // ~/.cursor → that dir. Without the guard, install would
+        // happily write into the symlinked target.
+        let real = TempDir::new().unwrap();
+        let real_cursor_dir = real.path().join("real-cursor-dir");
+        fs::create_dir(&real_cursor_dir).unwrap();
+        symlink(&real_cursor_dir, home.path().join(".cursor")).unwrap();
+
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        match report_outcome(&report, McpClientId::Cursor) {
+            InstallOutcome::Failed { error } => {
+                assert!(
+                    error.contains("symlink"),
+                    "Failed message should mention symlink: {error}"
+                );
+            }
+            other => panic!("expected Failed for symlinked parent, got {other:?}"),
+        }
+        // The real dir must NOT have been written to.
+        assert!(
+            !real_cursor_dir.join("mcp.json").exists(),
+            "no file should have been written through the symlink"
+        );
     }
 
     #[test]

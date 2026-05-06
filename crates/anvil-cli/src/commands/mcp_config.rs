@@ -64,8 +64,8 @@ pub struct McpConfigArgs {
     verify: bool,
 
     /// Override the workspace root used to resolve target-local config
-    /// paths (`.claude.json`, `.cursor/`, `.windsurf/`, `.vscode/`). Defaults to
-    /// the current working directory.
+    /// paths (`.claude.json`, `.cursor/mcp.json`). Defaults to the current
+    /// working directory.
     #[arg(long)]
     workspace: Option<PathBuf>,
 
