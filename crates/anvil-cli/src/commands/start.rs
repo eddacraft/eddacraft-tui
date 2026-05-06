@@ -119,15 +119,17 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         activation::orchestrator::run(root, global)?
     };
 
-    // LAUNCH-011 (council remediation, Copilot review): the watch
-    // spawn must be gated on the SAME conditions that gate the
-    // diagnostic's `WatchTier::Offered` line — otherwise `anvil
-    // start --watch` could synthesise `state: watching` and spawn
-    // a watcher in states where the offer was deliberately
-    // suppressed (config absent / invalid, last_error set,
-    // `all_languages_unsupported`). Compute the spawn decision once
-    // and reuse it for both the synthesis and the hand-off branch
-    // so the two cannot drift.
+    // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
+    // diagnostic's `WatchTier::Offered` gate (config valid + no
+    // `last_error` + supported languages) plus an additional
+    // `LiveValidation` redundancy check. It deliberately differs from
+    // the offer gate on the MCP-tier axis: the offer is suppressed at
+    // `RestartRequired+` (the user should restart, not switch to
+    // watch), but `--watch` with `RestartRequired` still spawns the
+    // watcher as honest belt-and-braces — the user has explicitly
+    // asked to layer save-time fallback on top of the restart-pending
+    // state. Compute the spawn decision once and reuse it for both
+    // the synthesis and the hand-off branch so the two cannot drift.
     let watch_decision = if args.watch {
         WatchDecision::for_diagnostic(&diagnostic)
     } else {
@@ -138,11 +140,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // final state in the diagnostic BEFORE rendering so the printed
     // `state:` line matches the protection layer the user is moments
     // away from running. The synthesis is bounded by the spawn
-    // decision: any path that does NOT spawn (NoOpRedundant,
-    // SkipConfigBlocked, SkipNoCoverage, SkipError, NotRequested)
-    // leaves the diagnostic at the orchestrator's reported tier so
-    // the user sees the same state they would see without `--watch`,
-    // plus the skip reason below.
+    // decision: any path that does NOT spawn (`NoOpRedundant`,
+    // `SkipConfigInvalid`, `SkipConfigAbsent`, `SkipError`,
+    // `SkipNoCoverage`, `NotRequested`) leaves the diagnostic at the
+    // orchestrator's reported tier so the user sees the same state
+    // they would see without `--watch`, plus the skip reason below.
     if matches!(watch_decision, WatchDecision::Spawn) {
         diagnostic.watch = activation::diagnostic::WatchTier::Running;
     }
@@ -258,13 +260,26 @@ enum WatchDecision {
 
 impl WatchDecision {
     /// Decide what `--watch` should do given the orchestrator's
-    /// diagnostic. The order matters: hard errors win over coverage
-    /// gaps win over the spawn path so the user always sees the
-    /// most actionable skip reason.
+    /// diagnostic. The order mirrors the priority that
+    /// [`activation::ActivationDiagnostic::protection_state`] uses
+    /// so the spawn decision can never produce a message that
+    /// contradicts the rendered state:
+    ///
+    /// 1. `last_error` — if activation aborted upstream, the
+    ///    diagnostic state is `Error`; advertising "MCP live,
+    ///    fallback redundant" alongside would lie about the state.
+    /// 2. `ConfigStatus::Invalid` / `Absent` — the diagnostic state
+    ///    is `Error` / `NeedsAction` respectively; the user's
+    ///    actionable next step is fixing config or running init.
+    /// 3. `mcp_pre_write_live` — only after errors and config are
+    ///    cleared can we trust a live MCP claim; the diagnostic
+    ///    state is `Protecting`, so spawning a watcher would be
+    ///    redundant noise.
+    /// 4. `all_languages_unsupported` — the diagnostic state is
+    ///    `Unsupported`; watch would produce no findings on
+    ///    out-of-scope files.
+    /// 5. otherwise → spawn.
     fn for_diagnostic(d: &activation::ActivationDiagnostic) -> Self {
-        if d.mcp_pre_write_live() {
-            return Self::NoOpRedundant;
-        }
         if d.last_error.is_some() {
             return Self::SkipError;
         }
@@ -272,6 +287,9 @@ impl WatchDecision {
             activation::diagnostic::ConfigStatus::Invalid => return Self::SkipConfigInvalid,
             activation::diagnostic::ConfigStatus::Absent => return Self::SkipConfigAbsent,
             activation::diagnostic::ConfigStatus::Valid => {}
+        }
+        if d.mcp_pre_write_live() {
+            return Self::NoOpRedundant;
         }
         if d.all_languages_unsupported {
             return Self::SkipNoCoverage;
