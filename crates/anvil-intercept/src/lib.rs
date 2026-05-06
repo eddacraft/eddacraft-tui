@@ -39,6 +39,7 @@ pub mod ipc;
 pub mod midedit;
 pub mod registry;
 pub mod telemetry;
+pub mod unregistered;
 pub mod watcher;
 
 pub use auth::{AuthError, DriverManifest, is_driver_allowed};

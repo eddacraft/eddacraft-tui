@@ -450,7 +450,23 @@ a new lane.
   enforcement policy applied (warn or fence per configuration); worktree fenced
   if configured for fence-on-unknown
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib unregistered`
-- **Status:** Draft
+- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/unregistered.rs`
+  ships `UnregisteredChangePolicy` — implements
+  `UnregisteredHandler` so the watcher (INTD-004) plugs it directly
+  into the unattributed-change route. The handler walks each
+  unowned change's parent, fences the worktree in the persisted
+  `FenceStore`, and tags the fence reason with
+  `attribution: unknown-agent —`. AD-3 hard cap pinned in code:
+  even when `on_ambiguous_ownership: warn` is configured, the
+  policy still fences (parse vocabulary already refuses values
+  stricter than `Fence`; the runtime invariant is the belt-and-
+  braces). De-duplicates by derived worktree so N changes in the
+  same dir produce one fence. 5 unregistered unit tests cover
+  attributed routing baseline, fence reason tagging, warn-still-
+  fences hard cap, multi-change de-dup, and rootless-path
+  surfacing. Plus a watcher-side test asserting unattributed
+  routing reaches the handler.
 
 ### INTD-011: Daemon Status and Diagnostics
 
