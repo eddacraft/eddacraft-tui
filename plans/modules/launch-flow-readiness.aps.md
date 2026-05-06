@@ -856,14 +856,17 @@ new primitive, this module follows three rules:
     every impl's `merge()` and `render()` cleanly.
 - **LOC budget:** ~750-900 production + ~250-350 test = ~1000-1250
   total. Originally planned as a single PR; split into two for review
-  scope. Part 1 (trait + read probe) merged as PR #1283. Part 2
-  (install path + picker + orchestrator integration) is the second
-  PR (~640 LOC install + tests). The remaining
-  spawn-probe step (`RestartRequired → ServerStartable`) and the
-  cleanup follow-ups live in the new LAUNCH-009.5 task below.
+  scope. Part 1 (trait + read probe) merged as PR #1283; part 2
+  (install path + picker + orchestrator integration) merged as PR
+  #1287. The remaining spawn-probe step (`RestartRequired →
+  ServerStartable`) and the cleanup follow-ups live in the new
+  LAUNCH-009.5 task below.
 - **Confidence:** medium (council resolved scope; spec gaps closed
   in the plan).
-- **Status:** In Progress
+- **Status:** Complete — Cursor and Claude Code MCP entries are
+  installed safely with drift handling, atomic writes, and
+  `ConfigAbsent → RestartRequired` tier promotion. Spawn probe and
+  cleanup deferrals tracked in LAUNCH-009.5.
 
 ---
 
