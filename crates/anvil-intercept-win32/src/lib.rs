@@ -23,9 +23,12 @@ use windows_sys::Win32::Security::Authorization::{
 use windows_sys::Win32::Security::{
     GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
 };
+use windows_sys::Win32::System::JobObjects::{
+    AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
+};
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
-    PROCESS_QUERY_LIMITED_INFORMATION,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
 };
 
 // Minimal owner rights for duplex clients plus the server's replacement-instance
@@ -75,6 +78,115 @@ pub fn process_exists(pid: u32) -> io::Result<bool> {
         Err(err) if err.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) => Ok(true),
         Err(err) => Err(err),
     }
+}
+
+/// Owned Win32 Job Object handle. Drops via `CloseHandle`. The intercept
+/// daemon (INTD-006) uses Job Objects as the Windows equivalent of the
+/// Unix process-group interrupt: a session's process and every child it
+/// spawns is assigned to the same job, so `TerminateJobObject` reliably
+/// stops the entire group even when the agent has spawned grandchildren
+/// outside the daemon's view.
+///
+/// The `unsafe` for handle creation, assignment, and termination is
+/// quarantined here so `anvil-intercept` keeps `#![forbid(unsafe_code)]`.
+pub struct JobObject(HANDLE);
+
+impl JobObject {
+    /// Create a new job object with an explicit owner-only DACL. The
+    /// caller is responsible for assigning processes to it via
+    /// [`JobObject::assign_process`] and terminating it via
+    /// [`terminate_job_object`].
+    pub fn create_owner_only() -> io::Result<Self> {
+        let sid = current_user_sid_string()?;
+        let sddl = owner_only_job_sddl(&sid);
+        let descriptor = security_descriptor_from_sddl(&sddl)?;
+        let mut attrs = SECURITY_ATTRIBUTES {
+            nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: descriptor.as_ptr(),
+            bInheritHandle: 0,
+        };
+        // SAFETY: `attrs.lpSecurityDescriptor` is a valid descriptor that
+        // is alive for the duration of `CreateJobObjectW`. Passing
+        // `null_mut()` for the name creates an unnamed job per MSDN.
+        let handle =
+            unsafe { CreateJobObjectW(&mut attrs as *mut SECURITY_ATTRIBUTES, null_mut()) };
+        if handle.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+        // The descriptor only needs to live until CreateJobObjectW
+        // returns; the OS copies the relevant ACLs into the kernel
+        // object. Drop happens here at end-of-scope.
+        drop(descriptor);
+        Ok(Self(handle))
+    }
+
+    /// Assign a process by PID to this job. The PID-reuse defence
+    /// (matching `started_at_unix` against the registry record) is the
+    /// caller's responsibility — see `crate::interrupt` in
+    /// `anvil-intercept`. This helper only opens the process with the
+    /// minimum rights required and calls `AssignProcessToJobObject`.
+    pub fn assign_process(&self, pid: u32) -> io::Result<()> {
+        // SAFETY: OpenProcess returns either NULL+last_error or a valid
+        // owned handle that we close when `proc` drops.
+        let proc_handle = unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SET_QUOTA, 0, pid) };
+        if proc_handle.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+        let proc = ProcessHandle(proc_handle);
+        // SAFETY: `self.0` is an owned, live job handle and `proc.0` is
+        // an owned process handle opened above; both are valid for the
+        // duration of this call.
+        let ok = unsafe { AssignProcessToJobObject(self.0, proc.0) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    /// Borrow the underlying Win32 handle. Callers must not close the
+    /// returned handle; use [`terminate_job_object`] or drop this
+    /// `JobObject` to release the underlying kernel object.
+    pub fn raw_handle(&self) -> HANDLE {
+        self.0
+    }
+}
+
+impl Drop for JobObject {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            // SAFETY: `self.0` is an owned job handle returned by
+            // CreateJobObjectW and is closed exactly once here.
+            unsafe { CloseHandle(self.0) };
+        }
+    }
+}
+
+/// Terminate every process assigned to the supplied job. INTD-006's
+/// Windows interrupt path calls this in lieu of the Unix
+/// SIGINT → SIGTERM → SIGKILL ladder: Windows has no equivalent of
+/// `SIGINT` for non-console processes and Job Objects already provide
+/// the "kill the whole group atomically" semantics. The exit code is
+/// pinned at `1` (matching `pitchfork@cea18d7`'s default for forced
+/// termination); a future revision may surface a distinct exit code so
+/// downstream tooling can tell intercept-driven termination apart from
+/// natural exit, but v1 keeps it simple.
+pub fn terminate_job_object(job: &JobObject) -> io::Result<()> {
+    // SAFETY: `job.0` is an owned, live job handle; `1` is the exit
+    // code applied to every process in the job per MSDN.
+    let ok = unsafe { TerminateJobObject(job.0, 1) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+fn owner_only_job_sddl(sid: &str) -> String {
+    // Owner = current user, DACL = owner-only with no inheritance.
+    // GA (generic all) is acceptable on the job object itself because
+    // the trust boundary is per-user; the intercept daemon and the
+    // agent run under the same UID, and the job object is unnamed so
+    // it cannot be opened by name from another user.
+    format!("O:{sid}D:P(A;;GA;;;{sid})")
 }
 
 /// Windows process creation time as raw FILETIME ticks, if the process can be queried.
@@ -325,5 +437,30 @@ mod tests {
         let server =
             create_owner_only_pipe_server(&pipe_name, PipeInstance::First).expect("create pipe");
         assert!(server.info().is_ok());
+    }
+
+    #[test]
+    fn creates_and_terminates_owner_only_job_object() {
+        // INTD-006 Windows path: create an unnamed job with an
+        // owner-only DACL, then terminate it. The lifecycle must
+        // complete without leaking handles or surfacing an OS error.
+        let job = JobObject::create_owner_only().expect("create job");
+        assert!(!job.raw_handle().is_null(), "raw handle is non-null");
+        terminate_job_object(&job).expect("terminate empty job");
+        // Drop runs CloseHandle; a second terminate after drop would
+        // be a use-after-free, so we simply let the test exit here.
+    }
+
+    #[test]
+    fn owner_only_job_sddl_does_not_grant_world_access() {
+        let sddl = owner_only_job_sddl("S-1-5-21-1-2-3-1000");
+        assert!(
+            !sddl.contains("WD") && !sddl.contains("AU"),
+            "world / authenticated-user must not appear in job SDDL: {sddl}",
+        );
+        assert!(
+            sddl.contains("S-1-5-21-1-2-3-1000"),
+            "owner SID must appear: {sddl}",
+        );
     }
 }

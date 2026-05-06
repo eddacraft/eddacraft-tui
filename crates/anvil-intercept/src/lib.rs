@@ -33,6 +33,7 @@ pub mod config;
 pub mod enforcement;
 pub mod fanout;
 pub mod fence;
+pub mod interrupt;
 pub mod ipc;
 pub mod midedit;
 pub mod registry;

@@ -204,11 +204,7 @@ impl WatcherIntegration {
     /// Tests pass `now` explicitly so they can drive the window
     /// without `tokio::time::sleep`; the production loop uses
     /// `Instant::now()` (see [`run`]).
-    pub fn ingest_at(
-        &mut self,
-        batch: WatcherChangeBatch,
-        now: Instant,
-    ) -> Vec<AttributedBatch> {
+    pub fn ingest_at(&mut self, batch: WatcherChangeBatch, now: Instant) -> Vec<AttributedBatch> {
         let coalesce_window = self.config.coalesce_window;
 
         for change in batch.changes {
@@ -297,14 +293,11 @@ impl Coalescer {
         change: FileChange,
         now: Instant,
     ) {
-        let entry = self
-            .owned
-            .entry(session_id)
-            .or_insert_with(|| OwnedBuffer {
-                worktree,
-                changes: Vec::new(),
-                last_seen: now,
-            });
+        let entry = self.owned.entry(session_id).or_insert_with(|| OwnedBuffer {
+            worktree,
+            changes: Vec::new(),
+            last_seen: now,
+        });
         entry.changes.push(change);
         entry.last_seen = now;
     }
@@ -356,12 +349,19 @@ impl Coalescer {
         // tests assert against this so a dictionary-iteration change
         // does not silently flip ordering.
         out.sort_by(|a, b| match (a, b) {
-            (CoalescedBatch::Owned { session_id: a, .. }, CoalescedBatch::Owned { session_id: b, .. }) => {
-                a.as_str().cmp(b.as_str())
+            (
+                CoalescedBatch::Owned { session_id: a, .. },
+                CoalescedBatch::Owned { session_id: b, .. },
+            ) => a.as_str().cmp(b.as_str()),
+            (CoalescedBatch::Owned { .. }, CoalescedBatch::Unknown { .. }) => {
+                std::cmp::Ordering::Less
             }
-            (CoalescedBatch::Owned { .. }, CoalescedBatch::Unknown { .. }) => std::cmp::Ordering::Less,
-            (CoalescedBatch::Unknown { .. }, CoalescedBatch::Owned { .. }) => std::cmp::Ordering::Greater,
-            (CoalescedBatch::Unknown { .. }, CoalescedBatch::Unknown { .. }) => std::cmp::Ordering::Equal,
+            (CoalescedBatch::Unknown { .. }, CoalescedBatch::Owned { .. }) => {
+                std::cmp::Ordering::Greater
+            }
+            (CoalescedBatch::Unknown { .. }, CoalescedBatch::Unknown { .. }) => {
+                std::cmp::Ordering::Equal
+            }
         });
         out
     }
@@ -521,7 +521,8 @@ mod tests {
         // Same `now` for ingest and the past-window time, then advance
         // beyond the window so the coalescer flushes.
         let _ = integration.ingest_at(batch, now);
-        let flushed = integration.flush_all(now + DEFAULT_COALESCE_WINDOW + Duration::from_millis(1));
+        let flushed =
+            integration.flush_all(now + DEFAULT_COALESCE_WINDOW + Duration::from_millis(1));
 
         assert_eq!(flushed.len(), 1, "exactly one attributed batch");
         match &flushed[0] {
@@ -566,7 +567,8 @@ mod tests {
             received_at: now,
         };
         let _ = integration.ingest_at(batch, now);
-        let flushed = integration.flush_all(now + DEFAULT_COALESCE_WINDOW + Duration::from_millis(1));
+        let flushed =
+            integration.flush_all(now + DEFAULT_COALESCE_WINDOW + Duration::from_millis(1));
 
         assert_eq!(flushed.len(), 1);
         match &flushed[0] {
@@ -684,7 +686,8 @@ mod tests {
             received_at: t0,
         };
         let _ = integration.ingest_at(batch, t0);
-        let flushed = integration.flush_all(t0 + DEFAULT_COALESCE_WINDOW + Duration::from_millis(1));
+        let flushed =
+            integration.flush_all(t0 + DEFAULT_COALESCE_WINDOW + Duration::from_millis(1));
         assert_eq!(flushed.len(), 2);
         // Stable order — Owned-by-session-id-asc.
         let ids: Vec<&str> = flushed

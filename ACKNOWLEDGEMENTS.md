@@ -105,6 +105,26 @@ Special thanks to the projects we rely on every day.
 [claude-code]: https://claude.com/claude-code
 [nodejs]: https://nodejs.org/
 
+### Code adapted into Anvil
+
+Anvil's intercept daemon adapts cross-platform termination code from the
+following projects. Adapted code is re-implemented in `anvil-intercept` /
+`anvil-intercept-win32` and is licensed compatibly with this project; see
+each project's licence at the linked source for the canonical text.
+
+- [pitchfork][pitchfork] — MIT. The Unix process-group interrupt ladder
+  (`libc::kill` / `libc::killpg` with adaptive 10 ms / 50 ms poll and
+  SIGINT → SIGTERM → SIGKILL escalation) in
+  `crates/anvil-intercept/src/interrupt.rs` is adapted from
+  `pitchfork@cea18d7`'s `src/procs.rs`. The PID-reuse defence
+  (`/proc/PID/stat` starttime / `proc_pidinfo` match before delivery) is
+  added on top — pitchfork does not implement it. Windows Job Object
+  termination in `anvil-intercept-win32` is **not** lifted from pitchfork
+  (pitchfork delegates Windows kills to `sysinfo::Process::kill()`); see
+  the INTD-006 design notes for the divergence.
+
+[pitchfork]: https://github.com/endevco/pitchfork/tree/cea18d7
+
 ---
 
 <!-- THIRD-PARTY ATTRIBUTION -->

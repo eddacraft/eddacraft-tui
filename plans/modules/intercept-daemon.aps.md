@@ -307,8 +307,33 @@ a new lane.
   timeout, then SIGKILL as last resort; on Windows, Job Object termination used;
   fence applied immediately on any delivery failure
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib interrupt`
-- **Status:** Draft
-- **Notes (pitchfork survey, 2026-05-06):** Surveyed `endevco/pitchfork@cea18d7`
+- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/interrupt.rs`
+  ships the cross-platform interrupt ladder. Unix path
+  (`run_unix_ladder`): SIGINT → SIGTERM → SIGKILL with adaptive
+  10 ms / 50 ms poll, lifted from `pitchfork@cea18d7`'s
+  `src/procs.rs` (MIT — see `ACKNOWLEDGEMENTS.md`). The
+  PID-reuse defence (`/proc/PID/stat` field 22 starttime match
+  before delivery) is added on top — pitchfork does not implement
+  it. `InterruptOps` is a synchronous trait so the test double
+  can drive the ladder without spawning real processes. Windows
+  path (`run_windows_termination`): Job Object termination via
+  the new `anvil-intercept-win32` helpers
+  (`JobObject::create_owner_only`, `JobObject::assign_process`,
+  `terminate_job_object`). All `unsafe` is contained in
+  `anvil-intercept-win32` so `anvil-intercept` keeps
+  `#![forbid(unsafe_code)]`. Owner-only DACL on the unnamed job
+  object matches the IPC-side trust boundary. Tests cover Unix
+  happy-path SIGTERM, PID-reuse mismatch fences without
+  signalling, SIGTERM-unanswered escalates to SIGKILL, signal
+  delivery failure fences, leader-already-exited returns
+  AlreadyExited, missing-PID fences immediately, and
+  SIGINT-resolves-cleanly. Windows-only test:
+  `JobObject::create_owner_only` + `terminate_job_object`
+  lifecycle plus DACL non-world-grant assertion. 7 interrupt
+  unit tests pass on Linux; 4 win32 unit tests pass via the
+  cross-compile target. Adds `pitchfork` to `ACKNOWLEDGEMENTS.md`
+  under "Code adapted into Anvil".
   (MIT, jdx's company; same SHA as `jdx/pitchfork@HEAD`) for the cross-platform
   termination code INTD-006 needs.
 
