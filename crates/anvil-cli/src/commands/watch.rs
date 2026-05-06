@@ -48,6 +48,26 @@ pub struct WatchArgs {
     debounce: Option<u64>,
 }
 
+impl WatchArgs {
+    /// Build the args used by `anvil start --watch` to enter the
+    /// watch fallback (LAUNCH-011). Scopes the watcher to the
+    /// workspace root (no `--file` override) and accepts the
+    /// FileFilter denylist as the only scope filter — same default
+    /// shape as bare `anvil watch`.
+    pub fn fallback_for_repo() -> Self {
+        Self {
+            file: None,
+            action: None,
+            plans: false,
+            source: false,
+            all: false,
+            patterns: None,
+            exclude: None,
+            debounce: None,
+        }
+    }
+}
+
 const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "**/*.md",
     "**/*.aps.md",
