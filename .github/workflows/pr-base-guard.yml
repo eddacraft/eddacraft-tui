@@ -36,7 +36,7 @@ concurrency:
 jobs:
   guard:
     name: Validate PR base
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Check head branch against allowed patterns
         # Both inputs flow through env: and are then dereferenced as quoted

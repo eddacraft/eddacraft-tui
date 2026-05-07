@@ -55,7 +55,7 @@ jobs:
   # ── Multi-version Node tests (Linux only) ──────────────────────
   test-multi-node:
     name: Unit Tests (Node ${{ matrix.node-version }}, ubuntu-latest)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -85,7 +85,7 @@ jobs:
   # ── Multi-version build check ──────────────────────────────────
   build-multi-node:
     name: Build (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     strategy:
       matrix:
         node-version: [22.x, 24.x]
