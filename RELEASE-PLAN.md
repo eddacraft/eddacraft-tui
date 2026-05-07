@@ -421,6 +421,64 @@ activation is the higher-priority persona expansion this window.**
 
 ---
 
+### A7. Multi-Layer Protection Foundation — _pre-positioning for v1_
+
+**Goal:** Land the architectural decisions and the smallest-possible
+foundation pieces that make next-release multi-layer protection (MLP module)
+implementable on day one. This is **NOT** the full multi-layer protection
+shipping — that's v1 (next-next release). This is the slice that prevents
+v1 implementation from starting cold.
+
+**Source artefacts:**
+
+- Spec: [`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`](./plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md)
+- Brainstorm: [`plans/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md`](./plans/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
+- ADRs (Proposed):
+  - [ADR-036 (rewritten)](./plans/decisions/036-daemon-scope-discovery-and-boundaries.md) — daemon scope, discovery, OS-boundary
+  - [ADR-037](./plans/decisions/037-witness-chain-and-l4-policy.md) — witness chain + L4 policy
+  - [ADR-038](./plans/decisions/038-hook-surface-and-noise-discipline.md) — hook surface + noise discipline (the Serena rule)
+  - [ADR-039](./plans/decisions/039-baseline-policy-and-hard-pinned-classes.md) — baseline policy + hard-pinned classes
+- CLI coherence spec: [`plans/specs/2026-05-07-cli-surface-coherence.md`](./plans/specs/2026-05-07-cli-surface-coherence.md)
+- MLP module: [`plans/modules/multilayer-protection.aps.md`](./plans/modules/multilayer-protection.aps.md)
+  (17 work items; almost all v1 / next-release)
+- Future-session gaps: [`plans/brainstorms/2026-05-07-remaining-design-gaps.md`](./plans/brainstorms/2026-05-07-remaining-design-gaps.md)
+
+**Slice for current release (in priority order):**
+
+| Item | Cost | Risk | Why current-release |
+|---|---|---|---|
+| **A7.1** — Council review + Accepted promotion of ADRs 036 (rewrite), 037, 038, 039 | One council session + remediation | None (no code) | Gates next-release implementation work; without it, v1 starts from "Proposed" docs |
+| **A7.2** — `anvil/project-id` UUID written by `anvil start` (MLP-001 minimal slice) | ~50 LOC + tests in activation orchestrator | Low | Lays foundation for v1 witness chain; lets `anvil/` start as tracked-dir convention |
+| **A7.3** — CLIC-001 exit code constants audit | Small refactor | Low | Replaces magic numbers; pre-positions new exit codes (5/6/7/10) without breaking current uses |
+| **A7.4** — CLIC-002 `--quiet` flag introduction | Small | Low | New flag; default off; doesn't change existing behaviour |
+| **A7.5** — CLIC-006 deprecation aliases (`mcp-config` → `mcp config`, `gate-config` → `gate config`, `hooks` → `hook`) | Small | Low | Aliases keep working; deprecation message during one release |
+| **A7.6** — CLIC-010 help text consistency pass | Medium (CLI sweep) | Low | Improves DX; no behaviour change |
+| **A7.7** — ADR-038 noise-discipline audit of existing surfaces (`anvil status`, `anvil doctor`, `anvil intercept status`) | Medium (CLI sweep) | Low | Enforces the Serena rule retroactively |
+| **A7.8** — DRVR forward-compat verification (DRVR-001/-002/-008 don't lock out future `info.json` discovery / `AgentTag` field) | Review only | None | Coordination gate; ensures DRVR ships compatible with future MLP additions |
+
+**Out of scope for current release** (explicitly v1, do NOT pull forward):
+
+- Witness chain implementation (MLP-002)
+- Pre-commit / pre-push hooks (MLP-003 / -004)
+- `anvil baseline` command (MLP-007)
+- L4 policy framework (MLP-006)
+- Per-task fence isolation (MLP-014)
+- CI action publishing (MLP-010)
+- Server-side `validate_at_l4` fallback
+- Full `anvil/policy.yml` parser
+
+These are the v1 build sequence; pulling any forward expands current-release
+scope materially.
+
+**Recommendation: ACCEPT A7.1, A7.2 as MUST. Accept A7.3–A7.7 as SHOULD
+(land if bandwidth allows). A7.8 is a review checkpoint, not new work.**
+
+The MUSTs are tiny (council review + ~50 LOC). The SHOULDs are incremental
+polish that don't expand scope. Current release stays a hardening / activation
+slice while pre-positioning v1.
+
+---
+
 ## TIER B — Queued (next slice candidates)
 
 ### B1. Intercept Loop v0 — _the wrapped-launch v2 narrative_

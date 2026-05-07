@@ -97,6 +97,7 @@ version: **`v0.6.0-beta`**. A2 Wave 4 is explicitly out of cut per ADR-033
 | v0.6.0-beta post-substrate polish | Complete | n/a | macOS peer-cred parity (#1331), Windows status surface + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335) |
 | Release hardening follow-ups | In Progress | V050F 11/16 | Open: V050F-006/-007/-008/-011/-015. V050F-006/-011 in flight on #1323 (cache scanner hot-path regex compiles); V050F-007 in flight on #1330 (eager rayon pool init) |
 | Release nominations | Complete | V060F 1/1 | RCLI2-009 admin command parity complete |
+| Multi-layer protection | Proposed | MLP 0/17 | Spec [`2026-05-07-anvil-multilayer-protection-architecture.md`](./specs/2026-05-07-anvil-multilayer-protection-architecture.md) + ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md) (rewritten), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [039](./decisions/039-baseline-policy-and-hard-pinned-classes.md). MLP-009 protection-claim contract suite is the hard release gate. |
 
 ### Last release — `v0.5.0-beta` (shipped 2026-05-01)
 
@@ -824,6 +825,29 @@ it.
   feed, source-of-truth for the dashboard); tracing/OTEL = ephemeral debugging
   context (never source-of-truth); `traceparent` is the cross-pipe correlation
   key ([ADR](./decisions/035-three-pipe-observability-rule.md)) — **Accepted**
+- **D-036:** Daemon scope, discovery, OS-boundary policy — per-execution-scope
+  daemons (multi-daemon by design), `info.json` runtime sidecar with two-phase
+  ready, hardened `os_locality_token`, cross-Windows/WSL boundary detect-and-
+  refuse, forks inherit project_uuid by default
+  ([ADR](./decisions/036-daemon-scope-discovery-and-boundaries.md)) —
+  **Proposed**
+- **D-037:** Witness chain + L4 policy framework — per-commit hash-chained
+  witness in `anvil/witnessed.ndjson` (in-tree, travels via git), active +
+  archive + manifest with rollover, `flock`-protected chain integrity, per-
+  branch L4 policy with `validate_at_l4` server-side fallback in
+  `refs/notes/anvil-l4` ([ADR](./decisions/037-witness-chain-and-l4-policy.md))
+  — **Proposed**
+- **D-038:** Hook surface + noise discipline (the Serena rule) — silent on
+  success, single terse line on failure, repeat-suppressed; self-contained
+  binary; non-destructive integration with husky / lefthook / pcf / plain;
+  panic catcher demotes crashes to exit-0 + log
+  ([ADR](./decisions/038-hook-surface-and-noise-discipline.md)) — **Proposed**
+- **D-039:** Baseline policy + hard-pinned rule classes — `anvil baseline`
+  scans + grandfathers per-class; `secrets` and `command-safety` cannot be
+  config-disabled; fingerprint-based legacy-finding tracking; baseline-
+  suspicious detection
+  ([ADR](./decisions/039-baseline-policy-and-hard-pinned-classes.md)) —
+  **Proposed**
 
 ## Open Questions
 
