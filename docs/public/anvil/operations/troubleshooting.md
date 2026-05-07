@@ -71,6 +71,81 @@ If the updater still cannot see the release:
 - verify that the GitHub release exists for your platform
 - on Windows, try `winget upgrade eddacraft.anvil` or `scoop update anvil`
 
+## Daemon and MCP Activation
+
+For the full operator-facing detail, see the
+[v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md).
+The most common pitfalls are summarised below.
+
+### Daemon must run in foreground in v1
+
+`anvil intercept start --foreground` is the only supported invocation in
+`v0.6.0-beta`. Output goes to the operator's terminal; the daemon stays attached
+to the controlling TTY.
+
+If a start fails with "address already in use" or a stale-PID complaint, a
+prior instance is the most likely cause. Stop it cleanly first:
+
+```bash
+anvil intercept stop
+```
+
+If that does not work, send `SIGTERM` to the PID and wait 10 seconds before
+escalating to `SIGKILL`. Always pair a `SIGKILL` with a directory cleanup of
+`${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil` to clear the stale socket and
+PID file — otherwise the next start refuses on the leftover state.
+
+### `anvil intercept status` is Unix-only in v1
+
+On Unix, `anvil intercept status` queries the daemon over the UDS IPC and
+prints uptime / sessions / fences / latency. On Windows, the same command
+hard-fails with a structured error in `v0.6.0-beta`; the named-pipe CLI
+client lands later. As a partial signal, the MCP `anvil_validate_write`
+response includes `correlation.daemonStatus` — but that field reports
+`not-wired` on Windows in this release. There is no Windows-side `intercept
+status` workaround for v1.
+
+### Fences survive daemon restart
+
+A fenced worktree stays fenced across `anvil intercept stop`/`start`, daemon
+crashes, and machine reboots. **Restart does not release fences** — that's by
+design. Recover with:
+
+```bash
+anvil intercept unblock --worktree "<path>"
+# or, to release every fenced worktree
+anvil intercept unblock --all
+```
+
+If `unblock` itself fails, the fence file is the source of truth — see the
+[release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
+for the hard-reset path.
+
+### macOS interrupt ladder fences instead of signalling
+
+The macOS implementation of `current_process_start_time` returns `None` in
+`v0.6.0-beta`. Per the AD-7 fence-on-failure invariant, every interrupt
+decision that needs to verify the leader's start time falls through to a
+fence. Operators on macOS should expect:
+
+- Fenced worktrees rather than signal ladders for interrupted sessions
+- `anvil intercept status` showing `fenced: true` more often than on Linux
+- Recovery via `anvil intercept unblock --worktree`
+
+This is expected v1 behaviour, tracked outside the release.
+
+### Windows CI regressions on `dev` branches are silent
+
+The Windows cross-compile job is gated to `main` branch pushes and PRs
+targeting `main`. A Windows-only regression on a `dev` branch is invisible in
+CI until the dev → main sync runs the matrix. If you're triaging a Windows bug
+against a `dev`-cut artefact, run the Windows test matrix locally before
+rooting the bug at the operator's environment:
+
+```bash
+cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1
+```
+
 ## Diagnostics & AI Guardrail Issues
 
 ### `anvil doctor` warns "git-repo: not a git repository"

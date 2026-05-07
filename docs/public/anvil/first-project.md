@@ -10,6 +10,16 @@ sidebar_position: 4
 This guide walks through setting up anvil in an existing TypeScript project with
 intentional architecture boundaries.
 
+:::tip Activate first with `anvil start`
+
+If you just want the install-to-protection flow, run `anvil start` from the
+project root — it handles `anvil init`, MCP wiring for Cursor and Claude Code,
+and ends in one literal protection state. See the
+[Quickstart](/anvil/quickstart) for that path. This guide goes deeper into
+defining and enforcing architecture boundaries on top of that foundation.
+
+:::
+
 ## Scenario
 
 You have a project with this structure:

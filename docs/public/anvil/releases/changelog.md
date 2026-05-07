@@ -11,6 +11,96 @@ All notable changes to anvil are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-beta] — 2026-05-07 — Wow-Start Activation & Daemon-Backed RTV
+
+### Added
+
+- **`anvil start` activation entrypoint** — `install → cd repo → anvil start`
+  is now the canonical first minute. `anvil start` was previously a clap alias
+  for `welcome`; it is now the dedicated activation command, with `--verify`
+  for a read-only protection probe and `--watch` to opt into the save-time
+  fallback when MCP cannot attach.
+- **Activation protection states** — `protecting`, `ready_restart_required`,
+  `watching`, `needs_action`, `unsupported`, and `error` are now the single
+  shared vocabulary across `anvil start`, `anvil status --verify`,
+  `anvil doctor`, and the tutorial.
+- **`anvil mcp install` for Cursor and Claude Code** — one-step MCP activation
+  that writes `~/.cursor/mcp.json` or `~/.claude.json`, with an interactive
+  picker when both clients are present. Windsurf, VS Code, and HTTP-transport
+  flows remain on `anvil mcp-config`.
+- **Daemon-backed `anvil_validate_write` MCP tool** — the MCP pre-write
+  validation path now routes through the local daemon over owner-only IPC
+  (Unix domain socket on Linux/macOS; named-pipe listener on Windows). The
+  embedded validation pipeline remains as a correctness-equivalent fallback
+  when the daemon is not reachable.
+- **Repo language profile** — `anvil start`, scan, and watch now honour a
+  per-repository language profile so coverage claims are honest. TypeScript is
+  the supported tier in `0.6.0-beta`; SQL and Markdown are partial; Python and
+  Rust are reported as unsupported instead of silently skipped. Cross-language
+  checks (secrets) continue to run on all files.
+- **Protection-loop tutorial** — the default tutorial path now walks through
+  the protection loop end-to-end: protection-loop intro, fixture description,
+  simulated check, activation-state vocabulary, and a real
+  `anvil start --verify` run. The four legacy paths (Policy, Architecture,
+  Drift, CI) remain available.
+- **`anvil version`** — install-method-aware version surface that detects
+  Homebrew, Scoop, WinGet, the installer, or a dev build, and prints current
+  version, latest version, `update_available`, install method, and the
+  recommended upgrade command. The JSON shape is pinned for agent and CI
+  consumers.
+- **macOS daemon peer-credential validation** — the daemon now uses
+  `getpeereid(2)` on macOS for the same UID-based same-user trust check the
+  Linux build performs via `SO_PEERCRED`. macOS deployments are now at parity
+  with Linux on the daemon trust boundary.
+- **Windows named-pipe daemon listener** — the daemon listener side ships for
+  Windows with an owner-only DACL and rejected remote clients. The Windows
+  CLI client side lands in the `chore/windows-status` follow-up.
+- **`anvil intercept status`** — operator status surface for the daemon over
+  the Unix IPC, returning sessions, fences, latency, and uptime per the RTAI
+  demo runbook contract.
+
+### Changed
+
+- **Foreground daemon is the only supported launch mode in v1** — start the
+  daemon with `anvil intercept start --foreground`. Service-manager
+  integration should run the daemon under foreground supervision.
+- **`anvil intercept status` is Unix-only in this release** — on Windows the
+  command hard-fails with a structured error pointing at the
+  `chore/windows-status` follow-up. On Unix, `anvil_validate_write` MCP
+  responses include a `correlation.daemonStatus` reachability signal; on
+  Windows that field is always `not-wired` until the named-pipe CLI client
+  lands.
+- **Fences persist across daemon restart by design** — recovery is
+  `anvil intercept unblock --worktree <path>` (or `--all`), not an
+  `intercept stop`/`start` cycle. The fence file is the source of truth and
+  survives daemon crashes, restarts, and reboots.
+- **macOS interrupt ladder is fence-first in this release** — the
+  `current_process_start_time` helper has a Linux branch only, so the macOS
+  interrupt path falls through to a fence-on-uncertainty path instead of
+  running the SIGINT → SIGTERM → SIGKILL ladder. Recovery is the same
+  explicit `anvil intercept unblock`.
+
+### Fixed
+
+- **MCP restart handshakes** — activation now waits for the MCP client's
+  restart handshake before claiming `ready_restart_required` is resolved, so
+  the next status read reflects the real connected state.
+- **Activation denylist alignment** — the activation pre-scan now uses the
+  same file filter as `anvil-checks`, so the first-signal walk does not
+  surface findings the steady-state scan would skip.
+
+### Improved
+
+- **Activation baseline** — old findings are baselined before the first
+  activation signal so the first genuine save produces a real signal rather
+  than a long pre-existing list.
+- **Honest watch fallback** — when MCP cannot pre-write attach, `anvil start`
+  surfaces partial-protection messaging and offers the watch-mode fallback
+  explicitly instead of pretending the activation succeeded.
+- **Public docs refresh** — install, quickstart, and the broader public Anvil
+  docs were aligned with the activation-first first-minute and the
+  daemon-backed MCP path.
+
 ## [0.5.1-beta] — 2026-05-03 — Scanner Signal & TUI Hotfixes
 
 ### Changed

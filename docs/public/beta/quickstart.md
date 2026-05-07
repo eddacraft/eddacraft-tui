@@ -8,23 +8,26 @@ slug: /
 
 # Beta Quickstart
 
-Install Anvil, run the tutorial, scan your project, and start giving feedback --
-all in about 10 minutes.
+Install Anvil, activate protection in a real repo, watch the AI catch get
+blocked, and start giving feedback -- all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (`0.3.x-beta`). The CLI is now a native Rust
-binary — no Node.js required. APIs and behaviour may change between releases.
+This is **pre-release software** (`0.6.0-beta`). The CLI is a single native
+binary -- no Node.js required. APIs and behaviour may change between releases.
 Your feedback directly shapes the product before public launch.
 
 :::
 
 ## Prerequisites
 
-- A TypeScript or JavaScript project to test with
+- A real repository you know well (TypeScript or JavaScript gets the strongest
+  coverage; SQL and Markdown get partial coverage; Python and Rust are
+  unsupported in v1)
 - **macOS**, **Linux**, or **Windows** (x86_64 or aarch64)
+- Cursor or Claude Code installed if you want to test the MCP catch path
 
-## Install
+## Step 1 -- Install
 
 :::info Sign up first
 
@@ -45,29 +48,79 @@ brew install eddacraft/tap/anvil
 
 # Or via WinGet (Windows)
 winget install eddacraft.anvil
+
+# Or via Scoop (Windows)
+scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+scoop install anvil
 ```
 
-Verify the installation:
+Verify the install:
 
 ```bash
 anvil --version
 ```
 
-## Step 1 -- Run the Interactive Tutorial
+## Step 2 -- `anvil start` (the wow-start)
 
-The fastest way to learn Anvil. It takes about 5 minutes and walks you through
-scanning, watching, and fixing issues in a sandbox project.
+From inside a real repository, `anvil start` is the activation entrypoint. It
+runs `anvil init`, scans the repo to baseline existing findings, detects your
+repo's language profile, and writes MCP entries so Cursor or Claude Code can
+call `anvil_validate_write` before each AI write.
+
+```bash
+cd your-project
+anvil start
+```
+
+The activation summary ends with a literal protection state -- one of
+`protecting`, `ready_restart_required`, `watching`, `needs_action`,
+`unsupported`, or `error`. Trust that literal: if `anvil start` reports
+`needs_action`, pre-write protection is **not** live yet.
+
+`anvil start` writes:
+
+- `~/.cursor/mcp.json` (Cursor)
+- `~/.claude.json` (Claude Code)
+
+Restart the editor after activation. On Unix, the MCP path is daemon-backed
+when the local daemon is running; the embedded path is a correctness-equivalent
+fallback otherwise. On Windows, the daemon path is currently `not-wired` from
+the MCP correlation envelope (this is documented v1 scope, not a regression).
+
+**Useful flags:**
+
+```bash
+anvil start --verify   # Read-only probe; no init, no scan, no MCP write
+anvil start --watch    # After activation, fall back to save-time watch mode
+```
+
+`--watch` is a save-time **fallback** -- it spawns the kernel watcher and
+reports findings on save. It is not pre-write interception, and `anvil start`
+will refuse to spawn it when MCP pre-write validation is already live (it would
+just be redundant noise).
+
+## Step 3 -- Try the MCP catch
+
+With `anvil start` reporting `protecting` and your editor restarted, ask the AI
+inside Cursor or Claude Code to make a change you know is wrong (e.g. "add an
+`any` type to this function" or "swallow this error in a try/catch"). The MCP
+tool `anvil_validate_write` is called before the write lands; the daemon
+refuses the write and the AI sees the rejection.
+
+For a guided walk-through, see the
+[wow-start demo](/anvil/guides/wow-start-demo).
+
+## Step 4 -- Run the Tutorial
+
+For a guaranteed-value path (especially when your repo doesn't trip anything
+straight away), run the protection-loop tutorial:
 
 ```bash
 anvil tutorial
 ```
 
-The tutorial covers:
-
-1. **Scan** -- analyse code for issues
-2. **Watch** -- monitor files in real-time
-3. **Fix** -- address identified problems
-4. **Next steps** -- where to go from here
+The default path (`ProtectionLoop`) is a five-step, value-first walk that ends
+with `anvil start --verify` so you finish back in the activation surface.
 
 ```bash
 anvil tutorial --reset     # Start fresh if you have run it before
@@ -76,162 +129,83 @@ anvil tutorial --reset     # Start fresh if you have run it before
 For deeper dives into specific features, see the
 [written tutorials](/anvil/tutorials) (policies, architecture, drift, CI).
 
-## Step 2 -- Log In
-
-Start the default device-code login flow:
+## Step 5 -- Diagnostics
 
 ```bash
-anvil auth login
+anvil doctor              # Environment, config, and hook checks
+anvil status --verify     # Read-only activation probe (same backend as `anvil start --verify`)
+anvil version             # Current and latest version + the upgrade command for your install method
 ```
 
-anvil prints a short code and a verification URL. Open the URL, enter the code,
-and the CLI will finish the login automatically.
+`anvil version` is install-method aware -- it knows whether you used Homebrew,
+Scoop, WinGet, the install script, or a dev build, and prints the upgrade
+command for that path.
 
-If your cohort uses email OTP instead, run `anvil auth login --otp`.
+## Step 6 -- Watch Fallback
 
-## Step 3 -- Initialise Your Project
-
-Try Anvil on a real codebase:
+When MCP can't attach (no Cursor / Claude Code, or the editor refused to load
+the server), watch mode is the save-time fallback:
 
 ```bash
-cd your-project
-anvil init
+anvil watch --source       # Watch source files
+anvil start --watch        # Activate, then drop into the watch fallback
 ```
 
-The setup wizard will:
-
-- Detect your project type, package manager, and tooling
-- Create an `.anvilrc` configuration file
-- Set up the `.anvil/` directory
-- Optionally install Git hooks
-
-```
-Initialising Anvil in current project...
-
-Detected environment:
-  Project: my-app
-  Package Manager: pnpm
-  Git: yes
-  TypeScript: yes
-
-Anvil initialised successfully!
-
-Created files:
-  .anvilrc
-  .anvil/
-```
-
-## Step 4 -- Scan Your Codebase
-
-Run a full scan to see what Anvil catches:
-
-```bash
-anvil check --all
-```
-
-Most projects have something. Here is typical output:
-
-```
-Checking architecture... done
-Checking anti-patterns...
-  [AP-003] Explicit any type detected
-    src/utils/parser.ts:42
-    Using 'any' defeats type safety
-    Fix: Define a proper type or use 'unknown'
-
-  [AP-006] Empty catch block
-    src/services/auth.ts:87
-    Empty catch blocks hide errors
-    Fix: Log the error or re-throw
-
-2 warnings found.
-```
-
-**Other scan options:**
-
-```bash
-anvil check --changed            # Only changed files (git-aware)
-anvil check --changed --staged   # Only staged files
-anvil check --verbose            # Detailed explanations
-```
-
-**Understand a policy:**
-
-```bash
-anvil policy explain <policy-id>       # Explain a specific policy rule
-anvil policy list                      # List all available policies
-```
-
-## Step 5 -- Watch Mode
-
-Start real-time validation as you code:
-
-```bash
-anvil watch --source
-```
-
-Save a file and see Anvil catch it immediately.
+Save a file and Anvil reports findings after the save. This is **not**
+pre-write protection -- the write already happened. Press `Ctrl+C` to stop.
 
 ```bash
 anvil watch --plans        # Watch planning documents only
 anvil watch --all          # Watch both source and plans
 ```
 
-Press `Ctrl+C` to stop.
-
-:::tip
-
-Run watch mode in a dedicated terminal pane or use the
-[VS Code extension](/anvil/integrations/vscode) for in-editor diagnostics.
-
-:::
-
-## Step 6 -- Run Diagnostics
-
-If something is not working, run the doctor:
+## Sign In (optional)
 
 ```bash
-anvil doctor
+anvil auth login           # Device-code flow
+anvil auth login --otp     # Email OTP
 ```
 
-This checks Git configuration, Anvil configuration validity, and hook
-installation status.
-
-The doctor checks Git configuration, `.anvilrc` validity, and hook installation.
-
-## More Commands Worth Testing
-
-```bash
-anvil status              # Current configuration and state
-anvil gate                # Full codebase scan via quality gates
-anvil gate myplan.md      # Validate a specific plan file
-anvil gate --profile dev  # Development mode
-anvil start               # Welcome screen with guided options
-anvil --help              # See all commands
-```
+Anvil's local protection works without sign-in; auth is for online-only
+features such as update checks.
 
 ---
 
 ## What to Test
 
-We are especially interested in feedback on these areas:
+We are especially interested in feedback on these areas in `0.6.0-beta`:
 
-| Area                    | What to try                                           |
-| ----------------------- | ----------------------------------------------------- |
-| **Tutorial experience** | Is it clear? Does it work smoothly?                   |
-| **Init wizard**         | Does it detect your project correctly?                |
-| **Scan results**        | Are warnings accurate and actionable?                 |
-| **Watch mode**          | Is it fast enough? Does it catch changes?             |
-| **Error messages**      | Are they helpful when something goes wrong?           |
-| **TUI (terminal UI)**   | Does the interactive interface work in your terminal? |
+| Area                                          | What to try                                                                                                |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Wow-start activation (`anvil start`)**      | Does the first minute land? Does the printed protection state match what is actually wired?                |
+| **MCP catch via Cursor / Claude Code**        | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?   |
+| **Activation states copy (no over-claim)**    | If activation reports `needs_action` or `unsupported`, is the explanation specific and the next step real? |
+| **Language profile honesty**                  | If your repo is mostly Python or Rust, does the activation summary name the gap instead of pretending?    |
+| **Tutorial experience (`ProtectionLoop`)**    | Is the protection-loop walk clear? Does it leave you in a useful state?                                    |
+| **`anvil version`**                           | Does it correctly identify your install method and print the right upgrade command?                       |
+| **Watch fallback**                            | When MCP can't attach, does `anvil watch --source` / `anvil start --watch` produce useful save-time signal? |
 
 ## Known Limitations
 
-- **Gate checks** -- some gates (policy, OPA/Rego) require external tools
-- **Adapters** -- SpecKit and BMAD adapters are complete; others are in progress
-- **VS Code extension** -- basic functionality only; advanced features coming
-- **First-run performance** -- initial scan may be slower while caches are built
-- **Large monorepos** -- gate execution may be slower on very large codebases
+- **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
+  install, and Copilot / Codex CLI integration are explicitly out of scope.
+- **`anvil intercept status` is Unix-only in v1.** On Windows the command
+  hard-fails with a structured error; the named-pipe CLI client lands in a
+  follow-up.
+- **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
+  -- backgrounding is not a v1 surface. Operators running under systemd / launchd
+  should run foreground under the manager's supervision.
+- **Fences survive daemon restart.** Recovery is `anvil intercept unblock
+  --worktree <path>` (or `--all`), not a daemon restart.
+- **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS fence
+  the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recover
+  the same way: `anvil intercept unblock`.
+- **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
+  not mean the Windows target was tested for that change. File Windows bugs
+  with that caveat noted.
+- **Gate checks** -- some gates (policy, OPA/Rego) require external tools.
+- **First-run performance** -- the initial scan may be slower while caches are
+  built.
 
 **Tested on:** Linux (Ubuntu 22.04+), macOS 13+, Windows 11.
 
@@ -251,17 +225,22 @@ Found a bug or have feedback?
 
 ## Quick Reference
 
-| Command                | Purpose                         |
-| ---------------------- | ------------------------------- |
-| `anvil tutorial`       | Interactive guided tutorial     |
-| `anvil init`           | Set up anvil in a project       |
-| `anvil check --all`    | Scan entire codebase            |
-| `anvil watch --source` | Real-time validation            |
-| `anvil doctor`         | Diagnostics and troubleshooting |
-| `anvil policy explain` | Understand a policy rule        |
-| `anvil status`         | Check configuration and state   |
-| `anvil gate`           | Run quality gates               |
-| `anvil --help`         | See all commands                |
+| Command                                        | Purpose                                                       |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| `anvil start`                                  | Activate protection: init + scan + MCP install                |
+| `anvil start --verify`                         | Read-only activation probe (no writes)                        |
+| `anvil start --watch`                          | Activate, then run the save-time watch fallback               |
+| `anvil mcp install --client cursor`            | Install MCP entry for Cursor only                             |
+| `anvil mcp install --client claude-code`       | Install MCP entry for Claude Code only                        |
+| `anvil status --verify`                        | Read-only activation probe (same backend as `start --verify`) |
+| `anvil version`                                | Current and latest version, plus install-aware upgrade hint   |
+| `anvil tutorial`                               | Interactive protection-loop walk-through                      |
+| `anvil watch --source`                         | Save-time watch fallback                                      |
+| `anvil check --all`                            | Scan entire codebase                                          |
+| `anvil doctor`                                 | Diagnostics and troubleshooting                               |
+| `anvil policy explain <id>`                    | Understand a policy rule                                      |
+| `anvil gate`                                   | Run quality gates                                             |
+| `anvil --help`                                 | See all commands                                              |
 
 ## Next Steps
 

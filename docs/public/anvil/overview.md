@@ -30,7 +30,8 @@ Code review _should_ catch these issues. But:
 
 ## How anvil Works
 
-anvil validates changes **at save-time**—before they reach review.
+anvil validates changes **before they land**—at the AI's pre-write point when
+that path is wired, and at save-time as a fallback otherwise.
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -49,15 +50,35 @@ That is why `anvil check` and `anvil gate` both exist. `check` is best for
 targeted analysis; `gate` is best when you need to know whether work can
 advance.
 
-### 1. Watch Mode
+### 1. `anvil start` — Activation
 
-anvil runs in the background, watching for file changes:
+`anvil start` is the activation entrypoint. From a fresh install, the canonical
+first minute is:
 
 ```bash
-anvil watch
+anvil start
 ```
 
-### 2. Gate Validation
+The activator wires Cursor and Claude Code MCP entries, baselines the repo, and
+ends in one literal `ProtectionState` (`protecting`, `ready_restart_required`,
+`watching`, `needs_action`, `unsupported`, or `error`). When MCP is reachable,
+`anvil_validate_write` runs in front of the AI's writes — backed by the local
+Anvil daemon over owner-only IPC, with the embedded scanner as a
+correctness-equivalent fallback. Pass `--verify` for a read-only probe that
+prints the same diagnostic without writing config.
+
+### 2. Watch Mode (save-time fallback)
+
+When MCP cannot pre-write attach, watch mode is the **save-time fallback**. It
+is honest fallback only, never claimed equivalent to MCP pre-write
+interception:
+
+```bash
+anvil start --watch    # activation + fallback handoff
+anvil watch            # standalone watcher
+```
+
+### 3. Gate Validation
 
 When files change, anvil runs quality gates:
 
@@ -68,7 +89,7 @@ When files change, anvil runs quality gates:
 - **Policy evaluation** — custom rules via OPA/Rego
 - **Secret detection** — pattern + entropy analysis
 
-### 3. Immediate Feedback
+### 4. Immediate Feedback
 
 Findings surface instantly in your terminal or editor—not in a PR comment hours
 later.
@@ -79,22 +100,24 @@ later.
     Consider using a more specific type or generic.
 ```
 
-### 4. Evidence Trail
+### 5. Evidence Trail
 
 Every validation run produces evidence: which checks ran, what findings were
 emitted, what passed, what failed, and when.
 
 ## Key Features
 
-| Feature                  | Description                                         |
-| ------------------------ | --------------------------------------------------- |
-| **Architecture Safety**  | Detects dependency violations using import analysis |
-| **Anti-Pattern Library** | 18 registry-driven rules (15 default, 3 opt-in)     |
-| **Parallel Scan Engine** | Rust scanner runs tens of artifacts concurrently    |
-| **Watch Mode**           | Real-time validation on file save                   |
-| **Suppression System**   | Allow exceptions with mandatory explanations        |
-| **GitHub Integration**   | PR checks and inline comments                       |
-| **VS Code Extension**    | In-editor diagnostics and quick fixes               |
+| Feature                       | Description                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| **`anvil start` Activation**  | Wires Cursor / Claude Code MCP entries, baselines, and prints one literal protection state |
+| **Daemon-backed MCP**         | `anvil_validate_write` runs pre-write through the local daemon (Unix); embedded fallback   |
+| **Architecture Safety**       | Detects dependency violations using import analysis                                        |
+| **Anti-Pattern Library**      | 18 registry-driven rules (15 default, 3 opt-in)                                            |
+| **Parallel Scan Engine**      | Rust scanner runs tens of artifacts concurrently                                           |
+| **Watch Mode (fallback)**     | Save-time fallback when MCP pre-write cannot attach                                        |
+| **Repo language profile**     | TS supported; SQL and Markdown partial; out-of-scope languages named honestly              |
+| **Suppression System**        | Allow exceptions with mandatory explanations                                               |
+| **GitHub Integration**        | PR checks and inline comments                                                              |
 
 ## Anti-Patterns Detected
 
@@ -161,5 +184,5 @@ For the full explanation of checks, findings, and gates, see
 
 **Ready to start?** [Go to the quickstart →](/anvil/quickstart)
 
-anvil is currently in early access, with the Rust CLI as the current fresh-start
-install path.
+anvil is currently in beta — the latest tagged release is `v0.6.0-beta`. See
+the [beta testing guide](/anvil/beta-testing-guide) for what to expect.

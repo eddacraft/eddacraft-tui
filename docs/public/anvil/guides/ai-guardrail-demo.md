@@ -16,6 +16,14 @@ and anvil refuses the write **before it hits disk**.
 You can run the demo on your own machine in about five minutes. There is no
 demo-only build — every command below uses the standard release binary.
 
+:::tip Start with the wow-start demo
+
+If you have not yet run `anvil start` on a real repo, do that first — see
+[The Wow-Start Demo](./wow-start-demo). It establishes the activation state
+this guide assumes.
+
+:::
+
 ## Prerequisites
 
 - A current anvil install (see [Install](/anvil/quickstart#install))

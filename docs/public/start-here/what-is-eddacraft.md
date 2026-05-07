@@ -48,8 +48,8 @@ eddacraft develops tools across three capability areas:
 ### Anvil
 
 The flagship product. Anvil validates AI-generated code changes through
-deterministic gates at save-time, catching architecture drift and anti-patterns
-before they reach review.
+deterministic gates as they are made, catching architecture drift and
+anti-patterns before they reach review.
 
 **Best for:** Teams shipping with AI assistance who need production-grade
 quality gates.

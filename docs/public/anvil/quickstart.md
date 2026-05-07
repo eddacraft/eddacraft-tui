@@ -17,11 +17,13 @@ minutes.
 
 ## Install
 
-:::info Early access
+:::info Beta
 
-anvil is still in early access. The install flow below is the fresh-start path
-for the current Rust CLI. If your team has gated beta access, use the GitHub
-account tied to that access when prompted by anvil or the docs site.
+anvil is currently in beta — the latest tagged release is `v0.6.0-beta`. If
+your team has gated beta access, use the GitHub account tied to that access
+when prompted by anvil or the docs site. See the
+[beta testing guide](/anvil/beta-testing-guide) for the current scope and
+known gaps.
 
 :::
 
@@ -75,36 +77,55 @@ If you need email OTP instead, run:
 anvil auth login --otp
 ```
 
-## Initialise
+## Activate (`anvil start`)
 
-Run the setup wizard in your project root:
+From the root of your project, run:
 
 ```bash
-anvil init
+cd path/to/your/repo
+anvil start
 ```
 
-anvil detects your project type, creates an `.anvilrc` configuration file, and
-sets up the `.anvil/` directory:
+`anvil start` is the activation entrypoint. It runs `anvil init` if needed,
+baselines the repo, wires Cursor and Claude Code MCP entries (writing
+`~/.cursor/mcp.json` and `~/.claude.json`), and ends in one literal protection
+state — one of:
 
+- `protecting` — MCP pre-write validation is live
+- `ready_restart_required` — config is wired, restart Cursor/Claude Code to
+  pick it up
+- `watching` — save-time watch fallback active (MCP could not attach)
+- `needs_action` — repair hint provided
+- `unsupported` — repo language profile is out of scope (e.g. Python or Rust
+  in this release)
+- `error` — see the diagnostic output
+
+When the daemon is running and reachable over owner-only IPC, the
+`anvil_validate_write` MCP tool runs through the daemon-backed path; an
+embedded scanner is the correctness-equivalent fallback when the daemon is
+not available. The full daemon-backed path is Unix-first today; on Windows in
+`v0.6.0-beta` the MCP correlation envelope reports `daemonStatus: not-wired`.
+
+To probe state without writing config:
+
+```bash
+anvil start --verify
 ```
-Initialising anvil in current project...
 
-Detected environment:
-  Project: my-app
-  Package Manager: pnpm
-  Git: yes
-  TypeScript: yes
+To run activation and then enter the save-time watch fallback in the same
+process:
 
-anvil initialised successfully!
-
-Created files:
-  .anvilrc
-  .anvil/
+```bash
+anvil start --watch
 ```
+
+Watch mode is **save-time fallback only** — never claimed equivalent to MCP
+pre-write interception.
 
 ## Scan Your Project
 
-This is the moment you see what anvil catches. Run the fast source scan first:
+You can also surface findings directly with the targeted source-analysis
+command:
 
 ```bash
 anvil check --all
@@ -152,13 +173,33 @@ To run the broader gate surface, use:
 anvil gate --profile dev
 ```
 
-## Turn On Watch Mode
+## Diagnostics
 
-Start anvil so it validates on every save:
+Verify state and the binary you're running:
+
+```bash
+anvil status --verify     # Read-only activation probe (same backend as `anvil start --verify`)
+anvil version             # Current and latest version + the upgrade command for your install method
+anvil doctor              # Environment health check
+```
+
+`anvil version` is install-method aware — it knows whether you used Homebrew,
+Scoop, WinGet, the install script, or a developer build, and prints the right
+upgrade command for that path.
+
+## Turn On Watch Mode (fallback)
+
+If `anvil start` finished in `watching` rather than `protecting`, anvil is
+already running the save-time fallback. To run a standalone watcher in another
+terminal:
 
 ```bash
 anvil watch --source
 ```
+
+Watch mode is the save-time fallback for the AI guardrail — useful when MCP
+pre-write attach is not available, but never equivalent to pre-write
+interception.
 
 ```
 Anvil Watch

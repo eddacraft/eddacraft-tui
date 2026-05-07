@@ -9,6 +9,15 @@ sidebar_position: 5
 
 This page walks through the experience of anvil catching an issue in real-time.
 
+:::tip Run `anvil start` first
+
+For the install-to-protection flow on a fresh repo, run `anvil start` — it
+wires Cursor / Claude Code MCP entries, baselines the repo, and ends in a
+literal protection state. The scenario below assumes you're already past
+that step and have watch mode (the save-time fallback) running.
+
+:::
+
 ## Before You Start
 
 This example assumes you have already run `anvil init`, created

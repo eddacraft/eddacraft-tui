@@ -28,7 +28,11 @@ a defence in depth.
 anvil watch --source
 ```
 
-Runs in the background, validates on every file save. Fastest feedback loop.
+Runs in the background, validates on every file save. Fastest non-MCP feedback
+loop. When MCP pre-write attach is wired (Cursor / Claude Code via
+`anvil start`), pre-write validation runs **before** the AI's writes — watch
+mode is the save-time fallback when that path is unavailable, never claimed
+equivalent to pre-write interception.
 
 ## Layer 2: Commit-Time (Git Hooks)
 

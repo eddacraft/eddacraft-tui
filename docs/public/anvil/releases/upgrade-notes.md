@@ -9,7 +9,83 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.5.1-beta
+## Current Version: 0.6.0-beta
+
+## Upgrading to 0.6.0-beta
+
+Drop-in upgrade from `0.5.1-beta`. There are no breaking changes — the
+substantive new behaviours in this release (the `anvil start` activation flow,
+daemon-backed MCP pre-write validation, the Cursor / Claude Code MCP install
+path, and the protection-loop tutorial) are opt-in via `anvil start`, so an
+existing `anvil check` / `anvil watch` / `anvil gate` workflow keeps running
+unchanged. Operators running the daemon should read the
+[v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
+for the five operational realities of the cut (foreground-only daemon, Unix-only
+`intercept status`, fence persistence across restart, macOS fence-first
+interrupt ladder, `main`-only Windows CI), and the
+[v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-security-note.md)
+for the four HIGH trust-boundary trade-offs the release council surfaced.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.6.0-beta
+
+- **`anvil start` activation entrypoint** — `install → cd repo → anvil start`
+  is the canonical first minute. `--verify` runs a read-only protection probe;
+  `--watch` opts into the save-time fallback when MCP cannot attach.
+- **Activation protection states** — `protecting`, `ready_restart_required`,
+  `watching`, `needs_action`, `unsupported`, and `error` are the single shared
+  vocabulary across `anvil start`, `anvil status --verify`, `anvil doctor`,
+  and the tutorial.
+- **`anvil mcp install` for Cursor and Claude Code** — one-step MCP activation
+  that writes `~/.cursor/mcp.json` or `~/.claude.json`. Windsurf, VS Code, and
+  HTTP-transport flows remain on `anvil mcp-config`.
+- **Daemon-backed `anvil_validate_write` MCP tool** — the MCP pre-write
+  validation path now routes through the local daemon over owner-only IPC
+  when reachable, with the embedded validation pipeline as a
+  correctness-equivalent fallback. macOS peer-credential validation is now at
+  parity with Linux.
+- **Repo language profile** — activation, scan, and watch honour a
+  per-repository language profile so coverage is honest: TypeScript is the
+  supported tier in this release, SQL and Markdown are partial, Python and
+  Rust are reported as unsupported instead of silently skipped. Secret
+  detection still runs on all files.
+- **Protection-loop tutorial** — the default tutorial path walks the
+  protection loop end-to-end and ends with a real `anvil start --verify`
+  invocation. Policy, Architecture, Drift, and CI tutorial paths remain.
+- **`anvil version`** — install-method-aware version output detects Homebrew,
+  Scoop, WinGet, the installer, or a dev build, and prints the recommended
+  upgrade command. The JSON shape is pinned for agent and CI consumers.
+- **Windows named-pipe daemon listener** — the daemon listener side ships on
+  Windows with an owner-only DACL and rejected remote clients. The Windows
+  CLI client side and `anvil intercept status` parity land in the
+  `chore/windows-status` follow-up.
+- **Operator-visible defaults you should know about.** The foreground daemon
+  is the only supported launch mode in v1 (`anvil intercept start
+  --foreground`). Fences persist across daemon restart by design — recovery
+  is `anvil intercept unblock --worktree <path>`, not `intercept stop` /
+  `start`. On macOS, the interrupt ladder is fence-first this release because
+  `current_process_start_time` lacks a macOS branch.
 
 ## Upgrading to 0.5.1-beta
 
