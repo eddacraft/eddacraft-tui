@@ -1234,7 +1234,14 @@ fn validate_oversized_scan_buffer_frame(line: &str) -> Result<(), OversizedFrame
                     ));
                 }
                 saw_method = true;
-                if parse_simple_json_string(bytes, &mut index) != Some(midedit::SCAN_BUFFER_METHOD)
+                // DRVR-002 dual-routing: the oversize fast-path must
+                // accept both the legacy bare name and the canonical
+                // namespaced form. Any other method declared in an
+                // oversize frame falls through to the legacy-cap
+                // rejection below.
+                let parsed_method = parse_simple_json_string(bytes, &mut index);
+                if parsed_method != Some(midedit::SCAN_BUFFER_METHOD)
+                    && parsed_method != Some(anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER)
                 {
                     return Err(OversizedFrameRejection::request(
                         "frame exceeds the legacy cap for non-scan_buffer methods",
@@ -1622,7 +1629,14 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
             }
             let mut responses = Vec::new();
             for item in items {
-                if jsonrpc_method_name(&item) == Some(midedit::SCAN_BUFFER_METHOD) {
+                // DRVR-002 dual-routing: reject scan_buffer in batches
+                // under either the legacy bare name OR the canonical
+                // namespaced form. Both share the per-frame size budget
+                // and would explode batch-response memory.
+                let method_name = jsonrpc_method_name(&item);
+                if method_name == Some(midedit::SCAN_BUFFER_METHOD)
+                    || method_name == Some(anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER)
+                {
                     if let JsonRpcBatchResponseId::Request(response_id) =
                         jsonrpc_batch_response_id(&item)
                     {
@@ -1761,7 +1775,23 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     let is_notification = !has_id;
     let params = map.get("params").unwrap_or(&Value::Null);
 
-    if method == midedit::SCAN_BUFFER_METHOD {
+    // Mid-edit scan: dual-routed under DRVR-002.
+    //
+    // - `midedit::SCAN_BUFFER_METHOD` (`"scan_buffer"`): the legacy
+    //   bare-name form RTAI-002 / RTAI-008's contract suite is pinned
+    //   on. Cannot break the existing 12 fixtures.
+    // - `anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER`
+    //   (`"anvil/scan_buffer"`): the canonical namespaced form drivers
+    //   advertise in their manifest under DRVR-008's
+    //   capability-negotiation rule. The proto-crate doc-comment
+    //   already promises both names route to the same handler;
+    //   landing the alias here makes that promise true on the wire.
+    //
+    // Both names share the same shape contract, request limits, and
+    // response envelope.
+    if method == midedit::SCAN_BUFFER_METHOD
+        || method == anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER
+    {
         return handle_scan_buffer_jsonrpc(
             &map,
             method,

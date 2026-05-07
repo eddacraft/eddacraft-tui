@@ -569,6 +569,40 @@ async fn scan_buffer_returns_mid_edit_diagnostics_without_disk_read() {
 }
 
 #[tokio::test]
+async fn scan_buffer_routes_namespaced_alias() {
+    // DRVR-002 dual-routing: drivers that import the canonical
+    // `anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER` constant
+    // (`"anvil/scan_buffer"`) must hit the same handler as the bare
+    // `scan_buffer` form RTAI-002 originally pinned. The proto
+    // crate's doc-comment promises both names route together; this
+    // fixture pins that promise on the wire.
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "anvil/scan_buffer",
+        "params": {
+            "path": "src/auth/client.ts",
+            "text": "import { sdk } from './client';\nconst config = { api_key: 'abcdEFGH1234567890' };\nsdk.connect(config);\n",
+            "version": 7,
+            "mode": "midEdit"
+        },
+        "id": "scan-namespaced"
+    }))
+    .await;
+
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "scan-namespaced");
+    assert_eq!(response["result"]["version"], 7);
+    assert_eq!(response["result"]["truncated"], false);
+    let diagnostics = response["result"]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0]["source"]["rule_id"], "secret-detection");
+    assert_eq!(diagnostics[0]["mode"], "mid-edit");
+    assert!(response.get("error").is_none());
+}
+
+#[tokio::test]
 async fn scan_buffer_in_batch_is_rejected_without_scanning() {
     let response = request(json!([{
         "jsonrpc": "2.0",

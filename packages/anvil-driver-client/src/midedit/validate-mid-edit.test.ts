@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest';
 import { makeFakeTransportFactory } from '../__fixtures__/fake-transport.js';
 import { DriverClient } from '../client/driver-client.js';
 import type { Diagnostic } from '../diagnostics/types.js';
+import { ANVIL_SCAN_BUFFER } from '../protocol/index.js';
 import type { DebouncerScheduler } from './debouncer.js';
 import { SCAN_BUFFER_METHOD, SCAN_BUFFER_MODE_MID_EDIT } from './validate-mid-edit.js';
 
@@ -100,7 +101,18 @@ describe('validateMidEdit — wire shape', () => {
       {
         respond(line, push) {
           const env = line as { id: string; method: string; params: Record<string, unknown> };
+          // Literal-value pin: the wire method is the canonical
+          // `anvil/scan_buffer` (DRVR-002 namespace). The daemon
+          // dual-routes both the bare `scan_buffer` form (RTAI-002
+          // legacy) and the namespaced form to the same handler;
+          // drivers SHOULD use the canonical name to avoid silent
+          // drift if a future capability-negotiation enforcement gates
+          // bare-name traffic. `SCAN_BUFFER_METHOD` is kept as a
+          // re-export of `ANVIL_SCAN_BUFFER` so external consumers
+          // keep compiling.
+          expect(env.method).toBe(ANVIL_SCAN_BUFFER);
           expect(env.method).toBe(SCAN_BUFFER_METHOD);
+          expect(env.method).toBe('anvil/scan_buffer');
           // Literal-value pin: the daemon's `Mode::parse` accepts both
           // `midEdit` and `mid-edit`, but the canonical wire form is
           // camelCase `midEdit`. A typo regression is caught here.
@@ -163,7 +175,7 @@ describe('validateMidEdit — wire shape', () => {
     });
     const sent = tf.lastInstance!.outboundJson() as Array<{ method: string }>;
     expect(sent).toHaveLength(1);
-    expect(sent[0]?.method).toBe(SCAN_BUFFER_METHOD);
+    expect(sent[0]?.method).toBe(ANVIL_SCAN_BUFFER);
     await client.close();
   });
 
