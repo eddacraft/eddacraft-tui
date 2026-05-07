@@ -1010,6 +1010,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tracing",
  "workspace-hack",
 ]
 

@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use crate::secret::git_scanner::scan_git_history;
 use crate::secret::patterns::compile_custom_patterns;
-use crate::secret::scanner::scan_content_with_stats;
+use crate::secret::scanner::scan_content_with_compiled_patterns;
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding};
 
 /// Maximum file size to scan (1 MiB). Files of this size or larger are
@@ -20,7 +20,15 @@ pub fn run_secret_check(
     config: &SecretCheckConfig,
     workspace_root: Option<&str>,
 ) -> SecretCheckResult {
-    let (_, pattern_errors) = compile_custom_patterns(&config.custom_patterns);
+    // V050F-011: compile custom patterns ONCE up front. Previously
+    // `scan_content_with_stats` recompiled them per file (per parallel
+    // worker, per scan), and the per-pattern compile diagnostics were
+    // silently dropped on every recompile. The compiled slice is
+    // shared across rayon workers; `pattern_errors` is reported via
+    // `SecretCheckResult.pattern_errors` so a misconfigured custom
+    // pattern surfaces at the boundary that owns config.
+    let (compiled_custom_patterns, pattern_errors) =
+        compile_custom_patterns(&config.custom_patterns);
 
     // SCAN-001: read + scan each candidate file in parallel on the rayon
     // pool, mirroring the welcome-screen discovery shape. Per-file panics
@@ -43,7 +51,13 @@ pub fn run_secret_check(
             // SCAN-001: contain panics from custom user regexes so a
             // single bad pattern can't tear down the whole secret scan.
             let scan_result = catch_unwind(AssertUnwindSafe(|| {
-                scan_content_with_stats(&content, &display_path, config)
+                scan_content_with_compiled_patterns(
+                    &content,
+                    &display_path,
+                    config,
+                    &compiled_custom_patterns,
+                    usize::MAX,
+                )
             }));
             match scan_result {
                 Ok((file_findings, stats)) => {
