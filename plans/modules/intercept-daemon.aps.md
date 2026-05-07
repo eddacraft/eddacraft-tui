@@ -1,8 +1,8 @@
 # Intercept Daemon
 
-| ID   | Owner  | Status      | Progress                                                |
-| ---- | ------ | ----------- | ------------------------------------------------------- |
-| INTD | @aneki | In Progress | 8/16 complete |
+| ID   | Owner  | Status   | Progress       |
+| ---- | ------ | -------- | -------------- |
+| INTD | @aneki | Complete | 16/16 complete |
 
 **Last reviewed:** 2026-04-30
 
@@ -253,7 +253,7 @@ a new lane.
 - **Expected Outcome:** Change batches from the watcher are received, coalesced,
   and forwarded to the enforcement pipeline with session attribution
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib watcher`
-- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Status:** Complete — merged 2026-05-06 via PR #1308 (`a2/wave2-daemon-runtime-hardening`)
 - **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/watcher.rs`
   ships the `WatcherIntegration` consumer — receives `WatcherChangeBatch`
   values (a 1:1 structural mirror of `anvil_kernel::watcher::events::ChangeBatch`
@@ -307,7 +307,7 @@ a new lane.
   timeout, then SIGKILL as last resort; on Windows, Job Object termination used;
   fence applied immediately on any delivery failure
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib interrupt`
-- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Status:** Complete — merged 2026-05-06 via PR #1308 (`a2/wave2-daemon-runtime-hardening`)
 - **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/interrupt.rs`
   ships the cross-platform interrupt ladder. Unix path
   (`run_unix_ladder`): SIGINT → SIGTERM → SIGKILL with adaptive
@@ -396,7 +396,7 @@ a new lane.
   on_ambiguous_ownership (warn/fence), and observe_only flag per worktree;
   ambiguous ownership hard-capped at fence regardless of config
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib config`
-- **Status:** In Progress (Pending merge of `a2/wave1-intd-config-telemetry`)
+- **Status:** Complete — merged 2026-05-06 via PR #1305 (`a2/wave1-intd-config-telemetry`)
 - **Progress (2026-05-06, A2 wave 1):** `crates/anvil-intercept/src/config.rs`
   resolves the daemon's runtime enforcement policy with stricter-wins
   merging across project (`<workspace_root>/.anvil.yaml`) and an optional
@@ -422,7 +422,7 @@ a new lane.
   decisions synchronously, reusing the same rule evaluation and session logic
   as the daemon
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib embedded`
-- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Status:** Complete — merged 2026-05-06 via PR #1308 (`a2/wave2-daemon-runtime-hardening`)
 - **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/embedded.rs`
   ships `embedded_evaluate(&ChangeBatch, &Resolved, &EnforcementPipeline) ->
   EnforcementDecision` plus the `with_diagnostics` variant. Reuses the
@@ -450,7 +450,7 @@ a new lane.
   enforcement policy applied (warn or fence per configuration); worktree fenced
   if configured for fence-on-unknown
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --lib unregistered`
-- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Status:** Complete — merged 2026-05-06 via PR #1308 (`a2/wave2-daemon-runtime-hardening`)
 - **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/unregistered.rs`
   ships `UnregisteredChangePolicy` — implements
   `UnregisteredHandler` so the watcher (INTD-004) plugs it directly
@@ -486,7 +486,7 @@ a new lane.
   plus an assertion that the status payload carries `latency.midEdit.p50`
   and `latency.midEdit.p95` fields (or their textual rollup) when the
   daemon has observed at least one mid-edit call.
-- **Status:** In Progress (Pending merge of `a2/wave3-daemon-status-latency`)
+- **Status:** Complete — merged 2026-05-06 via PR #1309 (`a2/wave3-daemon-status-latency`)
 - **Progress (2026-05-07, A2 wave 3):** `crates/anvil-intercept/src/latency.rs`
   ships `LatencyAggregator` — a `Mutex<VecDeque<Sample>>` over the
   daemon's `validation.service` measurements for `mode = midEdit`,
@@ -640,7 +640,7 @@ a new lane.
   on cross-session allowlist hit.
 - **Source:** 2026-04-24 council review M5 (security-analyst) —
   tracked in PR #1063.
-- **Status:** In Progress (Pending merge of `a2/wave1-intd-config-telemetry`)
+- **Status:** Complete — merged 2026-05-06 via PR #1305 (`a2/wave1-intd-config-telemetry`)
 - **Progress (2026-05-06, A2 wave 1):** `crates/anvil-intercept/src/fanout.rs`
   adds the daemon-side filter as the enforceable replacement for the
   deprecated driver-promised cross-session filter (KERN-052
@@ -691,7 +691,7 @@ a new lane.
 - **Source:** 2026-04-24 council review M9 (security-analyst +
   adversarial-reviewer) — tracked in
   PR #1063.
-- **Status:** In Progress (Pending merge of `a2/wave2-daemon-runtime-hardening`)
+- **Status:** Complete — merged 2026-05-06 via PR #1308 (`a2/wave2-daemon-runtime-hardening`)
 - **Progress (2026-05-06, A2 wave 2):** `crates/anvil-intercept/src/dos.rs`
   ships `IpcLimits` with the INTD-016 defaults (64 connections,
   100/1000 RPS, 5 s handshake, 60 s idle, 64 KiB control-frame

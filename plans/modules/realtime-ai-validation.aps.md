@@ -11,9 +11,9 @@ See: plans/aps-rules.md
 
 # Real-time AI-Output Validation
 
-| ID   | Owner | Status   | Progress |
-| ---- | ----- | -------- | -------- |
-| RTAI | —     | In Progress | 5/9      |
+| ID   | Owner | Status      | Progress |
+| ---- | ----- | ----------- | -------- |
+| RTAI | —     | In Progress | 6/9      |
 
 **Last reviewed:** 2026-04-30
 
@@ -379,7 +379,7 @@ convention" section). Concretely:
   short-circuits, transport drop cancels in-flight cleanly,
   daemon error surfaces structured (not as a thrown exception).
 - **Confidence:** medium
-- **Status:** In Progress (Pending merge of a2/wave3-rtai-mid-edit-envelope, blocked on DRVR-002 protocol/envelope compatibility confirmation)
+- **Status:** Complete — merged 2026-05-06 via PR #1311 (`a2/wave3-rtai-mid-edit-envelope`); merge gated on DRVR-002 protocol/envelope compatibility, which landed first via PR #1310
 
 ---
 
