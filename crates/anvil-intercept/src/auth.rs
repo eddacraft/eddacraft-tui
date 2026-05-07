@@ -112,9 +112,7 @@ pub enum AuthError {
     /// `claimed` carries the original (pre-canonicalisation) paths so
     /// driver consumers can surface the rejection diagnostically; the
     /// bytes are echoed verbatim from the manifest, not normalised.
-    #[error(
-        "driver manifest workspace_roots ({claimed:?}) match no active session worktree"
-    )]
+    #[error("driver manifest workspace_roots ({claimed:?}) match no active session worktree")]
     NoMatchingWorkspaceRoot { claimed: Vec<PathBuf> },
 }
 
