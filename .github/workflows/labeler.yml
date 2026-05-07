@@ -11,7 +11,9 @@ permissions:
 jobs:
   label:
     name: Auto-label
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     steps:
       - uses: actions/labeler@f27b608878404679385c85cfa523b85ccb86e213 # v6.1.0
         with:

@@ -54,7 +54,7 @@ jobs:
 
   # ── Multi-version Node tests (Linux only) ──────────────────────
   test-multi-node:
-    name: Unit Tests (Node ${{ matrix.node-version }}, ubuntu-latest)
+    name: Unit Tests (Node ${{ matrix.node-version }}, Linux)
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
