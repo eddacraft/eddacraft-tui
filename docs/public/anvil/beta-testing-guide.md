@@ -13,31 +13,62 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.5.1-beta
+**Current version:** 0.6.0-beta
 
-anvil is a native CLI that analyses your codebase for architectural drift,
-AI-generated anti-patterns, and project convention violations. It is designed to
-catch issues at save time, before they reach review or CI.
+anvil is a single native binary that analyses your codebase for architectural
+drift, AI-generated anti-patterns, and project convention violations. It is
+designed to catch issues before the AI's write lands -- in front of an MCP
+client like Cursor or Claude Code -- and to fall back to save-time signal when
+pre-write attachment is not available.
 
-:::info Native binary
+## What's New in 0.6.0-beta to Focus Testing On
 
-As of 0.3.0-beta, anvil is a native Rust binary. The deprecated Node.js package
-(`@eddacraft/anvil-cli`) is no longer the recommended path. See
-[The Switch to Rust](./releases/rust-rewrite.md) for details.
+These are the highest-leverage flows for this cut. If you only have a short
+session, these are the right places to spend it.
 
-:::
+- **Wow-start activation (`anvil start`).** `install → cd repo → anvil start`
+  is the canonical first minute. The command runs init + first-scan + MCP
+  install in one go and ends with a literal protection state
+  (`protecting`, `ready_restart_required`, `watching`, `needs_action`,
+  `unsupported`, or `error`). The state is the contract -- trust it.
+- **Daemon-backed MCP validation in Cursor and Claude Code.** The
+  `anvil_validate_write` MCP tool is now backed by the local daemon over
+  owner-only IPC on Unix, with the embedded path as a correctness-equivalent
+  fallback. Restart the editor after `anvil start` and verify `anvil` shows in
+  the MCP list, then ask the AI to make a wrong rewrite and watch the daemon
+  refuse it.
+- **Repo language profile honesty.** Activation now names detected languages
+  and their coverage tier (TS supported, SQL and Markdown partial, Python and
+  Rust unsupported). Language-specific antipattern checks honour the profile;
+  cross-language checks (e.g. secrets) still run on every file.
+- **Foreground daemon ops.** The daemon runs in foreground only in v1
+  (`anvil intercept start --foreground`). Fences survive restart; recovery is
+  `anvil intercept unblock`, not a restart. `anvil intercept status` is
+  Unix-only this release.
+- **`anvil version` install-method awareness.** Reports current and latest
+  version and prints the upgrade command for your install method (Homebrew,
+  Scoop, WinGet, installer, dev build).
 
 ## What We Need From You
 
-Run anvil on a real TypeScript or JavaScript project and tell us where it helps,
-where it gets in the way, and where the output is unclear.
+Run anvil on a real project and tell us where it helps, where it gets in the
+way, and where the output is unclear.
 
 The most useful feedback answers these questions:
 
-- Did install, login, and project setup work without help?
-- Did the first scan find anything useful?
+- Did `anvil start` honestly describe what protection is live in your repo?
+  When the printed state was `protecting`, was it actually catching writes?
+- Did Cursor or Claude Code show `anvil` in the MCP list after restart? Did an
+  AI rewrite get refused before the write landed, or did it slip through?
+- Did the language profile in the activation summary match your repo? If your
+  repo is mostly Python or Rust, did the summary name the gap instead of
+  pretending coverage?
+- Did install, sign-in (if you used it), and project setup work without help?
 - Were warnings accurate, actionable, and easy to triage?
-- Did watch mode feel fast enough to leave running while coding?
+- When MCP couldn't attach, did the watch fallback (`anvil start --watch` /
+  `anvil watch --source`) produce useful save-time signal?
+- Did `anvil version` correctly identify your install method and print the
+  right upgrade command?
 - Did any command fail, hang, produce noisy output, or ask for unclear input?
 - What would stop you from using this on every save?
 
@@ -117,7 +148,7 @@ winget upgrade eddacraft.anvil
 scoop update anvil
 ```
 
-For 0.5.0-beta upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
+For per-release upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
 
 ## Sign In
 
@@ -146,39 +177,66 @@ anvil auth whoami
 
 This is the recommended beta path if you only have one short session.
 
-### 1. Try the Tutorial
+### 1. Activate Protection (`anvil start`)
+
+```bash
+cd your-project
+anvil start
+```
+
+This runs init + first-scan + MCP install for Cursor and Claude Code in one
+go. The activation summary ends with a literal protection state. Record:
+
+- Which state was reported (`protecting`, `ready_restart_required`,
+  `watching`, `needs_action`, `unsupported`, or `error`).
+- Whether the language profile in the summary matched your repo.
+- Whether the explanation of what is and isn't protected matched what you
+  expected.
+- Whether the MCP entries (`~/.cursor/mcp.json`, `~/.claude.json`) were
+  written and whether your editor picked them up after restart.
+
+If you only want a read-only check (no init, no scan, no MCP write):
+
+```bash
+anvil start --verify
+```
+
+### 2. Try the MCP Catch in Your Editor
+
+With `anvil start` reporting `protecting` and your editor restarted, ask the AI
+to make a change you know is wrong (e.g. add an `any` type, swallow an error,
+introduce a hardcoded secret). Record:
+
+- Whether `anvil` shows in the MCP list after the restart.
+- Whether the AI's rewrite was refused before the write landed.
+- Whether the rejection message was specific enough for the AI to recover.
+- If a write slipped through, what kind of finding was missed.
+
+### 3. Try the Tutorial
 
 ```bash
 anvil tutorial
 ```
 
-Record whether the tutorial explains the product clearly and whether any step is
+The default path (`ProtectionLoop`) is the protection-loop walk-through.
+Record whether it explains the product clearly and whether any step is
 confusing, too slow, or broken in your terminal.
 
-### 2. Initialise a Real Project
+### 4. Re-run Init in Isolation (optional)
+
+If you want to retest the setup flow on its own:
 
 ```bash
-cd your-project
-anvil init
+anvil init --force
 ```
-
-The setup flow creates `.anvilrc`, creates `.anvil/`, and now runs a first
-sample analysis so you see useful signal immediately.
 
 Record:
 
 - Whether project type, package manager, Git state, and TypeScript detection
   were correct.
 - Whether the generated `.anvilrc` makes sense for your project.
-- Whether the first scan found useful warnings or produced noise.
 
-If you have already initialised the project and want to retest setup, run:
-
-```bash
-anvil init --force
-```
-
-### 3. Run the Main Scan
+### 5. Run the Main Scan
 
 ```bash
 anvil check --all
@@ -198,18 +256,20 @@ Record:
 - Real problems you expected anvil to catch but it missed.
 - Output that is too vague to act on.
 
-### 4. Leave Watch Mode Running
+### 6. Try the Watch Fallback
 
-Start source-file watch mode:
+When MCP can't attach, watch mode is the save-time fallback. It is **not**
+pre-write protection -- the write already happened by the time watch reports
+the finding.
 
 ```bash
 anvil watch --source
 ```
 
-Save a TypeScript or JavaScript file. Watch should print the active scope and
-respond when files change.
+Save a file. Watch should print the active scope and respond when files
+change.
 
-Try the watch filters introduced in 0.4.0-beta and still active in 0.5.0-beta:
+Try the watch filters:
 
 ```bash
 anvil watch --patterns "src/**/*.ts,src/**/*.tsx"
@@ -226,17 +286,24 @@ Record:
 
 Press `Ctrl+C` to stop watch mode.
 
-### 5. Run Diagnostics and Status
+### 7. Run Diagnostics, Status, and Version
 
 ```bash
 anvil doctor
-anvil status
+anvil status --verify
+anvil version
 ```
 
-Record whether remediation steps are specific enough when something is missing,
-misconfigured, or skipped.
+Record:
 
-### 6. Try a Gate Run
+- Whether remediation steps are specific enough when something is missing,
+  misconfigured, or skipped.
+- Whether `anvil status --verify` matches what `anvil start --verify` reported.
+- Whether `anvil version` correctly identifies your install method
+  (Homebrew / Scoop / WinGet / installer / dev) and prints the right upgrade
+  command.
+
+### 8. Try a Gate Run
 
 ```bash
 anvil gate --profile dev
@@ -250,30 +317,16 @@ anvil gate --profile ci
 
 Record whether gate failures clearly explain what failed and what to do next.
 
-### 7. Try the 0.5.0-beta AI Guardrail and MCP Surfaces
-
-These are the headline 0.5.0-beta surfaces and the most useful test focus this
-cycle.
+### 9. Try the AI Guardrail Profile
 
 ```bash
-# AI guardrail profile — strict config, JSON envelope by default
 anvil gate --profile ai
-
-# Generate (and verify) editor MCP configuration
-anvil mcp-config --target claude-code --verify
-anvil mcp-config --target cursor --write
 ```
 
-Record:
+Record whether the AI guardrail run produces actionable output, including when
+governance config is missing or invalid.
 
-- Whether the AI guardrail run produces actionable output, including when
-  governance config is missing or invalid.
-- Whether `anvil mcp-config` produces correct config for your editor, and
-  whether `--verify` cleanly diffs against an existing setup.
-- Whether `--write` path-safety prompts behave the way you'd expect when a
-  config already exists.
-
-Optionally try the new config-mode Git hooks on Git 2.54+:
+Optionally try the config-mode Git hooks on Git 2.54+:
 
 ```bash
 anvil hooks install --config
@@ -343,8 +396,8 @@ the issue you saw in the scan output.
 Try the integrations that match your workflow:
 
 - [GitHub Actions](./integrations/github.md)
-- [VS Code](./integrations/vscode.md)
-- [MCP / AI editor configuration](./integrations/mcp.md)
+- [MCP / AI editor configuration](./integrations/mcp.md) -- Cursor and Claude
+  Code only in v1
 
 Useful feedback includes setup friction, unclear permissions, and whether the
 same findings appear consistently across CLI, editor, and CI surfaces.
@@ -417,10 +470,32 @@ One sentence describing what happened.
 
 ## Known Limitations
 
-- **Primary language coverage is TypeScript and JavaScript.** Other language
-  surfaces are expanding, but the beta is strongest on TS/JS projects.
+- **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
+  install, and Copilot / Codex CLI integration are explicitly out of scope.
+  No process auto-attach.
+- **`anvil intercept status` is Unix-only in v1.** On Windows the command
+  hard-fails with a structured error; the named-pipe CLI client lands in a
+  follow-up.
+- **Daemon-backed validation is Unix-only today.** On Windows the MCP path's
+  `correlation.daemonStatus` is `not-wired` -- the embedded fallback handles
+  validation correctness, but the daemon path is not yet attached on the
+  Windows side.
+- **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
+  -- backgrounded launches are not a v1 surface.
+- **Fences survive daemon restart.** Recovery is `anvil intercept unblock
+  --worktree <path>` (or `--all`); a daemon restart will not release a fence
+  by design.
+- **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS
+  fence the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder.
+  Recover with `anvil intercept unblock`.
+- **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
+  not mean the Windows target was tested for that change.
+- **Primary language coverage is TypeScript and JavaScript.** SQL and Markdown
+  are partial; Python and Rust are unsupported in v1. The activation summary
+  names the gap.
 - **Gate checks may call your existing tools.** If lint, test, OPA, or other
-  project tools are missing locally, `anvil gate` may skip or fail those checks.
+  project tools are missing locally, `anvil gate` may skip or fail those
+  checks.
 - **Architecture checks need an architecture definition.** Use
   `.anvil/architecture.yaml` when you want boundary enforcement.
 - **Some legacy or unconventional projects may be noisy.** False-positive

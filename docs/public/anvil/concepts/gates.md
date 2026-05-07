@@ -95,7 +95,15 @@ Use `anvil gate` when you want workflow judgement.
 ### `anvil watch`
 
 Use `anvil watch` when you want continuous checks and gate updates as files
-change.
+change. Watch is the **save-time fallback** for the AI guardrail when the MCP
+pre-write path cannot attach — it never replaces pre-write interception, but
+it does give you the next-best signal.
+
+### `anvil start`
+
+Use `anvil start` once per repo to wire MCP entries (Cursor / Claude Code),
+baseline the repo, and end in one literal protection state. See the
+[Quickstart](/anvil/quickstart) for the install-to-protection flow.
 
 ### `anvil doctor`
 

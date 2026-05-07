@@ -11,6 +11,14 @@ sidebar_position: 2
 anvil is powerful but focused. This page helps you understand when it's the
 right tool.
 
+:::tip Trying it now?
+
+For the install-to-protection flow, run `anvil start` from your repo root —
+it wires Cursor or Claude Code MCP entries and ends in one literal protection
+state. See the [Quickstart](/anvil/quickstart) for the full walk-through.
+
+:::
+
 ## anvil is for you if...
 
 ### You ship with AI assistance
@@ -27,11 +35,13 @@ anvil shines when you have intentional architectural boundaries:
 - Domain boundaries (Payments shouldn't import User internals)
 - Package boundaries (Public API vs internal implementation)
 
-### You want save-time feedback
+### You want pre-write or save-time feedback
 
-anvil's watch mode gives you instant feedback. If you only want CI-time
-validation, you can use anvil in CI mode—but you lose the developer experience
-benefit.
+When the MCP path is wired (Cursor or Claude Code), anvil's
+`anvil_validate_write` tool runs **before** the AI's writes. When MCP pre-write
+attach is not available, watch mode is the save-time fallback. If you only
+want CI-time validation, you can use anvil in CI mode — but you lose the
+developer-experience benefit.
 
 ### You value deterministic records
 

@@ -21,6 +21,18 @@ access. If you don't have the file, contact us at
 
 :::
 
+:::caution VS Code MCP install is not a v1 surface
+
+In `v0.6.0-beta`, `anvil mcp install` ships for **Cursor and Claude Code only**.
+VS Code MCP install, Windsurf MCP install, Copilot CLI, Codex CLI, and process
+auto-attach are not v1 surfaces. The VS Code extension below is independent of
+the MCP launch shim — it provides in-editor diagnostics by running the CLI, not
+through MCP. For VS Code with manual MCP wiring (HTTP transport or
+workspace-scoped paths), use `anvil mcp-config --target vscode` to generate a
+config you can wire by hand.
+
+:::
+
 ### From VSIX File
 
 ```bash

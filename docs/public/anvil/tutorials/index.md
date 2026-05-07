@@ -12,15 +12,20 @@ know which surface you need.
 
 ## Recommended Path
 
-1. [Quickstart](/anvil/quickstart) — install, authenticate, initialise, and run
-   a first scan.
-2. [First Project](/anvil/first-project) — add architecture boundaries to a real
-   repository.
-3. [Architecture Boundaries](/anvil/tutorials/architecture) — tune the boundary
+1. [Quickstart](/anvil/quickstart) — install, authenticate, run `anvil start`,
+   and end in one literal protection state.
+2. **`anvil tutorial`** (in your terminal) — runs the **ProtectionLoop**
+   default path: protection-loop intro → fixture description → simulated check
+   result → state vocabulary (`protecting`, `ready_restart_required`,
+   `watching`, `needs_action`, `unsupported`, `error`) →
+   `anvil start --verify`.
+3. [First Project](/anvil/first-project) — add architecture boundaries to a
+   real repository.
+4. [Architecture Boundaries](/anvil/tutorials/architecture) — tune the boundary
    file and run the import-boundary gate.
-4. [CI Integration](/anvil/tutorials/ci) — make the same checks run on pull
+5. [CI Integration](/anvil/tutorials/ci) — make the same checks run on pull
    requests.
-5. Add [Custom Policies](/anvil/tutorials/policies),
+6. Add [Custom Policies](/anvil/tutorials/policies),
    [Drift Detection](/anvil/tutorials/drift), and
    [Suppressions](/anvil/tutorials/suppressions) when you need those specific
    workflows.
@@ -48,7 +53,8 @@ Use these when you are ready for a specific capability:
 
 :::tip
 
-Prefer a guided walk-through in your terminal? Run `anvil tutorial` for an
-interactive version of these guides.
+Prefer a guided walk-through in your terminal? Run `anvil tutorial` — its
+default path is **ProtectionLoop**, which walks through the activation
+states and ends in a real `anvil start --verify` against your repo.
 
 :::

@@ -9,19 +9,20 @@ sidebar_position: 3
 
 anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
-:::info Two MCP server paths
+:::info Rust shim is the primary surface
 
-As of 0.5.0-beta the Rust CLI ships `anvil mcp serve --stdio`, the launch path
-for the new write-validation surface. `anvil mcp install --client cursor` (or
-`--client claude-code`) wires the editor up in one step. Today the Rust shim
-exposes the `anvil_validate_write` tool — see
-[Available Tools](#available-tools) below.
+As of `v0.6.0-beta`, the Rust CLI's `anvil mcp serve --stdio` shim is the
+primary MCP surface, backed by the local Anvil daemon over owner-only IPC. It
+exposes the `anvil_validate_write` tool for pre-write validation — see
+[Available Tools](#available-tools) below. The daemon-backed path is Unix-first
+in this release; the embedded scanner is the correctness-equivalent fallback
+when the daemon is not reachable.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
-`0.4.0-beta`) still provides the broader tool surface — `anvil_check`,
-`anvil_gate`, `anvil_fix`, `anvil_suppress`, `anvil_status`,
-`anvil_query_boundary`, plus resources and prompts — and is the right choice
-when you need any of those today.
+`0.4.0-beta`) is retained as a compatibility surface for the broader legacy
+tool catalogue (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
+`anvil_status`, `anvil_query_boundary`). Use it only when you specifically
+need one of those tools — see [Legacy Node MCP path](#legacy-node-mcp-path).
 
 :::
 
@@ -30,10 +31,29 @@ when you need any of those today.
 MCP is a protocol for providing context to AI models. anvil's MCP server
 exposes:
 
-- Current project configuration and status
-- Architecture boundaries and drift snapshots
-- Validation tools for files, gates, and boundaries
-- Prompts for architecture review and violation fixes
+- Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed
+  on Unix; embedded fallback otherwise)
+- Current project configuration and status (legacy Node tools)
+- Architecture boundaries and drift snapshots (legacy Node tools)
+- Prompts for architecture review and violation fixes (legacy Node tools)
+
+## What `anvil start` Does to Your MCP Config
+
+For Cursor or Claude Code, the easiest path is `anvil start`. The activator
+calls into the same `mcp install` machinery internally for the supported
+clients, writing `~/.cursor/mcp.json` and `~/.claude.json` (Claude Code's
+canonical config location), then probes whether the editor's MCP transport
+can reach the shim. Pass `--verify` for a read-only probe that prints the
+diagnostic without writing anything:
+
+```bash
+anvil start            # activate Cursor + Claude Code if installed
+anvil start --verify   # probe state, no writes
+```
+
+If you only need to re-run the install in isolation, use `anvil mcp install`
+directly (next section). For Windsurf, VS Code, or HTTP transport, use
+`anvil mcp-config` further down.
 
 ## One-Step Install with `anvil mcp install`
 
@@ -147,10 +167,10 @@ Configure the port and host with `ANVIL_MCP_PORT` (default: 3000) and
 
 ### anvil_validate_write
 
-Served by the Rust `anvil mcp serve --stdio` shim shipped with the CLI in
-0.5.0-beta. Validates a proposed file write before the agent applies it; the
-response carries a `decision` (`allow` or `block`) and the same
-`anvil.diagnostic.v1` envelope used by the gate output.
+Served by the Rust `anvil mcp serve --stdio` shim. Validates a proposed file
+write before the agent applies it; the response carries a `decision` (`allow`
+or `block`) and the same `anvil.diagnostic.v1` envelope used by the gate
+output.
 
 ```json
 {
@@ -164,14 +184,39 @@ response carries a `decision` (`allow` or `block`) and the same
 }
 ```
 
+The response includes a `correlation` envelope. The
+`correlation.daemonStatus` field reports whether the daemon-backed validation
+path is live:
+
+| Value         | Meaning                                                           |
+| ------------- | ----------------------------------------------------------------- |
+| `available`   | Daemon reachable; tool ran via the daemon-backed path             |
+| `unavailable` | Daemon-backed client probed but not reachable; embedded fallback  |
+| `not-wired`   | Daemon validation client not compiled in (Windows in v0.6.0-beta) |
+
+:::caution Windows daemon-backed path
+
+In `v0.6.0-beta`, `correlation.daemonStatus` is always `not-wired` on Windows
+because the validation client is `cfg(unix)`-gated. The embedded fallback runs
+the same checks; the daemon-backed correlation envelope is part of the
+follow-up Windows named-pipe work.
+
+:::
+
 The remaining tools (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
-`anvil_status`, `anvil_query_boundary`) are **legacy Node MCP tools** served by
-`@eddacraft/anvil-mcp-server`. The Rust shim does not expose them yet. Use the
-legacy server only when you specifically need this broader tool surface.
+`anvil_status`, `anvil_query_boundary`) live on the legacy Node MCP server —
+see [Legacy Node MCP path](#legacy-node-mcp-path) below.
 
-## Legacy Node MCP Tools
+## Legacy Node MCP path
 
-### anvil_check
+The legacy Node MCP server (`@eddacraft/anvil-mcp-server`) remains available
+for the broader legacy tool surface. The Rust shim does not expose these
+tools today; reach for the legacy server only when you specifically need one
+of them.
+
+### Legacy Node MCP Tools
+
+#### anvil_check
 
 Validate files against architecture rules and anti-patterns:
 
@@ -199,7 +244,7 @@ legacy tool parameters, not the canonical Rust CLI check names:
 }
 ```
 
-### anvil_gate
+#### anvil_gate
 
 Run the full gate pipeline (lint, test, coverage, architecture, policy):
 
@@ -215,7 +260,7 @@ Run the full gate pipeline (lint, test, coverage, architecture, policy):
 Optional parameters: `targetFiles` (specific files), `skipChecks` (checks to
 skip), `failFast` (stop on first failure).
 
-### anvil_fix
+#### anvil_fix
 
 Auto-fix a specific violation:
 
@@ -230,7 +275,7 @@ Auto-fix a specific violation:
 }
 ```
 
-### anvil_suppress
+#### anvil_suppress
 
 Suppress a warning with an explanation:
 
@@ -248,7 +293,7 @@ Suppress a warning with an explanation:
 
 Optional `expiryDays` parameter sets when the suppression expires (default: 30).
 
-### anvil_status
+#### anvil_status
 
 Get the current workspace validation status:
 
@@ -261,7 +306,7 @@ Get the current workspace validation status:
 }
 ```
 
-### anvil_query_boundary
+#### anvil_query_boundary
 
 Check whether an import between two files is allowed by architecture rules:
 
@@ -276,7 +321,7 @@ Check whether an import between two files is allowed by architecture rules:
 }
 ```
 
-## Legacy Node MCP Resources
+### Legacy Node MCP Resources
 
 The legacy Node MCP server exposes read-only resources:
 
@@ -291,7 +336,7 @@ The legacy Node MCP server exposes read-only resources:
 | `anvil://patterns`             | Anti-pattern catalogue                        |
 | `anvil://suppressions`         | Active suppressions with expiry dates         |
 
-## Legacy Node MCP Agent Loop
+### Legacy Node MCP Agent Loop
 
 An AI agent using the legacy Node MCP server:
 
@@ -324,7 +369,7 @@ if result["status"] != "pass":
     # ...
 ```
 
-## Legacy Node MCP Prompts
+### Legacy Node MCP Prompts
 
 The legacy Node MCP server provides helpful prompts:
 
