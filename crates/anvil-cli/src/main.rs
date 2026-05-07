@@ -462,6 +462,17 @@ fn wants_json() -> bool {
 
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
+    // V050F-007: cap rayon's global pool at half available cores
+    // BEFORE any subcommand can dispatch to a rayon-using path
+    // (`anvil check`, `anvil watch`, the secret/antipattern scanners,
+    // `scan_artifact`, etc.). Pre-V050F-007 the kernel's defensive
+    // `POOL_INIT.call_once` blocks were no-ops if a non-kernel path
+    // (e.g. `scan_artifact` from `anvil-checks`) drove rayon's first
+    // `par_iter` — rayon defaulted to `num_cpus::get()` and the cap
+    // was silently absent. Calling it from `main` first guarantees
+    // the cap is always in force.
+    anvil_kernel::pool::init_global();
+
     // TRACE-001: install the cross-cutting tracing subscriber once at
     // process start. `Err` means a global subscriber was already
     // registered (test harness, parent context, or a misbehaving

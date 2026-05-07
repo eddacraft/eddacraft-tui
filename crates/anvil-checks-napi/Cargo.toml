@@ -11,6 +11,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
+# V050F-007: pulled in solely for `anvil_kernel::pool::init_global()` so the
+# editor host that loads this binding inherits the half-cores rayon cap before
+# any `scan_artifact` call can drive the global pool to default num_cpus.
+anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
 napi = { version = "3", default-features = false, features = ["napi6", "serde-json"] }
 napi-derive = "3"
 serde = { workspace = true }

@@ -17,10 +17,9 @@ use crate::policy::invariants::cross_layer::CrossLayerViolation;
 use crate::policy::invariants::new_dependency::NewDependencyIntroduction;
 use crate::policy::invariants::privilege_expansion::PrivilegeExpansion;
 use crate::policy::invariants::public_api::PublicApiExpansion;
+use crate::pool::init_global as init_rayon_pool;
 use crate::protocol::emitter::EventEmitter;
 use crate::watcher::filter::FileFilter;
-
-static POOL_INIT: std::sync::Once = std::sync::Once::new();
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmbeddedError {
@@ -104,13 +103,9 @@ pub fn run_embedded_cancellable(
 
     // Initialise rayon thread pool: cap at half available cores (min 1) to avoid
     // saturating the host — important for VS Code extension and CI contexts.
-    POOL_INIT.call_once(|| {
-        let cpus = num_cpus::get();
-        let threads = (cpus / 2).max(1);
-        let _ = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global();
-    });
+    // V050F-007: defensive call for direct lib consumers; the binary entry point
+    // calls `init_global` first, after which this becomes a one-atomic-load no-op.
+    init_rayon_pool();
 
     // 2. Parse all files in parallel, apply to graph sequentially, resolve imports.
     let (graph, _all_imports, parsed_count) =
