@@ -60,7 +60,7 @@ Witness line shape (canonical):
 ```jsonc
 {
   "v": 1,
-  "project_id": "01HXR2K7...",
+  "project_id": "01997e4a-1b2c-7345-8901-abcdef123456",
   "tree": "<git tree hash being committed>",
   "parent_commit": "<git parent hash>",       // single value for normal commits
   "parent_commits": ["...", "..."],           // present only for merge commits

@@ -130,7 +130,7 @@ finding emitted →
 {
   "v": 1,
   "schema": "anvil.baseline.v1",
-  "project_id": "01HXR2K7...",
+  "project_id": "01997e4a-1b2c-7345-8901-abcdef123456",
   "cutoff_commit": "a3b2ea4e...",
   "created_at": "2026-05-07T12:34:56Z",
   "created_by": {

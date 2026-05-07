@@ -13,8 +13,8 @@
 //! Example:
 //!
 //! ```text
-//! # Anvil project identifier — see https://anvil.sh/anvil/project-id
-//! project_uuid: 0199-7e4a-1b2c-7345-8901-abcdef123456
+//! # Anvil project identifier — see https://github.com/eddacraft/anvil
+//! project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
 //! created_at: 2026-05-07T12:34:56Z
 //! created_by_version: 0.6.0
 //! ```
@@ -22,8 +22,8 @@
 //! For forks (vNext richer support; v1 just records the parent):
 //!
 //! ```text
-//! project_uuid: 0199-7e4a-...
-//! forked_from: 9kza-8b3c-...
+//! project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
+//! forked_from: 9b8a7c6d-5e4f-3210-fedc-ba0987654321
 //! ```
 //!
 //! ## Idempotency
@@ -36,9 +36,13 @@
 //!
 //! ## Forward compatibility
 //!
-//! Unknown keys in the file are preserved on parse and ignored. Future
-//! additions (`first_commit`, `origin_canonical`, etc.) will extend
-//! this struct; existing files stay valid.
+//! Unknown keys in the file are silently ignored on parse — they are
+//! NOT round-tripped through `render()`. Future additions
+//! (`first_commit`, `origin_canonical`, etc.) will extend this struct
+//! as recognised fields; existing files stay valid because the parser
+//! tolerates the unknown keys until the new version recognises them.
+//! If hand-edited extra keys are added to the file and the file is
+//! later rewritten by anvil tooling, the extras will be lost.
 //!
 //! ## What this module does NOT do
 //!
@@ -223,20 +227,13 @@ pub fn ensure_project_id(
         ))
     })?;
 
-    // Council C-10: refuse if `anvil/` is a symlink. A symlink-to-
-    // outside-the-repo (e.g. /tmp/shared-state) would silently route
-    // tracked-file writes outside the working tree.
-    if parent.exists() {
-        let meta = parent.symlink_metadata()?;
-        if meta.file_type().is_symlink() {
-            return Err(IdentityError::Malformed(format!(
-                "`{}` is a symlink; refusing to write project-id outside the repo",
-                parent.display()
-            )));
-        }
-    }
-
+    // Council C-10 / Copilot review: refuse if `anvil/` is a symlink.
+    // We check before AND after `create_dir_all` to close the TOCTOU
+    // window where a same-UID attacker could replace the directory
+    // with a symlink between our pre-check and our write.
+    refuse_if_symlink(parent)?;
     fs::create_dir_all(parent)?;
+    refuse_if_symlink(parent)?;
 
     let tmp_name = format!("project-id.tmp.{}", Uuid::new_v4().simple());
     let tmp_path = parent.join(tmp_name);
@@ -244,8 +241,18 @@ pub fn ensure_project_id(
         let mut f = fs::File::create(&tmp_path)?;
         f.write_all(identity.render().as_bytes())?;
         f.sync_all()?;
-        fs::rename(&tmp_path, &path)?;
-        Ok(())
+        // Copilot review: handle the concurrent-creation race
+        // explicitly. On Windows, `fs::rename` fails with
+        // ErrorKind::AlreadyExists if another process raced us to
+        // create the file; on Unix it overwrites silently. In both
+        // cases we want to converge on the on-disk identity, so we
+        // treat AlreadyExists as success and let the post-rename
+        // re-read return whichever UUID won.
+        match fs::rename(&tmp_path, &path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(e) => Err(e.into()),
+        }
     })();
 
     if let Err(e) = write_result {
@@ -255,12 +262,34 @@ pub fn ensure_project_id(
         return Err(e);
     }
 
+    // If the AlreadyExists path was taken, the temp file is still on
+    // disk. Clean it up best-effort.
+    if tmp_path.exists() {
+        let _ = fs::remove_file(&tmp_path);
+    }
+
     // Council C-2: re-read from disk after rename so concurrent
     // callers (two `anvil start` racing on the same FS) converge on
     // the same identity. The locally-minted `identity` is discarded
     // in favour of whatever actually persisted.
     let contents = fs::read_to_string(&path)?;
     ProjectIdentity::parse(&contents)
+}
+
+/// Refuse if `path` exists and is a symlink. Used twice in
+/// `ensure_project_id` to close the TOCTOU window between the
+/// pre-check and the write.
+fn refuse_if_symlink(path: &Path) -> Result<(), IdentityError> {
+    if path.exists() {
+        let meta = path.symlink_metadata()?;
+        if meta.file_type().is_symlink() {
+            return Err(IdentityError::Malformed(format!(
+                "`{}` is a symlink; refusing to write project-id outside the repo",
+                path.display()
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Read `anvil/project-id` if present. Returns `None` if absent;

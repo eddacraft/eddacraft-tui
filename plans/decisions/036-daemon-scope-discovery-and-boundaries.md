@@ -68,7 +68,7 @@ no inter-daemon RPC.
 
 ```
 ProjectIdentity := {
-  project_uuid:    "01HXR2K7...",     // authoritative; in anvil/project-id (tracked)
+  project_uuid:    "01997e4a-1b2c-7345-8901-abcdef123456",     // authoritative; in anvil/project-id (tracked)
   first_commit:    "a3b2ea4e...",     // cross-check from git log
   origin_canonical: "github.com/eddacraft/anvil"  // best-effort cross-check
 }
