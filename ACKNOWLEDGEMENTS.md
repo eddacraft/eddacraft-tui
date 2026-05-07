@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 267 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 268 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1026,6 +1026,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `regex-automata` | 0.4.14 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.10 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.12.3 | MIT License | https://github.com/rust-lang/regex |
+| `uuid` | 1.23.1 | MIT License | https://github.com/uuid-rs/uuid |
 | `hyper` | 1.9.0 | MIT License | https://github.com/hyperium/hyper |
 | `either` | 1.15.0 | MIT License | https://github.com/rayon-rs/either |
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
