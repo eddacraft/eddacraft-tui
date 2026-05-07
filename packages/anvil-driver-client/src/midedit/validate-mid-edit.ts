@@ -206,7 +206,7 @@ export function createMidEditValidator(
         };
         try {
           const response = await client.request<ScanBufferResponse>(
-            ANVIL_SCAN_BUFFER,
+            SCAN_BUFFER_METHOD,
             requestParams
           );
           return response;

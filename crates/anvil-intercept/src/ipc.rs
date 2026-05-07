@@ -1811,7 +1811,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     //   status`) and the existing 37-fixture conformance suite still
     //   speak it; we cannot break that contract until every consumer
     //   migrates.
-    // - `anvil_intercept_proto::ANVIL_STATUS_QUERY` (`"anvil/status/query"`):
+    // - `anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY` (`"anvil/status/query"`):
     //   the canonical namespaced form DRVR-002 promised drivers when the
     //   protocol module shipped. Drivers that import the published
     //   constant must hit a live route, not a `Method not found`.
