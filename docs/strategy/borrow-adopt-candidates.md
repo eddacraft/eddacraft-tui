@@ -21,6 +21,38 @@ Entry format:
 
 ---
 
+## 2026-05-07
+
+- **source repo + link:** `entireio/cli` — https://github.com/entireio/cli
+  - **what to borrow/adopt:** Branch-as-sidecar pattern for storing AI session
+    data — two-tier git refs (shadow branch with full worktree snapshots for
+    in-flight rewind; sharded permanent metadata branch) linked to user
+    commits via a single `Entire-Checkpoint:` trailer. Full write-up at
+    [`docs/architecture/references/entire-branch-sidecar.md`](../architecture/references/entire-branch-sidecar.md).
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** High
+  - **status:** candidate
+  - **aps link (optional):** kindling-capture, council outputs, APS history
+  - **overlap with existing Anvil services:**
+    - kindling-capture (PostToolUse hook) currently writes to an external
+      store — git-native sidecar would replace that path
+    - Council review findings and APS work-item history both want a place to
+      live without polluting main tree / `plans/`
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Use `refs/anvil/*` namespace (not `refs/heads/anvil/*`) so `git branch`
+      output stays clean
+    - Adopt explicit version anchor in ref names (`refs/anvil/<feature>/v1`)
+      from day one
+    - Define GC policy for shadow refs upfront (Entire's docs do not)
+    - Define `git commit --amend` / rebase behavior (re-run hook or warn)
+    - Require trailer to be optional and strippable; do not block commits
+      that lack it
+    - Add security/privacy review for what transcripts contain before
+      enabling default push
+
+---
+
 ## 2026-03-08
 
 - **source repo + link:** `guardrails-ai/guardrails` —
