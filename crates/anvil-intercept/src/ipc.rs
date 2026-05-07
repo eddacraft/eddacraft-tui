@@ -267,7 +267,34 @@ pub fn validate_connected_peer_for_client(
     Ok(())
 }
 
-#[cfg(all(unix, not(target_os = "linux")))]
+/// macOS peer-credential validation. macOS has no `SO_PEERCRED`; the equivalent
+/// is `getpeereid(2)` which fills in the peer's effective uid + gid at the time
+/// the socket connection was established. The effective uid is the identity
+/// that matters for the v1 same-UID trust boundary — a peer whose effective uid
+/// drops back to the operator's after a `seteuid` call would still be
+/// reported as the operator's uid here, which matches what the Linux
+/// `SO_PEERCRED` path returns. The two branches are observably identical from
+/// any caller's perspective.
+#[cfg(all(unix, target_os = "macos"))]
+pub fn validate_connected_peer_for_client(
+    stream: &std::os::unix::net::UnixStream,
+) -> Result<(), IpcError> {
+    use nix::unistd::{Uid, getpeereid};
+
+    let current_uid = Uid::current().as_raw();
+    let (peer, _gid) =
+        getpeereid(stream).map_err(|e| std::io::Error::other(format!("getpeereid: {e}")))?;
+    let peer_uid = peer.as_raw();
+    if peer_uid != current_uid {
+        return Err(IpcError::SocketPeerPermissions {
+            peer_uid,
+            current_uid,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
 pub fn validate_connected_peer_for_client(
     _stream: &std::os::unix::net::UnixStream,
 ) -> Result<(), IpcError> {
@@ -2795,6 +2822,30 @@ mod tests {
                 matches!(err, IpcError::SocketDirIsSymlink(_)),
                 "got {err:?}"
             );
+        }
+
+        // -------- Peer-credential validation. ------------------------
+        //
+        // Both branches (Linux `SO_PEERCRED` and macOS `getpeereid`) must
+        // accept a same-UID peer. We exercise the function against a
+        // `UnixStream::pair()` — both ends of the pair share the calling
+        // process's uid, so the peer-uid check should succeed. The test is
+        // gated per-target because the function body itself diverges per
+        // target; gating ensures the macOS Cross matrix entry actually
+        // exercises the macOS branch rather than relying on the Linux
+        // branch's coverage.
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn validate_connected_peer_accepts_same_uid_linux() {
+            let (a, _b) = std::os::unix::net::UnixStream::pair().expect("socket pair");
+            validate_connected_peer_for_client(&a).expect("same-uid peer accepted");
+        }
+
+        #[cfg(target_os = "macos")]
+        #[test]
+        fn validate_connected_peer_accepts_same_uid_macos() {
+            let (a, _b) = std::os::unix::net::UnixStream::pair().expect("socket pair");
+            validate_connected_peer_for_client(&a).expect("same-uid peer accepted");
         }
 
         // -------- Bind / serve tests against real sockets. ----------
