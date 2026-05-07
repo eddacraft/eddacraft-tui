@@ -778,13 +778,6 @@ mod tests {
         DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
         ValidationBackendFailure,
     };
-    // Only imported here on Linux/macOS where the
-    // `LocalDaemonValidationClient::with_socket_path` constructor exists
-    // and the using test (`#[cfg(any(target_os = "linux", target_os = "macos"))]`)
-    // compiles. On Windows the test is gated out and the import would be
-    // unused.
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    use crate::mcp::validation::LocalDaemonValidationClient;
     #[cfg(unix)]
     use anvil_intercept::Shutdown;
     #[cfg(unix)]
