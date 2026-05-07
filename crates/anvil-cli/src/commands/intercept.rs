@@ -663,6 +663,7 @@ mod tests {
             .enable_all()
             .build()
             .expect("tokio runtime");
+        let _runtime_guard = runtime.enter();
         let listener = IpcListener::bind(&pipe_name, NoopDispatcher)
             .expect("daemon pipe binds")
             .with_status_provider(Arc::new(Fixture));
