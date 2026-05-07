@@ -203,7 +203,7 @@ through merge=union). No leader election, no inter-daemon RPC.
 
 ```
 ProjectIdentity := {
-  project_uuid:    "01HXR2K7...",     // authoritative; in anvil/project-id (tracked)
+  project_uuid:    "01997e4a-1b2c-7345-8901-abcdef123456",     // authoritative; in anvil/project-id (tracked)
   first_commit:    "a3b2ea4e...",     // cross-check from git log
   origin_canonical: "github.com/eddacraft/anvil"  // best-effort cross-check (canonicalised: scheme/host/case/.git-stripped)
 }
@@ -267,7 +267,7 @@ Each commit appends one line:
 ```jsonc
 {
   "v": 1,
-  "project_id": "01HXR2K7...",
+  "project_id": "01997e4a-1b2c-7345-8901-abcdef123456",
   "tree": "<git tree hash being committed>",
   "parent_commit": "<git parent hash>",          // single value for normal commits
   "parent_commits": ["...", "..."],              // present only for merge commits (DAG join)
@@ -839,13 +839,18 @@ distinct (DLIFE-009 contract test pins this).
 | Exit | Meaning |
 |---|---|
 | 0 | Daemon up, all surfaces healthy |
-| 1 | At least one surface degraded / embedded-fallback |
-| 2 | Cross-boundary detected/mixed |
-| 3 | Daemon not running |
-| 4 | `proto-version-mismatch` (`anvil intercept restart` to fix) |
-| 10 | Discovery failed (lstat ladder violation) |
+| 1 | At least one surface degraded / embedded-fallback (also: generic error) |
+| 2 | Validation block / gate failure (`EXIT_GATE_FAIL`) |
+| 3 | Authentication required (`EXIT_AUTH_REQUIRED`) |
+| 4 | Configuration error (`EXIT_CONFIG_ERROR`) |
+| 5 | Cross-boundary detected/mixed (`EXIT_CROSS_BOUNDARY`) |
+| 6 | Daemon not running (`EXIT_DAEMON_DOWN`) |
+| 7 | `proto-version-mismatch` (`EXIT_VERSION_MISMATCH`; `anvil intercept restart` to fix) |
+| 10 | Discovery failed (lstat ladder violation; `EXIT_DISCOVERY_FAILED`) |
 
-CI fails fast on 2, 4, 10.
+Codes match the reserved constants in `crates/anvil-cli/src/main.rs`
+and the CLI surface coherence spec §3. Codes 8 and 9 are intentionally
+reserved. CI fails fast on 2, 5, 7, 10.
 
 ---
 
@@ -857,7 +862,7 @@ CI fails fast on 2, 4, 10.
 $ mkdir my-new-project && cd my-new-project
 $ git init -b main
 $ anvil start
-anvil: initialised project (id: 01HXR2K7..., genesis: GENESIS-FRESH)
+anvil: initialised project (id: 01997e4a-1b2c-7345-8901-abcdef123456, genesis: GENESIS-FRESH)
 anvil: hooks installed (no framework — wrote .git/hooks/pre-commit ...)
 anvil: CI workflow written (.github/workflows/anvil.yml)
 anvil: stage and commit `anvil/` to enable protection

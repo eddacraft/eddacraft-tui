@@ -199,8 +199,14 @@ pub(crate) fn run_with_home(
 /// branches' witness writes naturally union-merge instead of
 /// producing conflicts.
 fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
+    // Per spec §5.1 + ADR-037 §D-3, the active witness file lives at
+    // `anvil/witness/active.ndjson` (not the deprecated top-level
+    // `anvil/witnessed.ndjson` shorthand that appeared in early drafts).
+    // Pre-position both the active file and the manifest with
+    // `merge=union -text` so MLP-002 lands without requiring a separate
+    // `.gitattributes` migration.
     const WITNESS_LINES: &[&str] = &[
-        "anvil/witnessed.ndjson merge=union -text",
+        "anvil/witness/active.ndjson merge=union -text",
         "anvil/witness/manifest/chain.ndjson merge=union -text",
     ];
 
@@ -362,7 +368,7 @@ mod tests {
 
         let attrs = std::fs::read_to_string(dir.path().join(".gitattributes")).unwrap();
         assert!(
-            attrs.contains("anvil/witnessed.ndjson merge=union -text"),
+            attrs.contains("anvil/witness/active.ndjson merge=union -text"),
             ".gitattributes must include witness file merge=union line. got:\n{attrs}"
         );
         assert!(
@@ -408,7 +414,7 @@ mod tests {
             attrs.starts_with("*.txt text\n"),
             "user's existing .gitattributes lines must be preserved"
         );
-        assert!(attrs.contains("anvil/witnessed.ndjson merge=union -text"));
+        assert!(attrs.contains("anvil/witness/active.ndjson merge=union -text"));
     }
 
     #[test]
