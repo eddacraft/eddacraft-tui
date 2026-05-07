@@ -60,10 +60,21 @@ jobs:
   detect-rust-changes:
     name: Detect Rust Changes
     runs-on: ubuntu-latest
+    # `pull-requests: read` lets `dorny/paths-filter` query the PR diff via
+    # the GitHub API on PR events; without it the action returns "Resource
+    # not accessible by integration" because the workflow-level
+    # `permissions:` block only grants `contents: read`. The fetch-depth: 0
+    # checkout below additionally lets the action fall back to git diff on
+    # push events, where there's no PR API to query.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       rust-changed: ${{ steps.filter.outputs.rust }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
         id: filter
         with:
