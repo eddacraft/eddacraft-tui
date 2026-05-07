@@ -2,6 +2,15 @@
 //! enforcement-mode fixtures and assert the `validate_write` tool
 //! response honours `block` / `warn` / `off` semantics.
 //!
+//! Unix-only: this integration test wires up `IpcListener::bind(&Path)`
+//! which has a different signature on Windows (`&str` named-pipe form).
+//! The end-to-end MCP enforcement path also depends on the daemon-side
+//! peer-credential check (`SO_PEERCRED` on Linux, `getpeereid` on macOS)
+//! which is not implemented on other Unix targets either. Gate the
+//! whole integration test file rather than per-test so the test binary
+//! compiles cleanly on Windows Cross.
+#![cfg(unix)]
+//!
 //! These tests spawn the real Rust MCP shim, send a JSON-RPC tools/call
 //! frame whose `proposedContent` triggers the secret-detection rule,
 //! and check the structured response per the mapping table documented
