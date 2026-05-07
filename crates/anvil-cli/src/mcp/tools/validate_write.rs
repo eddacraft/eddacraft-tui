@@ -1062,15 +1062,7 @@ mod tests {
         assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
     }
 
-    // Linux-only: this test exercises the daemon-validation peer-credential
-    // path, which is implemented via `SO_PEERCRED` on Linux but is currently
-    // unimplemented on other Unix targets — `validate_connected_peer_for_client`
-    // returns `connected peer credential validation is not implemented on this
-    // Unix platform` on macOS, which makes the daemon path always demote to
-    // `Unavailable` (`not-wired`) on the macOS Cross matrix entry. Tracked as
-    // the macOS-Cross follow-up surfaced when chore/windows-status enabled
-    // cross-on-dev. See the v0.6.0-beta security note H4 entry.
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     #[test]
     fn live_daemon_mcp_tool_call_matches_embedded_diagnostic_envelope() {
         let runtime = Runtime::new().expect("tokio runtime starts");
