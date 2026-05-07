@@ -8,7 +8,7 @@ For 0.x releases, a minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-05-06
+## [0.2.0] - 2026-05-07
 
 A widget-suite expansion plus supply-chain and release hygiene. This release
 contains breaking changes — see **Breaking** below.
@@ -115,11 +115,17 @@ contains breaking changes — see **Breaking** below.
   Struct-literal construction (`ParallelProgressState { … }`) is no longer
   permitted from outside this crate; use `ParallelProgressState::default()` or
   the new builders.
-- **`ProgressBarState` gains two public fields:** `display_fraction:
-  AnimatedF64` and `target_fraction: f64`. Code that constructed
-  `ProgressBarState` via struct literal must be updated (use
-  `ProgressBarState::default()` or set the new fields explicitly). The new
-  `display_fraction()` accessor returns the animated value.
+- **`#[non_exhaustive]` added to `widgets::progress_bar::ProgressBarState`.**
+  Construct via `ProgressBarState::default()` and mutate the public `current`
+  / `total` fields; the smoothed `display_fraction` is read via the new
+  `display_fraction()` accessor (the underlying field is now crate-private to
+  avoid leaking the internal `AnimatedF64` alias).
+- **`#[non_exhaustive]` added to `widgets::spinner::SpinnerState`.** A new
+  private `preset` field tracks the preset configured via
+  [`SpinnerState::with_preset`] so subsequent `tick()` calls advance against
+  the right frame count. Use `SpinnerState::default()` or `with_preset(p)`;
+  direct struct-literal construction (`SpinnerState { frame: 0 }`) is no
+  longer permitted from outside this crate.
 
 #### Non-breaking
 
@@ -145,6 +151,17 @@ contains breaking changes — see **Breaking** below.
 
 ### Fixed
 
+- **`SpinnerState::with_preset` now stores the preset.** Previously the
+  argument was discarded, so `tick()` always wrapped against the default
+  preset's frame count — non-default presets like `Anvil` produced wrong
+  frame indices when ticked via `tick()` (the workaround was `tick_with`).
+  `tick()` now uses the stored preset.
+- README usage and feature snippets pin the correct version (`0.2`).
+  Acknowledgements now credit `vyfor/animate` for the animation runtime;
+  the `rattles` reference (no longer a dependency) was removed.
+- `CONTRIBUTING.md` local-check checklist matches CI (`cargo publish
+  --dry-run --all-features`); required-status-checks list updated to
+  reflect the matrix-style CI.
 - `pretext`: preserve leading whitespace as indent (#16 follow-up).
 - Spinner: addressed council review feedback on bracket-syntax frames and
   preset interval semantics.

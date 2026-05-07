@@ -117,19 +117,31 @@ pub struct Spinner<'a, T: Theme> {
 }
 
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct SpinnerState {
     pub frame: usize,
+    preset: SpinnerPreset,
 }
 
 impl SpinnerState {
+    /// Construct state pinned to `preset`. Subsequent calls to [`tick`] then
+    /// advance `frame` against `preset`'s frame count, so non-default presets
+    /// (e.g. [`SpinnerPreset::Anvil`]) wrap correctly.
+    ///
+    /// [`tick`]: SpinnerState::tick
     #[must_use]
     pub fn with_preset(preset: SpinnerPreset) -> Self {
-        let _ = preset;
-        Self { frame: 0 }
+        Self { frame: 0, preset }
     }
 
+    /// Advance against the preset stored in this state (set via
+    /// [`with_preset`], defaults to [`SpinnerPreset::default`]). Use
+    /// [`tick_with`] to override the preset for a single tick.
+    ///
+    /// [`with_preset`]: SpinnerState::with_preset
+    /// [`tick_with`]: SpinnerState::tick_with
     pub fn tick(&mut self) {
-        self.frame = SpinnerPreset::default().next_frame(self.frame);
+        self.frame = self.preset.next_frame(self.frame);
     }
 
     pub fn tick_with(&mut self, preset: SpinnerPreset) {
@@ -257,6 +269,17 @@ mod tests {
 
         state.tick_with(SpinnerPreset::Anvil);
 
+        assert_eq!(state.frame, 0);
+    }
+
+    #[test]
+    fn tick_uses_preset_stored_via_with_preset() {
+        // Regression: `with_preset(Anvil)` previously discarded its argument,
+        // so `tick()` always wrapped against EddaCraft's frame count. Now the
+        // preset is stored on `SpinnerState` and `tick()` honours it.
+        let mut state = SpinnerState::with_preset(SpinnerPreset::Anvil);
+        state.frame = SpinnerPreset::Anvil.len() - 1;
+        state.tick();
         assert_eq!(state.frame, 0);
     }
 
