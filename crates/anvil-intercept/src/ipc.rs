@@ -285,10 +285,15 @@ pub fn validate_connected_peer_for_client(
 /// rather than re-implement. The suffix is the token SID, not an env
 /// username, so account-name spoofing and local/domain username
 /// collisions do not change the rendezvous point.
+///
+/// The actual derivation lives in
+/// [`anvil_intercept_win32::pipe_name_for_current_user`] so the CLI
+/// status client (which speaks synchronous Win32 IO and does not link
+/// the daemon) can reuse the exact same string without depending on
+/// `anvil-intercept`.
 #[cfg(windows)]
 pub fn resolve_pipe_name() -> Result<String, IpcError> {
-    let sid = anvil_intercept_win32::current_user_sid()?;
-    Ok(format!(r"\\.\pipe\anvil-intercept-{sid}"))
+    Ok(anvil_intercept_win32::pipe_name_for_current_user()?)
 }
 
 /// Lookup the current OS user's account name from environment vars.

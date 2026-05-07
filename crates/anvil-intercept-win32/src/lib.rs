@@ -15,13 +15,17 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, FILETIME, HANDLE, LocalFree,
+    CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, FILETIME, HANDLE,
+    INVALID_HANDLE_VALUE, LocalFree,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
 use windows_sys::Win32::Security::{
     GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
+};
+use windows_sys::Win32::Storage::FileSystem::{
+    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, ReadFile, WriteFile,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
@@ -30,6 +34,12 @@ use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
 };
+
+// `GENERIC_READ` / `GENERIC_WRITE` are not re-exported from any
+// `windows-sys` 0.61 module the daemon already pulls in; pinning them
+// inline keeps the Cargo feature-flag set narrow.
+const GENERIC_READ: u32 = 0x8000_0000;
+const GENERIC_WRITE: u32 = 0x4000_0000;
 
 // Minimal owner rights for duplex clients plus the server's replacement-instance
 // flow. This deliberately avoids GENERIC_ALL; v1 treats same-user processes as
@@ -68,6 +78,175 @@ impl PipeInstance {
 /// Stable SID string for the current process token's user.
 pub fn current_user_sid() -> io::Result<String> {
     current_user_sid_string()
+}
+
+/// Compute the per-user named-pipe rendezvous path
+/// (`\\.\pipe\anvil-intercept-<sid>`).
+///
+/// This is the canonical pipe name shared by the daemon-side
+/// `IpcListener` and any owner-only client (the `anvil intercept`
+/// CLI today; the `DriverClient` from DRVR-001 once the Windows port
+/// of the launcher lands). The SID — not the env username — is the
+/// suffix so account-name spoofing and local/domain username
+/// collisions cannot move the rendezvous point.
+///
+/// `anvil_intercept::ipc::resolve_pipe_name` re-exports this helper
+/// so consumers that already depend on the daemon crate keep working
+/// without pulling in `anvil-intercept-win32` directly.
+pub fn pipe_name_for_current_user() -> io::Result<String> {
+    let sid = current_user_sid_string()?;
+    Ok(format!(r"\\.\pipe\anvil-intercept-{sid}"))
+}
+
+/// Synchronous, owner-only named-pipe client. Mirrors
+/// [`create_owner_only_pipe_server`] for callers running outside any
+/// tokio runtime — specifically the `anvil intercept status` CLI
+/// command, which needs a single round-trip JSON-RPC call without
+/// dragging in the daemon's async machinery.
+///
+/// The handle is wrapped in [`OwnerOnlyPipeClient`], a small RAII
+/// type that closes via `CloseHandle` on drop in the same style as
+/// [`JobObject`]. All `unsafe` for `CreateFileW`, `WriteFile`,
+/// `ReadFile`, and `CloseHandle` is quarantined to this crate so
+/// `anvil-intercept` can keep `#![forbid(unsafe_code)]`.
+///
+/// The trust model is the daemon-side ACL: the named pipe is
+/// created with the owner-only DACL by
+/// [`create_owner_only_pipe_server`], so a client connecting from a
+/// different SID is rejected by the kernel. Defence-in-depth pipe-
+/// owner validation on the client side is intentionally skipped in
+/// v1 — see the security note in the inline doc comment below — but
+/// could be layered on later via `GetSecurityInfo` without changing
+/// this signature.
+pub fn connect_owner_only_pipe_client(pipe_name: &str) -> io::Result<OwnerOnlyPipeClient> {
+    let wide = wide_null(pipe_name);
+    // SAFETY: `wide` is a null-terminated UTF-16 string owned for the
+    // duration of the call. `CreateFileW` with `OPEN_EXISTING` and a
+    // null security descriptor either returns INVALID_HANDLE_VALUE on
+    // failure (with the OS error in `GetLastError`) or an owned handle
+    // we wrap in `OwnerOnlyPipeClient` and close exactly once on drop.
+    // FILE_FLAG_OVERLAPPED is intentionally NOT set: the CLI flow is
+    // synchronous, and synchronous handles use `WriteFile`/`ReadFile`
+    // directly without an OVERLAPPED structure.
+    let handle = unsafe {
+        CreateFileW(
+            wide.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            null_mut(),
+            OPEN_EXISTING,
+            0,
+            null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(OwnerOnlyPipeClient(handle))
+}
+
+/// Owned synchronous named-pipe client handle. Closes via
+/// `CloseHandle` on drop. Mirrors the [`JobObject`] RAII pattern.
+///
+/// Callers MUST treat this as the only owner of the underlying
+/// handle — duplicating it via `DuplicateHandle` and outliving the
+/// drop here is undefined behaviour the same way it is for any
+/// raw Win32 handle. The `unsafe` boundary is the read/write
+/// helpers below; everything they expose to the rest of the
+/// workspace is plain `&mut self` IO.
+pub struct OwnerOnlyPipeClient(HANDLE);
+
+// SAFETY: A Win32 named-pipe HANDLE is a kernel-object reference; the
+// kernel handles its own internal synchronisation for ReadFile /
+// WriteFile, and ownership transfer between threads (Send) is safe.
+// We do NOT implement Sync — concurrent reads or writes from multiple
+// threads on the same pipe would interleave at the JSON-RPC framing
+// boundary and corrupt the protocol.
+unsafe impl Send for OwnerOnlyPipeClient {}
+
+impl std::fmt::Debug for OwnerOnlyPipeClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("OwnerOnlyPipeClient")
+            .field(&format_args!("{:p}", self.0))
+            .finish()
+    }
+}
+
+impl OwnerOnlyPipeClient {
+    /// Borrow the underlying Win32 handle. Callers must not close
+    /// the returned handle — drop this `OwnerOnlyPipeClient` instead.
+    pub fn raw_handle(&self) -> HANDLE {
+        self.0
+    }
+
+    /// Write the entire buffer to the pipe in a single
+    /// synchronous call. Returns an error if the pipe accepts
+    /// fewer bytes than `buf.len()` — the daemon's per-line JSON-RPC
+    /// framing relies on the request landing as one frame.
+    pub fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        if buf.is_empty() {
+            return Ok(());
+        }
+        // `WriteFile` accepts a u32 byte count; cap at u32::MAX to
+        // avoid silent truncation for bizarrely-large request frames.
+        // The CLI status request is a few hundred bytes so this is a
+        // theoretical guard, not a practical concern.
+        let len = u32::try_from(buf.len())
+            .map_err(|_| io::Error::other("named-pipe write exceeds u32 byte cap"))?;
+        let mut written: u32 = 0;
+        // SAFETY: `self.0` is an owned, live pipe handle. `buf` is a
+        // valid slice of `len` bytes, and `&mut written` is a valid
+        // u32 out parameter. `null_mut()` for OVERLAPPED matches the
+        // synchronous handle returned by `connect_owner_only_pipe_client`.
+        let ok = unsafe { WriteFile(self.0, buf.as_ptr(), len, &mut written, null_mut()) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if written as usize != buf.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                format!(
+                    "named-pipe short write: wrote {} of {} bytes",
+                    written,
+                    buf.len(),
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Read up to `buf.len()` bytes from the pipe. Returns the
+    /// number of bytes read; `0` indicates the daemon side closed
+    /// the pipe (EOF). Partial reads are normal on Windows pipes
+    /// when the message is smaller than the buffer — callers should
+    /// loop or accumulate until they hit a frame boundary or the
+    /// caller-supplied cap.
+    pub fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        let len = u32::try_from(buf.len())
+            .map_err(|_| io::Error::other("named-pipe read exceeds u32 byte cap"))?;
+        let mut read: u32 = 0;
+        // SAFETY: `self.0` is an owned, live pipe handle; `buf` is a
+        // valid mutable slice of `len` bytes; `&mut read` is a valid
+        // u32 out parameter; OVERLAPPED is null for synchronous IO.
+        let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr(), len, &mut read, null_mut()) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(read as usize)
+    }
+}
+
+impl Drop for OwnerOnlyPipeClient {
+    fn drop(&mut self) {
+        if self.0 != INVALID_HANDLE_VALUE && !self.0.is_null() {
+            // SAFETY: `self.0` is an owned pipe handle returned by
+            // `CreateFileW` and is closed exactly once here.
+            unsafe { CloseHandle(self.0) };
+        }
+    }
 }
 
 /// Return whether a process is live, conservatively treating access-denied as live.
@@ -462,5 +641,83 @@ mod tests {
             sddl.contains("S-1-5-21-1-2-3-1000"),
             "owner SID must appear: {sddl}",
         );
+    }
+
+    /// Pin: `pipe_name_for_current_user` is deterministic across
+    /// calls within a process. The daemon and the CLI must compute
+    /// the same name — flaking here means a CLI/daemon mismatch
+    /// shipped silently.
+    #[test]
+    fn pipe_name_for_current_user_is_stable() {
+        let first = pipe_name_for_current_user().expect("pipe name (first)");
+        let second = pipe_name_for_current_user().expect("pipe name (second)");
+        assert_eq!(first, second);
+        assert!(
+            first.starts_with(r"\\.\pipe\anvil-intercept-"),
+            "expected `\\.\\pipe\\anvil-intercept-<sid>`, got {first}",
+        );
+    }
+
+    /// Round-trip: server bind via the existing helper, client
+    /// connect via the new sync helper, write and read a single
+    /// JSON-line frame on a private per-test pipe name. The server
+    /// half intentionally uses tokio (named-pipe servers are async
+    /// in tokio); the client half is the synchronous CLI surface.
+    #[test]
+    fn connect_owner_only_pipe_client_round_trips_against_local_server() {
+        use std::thread;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-win32-client-test-{}",
+            std::process::id(),
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        let server = create_owner_only_pipe_server(&pipe_name, PipeInstance::First)
+            .expect("bind owner-only server");
+
+        let server_task = runtime.spawn(async move {
+            let mut server = server;
+            server.connect().await.expect("server accept");
+            let mut request = [0_u8; 64];
+            let n = server.read(&mut request).await.expect("server read");
+            // Echo the bytes back so the client sees a deterministic
+            // payload. Newline-terminated to mirror the real JSON-RPC
+            // framing the CLI uses.
+            server.write_all(&request[..n]).await.expect("server write");
+            server.shutdown().await.expect("server shutdown");
+        });
+
+        let client_pipe_name = pipe_name.clone();
+        let client_thread = thread::spawn(move || {
+            let mut client =
+                connect_owner_only_pipe_client(&client_pipe_name).expect("client connect");
+            let payload = b"hello-from-cli\n";
+            client.write_all(payload).expect("client write");
+            let mut buf = [0_u8; 64];
+            let n = client.read(&mut buf).expect("client read");
+            assert_eq!(&buf[..n], payload);
+        });
+
+        client_thread.join().expect("client thread joins");
+        runtime.block_on(server_task).expect("server task joins");
+    }
+
+    /// Sanity: connecting to a pipe name no daemon ever bound
+    /// returns NotFound rather than a generic OS error. The CLI
+    /// distinguishes "daemon down" from "daemon refused" on this
+    /// signal, so it has to be predictable.
+    #[test]
+    fn connect_to_nonexistent_pipe_returns_not_found_error() {
+        let nonexistent = format!(
+            r"\\.\pipe\anvil-intercept-win32-nope-{}",
+            std::process::id(),
+        );
+        let err = connect_owner_only_pipe_client(&nonexistent)
+            .expect_err("connecting to a missing pipe must error");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound, "got: {err:?}");
     }
 }
