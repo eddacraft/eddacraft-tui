@@ -160,14 +160,18 @@ pub struct ScanStats {
 /// drops the stats and is a thin wrapper around this function.
 ///
 /// V050F-011: this entry point recompiles `config.custom_patterns`
-/// every call AND silently drops any per-pattern compile errors.
+/// every call. The errors are dropped from the return value for
+/// back-compat (the signature is fixed) but they are NOT silent —
+/// any dropped errors are surfaced via a single aggregated
+/// `tracing::warn!` per call so the silent-loss path is observable
+/// without flooding logs across N files × M errors.
+///
 /// Hot-path callers (e.g. `run_secret_check`) should compile once
 /// via [`compile_custom_patterns`] and route through
-/// [`scan_content_with_compiled_patterns`] instead so the errors
-/// surface AND the per-file recompile cost goes away. This wrapper
-/// keeps the legacy signature for third-party callers but emits a
-/// `tracing::warn!` on any dropped error so the silent-loss path is
-/// observable.
+/// [`scan_content_with_compiled_patterns`] instead so the per-file
+/// recompile cost goes away AND the errors are returned to the
+/// caller verbatim. New callers that need the errors in-signature
+/// should use [`scan_content_with_pattern_errors_and_stats`].
 pub fn scan_content_with_stats(
     content: &str,
     file_path: &str,
@@ -185,15 +189,23 @@ pub fn scan_content_with_limit_and_stats(
     let (custom_patterns, custom_errors) = compile_custom_patterns(&config.custom_patterns);
     if !custom_errors.is_empty() {
         // V050F-011: legacy entry points cannot return the errors in
-        // their signature without a breaking change. Surface via
-        // tracing so the silent-loss path is observable; new callers
-        // should use `scan_content_with_compiled_patterns` (no
-        // recompile) or `scan_content_with_pattern_errors_and_stats`
+        // their signature without a breaking change. Surface via a
+        // single aggregated tracing event per call so the silent-loss
+        // path is observable but a caller scanning K files with M
+        // broken patterns logs K events, not K×M (council finding:
+        // copilot, log-spam concern). New callers should use
+        // `scan_content_with_compiled_patterns` (no recompile, no
+        // logging) or `scan_content_with_pattern_errors_and_stats`
         // (errors in the return tuple) so the contract is enforced
         // by the function signature.
-        for err in &custom_errors {
-            tracing::warn!(file = %file_path, "{err}");
-        }
+        tracing::warn!(
+            file = %file_path,
+            error_count = custom_errors.len(),
+            errors = ?custom_errors,
+            "scan_content dropped {} custom-pattern compile error(s); use \
+             `scan_content_with_pattern_errors_and_stats` to receive them",
+            custom_errors.len(),
+        );
     }
     scan_content_with_compiled_patterns(content, file_path, config, &custom_patterns, limit)
 }

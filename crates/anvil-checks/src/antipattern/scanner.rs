@@ -69,13 +69,16 @@ struct PreparedPattern {
     /// after `primary_regex` matches. Only set for the six rules whose
     /// registry pattern the `regex` crate cannot express directly.
     post_filter: Option<PostFilter>,
-    /// V050F-006: compiled allowlist globs paired with their original
-    /// pattern source. The pre-compilation moves the per-pattern regex
-    /// build cost out of the per-file hot path. Patterns that fail to
-    /// compile are dropped here (they never matched at the old call
-    /// site either, since `glob_to_regex` returned `None`); the
-    /// invalid-pattern path is silent because the registry / `.anvil`
-    /// authoring tools already validate globs.
+    /// V050F-006: compiled allowlist globs (compiled `Regex` plus the
+    /// precomputed `is_path_glob` flag). Pre-compilation moves the
+    /// per-pattern regex build cost out of the per-file hot path.
+    /// Original glob source strings remain in `pattern.allowlist`;
+    /// this field holds only the runtime artefacts the matcher needs.
+    /// Patterns that fail to compile carry `regex: None` (they never
+    /// matched at the old call site either, since `glob_to_regex`
+    /// returned `None`); the invalid-pattern path is silent because
+    /// the registry / `.anvil` authoring tools already validate
+    /// globs.
     allowlist_regexes: Vec<AllowlistGlob>,
 }
 
