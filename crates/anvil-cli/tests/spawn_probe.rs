@@ -57,6 +57,11 @@ fn run_status_verify_with_path(workdir: &Path, home: &Path, path: Option<&Path>)
 /// Pre-populate `~/.cursor/mcp.json` with an anvil entry whose `command`
 /// matches the test bin. The probe will spawn this command and run the
 /// initialize handshake.
+///
+/// Cfg-gated to non-Windows: `dirs::home_dir()` on Windows ignores the
+/// HOME / USERPROFILE env overrides this helper relies on, so its only
+/// consumers (the two handshake tests) are also `#[cfg(not(target_os = "windows"))]`.
+#[cfg(not(target_os = "windows"))]
 fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
     fs::create_dir_all(home.join(".cursor")).unwrap();
     let cfg = serde_json::json!({
@@ -75,6 +80,7 @@ fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
     .unwrap();
 }
 
+#[cfg(not(target_os = "windows"))]
 fn install_claude_code_entry_pointing_at_bare_anvil(home: &Path) {
     let cfg = serde_json::json!({
         "mcpServers": {
