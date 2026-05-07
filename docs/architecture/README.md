@@ -47,20 +47,33 @@ shipping. The shape is set by the [as-built template](_as-built-template.md)
 - [anvil-observability](observability-as-built.md) — namespace registry,
   tracing subscriber, traceparent helper, sensitive-fields advisory list
   (current, against `v0.6.0-beta`)
+- [Tutorial subsystem](tutorial-as-built.md) — `anvil-tui/src/surfaces/tutorial/*`
+  multi-file engine (mod.rs 1845 + discovery 913 + discovery_render 683 +
+  executor + fix + render + showcase + verify + watch_demo + 10 snapshot
+  pins). LAUNCH-014 ProtectionLoop default + two test-pinned copy
+  invariants (current, against `v0.6.0-beta`)
+- [Widget catalogue](widgets-as-built.md) — `anvil-tui/widgets/` (anvil-
+  specific composites) + upstream `eddacraft-tui` v0.1.0 (published on
+  crates.io: 13 widgets — confirm / container / divider / editor / header /
+  log_panel / parallel_progress / progress_bar / select / spinner /
+  status_badge / status_bar / text_input). Theme contract, keyboard
+  handler, snapshot pinning (current, against `v0.6.0-beta`)
+- [CLI TUI runner](cli-tui-runner-as-built.md) — `crates/anvil-cli/src/tui.rs`
+  (495 lines) — terminal session lifecycle, `run_surface_in` shared-terminal
+  pattern, animation tick, watch_loop dirty-paint gate, panic-safety gap
+  documented (current, against `v0.6.0-beta`)
+- [Adapter packages](adapter-packages-as-built.md) — `packages/adapters/`
+  (SpecKit + BMAD + Generic + APS-Markdown shipping; OpenSpec + BMAD-v4
+  in progress), `packages/aps/` (validator + templates + examples +
+  schemas), `packages/kindling-integration/` (capture session bridge,
+  observation contract, benchmarks). APS schema drift to public docs
+  flagged (current, against `v0.6.0-beta`)
 
 Planned next set:
 
-- Tutorial subsystem (planned) — `anvil-tui/src/surfaces/tutorial/*` paths,
-  discovery, executor, watch_demo; ProtectionLoop copy invariants
-- Widget catalogue (planned) — `anvil-tui/widgets/` + upstream
-  `eddacraft-tui/widgets/` (data_table, parallel_progress, image_pane,
-  text_input)
-- CLI TUI runner (planned) — `crates/anvil-cli/src/tui.rs` (terminal
-  lifecycle, `run_surface_in` shared-terminal pattern, animation tick)
-- Adapter packages (planned) — `packages/adapters/`, `packages/aps`,
-  `packages/kindling-integration`
 - Workspace / build (planned) — Cargo workspace shape, `nx` / `pnpm`
-  layering, `cargo-dist` release pipeline
+  layering, `cargo-dist` release pipeline, project-level `nx.json` /
+  `Cargo.toml` workspace conventions
 
 ## Living references
 
