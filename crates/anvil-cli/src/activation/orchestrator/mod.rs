@@ -29,7 +29,7 @@
 //! `.anvil/first-run`. `anvil welcome` keeps sole ownership of that
 //! marker so the two surfaces don't fight for first-run state.
 
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write as _};
 use std::path::Path;
 
 use anyhow::Context;
@@ -37,6 +37,7 @@ use anyhow::Context;
 use crate::GlobalArgs;
 use crate::activation::baseline;
 use crate::activation::diagnostic::{ActivationDiagnostic, ConfigStatus, verify_with_home};
+use crate::activation::identity;
 use crate::commands::init;
 use crate::services::sample_analyser;
 
@@ -75,6 +76,52 @@ pub(crate) fn run_with_home(
     if matches!(initial.config, ConfigStatus::Absent) {
         let args = init::InitArgs { force: false };
         init::run_in(&args, global, root).context("init step of `anvil start` failed")?;
+    }
+
+    // Step 1a — establish project identity (MLP-001 / A7.2).
+    //
+    // Writes `anvil/project-id` (UUID v7) if absent. Idempotent on
+    // re-run. This is the foundation for the v1 multi-layer protection
+    // architecture — every witness line, every cross-machine federation,
+    // every fork relationship anchors on this UUID.
+    //
+    // Failures here MUST NOT propagate (orchestrator pattern). The
+    // identity file is a future-architecture-positioning aid for the
+    // current release; without it, existing protection paths (MCP,
+    // daemon, watch) still work unchanged.
+    //
+    // Council C-3 / C-9: surface the failure to the user. The
+    // `tracing::warn!` alone is invisible at default log levels. We
+    // also emit a single noise-disciplined eprintln! so the user can
+    // see something went wrong, AND attach the structured `path`
+    // field for log consumers.
+    let project_id_path = identity::project_id_path(root);
+    if let Err(e) = identity::ensure_project_id(root, env!("CARGO_PKG_VERSION")) {
+        tracing::warn!(
+            error = %e,
+            path = %project_id_path.display(),
+            "orchestrator: failed to establish anvil/project-id; continuing without",
+        );
+        eprintln!(
+            "anvil: could not write {} ({e}); future MLP features will be unavailable",
+            project_id_path.display()
+        );
+    }
+
+    // Step 1a-b — pre-position `.gitattributes` for v1 witness chain
+    // (council C-7 / Pragmatic Finding 6 / spec §5.1).
+    //
+    // MLP-002 (witness chain) hard-depends on `merge=union -text` for
+    // `anvil/witnessed.ndjson` and the manifest. Adding the attribute
+    // line at adoption time means MLP-002 can ship without forcing a
+    // separate `.gitattributes` migration. Idempotent — only appends
+    // if the line is missing. Failures non-propagating, same pattern
+    // as identity.
+    if let Err(e) = ensure_witness_gitattributes(root) {
+        tracing::warn!(
+            error = %e,
+            "orchestrator: failed to update .gitattributes for witness chain; continuing without",
+        );
     }
 
     // Step 1b — write `.anvil/baseline.json` if absent (LAUNCH-010).
@@ -137,6 +184,57 @@ pub(crate) fn run_with_home(
     }
 
     Ok((diagnostic, install_report))
+}
+
+/// Pre-position `.gitattributes` lines for the v1 witness chain
+/// (council C-7 / spec §5.1).
+///
+/// Adds `merge=union -text` for `anvil/witnessed.ndjson` and the
+/// manifest if not already present. Idempotent — searches for the
+/// exact line before appending so re-running `anvil start` doesn't
+/// duplicate. Creates `.gitattributes` if it doesn't exist.
+///
+/// This is foundation for MLP-002. The orchestrator writes the
+/// attribute at adoption time so when MLP-002 lands, parallel
+/// branches' witness writes naturally union-merge instead of
+/// producing conflicts.
+fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
+    const WITNESS_LINES: &[&str] = &[
+        "anvil/witnessed.ndjson merge=union -text",
+        "anvil/witness/manifest/chain.ndjson merge=union -text",
+    ];
+
+    let path = root.join(".gitattributes");
+    let existing = if path.exists() {
+        std::fs::read_to_string(&path)?
+    } else {
+        String::new()
+    };
+
+    let mut to_append = String::new();
+    for line in WITNESS_LINES {
+        if !existing
+            .lines()
+            .any(|existing_line| existing_line.trim() == *line)
+        {
+            if to_append.is_empty() && !existing.is_empty() && !existing.ends_with('\n') {
+                to_append.push('\n');
+            }
+            to_append.push_str(line);
+            to_append.push('\n');
+        }
+    }
+
+    if to_append.is_empty() {
+        return Ok(()); // Idempotent — nothing to do.
+    }
+
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)?;
+    f.write_all(to_append.as_bytes())?;
+    Ok(())
 }
 
 /// Decide whether to surface the interactive picker. We require:
@@ -208,6 +306,129 @@ mod tests {
             "orchestrator should write .anvilrc on a fresh repo"
         );
         assert!(matches!(diag.config, ConfigStatus::Valid));
+    }
+
+    #[test]
+    fn orchestrator_writes_project_id_when_absent() {
+        // A7.2 / MLP-001 — ensure orchestrator establishes project
+        // identity on first run. The file is foundation for v1
+        // multi-layer protection but does not affect current-release
+        // behaviour beyond writing the tracked file.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+
+        let project_id_path = dir.path().join("anvil/project-id");
+        assert!(
+            project_id_path.exists(),
+            "orchestrator should write anvil/project-id on a fresh repo"
+        );
+        let contents = std::fs::read_to_string(&project_id_path).unwrap();
+        assert!(contents.contains("project_uuid:"));
+    }
+
+    #[test]
+    fn orchestrator_project_id_is_idempotent() {
+        // A7.2 / MLP-001 — re-running anvil start must not mint a new
+        // UUID; the existing project-id is the stable identity.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let first = std::fs::read_to_string(dir.path().join("anvil/project-id")).unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let second = std::fs::read_to_string(dir.path().join("anvil/project-id")).unwrap();
+
+        assert_eq!(
+            first, second,
+            "orchestrator must not rewrite anvil/project-id on re-run"
+        );
+    }
+
+    #[test]
+    fn orchestrator_writes_witness_gitattributes() {
+        // Council C-7 — `.gitattributes` must include the witness file
+        // merge=union lines so MLP-002 can ship without forcing a
+        // separate migration.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+
+        let attrs = std::fs::read_to_string(dir.path().join(".gitattributes")).unwrap();
+        assert!(
+            attrs.contains("anvil/witnessed.ndjson merge=union -text"),
+            ".gitattributes must include witness file merge=union line. got:\n{attrs}"
+        );
+        assert!(
+            attrs.contains("anvil/witness/manifest/chain.ndjson merge=union -text"),
+            ".gitattributes must include manifest merge=union line. got:\n{attrs}"
+        );
+    }
+
+    #[test]
+    fn orchestrator_gitattributes_is_idempotent() {
+        // Re-running `anvil start` must not duplicate lines in
+        // .gitattributes.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let first = std::fs::read_to_string(dir.path().join(".gitattributes")).unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let second = std::fs::read_to_string(dir.path().join(".gitattributes")).unwrap();
+
+        assert_eq!(
+            first, second,
+            "orchestrator must not duplicate .gitattributes lines on re-run"
+        );
+    }
+
+    #[test]
+    fn orchestrator_gitattributes_preserves_user_lines() {
+        // Pre-existing `.gitattributes` content must survive; we
+        // append, never overwrite.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        std::fs::write(dir.path().join(".gitattributes"), "*.txt text\n").unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+
+        let attrs = std::fs::read_to_string(dir.path().join(".gitattributes")).unwrap();
+        assert!(
+            attrs.starts_with("*.txt text\n"),
+            "user's existing .gitattributes lines must be preserved"
+        );
+        assert!(attrs.contains("anvil/witnessed.ndjson merge=union -text"));
+    }
+
+    #[test]
+    fn orchestrator_continues_when_project_id_write_fails() {
+        // A7.2 — failures to establish project-id MUST NOT propagate.
+        // Simulate by pre-creating `anvil/project-id` as a directory,
+        // which makes both write-as-file and parse impossible. The
+        // orchestrator should log a warning and finish successfully so
+        // the user still gets MCP install + diagnostic.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        std::fs::create_dir_all(dir.path().join("anvil/project-id")).unwrap();
+
+        let result = run_with_home(dir.path(), Some(home.path()), &global);
+        assert!(
+            result.is_ok(),
+            "orchestrator must not fail when anvil/project-id is unwritable: {result:?}"
+        );
     }
 
     #[test]
