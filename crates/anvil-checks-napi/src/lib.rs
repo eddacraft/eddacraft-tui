@@ -40,6 +40,7 @@ use anvil_checks::antipattern::{
     compiled_to_antipattern, get_pattern as get_pattern_rust, load_compiled_registry,
     scan_artifact as scan_artifact_rust, types::AntiPattern,
 };
+use anvil_kernel::pool::init_global as init_rayon_pool;
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use serde::{Deserialize, Serialize};
@@ -133,6 +134,13 @@ fn default_patterns_from(reg: &CompiledRegistry) -> Vec<AntiPattern> {
 #[allow(clippy::needless_pass_by_value)]
 #[napi]
 pub fn scan_artifact_json(artifact_json: String, options_json: Option<String>) -> Result<String> {
+    // V050F-007: cap rayon's global pool at half available cores so the
+    // editor host that loaded this binding does not get its UI thread
+    // starved by a `scan_artifact_rust` `par_iter`. Idempotent across
+    // calls and across crates (kernel + checks share the same `Once`),
+    // so the cost is one atomic load after the first call.
+    init_rayon_pool();
+
     let input: ArtifactInput = serde_json::from_str(&artifact_json)
         .map_err(|e| Error::new(Status::InvalidArg, format!("artifact JSON: {e}")))?;
 

@@ -4,6 +4,7 @@ pub mod feature_flags;
 pub mod graph;
 pub mod parser;
 pub mod policy;
+pub mod pool;
 pub mod protocol;
 pub mod watch;
 pub mod watcher;

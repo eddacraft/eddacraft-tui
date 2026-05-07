@@ -16,13 +16,12 @@ use crate::policy::invariants::cross_layer::CrossLayerViolation;
 use crate::policy::invariants::new_dependency::NewDependencyIntroduction;
 use crate::policy::invariants::privilege_expansion::PrivilegeExpansion;
 use crate::policy::invariants::public_api::PublicApiExpansion;
+use crate::pool::init_global as init_rayon_pool;
 use crate::protocol::emitter::EventEmitter;
 use crate::watcher::events::ChangeKind;
 use crate::watcher::filter::FileFilter;
 use crate::watcher::pattern::{PatternError, WatchPatternFilter};
 use crate::watcher::{WatcherConfig, start_watcher};
-
-static POOL_INIT: std::sync::Once = std::sync::Once::new();
 
 #[derive(Debug, thiserror::Error)]
 pub enum WatchError {
@@ -173,12 +172,12 @@ fn initial_scan(
     // relies on this. If the extractor changes, update rebasing logic accordingly.
     //
     // Thread pool: capped at half available cores to avoid saturating VS Code extension host.
-    POOL_INIT.call_once(|| {
-        let threads = (num_cpus::get() / 2).max(1);
-        let _ = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global();
-    });
+    // V050F-007: the canonical place to init the pool is the binary entry point
+    // (`crates/anvil-cli/src/main.rs`), but we keep this defensive call here so direct
+    // library consumers (tests, downstream binaries that bypass the CLI) still get the
+    // cap. `init_global` is idempotent so the cost is one atomic load when the CLI
+    // already initialised it at process start.
+    init_rayon_pool();
 
     let parse_results: Vec<Result<(PathBuf, _), (PathBuf, String)>> = all_paths
         .par_iter()

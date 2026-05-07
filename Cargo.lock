@@ -1019,6 +1019,7 @@ name = "eddacraft-anvil-checks-napi"
 version = "0.5.1-beta"
 dependencies = [
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-kernel",
  "napi",
  "napi-build",
  "napi-derive",
