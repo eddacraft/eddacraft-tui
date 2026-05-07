@@ -29,9 +29,9 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 1/11     |
+| V060F | —     | In Progress | 1/19     |
 
-**Last reviewed:** 2026-05-07 (added V060F-002..V060F-011 from the v0.6.0-beta as-built sweep — discrepancies surfaced while the as-built docs for intercept, activation, MCP shim, checks, and kernel were being written against HEAD `97b61fd0`)
+**Last reviewed:** 2026-05-07 (added V060F-002..V060F-011 in batch 1 from the intercept / activation / MCP shim / checks / kernel as-built sweep against HEAD `97b61fd0`; added V060F-012..V060F-019 in batch 2 from the TUI / driver framework / API / observability as-built sweep against HEAD `da4e7ca4`)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
 **Sequencing context:** [plans/next-steps.md](../next-steps.md)
 
@@ -351,6 +351,210 @@ discovery.
 
 ---
 
+### V060F-012: `auth-as-built.md` completeness gap
+
+- **Surface:** `apps/anvil-api/src/routes/auth-github.ts` (246 lines) and
+  `apps/anvil-api/src/db/migrations/005-*.sql` (the
+  `idx_audit_log_metadata_email_lower` case-insensitive expression
+  index)
+- **Flagged by:** api-as-built §"Routes/tables I couldn't classify"
+  (2026-05-07)
+- **Intent:** The auth as-built doc was the original reference impl
+  for the as-built shape, but two surfaces shipped after it were
+  never folded in. `auth-github.ts` is a complete GitHub OAuth flow
+  (246 lines). Migration 005 adds an audit-log index that's part of
+  the auth-system schema but isn't on auth-as-built's schema list.
+- **Expected outcome:** Update `docs/architecture/auth-as-built.md`
+  to include: (a) a "GitHub OAuth flow" subsection alongside the
+  device-code and OTP flows, citing `auth-github.ts`, with the
+  endpoint path and trust-boundary semantics; (b) the
+  `idx_audit_log_metadata_email_lower` row in the schema list with
+  the migration that introduced it. Refresh "Last reviewed" date.
+- **Confidence:** high (small targeted doc edit)
+- **Status:** Open
+
+---
+
+### V060F-013: anvil-observability dead-code purge
+
+- **Surface:** `crates/anvil-observability/src/redaction.rs`
+  (`SENSITIVE_FIELDS: &[&str]` 16-entry deny-list and
+  `is_sensitive_field()` helper)
+- **Flagged by:** observability-as-built §"Known gaps" G-02
+  (2026-05-07)
+- **Intent:** The deny-list and helper are advisory infrastructure
+  with **zero external consumers** in the Rust workspace as of HEAD.
+  The installed tracing subscriber does not consult them; the
+  `[REDACTED]` strings in `anvil-checks` and the §4.4 redaction
+  filter in `validate_write` are local literals, not imports of
+  the helper. The crate's own unit tests are the only callers.
+- **Expected outcome:** Triage decision — either (a) wire the
+  helper into the installed subscriber so the deny-list is actually
+  enforced cross-crate, (b) wire it into `anvil-checks` /
+  `validate_write` redaction call sites where the deny-list is
+  conceptually correct, or (c) delete it. Status quo is the worst
+  option because it implies coverage that doesn't exist.
+- **Confidence:** medium (depends on triage decision)
+- **Status:** Open
+
+---
+
+### V060F-014: namespace registry partial wiring
+
+- **Surface:** `docs/observability/namespace-registry.md` (registry
+  document) vs Rust workspace consumption sites
+- **Flagged by:** observability-as-built §"Known gaps" G-04
+  (2026-05-07)
+- **Intent:** The registry document records three rows
+  (`anvil.flags.*`, `kindling.*`, `anvil.rtai.*`); only
+  `anvil.flags.*` is wired in code (FLAGS module Complete).
+  `kindling.*` is out-of-tree (Edda Stack), `anvil.rtai.*` is
+  provisional pending RTAI promotion. There is no Rust-side
+  registry validation hook — the contract is enforced by
+  founder-reviewed PR, not code. New consumers can drift the
+  registry silently.
+- **Expected outcome:** Either (a) add a build-time validation hook
+  that enforces registry membership for tracing-event
+  field-prefixes, or (b) update the registry document to mark each
+  row's wiring status explicitly so future readers know what's
+  enforced and what's advisory. (a) is more work but kills the
+  drift class permanently.
+- **Confidence:** medium
+- **Status:** Open
+
+---
+
+### V060F-015: driver framework — eight spec-only JSON-RPC methods
+
+- **Surface:** `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`
+  §3.2 (spec) vs `crates/anvil-intercept-proto/src/protocol.rs`
+  (proto) and the daemon's request router
+- **Flagged by:** driver-framework-as-built §12 reconciliation table
+  (2026-05-07)
+- **Intent:** The driver design spec names **fourteen**
+  `anvil/`-namespaced JSON-RPC methods. The proto crate ships
+  **six**. Eight are spec-only with no Rust constant or daemon
+  route:
+  - `anvil/driver/capabilities/update`
+  - `anvil/capability/downgrade` (notification — exists today as a
+    `tracing::warn` log only, no JSON-RPC notification)
+  - `anvil/enforcement/decision`
+  - `anvil/enforcement/refuse` (the constant exists in the TS
+    client's enforcement-ack-class timeout list, not in the
+    protocol vocabulary)
+  - `anvil/suppression/state`
+  - `anvil/gate/result`
+  - `anvil/nudge/metadata`
+  - `anvil/correlation`
+- **Expected outcome:** Per-method triage. For each method,
+  decide: (a) ship the proto constant + daemon route + driver-side
+  consumer; (b) drop from the spec; (c) defer with an explicit
+  ADR-style note in the spec. The eight methods aren't equally
+  important — `enforcement/decision` and `suppression/state` are
+  load-bearing for the editor-driver UX; `nudge/metadata` is more
+  decorative. Triage at the method level, not the umbrella level.
+- **Confidence:** low (mixed scope; needs per-method scoping)
+- **Status:** Open
+
+---
+
+### V060F-016: reliability-budget on-disk persistence
+
+- **Surface:** `crates/anvil-intercept-rules/src/lib.rs`
+  (`QUARANTINE_PERSISTENCE_NOTE` documentation block)
+- **Flagged by:** driver-framework-as-built §"Known gaps"
+  (2026-05-07)
+- **Intent:** The reliability-budget logic is in-process only; the
+  `QUARANTINE_PERSISTENCE_NOTE` documents the on-disk schema and
+  recovery semantics, but no implementation exists. A daemon
+  restart loses the quarantine state, which means a poorly-behaved
+  driver that triggered quarantine in the previous run is allowed
+  back in immediately on restart.
+- **Expected outcome:** Implement the persistence layer per the
+  documented schema. Driver quarantine state survives daemon
+  restart, mirroring the fence-persistence invariant from INTD-005
+  for sessions.
+- **Confidence:** medium (the schema is documented; it's straight
+  implementation against a stable contract)
+- **Status:** Open
+
+---
+
+### V060F-017: panic isolation defeated by `panic="abort"` in release builds
+
+- **Surface:** workspace `Cargo.toml` (`panic = "abort"` profile
+  setting) vs `crates/anvil-intercept-rules/src/lib.rs`
+  (`RuleRegistry`'s `catch_unwind` panic isolation)
+- **Flagged by:** driver-framework-as-built §"anvil-intercept-rules"
+  (2026-05-07)
+- **Intent:** `RuleRegistry` wraps individual rule evaluations in
+  `catch_unwind` so a panicking rule can't bring down the daemon's
+  hot path. But the workspace release profile uses
+  `panic = "abort"`, which makes `catch_unwind` a no-op — a panic
+  in any rule aborts the daemon process. Panic isolation is
+  effectively debug/test-only.
+- **Expected outcome:** Triage decision — either (a) switch the
+  release profile to `panic = "unwind"` for the daemon binary
+  (workspace-wide change with binary-size implications), (b) split
+  the daemon into its own crate with its own profile override, or
+  (c) document the limitation in the as-built and architecture
+  docs and accept the constraint as a v1 trade-off.
+- **Confidence:** medium (the trade-off is real; the choice is
+  hard)
+- **Status:** Open
+
+---
+
+### V060F-018: TuiBackend default flip from Ink to Ratatui
+
+- **Surface:** `crates/anvil-tui/src/shell.rs` (TuiBackend default)
+- **Flagged by:** tui-as-built §"Known gaps" G-02 (2026-05-07)
+- **Intent:** The TUI surface library supports both the legacy
+  Ink-style backend and the new Ratatui backend. RATS module is
+  Complete (7/7) and PORT module is Complete (15/15) — the
+  Ratatui port has shipped — but the default backend in the shell
+  is still Ink. There is no tracked work item to flip the default,
+  which means the new Ratatui surfaces are not the default user
+  experience even though they're production-ready.
+- **Expected outcome:** Flip the default to Ratatui across the
+  CLI surfaces. Confirm snapshot-pinned rendering tests still pass
+  against the new default. Update `--backend` flag (if present) to
+  expose Ink as the explicit fallback.
+- **Confidence:** medium (the technical flip is straightforward;
+  the user-facing change needs validation across terminals)
+- **Status:** Open
+
+---
+
+### V060F-019: `apps/admin-cli` retirement + `X-Admin-Actor` attribution drift
+
+- **Surface:** `apps/admin-cli/src/index.ts` (Node CLI, 7
+  subcommands) vs `apps/anvil-api/src/middleware/admin-auth.ts:88-108`
+  (admin attribution derived from the API key, not the
+  `X-Admin-Actor` header the Node CLI still sends)
+- **Flagged by:** api-as-built §"apps/admin-cli historical Node
+  CLI", G-04 (2026-05-07)
+- **Intent:** RCLI2-009 ported all 7 Node CLI subcommands (`list`,
+  `show`, `approve`, `invite`, `revoke`, `audit`, `send-migration`)
+  to the Rust `anvil admin` surface and added one net-new
+  (`email-update`). The Node CLI still ships and is functional, but
+  it sends an `X-Admin-Actor` header that the current API ignores
+  by design (attribution is now derived from the key itself). The
+  audit-log entries from Node-CLI calls record the API-key actor,
+  not the operator's intended actor name in the header. This is a
+  silent attribution drift.
+- **Expected outcome:** Either (a) execute the documented retirement
+  plan — archive `apps/admin-cli/` to `archive/admin-cli-node/`
+  once the Rust binary is release-grade — and call it done, or
+  (b) update the Node CLI to drop the `X-Admin-Actor` header so
+  audit logs accurately reflect the API surface. Picking (a) is
+  cleaner; (b) is a stopgap.
+- **Confidence:** high (the retirement path is documented; the
+  attribution drift is a small Node-CLI fix)
+- **Status:** Open
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -361,17 +565,27 @@ discovery.
 
 ## Stats
 
-| Phase                     | Items | Status                                                 |
-| ------------------------- | ----- | ------------------------------------------------------ |
-| Deferrals (v0.5.0-beta)   | 0     | —                                                      |
-| Nominations               | 1     | Complete (V060F-001)                                   |
-| As-built sweep follow-ups | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
-| **Total**                 | **11** | 1 Complete / 10 Open                                  |
+| Phase                                | Items | Status                                                 |
+| ------------------------------------ | ----- | ------------------------------------------------------ |
+| Deferrals (v0.5.0-beta)              | 0     | —                                                      |
+| Nominations                          | 1     | Complete (V060F-001)                                   |
+| As-built sweep follow-ups (batch 1)  | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
+| As-built sweep follow-ups (batch 2)  | 8     | Open (V060F-012..V060F-019, filed 2026-05-07)          |
+| **Total**                            | **19** | 1 Complete / 18 Open                                  |
 
-The 10 as-built sweep follow-ups split roughly:
+Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 
 - **CLI gaps** (3): V060F-002 stop, V060F-003 unblock, V060F-005 Windows MCP daemonStatus
 - **Cross-platform behaviour** (1): V060F-004 macOS interrupt-ladder PID-reuse branch
 - **Activation hand-offs** (2): V060F-006 LAUNCH-016 user-config, V060F-007 watch-liveness probing
 - **Doc alignment** (3): V060F-008 kernel-spec status, V060F-009 quality-model dispatch framing, V060F-010 checks ownership
 - **Spec/code reconciliation** (1, multi-item): V060F-011 kernel spec divergences
+
+Batch 2 (TUI / driver framework / API / observability as-builts) split:
+
+- **Doc completeness** (1): V060F-012 auth-as-built (auth-github.ts + audit_log index)
+- **Dead code / drift** (2): V060F-013 observability deny-list, V060F-014 namespace registry partial wiring
+- **Spec/code reconciliation** (1, multi-item): V060F-015 driver framework 8 spec-only JSON-RPC methods
+- **Architectural unfinished** (2): V060F-016 reliability-budget persistence, V060F-017 panic isolation defeated by panic=abort
+- **Surface defaults** (1): V060F-018 TuiBackend default flip Ink → Ratatui
+- **Retirement / attribution** (1): V060F-019 admin-cli retirement + X-Admin-Actor drift
