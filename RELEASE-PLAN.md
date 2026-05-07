@@ -1,7 +1,7 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-05-05 (post `v0.5.1-beta` ship — next-release slate
-unlocked)
+**Last updated:** 2026-05-07 (post-A2-substrate ship + post-tag-remediation —
+slate locked for `v0.6.0-beta`)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons. Source of
 > truth for module status: [`plans/index.aps.md`](./plans/index.aps.md).
@@ -40,31 +40,44 @@ wiring is the headline carry-over (see A1 below).
 
 ---
 
-## CURRENT RELEASE — slate UNLOCKED
+## CURRENT RELEASE — slate LOCKED for `v0.6.0-beta`
 
-The window after `v0.5.1-beta` is open. Pick from Tier A; everything else
-queues. Lock the slate before tagging.
+A1 (Wow-Start Activation) and A2 (Daemon-Backed RMCP + Driver Reach Waves 1–3)
+are both fully shipped on `dev`. The wow-start activation council outcome
+(2026-05-03) is the literal protection claim, and A2 graduates the MCP path from
+embedded fallback to the daemon-backed pipeline so the claim is real.
 
-**Target tag:** TBD — `v0.5.2-beta` if the slate stays patch-shaped (carry-over
-plus small driver reach), `v0.6.0-beta` if the slate accepts a coherent feature
-slice (daemon-backed RMCP, RMCPF, dashboard MVP).
+**Target tag:** **`v0.6.0-beta`** — A1 + A2 substrate together. The cut is ready
+to tag pending one optional follow-up (V050F-006/-011 carry-over via #1323 if it
+merges before the tag).
 
-**Theme proposal:** _Wow-Start activation + Daemon-Backed RTV_ — make
-`install → cd repo → anvil start` the canonical first minute (LAUNCH module's
-activation slice from the 2026-05-03 council), and graduate the MCP path from
-embedded fallback to the daemon-backed pipeline so the activation claim is
-literal. (See ROADMAP Horizon 1 + brainstorms in
-`plans/brainstorms/2026-05-02-wow-start-*.md`.) Adopt or replace at lock time.
+**Theme:** _Wow-Start activation + Daemon-Backed RTV_ —
+`install → cd repo → anvil start` is the canonical first minute. Cursor and
+Claude Code MCP paths activate honestly; watch mode is the save-time fallback
+when MCP can't attach; daemon-backed validation backs the `tools/call` path when
+owner-only IPC is available, with the embedded path as correctness-equivalent
+fallback.
+
+**v0.6.0-beta release artefacts:**
+
+- `docs/runbooks/v0.6.0-beta-security-note.md` — operator-facing trust-boundary
+  note (4 HIGH trade-offs documented: drivers.allow file mode, redaction hash
+  unsalted, §4.4 redaction filter spec-only, Linux PID-reuse TOCTOU window).
+- `docs/runbooks/v0.6.0-beta-release-runbook.md` — operator runbook (5 ops
+  items: foreground daemon, Unix-only `intercept status`, fence persistence,
+  macOS interrupt fencing, Windows CI gap).
 
 **Current progress snapshot:**
 
-| Area                            | State                                                                      | What remains                                                             |
-| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Release closeout                | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed           |
-| Wow-start activation (`LAUNCH`) | Complete, 18/18                                                            | LAUNCH-009.6 (PR #1303) + LAUNCH-011 (PRs #1300/#1301) merged 2026-05-06 |
-| Daemon-backed MCP (`RMCP`)      | Complete, 8/8                                                              | Full parity moves to RMCPF; driver/RTAI follow-ups remain separate       |
-| Carry-over hardening (`V050F`)  | In Progress, 11/16 complete                                                | V050F-006, -007, -008, -011, -015                                        |
-| `V060F` nominations             | Complete, 1/1                                                              | No open nomination work                                                  |
+| Area                                               | State                                                                      | What remains                                                                                                                                    |
+| -------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release closeout                                   | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed                                                                                  |
+| A1 — Wow-start activation (`LAUNCH`)               | Complete, 18/18                                                            | LAUNCH-009.6 (PR #1303) + LAUNCH-011 (PRs #1300/#1301) merged 2026-05-06                                                                        |
+| Daemon-backed MCP launch path (`RMCP`)             | Complete, 8/8                                                              | Full parity moves to RMCPF; A2 graduated the daemon-vs-embedded path                                                                            |
+| A2 — Daemon-backed RMCP + driver reach (Waves 1–3) | Complete                                                                   | 8 PRs (#1304..#1311) + remediation (#1322); INTD 16/16, DRVR 5/5 active, RTAI 6/9; Wave 4 (RTAI-005/-007/-009, DRVR-003) out of cut per ADR-033 |
+| v0.6.0-beta post-substrate polish                  | Complete                                                                   | macOS peer-cred parity (#1331), Windows `intercept status` + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335)    |
+| Carry-over hardening (`V050F`)                     | In Progress, 11/16                                                         | V050F-006, -007, -008, -011, -015. V050F-006/-011 in flight on #1323                                                                            |
+| `V060F` nominations                                | Complete, 1/1                                                              | No open nomination work                                                                                                                         |
 
 ### Carry-over backlog (rides any tag, regardless of theme)
 

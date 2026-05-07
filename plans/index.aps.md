@@ -82,17 +82,20 @@ Individual packages still use semantic versioning for npm/cargo publishes.
 
 ### Current window — slate unlocked
 
-The current planning window starts after `v0.5.1-beta`. The likely headline is
-**Wow-Start activation + Daemon-Backed RTV**, but the slate must be locked before
-tagging. Candidate version remains TBD: `v0.5.2-beta` for a patch-shaped
-hardening cut, or `v0.6.0-beta` for a coherent feature slice.
+The current planning window starts after `v0.5.1-beta`. The slate is now
+**LOCKED for `v0.6.0-beta`**: A1 (Wow-Start Activation) and A2 (Daemon-Backed
+RMCP + Driver Reach Waves 1–3) both fully shipped on `dev`. Tag candidate
+version: **`v0.6.0-beta`**. A2 Wave 4 is explicitly out of cut per ADR-033
+(VS Code extension archived).
 
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
 | Release closeout | Shipped | `v0.5.1-beta` verified | Tracking issue #1233 remains open as the durable release log |
-| Wow-start activation | Complete | LAUNCH 18/18 | LAUNCH-011 (PRs #1300/#1301) and LAUNCH-009.6 (PR #1303) merged 2026-05-06 |
+| Wow-start activation (A1) | Complete | LAUNCH 18/18 | LAUNCH-011 (PRs #1300/#1301) and LAUNCH-009.6 (PR #1303) merged 2026-05-06 |
 | Daemon-backed MCP launch path | Complete | RMCP 8/8 | RMCP-005 live daemon client committed; embedded fallback remains correctness-equivalent |
-| Release hardening follow-ups | In Progress | V050F 11/16 | Open: V050F-006/-007/-008/-011/-015 |
+| Daemon-backed RMCP + driver reach (A2 Waves 1–3) | Complete | INTD 16/16, DRVR 5/5 active, RTAI 6/9 | A2 substrate shipped via 8 PRs (#1304..#1311) + remediation (#1322); Wave 4 (RTAI-005/-007/-009, DRVR-003) deferred per ADR-033; v0.6.0-beta release notes at `docs/runbooks/v0.6.0-beta-{security-note,release-runbook}.md` |
+| v0.6.0-beta post-substrate polish | Complete | n/a | macOS peer-cred parity (#1331), Windows status surface + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335) |
+| Release hardening follow-ups | In Progress | V050F 11/16 | Open: V050F-006/-007/-008/-011/-015. V050F-006/-011 in flight on #1323 (cache scanner hot-path regex compiles) |
 | Release nominations | Complete | V060F 1/1 | RCLI2-009 admin command parity complete |
 
 ### Last release — `v0.5.0-beta` (shipped 2026-05-01)
