@@ -69,6 +69,34 @@ struct PreparedPattern {
     /// after `primary_regex` matches. Only set for the six rules whose
     /// registry pattern the `regex` crate cannot express directly.
     post_filter: Option<PostFilter>,
+    /// V050F-006: compiled allowlist globs paired with their original
+    /// pattern source. The pre-compilation moves the per-pattern regex
+    /// build cost out of the per-file hot path. Patterns that fail to
+    /// compile are dropped here (they never matched at the old call
+    /// site either, since `glob_to_regex` returned `None`); the
+    /// invalid-pattern path is silent because the registry / `.anvil`
+    /// authoring tools already validate globs.
+    allowlist_regexes: Vec<AllowlistGlob>,
+}
+
+/// Pair of an allowlist glob's original `pattern` string with its
+/// compiled `Regex`. Held by [`PreparedPattern::allowlist_regexes`].
+///
+/// V050F-006: separated from a bare `Vec<Regex>` so the hot-path
+/// matcher can keep the historical match-base semantics — when a glob
+/// has no `/`, the regex is matched against the file's basename, not
+/// the full path — without re-parsing the pattern on every call.
+#[derive(Debug)]
+struct AllowlistGlob {
+    /// The original glob string, kept so the matcher can decide
+    /// whether to match against `file_path` or `basename(file_path)`.
+    pattern: String,
+    /// Compiled regex equivalent of `pattern`. `None` means the glob
+    /// failed to compile in `prepare_pattern`; the matcher treats it
+    /// as a no-op (matches nothing), which mirrors the pre-V050F
+    /// behaviour where `glob_to_regex` returned `None` and
+    /// `is_some_and` short-circuited to `false`.
+    regex: Option<Regex>,
 }
 
 /// Replaces a PCRE lookaround with a Rust-side predicate applied after the
@@ -173,21 +201,29 @@ fn glob_to_regex(pattern: &str) -> Option<Regex> {
     Regex::new(&regex).ok()
 }
 
-fn glob_match(file_path: &str, pattern: &str, match_base: bool) -> bool {
+/// Match a path against a pre-compiled allowlist (V050F-006).
+/// Mirrors the historical `glob_match` match-base semantics — when
+/// the original glob has no `/`, the regex matches against the
+/// basename, not the full path — without re-parsing or re-compiling
+/// on every call.
+///
+/// `regex == None` (compile failed in `prepare_pattern`) returns
+/// `false` for that entry, identical to the previous
+/// `glob_to_regex(...).is_some_and(...)` short-circuit.
+fn is_file_allowlisted_compiled(file_path: &str, allowlist: &[AllowlistGlob]) -> bool {
     let normalised = normalise_path(file_path);
-    let target = if match_base && !pattern.contains('/') {
-        basename(&normalised)
-    } else {
-        normalised.as_str()
-    };
-
-    glob_to_regex(pattern).is_some_and(|regex| regex.is_match(target))
-}
-
-fn is_file_allowlisted(file_path: &str, allowlist: &[String]) -> bool {
-    allowlist
-        .iter()
-        .any(|pattern| glob_match(file_path, pattern, true))
+    let basename = basename(&normalised);
+    allowlist.iter().any(|entry| {
+        let Some(regex) = entry.regex.as_ref() else {
+            return false;
+        };
+        let target = if entry.pattern.contains('/') {
+            normalised.as_str()
+        } else {
+            basename
+        };
+        regex.is_match(target)
+    })
 }
 
 fn create_warning_from_match(
@@ -439,6 +475,13 @@ fn suppression_for_line(
 }
 
 fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
+    // V050F-006: precompile the allowlist regexes so the hot-path
+    // `is_file_allowlisted` does not pay one regex compile per
+    // (allowlist entry × scanned file). The `prepare_pcre_rewrite`
+    // / AP-001 branches build their PreparedPattern manually, so they
+    // call this helper too.
+    let allowlist_regexes = compile_allowlist(&pattern.allowlist);
+
     // AP-001's registry regex uses a PCRE negative-lookahead
     // (`(?!-next-line|-line)`) that Rust's RE2-based `regex` crate cannot
     // compile. Split it into two lookahead-free regexes and OR the matches at
@@ -450,6 +493,7 @@ fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
             secondary_regex: Regex::new(r"//\s*eslint-disable\s*$").ok(),
             compile_error: None,
             post_filter: None,
+            allowlist_regexes,
         };
     }
 
@@ -471,6 +515,7 @@ fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
             compile_error: None,
             post_filter: None,
             pattern,
+            allowlist_regexes,
         },
         Err(err) => PreparedPattern {
             primary_regex: None,
@@ -478,8 +523,24 @@ fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
             compile_error: Some(err.to_string()),
             post_filter: None,
             pattern,
+            allowlist_regexes,
         },
     }
+}
+
+/// V050F-006: pre-compile every allowlist glob into its regex
+/// equivalent so the per-file hot path does no work beyond regex
+/// matching. Glob → regex mapping mirrors [`glob_to_regex`] exactly;
+/// failures yield `regex: None` so the matcher's behaviour is the
+/// same as the previous `glob_to_regex(...).is_some_and(...)` shape.
+fn compile_allowlist(allowlist: &[String]) -> Vec<AllowlistGlob> {
+    allowlist
+        .iter()
+        .map(|pattern| AllowlistGlob {
+            regex: glob_to_regex(pattern),
+            pattern: pattern.clone(),
+        })
+        .collect()
 }
 
 /// Specification for a hand-coded PCRE rewrite: the regex-crate-compatible
@@ -593,6 +654,7 @@ fn prepare_pcre_rewrite(pattern: &AntiPattern) -> Option<PreparedPattern> {
         secondary_regex: None,
         compile_error: None,
         post_filter: Some(post_filter),
+        allowlist_regexes: compile_allowlist(&pattern.allowlist),
         pattern: pattern.clone(),
     })
 }
@@ -610,6 +672,7 @@ fn rewrite_compile_error(
             pattern.id
         )),
         post_filter: None,
+        allowlist_regexes: compile_allowlist(&pattern.allowlist),
         pattern: pattern.clone(),
     }
 }
@@ -822,7 +885,7 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
             {
                 continue;
             }
-            if is_file_allowlisted(&artifact.reference, &prepared.pattern.allowlist) {
+            if is_file_allowlisted_compiled(&artifact.reference, &prepared.allowlist_regexes) {
                 continue;
             }
         }
@@ -948,6 +1011,94 @@ mod tests {
     fn allowlist_skips_paths_matching_glob_rules() {
         let result = scan_file("src/foo/__tests__/sample.ts", "const x: any = 1;", None);
         assert!(result.warnings.is_empty());
+    }
+
+    // V050F-006: pin the allowlist-cache shape and matcher behaviour
+    // so a future refactor that moves regex compilation back into the
+    // hot path is caught.
+
+    #[test]
+    fn prepare_pattern_caches_one_regex_per_allowlist_entry() {
+        use crate::antipattern::types::{AntiPattern, AntiPatternCategory, Confidence};
+
+        let pattern = AntiPattern {
+            id: "T-CACHE".to_string(),
+            name: "test".to_string(),
+            category: AntiPatternCategory::CodeQuality,
+            severity: crate::antipattern::types::WarningSeverity::Info,
+            confidence: Confidence::Low,
+            regex: "foo".to_string(),
+            title: "Cache test".to_string(),
+            explanation: String::new(),
+            suggestion: String::new(),
+            nudge: None,
+            file_extensions: None,
+            all_file_types: true,
+            allowlist: vec![
+                "**/__tests__/**".to_string(),
+                "src/foo.ts".to_string(),
+                "*.test.ts".to_string(),
+            ],
+            threshold: None,
+            enabled: true,
+            opt_in: false,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+            targets: None,
+        };
+        let prepared = super::prepare_pattern(pattern);
+        assert_eq!(
+            prepared.allowlist_regexes.len(),
+            3,
+            "every allowlist entry must produce exactly one cache slot"
+        );
+        for entry in &prepared.allowlist_regexes {
+            assert!(
+                entry.regex.is_some(),
+                "well-formed glob {:?} must compile in prepare_pattern",
+                entry.pattern,
+            );
+        }
+    }
+
+    #[test]
+    fn compiled_allowlist_matcher_preserves_match_base_semantics() {
+        // Bare-name globs (no `/`) match against the basename, full-
+        // path globs match against the full normalised path. This
+        // mirrors the historical `glob_match(_, _, match_base=true)`
+        // contract from the pre-cache implementation.
+        let allowlist =
+            super::compile_allowlist(&["*.test.ts".to_string(), "src/foo/**".to_string()]);
+        assert!(
+            super::is_file_allowlisted_compiled("src/foo/sample.test.ts", &allowlist),
+            "bare *.test.ts must match basename"
+        );
+        assert!(
+            super::is_file_allowlisted_compiled("src/foo/bar.ts", &allowlist),
+            "src/foo/** must match full path"
+        );
+        assert!(
+            !super::is_file_allowlisted_compiled("src/baz/bar.ts", &allowlist),
+            "src/baz/bar.ts must not be allowlisted"
+        );
+    }
+
+    #[test]
+    fn compiled_allowlist_treats_uncompilable_entries_as_no_match() {
+        // The legacy `glob_to_regex(...).is_some_and(...)` shape
+        // returned `false` when compilation failed. Pin the
+        // cache-side equivalent: an `AllowlistGlob` with `regex:
+        // None` must never match, even if its `pattern` would equal
+        // the file path.
+        let entries = vec![super::AllowlistGlob {
+            pattern: "src/uncompilable.ts".to_string(),
+            regex: None,
+        }];
+        assert!(
+            !super::is_file_allowlisted_compiled("src/uncompilable.ts", &entries),
+            "regex: None must short-circuit to no-match"
+        );
     }
 
     #[test]
