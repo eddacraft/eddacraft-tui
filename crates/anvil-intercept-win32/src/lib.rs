@@ -682,8 +682,11 @@ mod tests {
             .enable_all()
             .build()
             .expect("tokio runtime");
-        let server = create_owner_only_pipe_server(&pipe_name, PipeInstance::First)
-            .expect("bind owner-only server");
+        let server = {
+            let _guard = runtime.enter();
+            create_owner_only_pipe_server(&pipe_name, PipeInstance::First)
+                .expect("bind owner-only server")
+        };
 
         let server_task = runtime.spawn(async move {
             let mut server = server;
