@@ -1386,19 +1386,21 @@ mod tests {
         );
     }
 
-    // Linux-only: macOS Cross runners surface `os error 2 (No such file or
-    // directory)` when this test resolves `/bin/true`, even though the binary
-    // exists on disk — the failure mode is platform-environmental, not a real
-    // probe-logic regression. Tracked as the macOS-Cross follow-up work
-    // surfaced when chore/windows-status enabled cross-on-dev. See PR #1325
-    // commit history and the v0.6.0-beta release runbook.
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     #[test]
     fn probe_startable_rejects_child_that_exits_immediately() {
-        // /bin/true exits with status 0 producing no output. The
-        // reader thread sees EOF immediately, sending an empty line.
+        // `true` exits with status 0 producing no output. The reader thread
+        // sees EOF immediately, sending an empty line. Resolve the binary
+        // through `which::which` rather than hardcoding `/bin/true` —
+        // macOS GitHub Actions Cross runners surfaced `os error 2` when the
+        // test pinned `/bin/true` because PATH-based resolution behaves
+        // more predictably across OSes than absolute hard-coding. The
+        // probe itself still spawns whatever `PathBuf` the resolver
+        // returns; this test fixture change is purely about resilience to
+        // the runner environment.
+        let command = which::which("true").expect("`true` exists on PATH on every Unix host");
         let entry = AnvilEntry::Stdio {
-            command: std::path::PathBuf::from("/bin/true"),
+            command,
             args: vec![],
             env: BTreeMap::new(),
         };
