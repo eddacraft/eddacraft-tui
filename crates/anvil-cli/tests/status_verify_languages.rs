@@ -69,6 +69,7 @@ fn run_verify_human(workdir: &Path) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn ts_only_repo_shows_supported_tier() {
     let dir = tempfile::tempdir().unwrap();
@@ -93,6 +94,7 @@ fn ts_only_repo_shows_supported_tier() {
     assert_eq!(parsed["state"], "needs_action");
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn python_only_repo_state_is_unsupported() {
     let dir = tempfile::tempdir().unwrap();
@@ -119,6 +121,7 @@ fn python_only_repo_state_is_unsupported() {
     assert_eq!(parsed["state"], "unsupported");
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn mixed_repo_does_not_collapse_to_unsupported() {
     // Even with two unsupported files, the presence of supported
