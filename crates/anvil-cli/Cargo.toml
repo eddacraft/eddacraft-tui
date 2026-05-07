@@ -19,6 +19,7 @@ animate = { workspace = true }
 anvil-tui = { path = "../anvil-tui", package = "eddacraft-anvil-tui" }
 anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-rayon-init = { path = "../anvil-rayon-init", package = "eddacraft-anvil-rayon-init" }
 anvil-policy = { path = "../anvil-policy", package = "eddacraft-anvil-policy" }
 anvil-architecture = { path = "../anvil-architecture", package = "eddacraft-anvil-architecture" }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }

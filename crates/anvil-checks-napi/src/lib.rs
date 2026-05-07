@@ -40,7 +40,7 @@ use anvil_checks::antipattern::{
     compiled_to_antipattern, get_pattern as get_pattern_rust, load_compiled_registry,
     scan_artifact as scan_artifact_rust, types::AntiPattern,
 };
-use anvil_kernel::pool::init_global as init_rayon_pool;
+use anvil_rayon_init::init_global as init_rayon_pool;
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use serde::{Deserialize, Serialize};

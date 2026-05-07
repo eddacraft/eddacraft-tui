@@ -471,7 +471,7 @@ fn main() -> ExitCode {
     // `par_iter` — rayon defaulted to `num_cpus::get()` and the cap
     // was silently absent. Calling it from `main` first guarantees
     // the cap is always in force.
-    anvil_kernel::pool::init_global();
+    anvil_rayon_init::init_global();
 
     // TRACE-001: install the cross-cutting tracing subscriber once at
     // process start. `Err` means a global subscriber was already
