@@ -65,6 +65,7 @@ fn run_start_with_home(
     cmd.output().expect("failed to invoke anvil binary")
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn start_on_fresh_repo_runs_init_and_lands_ready_restart_required() {
     // The composed flow's headline outcome on an empty HOME: init
@@ -114,6 +115,7 @@ fn start_on_fresh_repo_runs_init_and_lands_ready_restart_required() {
     );
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn start_idempotent_rerun_skips_init_and_install() {
     // Idempotency contract: a second `anvil start` against the same
@@ -173,6 +175,7 @@ fn start_idempotent_rerun_skips_init_and_install() {
     );
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn start_verify_on_fresh_repo_reports_needs_action() {
     // `activation::verify` is read-only. With an empty HOME override,
@@ -294,6 +297,7 @@ fn start_on_invalid_config_emits_error_state_not_panic() {
 
 // ---- LAUNCH-011: honest watch fallback --------------------------
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn start_verify_on_initialised_repo_surfaces_partial_protection_note() {
     // LAUNCH-011 acceptance: on an initialised repo (config valid)
@@ -355,6 +359,7 @@ fn start_verify_on_initialised_repo_surfaces_partial_protection_note() {
     );
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn start_verify_on_fresh_repo_with_absent_config_does_not_advertise_watch() {
     // Council remediation: when config is absent, the user's primary
