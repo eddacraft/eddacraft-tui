@@ -552,29 +552,24 @@ created_at: 2026-05-07T12:34:56Z
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn ensure_refuses_when_anvil_is_a_symlink() {
         // Council C-10: a symlink at `anvil/` could route writes
         // outside the repo. Refuse rather than silently follow.
+        // Unix-only: Windows symlinks require elevated permissions
+        // unless dev mode is enabled, so we don't run this on Windows.
         let dir = TempDir::new().unwrap();
         let elsewhere = TempDir::new().unwrap();
-        // Skip on platforms where symlinking isn't trivially available
-        // (Windows requires elevated permissions for symlinks unless
-        // dev mode is enabled).
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("anvil")).unwrap();
-            let err = ensure_project_id(dir.path(), "0.6.0").unwrap_err();
-            assert!(
-                matches!(err, IdentityError::Malformed(_)),
-                "expected Malformed for symlink anvil/, got {err:?}"
-            );
-            assert!(
-                !elsewhere.path().join("project-id").exists(),
-                "must not write project-id through the symlink"
-            );
-        }
-        #[cfg(not(unix))]
-        let _ = elsewhere;
+        std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("anvil")).unwrap();
+        let err = ensure_project_id(dir.path(), "0.6.0").unwrap_err();
+        assert!(
+            matches!(err, IdentityError::Malformed(_)),
+            "expected Malformed for symlink anvil/, got {err:?}"
+        );
+        assert!(
+            !elsewhere.path().join("project-id").exists(),
+            "must not write project-id through the symlink"
+        );
     }
 }
