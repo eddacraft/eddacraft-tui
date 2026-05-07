@@ -19,7 +19,12 @@
 //!   (`watch::run_watch`, `embedded::run_embedded`) call it
 //!   defensively for direct lib consumers.
 //! - The NAPI binding (`crates/anvil-checks-napi`) calls it from
-//!   each entry point so the editor host inherits the cap.
+//!   `scan_artifact_json` (the only entry that actually drives a
+//!   rayon `par_iter` via `scan_artifact_rust`); other NAPI
+//!   entries (`version`, `get_default_patterns_json`,
+//!   `get_pattern_json`) only read the registry and do not need
+//!   the call. If a future NAPI export touches a parallel scan
+//!   path, it should call `init_global` at its top.
 //!
 //! ## Why centralise this
 //!
