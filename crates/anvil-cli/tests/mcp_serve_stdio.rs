@@ -1,4 +1,10 @@
 //! RMCP-002: `anvil mcp serve --stdio` starts a Rust stdio MCP server.
+//!
+//! Unix-only: this integration test wires up `IpcListener::bind(&Path)`
+//! which has a different signature on Windows (`&str` named-pipe form).
+//! Gate the whole integration test file rather than per-test so the
+//! test binary compiles cleanly on Windows Cross.
+#![cfg(unix)]
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
