@@ -27,8 +27,12 @@ Before opening a PR, run the same checks CI runs:
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features
 cargo test --all-features
-cargo publish --dry-run
+cargo publish --dry-run --all-features
 ```
+
+(CI matches the `--all-features` `publish --dry-run` row, since the
+crate ships the `image` and `big-text` features and only the
+all-features tarball exercises every gate.)
 
 If any command fails, fix the issue before pushing.
 
@@ -75,8 +79,10 @@ docs: clarify shell branding options in README
    refactors from behavioural changes when feasible.
 3. **Fill in a short summary** of what changed and why. Include a
    test plan — what you verified locally.
-4. **CI must be green.** `Check` and `CodeQL` are required on `main`
-   and `Check` is required on `dev`.
+4. **CI must be green.** `main` requires `Check (default)`,
+   `Check (all-features)`, `Check (no-default-features)`,
+   `MSRV (1.88.0)`, `Supply chain (audit + deny)`, and `CodeQL`.
+   `dev` runs the same matrix without enforcing required contexts.
 5. **Resolve every review thread.** Either apply the change or reply
    with the reasoning; do not leave threads unanswered.
 6. **No force-pushing after review starts** unless you are rebasing

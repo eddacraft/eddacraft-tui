@@ -15,11 +15,12 @@ pub struct ProgressBar<'a, T: Theme> {
     label: Option<&'a str>,
 }
 
+#[non_exhaustive]
 pub struct ProgressBarState {
     pub current: u64,
     pub total: u64,
-    pub display_fraction: AnimatedF64,
-    pub target_fraction: f64,
+    pub(crate) display_fraction: AnimatedF64,
+    pub(crate) target_fraction: f64,
 }
 
 impl Default for ProgressBarState {

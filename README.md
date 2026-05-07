@@ -33,7 +33,7 @@ Implements the eddacraft Terminal Standard:
 
 ```toml
 [dependencies]
-eddacraft-tui = "0.1"
+eddacraft-tui = "0.2"
 ```
 
 ```rust
@@ -88,7 +88,7 @@ The `widgets/` module ships a curated component set. Highlights:
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.1", features = ["image", "big-text"] }
+eddacraft-tui = { version = "0.2", features = ["image", "big-text"] }
 ```
 
 [`ratatui-image`]: https://crates.io/crates/ratatui-image
@@ -141,7 +141,9 @@ root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
 
 ## Acknowledgements
 
-Spinner support is powered by [`rattles`](https://github.com/vyfor/rattles), a minimal Rust terminal spinner library.
+Smooth progress and spinner animations are powered by
+[`vyfor/animate`](https://github.com/vyfor/animate), a minimal animation
+engine for Ratatui.
 
 The `pretext` module ports the layout engine and widget originally
 prototyped in [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui),
