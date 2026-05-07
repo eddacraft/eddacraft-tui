@@ -30,6 +30,7 @@
 import type { DriverClient } from '../client/driver-client.js';
 import type { Diagnostic } from '../diagnostics/types.js';
 import { DriverClientError, mapDaemonErrorRetriable, type DriverError } from '../errors.js';
+import { ANVIL_SCAN_BUFFER } from '../protocol/index.js';
 
 import {
   DEFAULT_DEBOUNCE_MS,
@@ -38,10 +39,33 @@ import {
   type DebouncerScheduler,
 } from './debouncer.js';
 
-/** RPC method name on the daemon. Pinned by RTAI-002. */
-export const SCAN_BUFFER_METHOD = 'scan_buffer' as const;
+/**
+ * RPC method name on the daemon for mid-edit buffer scans.
+ *
+ * Re-export of the canonical `ANVIL_SCAN_BUFFER` constant
+ * (`"anvil/scan_buffer"`) from `../protocol/`, which mirrors the
+ * authoritative Rust constant
+ * `anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER`. Earlier code
+ * pinned a local `'scan_buffer'` literal; the daemon dual-routes both
+ * the bare and namespaced forms today (DRVR-002), but using the
+ * canonical name everywhere prevents silent vocabulary drift if a
+ * future capability-negotiation enforcement on
+ * `supported_anvil_methods` gates the bare-name form.
+ *
+ * The `SCAN_BUFFER_METHOD` name is preserved as the export identifier
+ * because external consumers — and the `@eddacraft/anvil-driver-client`
+ * package's own re-export surface — already import it under that name.
+ */
+export const SCAN_BUFFER_METHOD = ANVIL_SCAN_BUFFER;
 
-/** Mid-edit `mode` discriminator on the wire. */
+/**
+ * Mid-edit `mode` discriminator on the wire. Pinned at the literal
+ * `"midEdit"` because that string IS the canonical wire form
+ * (`Mode::parse` accepts both `midEdit` and `mid-edit`, but every
+ * fixture and the daemon's own emission use the camelCase variant).
+ * No `anvil/` namespace applies — `mode` is a parameter value, not a
+ * method name.
+ */
 export const SCAN_BUFFER_MODE_MID_EDIT = 'midEdit' as const;
 
 /**
@@ -182,7 +206,7 @@ export function createMidEditValidator(
         };
         try {
           const response = await client.request<ScanBufferResponse>(
-            SCAN_BUFFER_METHOD,
+            ANVIL_SCAN_BUFFER,
             requestParams
           );
           return response;
