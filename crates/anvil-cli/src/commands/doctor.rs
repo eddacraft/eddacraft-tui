@@ -102,6 +102,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_plans_dir(),
         check_hooks_installed(),
         check_registry_patterns_compile(),
+        check_project_id(),
     ]
 }
 
@@ -585,6 +586,65 @@ fn check_hooks_installed() -> DiagnosticCheck {
 /// "rule ran, no matches" and "rule never ran".
 fn check_registry_patterns_compile() -> DiagnosticCheck {
     compile_check_from_diagnostics(&anvil_checks::antipattern::registry_compile_diagnostics())
+}
+
+/// Check `anvil/project-id` (MLP-001 / A7.2 / council C-4).
+///
+/// Three states:
+/// - file present + parses → Pass
+/// - file absent → Warn (foundation for v1 features missing; `anvil
+///   start` would create it)
+/// - file present but malformed → Fail (manual repair required —
+///   anvil-managed files are not silently rewritten)
+fn check_project_id() -> DiagnosticCheck {
+    use crate::activation::identity;
+
+    let root = std::path::Path::new(".");
+    match identity::read_project_id(root) {
+        Ok(Some(id)) => DiagnosticCheck {
+            name: "project-id".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Pass,
+            message: format!("project identity established: {}", id.project_uuid),
+            details: id.forked_from.as_ref().map(|p| format!("forked_from: {p}")),
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        },
+        Ok(None) => DiagnosticCheck {
+            name: "project-id".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Warn,
+            message: "anvil/project-id not found".to_string(),
+            details: Some(
+                "v1 multi-layer protection features (witness chain, baseline, hooks) require this file. Run `anvil start` to establish project identity."
+                    .to_string(),
+            ),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: "Run `anvil start` to write `anvil/project-id` with a stable UUID."
+                    .to_string(),
+                command: Some("anvil start".to_string()),
+                doc_url: None,
+            },
+        },
+        Err(e) => DiagnosticCheck {
+            name: "project-id".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Fail,
+            message: format!("anvil/project-id is malformed: {e}"),
+            details: Some(
+                "Anvil refuses to silently rewrite the identity file. Repair manually (the file is plain text, key:value lines) or remove it and re-run `anvil start` to mint a fresh UUID."
+                    .to_string(),
+            ),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: "Manually repair `anvil/project-id` or remove and re-run `anvil start`."
+                    .to_string(),
+                command: None,
+                doc_url: None,
+            },
+        },
+    }
 }
 
 fn compile_check_from_diagnostics(
