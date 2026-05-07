@@ -164,7 +164,12 @@ require a coordinated bundle — pick them off in any order.
   `antipattern_scan/parallel_mixed_corpus` after the change to
   confirm the speedup.
 - **Confidence:** high
-- **Status:** Todo
+- **Status:** Complete — branch `fix/v050f-scanner-hotpath`. Added
+  `AllowlistGlob` (the glob string + its compiled `Regex`) and a
+  `compile_allowlist` helper; `prepare_pattern` now compiles the
+  allowlist once and stores it on `PreparedPattern.allowlist_regexes`.
+  Hot-path call site uses the new `is_file_allowlisted_compiled`
+  which preserves match-base semantics without re-parsing.
 
 ### V050F-007: Initialise rayon pool eagerly in the binary entry point
 
@@ -243,7 +248,16 @@ require a coordinated bundle — pick them off in any order.
   since both are in the secret/scanner hot path.
 - **Confidence:** medium — signature change touches every direct
   caller of `scan_content`
-- **Status:** Todo
+- **Status:** Complete — branch `fix/v050f-scanner-hotpath`. Both
+  options shipped: (a) new hot-path primitive
+  `scan_content_with_compiled_patterns` takes a pre-compiled
+  `&[CompiledPattern]` slice and `run_secret_check` now compiles
+  custom patterns once and threads the slice through rayon workers;
+  (b) new `scan_content_with_pattern_errors_and_stats` returns
+  `(Vec<SecretFinding>, ScanStats, Vec<String>)` so third-party
+  callers can route the errors. Legacy `scan_content_with_*`
+  wrappers preserve their signatures but emit `tracing::warn!` on
+  any dropped error so the silent-loss path is observable.
 
 ### V050F-012: Fix CI scoop publisher PAT scope
 
