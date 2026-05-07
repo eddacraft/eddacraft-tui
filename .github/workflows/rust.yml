@@ -50,6 +50,32 @@ env:
   CARGO_ABOUT_VERSION: '0.8.4'
 
 jobs:
+  # Cheap path-classification job so cross-compile (the heaviest matrix in
+  # this workflow — Windows + macOS runners, six targets) only fires when
+  # actual Rust files change. The workflow-level `paths:` filter still
+  # includes `pnpm-lock.yaml` etc. because Test/Clippy/Build use Nx targets
+  # that depend on the lockfile; this per-job gate scopes cross-compile
+  # specifically to Rust-touching diffs. See PR #1325 for the dev-branch
+  # trigger this complements.
+  detect-rust-changes:
+    name: Detect Rust Changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust-changed: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - 'tools/nx-rust/**'
+              - '.github/workflows/rust.yml'
+
   nxrust-smoke:
     name: nxrust Smoke
     runs-on: ubuntu-latest
@@ -357,12 +383,19 @@ jobs:
     # and dev, and on PRs targeting either branch. Feature-branch PRs
     # still skip this job — coverage scales with the integration target,
     # not with every transient feature branch.
+    #
+    # Additionally gate on `detect-rust-changes` so JS-only diffs (e.g.
+    # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
+    # still admits, because Test/Clippy depend on the lockfile) don't
+    # spin up the Windows + macOS matrix. Rust-only signals — `crates/**`,
+    # `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `tools/nx-rust/**`,
+    # and this workflow file itself — still fire cross-compile.
     if: >-
-      (github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
+      ((github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
       github.ref)) || (github.event_name == 'pull_request' && contains(fromJSON('["main", "dev"]'),
-      github.base_ref))
+      github.base_ref))) && needs.detect-rust-changes.outputs.rust-changed == 'true'
     runs-on: ${{ matrix.os }}
-    needs: check
+    needs: [check, detect-rust-changes]
     strategy:
       fail-fast: false
       matrix:
