@@ -165,11 +165,14 @@ require a coordinated bundle — pick them off in any order.
   confirm the speedup.
 - **Confidence:** high
 - **Status:** Complete — branch `fix/v050f-scanner-hotpath`. Added
-  `AllowlistGlob` (the glob string + its compiled `Regex`) and a
-  `compile_allowlist` helper; `prepare_pattern` now compiles the
-  allowlist once and stores it on `PreparedPattern.allowlist_regexes`.
-  Hot-path call site uses the new `is_file_allowlisted_compiled`
-  which preserves match-base semantics without re-parsing.
+  `AllowlistGlob` (compiled `Regex` plus the precomputed
+  `is_path_glob: bool` match-base flag — original glob strings stay
+  in `pattern.allowlist`) and a `compile_allowlist` helper;
+  `prepare_pattern` now compiles the allowlist once and stores the
+  runtime artefacts on `PreparedPattern.allowlist_regexes`. Hot-path
+  call site uses the new `is_file_allowlisted_compiled` which
+  preserves match-base semantics without re-parsing or
+  `pattern.contains('/')` per match.
 
 ### V050F-007: Initialise rayon pool eagerly in the binary entry point
 
