@@ -191,16 +191,20 @@ require a coordinated bundle — pick them off in any order.
   point (or NAPI init hook) before either consumer can reach rayon.
 - **Confidence:** high
 - **Status:** Complete — branch `fix/v050f-rayon-init`. Centralised the
-  half-cores cap in a new `anvil_kernel::pool::init_global` (idempotent
-  via `std::sync::Once`); replaced the duplicated `POOL_INIT.call_once`
-  blocks in `kernel/src/watch.rs` and `kernel/src/embedded.rs` with
-  delegating calls. The CLI binary entry point
-  (`crates/anvil-cli/src/main.rs`) calls `init_global` as the first
-  statement in `main()`, before any subcommand can dispatch to a
-  rayon-using path. The NAPI binding
+  half-cores cap in a new dedicated micro-crate
+  `anvil-rayon-init::init_global` (idempotent via `std::sync::Once`);
+  replaced the duplicated `POOL_INIT.call_once` blocks in
+  `kernel/src/watch.rs` and `kernel/src/embedded.rs` with delegating
+  calls. The CLI binary entry point (`crates/anvil-cli/src/main.rs`)
+  calls `init_global` as the first statement in `main()`, before any
+  subcommand can dispatch to a rayon-using path. The NAPI binding
   (`crates/anvil-checks-napi`) calls `init_global` at the top of
   `scan_artifact_json` so the editor host that loads the binding
   inherits the cap before any `scan_artifact_rust` `par_iter` runs.
+  The helper lives in its own crate (rather than `anvil-kernel`) to
+  avoid linking the full kernel graph into the NAPI cdylib for what
+  is genuinely four lines of pool init — council finding,
+  kernel-maintainer.
 
 ### V050F-008: Bench baselines collected on a CI-class machine
 
