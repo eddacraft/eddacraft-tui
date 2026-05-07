@@ -16,12 +16,12 @@ use crate::policy::invariants::cross_layer::CrossLayerViolation;
 use crate::policy::invariants::new_dependency::NewDependencyIntroduction;
 use crate::policy::invariants::privilege_expansion::PrivilegeExpansion;
 use crate::policy::invariants::public_api::PublicApiExpansion;
-use crate::pool::init_global as init_rayon_pool;
 use crate::protocol::emitter::EventEmitter;
 use crate::watcher::events::ChangeKind;
 use crate::watcher::filter::FileFilter;
 use crate::watcher::pattern::{PatternError, WatchPatternFilter};
 use crate::watcher::{WatcherConfig, start_watcher};
+use anvil_rayon_init::init_global as init_rayon_pool;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WatchError {

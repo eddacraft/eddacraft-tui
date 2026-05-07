@@ -1,5 +1,11 @@
 //! Shared rayon global-pool initialiser (V050F-007).
 //!
+//! Hosted as a dedicated micro-crate so every rayon consumer in the
+//! workspace can depend on it without dragging unrelated kernel /
+//! checks code (council finding: kernel-maintainer flagged a heavy
+//! `anvil-kernel` dep on `anvil-checks-napi` for what is genuinely
+//! four lines of pool init).
+//!
 //! Anvil caps rayon's global thread pool at half available cores
 //! (minimum 1) so a long-running editor / VS Code extension host
 //! coexisting with a scan does not get its UI thread starved. The

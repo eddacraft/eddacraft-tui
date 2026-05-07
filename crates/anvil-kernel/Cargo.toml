@@ -11,6 +11,7 @@ name = "anvil_kernel"
 
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-rayon-init = { path = "../anvil-rayon-init", package = "eddacraft-anvil-rayon-init" }
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 tree-sitter-javascript = { workspace = true }
@@ -24,7 +25,6 @@ walkdir = { workspace = true }
 ignore = "0.4"
 globset = { workspace = true }
 rayon = { workspace = true }
-num_cpus = { workspace = true }
 workspace-hack.workspace = true
 
 [dev-dependencies]

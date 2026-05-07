@@ -958,6 +958,7 @@ dependencies = [
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-observability",
  "eddacraft-anvil-policy",
+ "eddacraft-anvil-rayon-init",
  "eddacraft-anvil-tui",
  "eddacraft-tui",
  "hex",
@@ -1019,7 +1020,7 @@ name = "eddacraft-anvil-checks-napi"
 version = "0.5.1-beta"
 dependencies = [
  "eddacraft-anvil-checks",
- "eddacraft-anvil-kernel",
+ "eddacraft-anvil-rayon-init",
  "napi",
  "napi-build",
  "napi-derive",
@@ -1090,10 +1091,10 @@ version = "0.5.1-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-kernel-types",
+ "eddacraft-anvil-rayon-init",
  "globset",
  "ignore",
  "notify",
- "num_cpus",
  "petgraph",
  "rayon",
  "serde",
@@ -1146,6 +1147,15 @@ dependencies = [
  "wait-timeout",
  "walkdir",
  "which",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-rayon-init"
+version = "0.5.1-beta"
+dependencies = [
+ "num_cpus",
+ "rayon",
  "workspace-hack",
 ]
 
