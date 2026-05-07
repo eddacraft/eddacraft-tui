@@ -643,7 +643,7 @@ impl DispatcherInner {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 impl ActionDispatcher {
     /// Test-only constructor that overrides the resolved `exe`. Used for
     /// kill-on-shutdown tests that spawn `/bin/sleep` directly without
