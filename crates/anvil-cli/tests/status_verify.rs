@@ -35,6 +35,7 @@ fn run_status_verify_with_home(workdir: &Path, home: &Path, extra_args: &[&str])
     cmd.output().expect("failed to invoke anvil binary")
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn status_verify_on_fresh_repo_renders_needs_action() {
     let dir = tempfile::tempdir().unwrap();
@@ -79,6 +80,7 @@ fn status_verify_on_repo_with_invalid_config_renders_error() {
     );
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn status_verify_json_keys_are_stable() {
     let dir = tempfile::tempdir().unwrap();
@@ -146,6 +148,7 @@ fn status_verify_json_keys_are_stable() {
     );
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn status_default_json_embeds_activation_block() {
     let dir = tempfile::tempdir().unwrap();

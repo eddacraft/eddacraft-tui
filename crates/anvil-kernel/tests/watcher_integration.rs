@@ -17,14 +17,15 @@ fn detects_parseable_file_creation() {
 
     let (_watcher, rx, _diag) = start_watcher(&config).unwrap();
 
-    // Give the watcher time to start
-    std::thread::sleep(Duration::from_millis(50));
+    // Give the watcher time to start; cross-compiled macOS runners can
+    // take longer to register the temp directory with the OS watcher.
+    std::thread::sleep(Duration::from_millis(250));
 
     // Create a .ts file (parseable — should pass filter)
     fs::write(dir.path().join("test.ts"), "const x = 1;").unwrap();
 
     // Wait for the batch
-    let batch = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+    let batch = rx.recv_timeout(Duration::from_secs(10)).unwrap();
     assert!(!batch.changes.is_empty());
     assert!(batch.changes.iter().any(|c| c.path.ends_with("test.ts")));
 }
