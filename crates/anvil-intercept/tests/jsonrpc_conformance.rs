@@ -1105,6 +1105,52 @@ async fn query_status_rejects_params() {
 }
 
 #[tokio::test]
+async fn query_status_routes_namespaced_alias() {
+    // DRVR-002 + INTD-011 dual-routing: drivers that import the
+    // canonical `anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY`
+    // constant must hit a live route. The bare `query_status` form is
+    // preserved for legacy CLI consumers; both names share the same
+    // handler and produce the same response shape.
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "anvil/status/query",
+        "id": "status-namespaced"
+    }))
+    .await;
+
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "status-namespaced");
+    assert!(response.get("error").is_none(), "error: {response}");
+    let result = &response["result"];
+    assert_eq!(result["sessions"], json!([]));
+    assert_eq!(result["worktrees"], json!([]));
+    assert_eq!(result["fences"], json!([]));
+    assert!(result["health"]["uptime_seconds"].is_u64());
+    assert_eq!(result["health"]["ipc_state"], "serving");
+    assert!(
+        result["latency"]["mid_edit"].is_null(),
+        "no traffic must wire as null, got {result}",
+    );
+}
+
+#[tokio::test]
+async fn query_status_namespaced_alias_rejects_params() {
+    // Symmetric with `query_status_rejects_params` — the canonical
+    // form shares the same parameter contract (none allowed).
+    let response = request(json!({
+        "jsonrpc": "2.0",
+        "method": "anvil/status/query",
+        "params": {"unexpected": true},
+        "id": "status-namespaced-bad-params"
+    }))
+    .await;
+
+    assert_eq!(response["id"], "status-namespaced-bad-params");
+    assert_eq!(response["error"]["code"], -32602);
+    assert_eq!(response["error"]["message"], "Invalid params");
+}
+
+#[tokio::test]
 async fn query_status_notification_is_silently_dropped() {
     // JSON-RPC 2.0: notifications never get a response. Status query
     // is request-shaped — a notification form is treated as a no-op.
