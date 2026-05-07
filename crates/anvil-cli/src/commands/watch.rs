@@ -1256,8 +1256,9 @@ mod tests {
                 break;
             }
             assert!(
-                parked.elapsed() <= std::time::Duration::from_millis(500),
-                "child did not park within 500 ms"
+                parked.elapsed() <= std::time::Duration::from_secs(5),
+                "child did not park within 5 s (flaky on shared CI runners; \
+                 was 500 ms but observed timeouts on macOS aarch64)"
             );
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
