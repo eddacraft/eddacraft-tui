@@ -976,6 +976,7 @@ dependencies = [
  "toml",
  "tracing",
  "walkdir",
+ "which",
  "wiremock",
  "workspace-hack",
 ]
