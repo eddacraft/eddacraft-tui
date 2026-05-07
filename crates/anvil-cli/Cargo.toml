@@ -53,6 +53,9 @@ tracing = { workspace = true }
 axoupdater = { version = "0.10", features = ["blocking"] }
 workspace-hack.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
+
 [dev-dependencies]
 temp-env = "0.3"
 wiremock = "0.6"

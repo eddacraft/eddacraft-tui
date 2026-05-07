@@ -1062,7 +1062,12 @@ mod tests {
         assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
     }
 
-    #[cfg(unix)]
+    // Match `validate_connected_peer_for_client`'s cfg gate: peer-cred is
+    // implemented on Linux (SO_PEERCRED) and macOS (getpeereid) only; on
+    // BSD/Solaris the helper still returns "not implemented", which would
+    // make this test fail deterministically. Narrow from cfg(unix) so the
+    // test only runs where the daemon path is expected to succeed.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn live_daemon_mcp_tool_call_matches_embedded_diagnostic_envelope() {
         let runtime = Runtime::new().expect("tokio runtime starts");

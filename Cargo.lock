@@ -953,6 +953,7 @@ dependencies = [
  "eddacraft-anvil-intercept",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
+ "eddacraft-anvil-intercept-win32",
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-observability",
