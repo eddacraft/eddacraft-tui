@@ -52,8 +52,10 @@ anvil start --verify   # probe state, no writes
 ```
 
 If you only need to re-run the install in isolation, use `anvil mcp install`
-directly (next section). For Windsurf, VS Code, or HTTP transport, use
-`anvil mcp-config` further down.
+directly (next section). For HTTP transport or workspace-scoped paths against
+Cursor or Claude Code, use `anvil mcp-config` further down. Windsurf and VS
+Code are not currently `mcp-config` targets in v0.6.0-beta — see the manual
+configuration section.
 
 ## One-Step Install with `anvil mcp install`
 
@@ -72,9 +74,13 @@ anvil mcp install --client claude-code
 anvil mcp install --client cursor --verify
 ```
 
-The installer is restricted to Cursor and Claude Code. For Windsurf, VS Code, or
-any setup that needs HTTP transport or workspace-scoped paths, use
-`anvil mcp-config` below.
+The installer is restricted to Cursor and Claude Code. `anvil mcp-config`
+below covers the same two clients with extra knobs (HTTP transport,
+workspace-scoped paths). For Windsurf or VS Code, hand-write the
+configuration using the [Manual Configuration](#manual-configuration) section
+— the previous `mcp-config` Windsurf and VS Code targets were removed in
+LAUNCH-009.5 (Windsurf was never protocol-verified; the VS Code emitter
+wrote to the pre-1.99 file shape and silently no-op'd on current builds).
 
 ## Generate Configuration with `anvil mcp-config`
 
@@ -99,8 +105,6 @@ Supported targets:
 | ----------- | ------------- | ----------------- |
 | Claude Code | `claude-code` | stdio             |
 | Cursor      | `cursor`      | stdio             |
-| Windsurf    | `windsurf`    | stdio             |
-| VS Code     | `vscode`      | stdio             |
 
 Pass `--transport http` to switch a client to HTTP transport when the editor
 supports it; stdio remains the default.

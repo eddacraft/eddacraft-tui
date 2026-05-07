@@ -28,8 +28,8 @@ Concretely the daemon:
   Windows named pipe (`crates/anvil-intercept/src/ipc.rs`,
   `crates/anvil-intercept-win32/src/lib.rs`).
 - Persists fence state to disk so an interrupted enforcement decision survives
-  daemon crash, machine reboot, or `stop` / `start --foreground`
-  (`crates/anvil-intercept/src/fence.rs`).
+  daemon crash, machine reboot, or a Ctrl-C / SIGTERM-driven shutdown followed
+  by a fresh `start --foreground` (`crates/anvil-intercept/src/fence.rs`).
 - Runs the Unix SIGINT → SIGTERM → SIGKILL ladder (or Windows Job Object
   termination) with a PID-reuse defence, falling back to a fence on any
   uncertainty (`crates/anvil-intercept/src/interrupt.rs`).
@@ -231,15 +231,19 @@ empty, the listener returns `-32005 Server busy: rate limit exceeded` and lets
 the connection continue (`dos.rs:31-39`). Killing on rate-limit would cause
 innocent retries to escalate against the connection cap.
 
-### 4.5 `intercept status` Unix-only gate
+### 4.5 `intercept status` cross-platform shape
 
 The CLI's `query_daemon_status` has Unix and Windows branches
-(`intercept.rs:77-148`). Both speak the same wire shape — but the runbook
-narrative that "`intercept status` hard-fails on Windows in v1" is **stale
-relative to HEAD `8bbe65b9`**. The Windows path now connects to
-`pipe_name_for_current_user` via `connect_owner_only_pipe_client` and runs
-through `query_daemon_status_windows_at` (`intercept.rs:170+`); see §16
-gap 2 for the canonical line-by-line.
+(`intercept.rs:77-148`). Both speak the same wire shape, and `--json`
+returns the same `DaemonStatusV1` on either OS. The Unix arm connects to the
+UDS path resolved by `validate_socket_path_for_client`. The Windows arm
+connects to `pipe_name_for_current_user` via
+`connect_owner_only_pipe_client` and runs through
+`query_daemon_status_windows_at` (`intercept.rs:143-148`, `:170+`). The
+hard-fail-on-Windows error message that earlier drafts of the runbook
+quoted is no longer in the code. The remaining Windows gap is **MCP-side
+only** (`correlation.daemonStatus` always `not-wired`); see §12 and §16
+gap 9 for the framing.
 
 ## 5. Authentication and trust boundary
 
@@ -338,8 +342,9 @@ load (`fence.rs:317-380`). Store-parent directory is checked for `0700` mode
 **Restart does NOT release fences.** This is the most common operator
 expectation gap — the runbook (`docs/runbooks/v0.6.0-beta-release-runbook.md`
 §3) records that operators reaching for "restart the daemon" hit this design.
-Fence state survives `stop`/`start --foreground`, daemon crash, machine
-reboot, and any combination thereof (`fence.rs::tests::fenced_worktree_survives_store_reload`,
+Fence state survives Ctrl-C / SIGTERM shutdown followed by a fresh
+`start --foreground`, daemon crash, machine reboot, and any combination
+thereof (`fence.rs::tests::fenced_worktree_survives_store_reload`,
 `fence.rs:557-570`). The fence is meant to outlive ungraceful daemon shutdown so
 an interrupted enforcement decision is not silently undone.
 
@@ -355,18 +360,22 @@ The data path is owned by `FenceStore::unblock_worktree`
 for deleted worktrees), removes the record, persists the result, and returns
 the `FenceRecord` that was removed (or `None` if no fence existed).
 
-A **CLI front-end for unblock has not yet shipped in HEAD `8bbe65b9`.** The
-runbook documents `anvil intercept unblock --worktree <path>` /
-`anvil intercept unblock --all` as the supported recovery surface
-(`docs/runbooks/v0.6.0-beta-release-runbook.md:151-157`), but
+A **CLI front-end for `unblock` is not shipping in v1.**
 `crates/anvil-cli/src/commands/intercept.rs:22-30` declares only `Start` and
-`Status` subcommands. See §16 gap 1.
+`Status` subcommands; the `anvil intercept unblock --worktree <path>` /
+`anvil intercept unblock --all` operator surface is planned for a follow-up
+INTD task that wires the existing `FenceStore::unblock_worktree` helper to a
+clap subcommand. The intent and operator-facing shape are recorded in
+`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.1; the current
+operator-runbook (`docs/runbooks/v0.6.0-beta-release-runbook.md` §3) names
+the v1 recovery path explicitly. See §16 gap 1.
 
-Fence-state corruption recovery is the **hard reset** path documented in
-`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.2:
+The supported v1 recovery is the **hard reset** path documented in
+`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.2: stop the foreground
+daemon (Ctrl-C in its terminal, or SIGTERM by PID), then
 `rm -rf ${XDG_DATA_HOME:-$HOME/.local/share}/anvil` (or
-`%LOCALAPPDATA%\anvil` on Windows). That destroys all fence state for the
-user, so prefer the unblock path first when it ships.
+`%LOCALAPPDATA%\anvil` on Windows), then re-launch. That destroys **all**
+fence state for the user — there is no worktree-scoped CLI recovery in v1.
 
 ## 9. Interrupt ladder
 
@@ -559,12 +568,14 @@ SHA-256; per-startup HMAC is tracked for the next tag (security note H2).
   rendered output is identical (`intercept.rs:121-132`,
   `intercept.rs:170+`).
 
-**`stop` and `unblock` are not yet shipped CLI commands in HEAD `8bbe65b9`.**
-The runbook documents both as if they were
-(`docs/runbooks/v0.6.0-beta-release-runbook.md:43-56, 151-157`); the
-underlying daemon surfaces (shutdown signals, `FenceStore::unblock_worktree`)
-are wired and the CLI front-ends will ride a follow-up. See §16 gaps 1 and
-2.
+**`stop` and `unblock` are not shipped CLI commands in HEAD `8bbe65b9`.**
+The underlying daemon surfaces (shutdown signals,
+`FenceStore::unblock_worktree`) are wired, but the CLI front-ends ride a
+follow-up INTD task. The operator-runbook
+(`docs/runbooks/v0.6.0-beta-release-runbook.md` §1, §3) names the v1
+substitutes: Ctrl-C / SIGTERM by PID for shutdown, daemon-stop +
+`rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"` for fence recovery.
+See §16 gap 1.
 
 ## 15. Win32 listener
 
@@ -607,14 +618,14 @@ The Windows cross-compile CI matrix is covered in
    data path (`FenceStore::unblock_worktree`) and shutdown signals are
    wired, but the CLI surfaces ride a follow-up. **Code is truth; runbook
    is aspirational here.**
-2. **`intercept status` Windows narrative is stale.** The runbook
-   (`v0.6.0-beta-release-runbook.md:67-120`) describes a hard-fail at
-   `intercept.rs:161-167`. In HEAD `8bbe65b9` the Windows status client
-   actually ships at `crates/anvil-cli/src/commands/intercept.rs:143-148`
-   and `:170+` (`query_daemon_status_windows_at`) and connects through
-   `connect_owner_only_pipe_client`. Operators on Windows do get a status
-   response in v1; the MCP-side `daemonStatus: not-wired` gap (item below)
-   remains.
+2. **(Resolved 2026-05-07.)** Originally tracked the runbook's stale
+   "Windows hard-fails" framing for `anvil intercept status`. The runbook
+   was corrected to match HEAD: the Windows status client ships at
+   `crates/anvil-cli/src/commands/intercept.rs:143-148` and `:170+`
+   (`query_daemon_status_windows_at`, via `connect_owner_only_pipe_client`)
+   and operators on Windows get a parity status response. The residual
+   Windows MCP gap is gap 9 below (`daemonStatus: not-wired` from the
+   `cfg(unix)`-gated MCP validation client).
 3. **macOS `current_process_start_time` branch missing.**
    `crates/anvil-intercept/src/interrupt.rs:419-431` returns `None`
    unconditionally on macOS. AD-7 forces a fence on every interrupt

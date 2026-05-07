@@ -43,8 +43,11 @@ session, these are the right places to spend it.
   cross-language checks (e.g. secrets) still run on every file.
 - **Foreground daemon ops.** The daemon runs in foreground only in v1
   (`anvil intercept start --foreground`). Fences survive restart; recovery is
-  `anvil intercept unblock`, not a restart. `anvil intercept status` is
-  Unix-only this release.
+  to stop the daemon (Ctrl-C, or SIGTERM by PID) and remove the fence
+  directory at `${XDG_DATA_HOME:-$HOME/.local/share}/anvil` -- the
+  `anvil intercept stop` / `unblock` CLI subcommands are not wired in v1.
+  `anvil intercept status` is available on every supported target this
+  release; the only Windows gap is the MCP correlation envelope.
 - **`anvil version` install-method awareness.** Reports current and latest
   version and prints the upgrade command for your install method (Homebrew,
   Scoop, WinGet, installer, dev build).
@@ -473,21 +476,28 @@ One sentence describing what happened.
 - **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
   install, and Copilot / Codex CLI integration are explicitly out of scope.
   No process auto-attach.
-- **`anvil intercept status` is Unix-only in v1.** On Windows the command
-  hard-fails with a structured error; the named-pipe CLI client lands in a
-  follow-up.
-- **Daemon-backed validation is Unix-only today.** On Windows the MCP path's
-  `correlation.daemonStatus` is `not-wired` -- the embedded fallback handles
-  validation correctness, but the daemon path is not yet attached on the
-  Windows side.
+- **`anvil intercept status` is available on every supported target.** The
+  Unix path speaks the UDS IPC; the Windows path drives the same wire shape
+  over the named pipe via `connect_owner_only_pipe_client`. `--json` returns
+  the same `DaemonStatusV1` on either OS.
+- **MCP daemon-status correlation is Unix-only today.** On Windows the
+  `anvil_validate_write` MCP tool's `correlation.daemonStatus` is always
+  `not-wired` because the MCP daemon validation client is gated `cfg(unix)`.
+  The embedded fallback handles validation correctness; the daemon-status
+  signal in MCP responses cannot distinguish daemon-up from daemon-down on
+  Windows in this cut. Tracked under `chore/windows-status`.
 - **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
   -- backgrounded launches are not a v1 surface.
-- **Fences survive daemon restart.** Recovery is `anvil intercept unblock
-  --worktree <path>` (or `--all`); a daemon restart will not release a fence
-  by design.
+- **Fences survive daemon restart, and the `stop` / `unblock` CLI surface is
+  not in v1.** `anvil intercept` declares only `start` and `status` in this
+  release; the `FenceStore::unblock_worktree` data path ships, but the CLI
+  front-end is a follow-up INTD task. Recovery is: stop the foreground
+  daemon (Ctrl-C, or SIGTERM by PID) and remove the fence directory at
+  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. There is no worktree-scoped
+  CLI recovery in v1.
 - **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS
   fence the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder.
-  Recover with `anvil intercept unblock`.
+  Recovery is the same daemon-stop + fence-directory removal as above.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change.
 - **Primary language coverage is TypeScript and JavaScript.** SQL and Markdown

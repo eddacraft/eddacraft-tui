@@ -14,19 +14,29 @@ shipping. The shape is set by the [as-built template](_as-built-template.md)
 
 - [Auth System](auth-as-built.md) — beta auth API, token lifecycle, JWT
   licence, device-code / OTP flows, gaps register (current)
+- [Intercept daemon](intercept-as-built.md) — IPC surface (UDS + named pipe),
+  peer-cred trust boundary, AD-7 fence-on-failure, fence persistence,
+  interrupt ladder, registry, win32 listener (current, against `v0.6.0-beta`)
+- [Activation orchestrator](activation-as-built.md) — `anvil start` flow,
+  six-state protection vocabulary, language profile (LAUNCH-015/-016),
+  MCP install (LAUNCH-009), watch-fallback decision (LAUNCH-011) (current,
+  against `v0.6.0-beta`)
+- [MCP shim](mcp-shim-as-built.md) — Rust MCP server, `anvil_validate_write`
+  tool, daemon-backed vs embedded-fallback validation, correlation envelope,
+  §4.4 redaction filter (current, against `v0.6.0-beta`)
+- [Checks pipeline](checks-as-built.md) — `anvil-checks` registry, AP / AI /
+  GS / DD / RL families, suppressions, language-profile gating, baseline,
+  the four CLI surfaces (current, against `v0.6.0-beta`)
+- [Kernel](kernel-as-built.md) — watcher (notify + glob filter), tree-sitter
+  parser, semantic graph (KERN-020..023), policy engine, embedded API,
+  watch loop. Supersedes `rust-kernel-spec.md` for "what shipped" (current,
+  against `v0.6.0-beta`)
 
-Planned next set (placeholders — write these as the components stabilise):
+Planned next set:
 
-- Intercept daemon (planned) — owner-only IPC, validation pipeline,
-  cross-platform spawn-probe behaviour
-- Activation orchestrator (planned) — `anvil start` wow-start path, MCP
-  install detection, watch-mode fallback
-- MCP shim (planned) — Rust MCP server, tool surface, daemon-backed vs
-  embedded-fallback validation
-- Kernel (planned) — watcher / parser / semantic graph / policy engine
-  runtime; companion to the kernel spec below
-- Checks (planned) — `anvil-checks` pipeline, finding model, suppression
-  parser, baseline behaviour
+- TUI surfaces (planned) — Ratatui watch / status / audit / doctor surfaces
+- Driver framework client (planned) — `anvil-driver-client` protocol surface
+- API + admin (planned) — `apps/anvil-api` non-auth surfaces; `apps/admin-cli`
 
 ## Living references
 

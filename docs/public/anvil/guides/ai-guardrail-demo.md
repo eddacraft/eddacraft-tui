@@ -196,13 +196,19 @@ a partial AI edit needs cleaning up:
 ```bash
 git checkout -- .
 git clean -fd
-anvil intercept unblock --worktree "$PWD"
+# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
+anvil intercept start --foreground
 ```
+
+The `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are
+not wired in v1; stop the foreground daemon directly and remove the fence
+directory to release fences.
 
 To wipe everything and start over:
 
 ```bash
-anvil intercept stop
+# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
 rm -rf ~/anvil-demo
 rm -rf "${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil"
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"

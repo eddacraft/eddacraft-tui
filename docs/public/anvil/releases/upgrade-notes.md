@@ -20,9 +20,10 @@ path, and the protection-loop tutorial) are opt-in via `anvil start`, so an
 existing `anvil check` / `anvil watch` / `anvil gate` workflow keeps running
 unchanged. Operators running the daemon should read the
 [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
-for the five operational realities of the cut (foreground-only daemon, Unix-only
-`intercept status`, fence persistence across restart, macOS fence-first
-interrupt ladder, `main`-only Windows CI), and the
+for the five operational realities of the cut (foreground-only daemon,
+cross-platform `intercept status` with the MCP correlation envelope still
+Unix-only, fence persistence across restart with no `stop`/`unblock` CLI in
+v1, macOS fence-first interrupt ladder, `main`-only Windows CI), and the
 [v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-security-note.md)
 for the four HIGH trust-boundary trade-offs the release council surfaced.
 
@@ -76,16 +77,24 @@ scoop update anvil
 - **`anvil version`** — install-method-aware version output detects Homebrew,
   Scoop, WinGet, the installer, or a dev build, and prints the recommended
   upgrade command. The JSON shape is pinned for agent and CI consumers.
-- **Windows named-pipe daemon listener** — the daemon listener side ships on
-  Windows with an owner-only DACL and rejected remote clients. The Windows
-  CLI client side and `anvil intercept status` parity land in the
-  `chore/windows-status` follow-up.
+- **Windows named-pipe daemon listener and CLI status client** — the daemon
+  listener side ships on Windows with an owner-only DACL and rejected remote
+  clients, and `anvil intercept status` drives the same wire shape over the
+  named pipe via `connect_owner_only_pipe_client`. `--json` returns the same
+  `DaemonStatusV1` on Unix and Windows. The remaining Windows gap is in the
+  MCP correlation envelope only: `correlation.daemonStatus` returned by
+  `anvil_validate_write` is always `not-wired` on Windows because the MCP
+  daemon validation client is gated `cfg(unix)`. That narrower fix lands as
+  part of `chore/windows-status`.
 - **Operator-visible defaults you should know about.** The foreground daemon
   is the only supported launch mode in v1 (`anvil intercept start
-  --foreground`). Fences persist across daemon restart by design — recovery
-  is `anvil intercept unblock --worktree <path>`, not `intercept stop` /
-  `start`. On macOS, the interrupt ladder is fence-first this release because
-  `current_process_start_time` lacks a macOS branch.
+  --foreground`). The `anvil intercept stop` and `anvil intercept unblock`
+  CLI subcommands are not wired in v1 — a follow-up INTD task wires the
+  front-end. Fences persist across daemon restart by design; recovery is to
+  stop the foreground daemon (Ctrl-C, or SIGTERM by PID) and remove
+  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. On macOS, the interrupt
+  ladder is fence-first this release because `current_process_start_time`
+  lacks a macOS branch.
 
 ## Upgrading to 0.5.1-beta
 

@@ -84,42 +84,53 @@ The most common pitfalls are summarised below.
 to the controlling TTY.
 
 If a start fails with "address already in use" or a stale-PID complaint, a
-prior instance is the most likely cause. Stop it cleanly first:
+prior instance is the most likely cause. The `anvil intercept stop` CLI
+subcommand is not wired in v1, so stop it directly:
 
-```bash
-anvil intercept stop
-```
+1. Press Ctrl-C in the controlling terminal of the foreground daemon (sends
+   SIGINT to the shutdown handler).
+2. If the controlling terminal is gone, send `SIGTERM` to the PID
+   (`kill <PID>`) and wait 10 seconds.
+3. Escalate to `SIGKILL` (`kill -9 <PID>`) only if SIGTERM did not unwind.
 
-If that does not work, send `SIGTERM` to the PID and wait 10 seconds before
-escalating to `SIGKILL`. Always pair a `SIGKILL` with a directory cleanup of
+Always pair a `SIGKILL` with a directory cleanup of
 `${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil` to clear the stale socket and
 PID file — otherwise the next start refuses on the leftover state.
 
-### `anvil intercept status` is Unix-only in v1
+### `anvil intercept status` is available on every supported target
 
-On Unix, `anvil intercept status` queries the daemon over the UDS IPC and
-prints uptime / sessions / fences / latency. On Windows, the same command
-hard-fails with a structured error in `v0.6.0-beta`; the named-pipe CLI
-client lands later. As a partial signal, the MCP `anvil_validate_write`
-response includes `correlation.daemonStatus` — but that field reports
-`not-wired` on Windows in this release. There is no Windows-side `intercept
-status` workaround for v1.
+`anvil intercept status` queries the daemon over the UDS IPC on Unix and
+over the named pipe on Windows (via `connect_owner_only_pipe_client`),
+printing uptime / sessions / fences / latency on either OS. `--json` returns
+the same `DaemonStatusV1` shape on Unix and Windows.
+
+The remaining Windows gap is in the MCP correlation envelope only:
+`correlation.daemonStatus` returned by `anvil_validate_write` is always
+`not-wired` on Windows because the MCP daemon validation client is gated
+`#[cfg(unix)]` in this cut. An MCP client inspecting that field on Windows
+sees `not-wired` even when the daemon is healthy and the CLI confirms it;
+fetch the full rollup directly from `anvil intercept status` instead.
+Tracked under `chore/windows-status`.
 
 ### Fences survive daemon restart
 
-A fenced worktree stays fenced across `anvil intercept stop`/`start`, daemon
-crashes, and machine reboots. **Restart does not release fences** — that's by
-design. Recover with:
+A fenced worktree stays fenced across daemon stop/start, daemon crashes, and
+machine reboots. **Restart does not release fences** — that's by design.
+
+The `anvil intercept unblock` CLI subcommand is not wired in v1; the
+`FenceStore::unblock_worktree` daemon-side data path ships, but the CLI
+front-end is a planned follow-up INTD task. Recovery in this release is:
 
 ```bash
-anvil intercept unblock --worktree "<path>"
-# or, to release every fenced worktree
-anvil intercept unblock --all
+# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
+anvil intercept start --foreground
 ```
 
-If `unblock` itself fails, the fence file is the source of truth — see the
+This destroys all fence state for the user — there is no worktree-scoped
+CLI recovery in v1. See the
 [release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
-for the hard-reset path.
+§3 for the canonical sequence.
 
 ### macOS interrupt ladder fences instead of signalling
 
@@ -130,7 +141,8 @@ fence. Operators on macOS should expect:
 
 - Fenced worktrees rather than signal ladders for interrupted sessions
 - `anvil intercept status` showing `fenced: true` more often than on Linux
-- Recovery via `anvil intercept unblock --worktree`
+- Recovery via daemon stop + fence-directory removal (no worktree-scoped CLI
+  recovery in v1)
 
 This is expected v1 behaviour, tracked outside the release.
 

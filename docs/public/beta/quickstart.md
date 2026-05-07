@@ -189,17 +189,24 @@ We are especially interested in feedback on these areas in `0.6.0-beta`:
 
 - **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
   install, and Copilot / Codex CLI integration are explicitly out of scope.
-- **`anvil intercept status` is Unix-only in v1.** On Windows the command
-  hard-fails with a structured error; the named-pipe CLI client lands in a
-  follow-up.
+- **`anvil intercept status` works on every supported target.** The Unix path
+  speaks the UDS IPC; the Windows path drives the same wire shape over the
+  named pipe and `--json` returns the same `DaemonStatusV1` on either OS. The
+  remaining Windows gap is in the MCP correlation envelope only:
+  `correlation.daemonStatus` returned by `anvil_validate_write` is always
+  `not-wired` on Windows in this cut, tracked under `chore/windows-status`.
 - **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
   -- backgrounding is not a v1 surface. Operators running under systemd / launchd
   should run foreground under the manager's supervision.
-- **Fences survive daemon restart.** Recovery is `anvil intercept unblock
-  --worktree <path>` (or `--all`), not a daemon restart.
+- **Fences survive daemon restart.** The `anvil intercept stop` and
+  `anvil intercept unblock` CLI subcommands are not wired in v1 (a follow-up
+  INTD task tracks the front-end). Recovery is: stop the foreground daemon
+  (Ctrl-C, or SIGTERM by PID), then
+  `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"` to clear fence state,
+  then re-launch.
 - **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS fence
   the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recover
-  the same way: `anvil intercept unblock`.
+  the same way as above: stop the daemon and remove the fence directory.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change. File Windows bugs
   with that caveat noted.

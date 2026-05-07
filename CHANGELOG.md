@@ -50,13 +50,15 @@ engineering maintenance are recorded in the
   `getpeereid(2)` on macOS for the same UID-based same-user trust check the
   Linux build performs via `SO_PEERCRED`. macOS deployments are now at parity
   with Linux on the daemon trust boundary.
-- **Windows named-pipe daemon listener** — the daemon listener side ships for
-  Windows via `crates/anvil-intercept-win32`, with an owner-only DACL and
-  `reject_remote_clients(true)`. The Windows CLI client side lands in the
-  `chore/windows-status` follow-up.
+- **Windows named-pipe daemon listener and CLI status client** — the daemon
+  listener side ships for Windows via `crates/anvil-intercept-win32`, with an
+  owner-only DACL and `reject_remote_clients(true)`, and the synchronous
+  Win32 client (`connect_owner_only_pipe_client`) backs `anvil intercept
+  status` so `--json` returns the same `DaemonStatusV1` shape on Unix and
+  Windows.
 - **`anvil intercept status`** — operator status surface for the daemon over
-  the Unix IPC, returning sessions, fences, latency, and uptime as documented
-  in the RTAI demo runbook contract.
+  the local IPC on every supported target, returning sessions, fences,
+  latency, and uptime as documented in the RTAI demo runbook contract.
 - **`anvil admin` parity in the main CLI** — admin operational commands are
   now reachable from the main `anvil` binary alongside the existing
   `anvil-admin` operator CLI.
@@ -67,22 +69,27 @@ engineering maintenance are recorded in the
   daemon with `anvil intercept start --foreground`. Background launch
   mechanics exist in the binary but are not a v1 surface; service-manager
   integration should run the daemon under foreground supervision.
-- **`anvil intercept status` is Unix-only in this release** — on Windows the
-  command hard-fails with a structured error pointing at the
-  `chore/windows-status` follow-up. On Unix, `anvil_validate_write` MCP
-  responses include a `correlation.daemonStatus` reachability signal
-  (`available`, `not-wired`, `unavailable`); on Windows that field is always
-  `not-wired` until the named-pipe CLI client lands.
-- **Fences persist across daemon restart by design** — recovery is
-  `anvil intercept unblock --worktree <path>` (or `--all`), not an
-  `intercept stop`/`start` cycle. The fence file is the source of truth and
-  survives daemon crashes, restarts, and reboots so an interrupted enforcement
-  decision is not silently undone.
+- **`anvil intercept status` works cross-platform** — Unix speaks the UDS
+  IPC; Windows drives the same wire shape over the named pipe via
+  `connect_owner_only_pipe_client`, and `--json` returns the same
+  `DaemonStatusV1` shape on either OS. The remaining Windows gap is in the
+  MCP correlation envelope only: `correlation.daemonStatus` returned by
+  `anvil_validate_write` is always `not-wired` on Windows because the MCP
+  daemon validation client is gated `cfg(unix)`. The narrower MCP fix lands
+  as part of `chore/windows-status`.
+- **Fences persist across daemon restart by design** — the
+  `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are
+  not wired in v1 (the `FenceStore::unblock_worktree` daemon-side data path
+  ships, but the CLI front-end is a follow-up INTD task). Recovery is to
+  stop the foreground daemon (Ctrl-C, or SIGTERM by PID) and remove the
+  fence directory at `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. The fence
+  file is the source of truth and survives daemon crashes, restarts, and
+  reboots so an interrupted enforcement decision is not silently undone.
 - **macOS interrupt ladder is fence-first in this release** — the
   `current_process_start_time` helper has a Linux branch only, so the macOS
   interrupt path falls through to AD-7's fence-on-uncertainty invariant
   instead of running the SIGINT → SIGTERM → SIGKILL ladder. Recovery is the
-  same explicit `anvil intercept unblock`.
+  same daemon-stop + fence-directory removal as above.
 
 ### Fixed
 

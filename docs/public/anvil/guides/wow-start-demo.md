@@ -95,7 +95,7 @@ ACTIVATION
   mcp:
     Cursor: live_validation
     Claude Code: live_validation
-  watch: not running
+  watch: not_requested
   baseline: present (4 findings recorded; future scans will diff against this set as wiring lands)
   languages:
     TypeScript (37 files): supported — anchor + extension match
@@ -118,9 +118,9 @@ ACTIVATION
   Ready, restart required — restart your editor or agent so the MCP server attaches.
   config: valid
   mcp:
-    Cursor: server_startable
-    Claude Code: config_present
-  watch: not running
+    Cursor: restart_required
+    Claude Code: restart_required
+  watch: not_requested
   baseline: present (0 findings recorded; future scans will diff against this set as wiring lands)
   languages:
     TypeScript (37 files): supported — anchor + extension match
@@ -339,8 +339,11 @@ Operator caveats for `v0.6.0-beta` (see the
 - **Foreground daemon only.** `anvil intercept start --foreground` is the only
   validated launch mode for v1. Operators running under systemd / launchd
   should run foreground under the manager's supervision.
-- **`anvil intercept status` is Unix-only.** On Windows the command hard-fails
-  with a structured error; the named-pipe CLI client lands in a follow-up.
+- **`anvil intercept status` works on every supported target.** The Windows
+  named-pipe client ships in `v0.6.0-beta`. The remaining Windows gap is in
+  the MCP `correlation.daemonStatus` envelope, which still reports `not-wired`
+  on Windows because the MCP validation client is `cfg(unix)`-gated; that
+  routes through the same `chore/windows-status` workstream.
 - **Windows MCP correlation reports `not-wired`.** The `correlation.daemonStatus`
   field returned by `anvil_validate_write` is always `not-wired` on Windows in
   this release because the daemon validation client is gated `#[cfg(unix)]`.
@@ -360,11 +363,12 @@ If you are recording the demo and want a fresh-state run, the reset path
 mirrors the AI Guardrail Demo runbook. Run from inside the demo repo:
 
 ```bash
-# Stop the daemon, clear any fences, drop runtime state
-anvil intercept stop
-anvil intercept unblock --all
+# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID).
+# `anvil intercept stop` and `anvil intercept unblock` are not v1 CLI
+# subcommands — the daemon is `start` + `status` only in v0.6.0-beta.
 
-# Optional — wipe runtime / data dirs for an absolutely-fresh run
+# Wipe runtime / data dirs for an absolutely-fresh run. The data-dir
+# removal is the only supported way to clear fence state in v1.
 rm -rf "${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil"
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
 
@@ -395,5 +399,6 @@ B / C without nuking everything), see
 - [MCP Integration](/anvil/integrations/mcp) — the underlying transport, the
   `anvil_validate_write` tool shape, and the supported client list.
 - [v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md) — operator-facing
-  detail on every caveat above (foreground daemon, Unix-only `intercept
-  status`, macOS fence-first, Windows `not-wired`, dev-branch CI scope).
+  detail on every caveat above (foreground daemon, MCP correlation
+  `daemonStatus: not-wired` on Windows, macOS fence-first, dev-branch CI
+  scope, no `intercept stop` / `unblock` CLI subcommands in v1).
