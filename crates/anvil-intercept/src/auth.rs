@@ -14,9 +14,14 @@
 //!   `SO_PEERCRED` is the floor; this is the next layer.
 //! - [`DriverManifest::validate_workspace_roots`] — cross-checks the
 //!   `workspaceRoots` claimed by a driver manifest against the live
-//!   `SessionRecord` set (INTD-003). Roots that no active session
-//!   claims downgrade the driver to a read-only observer instead of
-//!   silently broadening the broadcast set.
+//!   `SessionRecord` set (INTD-003). Three-way semantic per §2.3a:
+//!   an empty claim is the "any-workspace observer" case (Ok); a
+//!   non-empty claim with at least one matching session worktree is
+//!   accepted (consumer drops the unmatched roots); a non-empty
+//!   claim with **no** match is rejected with
+//!   `AuthError::NoMatchingWorkspaceRoot` so the daemon refuses to
+//!   silently attach a driver whose declared scope is empty against
+//!   reality.
 //!
 //! Intentionally NOT in v1 (deferred):
 //!
@@ -85,8 +90,32 @@ pub enum AuthError {
     /// (telemetry subscription scoping in particular). v1 refuses to
     /// auto-attach a driver to "all sessions" when the manifest is
     /// silent; the daemon would otherwise have no scope to apply.
+    ///
+    /// **Note:** v1 [`DriverManifest::validate_workspace_roots`]
+    /// itself does NOT raise this — an empty `workspace_roots` vec
+    /// models the "any-workspace observer" case the spec allows
+    /// (§2.3a). This variant remains for callers that explicitly
+    /// require a non-empty claim before promoting a capability; see
+    /// [`AuthError::NoMatchingWorkspaceRoot`] for the "claimed but
+    /// unmatched" case the validator actually returns.
     #[error("driver manifest claims no workspace roots")]
     NoWorkspaceRootsClaimed,
+
+    /// The driver presented one or more `workspace_roots` claims, but
+    /// **none** canonicalised to a path that matches any active
+    /// session worktree. v1 refuses to attach the driver: the
+    /// manifest stated a specific scope, and that scope is empty
+    /// against the live session set, so the driver has nothing
+    /// legitimate to operate on. Empty claim sets do NOT take this
+    /// path (see [`AuthError::NoWorkspaceRootsClaimed`] above).
+    ///
+    /// `claimed` carries the original (pre-canonicalisation) paths so
+    /// driver consumers can surface the rejection diagnostically; the
+    /// bytes are echoed verbatim from the manifest, not normalised.
+    #[error(
+        "driver manifest workspace_roots ({claimed:?}) match no active session worktree"
+    )]
+    NoMatchingWorkspaceRoot { claimed: Vec<PathBuf> },
 }
 
 /// `PartialEq` is hand-written because [`io::Error`] is not `PartialEq`.
@@ -116,6 +145,10 @@ impl PartialEq for AuthError {
                 },
             ) => a == b && ae.kind() == be.kind(),
             (Self::NoWorkspaceRootsClaimed, Self::NoWorkspaceRootsClaimed) => true,
+            (
+                Self::NoMatchingWorkspaceRoot { claimed: a },
+                Self::NoMatchingWorkspaceRoot { claimed: b },
+            ) => a == b,
             _ => false,
         }
     }
@@ -237,8 +270,13 @@ pub fn is_driver_allowed(binary_path: &Path, allowlist: &Path) -> Result<bool, A
 
 /// Driver manifest workspace-roots claim, as carried by the §2.2
 /// manifest. v1 cross-checks each claimed root against the active
-/// session set; unknown roots downgrade the driver to a read-only
-/// observer of its claimed roots only.
+/// session set: a non-empty claim where no root matches any session
+/// is rejected (`AuthError::NoMatchingWorkspaceRoot`); a non-empty
+/// claim with at least one match is accepted with the unmatched
+/// roots dropped by the consumer; an empty claim is the
+/// "any-workspace observer" path the spec allows. See
+/// [`DriverManifest::validate_workspace_roots`] for the full
+/// three-way semantic.
 ///
 /// In Wave 3 (DRVR-008) the manifest also carries
 /// [`Self::supported_anvil_methods`] — the list of `anvil/` JSON-RPC
@@ -260,10 +298,22 @@ pub fn is_driver_allowed(binary_path: &Path, allowlist: &Path) -> Result<bool, A
 /// and capability-negotiation contracts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriverManifest {
-    /// Absolute paths the driver claims it operates on. Empty is a
-    /// hard error in v1 (`AuthError::NoWorkspaceRootsClaimed`); the
-    /// daemon refuses to attach a driver to "all sessions" without
-    /// explicit scope.
+    /// Absolute paths the driver claims it operates on.
+    ///
+    /// **Empty** models the §2.3a "any-workspace observer" case
+    /// (e.g. a diagnostic-only sidecar that subscribes to telemetry
+    /// without binding to a specific worktree). The
+    /// [`DriverManifest::validate_workspace_roots`] contract returns
+    /// `Ok(())` for this case; capability scoping is enforced at the
+    /// negotiation layer instead.
+    ///
+    /// **Non-empty** declares a specific scope: at least one path
+    /// MUST canonicalise and match an active session worktree, or
+    /// the validator returns
+    /// [`AuthError::NoMatchingWorkspaceRoot`]. The legacy
+    /// [`AuthError::NoWorkspaceRootsClaimed`] variant remains for
+    /// callers (outside the validator itself) that explicitly require
+    /// a non-empty claim before promoting capability.
     pub workspace_roots: Vec<PathBuf>,
 
     /// `anvil/` JSON-RPC method names this driver advertises support
@@ -325,22 +375,49 @@ impl DriverManifest {
     /// Cross-check the manifest's `workspace_roots` against the live
     /// session set.
     ///
-    /// Returns `Ok(())` if every claimed root canonically matches a
-    /// `SessionRecord.worktree`. Returns
-    /// `Err(AuthError::NoWorkspaceRootsClaimed)` when the manifest
-    /// itself is empty — the daemon refuses to run a driver with no
-    /// scope. Roots that do not match any session are dropped; the
-    /// caller treats a non-empty drop list as "downgrade to read-only
-    /// observer of the matched subset" per §2.3a (b).
+    /// Three-way semantic per §2.3a:
     ///
-    /// The current return shape is `Result<(), AuthError>` because v1
-    /// only needs a yes/no on the empty-claim case. DRVR-001 will
-    /// upgrade this to return the matched / dropped sets so the
-    /// handshake response can surface which roots were dropped to the
-    /// driver.
+    /// 1. **Empty claim** (`workspace_roots: []`) — the driver has
+    ///    declared itself an "any-workspace observer" (e.g. a
+    ///    diagnostic-only sidecar that subscribes to telemetry across
+    ///    every active worktree). v1 returns `Ok(())` and lets the
+    ///    daemon's capability negotiator scope the subscription
+    ///    elsewhere.
+    /// 2. **Non-empty claim, at least one match** — at least one
+    ///    claimed path canonicalises to a path that equals a
+    ///    canonicalised session worktree. v1 returns `Ok(())`; roots
+    ///    that did not match are dropped from the effective scope by
+    ///    the consumer (DRVR-001), surfaced to the driver as a
+    ///    "downgrade to read-only observer of the matched subset"
+    ///    event.
+    /// 3. **Non-empty claim, zero matches** — every claimed path
+    ///    either fails to canonicalise or canonicalises to a path
+    ///    that no active session knows about. v1 returns
+    ///    `Err(AuthError::NoMatchingWorkspaceRoot { claimed })` so
+    ///    the daemon refuses the attach: the driver named a specific
+    ///    scope and that scope is empty against reality.
+    ///
+    /// The pre-`v0.6.0-beta` implementation discarded the boolean
+    /// match result and accepted any non-empty manifest, which let a
+    /// driver claim arbitrary unrelated paths and still attach. The
+    /// new contract closes that gap without changing the empty-claim
+    /// fall-through, which the spec deliberately permits.
+    ///
+    /// `claimed` paths in the error variant are the **pre-canonical**
+    /// values from the manifest, returned verbatim so a driver author
+    /// can debug the rejection without guessing what the daemon
+    /// canonicalised them to.
+    ///
+    /// Future direction: DRVR-001's handshake response will upgrade
+    /// the success path to return the matched/dropped sets directly
+    /// so a driver can render its effective scope in real time.
     pub fn validate_workspace_roots(&self, sessions: &[SessionRecord]) -> Result<(), AuthError> {
         if self.workspace_roots.is_empty() {
-            return Err(AuthError::NoWorkspaceRootsClaimed);
+            // §2.3a "any-workspace observer" — the driver opted out
+            // of declaring a specific scope. The daemon enforces
+            // scoping at the capability layer instead; this validator
+            // does not block.
+            return Ok(());
         }
 
         // Canonicalise the session worktrees once. Sessions whose
@@ -354,20 +431,26 @@ impl DriverManifest {
             }
         }
 
-        // Drop roots the driver claims that no session matches. v1
-        // returns Ok(()) when at least one root matches; if zero
-        // match, the driver still attaches as a read-only observer
-        // of its claimed roots only. Surfacing the per-root drop set
-        // is DRVR-001's job — this signature is the v1 floor.
-        for claimed in &self.workspace_roots {
-            // We tolerate a non-existent claimed path (mirrors the
-            // allowlist rule: missing entries are skipped, not an
-            // error) — the daemon's driver consumer is the layer that
-            // surfaces the downgrade, not the validator.
-            let _ = claimed.canonicalize().map(|c| session_roots.contains(&c));
-        }
+        // Walk the claim set; success requires at least one
+        // canonicalised match. A claimed path that fails to
+        // canonicalise (`Err` return from `canonicalize`) is treated
+        // identically to one that canonicalises to a non-matching
+        // path: it cannot be an honest attach target. Both paths
+        // contribute to the count-of-matches even though neither
+        // can succeed — there is no leak between the two cases.
+        let any_match = self
+            .workspace_roots
+            .iter()
+            .filter_map(|claimed| claimed.canonicalize().ok())
+            .any(|canonical| session_roots.contains(&canonical));
 
-        Ok(())
+        if any_match {
+            Ok(())
+        } else {
+            Err(AuthError::NoMatchingWorkspaceRoot {
+                claimed: self.workspace_roots.clone(),
+            })
+        }
     }
 }
 
@@ -709,12 +792,34 @@ mod tests {
     }
 
     #[test]
-    fn manifest_with_no_workspace_roots_is_rejected() {
+    fn manifest_with_zero_claimed_roots_validates_against_any_session() {
+        // §2.3a "any-workspace observer" — a manifest that declines
+        // to declare a specific scope is the spec's diagnostic-only
+        // sidecar case (e.g. a telemetry mirror). The validator must
+        // return Ok(()); capability scoping is enforced elsewhere.
+        // This is the inverse of the previous v1 hard-error contract,
+        // which incorrectly rejected the legitimate empty-claim path.
         let manifest = DriverManifest::new(vec![]);
-        let err = manifest
+
+        manifest
             .validate_workspace_roots(&[])
-            .expect_err("empty roots claim must be rejected");
-        assert_eq!(err, AuthError::NoWorkspaceRootsClaimed);
+            .expect("empty claim is the any-workspace observer case — must Ok");
+    }
+
+    #[test]
+    fn manifest_with_zero_claimed_roots_validates_against_live_sessions() {
+        // Same any-workspace observer semantic, but with live
+        // sessions present. The match check is skipped entirely when
+        // the claim set is empty.
+        let tmp = TempDir::new().unwrap();
+        let worktree = tmp.path().join("workspace");
+        fs::create_dir(&worktree).expect("create worktree");
+        let session = session_for(&worktree, "sess-1");
+        let manifest = DriverManifest::new(vec![]);
+
+        manifest
+            .validate_workspace_roots(&[session])
+            .expect("empty claim with live sessions must still Ok");
     }
 
     #[test]
@@ -731,36 +836,77 @@ mod tests {
     }
 
     #[test]
-    fn manifest_with_unknown_root_validates_but_drops_it() {
-        // v1 contract: unknown roots downgrade rather than reject. The
-        // validator returns Ok(()); the consumer (DRVR-001) is
-        // responsible for surfacing the dropped set.
+    fn manifest_with_only_unknown_roots_returns_error() {
+        // Contract change in v0.6.0-beta: a non-empty claim where
+        // every claimed root either fails to canonicalise or matches
+        // no active session is rejected. The pre-fix code returned
+        // Ok(()) here (discarding the boolean match result), which
+        // let a hostile or buggy driver claim arbitrary unrelated
+        // paths and still attach.
         let tmp = TempDir::new().unwrap();
         let real_worktree = tmp.path().join("workspace");
         let bogus_worktree = tmp.path().join("not-a-workspace");
         fs::create_dir(&real_worktree).expect("create worktree");
         let session = session_for(&real_worktree, "sess-1");
-        let manifest = DriverManifest::new(vec![bogus_worktree]);
+        let manifest = DriverManifest::new(vec![bogus_worktree.clone()]);
 
-        manifest
+        let err = manifest
             .validate_workspace_roots(&[session])
-            .expect("unknown root must downgrade rather than error");
+            .expect_err("unknown-only claim must error");
+        match err {
+            AuthError::NoMatchingWorkspaceRoot { claimed } => {
+                assert_eq!(
+                    claimed,
+                    vec![bogus_worktree],
+                    "error must echo the original (pre-canonical) claim",
+                );
+            }
+            other => panic!("expected NoMatchingWorkspaceRoot, got {other:?}"),
+        }
     }
 
     #[test]
-    fn manifest_validates_against_empty_session_list() {
-        // No active sessions == every claimed root is dropped, but the
-        // manifest itself is non-empty so the validator returns Ok.
-        // DRVR-001 will later surface "all roots dropped" to the
-        // driver as a read-only-observer downgrade.
+    fn manifest_with_partial_match_validates_dropping_the_unknown() {
+        // Non-empty claim with one matching root and one bogus root
+        // is accepted: the consumer (DRVR-001) drops the bogus path
+        // and downgrades the effective scope. This pins the
+        // "at least one match" semantic so a driver listing an
+        // optional sub-worktree path that does not exist on every
+        // host is not bounced.
         let tmp = TempDir::new().unwrap();
-        let worktree = tmp.path().join("workspace");
-        fs::create_dir(&worktree).expect("create worktree");
-        let manifest = DriverManifest::new(vec![worktree]);
+        let real_worktree = tmp.path().join("workspace");
+        let bogus_worktree = tmp.path().join("not-a-workspace");
+        fs::create_dir(&real_worktree).expect("create worktree");
+        let session = session_for(&real_worktree, "sess-1");
+        let manifest = DriverManifest::new(vec![real_worktree.clone(), bogus_worktree]);
 
         manifest
+            .validate_workspace_roots(&[session])
+            .expect("partial match must validate (consumer drops the unknown)");
+    }
+
+    #[test]
+    fn manifest_with_only_unknown_roots_returns_error_with_empty_session_list() {
+        // Symmetric with the unknown-only case above: when no
+        // sessions exist, every claimed root is unmatched by
+        // definition. Earlier code accepted this as
+        // "non-empty manifest with no live sessions"; the new
+        // contract treats it as an explicit reject, because the
+        // driver named a scope that does not exist anywhere.
+        let tmp = TempDir::new().unwrap();
+        let claimed_worktree = tmp.path().join("workspace");
+        fs::create_dir(&claimed_worktree).expect("create worktree");
+        let manifest = DriverManifest::new(vec![claimed_worktree.clone()]);
+
+        let err = manifest
             .validate_workspace_roots(&[])
-            .expect("non-empty manifest with no live sessions must not error");
+            .expect_err("non-empty manifest with no live sessions must error");
+        match err {
+            AuthError::NoMatchingWorkspaceRoot { claimed } => {
+                assert_eq!(claimed, vec![claimed_worktree]);
+            }
+            other => panic!("expected NoMatchingWorkspaceRoot, got {other:?}"),
+        }
     }
 
     // -------- DRVR-008 capability negotiation tests --------
