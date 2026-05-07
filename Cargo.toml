@@ -61,6 +61,9 @@ anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 dirs = "6"
 
+# Identity (project_uuid for MLP-001 / A7.2)
+uuid = { version = "1", features = ["v4", "v7"] }
+
 # Error handling
 thiserror = "2"
 

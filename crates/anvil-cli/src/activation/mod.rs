@@ -17,6 +17,7 @@
 
 pub mod baseline;
 pub mod diagnostic;
+pub mod identity;
 pub mod language_profile;
 pub mod mcp_client;
 pub mod orchestrator;
