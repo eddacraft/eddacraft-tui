@@ -65,10 +65,10 @@ Triggered by pushing an exact semver tag (`vX.Y.Z`) to any branch:
 
 ## Secrets required
 
-| Secret | Purpose |
-|--------|---------|
-| `CARGO_REGISTRY_TOKEN` | crates.io API token for publishing |
-| `GITHUB_TOKEN` | Provided automatically, used for `gh release create` |
+| Secret                 | Purpose                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `CARGO_REGISTRY_TOKEN` | crates.io API token for publishing                   |
+| `GITHUB_TOKEN`         | Provided automatically, used for `gh release create` |
 
 ## Troubleshooting
 

@@ -1,5 +1,7 @@
+use std::fmt;
 use std::time::{Duration, Instant};
 
+use animate::Animate;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
@@ -8,6 +10,8 @@ use ratatui::widgets::{Block, Borders, StatefulWidget, Widget};
 use unicode_width::UnicodeWidthChar;
 
 use crate::theme::Theme;
+use crate::widgets::spinner::SpinnerPreset;
+use crate::widgets::{AnimatedU8, animated_u8};
 
 const FRACTION_BLOCKS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
 
@@ -49,10 +53,32 @@ impl CheckProgress {
     }
 }
 
-#[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct ParallelProgressState {
     pub checks: Vec<CheckProgress>,
     pub start_time: Option<Instant>,
+    anim_overall: AnimatedU8,
+    anim_overall_target: u8,
+}
+
+impl Default for ParallelProgressState {
+    fn default() -> Self {
+        Self {
+            checks: Vec::new(),
+            start_time: None,
+            anim_overall: animated_u8(0),
+            anim_overall_target: 0,
+        }
+    }
+}
+
+impl fmt::Debug for ParallelProgressState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ParallelProgressState")
+            .field("checks", &self.checks)
+            .field("start_time", &self.start_time)
+            .finish_non_exhaustive()
+    }
 }
 
 #[must_use]
@@ -227,7 +253,7 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
             Line::styled(name, self.theme.base()).render(row_chunks[0], buf);
 
             let status_style = status_style(check.status, self.theme);
-            let status_icon = status_icon(check.status);
+            let status_icon = status_icon(check);
             let progress_text = if self.compact || !matches!(check.status, CheckStatus::Running) {
                 if let Some(message) = &check.message {
                     format!("{status_icon} {message}")
@@ -248,7 +274,14 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
 
         let mut cursor = 1;
         if self.show_overall {
-            let overall = calculate_overall_progress(&state.checks);
+            let raw_overall = calculate_overall_progress(&state.checks);
+            if raw_overall != state.anim_overall_target {
+                state.anim_overall.set(raw_overall);
+                state.anim_overall_target = raw_overall;
+            }
+            state.anim_overall.update();
+            let overall = *state.anim_overall;
+
             let line = format!(
                 "Overall {} {:>3}%",
                 render_fractional_bar(
@@ -289,14 +322,24 @@ fn effective_progress(check: &CheckProgress) -> u8 {
     }
 }
 
-fn status_icon(status: CheckStatus) -> char {
-    match status {
-        CheckStatus::Passed => '◆',
-        CheckStatus::Failed => '✖',
-        CheckStatus::Running => '●',
-        CheckStatus::Pending | CheckStatus::Skipped => '○',
-        CheckStatus::Cached => '⚡',
+fn status_icon(check: &CheckProgress) -> &'static str {
+    match check.status {
+        CheckStatus::Passed => "◆",
+        CheckStatus::Failed => "✖",
+        CheckStatus::Running => SpinnerPreset::Anvil.frame(running_frame_index(check.start_time)),
+        CheckStatus::Pending | CheckStatus::Skipped => "○",
+        CheckStatus::Cached => "⚡",
     }
+}
+
+fn running_frame_index(start_time: Option<Instant>) -> usize {
+    let interval_ms = SpinnerPreset::Anvil.interval().as_millis().max(1);
+    let elapsed_ms = start_time.map_or(0, |started| {
+        Instant::now()
+            .saturating_duration_since(started)
+            .as_millis()
+    });
+    usize::try_from(elapsed_ms / interval_ms).unwrap_or(0)
 }
 
 fn status_style<T: Theme>(status: CheckStatus, theme: &T) -> Style {
@@ -372,6 +415,8 @@ fn resolve_duration(check: &CheckProgress) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use ratatui::widgets::StatefulWidget;
+
     use super::*;
 
     #[test]
@@ -424,5 +469,75 @@ mod tests {
         assert_eq!(format_duration(512), "512ms");
         assert_eq!(format_duration(12_000), "12s");
         assert_eq!(format_duration(61_000), "1m 1s");
+    }
+
+    #[test]
+    fn overall_progress_animates_toward_target() {
+        use crate::widgets::ANIM_DURATION_MS;
+
+        let theme = crate::theme::EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        let mut state = ParallelProgressState {
+            checks: vec![CheckProgress {
+                id: "a".to_string(),
+                name: "lint".to_string(),
+                status: CheckStatus::Passed,
+                progress: 100,
+                start_time: None,
+                end_time: None,
+                duration_ms: Some(100),
+                message: None,
+            }],
+            start_time: None,
+            ..Default::default()
+        };
+
+        // First render primes the animation toward overall=100.
+        ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
+        let first = *state.anim_overall;
+        assert!(
+            first <= 100,
+            "animation should start within [0, 100], got {first}"
+        );
+
+        // Advance past the configured animation duration and re-render.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let advance = ANIM_DURATION_MS as usize + 1;
+        animate::tick(advance);
+        ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
+
+        assert_eq!(
+            *state.anim_overall, 100,
+            "expected anim_overall to converge to target after full duration"
+        );
+    }
+
+    #[test]
+    fn compact_running_check_renders_spinner_frame() {
+        let theme = crate::theme::EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        let mut state = ParallelProgressState {
+            checks: vec![CheckProgress {
+                id: "a".to_string(),
+                name: "forge".to_string(),
+                status: CheckStatus::Running,
+                progress: 42,
+                start_time: Some(Instant::now()),
+                end_time: None,
+                duration_ms: None,
+                message: Some("Forging".to_string()),
+            }],
+            start_time: None,
+            ..Default::default()
+        };
+
+        ParallelProgress::new(&theme)
+            .compact(true)
+            .render(area, &mut buf, &mut state);
+
+        let row: String = (0..40).map(|x| buf[(x, 1)].symbol().to_string()).collect();
+        assert!(row.contains("⚒") || row.contains("🔨") || row.contains("🛠"));
     }
 }

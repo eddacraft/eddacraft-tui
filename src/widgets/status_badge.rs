@@ -7,6 +7,7 @@ use ratatui::widgets::Widget;
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum BadgeStatus {
     Success,
     Error,
@@ -14,6 +15,22 @@ pub enum BadgeStatus {
     Info,
     Running,
     Skipped,
+}
+
+impl BadgeStatus {
+    /// Resolve the severity to a [`Style`] using the supplied theme. Shared
+    /// between widgets that surface badge status (currently `Modal` and
+    /// `Toast`) so the mapping stays in one place.
+    #[must_use]
+    pub fn severity_style<T: Theme>(self, theme: &T) -> Style {
+        match self {
+            Self::Success => theme.status_ok(),
+            Self::Error => theme.status_error(),
+            Self::Warning => theme.status_warning(),
+            Self::Info | Self::Running => theme.title(),
+            Self::Skipped => theme.disabled(),
+        }
+    }
 }
 
 pub struct StatusBadge<'a, T: Theme> {

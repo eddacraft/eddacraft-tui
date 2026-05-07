@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write
@@ -24,9 +24,11 @@ jobs:
       - name: Verify tag matches Cargo.toml version
         run: |
           TAG="${GIT_REF#refs/tags/v}"
-          MANIFEST=$(cargo metadata --no-deps --format-version 1 \
-            | grep -o '"version":"[^"]*"' | head -1 \
-            | sed 's/"version":"\(.*\)"/\1/')
+          # `cargo pkgid` emits `<url>#<name>@<version>` (or `…#<version>` on
+          # older cargo); the version always lives after the final `@` or `#`.
+          PKGID=$(cargo pkgid)
+          MANIFEST="${PKGID##*@}"
+          MANIFEST="${MANIFEST##*#}"
           if [ "$TAG" != "$MANIFEST" ]; then
             echo "::error::Tag v$TAG does not match Cargo.toml version $MANIFEST"
             exit 1

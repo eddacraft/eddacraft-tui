@@ -8,16 +8,53 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ShellBranding {
+    #[default]
+    Plain,
+    EddaCraft,
+    Edda,
+    Anvil,
+    Custom(&'static str),
+}
+
+impl ShellBranding {
+    #[must_use]
+    pub fn mark(self) -> &'static str {
+        match self {
+            Self::Plain => "",
+            Self::EddaCraft => "[■]",
+            Self::Edda => "[=]",
+            Self::Anvil => "[⚒]",
+            Self::Custom(mark) => mark,
+        }
+    }
+
+    #[must_use]
+    pub fn footer_wordmark(self, brand: &str) -> String {
+        match self {
+            Self::Plain => brand.to_lowercase(),
+            Self::EddaCraft => "e d d a c r a f t".to_string(),
+            Self::Edda => "e d d a".to_string(),
+            Self::Anvil => "a n v i l".to_string(),
+            Self::Custom(mark) => mark.to_string(),
+        }
+    }
+}
+
 /// Render branded shell chrome around a surface content area.
 ///
 /// Returns the inner `Rect` that the surface should render into.
+#[allow(clippy::too_many_arguments)]
 pub fn render_shell(
     frame: &mut Frame,
     area: Rect,
+    branding: ShellBranding,
     brand: &str,
     surface_name: &str,
     help_text: &str,
     theme: &impl Theme,
+    version: &str,
 ) -> Rect {
     let chunks = Layout::vertical([
         Constraint::Length(1), // Header
@@ -27,22 +64,36 @@ pub fn render_shell(
     .split(area);
 
     // Header: "Brand > SurfaceName"
-    let header = Paragraph::new(Line::from(vec![
-        Span::styled(
-            brand,
+    let mut header_spans = Vec::new();
+    let mark = branding.mark();
+    if !mark.is_empty() {
+        header_spans.push(Span::styled(
+            mark,
             Style::default()
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" > ", Style::default().fg(theme.muted())),
-        Span::styled(surface_name, Style::default().fg(theme.fg())),
-    ]));
+        ));
+        header_spans.push(Span::raw(" "));
+    }
+    header_spans.push(Span::styled(
+        brand,
+        Style::default()
+            .fg(theme.accent())
+            .add_modifier(Modifier::BOLD),
+    ));
+    header_spans.push(Span::styled(" > ", Style::default().fg(theme.muted())));
+    header_spans.push(Span::styled(surface_name, Style::default().fg(theme.fg())));
+
+    let header = Paragraph::new(Line::from(header_spans));
     frame.render_widget(header, chunks[0]);
 
     // Footer: help text (left) + watermark (right).
     // Watermark is prioritised — help text is truncated if needed.
-    let version = env!("CARGO_PKG_VERSION");
-    let watermark = format!("[ \u{25a0} ] e d d a c r a f t  v{version}");
+    let footer_mark = if mark.is_empty() { "[ ]" } else { mark };
+    let watermark = format!(
+        "{footer_mark} {}  v{version}",
+        branding.footer_wordmark(brand)
+    );
     let wm_width = watermark.width();
     let available = chunks[2].width as usize;
     let min_gap = 2;
@@ -92,10 +143,12 @@ mod tests {
                 render_shell(
                     frame,
                     frame.area(),
+                    ShellBranding::Anvil,
                     "Anvil",
                     "Watch",
                     "j/k navigate  q quit",
                     &theme,
+                    "0.3.0-beta",
                 );
             })
             .unwrap();
@@ -113,10 +166,12 @@ mod tests {
                 inner = render_shell(
                     frame,
                     frame.area(),
+                    ShellBranding::Anvil,
                     "Anvil",
                     "Audit",
                     "h/l panels  q quit",
                     &theme,
+                    "0.3.0-beta",
                 );
             })
             .unwrap();
@@ -138,10 +193,12 @@ mod tests {
                 render_shell(
                     frame,
                     frame.area(),
+                    ShellBranding::Anvil,
                     "Anvil",
                     "Gate",
                     "j/k navigate  enter expand  q quit",
                     &theme,
+                    "0.3.0-beta",
                 );
             })
             .unwrap();
@@ -158,7 +215,16 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render_shell(frame, frame.area(), "Anvil", "Init", "q quit", &theme);
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Anvil,
+                    "Anvil",
+                    "Init",
+                    "q quit",
+                    &theme,
+                    "0.3.0-beta",
+                );
             })
             .unwrap();
     }
@@ -171,8 +237,101 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render_shell(frame, frame.area(), "MyApp", "Home", "q quit", &theme);
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Plain,
+                    "MyApp",
+                    "Home",
+                    "q quit",
+                    &theme,
+                    "1.2.3",
+                );
             })
             .unwrap();
+    }
+
+    #[test]
+    fn uses_passed_version_in_footer() {
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Anvil,
+                    "Anvil",
+                    "Home",
+                    "q quit",
+                    &theme,
+                    "9.9.9-test",
+                );
+            })
+            .unwrap();
+
+        let footer: String = (0..60)
+            .map(|x| terminal.backend().buffer()[(x, 4)].symbol().to_string())
+            .collect();
+
+        assert!(footer.contains("v9.9.9-test"));
+    }
+
+    #[test]
+    fn plain_branding_omits_logo_mark() {
+        let backend = TestBackend::new(40, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Plain,
+                    "custom",
+                    "Home",
+                    "q quit",
+                    &theme,
+                    "1.2.3",
+                );
+            })
+            .unwrap();
+
+        let header: String = (0..40)
+            .map(|x| terminal.backend().buffer()[(x, 0)].symbol().to_string())
+            .collect();
+
+        assert!(header.starts_with("custom > Home"));
+    }
+
+    #[test]
+    fn footer_uses_brand_specific_wordmark() {
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Anvil,
+                    "anvil",
+                    "Home",
+                    "q quit",
+                    &theme,
+                    "1.2.3",
+                );
+            })
+            .unwrap();
+
+        let footer: String = (0..60)
+            .map(|x| terminal.backend().buffer()[(x, 4)].symbol().to_string())
+            .collect();
+
+        assert!(footer.contains("[⚒] a n v i l  v1.2.3"));
     }
 }

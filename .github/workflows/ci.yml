@@ -2,17 +2,34 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
+
+# Default GITHUB_TOKEN to read-only at the workflow level. Individual
+# jobs/steps can opt into broader scopes if ever needed (none currently
+# require write access). Addresses CodeQL "Workflow does not contain
+# permissions" advisories.
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   check:
-    name: Check
+    name: Check (${{ matrix.profile }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: default
+            features-flag: ""
+          - profile: all-features
+            features-flag: "--all-features"
+          - profile: no-default-features
+            features-flag: "--no-default-features"
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -20,12 +37,49 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: cargo fmt
+        if: matrix.profile == 'default'
         run: cargo fmt --all -- --check
       - name: cargo clippy
         # Pedantic lints are configured as warnings in Cargo.toml; only
         # deny-level lints fail the build (matches local dev behaviour).
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --all-targets ${{ matrix.features-flag }}
       - name: cargo test
-        run: cargo test --all-features
+        # `cargo test --no-default-features` skips the feature-gated widget
+        # tests; that's fine — those are covered by the all-features row.
+        run: cargo test ${{ matrix.features-flag }}
       - name: cargo publish (dry run)
-        run: cargo publish --dry-run
+        # Only run dry-run on the all-features row so the published crate
+        # tarball is validated against every feature gate. Default and
+        # no-default-features are covered by the build/test steps above.
+        if: matrix.profile == 'all-features'
+        run: cargo publish --dry-run --all-features
+
+  msrv:
+    name: MSRV (1.88.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo build
+        # MSRV applies to the core library (default features). Optional
+        # `image`/`big-text` features pull crates whose transitive deps
+        # (e.g. `quantette` requires 1.90) need a newer toolchain — those
+        # are covered by the stable `Check (all-features)` row.
+        run: cargo build
+
+  audit:
+    name: Supply chain (audit + deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo install cargo-audit
+        run: cargo install --locked cargo-audit
+      - name: cargo audit
+        run: cargo audit
+      - name: cargo install cargo-deny
+        run: cargo install --locked cargo-deny
+      - name: cargo deny check
+        run: cargo deny check
