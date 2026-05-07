@@ -672,7 +672,13 @@ mod tests {
             r"\\.\pipe\anvil-intercept-win32-client-test-{}",
             std::process::id(),
         );
-        let runtime = tokio::runtime::Builder::new_current_thread()
+        // Multi-thread runtime so a worker thread drives the async
+        // server task while the main thread runs the synchronous
+        // client below. `current_thread` would deadlock here — the
+        // only thread that could poll the server task would be the
+        // main thread, which is blocked on `client_thread.join()`.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
             .enable_all()
             .build()
             .expect("tokio runtime");

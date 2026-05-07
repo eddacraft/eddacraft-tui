@@ -267,7 +267,14 @@ fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonStatusV1> {
                 ));
             }
             buf.extend_from_slice(&chunk[..n]);
-            if buf.iter().any(|b| *b == b'\n') {
+            // Mirror the Unix `read_until(b'\n')` framing semantics:
+            // return EXACTLY one line (up to and including the first
+            // newline). If the daemon ever writes multiple lines or
+            // extra bytes after the newline in a single pipe read,
+            // truncating here is what lets the JSON parse succeed
+            // on the same input the Unix path handles correctly.
+            if let Some(newline_idx) = buf.iter().position(|b| *b == b'\n') {
+                buf.truncate(newline_idx + 1);
                 break Ok(buf);
             }
             if (buf.len() as u64) > RESPONSE_LINE_BYTES {
@@ -644,11 +651,17 @@ mod tests {
             r"\\.\pipe\anvil-intercept-cli-status-test-{}",
             std::process::id(),
         );
-        let runtime = tokio::runtime::Builder::new_current_thread()
+        // Use a multi-thread runtime so a worker thread drives the
+        // server task while the main thread runs the synchronous
+        // client. A `current_thread` runtime + `runtime.enter()` would
+        // never poll the spawned server because the only thread that
+        // could poll it is blocked on the client call below, leading
+        // to a deadlock on Windows.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
             .enable_all()
             .build()
             .expect("tokio runtime");
-        let _runtime_guard = runtime.enter();
         let listener = IpcListener::bind(&pipe_name, NoopDispatcher)
             .expect("daemon pipe binds")
             .with_status_provider(Arc::new(Fixture));
