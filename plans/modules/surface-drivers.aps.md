@@ -8,11 +8,11 @@ See: plans/aps-rules.md
 
 # Surface Drivers
 
-| ID   | Owner | Status      | Progress |
-| ---- | ----- | ----------- | -------- |
-| DRVR | —     | In Progress | 0/4 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 In Progress on `a2/wave1-driver-scope-trust`; DRVR-006 supersession recorded in same PR; DRVR-001 In Progress (Pending merge of `a2/wave2-shared-driver-client`); DRVR-002 + DRVR-008 In Progress on `a2/wave3-driver-protocol-capabilities` |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| DRVR | —     | Complete | 5/5 active (2 superseded, 1 deferred under ADR-033) — DRVR-001 Complete (PR #1307: shared TS driver client); DRVR-002 Complete (PR #1310: editor-driver protocol design); DRVR-006 Complete (PR #1304: option-(b) Distinguish recorded in §4.3 + RMCPF expected outcomes); DRVR-007 Complete (PR #1304: auth.rs trust boundary v1 — allowlist + workspace-root validation); DRVR-008 Complete (PR #1310: capability negotiation + manifest method advertisement) |
 
-**Last reviewed:** 2026-05-06
+**Last reviewed:** 2026-05-07
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The IDE/MCP surfaces this module integrates are **archived**
@@ -198,7 +198,10 @@ define graph schema.
   wrong-owner socket refused on connect.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** In Progress (Pending merge of `a2/wave2-shared-driver-client`)
+- **Status:** Complete — merged via PR #1307 (shared TS driver client
+  `packages/anvil-driver-client/`, exporting `DriverClient` with
+  reconnect/timeout/cancel/socket-owner invariants per the M8 / M13
+  council items).
 - **Council review (2026-04-24):** Partial-failure surface bullet added
   for M13 (operations-reviewer); driver-side socket-owner check for
   M8 (security-analyst).
@@ -260,7 +263,10 @@ define graph schema.
   checklists confirm coverage.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** In Progress (Pending merge of `a2/wave3-driver-protocol-capabilities`)
+- **Status:** Complete — merged via PR #1310 (editor-driver protocol
+  design at `plans/specs/2026-05-06-editor-driver-protocol.md`,
+  shared method/capability constants in `anvil_intercept_proto::protocol`,
+  TS mirror in `packages/anvil-driver-client/src/protocol/`).
 - **Council review (2026-04-24):** Expected-outcome expanded with
   M2 / M3 / M4 / M6 / M12 / S6 / S7 prerequisites.
 
@@ -344,9 +350,9 @@ define graph schema.
 
 ---
 
-### DRVR-006: Pin MCP daemon-RPC surface — deferred to RMCPF
+### DRVR-006: Pin MCP daemon-RPC surface — option-(b) Distinguish (resolution shipped)
 
-- **Status:** Superseded — recorded in PR (A2 Wave 1, branch
+- **Status:** Complete — merged via PR #1304 (A2 Wave 1, branch
   `a2/wave1-driver-scope-trust`, 2026-05-06). Resolution: option **(b)
   Distinguish** — the §4.3 translation table now classifies each MCP
   tool as either **daemon-RPC translator** (`anvil_check`,
@@ -437,7 +443,13 @@ define graph schema.
   PR #1063.
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Pending merge of `a2/wave1-driver-scope-trust` (A2 Wave 1) — spec contract (§2.3a, §4.4) and v1 auth API (`crates/anvil-intercept/src/auth.rs`) shipped; DRVR-001 (Wave 2) wires the consumer; reliability-budget quarantine ledger lands with DRVR-001.
+- **Status:** Complete — merged via PR #1304 (A2 Wave 1). Spec contract
+  (§2.3a, §4.4) and v1 auth API (`crates/anvil-intercept/src/auth.rs`)
+  shipped: allowlist gate (`is_driver_allowed`), workspace-root
+  validation (`validate_workspace_roots`), and capability-downgrade
+  reasons. The reliability-budget quarantine ledger remains a
+  consumer-side deliverable beyond v1; the trust-boundary contract
+  itself is in place.
 
 ---
 
@@ -484,7 +496,12 @@ define graph schema.
   PR #1063.
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** In Progress (Pending merge of `a2/wave3-driver-protocol-capabilities`)
+- **Status:** Complete — merged via PR #1310. Manifest carries
+  `supported_anvil_methods`; daemon `negotiate_capability` caps drivers
+  that don't advertise `anvil/enforcement/ack` at `Capability::Attached`
+  with a structured `CapabilityDowngrade` event. Stock LSP clients
+  attach as read-only observers regardless of `.anvil.yaml`'s
+  enforcement request.
 
 ## Risks
 
