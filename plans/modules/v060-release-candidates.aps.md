@@ -29,9 +29,9 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 1/19     |
+| V060F | —     | In Progress | 1/24     |
 
-**Last reviewed:** 2026-05-07 (added V060F-002..V060F-011 in batch 1 from the intercept / activation / MCP shim / checks / kernel as-built sweep against HEAD `97b61fd0`; added V060F-012..V060F-019 in batch 2 from the TUI / driver framework / API / observability as-built sweep against HEAD `da4e7ca4`)
+**Last reviewed:** 2026-05-07 (added V060F-002..V060F-011 in batch 1 from the intercept / activation / MCP shim / checks / kernel as-built sweep against HEAD `97b61fd0`; added V060F-012..V060F-019 in batch 2 from the TUI / driver framework / API / observability as-built sweep against HEAD `da4e7ca4`; added V060F-020..V060F-024 in batch 3 from the tutorial / widgets / CLI TUI runner / adapter packages as-built sweep against HEAD `b9229155`)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
 **Sequencing context:** [plans/next-steps.md](../next-steps.md)
 
@@ -555,6 +555,148 @@ discovery.
 
 ---
 
+### V060F-020: CLI TUI runner panic-safety gap
+
+- **Surface:** `crates/anvil-cli/src/tui.rs` (no `Drop` guard, no
+  `panic::set_hook`)
+- **Flagged by:** cli-tui-runner-as-built §"Known gaps" G-01
+  (2026-05-07)
+- **Intent:** Each `run_*` wrapper enables raw mode + alternate
+  screen at the top of the function and disables them at the
+  bottom in a flat sequence. A panic between those two calls
+  skips the cleanup, leaving the user's terminal in raw mode
+  with the alternate screen active — the user has to blindly
+  type `reset` to recover. Twelve call sites across nine command
+  modules are exposed. Probability of panic is low, but blast
+  radius is medium and the fix is cheap.
+- **Expected outcome:** Introduce a `TerminalGuard` newtype that
+  enables raw mode + alternate screen on construction and
+  restores both on `Drop`. Install a `panic::set_hook` that
+  flushes the terminal restore before printing the panic message
+  so the panic backtrace is readable. Apply at every `run_*`
+  entry point.
+- **Confidence:** high (the fix is a well-known Rust idiom)
+- **Status:** Open
+
+---
+
+### V060F-021: tutorial legacy-path content drift + invariant coverage gap
+
+- **Surface:** `crates/anvil-tui/src/surfaces/tutorial/paths.rs`
+  (`policy_steps` / `architecture_steps` / `drift_steps` /
+  `ci_steps` at `:138-306`); test pins `policy_path_steps` etc.
+  at `paths.rs:330-396` (count + title only)
+- **Flagged by:** tutorial-as-built §"Known gaps" G-05 (2026-05-07)
+- **Intent:** The LAUNCH-014 ProtectionLoop default path has
+  test-pinned copy invariants
+  (`protection_loop_copy_uses_activation_state_vocabulary`,
+  `protection_loop_copy_does_not_claim_pre_write_protection`).
+  The four legacy paths (Policy / Architecture / Drift / CI)
+  carry v0.4-era language: declarative YAML policies, hexagonal
+  template catalogs that don't ship in v0.6.0-beta, drift
+  commands that run but don't verify output shape, hooks /
+  exit-code copy that hasn't been validated against
+  v0.6.0-beta. Their tests assert step counts and exact titles
+  but never content — a future "you are now protected" line
+  could land in `policy_steps` without CI noticing.
+- **Expected outcome:** Either (a) refresh the four legacy paths
+  to reflect v0.6.0-beta reality and extend the LAUNCH-014
+  honesty pins to gate their bodies, or (b) drop the legacy
+  paths entirely and route users through the deeper `docs/public/anvil/tutorials/` written guides.
+  ProtectionLoop is the canonical first-touch; the legacy paths
+  carry their weight only if they remain accurate.
+- **Confidence:** medium (content refresh is doable; deletion
+  is simpler but loses the in-TUI deep dives)
+- **Status:** Open
+
+---
+
+### V060F-022: APS schema drift — public docs document legacy ModuleStatus enum
+
+- **Surface:** `docs/public/aps/schemas/json-schema.md` (public
+  docs) vs `packages/aps/src/types/index.ts:95`
+  (`ModuleStatusSchema = z.enum(['Proposed', 'Ready', 'In Progress', 'Done', 'Blocked'])`)
+- **Flagged by:** adapter-packages-as-built §"Known gaps" G-05
+  (2026-05-07)
+- **Intent:** The live Zod schema documents the canonical enum
+  values (`'Proposed'`, `'Ready'`, `'In Progress'`, `'Done'`,
+  `'Blocked'`). The parser includes a normalisation layer that
+  silently maps legacy `'Draft' → 'Proposed'` and
+  `'Complete' → 'Done'` so existing APS documents keep parsing.
+  But the public schema reference doc (`docs/public/aps/schemas/json-schema.md`)
+  documents the **legacy** enum (`'Draft' | 'Ready' | 'In Progress' | 'Complete' | 'Blocked'`).
+  Agents reading the public docs verbatim produce
+  non-canonical APS documents. Parser-tolerated, but the
+  drift undermines the public schema as an authoritative
+  reference.
+- **Expected outcome:** Update `docs/public/aps/schemas/json-schema.md`
+  to document the canonical enum, with a one-paragraph note
+  on the parser's legacy normalisation for backward
+  compatibility. Cross-link the `packages/aps/src/types/index.ts`
+  schema as the source of truth.
+- **Confidence:** high (small public-doc edit)
+- **Status:** Open
+- **Risk-level:** medium for downstream agent tooling — agents
+  typing APS by-hand against the public spec will land
+  non-canonical values that work but don't match the live
+  schema
+
+---
+
+### V060F-023: small doc + version drift — kindling header, BMAD adapter version
+
+- **Surface:**
+  - `packages/kindling-integration/src/observation-contract.ts:4`
+    (header comment says "9 observation kinds" — actually 11
+    schemas defined in the file)
+  - `packages/adapters/src/bmad/format-adapter.ts` vs
+    `packages/adapters/README.md` (BMAD adapter version drift:
+    `v0.1.2` in code, `v1.0.0` in README)
+- **Flagged by:** adapter-packages-as-built §"Known gaps" G-04
+  + (a) findings (2026-05-07)
+- **Intent:** Two small consistency drifts surfaced during the
+  TS-package as-built sweep. Neither is load-bearing in
+  isolation; bundled here because each is a one-line fix.
+- **Expected outcome:** (a) Update the
+  `observation-contract.ts:4` header to `"11 observation kinds"`
+  (test files, `CONTRACTS.md`, README, OpenAPI generator all
+  already say 11). (b) Pick one of `v0.1.2` (code) or
+  `v1.0.0` (README) for the BMAD adapter and align both —
+  v6.0.3 + v5 legacy support is the actual feature surface,
+  the version-string choice is purely communicative.
+- **Confidence:** high (both are one-line edits)
+- **Status:** Open
+
+---
+
+### V060F-024: clarify or retire `archive/eddacraft-tui-local/`
+
+- **Surface:** `archive/eddacraft-tui-local/` (pre-publication
+  fork of `eddacraft-tui` — diverges from the published
+  `0.1.0` crate the workspace now depends on)
+- **Flagged by:** widgets-as-built §"Crate resolution"
+  (2026-05-07)
+- **Intent:** The `eddacraft-tui` crate is now published on
+  crates.io at `0.1.0` and consumed via the workspace
+  dependency (`Cargo.toml:52` + `Cargo.lock:1167-1176`). The
+  local archive at `archive/eddacraft-tui-local/` is a
+  pre-publication fork that diverges from the published
+  crate (notably, the `editor` widget — 1005 lines, consumed
+  by `tutorial/fix.rs` — exists only in the published crate
+  and is missing from the archive). Future readers
+  investigating the widget vocabulary may land on the archive
+  and produce wrong claims.
+- **Expected outcome:** Either (a) add a top-level `README.md`
+  to `archive/eddacraft-tui-local/` explicitly stating the
+  archive is historical-only and pointing at the
+  `crates.io` release as the source of truth, or (b) delete
+  the archive entirely and rely on `git log` for
+  pre-publication history. (a) is safer; (b) is cleaner.
+- **Confidence:** high (small archive-management decision)
+- **Status:** Open
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -571,7 +713,8 @@ discovery.
 | Nominations                          | 1     | Complete (V060F-001)                                   |
 | As-built sweep follow-ups (batch 1)  | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
 | As-built sweep follow-ups (batch 2)  | 8     | Open (V060F-012..V060F-019, filed 2026-05-07)          |
-| **Total**                            | **19** | 1 Complete / 18 Open                                  |
+| As-built sweep follow-ups (batch 3)  | 5     | Open (V060F-020..V060F-024, filed 2026-05-07)          |
+| **Total**                            | **24** | 1 Complete / 23 Open                                  |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 
@@ -589,3 +732,11 @@ Batch 2 (TUI / driver framework / API / observability as-builts) split:
 - **Architectural unfinished** (2): V060F-016 reliability-budget persistence, V060F-017 panic isolation defeated by panic=abort
 - **Surface defaults** (1): V060F-018 TuiBackend default flip Ink → Ratatui
 - **Retirement / attribution** (1): V060F-019 admin-cli retirement + X-Admin-Actor drift
+
+Batch 3 (tutorial / widgets / CLI TUI runner / adapter packages as-builts) split:
+
+- **Architectural / runtime correctness** (1): V060F-020 CLI TUI runner panic-safety gap
+- **Test-pin coverage gaps** (1): V060F-021 tutorial legacy-path content drift + invariant coverage
+- **Public-doc spec drift** (1): V060F-022 APS public schema documents legacy ModuleStatus enum
+- **Small doc / version drift** (1): V060F-023 kindling header comment + BMAD adapter version
+- **Repo hygiene** (1): V060F-024 archive/eddacraft-tui-local/ clarification or retirement
