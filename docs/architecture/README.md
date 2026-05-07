@@ -31,12 +31,36 @@ shipping. The shape is set by the [as-built template](_as-built-template.md)
   parser, semantic graph (KERN-020..023), policy engine, embedded API,
   watch loop. Supersedes `rust-kernel-spec.md` for "what shipped" (current,
   against `v0.6.0-beta`)
+- [TUI surfaces](tui-as-built.md) — Ratatui surfaces (audit / browser /
+  doctor / gate / init / onboarding / status / tutorial / watch / welcome /
+  wizard), shared widget vocabulary, snapshot infrastructure, watch
+  dashboard event adapter (current, against `v0.6.0-beta`)
+- [Driver framework + intercept-proto](driver-framework-as-built.md) —
+  JSON-RPC wire protocol, driver registration + capability negotiation,
+  TS / Rust driver clients, Win32 named-pipe primitives, intercept-rules
+  hot-path library (current, against `v0.6.0-beta`; spec→code drift
+  documented in §12)
+- [anvil-api service](api-as-built.md) — Hono on Vercel, non-auth admin
+  surfaces, license / migration runner, middleware stack, Neon DB layer,
+  apps/admin-cli retirement path (current, against `v0.6.0-beta`; auth
+  flows live in `auth-as-built.md`)
+- [anvil-observability](observability-as-built.md) — namespace registry,
+  tracing subscriber, traceparent helper, sensitive-fields advisory list
+  (current, against `v0.6.0-beta`)
 
 Planned next set:
 
-- TUI surfaces (planned) — Ratatui watch / status / audit / doctor surfaces
-- Driver framework client (planned) — `anvil-driver-client` protocol surface
-- API + admin (planned) — `apps/anvil-api` non-auth surfaces; `apps/admin-cli`
+- Tutorial subsystem (planned) — `anvil-tui/src/surfaces/tutorial/*` paths,
+  discovery, executor, watch_demo; ProtectionLoop copy invariants
+- Widget catalogue (planned) — `anvil-tui/widgets/` + upstream
+  `eddacraft-tui/widgets/` (data_table, parallel_progress, image_pane,
+  text_input)
+- CLI TUI runner (planned) — `crates/anvil-cli/src/tui.rs` (terminal
+  lifecycle, `run_surface_in` shared-terminal pattern, animation tick)
+- Adapter packages (planned) — `packages/adapters/`, `packages/aps`,
+  `packages/kindling-integration`
+- Workspace / build (planned) — Cargo workspace shape, `nx` / `pnpm`
+  layering, `cargo-dist` release pipeline
 
 ## Living references
 
