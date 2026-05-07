@@ -34,7 +34,7 @@ jobs:
   # ── Change detection (skipped on schedule → all languages run) ───
   detect-changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     if: github.event_name != 'schedule'
     outputs:
       source-changed: ${{ steps.changes.outputs.source-changed }}
@@ -49,7 +49,7 @@ jobs:
   # ── JavaScript / TypeScript ──────────────────────────────────────
   analyze-js:
     name: Analyze (javascript-typescript)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     needs: detect-changes
     # Run when: schedule (detect-changes skipped) OR TS/JS source changed
     if: |
@@ -74,7 +74,7 @@ jobs:
   # ── Rust ─────────────────────────────────────────────────────────
   analyze-rust:
     name: Analyze (rust)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     needs: detect-changes
     # Run when: schedule (detect-changes skipped) OR Rust source changed
     if: |
@@ -110,7 +110,7 @@ jobs:
   # ── GitHub Actions (schedule only — low-value per-PR) ────────────
   analyze-actions:
     name: Analyze (actions)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     if: github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
