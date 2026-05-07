@@ -26,6 +26,7 @@
 //! `USERPROFILE` to a per-test tempdir so the test runs deterministically
 //! on developer machines that already have anvil installed.
 
+#[cfg(not(target_os = "windows"))]
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
@@ -99,6 +100,7 @@ fn install_claude_code_entry_pointing_at_bare_anvil(home: &Path) {
     .unwrap();
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn handshake_against_real_anvil_promotes_restart_required_client() {
     // Install a Cursor entry that points at the real test binary, then
@@ -181,6 +183,7 @@ fn probe_is_skipped_when_no_install_yet() {
     );
 }
 
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn handshake_promotion_is_per_client() {
     // Cursor points at the exact test binary and should promote. Claude Code

@@ -1,26 +1,32 @@
 //! RMCP-002: `anvil mcp serve --stdio` starts a Rust stdio MCP server.
 //!
-//! Unix-only: this integration test wires up `IpcListener::bind(&Path)`
-//! which has a different signature on Windows (`&str` named-pipe form).
-//! Gate the whole integration test file rather than per-test so the
-//! test binary compiles cleanly on Windows Cross.
-#![cfg(unix)]
+//! The daemon-backed cases are Unix-only because they wire up
+//! `IpcListener::bind(&Path)`, which has a different named-pipe form on
+//! Windows. The pure stdio protocol cases stay portable and should keep
+//! running on Windows Cross.
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
+
+#[cfg(unix)]
 use anvil_intercept::Shutdown;
+#[cfg(unix)]
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 use serde_json::{Value, json};
+#[cfg(unix)]
 use tempfile::TempDir;
+#[cfg(unix)]
 use tokio::runtime::Runtime;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const CHILD_TIMEOUT: Duration = Duration::from_secs(3);
+#[cfg(unix)]
 const DAEMON_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[test]
@@ -397,6 +403,110 @@ fn mcp_serve_stdio_tools_call_missing_arguments_blocks_write() {
 }
 
 #[test]
+fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content_via_embedded_fallback() {
+    let mut child = spawn_mcp_server_with_dev_bypass();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_validate_write",
+                    "arguments": {
+                        "path": "src/example.ts",
+                        "operation": "create",
+                        "proposedContent": "export const value = 1;\n"
+                    }
+                }
+            })
+        )
+        .expect("failed to send known tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after known tool call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("known tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 10);
+    assert_eq!(parsed["result"]["isError"], false);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["decision"], "allow");
+    assert_eq!(payload["summary"]["total"], 0);
+    assert_eq!(payload["diagnostics"], json!([]));
+    assert_eq!(payload["correlation"]["backend"], "embedded");
+    assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_blocks_secret_content_via_embedded_fallback() {
+    let mut child = spawn_mcp_server_with_dev_bypass();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_validate_write",
+                    "arguments": {
+                        "path": "src/secret.ts",
+                        "operation": "create",
+                        "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+                    }
+                }
+            })
+        )
+        .expect("failed to send secret tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after secret tool call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("secret tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 11);
+    assert_eq!(parsed["result"]["isError"], true);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["decision"], "block");
+    assert_eq!(payload["safeDefault"], "do-not-write");
+    assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+    assert_eq!(payload["diagnostics"][0]["category"], "secret");
+    assert_eq!(payload["correlation"]["backend"], "embedded");
+    assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+}
+
+#[cfg(unix)]
+#[test]
 fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content() {
     let daemon = LiveDaemon::start();
     let mut child = spawn_mcp_server_with_dev_bypass_and_daemon(daemon.xdg_runtime_dir());
@@ -451,6 +561,7 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content() {
     assert_eq!(payload["correlation"]["daemonStatus"], "available");
 }
 
+#[cfg(unix)]
 #[test]
 fn mcp_serve_stdio_tools_call_blocks_secret_content() {
     let daemon = LiveDaemon::start();
@@ -571,6 +682,7 @@ fn spawn_mcp_server_with_dev_bypass() -> Child {
         .expect("failed to spawn anvil mcp serve --stdio")
 }
 
+#[cfg(unix)]
 fn spawn_mcp_server_with_dev_bypass_and_daemon(xdg_runtime_dir: &Path) -> Child {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui")
@@ -586,6 +698,7 @@ fn spawn_mcp_server_with_dev_bypass_and_daemon(xdg_runtime_dir: &Path) -> Child 
         .expect("failed to spawn anvil mcp serve --stdio")
 }
 
+#[cfg(unix)]
 struct LiveDaemon {
     runtime: Runtime,
     shutdown: Shutdown,
@@ -593,6 +706,7 @@ struct LiveDaemon {
     runtime_dir: TempDir,
 }
 
+#[cfg(unix)]
 impl LiveDaemon {
     fn start() -> Self {
         let runtime = Runtime::new().expect("tokio runtime starts");
@@ -617,6 +731,7 @@ impl LiveDaemon {
     }
 }
 
+#[cfg(unix)]
 impl Drop for LiveDaemon {
     fn drop(&mut self) {
         self.shutdown.trigger();
@@ -632,6 +747,7 @@ impl Drop for LiveDaemon {
     }
 }
 
+#[cfg(unix)]
 fn daemon_socket_path(xdg_runtime_dir: &Path) -> PathBuf {
     xdg_runtime_dir.join("anvil").join("intercept.sock")
 }

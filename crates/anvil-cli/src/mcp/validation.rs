@@ -1,26 +1,43 @@
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+#[cfg(any(unix, test))]
+use std::io::{BufRead, Read};
+#[cfg(unix)]
+use std::io::{BufReader, Write};
+#[cfg(unix)]
+use std::path::PathBuf;
+#[cfg(unix)]
 use std::time::Duration;
 
 use anvil_intercept::enforcement::{EnforcementPipeline, ProposedChange};
+#[cfg(unix)]
 use anvil_intercept::ipc;
 use anvil_intercept_rules::ChangeKind;
 use anvil_kernel_types::{Diagnostic, Mode};
+#[cfg(unix)]
 use serde::Deserialize;
+#[cfg(unix)]
 use serde_json::{Value, json};
 
 pub(crate) const INPUT_RULE_ID: &str = "mcp-validate-write-input";
 pub(crate) const PRE_WRITE_MODE: &str = "pre-write";
+#[cfg(unix)]
 const DAEMON_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+#[cfg(any(unix, test))]
 const DAEMON_RESPONSE_LINE_BYTES: u64 = 1 << 20;
+#[cfg(unix)]
 const DAEMON_REQUEST_ID: &str = "mcp-prewrite-validation";
+#[cfg(unix)]
 const SCAN_BUFFER_REQUEST_VERSION: u64 = 1;
+#[cfg(unix)]
 const SCAN_BUFFER_RESULT_VERSION: u64 = 1;
+#[cfg(any(unix, test))]
 const DAEMON_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-unavailable",
     message: "Anvil could not validate the proposed write.",
     retriable: true,
 };
+#[cfg(unix)]
 const DAEMON_TRUNCATED_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-truncated",
     message: "Anvil daemon returned a truncated validation response.",
@@ -108,6 +125,7 @@ pub trait DaemonValidationClient {
 
 pub struct LocalDaemonValidationClient;
 
+#[cfg(unix)]
 pub struct SocketDaemonValidationClient {
     socket_path: PathBuf,
 }
@@ -148,6 +166,7 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
     }
 }
 
+#[cfg(unix)]
 impl DaemonValidationClient for SocketDaemonValidationClient {
     fn validate_pre_write(
         &self,
@@ -163,12 +182,14 @@ impl DaemonValidationClient for SocketDaemonValidationClient {
     }
 }
 
+#[cfg(unix)]
 #[derive(Debug)]
 enum DaemonRequestError {
     Unavailable,
     Failure(ValidationBackendFailure),
 }
 
+#[cfg(unix)]
 impl From<ValidationBackendFailure> for DaemonRequestError {
     fn from(failure: ValidationBackendFailure) -> Self {
         Self::Failure(failure)
@@ -267,6 +288,7 @@ fn request_daemon_diagnostics(
     Ok(result.diagnostics)
 }
 
+#[cfg(any(unix, test))]
 fn read_capped_response_line(
     reader: &mut impl BufRead,
 ) -> Result<String, ValidationBackendFailure> {
@@ -297,6 +319,7 @@ fn read_capped_response_line(
     })
 }
 
+#[cfg(unix)]
 fn validate_jsonrpc_response_shape(
     response: &JsonRpcScanBufferResponse,
 ) -> Result<(), ValidationBackendFailure> {
@@ -324,14 +347,7 @@ fn validate_jsonrpc_response_shape(
     }
 }
 
-#[cfg(not(unix))]
-fn request_daemon_diagnostics(
-    _socket_path: &Path,
-    _request: &PreWriteValidationRequest<'_>,
-) -> Result<Vec<Diagnostic>, DaemonRequestError> {
-    Err(DaemonRequestError::Unavailable)
-}
-
+#[cfg(unix)]
 #[derive(Debug, Deserialize)]
 struct JsonRpcScanBufferResponse {
     #[allow(dead_code)]
@@ -342,6 +358,7 @@ struct JsonRpcScanBufferResponse {
     id: Option<Value>,
 }
 
+#[cfg(unix)]
 #[derive(Debug, Deserialize)]
 struct ScanBufferResult {
     #[allow(dead_code)]
@@ -350,6 +367,7 @@ struct ScanBufferResult {
     truncated: bool,
 }
 
+#[cfg(unix)]
 #[derive(Debug, Deserialize)]
 struct JsonRpcError {
     code: i64,
