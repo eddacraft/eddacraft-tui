@@ -222,7 +222,9 @@ jobs:
     name: Publish to npm
     needs: [build, test]
     if: startsWith(github.ref, 'refs/tags/napi-v')
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     # Tag-gated job; ADR-030 keeps the crate private so this path is
     # dormant in practice. 30m still prevents a hung publish step from
     # squatting a runner if it ever flips live. Council review M15

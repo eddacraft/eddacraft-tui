@@ -22,7 +22,9 @@ jobs:
   # Detect what changed to skip unnecessary jobs
   detect-changes:
     name: Detect Changes
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     outputs:
       docs-only: ${{ steps.changes.outputs.docs-only }}
       code-changed: ${{ steps.changes.outputs.code-changed }}
@@ -42,7 +44,9 @@ jobs:
   # Docs-only job: just linting
   docs-lint:
     name: Docs Lint
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.docs-only == 'true'
 
@@ -65,7 +69,9 @@ jobs:
   # code-changed. Same rationale applies to typecheck/test/build below.
   lint:
     name: Lint & Format
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
@@ -118,7 +124,9 @@ jobs:
   # ── Job 2: Type Check ───────────────────────────────────────────
   typecheck:
     name: Type Check
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
@@ -156,7 +164,9 @@ jobs:
   # the source-changed gate above.
   lint-skip:
     name: Lint & Format
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed != 'true'
     steps:
@@ -164,7 +174,9 @@ jobs:
 
   typecheck-skip:
     name: Type Check
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed != 'true'
     steps:
@@ -172,7 +184,9 @@ jobs:
 
   test-skip:
     name: Unit Tests (Node 22.x, ubuntu-latest)
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed != 'true'
     steps:
@@ -181,7 +195,9 @@ jobs:
   # ── Job 3a: Unit Tests — Ubuntu ──────────────────────────────────
   test:
     name: Unit Tests (Node 22.x, ubuntu-latest)
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
@@ -366,7 +382,9 @@ jobs:
   # ── Job 4: Build ─────────────────────────────────────────────────
   build:
     name: Build (Node 22.x)
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed == 'true'
     # Azure credentials are passed as a single input to setup-workspace
@@ -396,7 +414,9 @@ jobs:
   # so the Rust CLI is not required in this job.
   e2e-harness:
     name: E2E Harness (Node 22.x)
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     needs: detect-changes
     if: |
       needs.detect-changes.outputs.source-changed == 'true' ||

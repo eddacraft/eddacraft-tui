@@ -36,7 +36,9 @@ concurrency:
 jobs:
   guard:
     name: Validate PR base
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
     steps:
       - name: Check head branch against allowed patterns
         # Both inputs flow through env: and are then dereferenced as quoted

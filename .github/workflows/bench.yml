@@ -81,8 +81,9 @@ jobs:
     # drift outside ±15%. Policy is documented inline in
     # `scripts/check-midedit-baseline.sh` and the baseline JSON header.
     # The committed baseline was recorded on a developer machine; CI runs on
-    # ubuntu-latest will likely emit drift WARN rows on the first runs after
-    # any hardware-class change. The hard-fail gate (ADR-031 SLO) is
+    # the configured Linux runner (defaults to ubuntu-latest, overridable via
+    # `vars.LINUX_RUNNER`) will likely emit drift WARN rows on the first runs
+    # after any hardware-class change. The hard-fail gate (ADR-031 SLO) is
     # runner-independent and is the only gate that should block a merge.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
