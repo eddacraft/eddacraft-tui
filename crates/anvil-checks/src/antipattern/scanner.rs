@@ -79,23 +79,26 @@ struct PreparedPattern {
     allowlist_regexes: Vec<AllowlistGlob>,
 }
 
-/// Pair of an allowlist glob's original `pattern` string with its
-/// compiled `Regex`. Held by [`PreparedPattern::allowlist_regexes`].
+/// Compiled allowlist glob plus the precomputed match-base flag.
+/// Held by [`PreparedPattern::allowlist_regexes`].
 ///
-/// V050F-006: separated from a bare `Vec<Regex>` so the hot-path
-/// matcher can keep the historical match-base semantics — when a glob
-/// has no `/`, the regex is matched against the file's basename, not
-/// the full path — without re-parsing the pattern on every call.
+/// V050F-006: the matcher keeps the historical match-base
+/// semantics — when the original glob had no `/`, the regex matches
+/// against the file's basename, not the full path. The decision is
+/// boolean, so we precompute and store it as `is_path_glob` instead
+/// of retaining the original glob string only to call `contains('/')`
+/// per match (council finding: kernel-maintainer).
 #[derive(Debug)]
 struct AllowlistGlob {
-    /// The original glob string, kept so the matcher can decide
-    /// whether to match against `file_path` or `basename(file_path)`.
-    pattern: String,
-    /// Compiled regex equivalent of `pattern`. `None` means the glob
-    /// failed to compile in `prepare_pattern`; the matcher treats it
-    /// as a no-op (matches nothing), which mirrors the pre-V050F
-    /// behaviour where `glob_to_regex` returned `None` and
-    /// `is_some_and` short-circuited to `false`.
+    /// `true` when the original glob contained a `/`; controls
+    /// whether the matcher walks the full normalised path or the
+    /// basename only.
+    is_path_glob: bool,
+    /// Compiled regex equivalent of the original glob. `None` means
+    /// the glob failed to compile in `prepare_pattern`; the matcher
+    /// treats it as a no-op (matches nothing), which mirrors the
+    /// pre-V050F behaviour where `glob_to_regex` returned `None`
+    /// and `is_some_and` short-circuited to `false`.
     regex: Option<Regex>,
 }
 
@@ -217,7 +220,7 @@ fn is_file_allowlisted_compiled(file_path: &str, allowlist: &[AllowlistGlob]) ->
         let Some(regex) = entry.regex.as_ref() else {
             return false;
         };
-        let target = if entry.pattern.contains('/') {
+        let target = if entry.is_path_glob {
             normalised.as_str()
         } else {
             basename
@@ -529,16 +532,17 @@ fn prepare_pattern(pattern: AntiPattern) -> PreparedPattern {
 }
 
 /// V050F-006: pre-compile every allowlist glob into its regex
-/// equivalent so the per-file hot path does no work beyond regex
-/// matching. Glob → regex mapping mirrors [`glob_to_regex`] exactly;
-/// failures yield `regex: None` so the matcher's behaviour is the
-/// same as the previous `glob_to_regex(...).is_some_and(...)` shape.
+/// equivalent AND precompute the match-base flag so the per-file
+/// hot path does no work beyond regex matching. Glob → regex mapping
+/// mirrors [`glob_to_regex`] exactly; failures yield `regex: None`
+/// so the matcher's behaviour is the same as the previous
+/// `glob_to_regex(...).is_some_and(...)` shape.
 fn compile_allowlist(allowlist: &[String]) -> Vec<AllowlistGlob> {
     allowlist
         .iter()
         .map(|pattern| AllowlistGlob {
+            is_path_glob: pattern.contains('/'),
             regex: glob_to_regex(pattern),
-            pattern: pattern.clone(),
         })
         .collect()
 }
@@ -1053,11 +1057,14 @@ mod tests {
             3,
             "every allowlist entry must produce exactly one cache slot"
         );
-        for entry in &prepared.allowlist_regexes {
+        for (entry, source) in prepared
+            .allowlist_regexes
+            .iter()
+            .zip(prepared.pattern.allowlist.iter())
+        {
             assert!(
                 entry.regex.is_some(),
-                "well-formed glob {:?} must compile in prepare_pattern",
-                entry.pattern,
+                "well-formed glob {source:?} must compile in prepare_pattern",
             );
         }
     }
@@ -1089,10 +1096,9 @@ mod tests {
         // The legacy `glob_to_regex(...).is_some_and(...)` shape
         // returned `false` when compilation failed. Pin the
         // cache-side equivalent: an `AllowlistGlob` with `regex:
-        // None` must never match, even if its `pattern` would equal
-        // the file path.
+        // None` must never match, regardless of `is_path_glob`.
         let entries = vec![super::AllowlistGlob {
-            pattern: "src/uncompilable.ts".to_string(),
+            is_path_glob: true,
             regex: None,
         }];
         assert!(
