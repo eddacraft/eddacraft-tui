@@ -1774,7 +1774,25 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         .await;
     }
 
-    if method == QUERY_STATUS_METHOD {
+    // Status query: dual-routed under DRVR-002 / INTD-011.
+    //
+    // - `LEGACY_QUERY_STATUS_METHOD` (`"query_status"`): the bare-name
+    //   form INTD-011 originally pinned. The CLI (`anvil intercept
+    //   status`) and the existing 37-fixture conformance suite still
+    //   speak it; we cannot break that contract until every consumer
+    //   migrates.
+    // - `anvil_intercept_proto::ANVIL_STATUS_QUERY` (`"anvil/status/query"`):
+    //   the canonical namespaced form DRVR-002 promised drivers when the
+    //   protocol module shipped. Drivers that import the published
+    //   constant must hit a live route, not a `Method not found`.
+    //
+    // Both names route to the same handler. The proto crate is
+    // imported directly (not duplicated as a string literal) so any
+    // future rename on the canonical side propagates here without a
+    // silent drift.
+    if method == LEGACY_QUERY_STATUS_METHOD
+        || method == anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY
+    {
         return handle_query_status_jsonrpc(
             params,
             response_id,
@@ -1794,10 +1812,19 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     )
 }
 
-/// JSON-RPC method name for INTD-011 daemon status queries. Pinned at
-/// the `query_status` literal — driver consumers and the
-/// `anvil intercept status` CLI command both use this exact string.
-pub const QUERY_STATUS_METHOD: &str = "query_status";
+/// Legacy JSON-RPC method name for INTD-011 daemon status queries.
+/// Pinned at the bare `query_status` literal — the
+/// `anvil intercept status` CLI command and pre-DRVR-002 driver
+/// consumers speak this form. Both this constant and
+/// [`anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY`] route to the
+/// same handler in [`handle_jsonrpc_request`]; new consumers SHOULD
+/// prefer the canonical `anvil/status/query` name.
+pub const LEGACY_QUERY_STATUS_METHOD: &str = "query_status";
+
+/// Backwards-compatible alias for [`LEGACY_QUERY_STATUS_METHOD`]. v0.5
+/// callers imported `QUERY_STATUS_METHOD` directly; preserve the
+/// re-export so the rename does not break external consumers.
+pub const QUERY_STATUS_METHOD: &str = LEGACY_QUERY_STATUS_METHOD;
 
 fn handle_query_status_jsonrpc(
     params: &Value,
