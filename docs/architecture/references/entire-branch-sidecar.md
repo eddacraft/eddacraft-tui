@@ -7,9 +7,9 @@
 
 **Why we care:** Entire stores AI agent session data (transcripts, prompts,
 checkpoint snapshots, token usage) entirely in git, on parallel branches that
-travel with the repo. The pattern is directly relevant to anything in Anvil
-that captures agent activity (kindling, council outputs, APS work-item history)
-and wants it to survive `git clone` without an external store.
+travel with the repo. The pattern is directly relevant to anything in Anvil that
+captures agent activity (kindling, council outputs, APS work-item history) and
+wants it to survive `git clone` without an external store.
 
 ## TL;DR
 
@@ -58,9 +58,9 @@ Key properties:
 
 Triggers for temporary checkpoints:
 
-| Event | Strategy |
-| ----- | -------- |
-| On save | Temporary |
+| Event            | Strategy  |
+| ---------------- | --------- |
+| On save          | Temporary |
 | On task complete | Temporary |
 
 ### Tier 2 — Metadata branch (permanent record)
@@ -151,14 +151,14 @@ agent activity ──┐
          shadow branch may be GC'd or migrated to new base commit
 ```
 
-`WriteCommittedOptions` payload (from the docs):
-`CheckpointID`, `SessionID`, `Strategy`, `Branch`, `Transcript`, `Prompts`,
-`Context`, `FilesTouched`, `TokenUsage`.
+`WriteCommittedOptions` payload (from the docs): `CheckpointID`, `SessionID`,
+`Strategy`, `Branch`, `Transcript`, `Prompts`, `Context`, `FilesTouched`,
+`TokenUsage`.
 
 ## Design Rationale
 
-The Entire docs describe *what* and *how*, not *why this over alternatives*.
-The following is our analysis.
+The Entire docs describe _what_ and _how_, not _why this over alternatives_. The
+following is our analysis.
 
 ### vs git notes (`refs/notes/*`)
 
@@ -186,13 +186,13 @@ The following is our analysis.
 ### Why the two-tier split specifically
 
 - **Shadow branch must contain the worktree** so rewind has a real tree to
-  restore from. That's incompatible with the permanent record's compact,
-  sharded form.
+  restore from. That's incompatible with the permanent record's compact, sharded
+  form.
 - Condensing shadow → metadata at commit time turns transient state into a
   curated artifact — gives you the equivalent of a "release note" for the
   agent's session.
-- The shadow branch can be aggressively GC'd; the metadata branch is the
-  history you keep.
+- The shadow branch can be aggressively GC'd; the metadata branch is the history
+  you keep.
 
 ## Trade-offs
 
@@ -200,17 +200,17 @@ The following is our analysis.
   in the message. Small but visible noise on `git log`. Mitigation: trailer is
   optional and the user can strip it.
 - **Branch clutter.** `git branch -a` lists `entire/...` branches unless the
-  user filters. Power users will want a `refs/entire/*` namespace under
-  `refs/`, not under `refs/heads/`.
+  user filters. Power users will want a `refs/entire/*` namespace under `refs/`,
+  not under `refs/heads/`.
 - **Shadow branch bloat.** Including full worktree contents in temp checkpoints
-  means the shadow branch grows with every save. The doc doesn't cover GC
-  policy — when does abandoned shadow state get pruned?
+  means the shadow branch grows with every save. The doc doesn't cover GC policy
+  — when does abandoned shadow state get pruned?
 - **Rebase / amend hazard.** Trailer-based linkage breaks if the user amends or
   rebases without re-running the post-commit hook. The metadata commit still
   exists but the user commit no longer references it.
 - **Mirror semantics.** Tools like `git-sync` will replicate the sidecar branch
-  by default — generally desirable, but means private session data goes
-  wherever the repo goes. Worth flagging in security/privacy docs.
+  by default — generally desirable, but means private session data goes wherever
+  the repo goes. Worth flagging in security/privacy docs.
 - **Schema versioning.** The `v1` suffix on `entire/checkpoints/v1` is an
   explicit version anchor. Anyone borrowing the pattern should adopt the same
   discipline.
@@ -223,8 +223,8 @@ Capture-adjacent surfaces that could borrow this pattern:
   store. A git-native option would mean session data ships with `git push` for
   free; pay the cost in ref management and shadow-branch GC.
 - **council** outputs — multi-agent review findings could live on a
-  `refs/anvil/council/v1` ref, sharded by review ID, with a trailer linking
-  back to the reviewed commit.
+  `refs/anvil/council/v1` ref, sharded by review ID, with a trailer linking back
+  to the reviewed commit.
 - **APS work-item history** — `plans/` already lives on main and has the
   pollution problem the sidecar pattern solves. A `refs/anvil/aps-history/v1`
   branch could hold execution traces without bloating `plans/*.aps.md`.
@@ -241,10 +241,10 @@ Things to do **better than Entire**:
 - Use `refs/anvil/*` namespace, not `refs/heads/anvil/*`, to keep `git branch`
   output clean.
 - Document GC policy for shadow refs from day one.
-- Define explicit behavior on `git commit --amend` and `git rebase` — re-run
-  the hook, or surface a warning.
-- Add the security/privacy section the Entire doc is light on: who can read
-  the metadata branch on push, and is anything sensitive ever in transcripts.
+- Define explicit behavior on `git commit --amend` and `git rebase` — re-run the
+  hook, or surface a warning.
+- Add the security/privacy section the Entire doc is light on: who can read the
+  metadata branch on push, and is anything sensitive ever in transcripts.
 
 ## Open questions
 
