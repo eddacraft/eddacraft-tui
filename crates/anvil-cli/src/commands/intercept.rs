@@ -629,9 +629,9 @@ mod tests {
     fn windows_query_daemon_status_round_trips_against_local_pipe() {
         use std::sync::Arc;
 
-        use anvil_intercept::ipc::IpcListener;
+        use anvil_intercept::Shutdown;
+        use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
         use anvil_intercept::status::{DaemonStatus, StatusProvider};
-        use anvil_intercept::{NoopDispatcher, Shutdown};
 
         struct Fixture;
         impl StatusProvider for Fixture {
