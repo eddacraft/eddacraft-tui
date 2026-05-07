@@ -6,21 +6,20 @@
 //! running on Windows Cross.
 
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Child, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
 #[cfg(unix)]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[cfg(unix)]
 use anvil_intercept::Shutdown;
 #[cfg(unix)]
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 use serde_json::{Value, json};
-#[cfg(unix)]
-use tempfile::TempDir;
 #[cfg(unix)]
 use tokio::runtime::Runtime;
 
@@ -404,7 +403,10 @@ fn mcp_serve_stdio_tools_call_missing_arguments_blocks_write() {
 
 #[test]
 fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content_via_embedded_fallback() {
-    let mut child = spawn_mcp_server_with_dev_bypass();
+    let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+    let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+    let mut child =
+        spawn_mcp_server_with_dev_bypass_without_daemon(runtime_dir.path(), home_dir.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -455,7 +457,10 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content_via_embedded_fallb
 
 #[test]
 fn mcp_serve_stdio_tools_call_blocks_secret_content_via_embedded_fallback() {
-    let mut child = spawn_mcp_server_with_dev_bypass();
+    let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+    let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+    let mut child =
+        spawn_mcp_server_with_dev_bypass_without_daemon(runtime_dir.path(), home_dir.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -682,6 +687,23 @@ fn spawn_mcp_server_with_dev_bypass() -> Child {
         .expect("failed to spawn anvil mcp serve --stdio")
 }
 
+fn spawn_mcp_server_with_dev_bypass_without_daemon(runtime_dir: &Path, home_dir: &Path) -> Child {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("mcp")
+        .arg("serve")
+        .arg("--stdio")
+        .env("ANVIL_DEV", "1")
+        .env("XDG_RUNTIME_DIR", runtime_dir)
+        .env("HOME", home_dir)
+        .env("USERPROFILE", home_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("failed to spawn anvil mcp serve --stdio")
+}
+
 #[cfg(unix)]
 fn spawn_mcp_server_with_dev_bypass_and_daemon(xdg_runtime_dir: &Path) -> Child {
     let mut cmd = Command::new(ANVIL_BIN);
@@ -703,7 +725,7 @@ struct LiveDaemon {
     runtime: Runtime,
     shutdown: Shutdown,
     server: Option<tokio::task::JoinHandle<Result<(), anvil_intercept::ipc::IpcError>>>,
-    runtime_dir: TempDir,
+    runtime_dir: tempfile::TempDir,
 }
 
 #[cfg(unix)]

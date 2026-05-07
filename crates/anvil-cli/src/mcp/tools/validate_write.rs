@@ -775,8 +775,8 @@ mod tests {
     };
     use crate::mcp::enforcement::EnforcementMode;
     use crate::mcp::validation::{
-        DaemonValidationClient, DaemonValidationOutcome, LocalDaemonValidationClient,
-        PreWriteValidationRequest, ValidationBackendFailure,
+        DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
+        ValidationBackendFailure,
     };
     #[cfg(unix)]
     use anvil_intercept::Shutdown;
@@ -1097,7 +1097,7 @@ mod tests {
         let daemon = parse_payload(&call_with_validation_client(
             &arguments,
             workspace.path(),
-            &LocalDaemonValidationClient::with_socket_path(socket),
+            &super::LocalDaemonValidationClient::with_socket_path(socket),
             &FixedEnforcement(EnforcementMode::Block),
         ));
 
