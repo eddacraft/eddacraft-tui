@@ -158,6 +158,16 @@ pub struct ScanStats {
 /// (e.g. discovery flows that need to tell users "we skipped a 4 MB
 /// minified line"). For the legacy path, see `scan_content`, which
 /// drops the stats and is a thin wrapper around this function.
+///
+/// V050F-011: this entry point recompiles `config.custom_patterns`
+/// every call AND silently drops any per-pattern compile errors.
+/// Hot-path callers (e.g. `run_secret_check`) should compile once
+/// via [`compile_custom_patterns`] and route through
+/// [`scan_content_with_compiled_patterns`] instead so the errors
+/// surface AND the per-file recompile cost goes away. This wrapper
+/// keeps the legacy signature for third-party callers but emits a
+/// `tracing::warn!` on any dropped error so the silent-loss path is
+/// observable.
 pub fn scan_content_with_stats(
     content: &str,
     file_path: &str,
@@ -172,8 +182,40 @@ pub fn scan_content_with_limit_and_stats(
     config: &SecretCheckConfig,
     limit: usize,
 ) -> (Vec<SecretFinding>, ScanStats) {
+    let (custom_patterns, custom_errors) = compile_custom_patterns(&config.custom_patterns);
+    if !custom_errors.is_empty() {
+        // V050F-011: legacy entry points cannot return the errors in
+        // their signature without a breaking change. Surface via
+        // tracing so the silent-loss path is observable; new callers
+        // should use `scan_content_with_compiled_patterns` (no
+        // recompile) or `scan_content_with_pattern_errors_and_stats`
+        // (errors in the return tuple) so the contract is enforced
+        // by the function signature.
+        for err in &custom_errors {
+            tracing::warn!(file = %file_path, "{err}");
+        }
+    }
+    scan_content_with_compiled_patterns(content, file_path, config, &custom_patterns, limit)
+}
+
+/// V050F-011: hot-path scan that takes pre-compiled custom patterns
+/// so the per-call recompile cost is paid once at check setup, not
+/// once per file. Use this from any flow that calls the scanner in a
+/// loop or in parallel.
+///
+/// Compile errors are caller-owned: get them from
+/// [`compile_custom_patterns`] (or [`compile_secret_patterns`])
+/// once upfront and surface them at the boundary that owns
+/// configuration. Built-in patterns are sourced from the per-process
+/// [`DEFAULT_COMPILED_PATTERNS`] cache.
+pub fn scan_content_with_compiled_patterns(
+    content: &str,
+    file_path: &str,
+    config: &SecretCheckConfig,
+    custom_patterns: &[CompiledPattern],
+    limit: usize,
+) -> (Vec<SecretFinding>, ScanStats) {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
-    let (custom_patterns, _custom_errors) = compile_custom_patterns(&config.custom_patterns);
     let default_patterns: &[CompiledPattern] = &DEFAULT_COMPILED_PATTERNS;
     let mut findings = Vec::new();
     let mut stats = ScanStats::default();
@@ -286,7 +328,9 @@ pub fn scan_content_with_limit(
 
 /// Legacy entry point that drops the SCAN-002 stats. Prefer
 /// `scan_content_with_stats` for new callers that need the skipped-line
-/// count.
+/// count, or `scan_content_with_pattern_errors_and_stats` if the
+/// caller wants to surface custom-pattern compile errors directly
+/// (V050F-011) instead of relying on the `tracing::warn!` log path.
 pub fn scan_content(
     content: &str,
     file_path: &str,
@@ -295,9 +339,34 @@ pub fn scan_content(
     scan_content_with_stats(content, file_path, config).0
 }
 
+/// V050F-011: scan and surface custom-pattern compile errors in the
+/// return tuple so third-party callers can route them into their
+/// own diagnostic / config-validation surface instead of relying on
+/// the `tracing::warn!` log emitted by [`scan_content_with_stats`].
+/// Compiles the patterns once per call; for repeated scans, reuse the
+/// compiled slice via [`scan_content_with_compiled_patterns`].
+pub fn scan_content_with_pattern_errors_and_stats(
+    content: &str,
+    file_path: &str,
+    config: &SecretCheckConfig,
+) -> (Vec<SecretFinding>, ScanStats, Vec<String>) {
+    let (custom_patterns, errors) = compile_custom_patterns(&config.custom_patterns);
+    let (findings, stats) = scan_content_with_compiled_patterns(
+        content,
+        file_path,
+        config,
+        &custom_patterns,
+        usize::MAX,
+    );
+    (findings, stats, errors)
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::secret::scanner::{scan_content, scan_content_with_stats};
+    use crate::secret::scanner::{
+        scan_content, scan_content_with_compiled_patterns,
+        scan_content_with_pattern_errors_and_stats, scan_content_with_stats,
+    };
     use crate::secret::types::{FindingType, SecretCheckConfig};
 
     #[test]
@@ -608,6 +677,96 @@ mod tests {
         let content = "x".repeat(40);
         let (_, stats) = scan_content_with_stats(&content, "src/edge.ts", &config);
         assert_eq!(stats.lines_skipped_oversize, 0);
+    }
+
+    // V050F-011 — surface custom-pattern compile errors and remove
+    // the per-call recompile from the hot path. Pin the new API
+    // contract so a future refactor cannot silently regress it.
+
+    #[test]
+    fn pattern_errors_surfaced_in_return_tuple() {
+        // A custom pattern with an invalid regex must produce an
+        // error string that the caller can route into its diagnostic
+        // surface, NOT a silently-dropped error.
+        let config = SecretCheckConfig {
+            custom_patterns: vec![crate::secret::types::SecretPatternDef {
+                name: "Broken".to_string(),
+                pattern: "(unclosed".to_string(),
+            }],
+            ..SecretCheckConfig::default()
+        };
+        let (_findings, _stats, errors) =
+            scan_content_with_pattern_errors_and_stats("hello", "src/x.ts", &config);
+        assert_eq!(
+            errors.len(),
+            1,
+            "the broken custom pattern must produce exactly one error, got {errors:?}",
+        );
+        assert!(
+            errors[0].contains("Broken") && errors[0].contains("failed to compile"),
+            "error must name the pattern and the failure mode, got {errors:?}",
+        );
+    }
+
+    #[test]
+    fn pattern_errors_returned_empty_on_clean_compile() {
+        let config = SecretCheckConfig::default();
+        let (_findings, _stats, errors) =
+            scan_content_with_pattern_errors_and_stats("hello", "src/x.ts", &config);
+        assert!(
+            errors.is_empty(),
+            "default config has no custom patterns, so errors must be empty, got {errors:?}",
+        );
+    }
+
+    #[test]
+    fn compiled_patterns_path_does_not_recompile() {
+        // The hot-path API takes a pre-compiled slice — invoking it
+        // twice with the same slice exercises the no-recompile
+        // contract. Directly observable via `Regex::as_str()`
+        // identity is fragile; instead pin the structural contract:
+        // the API takes `&[CompiledPattern]` so callers can share the
+        // slice across rayon workers without rebuilding it.
+        let config = SecretCheckConfig::default();
+        let (compiled, _errors) =
+            crate::secret::patterns::compile_custom_patterns(&config.custom_patterns);
+        let (findings_a, _stats_a) = scan_content_with_compiled_patterns(
+            "api_key='abcdEFGH1234567890'",
+            "src/a.ts",
+            &config,
+            &compiled,
+            usize::MAX,
+        );
+        let (findings_b, _stats_b) = scan_content_with_compiled_patterns(
+            "api_key='abcdEFGH1234567890'",
+            "src/b.ts",
+            &config,
+            &compiled,
+            usize::MAX,
+        );
+        assert!(!findings_a.is_empty());
+        assert!(!findings_b.is_empty());
+    }
+
+    #[test]
+    fn legacy_scan_content_still_returns_findings_with_broken_pattern() {
+        // Legacy callers don't see the error in the return value, but
+        // a broken custom pattern must NOT prevent the built-in
+        // patterns from firing. The skipped-broken-pattern path is
+        // observable via tracing::warn!; the findings array must
+        // still carry built-in matches.
+        let config = SecretCheckConfig {
+            custom_patterns: vec![crate::secret::types::SecretPatternDef {
+                name: "Broken".to_string(),
+                pattern: "(unclosed".to_string(),
+            }],
+            ..SecretCheckConfig::default()
+        };
+        let findings = scan_content("api_key='abcdEFGH1234567890'", "src/test.ts", &config);
+        assert!(
+            !findings.is_empty(),
+            "broken custom pattern must not suppress built-in matches"
+        );
     }
 
     #[test]
