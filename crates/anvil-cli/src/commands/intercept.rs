@@ -308,6 +308,7 @@ fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonStatusV1> {
 /// (`anvil/status/query`) to the same handler. The Unix path keeps
 /// the legacy name for continuity; the Windows path (this PR is its
 /// first client) uses the canonical name new consumers should prefer.
+#[cfg(unix)]
 const LEGACY_QUERY_STATUS_METHOD: &str = "query_status";
 const REQUEST_ID: &str = "anvil-cli-intercept-status";
 /// 1 MiB cap on a single response line. The daemon's status snapshot
