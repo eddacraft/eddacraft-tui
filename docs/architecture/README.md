@@ -1,15 +1,135 @@
 # Architecture Documentation
 
-System design and architectural deep-dives.
+This directory holds Anvil's living architecture references, as-built
+component docs, and pre-implementation specs. It is the engineering-side index
+— the public-facing docs site is rendered from `apps/docs-site/`. If a doc
+here is stale, that is recorded inline rather than removed; see the
+classifications below.
 
-- [Anvil Architecture Evolution](anvil-architecture-evolution.md) — Phased
-  rollout from TypeScript to Rust kernel
-- [Quality Model](quality-model.md) — Checks, findings, gates, and surface roles
-- [Edda Stack](edda-stack.md) — Memory stack (Kindling / Ember / Edda)
-- [Rust Kernel Spec](rust-kernel-spec.md) — H1 Rust kernel specification
-- [Rust Architecture Overview](rust-architecture-overview.md) — Crate structure
-  and design
+## As-built docs
 
-For the high-level overview, see [overview.md](overview.md). Pre-implementation
-EDDA docs are in
-[archive/edda-pre-implementation/](../archive/edda-pre-implementation/).
+Component-level, dated, source-pinned descriptions of what is actually
+shipping. The shape is set by the [as-built template](_as-built-template.md)
+— copy it when adding a new one.
+
+- [Auth System](auth-as-built.md) — beta auth API, token lifecycle, JWT
+  licence, device-code / OTP flows, gaps register (current)
+
+Planned next set (placeholders — write these as the components stabilise):
+
+- Intercept daemon (planned) — owner-only IPC, validation pipeline,
+  cross-platform spawn-probe behaviour
+- Activation orchestrator (planned) — `anvil start` wow-start path, MCP
+  install detection, watch-mode fallback
+- MCP shim (planned) — Rust MCP server, tool surface, daemon-backed vs
+  embedded-fallback validation
+- Kernel (planned) — watcher / parser / semantic graph / policy engine
+  runtime; companion to the kernel spec below
+- Checks (planned) — `anvil-checks` pipeline, finding model, suppression
+  parser, baseline behaviour
+
+## Living references
+
+Cross-component references and conceptual maps. Each entry is flagged as
+`(current)` if it tracks today's code or `(stale, last reviewed YYYY-MM-DD)`
+if it predates the Rust kernel cutover (`v0.4.0-beta`, when the native
+scanner became authoritative). Stale docs are kept because the framing is
+still useful, but trust the source first.
+
+- [overview.md](overview.md) — top-level architecture overview, package
+  layering, quality model, surface architecture (stale, last reviewed
+  2026-02-27 — pre-Rust-kernel-cutover, pre-A1, pre-A2)
+- [anvil-full-architecture.md](anvil-full-architecture.md) — current vs
+  proposed end-state synthesis with `[CURRENT]` / `[PROPOSED]` / `[PARTIAL]`
+  markers (stale, last reviewed 2026-03-13 — pre-cutover; the
+  current-vs-proposed framing is still useful but specifics have moved)
+- [anvil-architecture-evolution.md](anvil-architecture-evolution.md) —
+  Current → H1 → H2 phased rollout plan; supersedes ADR-011 (current —
+  framing still applies, though phase status has advanced)
+- [rust-architecture-overview.md](rust-architecture-overview.md) — crate
+  layout for the Rust workspace, module map (KERN / RENG / RATS / PORT /
+  RSTLAN) (current)
+- [rust-architecture-endstate.md](rust-architecture-endstate.md) — Rust
+  end-state spec; tracks aspirational shape, not strictly what's shipping
+  (last reviewed 2026-04-03 — flag as aspiration; trust as direction, not
+  as-built)
+- [system-spec.md](system-spec.md) — Edda Stack components (PocketFlow /
+  Kindling / Ember / Edda / Anvil), component topology and hard limits
+  (current)
+- [edda-stack.md](edda-stack.md) — three-layer memory architecture
+  (Kindling / Ember / Edda), separation of observation / interpretation /
+  memory (current)
+- [quality-model.md](quality-model.md) — conceptual model for `check`,
+  `gate`, `watch`, `audit`, `doctor`, `architecture`, `policy` surfaces
+  (current)
+- [monorepo-structure.md](monorepo-structure.md) — historical migration
+  plan and archived target shape (stale by design — for live layout, use
+  the root `README.md`, `apps/README.md`, and `plans/index.aps.md`)
+- [oss-surface.md](oss-surface.md) — eddacraft's three open-source repos
+  (`eddacraft-tui`, `anvil-plan-spec`, `kindling`) and their relationship to
+  the closed product (current)
+
+## Kernel proposals and benchmarking
+
+Specs that describe the kernel's intended shape — not as-builts, not living
+references, but proposal/spec docs that the kernel implementation tracks
+against.
+
+- [rust-kernel-spec.md](rust-kernel-spec.md) — Rust Watcher Kernel
+  specification, H1 implementation target; refines ADR-011a, governed by
+  the architecture-evolution rollout
+- [kernel-benchmarking-spec.md](kernel-benchmarking-spec.md) — benchmarking
+  strategy: Criterion regression detection plus `anvil-bench` capacity
+  discovery; tracks performance targets from the kernel spec
+
+## Specs (`docs/specs/`)
+
+Older design drafts and feature design specs. These describe intent at the
+time of writing and predate the as-built docs.
+
+- [`2026-03-15-beta-auth-streamline-design.md`](../specs/2026-03-15-beta-auth-streamline-design.md)
+  — design that produced the device-code + OTP flows now documented in
+  `auth-as-built.md`
+- [`2026-03-27-rust-cli-cutover-design.md`](../specs/2026-03-27-rust-cli-cutover-design.md)
+  — RCLI module cutover, archival, and distribution design
+- [`command-safety-validation.md`](../specs/command-safety-validation.md) —
+  command safety validation specification (older — 2025-12-28)
+- [`edda-api-contracts.md`](../specs/edda-api-contracts.md) — Edda API
+  contracts and integration points
+- [`edda-authority-trust.md`](../specs/edda-authority-trust.md) — Edda
+  authority and trust model
+- [`edda-enforcement-hooks.md`](../specs/edda-enforcement-hooks.md) — Edda
+  enforcement and guidance hooks
+
+## Internal (`docs/internal/`)
+
+Smaller engineering-internal references that don't fit the as-built or spec
+shape.
+
+- [`realtime-feed-contract.md`](../internal/realtime-feed-contract.md) —
+  minimum event-feed contract for dashboard operations views
+- [`weave-feature-brief.md`](../internal/weave-feature-brief.md) — internal
+  brief for the `weave` agent harness crates
+
+## Runbooks (`docs/runbooks/`)
+
+Operational procedures live in [`docs/runbooks/`](../runbooks/) and have
+their own structure. The current release runbook is
+[`v0.6.0-beta-release-runbook.md`](../runbooks/v0.6.0-beta-release-runbook.md);
+release-time security context is captured in
+[`v0.6.0-beta-security-note.md`](../runbooks/v0.6.0-beta-security-note.md).
+For day-to-day ops (admin CLI, branch reconciliation, DB migrations,
+observability triage, post-deploy smoke checks, waitlist email operations),
+see the directory listing.
+
+## Adjacent indexes
+
+- [`docs/guides/`](../guides/) — how-to guides for developers working on
+  Anvil (release runbooks, ADR process, testing, branching strategy,
+  feature flags, command safety, …)
+- [`docs/vision/`](../vision/) — north-star docs (vision, scope guard,
+  aspirational ultimate feature, constitutional engineering)
+- [`plans/decisions/DECISION-LOG.md`](../../plans/decisions/DECISION-LOG.md)
+  — condensed ADR index; all architecture decisions land here
+- [`plans/index.aps.md`](../../plans/index.aps.md) — single source of truth
+  for module status and progress counts
