@@ -82,8 +82,6 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
 
     use anvil_intercept::ipc;
 
-    const REQUEST_ID: &str = "anvil-cli-intercept-status";
-    const RESPONSE_LINE_BYTES: u64 = 1 << 20;
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
     let socket_path =
@@ -120,12 +118,14 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
         .set_write_timeout(Some(REQUEST_TIMEOUT))
         .context("failed to configure write timeout")?;
 
-    let frame = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "query_status",
-        "id": REQUEST_ID,
-    });
-    writeln!(stream, "{frame}").context("failed to send query_status frame")?;
+    // Unix path keeps the legacy `query_status` method name to avoid
+    // changing on-the-wire behaviour for existing operator scripts;
+    // the daemon dual-routes both names so this is a deliberate
+    // continuity choice rather than a missed migration.
+    let frame_bytes = build_query_status_frame_bytes(LEGACY_QUERY_STATUS_METHOD, REQUEST_ID);
+    stream
+        .write_all(&frame_bytes)
+        .context("failed to send query_status frame")?;
     stream
         .flush()
         .context("failed to flush query_status frame")?;
@@ -137,6 +137,198 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
         .take(RESPONSE_LINE_BYTES + 1)
         .read_until(b'\n', &mut buf)
         .context("failed to read query_status response")?;
+    parse_query_status_response_bytes(&buf, read)
+}
+
+#[cfg(windows)]
+fn query_daemon_status() -> Result<DaemonStatusV1> {
+    let pipe_name = anvil_intercept_win32::pipe_name_for_current_user()
+        .context("failed to resolve intercept daemon pipe name")?;
+    query_daemon_status_windows_at(&pipe_name)
+}
+
+/// Windows named-pipe equivalent of the Unix `query_daemon_status`.
+///
+/// The CLI runs outside any tokio runtime (top-level `run` is
+/// synchronous), so the entire flow uses the synchronous Win32
+/// helpers in `anvil-intercept-win32` rather than dragging in an
+/// async runtime for one request.
+///
+/// Wire-format parity with the Unix path is enforced by reusing
+/// the same `build_query_status_frame_bytes` /
+/// `parse_query_status_response_bytes` helpers; the only daemon-
+/// facing difference is the JSON-RPC method name. New consumers
+/// (this PR is the first daemon-speaking Windows client) prefer the
+/// canonical `anvil/status/query` form from
+/// `anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY`; the daemon
+/// dual-routes both names so the rendered output is identical.
+///
+/// `pipe_name` is parameterised (rather than always reading
+/// `pipe_name_for_current_user()`) so the integration test can bind
+/// a per-process pipe name and avoid colliding with the canonical
+/// per-user pipe a real daemon would own on the same Windows runner.
+#[cfg(windows)]
+fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonStatusV1> {
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    use anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY;
+
+    // Mirror the Unix path's 2 s wall clock on the request. Synchronous
+    // Win32 `ReadFile` on a named pipe has no native timeout setter
+    // (`SetCommTimeouts` does not apply), so the CLI runs the IO on a
+    // worker thread and gives up after `REQUEST_TIMEOUT`. A daemon that
+    // accepts the connection but never writes leaves the worker
+    // blocked, but the CLI is a single-shot process about to exit, so
+    // a leaked blocked thread is bounded by process lifetime.
+    const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+    // Catch on the connect side too: `WaitNamedPipe` blocks if all
+    // server instances are busy.
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+
+    let pipe_name_owned = pipe_name.to_owned();
+    let (connect_tx, connect_rx) = mpsc::sync_channel::<std::io::Result<_>>(1);
+    let connect_thread = thread::spawn(move || {
+        let _ = connect_tx.send(anvil_intercept_win32::connect_owner_only_pipe_client(
+            &pipe_name_owned,
+        ));
+    });
+    let connect_outcome = match connect_rx.recv_timeout(CONNECT_TIMEOUT) {
+        Ok(outcome) => outcome,
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            anyhow::bail!(
+                "timed out connecting to intercept daemon pipe {pipe_name} \
+                 (daemon may be busy or hung)",
+            );
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            anyhow::bail!("connect worker exited unexpectedly");
+        }
+    };
+    // The connect worker has produced a result and exited; reap it so
+    // we don't leak a JoinHandle.
+    let _ = connect_thread.join();
+
+    let mut client = match connect_outcome {
+        Ok(client) => client,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            // ERROR_FILE_NOT_FOUND — the daemon has not bound the
+            // per-user pipe. Match the Unix wording (and verb) so the
+            // operator-facing trust signal in the demo runbook §1.5
+            // reads the same on both platforms.
+            anyhow::bail!(
+                "anvil intercept daemon is not running (no pipe at {pipe_name}). \
+                 Start it with `anvil intercept start --foreground`.",
+            );
+        }
+        // ERROR_PIPE_BUSY — every server instance is currently
+        // talking to another client. The daemon spawns a fresh
+        // instance after each accept, so this is rare; surface a
+        // distinct message rather than a generic IO error so the
+        // operator can tell "daemon hung" from "daemon down".
+        Err(err) if err.raw_os_error() == Some(231) => {
+            anyhow::bail!("anvil intercept daemon pipe {pipe_name} is busy; retry shortly",);
+        }
+        Err(err) => {
+            return Err(anyhow::Error::new(err).context(format!(
+                "failed to connect to intercept daemon pipe {pipe_name}",
+            )));
+        }
+    };
+
+    let frame_bytes = build_query_status_frame_bytes(ANVIL_STATUS_QUERY, REQUEST_ID);
+    client
+        .write_all(&frame_bytes)
+        .context("failed to send query_status frame")?;
+
+    // Read up to the cap one chunk at a time, on a worker thread so
+    // we can enforce the wall-clock timeout. Named pipes deliver a
+    // single message in multiple ReadFile completions when the server
+    // writes a response without setting MESSAGE mode, so the worker
+    // accumulates until it sees a newline (the JSON-RPC framing
+    // boundary), the response cap, or EOF.
+    let (read_tx, read_rx) = mpsc::sync_channel::<Result<Vec<u8>>>(1);
+    thread::spawn(move || {
+        let mut buf: Vec<u8> = Vec::with_capacity(4096);
+        let mut chunk = [0_u8; 4096];
+        let outcome = loop {
+            let n = match client.read(&mut chunk) {
+                Ok(n) => n,
+                Err(err) => {
+                    break Err(
+                        anyhow::Error::new(err).context("failed to read query_status response")
+                    );
+                }
+            };
+            if n == 0 {
+                break Err(anyhow::anyhow!(
+                    "daemon closed the connection before responding"
+                ));
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if buf.iter().any(|b| *b == b'\n') {
+                break Ok(buf);
+            }
+            if (buf.len() as u64) > RESPONSE_LINE_BYTES {
+                break Err(anyhow::anyhow!(
+                    "query_status response exceeded {RESPONSE_LINE_BYTES} byte cap"
+                ));
+            }
+        };
+        let _ = read_tx.send(outcome);
+    });
+
+    let buf = match read_rx.recv_timeout(REQUEST_TIMEOUT) {
+        Ok(outcome) => outcome?,
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            anyhow::bail!(
+                "timed out waiting for daemon response on pipe {pipe_name} \
+                 (daemon may be hung or under load)",
+            );
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            anyhow::bail!("read worker exited unexpectedly");
+        }
+    };
+    let read = buf.len();
+    parse_query_status_response_bytes(&buf, read)
+}
+
+/// JSON-RPC method name pinned by INTD-011 + #1322 (B1). The daemon
+/// dual-routes both `query_status` (legacy) and
+/// `anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY`
+/// (`anvil/status/query`) to the same handler. The Unix path keeps
+/// the legacy name for continuity; the Windows path (this PR is its
+/// first client) uses the canonical name new consumers should prefer.
+const LEGACY_QUERY_STATUS_METHOD: &str = "query_status";
+const REQUEST_ID: &str = "anvil-cli-intercept-status";
+/// 1 MiB cap on a single response line. The daemon's status snapshot
+/// is well under this for any plausible session/fence count; we cap
+/// to bound a misbehaving (or hostile) peer's memory pressure on the
+/// CLI client.
+const RESPONSE_LINE_BYTES: u64 = 1 << 20;
+
+/// Build the on-the-wire bytes for a `query_status` JSON-RPC frame.
+/// Centralised so the Unix and Windows paths cannot drift on
+/// jsonrpc/version/id semantics.
+fn build_query_status_frame_bytes(method: &str, id: &str) -> Vec<u8> {
+    let frame = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": method,
+        "id": id,
+    });
+    let mut out = frame.to_string().into_bytes();
+    out.push(b'\n');
+    out
+}
+
+/// Validate the framing + JSON-RPC envelope of one response line and
+/// return the parsed `DaemonStatusV1`. `read == 0` means EOF before
+/// any data; `buf.len() > RESPONSE_LINE_BYTES` means the daemon
+/// exceeded the line cap. Errors carry the same wording the Unix
+/// path used inline before this helper existed.
+fn parse_query_status_response_bytes(buf: &[u8], read: usize) -> Result<DaemonStatusV1> {
     if read == 0 {
         anyhow::bail!("daemon closed the connection before responding");
     }
@@ -147,6 +339,19 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
         .context("query_status response is not valid UTF-8")?;
     let response: serde_json::Value =
         serde_json::from_str(line).context("query_status response is not valid JSON")?;
+    // Match the daemon's JSON-RPC version pin so a server speaking a
+    // newer envelope cannot ship subtly different semantics under the
+    // same method name.
+    if response.get("jsonrpc") != Some(&serde_json::Value::String("2.0".to_string())) {
+        anyhow::bail!(
+            "daemon response missing or wrong jsonrpc version (expected \"2.0\"): {response}",
+        );
+    }
+    if response.get("id") != Some(&serde_json::Value::String(REQUEST_ID.to_string())) {
+        anyhow::bail!(
+            "daemon response id does not match request (expected {REQUEST_ID:?}): {response}",
+        );
+    }
     if let Some(error) = response.get("error") {
         anyhow::bail!("daemon returned JSON-RPC error: {error}");
     }
@@ -156,14 +361,6 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
         .context("query_status response missing result")?;
     serde_json::from_value::<DaemonStatusV1>(result)
         .context("query_status response did not match the proto shape")
-}
-
-#[cfg(not(unix))]
-fn query_daemon_status() -> Result<DaemonStatusV1> {
-    anyhow::bail!(
-        "`anvil intercept status` over the daemon IPC is only supported on Unix in this build; \
-         Windows named-pipe client support lands with the DRVR-001 client port",
-    )
 }
 
 /// Render the daemon status snapshot in the operator-facing text
@@ -366,5 +563,144 @@ mod tests {
         assert_eq!(round_to_int(-1.0), 0);
         assert_eq!(round_to_int(f64::NAN), 0);
         assert_eq!(round_to_int(f64::INFINITY), 0);
+    }
+
+    /// Pin the wire-format helpers shared across Unix and Windows.
+    /// A frame is one JSON line terminated by `\n`; if the trailing
+    /// newline ever vanishes the daemon's per-line framing breaks
+    /// silently.
+    #[test]
+    fn build_query_status_frame_bytes_emits_jsonrpc_2_envelope() {
+        let bytes = super::build_query_status_frame_bytes("anvil/status/query", "id-1");
+        let s = std::str::from_utf8(&bytes).expect("utf8 frame");
+        assert!(s.ends_with('\n'), "frame must be newline-terminated: {s:?}");
+        assert!(s.contains("\"jsonrpc\":\"2.0\""), "got {s}");
+        assert!(s.contains("\"method\":\"anvil/status/query\""), "got {s}");
+        assert!(s.contains("\"id\":\"id-1\""), "got {s}");
+    }
+
+    /// Pin: response parser rejects the reply if the daemon answers
+    /// with the wrong request id. This is the same fail-closed check
+    /// the Linux MCP path applies in
+    /// `local_daemon_client_rejects_mismatched_jsonrpc_response_id`;
+    /// keeping it on the status path means a stale or stitched-from-
+    /// somewhere-else response cannot be rendered as fresh status.
+    #[test]
+    fn parse_query_status_response_bytes_rejects_mismatched_id() {
+        // `REQUEST_ID` is `anvil-cli-intercept-status`; this fixture
+        // deliberately answers with the wrong id.
+        let line = br#"{"jsonrpc":"2.0","id":"some-other-id","result":null}
+"#;
+        let err = super::parse_query_status_response_bytes(line, line.len())
+            .expect_err("mismatched id must error");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("id does not match"),
+            "expected id-mismatch wording, got: {msg}",
+        );
+    }
+
+    /// **Windows-only integration test (INTD-011 §1.5 parity):** spin
+    /// up the daemon's named-pipe `IpcListener` in-process and call
+    /// the synchronous CLI client against it. Mirrors the Linux
+    /// pattern at
+    /// `crates/anvil-cli/src/mcp/validation.rs::local_daemon_client_returns_scan_buffer_diagnostics_with_embedded_parity`.
+    ///
+    /// The runbook §1.5 latency-line wording is asserted on the
+    /// rendered text path (the same surface an operator sees during
+    /// the demo trust-signal step), so a future change that desyncs
+    /// the Windows status renderer from the Unix one fails closed.
+    ///
+    /// The pipe name is per-PID (rather than the canonical
+    /// `pipe_name_for_current_user()` value) so the test never
+    /// collides with a real daemon that might be bound on the same
+    /// Windows runner, and so concurrent test crates do not race
+    /// each other on the singleton-claiming first instance.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_query_daemon_status_round_trips_against_local_pipe() {
+        use std::sync::Arc;
+
+        use anvil_intercept::ipc::IpcListener;
+        use anvil_intercept::status::{DaemonStatus, StatusProvider};
+        use anvil_intercept::{NoopDispatcher, Shutdown};
+
+        struct Fixture;
+        impl StatusProvider for Fixture {
+            fn query_status(&self) -> DaemonStatus {
+                anvil_intercept::status::build_status(
+                    Vec::new(),
+                    &[],
+                    None,
+                    std::time::Instant::now(),
+                    std::time::Instant::now(),
+                    "0.0.0-windows-test",
+                    anvil_intercept::status::IpcState::Serving,
+                )
+            }
+        }
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-cli-status-test-{}",
+            std::process::id(),
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        let _runtime_guard = runtime.enter();
+        let listener = IpcListener::bind(&pipe_name, NoopDispatcher)
+            .expect("daemon pipe binds")
+            .with_status_provider(Arc::new(Fixture));
+        let (shutdown, token) = Shutdown::new();
+        let server = runtime.spawn(listener.serve(token));
+
+        let snapshot =
+            super::query_daemon_status_windows_at(&pipe_name).expect("status query succeeds");
+        assert_eq!(snapshot.health.version, "0.0.0-windows-test");
+
+        // Render the snapshot and assert the runbook §1.5 latency
+        // wording for the no-traffic case (the fixture provides no
+        // mid-edit samples). Verifying this here — at the
+        // platform-specific surface — is the load-bearing parity
+        // claim with the Unix `cli_renders_no_traffic_message_when_aggregator_is_empty`
+        // test.
+        let rendered = super::render_status_lines(&snapshot);
+        assert!(
+            rendered.contains("latency: (no mid-edit traffic yet)"),
+            "no-traffic line must be honoured on Windows; got:\n{rendered}",
+        );
+
+        shutdown.trigger();
+        runtime.block_on(async {
+            server
+                .await
+                .expect("daemon task joins")
+                .expect("daemon exits cleanly");
+        });
+    }
+
+    /// **Windows-only sanity:** with no daemon bound, the CLI emits
+    /// the same actionable "daemon is not running" wording the Unix
+    /// path uses, so operator-facing diagnostics are platform-
+    /// neutral.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_query_daemon_status_says_daemon_is_not_running_when_pipe_absent() {
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-cli-status-missing-{}",
+            std::process::id(),
+        );
+        let err = super::query_daemon_status_windows_at(&pipe_name)
+            .expect_err("missing pipe must surface as actionable error");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("daemon is not running"),
+            "wording must match Unix path; got: {msg}",
+        );
+        assert!(
+            msg.contains("anvil intercept start --foreground"),
+            "must point operator at the recovery command; got: {msg}",
+        );
     }
 }
