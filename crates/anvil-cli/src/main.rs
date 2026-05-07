@@ -16,11 +16,55 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 
 /// Exit codes for structured error reporting.
+///
+/// Codes 0–4 are the established surface (`EXIT_OK`, `EXIT_ERROR`,
+/// `EXIT_GATE_FAIL`, `EXIT_AUTH_REQUIRED`, `EXIT_CONFIG_ERROR`).
+///
+/// Codes 5, 6, 7, 10 are pre-positioned for the v1 multi-layer
+/// protection architecture per
+/// [CLI surface coherence spec](../../../plans/specs/2026-05-07-cli-surface-coherence.md)
+/// §3 (CLIC-001 / A7.3). They are declared here so future MLP /
+/// DLIFE work items emit them via constants rather than magic
+/// numbers; no current code path emits them yet.
+///
+/// CI / scripts that gate on Anvil exit codes can rely on this map:
+/// fail-fast on `2` (gate failure), `5` (cross-boundary detected),
+/// `7` (version mismatch), `10` (discovery failed); treat `1`, `3`,
+/// `4`, `6` as recoverable user-action conditions.
 pub const EXIT_OK: u8 = 0;
 pub const EXIT_ERROR: u8 = 1;
 pub const EXIT_GATE_FAIL: u8 = 2;
 pub const EXIT_AUTH_REQUIRED: u8 = 3;
 pub const EXIT_CONFIG_ERROR: u8 = 4;
+
+/// Surface and daemon were on different OS instances (per ADR-036
+/// `os_locality_token` mismatch) — surface refused to attach, OR
+/// `anvil doctor --explain-boundary` detected a `cross-boundary-mixed`
+/// configuration. Reserved for future emission by MLP / DLIFE
+/// boundary-detection code paths.
+pub const EXIT_CROSS_BOUNDARY: u8 = 5;
+
+/// Daemon is not running and embedded fallback is unavailable. Reserved
+/// for future emission by `anvil doctor` / `anvil intercept ensure` /
+/// hooks that strictly require the daemon.
+pub const EXIT_DAEMON_DOWN: u8 = 6;
+
+/// `proto-version-mismatch` between this CLI / hook and the running
+/// daemon (per ADR-036 §D-3). Reserved for future emission by
+/// `anvil intercept ensure` / hooks when the daemon's
+/// `proto_version` is outside the surface's supported range.
+pub const EXIT_VERSION_MISMATCH: u8 = 7;
+
+/// Discovery failed — runtime dir untrusted (lstat-ladder violation
+/// per ADR-036 §D-3) or `info.json` ownership / mode invalid.
+/// Reserved for future emission by `anvil doctor` / `anvil intercept
+/// ensure` / hooks that read the runtime sidecar.
+///
+/// Note: codes 8 and 9 are intentionally reserved. The CLI surface
+/// spec leaves them for future expansion (e.g., per-platform-specific
+/// errors). Future contributors should not claim 8 or 9 without an
+/// ADR amendment.
+pub const EXIT_DISCOVERY_FAILED: u8 = 10;
 
 /// Global arguments available to every subcommand.
 #[derive(Debug, Default, Parser)]
@@ -600,6 +644,50 @@ mod tests {
         let mut tokens = vec!["anvil"];
         tokens.extend_from_slice(args);
         Cli::try_parse_from(tokens).unwrap().command
+    }
+
+    // ── exit-code constants (CLIC-001 / A7.3) ────────────────────────
+    //
+    // Pin the numeric values so silent renumbering can't break CI /
+    // tooling that gates on specific exit codes. The contract is
+    // documented in plans/specs/2026-05-07-cli-surface-coherence.md §3.
+
+    #[test]
+    fn exit_code_constants_pin_canonical_values() {
+        assert_eq!(EXIT_OK, 0);
+        assert_eq!(EXIT_ERROR, 1);
+        assert_eq!(EXIT_GATE_FAIL, 2);
+        assert_eq!(EXIT_AUTH_REQUIRED, 3);
+        assert_eq!(EXIT_CONFIG_ERROR, 4);
+        assert_eq!(EXIT_CROSS_BOUNDARY, 5);
+        assert_eq!(EXIT_DAEMON_DOWN, 6);
+        assert_eq!(EXIT_VERSION_MISMATCH, 7);
+        assert_eq!(EXIT_DISCOVERY_FAILED, 10);
+    }
+
+    #[test]
+    fn exit_code_constants_are_distinct() {
+        // Defense-in-depth: detect accidental aliasing if any two
+        // constants ever drift to the same value.
+        let codes = [
+            EXIT_OK,
+            EXIT_ERROR,
+            EXIT_GATE_FAIL,
+            EXIT_AUTH_REQUIRED,
+            EXIT_CONFIG_ERROR,
+            EXIT_CROSS_BOUNDARY,
+            EXIT_DAEMON_DOWN,
+            EXIT_VERSION_MISMATCH,
+            EXIT_DISCOVERY_FAILED,
+        ];
+        for (i, a) in codes.iter().enumerate() {
+            for b in codes.iter().skip(i + 1) {
+                assert_ne!(
+                    a, b,
+                    "exit code constants must be distinct: collision on value {a}"
+                );
+            }
+        }
     }
 
     // ── requires_auth: commands that MUST require auth ──────────────
