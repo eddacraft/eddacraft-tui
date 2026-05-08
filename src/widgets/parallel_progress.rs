@@ -518,13 +518,20 @@ mod tests {
         let theme = crate::theme::EddaCraftTheme;
         let area = Rect::new(0, 0, 40, 5);
         let mut buf = Buffer::empty(area);
+        // Pin start_time so `running_frame_index` lands on frame 3 (the final
+        // build-up glyph "‡"), letting us assert against a single distinctive
+        // character that doesn't collide with the ETA dashes.
+        let interval_ms = SpinnerPreset::Anvil.interval();
+        let started = Instant::now()
+            .checked_sub(interval_ms * 3 + Duration::from_millis(10))
+            .expect("Instant arithmetic underflow");
         let mut state = ParallelProgressState {
             checks: vec![CheckProgress {
                 id: "a".to_string(),
                 name: "forge".to_string(),
                 status: CheckStatus::Running,
                 progress: 42,
-                start_time: Some(Instant::now()),
+                start_time: Some(started),
                 end_time: None,
                 duration_ms: None,
                 message: Some("Forging".to_string()),
@@ -538,6 +545,9 @@ mod tests {
             .render(area, &mut buf, &mut state);
 
         let row: String = (0..40).map(|x| buf[(x, 1)].symbol().to_string()).collect();
-        assert!(row.contains("⚒") || row.contains("🔨") || row.contains("🛠"));
+        assert!(
+            row.contains("‡"),
+            "expected the final anvil spinner frame (‡) in row {row:?}"
+        );
     }
 }

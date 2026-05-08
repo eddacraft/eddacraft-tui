@@ -54,7 +54,7 @@ let forge_spinner = Spinner::new(&theme).anvil().label("Forging...");
 - `ShellBranding::Plain`
 - `ShellBranding::EddaCraft` -> `[■]`
 - `ShellBranding::Edda` -> `[=]`
-- `ShellBranding::Anvil` -> `[⚒]`
+- `ShellBranding::Anvil` -> `[‡]`
 
 `ProgressBar` and `ParallelProgress` animate toward their target value. Your
 event loop must call `animate_tick` each frame for the transition to play — see
@@ -134,9 +134,9 @@ root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
 
 ## Links
 
-- eddacraft: <https://eddacraft.com>
-- anvil repository: <https://github.com/EddaCraft/anvil>
-- Brand and design system: <https://github.com/EddaCraft/brand-and-design>
+- eddacraft: <https://eddacraft.ai>
+- anvil public repository: <https://github.com/eddacraft/anvil>
+- Brand and design system: <https://github.com/eddacraft/brand-and-design>
 - pretext-tui demos: <https://github.com/joshuaboys/pretext-tui>
 
 ## Acknowledgements

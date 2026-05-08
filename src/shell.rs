@@ -25,7 +25,7 @@ impl ShellBranding {
             Self::Plain => "",
             Self::EddaCraft => "[■]",
             Self::Edda => "[=]",
-            Self::Anvil => "[⚒]",
+            Self::Anvil => "[‡]",
             Self::Custom(mark) => mark,
         }
     }
@@ -144,7 +144,7 @@ mod tests {
                     frame,
                     frame.area(),
                     ShellBranding::Anvil,
-                    "Anvil",
+                    "anvil",
                     "Watch",
                     "j/k navigate  q quit",
                     &theme,
@@ -167,7 +167,7 @@ mod tests {
                     frame,
                     frame.area(),
                     ShellBranding::Anvil,
-                    "Anvil",
+                    "anvil",
                     "Audit",
                     "h/l panels  q quit",
                     &theme,
@@ -194,7 +194,7 @@ mod tests {
                     frame,
                     frame.area(),
                     ShellBranding::Anvil,
-                    "Anvil",
+                    "anvil",
                     "Gate",
                     "j/k navigate  enter expand  q quit",
                     &theme,
@@ -219,7 +219,7 @@ mod tests {
                     frame,
                     frame.area(),
                     ShellBranding::Anvil,
-                    "Anvil",
+                    "anvil",
                     "Init",
                     "q quit",
                     &theme,
@@ -263,7 +263,7 @@ mod tests {
                     frame,
                     frame.area(),
                     ShellBranding::Anvil,
-                    "Anvil",
+                    "anvil",
                     "Home",
                     "q quit",
                     &theme,
@@ -332,6 +332,6 @@ mod tests {
             .map(|x| terminal.backend().buffer()[(x, 4)].symbol().to_string())
             .collect();
 
-        assert!(footer.contains("[⚒] a n v i l  v1.2.3"));
+        assert!(footer.contains("[‡] a n v i l  v1.2.3"));
     }
 }

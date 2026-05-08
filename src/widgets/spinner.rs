@@ -8,7 +8,7 @@ use ratatui::widgets::{StatefulWidget, Widget};
 use crate::theme::Theme;
 
 const EDDACRAFT_FRAMES: &[&str] = &["[ ]", "[=]", "[≡]", "[=]", "[ ]"];
-const ANVIL_FRAMES: &[&str] = &["⚒", "⚒", "⚒", "🔨", "⚒", "🛠"];
+const ANVIL_FRAMES: &[&str] = &["-", "=", "I", "‡"];
 
 const EDDACRAFT_INTERVAL: Duration = Duration::from_millis(90);
 const ANVIL_INTERVAL: Duration = Duration::from_millis(110);
@@ -259,7 +259,9 @@ mod tests {
             .anvil()
             .render(area, &mut buf, &mut state);
 
-        assert_eq!(buf[(0, 0)].symbol(), "🔨");
+        // After 3 ticks from frame 0, with the 4-frame anvil preset
+        // ["-", "=", "I", "‡"], the rendered frame is the final glyph.
+        assert_eq!(buf[(0, 0)].symbol(), "‡");
     }
 
     #[test]
