@@ -434,8 +434,8 @@ jobs:
     # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
     # still admits, because Test/Clippy depend on the lockfile) don't
     # spin up the Windows + macOS matrix. Rust-only signals — `crates/**`,
-    # `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `tools/nx-rust/**`,
-    # and this workflow file itself — still fire cross-compile.
+    # `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, and this workflow
+    # file itself — still fire cross-compile.
     if: >-
       ((github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
       github.ref)) || (github.event_name == 'pull_request' && contains(fromJSON('["main", "dev"]'),
