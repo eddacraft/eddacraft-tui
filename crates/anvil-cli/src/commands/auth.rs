@@ -28,6 +28,10 @@ pub enum AuthCommand {
     Logout,
     /// Show current authenticated user
     Whoami,
+    /// Exchange the stored refresh token for a fresh licence without
+    /// re-running the device-code flow. Useful when the JWT has lapsed
+    /// but the refresh token is still valid (it's good for 90 days).
+    Refresh,
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +42,14 @@ struct WhoamiData {
     /// FLAGS-008: shared licence-gate resolution for this session (enabled|disabled).
     #[serde(skip_serializing_if = "Option::is_none")]
     licence_gate: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RefreshData {
+    refreshed: bool,
+    email: Option<String>,
+    expires_at: Option<String>,
 }
 
 pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
@@ -59,6 +71,26 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
                 crate::output::json::print(&serde_json::json!({"logged_out": true}))?;
             } else {
                 println!("Credentials removed");
+            }
+            Ok(())
+        }
+        AuthCommand::Refresh => {
+            let new_creds = rt.block_on(device_flow::refresh_command())?;
+            let data = RefreshData {
+                refreshed: true,
+                email: new_creds.email.clone(),
+                expires_at: new_creds.expires_at.clone(),
+            };
+            if global.json {
+                crate::output::json::print(&data)?;
+            } else {
+                println!("Session refreshed");
+                if let Some(email) = &data.email {
+                    println!("  Email:   {email}");
+                }
+                if let Some(expires) = &data.expires_at {
+                    println!("  Expires: {expires}");
+                }
             }
             Ok(())
         }
@@ -219,6 +251,19 @@ mod tests {
     fn args_parses_whoami() {
         let w = Wrapper::try_parse_from(["test", "whoami"]).unwrap();
         let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_refresh() {
+        let w = Wrapper::try_parse_from(["test", "refresh"]).unwrap();
+        assert!(matches!(w.inner.command, AuthCommand::Refresh));
+    }
+
+    #[test]
+    fn args_rejects_refresh_with_flags() {
+        // Refresh takes no flags; surface that as a parse error so a typo
+        // like `anvil auth refresh --otp` doesn't silently fall through.
+        assert!(Wrapper::try_parse_from(["test", "refresh", "--otp"]).is_err());
     }
 
     // --- Top-level alias tests ---

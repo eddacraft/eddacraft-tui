@@ -220,6 +220,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
             AuthCommand::Login { .. } => "auth-login",
             AuthCommand::Logout => "auth-logout",
             AuthCommand::Whoami => "auth-whoami",
+            AuthCommand::Refresh => "auth-refresh",
         },
     }
 }
@@ -282,23 +283,66 @@ fn evaluate_auth(
     }
 }
 
+/// Outcome of attempting a refresh-token exchange at startup.
+enum SilentRefreshOutcome {
+    /// Fresh licence saved; caller should reload from disk and proceed.
+    Refreshed,
+    /// Server gave a definitive reason the refresh cannot succeed
+    /// (token expired, revoked, family theft, inactive account). The
+    /// reason has already been printed to stderr, so the caller should
+    /// skip its own generic "Session expired" line.
+    PermanentFailure,
+    /// Network / save / parse error. Caller should continue with the
+    /// existing expired-session path so a transient blip doesn't mask
+    /// the user's actual auth state.
+    TransientFailure,
+}
+
 /// Exchange a stored refresh token for a fresh licence and persist the
-/// result. Returns `Ok(())` only when the new credentials were both
-/// minted and saved. Failures (network, server-side rejection, save
-/// error) are non-fatal — the caller falls through to the existing
-/// expired-session path so behaviour without a refresh token is
-/// preserved.
-fn try_silent_refresh(creds: &auth::credentials::Credentials, verbose: bool) -> anyhow::Result<()> {
-    let rt = tokio::runtime::Builder::new_current_thread()
+/// result. Permanent failures print an actionable reason to stderr;
+/// transient failures stay silent unless `verbose` is set.
+fn try_silent_refresh(
+    creds: &auth::credentials::Credentials,
+    verbose: bool,
+) -> SilentRefreshOutcome {
+    let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .context("creating tokio runtime for refresh")?;
-    let new_creds = rt.block_on(auth::device_flow::try_refresh_credentials(creds))?;
-    auth::credentials::save(&new_creds)?;
-    if verbose {
-        eprintln!("[auth] refreshed expired session via stored refresh token");
+    {
+        Ok(rt) => rt,
+        Err(err) => {
+            if verbose {
+                eprintln!("[auth] could not create refresh runtime: {err:#}");
+            }
+            return SilentRefreshOutcome::TransientFailure;
+        }
+    };
+
+    match rt.block_on(auth::device_flow::try_refresh_credentials(creds)) {
+        Ok(new_creds) => {
+            if let Err(err) = auth::credentials::save(&new_creds) {
+                if verbose {
+                    eprintln!("[auth] saving refreshed credentials failed: {err:#}");
+                }
+                return SilentRefreshOutcome::TransientFailure;
+            }
+            if verbose {
+                eprintln!("[auth] refreshed expired session via stored refresh token");
+            }
+            SilentRefreshOutcome::Refreshed
+        }
+        Err(err) => {
+            if auth::device_flow::is_permanent_refresh_failure(&err) {
+                eprintln!("{err}");
+                SilentRefreshOutcome::PermanentFailure
+            } else {
+                if verbose {
+                    eprintln!("[auth] silent refresh failed: {err:#}");
+                }
+                SilentRefreshOutcome::TransientFailure
+            }
+        }
     }
-    Ok(())
 }
 
 fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> bool {
@@ -394,12 +438,13 @@ pub(crate) fn is_non_interactive_env() -> bool {
 
 /// Returns `false` for commands that should never trigger an interactive
 /// login flow even when the user is missing credentials — e.g. `whoami`,
-/// whose job is to report identity state, not mutate it.
+/// whose job is to report identity state, not mutate it, and `auth refresh`,
+/// which operates on stale credentials by design.
 fn allows_interactive_auth_prompt(cmd: &Commands) -> bool {
     use commands::auth::AuthCommand;
     match cmd {
         Commands::Whoami(_) => false,
-        Commands::Auth(args) => !matches!(args.command, AuthCommand::Whoami),
+        Commands::Auth(args) => !matches!(args.command, AuthCommand::Whoami | AuthCommand::Refresh),
         _ => true,
     }
 }
@@ -478,16 +523,17 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
     // token, exchange it before deciding to prompt or error. The 7-day JWT
     // lapses long before the 90-day refresh token, so without this every
     // expired session forced a full re-login through the device flow.
+    let mut refresh_reason_already_printed = false;
     if let Ok(Some(creds)) = &loaded
         && auth::credentials::is_expired(creds)
         && creds.refresh_token.is_some()
     {
         match try_silent_refresh(creds, global.verbose) {
-            Ok(()) => loaded = auth::credentials::load(),
-            Err(err) if global.verbose => {
-                eprintln!("[auth] silent refresh failed: {err:#}");
+            SilentRefreshOutcome::Refreshed => loaded = auth::credentials::load(),
+            SilentRefreshOutcome::PermanentFailure => {
+                refresh_reason_already_printed = true;
             }
-            Err(_) => {}
+            SilentRefreshOutcome::TransientFailure => {}
         }
     }
 
@@ -497,10 +543,12 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
 
     if should_offer_interactive_login(suppress_interactive, tty_ok, &loaded) {
         let expired = matches!(&loaded, Ok(Some(c)) if auth::credentials::is_expired(c));
-        if expired {
-            eprintln!("Your Anvil session has expired.");
-        } else {
-            eprintln!("This command requires authentication with Anvil.");
+        if !refresh_reason_already_printed {
+            if expired {
+                eprintln!("Your Anvil session has expired.");
+            } else {
+                eprintln!("This command requires authentication with Anvil.");
+            }
         }
         match prompt_yes_no("Log in now?", true) {
             Ok(true) => match run_interactive_login() {
@@ -529,6 +577,13 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
                 }
             }
         }
+    }
+
+    if refresh_reason_already_printed {
+        // Silent refresh already explained the failure; no need for
+        // `evaluate_auth` to repeat itself with the generic "Session
+        // expired" line.
+        return Err(EXIT_AUTH_REQUIRED);
     }
 
     evaluate_auth(&loaded, global.verbose)

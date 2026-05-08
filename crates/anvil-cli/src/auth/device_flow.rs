@@ -285,10 +285,70 @@ async fn refresh_session(
                 friendly_network_error(&e)
             )
         })?;
-    check_status(resp, "Session refresh failed")?
-        .json()
+    let status = resp.status();
+    if status.is_client_error() || status.is_server_error() {
+        let body = resp.text().await.unwrap_or_default();
+        bail!(refresh_error_message(status, &body));
+    }
+    resp.json()
         .await
         .context("Session refresh failed: unexpected response from the auth server.")
+}
+
+/// Distinct prefixes the refresh path uses to signal "this token will never
+/// work again — the user must run `anvil auth login`". Anything not on this
+/// list is treated as transient.
+const PERMANENT_REFRESH_PREFIXES: &[&str] = &[
+    "Refresh token expired",
+    "Refresh token is invalid or revoked",
+    "Refresh-token reuse detected",
+    "Your Anvil account is not active",
+    "Session refresh rejected by the auth server",
+];
+
+/// Returns true when the error message originated from
+/// [`refresh_error_message`] for a definitive 401. Used by the silent-refresh
+/// caller to decide whether to surface the message and skip the generic
+/// "Session expired" line, vs swallow the failure as transient.
+pub fn is_permanent_refresh_failure(err: &anyhow::Error) -> bool {
+    let msg = err.to_string();
+    PERMANENT_REFRESH_PREFIXES
+        .iter()
+        .any(|prefix| msg.starts_with(prefix))
+}
+
+/// Pick the most actionable message for a /session/refresh failure.
+///
+/// The server returns distinct `{ "error": "…" }` strings for the four
+/// terminal cases (expired refresh token, revoked, family theft detected,
+/// inactive account); surface them so the user knows whether a fresh
+/// `anvil auth login` will fix things or whether support is needed.
+fn refresh_error_message(status: reqwest::StatusCode, body: &str) -> String {
+    let server_reason = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.get("error")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        });
+    match (status.as_u16(), server_reason.as_deref()) {
+        (401, Some("Refresh token expired")) => {
+            "Refresh token expired. Run `anvil auth login` to re-authenticate.".into()
+        }
+        (401, Some("Token reuse detected")) => {
+            "Refresh-token reuse detected — your session family was revoked for security. \
+             Run `anvil auth login`."
+                .into()
+        }
+        (401, Some("Invalid refresh token")) => {
+            "Refresh token is invalid or revoked. Run `anvil auth login`.".into()
+        }
+        (401, Some("User account is not active")) => {
+            "Your Anvil account is not active. Contact support.".into()
+        }
+        (401, _) => "Session refresh rejected by the auth server. Run `anvil auth login`.".into(),
+        _ => friendly_http_error(status, "Session refresh failed"),
+    }
 }
 
 /// Attempt to refresh an expired licence using a stored refresh token.
@@ -311,6 +371,24 @@ pub async fn try_refresh_credentials(creds: &Credentials) -> Result<Credentials>
         expires_at: Some(resp.expires_at),
         is_edict: creds.is_edict,
     })
+}
+
+/// End-to-end refresh: load stored credentials, exchange the refresh token,
+/// persist the new credentials, and return them. Used by the explicit
+/// `anvil auth refresh` subcommand.
+pub async fn refresh_command() -> Result<Credentials> {
+    let creds = credentials::load()?
+        .context("Not authenticated. Run `anvil auth login` to authenticate.")?;
+    if creds.refresh_token.is_none() {
+        bail!(
+            "No refresh token on disk. This usually means credentials were minted by an older \
+             version that did not persist refresh tokens; run `anvil auth login` to mint a fresh \
+             pair."
+        );
+    }
+    let new_creds = try_refresh_credentials(&creds).await?;
+    credentials::save(&new_creds)?;
+    Ok(new_creds)
 }
 
 // ── Public entry points (thin wrappers adding I/O) ────────────────────
@@ -894,10 +972,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refresh_session_propagates_401_as_user_error() {
-        // Covers expired-refresh-token, revoked, theft-detected, and
-        // user-inactive — they all surface as 401 from the API and must
-        // NOT silently succeed on the CLI side.
+    async fn refresh_session_surfaces_expired_reason() {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
@@ -912,10 +987,119 @@ mod tests {
         let err = refresh_session(&client, &server.uri(), "rt-stale")
             .await
             .unwrap_err();
+        let msg = err.to_string();
 
         assert!(
-            err.to_string().contains("Session refresh failed"),
-            "expected user-friendly error, got: {err}"
+            msg.contains("Refresh token expired"),
+            "expected expired-token wording, got: {msg}"
+        );
+        assert!(
+            msg.contains("anvil auth login"),
+            "expected actionable next step, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_session_surfaces_token_reuse_reason() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "Token reuse detected"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = refresh_session(&client, &server.uri(), "rt-cloned")
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+
+        assert!(
+            msg.contains("reuse detected"),
+            "expected reuse wording, got: {msg}"
+        );
+        assert!(
+            msg.contains("anvil auth login"),
+            "expected actionable next step, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_session_surfaces_invalid_refresh_reason() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "Invalid refresh token"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = refresh_session(&client, &server.uri(), "rt-bogus")
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+
+        assert!(
+            msg.contains("invalid or revoked"),
+            "expected invalid/revoked wording, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_session_surfaces_inactive_user_reason() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "User account is not active"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = refresh_session(&client, &server.uri(), "rt-inactive")
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+
+        assert!(
+            msg.contains("not active"),
+            "expected inactive-account wording, got: {msg}"
+        );
+        assert!(
+            msg.contains("support"),
+            "inactive-account error should point at support, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_session_falls_back_for_unrecognised_401_reason() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "Some future server reason"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = refresh_session(&client, &server.uri(), "rt-x")
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+
+        assert!(
+            msg.contains("Session refresh rejected") || msg.contains("rejected"),
+            "expected generic 401 fallback, got: {msg}"
         );
     }
 
@@ -954,6 +1138,41 @@ mod tests {
             err.to_string().contains("no refresh token stored"),
             "expected explicit no-refresh-token message, got: {err}"
         );
+    }
+
+    #[test]
+    fn is_permanent_refresh_failure_recognises_known_reasons() {
+        for msg in [
+            "Refresh token expired. Run `anvil auth login` to re-authenticate.",
+            "Refresh token is invalid or revoked. Run `anvil auth login`.",
+            "Refresh-token reuse detected — your session family was revoked for security. \
+             Run `anvil auth login`.",
+            "Your Anvil account is not active. Contact support.",
+            "Session refresh rejected by the auth server. Run `anvil auth login`.",
+        ] {
+            let err = anyhow::anyhow!("{msg}");
+            assert!(
+                is_permanent_refresh_failure(&err),
+                "expected `{msg}` to be classified as permanent"
+            );
+        }
+    }
+
+    #[test]
+    fn is_permanent_refresh_failure_treats_network_errors_as_transient() {
+        for msg in [
+            "Could not reach the auth server (connect refused). Check your network connection.",
+            "Session refresh failed: the auth server is temporarily unavailable. \
+             Please try again in a few minutes.",
+            "Session refresh failed: too many requests. Please wait a moment and try again.",
+            "no refresh token stored",
+        ] {
+            let err = anyhow::anyhow!("{msg}");
+            assert!(
+                !is_permanent_refresh_failure(&err),
+                "expected `{msg}` to be classified as transient"
+            );
+        }
     }
 
     #[test]
