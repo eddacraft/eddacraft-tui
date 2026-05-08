@@ -9,6 +9,101 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
+## [0.6.0-beta]
+
+### Daemon-Backed Mid-Edit Validation (INTD)
+
+- **Owner-only IPC** — daemon listener accepts connections only from the owning
+  UID via `SO_PEERCRED` on Linux, `getpeereid(2)` on macOS, and a per-user DACL
+  with `reject_remote_clients(true)` on the Windows named-pipe listener.
+  `crates/anvil-intercept-win32` ships the Windows daemon side; the synchronous
+  Win32 client backs `anvil intercept status` for parity with the Unix UDS path.
+- **Process-group interrupt ladder** — INTD-006 lands the
+  `SIGINT → SIGTERM → SIGKILL` ladder against the worker process group on Linux.
+  macOS falls through to AD-7's fence-on-uncertainty invariant in this cut
+  because the `current_process_start_time` helper is Linux-only; documented in
+  the v0.6.0-beta release runbook §4.
+- **Fence persistence** — INTD-005 records fence state to disk in the data
+  directory, re-fences on daemon startup, and survives daemon crashes, restarts,
+  and reboots. The `anvil intercept stop` and `unblock` CLI subcommands are
+  deferred; recovery in v1 is the runbook's daemon-stop +
+  fence-directory-removal procedure.
+- **Daemon configuration & embedded fallback** — INTD-008 wires the daemon
+  enforcement-config loader; INTD-010 evaluates rules in embedded mode when
+  daemon dispatch is unavailable, keeping correctness equivalence with the
+  daemon path. INTD-011 closes the unregistered-change fence so a write that
+  bypasses validation still fails closed.
+- **IPC DoS budgets and telemetry scoping** — INTD-009 caps per-connection
+  request and response budgets so a misbehaving client cannot exhaust the
+  daemon. INTD-015 scopes telemetry subscriptions to the requesting session
+  rather than broadcasting cross-session.
+
+### Editor Driver Framework (DRVR)
+
+- **Driver client + protocol** — `anvil-driver-client` ships the shared client
+  surface; DRVR-002 lands the editor-driver protocol with capability
+  negotiation, and the trust-boundary spec is documented as a release artefact.
+  RTAI-004 wires the mid-edit debouncer through `validateMidEdit`.
+
+### Activation & MCP Launch (LAUNCH)
+
+- **`anvil start` activation** — LAUNCH-002 owns the activation entrypoint with
+  `--verify` and `--watch` flags. LAUNCH-009 wires Cursor / Claude Code MCP
+  install with the shared activation-state vocabulary (`protecting`,
+  `ready_restart_required`, `watching`, `needs_action`, `unsupported`, `error`)
+  consumed by `anvil status --verify`, `anvil doctor`, and the protection-loop
+  tutorial.
+- **Repo language profile** — activation profiles the repository's languages and
+  surfaces an honest skip ledger; TypeScript is the supported tier in this cut,
+  SQL/Markdown partial, Python/Rust unsupported. Cross-language scans (secrets)
+  continue running on every file.
+- **Install-method-aware version surface** — `anvil --version` detects Homebrew,
+  Scoop, WinGet, the cargo-dist installer, or a dev build and prints
+  `update_available`, install method, and the recommended upgrade command. JSON
+  shape is pinned for agent and CI consumers.
+
+### Scanner Hot-Path Performance (V050F)
+
+- **Allowlist regex caching** — V050F-006 (#1323) caches the compiled allowlist
+  regexes in `prepare_pattern` and replaces `AllowlistGlob.pattern: String` with
+  a precomputed `is_path_glob: bool`, eliminating an N×M regex compile on every
+  scanned file.
+- **Custom secret pattern compile errors** — V050F-011 (#1323) introduces
+  `scan_content_with_compiled_patterns` and
+  `scan_content_with_pattern_errors_and_stats` so callers receive per-pattern
+  compile diagnostics instead of silent drop. The legacy `scan_content_with_*`
+  wrappers preserve their signatures and emit `tracing::warn!` on dropped errors
+  so the silent-loss path is observable.
+- **Eager rayon pool init** — V050F-007 (#1330) extracts the half-cores
+  global-pool cap into the dedicated `anvil-rayon-init` micro-crate and calls it
+  from the CLI binary entry point and the NAPI `scan_artifact_json` entry,
+  replacing the duplicated `Once` blocks in `kernel/watch.rs` and
+  `kernel/embedded.rs`.
+
+### CI Gating & Test Reliability
+
+- **Cross-compile gate on `dev`** — `.github/workflows/rust.yml:442-445` widens
+  the cross-compile trigger from main-only to main + dev (push and PR), gated on
+  `detect-rust-changes` so JS-only diffs don't spin up the Windows + macOS
+  matrix. Closes the gap that let Windows-only build breakage land on `dev`
+  between releases. Historical context preserved in
+  `docs/runbooks/intd-012-windows-evidence.md` with a status banner.
+- **MCP daemon integration tests Unix-gated** — daemon-backed integration suite
+  is `#[cfg(unix)]` in this cut; Windows coverage rides the same follow-up as
+  the MCP correlation envelope.
+- **Coverage step non-blocking on push** — `cargo llvm-cov nextest` started
+  failing the post-test profile-merge consistently on `dev` pushes
+  (`error: no profile can be merged` from corrupt `.profraw`s). Strict test gate
+  split from best-effort coverage in `76a17442`; coverage step marked
+  `continue-on-error: true` so a coverage-merge failure doesn't mask real test
+  signal. Underlying merge regression tracked separately.
+- **Cancellation-test sync safety net widened** — the polling-loop bound in
+  `cancellation_emits_cancelled_error_detail_not_spawn_failed` was ratcheted
+  from 5 s to 30 s after sustained failures on `ubuntu-latest` under nextest's
+  default parallel execution. Bound is a sync aid, not a timing assertion;
+  structural follow-ups (worker-side notification, serial nextest group) noted
+  inline.
+
 ## [0.5.1-beta]
 
 ### Scanner Signal Hardening

@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-driver-client",
-  "version": "0.5.1-beta",
+  "version": "0.6.0-beta",
   "description": "Shared TS driver-client library for the anvil-intercept daemon — JSON-RPC 2.0 over NDJSON, transport auto-select (UDS / named pipe), reconnection, reliability-budget quarantine. Per DRVR-001 / ADR-030.",
   "license": "PROPRIETARY",
   "type": "module",
