@@ -22,8 +22,8 @@ unchanged. Operators running the daemon should read the
 [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
 for the five operational realities of the cut (foreground-only daemon,
 cross-platform `intercept status` with the MCP correlation envelope still
-Unix-only, fence persistence across restart with no `stop`/`unblock` CLI in
-v1, macOS fence-first interrupt ladder, `main`-only Windows CI), and the
+Unix-only, fence persistence across restart with no `stop`/`unblock` CLI in v1,
+macOS fence-first interrupt ladder, `main`-only Windows CI), and the
 [v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-security-note.md)
 for the four HIGH trust-boundary trade-offs the release council surfaced.
 
@@ -51,29 +51,28 @@ scoop update anvil
 
 ### What's New in 0.6.0-beta
 
-- **`anvil start` activation entrypoint** — `install → cd repo → anvil start`
-  is the canonical first minute. `--verify` runs a read-only protection probe;
+- **`anvil start` activation entrypoint** — `install → cd repo → anvil start` is
+  the canonical first minute. `--verify` runs a read-only protection probe;
   `--watch` opts into the save-time fallback when MCP cannot attach.
 - **Activation protection states** — `protecting`, `ready_restart_required`,
   `watching`, `needs_action`, `unsupported`, and `error` are the single shared
-  vocabulary across `anvil start`, `anvil status --verify`, `anvil doctor`,
-  and the tutorial.
+  vocabulary across `anvil start`, `anvil status --verify`, `anvil doctor`, and
+  the tutorial.
 - **`anvil mcp install` for Cursor and Claude Code** — one-step MCP activation
   that writes `~/.cursor/mcp.json` or `~/.claude.json`. Windsurf, VS Code, and
   HTTP-transport flows remain on `anvil mcp-config`.
 - **Daemon-backed `anvil_validate_write` MCP tool** — the MCP pre-write
-  validation path now routes through the local daemon over owner-only IPC
-  when reachable, with the embedded validation pipeline as a
-  correctness-equivalent fallback. macOS peer-credential validation is now at
-  parity with Linux.
+  validation path now routes through the local daemon over owner-only IPC when
+  reachable, with the embedded validation pipeline as a correctness-equivalent
+  fallback. macOS peer-credential validation is now at parity with Linux.
 - **Repo language profile** — activation, scan, and watch honour a
   per-repository language profile so coverage is honest: TypeScript is the
-  supported tier in this release, SQL and Markdown are partial, Python and
-  Rust are reported as unsupported instead of silently skipped. Secret
-  detection still runs on all files.
-- **Protection-loop tutorial** — the default tutorial path walks the
-  protection loop end-to-end and ends with a real `anvil start --verify`
-  invocation. Policy, Architecture, Drift, and CI tutorial paths remain.
+  supported tier in this release, SQL and Markdown are partial, Python and Rust
+  are reported as unsupported instead of silently skipped. Secret detection
+  still runs on all files.
+- **Protection-loop tutorial** — the default tutorial path walks the protection
+  loop end-to-end and ends with a real `anvil start --verify` invocation.
+  Policy, Architecture, Drift, and CI tutorial paths remain.
 - **`anvil version`** — install-method-aware version output detects Homebrew,
   Scoop, WinGet, the installer, or a dev build, and prints the recommended
   upgrade command. The JSON shape is pinned for agent and CI consumers.
@@ -81,20 +80,20 @@ scoop update anvil
   listener side ships on Windows with an owner-only DACL and rejected remote
   clients, and `anvil intercept status` drives the same wire shape over the
   named pipe via `connect_owner_only_pipe_client`. `--json` returns the same
-  `DaemonStatusV1` on Unix and Windows. The remaining Windows gap is in the
-  MCP correlation envelope only: `correlation.daemonStatus` returned by
-  `anvil_validate_write` is always `not-wired` on Windows because the MCP
-  daemon validation client is gated `cfg(unix)`. That narrower fix lands as
-  part of `chore/windows-status`.
-- **Operator-visible defaults you should know about.** The foreground daemon
-  is the only supported launch mode in v1 (`anvil intercept start
-  --foreground`). The `anvil intercept stop` and `anvil intercept unblock`
-  CLI subcommands are not wired in v1 — a follow-up INTD task wires the
-  front-end. Fences persist across daemon restart by design; recovery is to
-  stop the foreground daemon (Ctrl-C, or SIGTERM by PID) and remove
-  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. On macOS, the interrupt
-  ladder is fence-first this release because `current_process_start_time`
-  lacks a macOS branch.
+  `DaemonStatusV1` on Unix and Windows. The remaining Windows gap is in the MCP
+  correlation envelope only: `correlation.daemonStatus` returned by
+  `anvil_validate_write` is always `not-wired` on Windows because the MCP daemon
+  validation client is gated `cfg(unix)`. That narrower fix lands as part of
+  `chore/windows-status`.
+- **Operator-visible defaults you should know about.** The foreground daemon is
+  the only supported launch mode in v1 (`anvil intercept start --foreground`).
+  The `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are
+  not wired in v1 — a follow-up INTD task wires the front-end. Fences persist
+  across daemon restart by design; recovery is to stop the foreground daemon
+  (Ctrl-C, or SIGTERM by PID) and remove
+  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. On macOS, the interrupt ladder
+  is fence-first this release because `current_process_start_time` lacks a macOS
+  branch.
 
 ## Upgrading to 0.5.1-beta
 

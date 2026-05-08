@@ -1,10 +1,11 @@
 # {Component Name} — As-Built
 
-> **Status:** Live (beta) | Live (RC) | Live (GA) | Pre-implementation | Deprecated
-> **Last reviewed:** YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` / `<short-sha>`
-> **Crate / location:** `crates/foo` (or `apps/bar`, `packages/baz`)
-> **Module owner (APS):** MODULE-CODE (link to `plans/modules/...`)
-> **Used by:** {downstream consumers — other crates, CLI surfaces, MCP tools}
+> **Status:** Live (beta) | Live (RC) | Live (GA) | Pre-implementation |
+> Deprecated **Last reviewed:** YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` /
+> `<short-sha>` **Crate / location:** `crates/foo` (or `apps/bar`,
+> `packages/baz`) **Module owner (APS):** MODULE-CODE (link to
+> `plans/modules/...`) **Used by:** {downstream consumers — other crates, CLI
+> surfaces, MCP tools}
 
 ## Overview
 
@@ -48,11 +49,11 @@ them; if they don't matter, leave them out.
 External APIs / CLI commands / MCP tools / IPC contracts that consumers use.
 Group by surface kind. Include the stability level when it's load-bearing.
 
-| Surface | Kind | Stability | Notes |
-| ------- | ---- | --------- | ----- |
-| `anvil foo bar` | CLI | beta | flags documented in `docs/cli/foo.md` |
-| `POST /v1/foo` | HTTP | beta | request/response in `crates/foo-api/src/dto.rs` |
-| `foo.run` | MCP tool | beta | declared in `crates/foo-mcp/src/tools.rs:NN` |
+| Surface         | Kind     | Stability | Notes                                           |
+| --------------- | -------- | --------- | ----------------------------------------------- |
+| `anvil foo bar` | CLI      | beta      | flags documented in `docs/cli/foo.md`           |
+| `POST /v1/foo`  | HTTP     | beta      | request/response in `crates/foo-api/src/dto.rs` |
+| `foo.run`       | MCP tool | beta      | declared in `crates/foo-mcp/src/tools.rs:NN`    |
 
 ## Internals
 
@@ -77,8 +78,8 @@ exists. Every component has gaps — naming them is the value.
 
 ### G-01: {short title}
 
-What's wrong or missing, the scope of impact, the workaround if any. Link to
-the issue / APS work item / ADR that tracks the fix.
+What's wrong or missing, the scope of impact, the workaround if any. Link to the
+issue / APS work item / ADR that tracks the fix.
 
 **Risk:** Low | Medium | High. **Fix:** {summary, or "tracked in #NNNN"}.
 
@@ -117,8 +118,8 @@ handful of files.
    you're writing a spec, not an as-built.
 2. **Date it against a specific tag or SHA.** Code drifts. The doc has to say
    what it was true at, so the next reader knows whether to trust it.
-3. **Gaps section is mandatory.** Every component has gaps. Hidden gaps are
-   the most expensive kind. Naming them is the deliverable.
+3. **Gaps section is mandatory.** Every component has gaps. Hidden gaps are the
+   most expensive kind. Naming them is the deliverable.
 4. **Keep the architecture diagram minimal.** Boxes and arrows that match the
    lifecycle section, not a re-draw of the whole product.
 5. **Empty sections stay.** If a section is genuinely empty, write

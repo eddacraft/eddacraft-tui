@@ -96,8 +96,8 @@ Use `anvil gate` when you want workflow judgement.
 
 Use `anvil watch` when you want continuous checks and gate updates as files
 change. Watch is the **save-time fallback** for the AI guardrail when the MCP
-pre-write path cannot attach — it never replaces pre-write interception, but
-it does give you the next-best signal.
+pre-write path cannot attach — it never replaces pre-write interception, but it
+does give you the next-best signal.
 
 ### `anvil start`
 

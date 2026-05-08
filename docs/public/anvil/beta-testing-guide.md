@@ -26,28 +26,28 @@ pre-write attachment is not available.
 These are the highest-leverage flows for this cut. If you only have a short
 session, these are the right places to spend it.
 
-- **Wow-start activation (`anvil start`).** `install → cd repo → anvil start`
-  is the canonical first minute. The command runs init + first-scan + MCP
-  install in one go and ends with a literal protection state
-  (`protecting`, `ready_restart_required`, `watching`, `needs_action`,
-  `unsupported`, or `error`). The state is the contract -- trust it.
+- **Wow-start activation (`anvil start`).** `install → cd repo → anvil start` is
+  the canonical first minute. The command runs init + first-scan + MCP install
+  in one go and ends with a literal protection state (`protecting`,
+  `ready_restart_required`, `watching`, `needs_action`, `unsupported`, or
+  `error`). The state is the contract -- trust it.
 - **Daemon-backed MCP validation in Cursor and Claude Code.** The
   `anvil_validate_write` MCP tool is now backed by the local daemon over
   owner-only IPC on Unix, with the embedded path as a correctness-equivalent
   fallback. Restart the editor after `anvil start` and verify `anvil` shows in
   the MCP list, then ask the AI to make a wrong rewrite and watch the daemon
   refuse it.
-- **Repo language profile honesty.** Activation now names detected languages
-  and their coverage tier (TS supported, SQL and Markdown partial, Python and
-  Rust unsupported). Language-specific antipattern checks honour the profile;
+- **Repo language profile honesty.** Activation now names detected languages and
+  their coverage tier (TS supported, SQL and Markdown partial, Python and Rust
+  unsupported). Language-specific antipattern checks honour the profile;
   cross-language checks (e.g. secrets) still run on every file.
 - **Foreground daemon ops.** The daemon runs in foreground only in v1
-  (`anvil intercept start --foreground`). Fences survive restart; recovery is
-  to stop the daemon (Ctrl-C, or SIGTERM by PID) and remove the fence
-  directory at `${XDG_DATA_HOME:-$HOME/.local/share}/anvil` -- the
-  `anvil intercept stop` / `unblock` CLI subcommands are not wired in v1.
-  `anvil intercept status` is available on every supported target this
-  release; the only Windows gap is the MCP correlation envelope.
+  (`anvil intercept start --foreground`). Fences survive restart; recovery is to
+  stop the daemon (Ctrl-C, or SIGTERM by PID) and remove the fence directory at
+  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil` -- the `anvil intercept stop` /
+  `unblock` CLI subcommands are not wired in v1. `anvil intercept status` is
+  available on every supported target this release; the only Windows gap is the
+  MCP correlation envelope.
 - **`anvil version` install-method awareness.** Reports current and latest
   version and prints the upgrade command for your install method (Homebrew,
   Scoop, WinGet, installer, dev build).
@@ -59,8 +59,8 @@ way, and where the output is unclear.
 
 The most useful feedback answers these questions:
 
-- Did `anvil start` honestly describe what protection is live in your repo?
-  When the printed state was `protecting`, was it actually catching writes?
+- Did `anvil start` honestly describe what protection is live in your repo? When
+  the printed state was `protecting`, was it actually catching writes?
 - Did Cursor or Claude Code show `anvil` in the MCP list after restart? Did an
   AI rewrite get refused before the write landed, or did it slip through?
 - Did the language profile in the activation summary match your repo? If your
@@ -70,8 +70,8 @@ The most useful feedback answers these questions:
 - Were warnings accurate, actionable, and easy to triage?
 - When MCP couldn't attach, did the watch fallback (`anvil start --watch` /
   `anvil watch --source`) produce useful save-time signal?
-- Did `anvil version` correctly identify your install method and print the
-  right upgrade command?
+- Did `anvil version` correctly identify your install method and print the right
+  upgrade command?
 - Did any command fail, hang, produce noisy output, or ask for unclear input?
 - What would stop you from using this on every save?
 
@@ -187,16 +187,16 @@ cd your-project
 anvil start
 ```
 
-This runs init + first-scan + MCP install for Cursor and Claude Code in one
-go. The activation summary ends with a literal protection state. Record:
+This runs init + first-scan + MCP install for Cursor and Claude Code in one go.
+The activation summary ends with a literal protection state. Record:
 
-- Which state was reported (`protecting`, `ready_restart_required`,
-  `watching`, `needs_action`, `unsupported`, or `error`).
+- Which state was reported (`protecting`, `ready_restart_required`, `watching`,
+  `needs_action`, `unsupported`, or `error`).
 - Whether the language profile in the summary matched your repo.
 - Whether the explanation of what is and isn't protected matched what you
   expected.
-- Whether the MCP entries (`~/.cursor/mcp.json`, `~/.claude.json`) were
-  written and whether your editor picked them up after restart.
+- Whether the MCP entries (`~/.cursor/mcp.json`, `~/.claude.json`) were written
+  and whether your editor picked them up after restart.
 
 If you only want a read-only check (no init, no scan, no MCP write):
 
@@ -221,9 +221,9 @@ introduce a hardcoded secret). Record:
 anvil tutorial
 ```
 
-The default path (`ProtectionLoop`) is the protection-loop walk-through.
-Record whether it explains the product clearly and whether any step is
-confusing, too slow, or broken in your terminal.
+The default path (`ProtectionLoop`) is the protection-loop walk-through. Record
+whether it explains the product clearly and whether any step is confusing, too
+slow, or broken in your terminal.
 
 ### 4. Re-run Init in Isolation (optional)
 
@@ -262,15 +262,14 @@ Record:
 ### 6. Try the Watch Fallback
 
 When MCP can't attach, watch mode is the save-time fallback. It is **not**
-pre-write protection -- the write already happened by the time watch reports
-the finding.
+pre-write protection -- the write already happened by the time watch reports the
+finding.
 
 ```bash
 anvil watch --source
 ```
 
-Save a file. Watch should print the active scope and respond when files
-change.
+Save a file. Watch should print the active scope and respond when files change.
 
 Try the watch filters:
 
@@ -302,9 +301,8 @@ Record:
 - Whether remediation steps are specific enough when something is missing,
   misconfigured, or skipped.
 - Whether `anvil status --verify` matches what `anvil start --verify` reported.
-- Whether `anvil version` correctly identifies your install method
-  (Homebrew / Scoop / WinGet / installer / dev) and prints the right upgrade
-  command.
+- Whether `anvil version` correctly identifies your install method (Homebrew /
+  Scoop / WinGet / installer / dev) and prints the right upgrade command.
 
 ### 8. Try a Gate Run
 
@@ -474,38 +472,37 @@ One sentence describing what happened.
 ## Known Limitations
 
 - **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
-  install, and Copilot / Codex CLI integration are explicitly out of scope.
-  No process auto-attach.
-- **`anvil intercept status` is available on every supported target.** The
-  Unix path speaks the UDS IPC; the Windows path drives the same wire shape
-  over the named pipe via `connect_owner_only_pipe_client`. `--json` returns
-  the same `DaemonStatusV1` on either OS.
+  install, and Copilot / Codex CLI integration are explicitly out of scope. No
+  process auto-attach.
+- **`anvil intercept status` is available on every supported target.** The Unix
+  path speaks the UDS IPC; the Windows path drives the same wire shape over the
+  named pipe via `connect_owner_only_pipe_client`. `--json` returns the same
+  `DaemonStatusV1` on either OS.
 - **MCP daemon-status correlation is Unix-only today.** On Windows the
   `anvil_validate_write` MCP tool's `correlation.daemonStatus` is always
-  `not-wired` because the MCP daemon validation client is gated `cfg(unix)`.
-  The embedded fallback handles validation correctness; the daemon-status
-  signal in MCP responses cannot distinguish daemon-up from daemon-down on
-  Windows in this cut. Tracked under `chore/windows-status`.
+  `not-wired` because the MCP daemon validation client is gated `cfg(unix)`. The
+  embedded fallback handles validation correctness; the daemon-status signal in
+  MCP responses cannot distinguish daemon-up from daemon-down on Windows in this
+  cut. Tracked under `chore/windows-status`.
 - **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
   -- backgrounded launches are not a v1 surface.
-- **Fences survive daemon restart, and the `stop` / `unblock` CLI surface is
-  not in v1.** `anvil intercept` declares only `start` and `status` in this
-  release; the `FenceStore::unblock_worktree` data path ships, but the CLI
-  front-end is a follow-up INTD task. Recovery is: stop the foreground
-  daemon (Ctrl-C, or SIGTERM by PID) and remove the fence directory at
-  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. There is no worktree-scoped
-  CLI recovery in v1.
-- **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS
-  fence the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder.
-  Recovery is the same daemon-stop + fence-directory removal as above.
+- **Fences survive daemon restart, and the `stop` / `unblock` CLI surface is not
+  in v1.** `anvil intercept` declares only `start` and `status` in this release;
+  the `FenceStore::unblock_worktree` data path ships, but the CLI front-end is a
+  follow-up INTD task. Recovery is: stop the foreground daemon (Ctrl-C, or
+  SIGTERM by PID) and remove the fence directory at
+  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. There is no worktree-scoped CLI
+  recovery in v1.
+- **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS fence
+  the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recovery
+  is the same daemon-stop + fence-directory removal as above.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change.
 - **Primary language coverage is TypeScript and JavaScript.** SQL and Markdown
   are partial; Python and Rust are unsupported in v1. The activation summary
   names the gap.
 - **Gate checks may call your existing tools.** If lint, test, OPA, or other
-  project tools are missing locally, `anvil gate` may skip or fail those
-  checks.
+  project tools are missing locally, `anvil gate` may skip or fail those checks.
 - **Architecture checks need an architecture definition.** Use
   `.anvil/architecture.yaml` when you want boundary enforcement.
 - **Some legacy or unconventional projects may be noisy.** False-positive

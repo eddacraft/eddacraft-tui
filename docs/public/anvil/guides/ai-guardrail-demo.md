@@ -19,8 +19,8 @@ demo-only build — every command below uses the standard release binary.
 :::tip Start with the wow-start demo
 
 If you have not yet run `anvil start` on a real repo, do that first — see
-[The Wow-Start Demo](./wow-start-demo). It establishes the activation state
-this guide assumes.
+[The Wow-Start Demo](./wow-start-demo). It establishes the activation state this
+guide assumes.
 
 :::
 
@@ -201,9 +201,9 @@ rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
 anvil intercept start --foreground
 ```
 
-The `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are
-not wired in v1; stop the foreground daemon directly and remove the fence
-directory to release fences.
+The `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are not
+wired in v1; stop the foreground daemon directly and remove the fence directory
+to release fences.
 
 To wipe everything and start over:
 

@@ -19,10 +19,10 @@ in this release; the embedded scanner is the correctness-equivalent fallback
 when the daemon is not reachable.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
-`0.4.0-beta`) is retained as a compatibility surface for the broader legacy
-tool catalogue (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
-`anvil_status`, `anvil_query_boundary`). Use it only when you specifically
-need one of those tools — see [Legacy Node MCP path](#legacy-node-mcp-path).
+`0.4.0-beta`) is retained as a compatibility surface for the broader legacy tool
+catalogue (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
+`anvil_status`, `anvil_query_boundary`). Use it only when you specifically need
+one of those tools — see [Legacy Node MCP path](#legacy-node-mcp-path).
 
 :::
 
@@ -31,8 +31,8 @@ need one of those tools — see [Legacy Node MCP path](#legacy-node-mcp-path).
 MCP is a protocol for providing context to AI models. anvil's MCP server
 exposes:
 
-- Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed
-  on Unix; embedded fallback otherwise)
+- Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed on
+  Unix; embedded fallback otherwise)
 - Current project configuration and status (legacy Node tools)
 - Architecture boundaries and drift snapshots (legacy Node tools)
 - Prompts for architecture review and violation fixes (legacy Node tools)
@@ -42,9 +42,9 @@ exposes:
 For Cursor or Claude Code, the easiest path is `anvil start`. The activator
 calls into the same `mcp install` machinery internally for the supported
 clients, writing `~/.cursor/mcp.json` and `~/.claude.json` (Claude Code's
-canonical config location), then probes whether the editor's MCP transport
-can reach the shim. Pass `--verify` for a read-only probe that prints the
-diagnostic without writing anything:
+canonical config location), then probes whether the editor's MCP transport can
+reach the shim. Pass `--verify` for a read-only probe that prints the diagnostic
+without writing anything:
 
 ```bash
 anvil start            # activate Cursor + Claude Code if installed
@@ -53,8 +53,8 @@ anvil start --verify   # probe state, no writes
 
 If you only need to re-run the install in isolation, use `anvil mcp install`
 directly (next section). For HTTP transport or workspace-scoped paths against
-Cursor or Claude Code, use `anvil mcp-config` further down. Windsurf and VS
-Code are not currently `mcp-config` targets in v0.6.0-beta — see the manual
+Cursor or Claude Code, use `anvil mcp-config` further down. Windsurf and VS Code
+are not currently `mcp-config` targets in v0.6.0-beta — see the manual
 configuration section.
 
 ## One-Step Install with `anvil mcp install`
@@ -74,13 +74,13 @@ anvil mcp install --client claude-code
 anvil mcp install --client cursor --verify
 ```
 
-The installer is restricted to Cursor and Claude Code. `anvil mcp-config`
-below covers the same two clients with extra knobs (HTTP transport,
-workspace-scoped paths). For Windsurf or VS Code, hand-write the
-configuration using the [Manual Configuration](#manual-configuration) section
-— the previous `mcp-config` Windsurf and VS Code targets were removed in
-LAUNCH-009.5 (Windsurf was never protocol-verified; the VS Code emitter
-wrote to the pre-1.99 file shape and silently no-op'd on current builds).
+The installer is restricted to Cursor and Claude Code. `anvil mcp-config` below
+covers the same two clients with extra knobs (HTTP transport, workspace-scoped
+paths). For Windsurf or VS Code, hand-write the configuration using the
+[Manual Configuration](#manual-configuration) section — the previous
+`mcp-config` Windsurf and VS Code targets were removed in LAUNCH-009.5 (Windsurf
+was never protocol-verified; the VS Code emitter wrote to the pre-1.99 file
+shape and silently no-op'd on current builds).
 
 ## Generate Configuration with `anvil mcp-config`
 
@@ -172,9 +172,8 @@ Configure the port and host with `ANVIL_MCP_PORT` (default: 3000) and
 ### anvil_validate_write
 
 Served by the Rust `anvil mcp serve --stdio` shim. Validates a proposed file
-write before the agent applies it; the response carries a `decision` (`allow`
-or `block`) and the same `anvil.diagnostic.v1` envelope used by the gate
-output.
+write before the agent applies it; the response carries a `decision` (`allow` or
+`block`) and the same `anvil.diagnostic.v1` envelope used by the gate output.
 
 ```json
 {
@@ -188,9 +187,8 @@ output.
 }
 ```
 
-The response includes a `correlation` envelope. The
-`correlation.daemonStatus` field reports whether the daemon-backed validation
-path is live:
+The response includes a `correlation` envelope. The `correlation.daemonStatus`
+field reports whether the daemon-backed validation path is live:
 
 | Value         | Meaning                                                           |
 | ------------- | ----------------------------------------------------------------- |
@@ -202,21 +200,20 @@ path is live:
 
 In `v0.6.0-beta`, `correlation.daemonStatus` is always `not-wired` on Windows
 because the validation client is `cfg(unix)`-gated. The embedded fallback runs
-the same checks; the daemon-backed correlation envelope is part of the
-follow-up Windows named-pipe work.
+the same checks; the daemon-backed correlation envelope is part of the follow-up
+Windows named-pipe work.
 
 :::
 
 The remaining tools (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
-`anvil_status`, `anvil_query_boundary`) live on the legacy Node MCP server —
-see [Legacy Node MCP path](#legacy-node-mcp-path) below.
+`anvil_status`, `anvil_query_boundary`) live on the legacy Node MCP server — see
+[Legacy Node MCP path](#legacy-node-mcp-path) below.
 
 ## Legacy Node MCP path
 
-The legacy Node MCP server (`@eddacraft/anvil-mcp-server`) remains available
-for the broader legacy tool surface. The Rust shim does not expose these
-tools today; reach for the legacy server only when you specifically need one
-of them.
+The legacy Node MCP server (`@eddacraft/anvil-mcp-server`) remains available for
+the broader legacy tool surface. The Rust shim does not expose these tools
+today; reach for the legacy server only when you specifically need one of them.
 
 ### Legacy Node MCP Tools
 

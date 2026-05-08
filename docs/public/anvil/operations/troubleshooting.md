@@ -83,34 +83,34 @@ The most common pitfalls are summarised below.
 `v0.6.0-beta`. Output goes to the operator's terminal; the daemon stays attached
 to the controlling TTY.
 
-If a start fails with "address already in use" or a stale-PID complaint, a
-prior instance is the most likely cause. The `anvil intercept stop` CLI
-subcommand is not wired in v1, so stop it directly:
+If a start fails with "address already in use" or a stale-PID complaint, a prior
+instance is the most likely cause. The `anvil intercept stop` CLI subcommand is
+not wired in v1, so stop it directly:
 
 1. Press Ctrl-C in the controlling terminal of the foreground daemon (sends
    SIGINT to the shutdown handler).
-2. If the controlling terminal is gone, send `SIGTERM` to the PID
-   (`kill <PID>`) and wait 10 seconds.
+2. If the controlling terminal is gone, send `SIGTERM` to the PID (`kill <PID>`)
+   and wait 10 seconds.
 3. Escalate to `SIGKILL` (`kill -9 <PID>`) only if SIGTERM did not unwind.
 
 Always pair a `SIGKILL` with a directory cleanup of
-`${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil` to clear the stale socket and
-PID file — otherwise the next start refuses on the leftover state.
+`${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil` to clear the stale socket and PID
+file — otherwise the next start refuses on the leftover state.
 
 ### `anvil intercept status` is available on every supported target
 
-`anvil intercept status` queries the daemon over the UDS IPC on Unix and
-over the named pipe on Windows (via `connect_owner_only_pipe_client`),
-printing uptime / sessions / fences / latency on either OS. `--json` returns
-the same `DaemonStatusV1` shape on Unix and Windows.
+`anvil intercept status` queries the daemon over the UDS IPC on Unix and over
+the named pipe on Windows (via `connect_owner_only_pipe_client`), printing
+uptime / sessions / fences / latency on either OS. `--json` returns the same
+`DaemonStatusV1` shape on Unix and Windows.
 
 The remaining Windows gap is in the MCP correlation envelope only:
 `correlation.daemonStatus` returned by `anvil_validate_write` is always
 `not-wired` on Windows because the MCP daemon validation client is gated
-`#[cfg(unix)]` in this cut. An MCP client inspecting that field on Windows
-sees `not-wired` even when the daemon is healthy and the CLI confirms it;
-fetch the full rollup directly from `anvil intercept status` instead.
-Tracked under `chore/windows-status`.
+`#[cfg(unix)]` in this cut. An MCP client inspecting that field on Windows sees
+`not-wired` even when the daemon is healthy and the CLI confirms it; fetch the
+full rollup directly from `anvil intercept status` instead. Tracked under
+`chore/windows-status`.
 
 ### Fences survive daemon restart
 
@@ -127,17 +127,17 @@ rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
 anvil intercept start --foreground
 ```
 
-This destroys all fence state for the user — there is no worktree-scoped
-CLI recovery in v1. See the
+This destroys all fence state for the user — there is no worktree-scoped CLI
+recovery in v1. See the
 [release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
 §3 for the canonical sequence.
 
 ### macOS interrupt ladder fences instead of signalling
 
 The macOS implementation of `current_process_start_time` returns `None` in
-`v0.6.0-beta`. Per the AD-7 fence-on-failure invariant, every interrupt
-decision that needs to verify the leader's start time falls through to a
-fence. Operators on macOS should expect:
+`v0.6.0-beta`. Per the AD-7 fence-on-failure invariant, every interrupt decision
+that needs to verify the leader's start time falls through to a fence. Operators
+on macOS should expect:
 
 - Fenced worktrees rather than signal ladders for interrupted sessions
 - `anvil intercept status` showing `fenced: true` more often than on Linux
@@ -148,11 +148,11 @@ This is expected v1 behaviour, tracked outside the release.
 
 ### Windows CI regressions on `dev` branches are silent
 
-The Windows cross-compile job is gated to `main` branch pushes and PRs
-targeting `main`. A Windows-only regression on a `dev` branch is invisible in
-CI until the dev → main sync runs the matrix. If you're triaging a Windows bug
-against a `dev`-cut artefact, run the Windows test matrix locally before
-rooting the bug at the operator's environment:
+The Windows cross-compile job is gated to `main` branch pushes and PRs targeting
+`main`. A Windows-only regression on a `dev` branch is invisible in CI until the
+dev → main sync runs the matrix. If you're triaging a Windows bug against a
+`dev`-cut artefact, run the Windows test matrix locally before rooting the bug
+at the operator's environment:
 
 ```bash
 cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1

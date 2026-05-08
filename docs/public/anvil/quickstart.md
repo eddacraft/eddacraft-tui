@@ -19,11 +19,11 @@ minutes.
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.6.0-beta`. If
-your team has gated beta access, use the GitHub account tied to that access
-when prompted by anvil or the docs site. See the
-[beta testing guide](/anvil/beta-testing-guide) for the current scope and
-known gaps.
+anvil is currently in beta — the latest tagged release is `v0.6.0-beta`. If your
+team has gated beta access, use the GitHub account tied to that access when
+prompted by anvil or the docs site. See the
+[beta testing guide](/anvil/beta-testing-guide) for the current scope and known
+gaps.
 
 :::
 
@@ -92,19 +92,19 @@ baselines the repo, wires Cursor and Claude Code MCP entries (writing
 state — one of:
 
 - `protecting` — MCP pre-write validation is live
-- `ready_restart_required` — config is wired, restart Cursor/Claude Code to
-  pick it up
+- `ready_restart_required` — config is wired, restart Cursor/Claude Code to pick
+  it up
 - `watching` — save-time watch fallback active (MCP could not attach)
 - `needs_action` — repair hint provided
-- `unsupported` — repo language profile is out of scope (e.g. Python or Rust
-  in this release)
+- `unsupported` — repo language profile is out of scope (e.g. Python or Rust in
+  this release)
 - `error` — see the diagnostic output
 
 When the daemon is running and reachable over owner-only IPC, the
-`anvil_validate_write` MCP tool runs through the daemon-backed path; an
-embedded scanner is the correctness-equivalent fallback when the daemon is
-not available. The full daemon-backed path is Unix-first today; on Windows in
-`v0.6.0-beta` the MCP correlation envelope reports `daemonStatus: not-wired`.
+`anvil_validate_write` MCP tool runs through the daemon-backed path; an embedded
+scanner is the correctness-equivalent fallback when the daemon is not available.
+The full daemon-backed path is Unix-first today; on Windows in `v0.6.0-beta` the
+MCP correlation envelope reports `daemonStatus: not-wired`.
 
 To probe state without writing config:
 
