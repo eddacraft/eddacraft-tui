@@ -29,9 +29,9 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 1/24     |
+| V060F | —     | In Progress | 2/25     |
 
-**Last reviewed:** 2026-05-07 (added V060F-002..V060F-011 in batch 1 from the intercept / activation / MCP shim / checks / kernel as-built sweep against HEAD `97b61fd0`; added V060F-012..V060F-019 in batch 2 from the TUI / driver framework / API / observability as-built sweep against HEAD `da4e7ca4`; added V060F-020..V060F-024 in batch 3 from the tutorial / widgets / CLI TUI runner / adapter packages as-built sweep against HEAD `b9229155`)
+**Last reviewed:** 2026-05-08 (V060F-025 completed — OPA runtime pin bumped from 0.60.0 to 1.16.1 for the v0.6.0-beta release candidate; previous 2026-05-07 sweep added V060F-002..V060F-024)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
 **Sequencing context:** [plans/next-steps.md](../next-steps.md)
 
@@ -697,6 +697,23 @@ discovery.
 
 ---
 
+### V060F-025: bump OPA runtime pin before `v0.6.0-beta`
+
+- **Surface:** `packages/anvil/policy/src/opa-binary-manager.ts`, CI OPA setup
+  steps, policy testing docs, real-binary test comments
+- **Flagged by:** release-prep dependency review (2026-05-08)
+- **Intent:** The repo still pinned OPA `0.60.0` even though policy fixtures use
+  `import rego.v1` and the release candidate should not ship with an avoidably
+  stale policy runtime.
+- **Expected outcome:** Update the canonical OPA runtime pin to the current
+  stable release, refresh binary checksums, align CI version verification, keep
+  the duplicate-pin guard green, and re-run the OPA policy validation surface.
+- **Confidence:** high (runtime bump is isolated to OPA binary management and
+  real-binary policy tests)
+- **Status:** Complete — bumped to OPA `1.16.1`.
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -714,7 +731,8 @@ discovery.
 | As-built sweep follow-ups (batch 1)  | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
 | As-built sweep follow-ups (batch 2)  | 8     | Open (V060F-012..V060F-019, filed 2026-05-07)          |
 | As-built sweep follow-ups (batch 3)  | 5     | Open (V060F-020..V060F-024, filed 2026-05-07)          |
-| **Total**                            | **24** | 1 Complete / 23 Open                                  |
+| OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
+| **Total**                            | **25** | 2 Complete / 23 Open                                  |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 

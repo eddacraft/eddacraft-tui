@@ -102,7 +102,7 @@ Change status to **Ready** when:
 - [x] Coverage targets set (≥80% per targeted package/crate)
 - [x] TFIX Phase 1 complete (OPA in CI) — Rust side done (TFIX-004/005/011);
       TS side (TFIX-003) addressed by the `ci.yml` OPA install step pinned to
-      `v0.60.0`
+      the current `DEFAULT_OPA_VERSION`
 - [x] Phase 1 tasks validated against current untested surface (all 8
       commands now have in-file unit tests)
 
@@ -316,9 +316,10 @@ Change status to **Ready** when:
   `docs/guides/opa-policy-testing.md`. Documents the fixture layout
   (`policies/fixtures/`), the `<name>.rego` / `<name>_test.rego`
   convention, the pinned OPA version (`DEFAULT_OPA_VERSION` in
-  `opa-binary-manager.ts`), how to run all three integration suites (TS
-  executor, Rust executor, gate pipeline), the `PolicyCheck.buildOPAInput`
-  schema reference, and a troubleshooting matrix for the common failures
+  `opa-binary-manager.ts`), how to run the direct OPA fixture suite plus the TS
+  and Rust real-binary integration suites (historical gate pipeline archived
+  with the TypeScript scanner), the policy input schema reference, and a
+  troubleshooting matrix for the common failures
   surfaced while building Phase 2.
 
 ### Phase 3 — TypeScript Package Coverage

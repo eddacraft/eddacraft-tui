@@ -181,11 +181,11 @@ jobs:
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
-          version: v0.60.0
+          version: v1.16.1
 
       - name: Verify OPA version
         env:
-          EXPECTED_OPA_VERSION: '0.60.0'
+          EXPECTED_OPA_VERSION: '1.16.1'
         run: |
           installed=$(opa version | awk '/^Version:/ {print $2}')
           if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
@@ -485,13 +485,13 @@ jobs:
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
-          version: v0.60.0
+          version: v1.16.1
 
       - name: Verify OPA version
         if: matrix.can_test
         shell: bash
         env:
-          EXPECTED_OPA_VERSION: '0.60.0'
+          EXPECTED_OPA_VERSION: '1.16.1'
         run: |
           installed=$(opa version | awk '/^Version:/ {print $2}')
           if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then

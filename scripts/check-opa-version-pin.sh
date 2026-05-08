@@ -23,7 +23,7 @@ BM="$ROOT/packages/anvil/policy/src/opa-binary-manager.ts"
 # Match the first `const DEFAULT_OPA_VERSION = '...'` line and exit so we
 # don't concatenate if the file ever grows a second match (e.g. a commented
 # example or a migration helper). The line must look like `const
-# DEFAULT_OPA_VERSION = '0.60.0'` — single-quoted literal on the same line.
+# DEFAULT_OPA_VERSION = '1.16.1'` — single-quoted literal on the same line.
 VERSION="$(awk -F"'" '/const DEFAULT_OPA_VERSION/ { print $2; exit }' "$BM")"
 if [ -z "${VERSION:-}" ]; then
   echo "check-opa-version-pin: could not read DEFAULT_OPA_VERSION from $BM" >&2
@@ -51,6 +51,7 @@ scripts/check-opa-version-pin.sh
 hits="$(git grep --no-recurse-submodules -l -F "$VERSION" -- \
   ':(exclude)plans' \
   ':(exclude)CHANGELOG.md' \
+  ':(exclude)pnpm-lock.yaml' \
   ':(exclude)**/*.lock' \
   ':(exclude)**/pnpm-lock.yaml' \
   ':(exclude)target' || true)"
