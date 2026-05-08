@@ -530,16 +530,38 @@ fn show_picker(candidates: &[&Candidate]) -> std::io::Result<Vec<McpClientId>> {
     }
 }
 
+// Picker labels MUST stay on a single terminal row. `demand` 2.0.0's
+// `MultiSelect::reposition_and_write` clears `output.lines().count()`
+// rows on each redraw — that counts `\n` boundaries, NOT terminal-
+// wrapped visual rows. If a label wraps, every keystroke leaves the
+// wrapped overflow on screen and stacks a fresh copy of the prompt
+// below it. Keep the label short: tilde-shorten the path and reduce
+// the drift reason to a one-or-two-word tag. The post-install render
+// block (`render::render_install_block`) and `ANVIL_LOG=info` carry
+// the full from→to detail.
 fn format_picker_label(candidate: &Candidate) -> String {
     let display = candidate.id.display_name();
-    let path = candidate.target_path.display();
+    let path = display_path_with_home_tilde(&candidate.target_path);
     let state = match &candidate.drift {
-        DriftClass::NotPresent => "not configured".to_string(),
-        DriftClass::UpToDate => "already configured".to_string(),
-        DriftClass::SafeDrift { reason } => format!("update — {reason}"),
-        DriftClass::UnsafeDrift { reason } => format!("UNSAFE — {reason}"),
+        DriftClass::NotPresent => "not configured",
+        DriftClass::UpToDate => "already configured",
+        DriftClass::SafeDrift { .. } => "update — version drift",
+        DriftClass::UnsafeDrift { .. } => "UNSAFE",
     };
     format!("{display}  ({path})  [{state}]")
+}
+
+fn display_path_with_home_tilde(path: &Path) -> String {
+    let s = path.display().to_string();
+    if let Some(home) = dirs::home_dir() {
+        let home_s = home.display().to_string();
+        if !home_s.is_empty()
+            && let Some(rest) = s.strip_prefix(&home_s)
+        {
+            return format!("~{rest}");
+        }
+    }
+    s
 }
 
 #[cfg(test)]
@@ -944,5 +966,41 @@ mod tests {
         assert!(label.contains("Cursor"));
         assert!(label.contains(".cursor/mcp.json"));
         assert!(label.contains("not configured"));
+    }
+
+    #[test]
+    fn picker_label_does_not_embed_long_drift_paths() {
+        // demand 2.0.0's MultiSelect redraw uses `output.lines().count()`,
+        // which doesn't account for terminal wrapping. Embedding multi-
+        // hundred-character drift paths in the label causes wrap, which
+        // makes every keystroke stack a fresh copy of the question on
+        // screen. The label MUST stay short. See `format_picker_label`.
+        let candidate = Candidate {
+            id: McpClientId::Cursor,
+            target_path: PathBuf::from("/home/u/.cursor/mcp.json"),
+            drift: DriftClass::SafeDrift {
+                reason: format!(
+                    "version drift: existing command `{a}` differs from fresh `{b}`",
+                    a = "/home/u/Projects/src/anvil-001.launch-mcp-install/target/debug/anvil",
+                    b = "/home/linuxbrew/.linuxbrew/Cellar/anvil/0.6.0-beta/bin/anvil",
+                ),
+            },
+            parsed: None,
+        };
+        let label = format_picker_label(&candidate);
+        assert!(
+            !label.contains("/target/debug/anvil"),
+            "label must not embed drift path detail (causes wrap → demand redraw bug). got: {label}"
+        );
+        assert!(
+            !label.contains("/Cellar/anvil/"),
+            "label must not embed fresh-binary path (causes wrap → demand redraw bug). got: {label}"
+        );
+        assert!(
+            label.len() <= 80,
+            "label must fit a standard 80-col terminal to avoid wrap. got {} chars: {label}",
+            label.len()
+        );
+        assert!(label.contains("update"));
     }
 }
