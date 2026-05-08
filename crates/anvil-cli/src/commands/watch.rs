@@ -1250,12 +1250,12 @@ mod tests {
         // threshold has ratcheted twice under CI scheduling pressure
         // (500 ms → 5 s in `43cb9ef1`, then 5 s → 30 s after sustained
         // failures on ubuntu-latest under nextest's default parallel
-        // execution where this test contends with thousands of others
-        // for CPU). 30 s is generous enough to absorb worst-case CI
-        // contention without losing the safety net entirely; if it
-        // flakes again, the right fix is to replace polling with a
-        // worker-side notification or to put this test in a serial
-        // nextest group, not to keep widening the bound.
+        // execution where this test contended with thousands of others
+        // for CPU). The 30 s bound also flaked, so the test is now
+        // pinned to a single-thread `serial-watch-cancellation` group
+        // in `.config/nextest.toml`; do NOT widen this bound further
+        // without first checking whether the override is still in
+        // effect.
         let parked = std::time::Instant::now();
         loop {
             if dispatcher
