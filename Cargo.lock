@@ -960,7 +960,7 @@ dependencies = [
  "eddacraft-anvil-policy",
  "eddacraft-anvil-rayon-init",
  "eddacraft-anvil-tui",
- "eddacraft-tui",
+ "eddacraft-tui 0.2.1",
  "hex",
  "ignore",
  "num_cpus",
@@ -1168,7 +1168,7 @@ dependencies = [
  "animate",
  "crossterm",
  "eddacraft-anvil-kernel-types",
- "eddacraft-tui",
+ "eddacraft-tui 0.2.1",
  "insta",
  "ratatui",
  "temp-env",
@@ -1183,6 +1183,18 @@ name = "eddacraft-tui"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f217549f787c514f0925e512c27bc9edb20389a4ffaedb916e08e24e85b70530"
+dependencies = [
+ "animate",
+ "crossterm",
+ "ratatui",
+ "textwrap",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "eddacraft-tui"
+version = "0.2.1"
+source = "git+https://github.com/EddaCraft/eddacraft-tui?branch=chore%2Frelease-v0.2.1#43e31e1886d944df617bd318439c6d3053599cd7"
 dependencies = [
  "animate",
  "crossterm",
@@ -1216,7 +1228,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3108,7 +3120,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3165,7 +3177,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3574,7 +3586,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4413,7 +4425,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4860,7 +4872,7 @@ dependencies = [
  "clap_builder",
  "console",
  "crossbeam-utils",
- "eddacraft-tui",
+ "eddacraft-tui 0.2.0",
  "either",
  "errno",
  "futures-channel",
