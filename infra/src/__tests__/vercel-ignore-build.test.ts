@@ -67,36 +67,49 @@ function runIgnore(
   });
 }
 
+// `git init` + a commit + a `bash` subprocess can exceed the 5s vitest default
+// on the Windows runner under load; 30s leaves headroom without masking
+// regressions.
+const FIXTURE_TEST_TIMEOUT_MS = 30_000;
+
 describe('vercel-ignore-build.sh', () => {
-  it('skips preview branch deployments before diffing commits', () => {
-    const repo = createFixtureRepo();
+  it(
+    'skips preview branch deployments before diffing commits',
+    () => {
+      const repo = createFixtureRepo();
 
-    try {
-      const result = runIgnore(repo, ['--skip-preview', 'apps/website'], {
-        VERCEL_GIT_COMMIT_REF: 'feature/no-build',
-      });
+      try {
+        const result = runIgnore(repo, ['--skip-preview', 'apps/website'], {
+          VERCEL_GIT_COMMIT_REF: 'feature/no-build',
+        });
 
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('Skipping non-production branch');
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('Skipping non-production branch');
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    FIXTURE_TEST_TIMEOUT_MS
+  );
 
-  it('skips Vercel preview deployments when the branch ref is unavailable', () => {
-    const repo = createFixtureRepo();
+  it(
+    'skips Vercel preview deployments when the branch ref is unavailable',
+    () => {
+      const repo = createFixtureRepo();
 
-    try {
-      const result = runIgnore(repo, ['--skip-preview', 'apps/website'], {
-        VERCEL_ENV: 'preview',
-      });
+      try {
+        const result = runIgnore(repo, ['--skip-preview', 'apps/website'], {
+          VERCEL_ENV: 'preview',
+        });
 
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('Skipping preview deployment');
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('Skipping preview deployment');
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    FIXTURE_TEST_TIMEOUT_MS
+  );
 
   it('builds on production branch root dependency metadata changes', () => {
     const repo = createFixtureRepo();
