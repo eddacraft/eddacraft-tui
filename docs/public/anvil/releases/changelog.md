@@ -73,12 +73,12 @@ All notable changes to anvil are documented here.
 - **Fences persist across daemon restart by design** — an interrupted
   enforcement decision is no longer silently undone after a daemon crash,
   restart, or reboot. Recovery procedure and the deferred `anvil intercept stop`
-  / `unblock` CLI subcommands are documented in
-  `docs/runbooks/v0.6.0-beta-release-runbook.md`.
+  / `unblock` CLI subcommands are documented in the
+  [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md).
 - **macOS interrupt path is fence-first this release** — on macOS the interrupt
   ladder falls through to fence-on-uncertainty rather than running the full
-  SIGINT → SIGTERM → SIGKILL sequence. Recovery procedure is documented in
-  `docs/runbooks/v0.6.0-beta-release-runbook.md`.
+  SIGINT → SIGTERM → SIGKILL sequence. Recovery procedure is documented in the
+  [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md).
 - **Windows MCP correlation gap** — `correlation.daemonStatus` returned by
   `anvil_validate_write` is always `not-wired` on Windows in this release; the
   daemon and `anvil intercept status` are wired, only the MCP correlation
@@ -114,10 +114,11 @@ All notable changes to anvil are documented here.
 - **MCP daemon integration tests run on Unix only this cut** — the daemon-backed
   integration suite is not yet wired for Windows; Windows coverage rides the
   same follow-up that closes the MCP correlation gap above.
-- **Operator artefacts** — the release ships
-  `docs/runbooks/v0.6.0-beta-release-runbook.md` (five operator items) and
-  `docs/runbooks/v0.6.0-beta-security-note.md` (four HIGH security trade-offs
-  documented for review).
+- **Operator artefacts** — the release ships the
+  [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
+  (five operator items) and the
+  [v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-security-note.md)
+  (four HIGH security trade-offs documented for review).
 
 ## [0.5.1-beta] — 2026-05-03 — Scanner Signal & TUI Hotfixes
 
