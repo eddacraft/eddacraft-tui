@@ -47,6 +47,12 @@ jobs:
         # `cargo test --no-default-features` skips the feature-gated widget
         # tests; that's fine — those are covered by the all-features row.
         run: cargo test ${{ matrix.features-flag }}
+      - name: cargo check (release)
+        # Catches code that compiles in debug but breaks in release —
+        # specifically items referenced inside `debug_assert!` whose
+        # definitions are accidentally cfg-gated on `debug_assertions`.
+        # See issue #29.
+        run: cargo check --release ${{ matrix.features-flag }}
       - name: cargo publish (dry run)
         # Only run dry-run on the all-features row so the published crate
         # tarball is validated against every feature gate. Default and
