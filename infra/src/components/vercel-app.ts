@@ -16,6 +16,13 @@ export interface VercelAppArgs {
   productionBranch?: string;
   /** Skip automatic preview deploys for non-production branches (default: false). */
   skipPreviewDeploys?: boolean;
+  /**
+   * Adopt an already-existing ProjectDomain instead of creating it. Map keys
+   * are domain names (must appear in `domains`); values are pulumi import IDs
+   * in `<projectId>/<domain>` form. Remove an entry once adoption succeeds —
+   * leaving it in is a no-op but Pulumi will warn on subsequent runs.
+   */
+  domainImports?: Record<string, string>;
 }
 
 export class VercelApp extends pulumi.ComponentResource {
@@ -62,17 +69,17 @@ export class VercelApp extends pulumi.ComponentResource {
       { parent: this }
     );
 
-    args.domains.forEach(
-      (domain) =>
-        new vercel.ProjectDomain(
-          `${name}-${domain.replace(/\./g, '-')}`,
-          {
-            projectId: project.id,
-            domain,
-          },
-          { parent: this }
-        )
-    );
+    args.domains.forEach((domain) => {
+      const importId = args.domainImports?.[domain];
+      new vercel.ProjectDomain(
+        `${name}-${domain.replace(/\./g, '-')}`,
+        {
+          projectId: project.id,
+          domain,
+        },
+        { parent: this, ...(importId ? { import: importId } : {}) }
+      );
+    });
 
     if (args.envVars) {
       for (const [key, value] of Object.entries(args.envVars)) {
@@ -81,6 +88,11 @@ export class VercelApp extends pulumi.ComponentResource {
         // build environment, so marking them sensitive silently breaks the
         // build (the value becomes undefined and any fallback in code wins).
         const sensitive = !key.startsWith('NEXT_PUBLIC_');
+        // Vercel rejects two env vars that share key+target (ENV_CONFLICT). The
+        // default Pulumi create-before-delete order trips that on any
+        // forces-replacement attribute change (e.g. `sensitive`); deleting the
+        // old one first costs a brief gap on apply but keeps replacements
+        // unblocked.
         new vercel.ProjectEnvironmentVariable(
           `${name}-${key.toLowerCase().replace(/_/g, '-')}`,
           {
@@ -90,7 +102,7 @@ export class VercelApp extends pulumi.ComponentResource {
             targets: ['production', 'preview'],
             sensitive,
           },
-          { parent: this }
+          { parent: this, deleteBeforeReplace: true }
         );
       }
     }

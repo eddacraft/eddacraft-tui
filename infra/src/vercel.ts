@@ -33,6 +33,12 @@ export const website = new VercelApp('website', {
   rootDirectory: 'apps/website',
   gitRepo,
   domains: ['eddacraft.ai', 'www.eddacraft.ai'],
+  // www.eddacraft.ai exists in Vercel but is missing from Pulumi state.
+  // Adopt it on the next `pulumi up`; remove this entry once adoption
+  // succeeds (leaving it in is a no-op but warns on subsequent runs).
+  domainImports: {
+    'www.eddacraft.ai': 'prj_b3egAMA3JZULn5KSTwiVs5Qr0vts/www.eddacraft.ai',
+  },
   skipPreviewDeploys: true,
   envVars: {
     NEXT_PUBLIC_API_URL: 'https://api.eddacraft.ai',
