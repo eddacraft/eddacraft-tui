@@ -82,12 +82,12 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ### CI Gating & Test Reliability
 
-- **Cross-compile gate on `dev`** — `.github/workflows/rust.yml:442-445` widens
-  the cross-compile trigger from main-only to main + dev (push and PR), gated on
-  `detect-rust-changes` so JS-only diffs don't spin up the Windows + macOS
-  matrix. Closes the gap that let Windows-only build breakage land on `dev`
-  between releases. Historical context preserved in
-  `docs/runbooks/intd-012-windows-evidence.md` with a status banner.
+- **Cross-compile gate on `dev`** — PR #1325 (`ed957ce1`) widens the
+  cross-compile trigger in `.github/workflows/rust.yml` from main-only to main
+  + dev (push and PR), gated on `detect-rust-changes` so JS-only diffs don't
+  spin up the Windows + macOS matrix. Closes the gap that let Windows-only
+  build breakage land on `dev` between releases. Historical context preserved
+  in `docs/runbooks/intd-012-windows-evidence.md` with a status banner.
 - **MCP daemon integration tests Unix-gated** — daemon-backed integration suite
   is `#[cfg(unix)]` in this cut; Windows coverage rides the same follow-up as
   the MCP correlation envelope.
