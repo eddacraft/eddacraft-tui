@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-runtime",
-  "version": "0.5.1-beta",
+  "version": "0.6.0-beta",
   "description": "Runtime orchestration layer for Anvil — gate runner, file watching, caching, exports",
   "license": "PROPRIETARY",
   "type": "module",
