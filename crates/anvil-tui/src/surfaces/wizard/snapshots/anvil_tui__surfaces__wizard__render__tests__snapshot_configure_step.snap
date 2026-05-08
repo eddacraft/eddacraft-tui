@@ -2,7 +2,7 @@
 source: crates/anvil-tui/src/surfaces/wizard/render.rs
 expression: "crate::test_utils::snapshot::buffer_to_string(&buf)"
 ---
-[[fg:#CC5500,bold]■[fg:#CC5500,bold]][fg:#CC5500,bold] A[fg:#CC5500,bold]n[fg:#CC5500,bold]v[fg:#CC5500,bold]i[fg:#CC5500,bold]l[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]W[fg:#EBEBEB]i[fg:#EBEBEB]z[fg:#EBEBEB]a[fg:#EBEBEB]r[fg:#EBEBEB]d[fg:#EBEBEB]                                                              
+[[fg:#CC5500,bold]■[fg:#CC5500,bold]][fg:#CC5500,bold] a[fg:#CC5500,bold]n[fg:#CC5500,bold]v[fg:#CC5500,bold]i[fg:#CC5500,bold]l[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]W[fg:#EBEBEB]i[fg:#EBEBEB]z[fg:#EBEBEB]a[fg:#EBEBEB]r[fg:#EBEBEB]d[fg:#EBEBEB]                                                              
 T[fg:#2E8B57]e[fg:#2E8B57]m[fg:#2E8B57]p[fg:#2E8B57]l[fg:#2E8B57]a[fg:#2E8B57]t[fg:#2E8B57]e[fg:#2E8B57] [fg:#85858A]>[fg:#85858A] [fg:#85858A]N[fg:#2E8B57]a[fg:#2E8B57]m[fg:#2E8B57]e[fg:#2E8B57] [fg:#85858A]>[fg:#85858A] [fg:#85858A]C[fg:#CC5500,bold]o[fg:#CC5500,bold]n[fg:#CC5500,bold]f[fg:#CC5500,bold]i[fg:#CC5500,bold]g[fg:#CC5500,bold]u[fg:#CC5500,bold]r[fg:#CC5500,bold]e[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]S[fg:#85858A]u[fg:#85858A]m[fg:#85858A]m[fg:#85858A]a[fg:#85858A]r[fg:#85858A]y[fg:#85858A]                                           
                                                                                 
                                                                                 

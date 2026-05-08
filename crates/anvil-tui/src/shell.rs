@@ -63,7 +63,7 @@ pub fn render_shell(
         frame,
         area,
         ShellBranding::EddaCraft,
-        "Anvil",
+        "anvil",
         surface_name,
         help_text,
         theme,
