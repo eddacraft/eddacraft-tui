@@ -21,6 +21,10 @@ engineering maintenance are recorded in the
   shared vocabulary across `anvil start`, `anvil status --verify`,
   `anvil doctor`, and the tutorial. Operators and agents see the same literal
   state on every surface.
+- **`anvil doctor` project-id check** — `anvil doctor` now verifies the
+  `anvil/project-id` state written by `anvil start` and surfaces missing
+  (warn) or malformed (fail) project identity as a doctor finding, so
+  support can confirm at a glance whether a repo has been activated.
 - **`anvil mcp install` for Cursor and Claude Code** — one-step MCP activation
   that writes `~/.cursor/mcp.json` or `~/.claude.json` directly, with an
   interactive picker when both are present. Windsurf, VS Code, and the
