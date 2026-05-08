@@ -14,8 +14,8 @@ engineering maintenance are recorded in the
 
 - **`anvil start` activation entrypoint** — `install → cd repo → anvil start` is
   now the canonical first minute. `anvil start` is the dedicated activation
-  command, with `--verify` for a read-only protection probe and `--watch` to
-  opt into the save-time fallback when MCP cannot attach.
+  command, with `--verify` for a read-only protection probe and `--watch` to opt
+  into the save-time fallback when MCP cannot attach.
 - **Activation protection states** — `protecting`, `ready_restart_required`,
   `watching`, `needs_action`, `unsupported`, and `error` are now the single
   shared vocabulary across `anvil start`, `anvil status --verify`,
@@ -50,9 +50,9 @@ engineering maintenance are recorded in the
   Linux build performs via `SO_PEERCRED`. macOS deployments are at parity with
   Linux on the daemon trust boundary.
 - **`anvil intercept status` on every supported target** — operator status
-  surface for the daemon over local IPC on Linux, macOS, and Windows;
-  `--json` returns the same shape on every OS, covering sessions, fences,
-  latency, and uptime.
+  surface for the daemon over local IPC on Linux, macOS, and Windows; `--json`
+  returns the same shape on every OS, covering sessions, fences, latency, and
+  uptime.
 - **`anvil admin` parity in the main CLI** — admin operational commands are now
   reachable from the main `anvil` binary alongside the existing `anvil-admin`
   operator CLI.
@@ -65,27 +65,27 @@ engineering maintenance are recorded in the
   not a v1 surface.
 - **Fences persist across daemon restart by design** — an interrupted
   enforcement decision is no longer silently undone after a daemon crash,
-  restart, or reboot. Recovery procedure and the deferred
-  `anvil intercept stop` / `unblock` CLI subcommands are documented in
+  restart, or reboot. Recovery procedure and the deferred `anvil intercept stop`
+  / `unblock` CLI subcommands are documented in
   `docs/runbooks/v0.6.0-beta-release-runbook.md`.
-- **macOS interrupt path is fence-first this release** — on macOS the
-  interrupt ladder falls through to fence-on-uncertainty rather than running
-  the full SIGINT → SIGTERM → SIGKILL sequence. Recovery is the same
-  daemon-stop + fence-directory removal as above; details in the runbook.
+- **macOS interrupt path is fence-first this release** — on macOS the interrupt
+  ladder falls through to fence-on-uncertainty rather than running the full
+  SIGINT → SIGTERM → SIGKILL sequence. Recovery is the same daemon-stop +
+  fence-directory removal as above; details in the runbook.
 - **Windows MCP correlation gap** — `correlation.daemonStatus` returned by
   `anvil_validate_write` is always `not-wired` on Windows in this release; the
   daemon and `anvil intercept status` are wired, only the MCP correlation
   envelope on Windows is not. The narrower fix is tracked as a follow-up.
 - **Public docs refresh** — install, quickstart, and the broader public Anvil
-  docs were aligned with the activation-first first-minute and the
-  daemon-backed MCP path.
+  docs were aligned with the activation-first first-minute and the daemon-backed
+  MCP path.
 
 ### Fixed
 
-- **MCP restart handshakes** — activation now waits for the MCP client's
-  restart handshake before claiming `ready_restart_required` is resolved, so
-  the next status read reflects the real connected state instead of the
-  stale-pre-restart one.
+- **MCP restart handshakes** — activation now waits for the MCP client's restart
+  handshake before claiming `ready_restart_required` is resolved, so the next
+  status read reflects the real connected state instead of the stale-pre-restart
+  one.
 - **Activation denylist alignment** — the activation pre-scan now uses the same
   file filter as the steady-state scan, so the first-signal walk does not
   surface findings the steady-state scan would skip.
@@ -104,13 +104,13 @@ engineering maintenance are recorded in the
   Recommended local reproduction
   (`cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1`)
   is documented in `docs/runbooks/intd-012-windows-evidence.md`.
-- **MCP daemon integration tests run on Unix only this cut** — the
-  daemon-backed integration suite is not yet wired for Windows; Windows
-  coverage rides the same follow-up that closes the MCP correlation gap above.
+- **MCP daemon integration tests run on Unix only this cut** — the daemon-backed
+  integration suite is not yet wired for Windows; Windows coverage rides the
+  same follow-up that closes the MCP correlation gap above.
 - **Operator artefacts** — the release ships
   `docs/runbooks/v0.6.0-beta-release-runbook.md` (five operator items) and
-  `docs/runbooks/v0.6.0-beta-security-note.md` (four HIGH security
-  trade-offs documented for review).
+  `docs/runbooks/v0.6.0-beta-security-note.md` (four HIGH security trade-offs
+  documented for review).
 
 ## [0.5.1-beta] — Scanner Signal & TUI Hotfixes
 
