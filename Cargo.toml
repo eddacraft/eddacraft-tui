@@ -50,7 +50,7 @@ toml = "1"
 
 # TUI
 animate = { version = "0.3", features = ["ratatui"] }
-eddacraft-tui = { git = "https://github.com/EddaCraft/eddacraft-tui", branch = "chore/release-v0.2.1" }
+eddacraft-tui = "0.2.1"
 ratatui = "0.30"
 crossterm = "0.29"
 
