@@ -348,8 +348,12 @@ Operator caveats for `v0.6.0-beta` (see the
   field returned by `anvil_validate_write` is always `not-wired` on Windows in
   this release because the daemon validation client is gated `#[cfg(unix)]`.
   The MCP path itself still works; the daemon-reachability signal does not.
-- **macOS interrupt ladder is fence-first.** Recovery is `anvil intercept
-  unblock --worktree <path>` (or `--all`), not a daemon restart.
+- **macOS interrupt ladder is fence-first.** Recovery in `v0.6.0-beta` is to
+  stop the foreground daemon and remove the fence directory
+  (`rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"`); a daemon restart
+  alone does not release fences. The `anvil intercept unblock` CLI front-end
+  is a planned follow-up (V060F-003) — until it lands, the directory removal
+  is the only supported recovery.
 - **Fences survive daemon restart.** Same recovery path as above.
 
 The discipline holds across all of these: `anvil start` will not print
