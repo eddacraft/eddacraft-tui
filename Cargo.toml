@@ -50,7 +50,7 @@ toml = "1"
 
 # TUI
 animate = { version = "0.3", features = ["ratatui"] }
-eddacraft-tui = "0.1.0"
+eddacraft-tui = "0.2.0"
 ratatui = "0.30"
 crossterm = "0.29"
 

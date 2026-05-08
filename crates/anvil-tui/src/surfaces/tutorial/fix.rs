@@ -228,7 +228,7 @@ impl FixState {
             Action::PageDown => editor.page_down(20),
             Action::Back => self.close_editor(),
             Action::Quit => self.should_quit = true,
-            Action::Toggle | Action::None => {}
+            _ => {}
         }
     }
 
