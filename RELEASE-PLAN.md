@@ -48,8 +48,8 @@ are both fully shipped on `dev`. The wow-start activation council outcome
 embedded fallback to the daemon-backed pipeline so the claim is real.
 
 **Target tag:** **`v0.6.0-beta`** — A1 + A2 substrate together. The cut is ready
-to tag pending one optional follow-up (V050F-006/-011 carry-over via #1323 if it
-merges before the tag).
+to tag; the V050F scanner-hotpath carry-over (V050F-006/-011 via #1323) and the
+eager rayon pool init (V050F-007 via #1330) both merged ahead of the tag.
 
 **Theme:** _Wow-Start activation + Daemon-Backed RTV_ —
 `install → cd repo → anvil start` is the canonical first minute. Cursor and
@@ -76,7 +76,7 @@ fallback.
 | Daemon-backed MCP launch path (`RMCP`)             | Complete, 8/8                                                              | Full parity moves to RMCPF; A2 graduated the daemon-vs-embedded path                                                                            |
 | A2 — Daemon-backed RMCP + driver reach (Waves 1–3) | Complete                                                                   | 8 PRs (#1304..#1311) + remediation (#1322); INTD 16/16, DRVR 5/5 active, RTAI 6/9; Wave 4 (RTAI-005/-007/-009, DRVR-003) out of cut per ADR-033 |
 | v0.6.0-beta post-substrate polish                  | Complete                                                                   | macOS peer-cred parity (#1331), Windows `intercept status` + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335)    |
-| Carry-over hardening (`V050F`)                     | In Progress, 11/16                                                         | V050F-006, -007, -008, -011, -015. V050F-006/-011 in flight on #1323                                                                            |
+| Carry-over hardening (`V050F`)                     | In Progress, 14/16                                                         | V050F-006/-011 closed via #1323; V050F-007 closed via #1330. Open: V050F-008 (CI-class bench baseline), V050F-015 (svix → uuid override). Both non-blocking. |
 | `V060F` nominations                                | Complete, 1/1                                                              | No open nomination work                                                                                                                         |
 
 ### Carry-over backlog (rides any tag, regardless of theme)
@@ -86,7 +86,7 @@ time; pick the ones that match the cut.
 
 | Source                                                        | State          | Open items                                                                                                                                       |
 | ------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`V050F`](./plans/modules/v050-release-followups.aps.md)      | 11/16 complete | 5 open: allowlist regex cache, eager rayon init, CI-class bench baseline, `scan_content` compile-error surfacing, `svix → uuid` override removal |
+| [`V050F`](./plans/modules/v050-release-followups.aps.md)      | 14/16 complete | 2 open: CI-class bench baseline (V050F-008), `svix → uuid` override removal (V050F-015) |
 | [`V060F`](./plans/modules/v060-release-candidates.aps.md)     | 1/1 complete   | None; RCLI2-009 admin command parity is done                                                                                                     |
 | `v0.5.0-beta` GUI dry-run gaps                                | Closed         | #1194, #1195, and #1197 are closed; validate their behaviours through LAUNCH-009 when activation wires Cursor / Claude Code                      |
 | [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | Closed         | Keep the ADR-031 baseline-comparison check as the daemon-backed latency regression guard                                                         |
