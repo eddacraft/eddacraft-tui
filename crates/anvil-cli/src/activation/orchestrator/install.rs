@@ -552,16 +552,23 @@ fn format_picker_label(candidate: &Candidate) -> String {
 }
 
 fn display_path_with_home_tilde(path: &Path) -> String {
-    let s = path.display().to_string();
-    if let Some(home) = dirs::home_dir() {
-        let home_s = home.display().to_string();
-        if !home_s.is_empty()
-            && let Some(rest) = s.strip_prefix(&home_s)
-        {
-            return format!("~{rest}");
+    display_path_with_home(path, dirs::home_dir().as_deref())
+}
+
+fn display_path_with_home(path: &Path, home: Option<&Path>) -> String {
+    // Use `Path::strip_prefix` (component-aware) rather than string-prefix
+    // matching: a string prefix would mishandle the case where home is
+    // `/home/al` and the path starts with `/home/alice/...`, rendering
+    // `~ice/...`. The Path-based form requires a full component match.
+    if let Some(home) = home
+        && let Ok(rest) = path.strip_prefix(home)
+    {
+        if rest.as_os_str().is_empty() {
+            return "~".to_string();
         }
+        return format!("~/{}", rest.display());
     }
-    s
+    path.display().to_string()
 }
 
 #[cfg(test)]
@@ -1002,5 +1009,35 @@ mod tests {
             label.len()
         );
         assert!(label.contains("update"));
+    }
+
+    #[test]
+    fn home_tilde_uses_component_match_not_string_prefix() {
+        // Regression for the prefix-shortening pitfall flagged in PR
+        // review: `home = "/home/al"` must NOT match `/home/alice/...`.
+        // Path-based `strip_prefix` requires a component boundary so the
+        // unrelated path is returned unchanged.
+        let home = PathBuf::from("/home/al");
+        let path = PathBuf::from("/home/alice/.cursor/mcp.json");
+        assert_eq!(
+            display_path_with_home(&path, Some(&home)),
+            "/home/alice/.cursor/mcp.json"
+        );
+
+        // Sanity: real prefix collapses to ~/...
+        let home = PathBuf::from("/home/alice");
+        assert_eq!(
+            display_path_with_home(&path, Some(&home)),
+            "~/.cursor/mcp.json"
+        );
+
+        // Path equal to home renders as `~`.
+        assert_eq!(display_path_with_home(&home, Some(&home)), "~");
+
+        // No home → unchanged.
+        assert_eq!(
+            display_path_with_home(&path, None),
+            "/home/alice/.cursor/mcp.json"
+        );
     }
 }
