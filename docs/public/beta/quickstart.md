@@ -8,7 +8,7 @@ slug: /
 
 # Beta Quickstart
 
-Install Anvil, activate protection in a real repo, watch the AI catch get
+Install Anvil, activate protection in a real repo, watch an AI write get
 blocked, and start giving feedback -- all in about 10 minutes.
 
 :::info Beta release
