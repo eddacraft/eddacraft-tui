@@ -190,4 +190,90 @@ describe('VercelApp component', () => {
       ).toThrow(/Invalid productionBranch/);
     });
   });
+
+  describe('domainImports', () => {
+    beforeAll(async () => {
+      resources.length = 0;
+      const { VercelApp } = await import('../../src/components/vercel-app.js');
+
+      const app = new VercelApp('with-import', {
+        name: 'with-import',
+        framework: 'nextjs',
+        rootDirectory: 'apps/web',
+        gitRepo: 'org/repo',
+        domains: ['example.com', 'www.example.com'],
+        domainImports: {
+          'www.example.com': 'prj_test123abc/www.example.com',
+        },
+      });
+      expect(app).toBeDefined();
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    function getDomain(name: string) {
+      return resources.find(
+        (r) => r.type === 'vercel:index/projectDomain:ProjectDomain' && r.name === name
+      );
+    }
+
+    it('passes the import id to ProjectDomain for a domain in domainImports', () => {
+      // The Pulumi mock framework sets `args.id` to the import ID when the
+      // `import` resource option is in effect, so observing it verifies the
+      // option flowed through without instrumenting runtime internals.
+      expect(getDomain('with-import-www-example-com')?.id).toBe('prj_test123abc/www.example.com');
+    });
+
+    it('does not set an import id for domains absent from domainImports', () => {
+      expect(getDomain('with-import-example-com')?.id).toBeFalsy();
+    });
+
+    it('rejects keys that are not in the domains list', async () => {
+      const { VercelApp } = await import('../../src/components/vercel-app.js');
+
+      expect(
+        () =>
+          new VercelApp('bad-key', {
+            name: 'bad-key',
+            framework: 'nextjs',
+            rootDirectory: 'apps/web',
+            gitRepo: 'org/repo',
+            domains: ['example.com'],
+            domainImports: { 'other.com': 'prj_test/other.com' },
+          })
+      ).toThrow(/must appear in the domains list/);
+    });
+
+    it('rejects malformed import IDs', async () => {
+      const { VercelApp } = await import('../../src/components/vercel-app.js');
+
+      expect(
+        () =>
+          new VercelApp('bad-id', {
+            name: 'bad-id',
+            framework: 'nextjs',
+            rootDirectory: 'apps/web',
+            gitRepo: 'org/repo',
+            domains: ['example.com'],
+            domainImports: { 'example.com': 'just-the-domain.com' },
+          })
+      ).toThrow(/<projectId>\/<domain>/);
+    });
+
+    it('accepts the team-prefixed import ID form', async () => {
+      const { VercelApp } = await import('../../src/components/vercel-app.js');
+
+      expect(
+        () =>
+          new VercelApp('team-prefixed', {
+            name: 'team-prefixed',
+            framework: 'nextjs',
+            rootDirectory: 'apps/web',
+            gitRepo: 'org/repo',
+            domains: ['example.com'],
+            domainImports: { 'example.com': 'team_abc123/prj_def456/example.com' },
+          })
+      ).not.toThrow();
+    });
+  });
 });

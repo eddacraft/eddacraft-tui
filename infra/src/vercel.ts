@@ -1,7 +1,9 @@
+import * as pulumi from '@pulumi/pulumi';
 import { VercelApp } from './components/vercel-app.js';
 import { getSecret } from './keyvault.js';
 
 const gitRepo = 'eddacraft/anvil-001';
+const isProdStack = pulumi.getStack() === 'prod';
 
 const databaseUrl = getSecret('anvil-api-database-url');
 const resendApiKey = getSecret('resend-api-key');
@@ -33,12 +35,17 @@ export const website = new VercelApp('website', {
   rootDirectory: 'apps/website',
   gitRepo,
   domains: ['eddacraft.ai', 'www.eddacraft.ai'],
-  // www.eddacraft.ai exists in Vercel but is missing from Pulumi state.
-  // Adopt it on the next `pulumi up`; remove this entry once adoption
-  // succeeds (leaving it in is a no-op but warns on subsequent runs).
-  domainImports: {
-    'www.eddacraft.ai': 'prj_b3egAMA3JZULn5KSTwiVs5Qr0vts/www.eddacraft.ai',
-  },
+  // www.eddacraft.ai exists in the prod Vercel project but is missing from
+  // Pulumi state. Adopt it on the next prod `pulumi up`; remove this entry
+  // once adoption succeeds (leaving it in is a no-op but warns on subsequent
+  // runs). Gated on prod because the import ID is a prod-specific Vercel
+  // project ID — applying it to dev/preview stacks would attempt to bind
+  // the prod resource into a non-prod state.
+  domainImports: isProdStack
+    ? {
+        'www.eddacraft.ai': 'prj_b3egAMA3JZULn5KSTwiVs5Qr0vts/www.eddacraft.ai',
+      }
+    : undefined,
   skipPreviewDeploys: true,
   envVars: {
     NEXT_PUBLIC_API_URL: 'https://api.eddacraft.ai',

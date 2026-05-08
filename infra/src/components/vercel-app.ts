@@ -40,6 +40,23 @@ export class VercelApp extends pulumi.ComponentResource {
         `Invalid productionBranch "${prodBranch}" — must contain only word characters, dots, slashes, or hyphens`
       );
     }
+    if (args.domainImports) {
+      // ProjectDomain pulumi import IDs come in `<projectId>/<domain>` or
+      // `<teamId>/<projectId>/<domain>` form; reject typos before they fall
+      // back to a create-from-scratch path that re-introduces the
+      // `domain_already_in_use` drift the caller wanted to avoid.
+      const domainImportPattern = /^(team_[A-Za-z0-9]+\/)?prj_[A-Za-z0-9]+\/.+$/;
+      for (const [importedDomain, importId] of Object.entries(args.domainImports)) {
+        if (!args.domains.includes(importedDomain)) {
+          throw new Error(`domainImports key "${importedDomain}" must appear in the domains list`);
+        }
+        if (!domainImportPattern.test(importId)) {
+          throw new Error(
+            `domainImports value for "${importedDomain}" must be a Vercel import ID of the form <projectId>/<domain> or <teamId>/<projectId>/<domain>; got "${importId}"`
+          );
+        }
+      }
+    }
     const skipFlag = args.skipPreviewDeploys ? '--skip-preview ' : '';
     const branchFlag =
       args.skipPreviewDeploys && prodBranch !== 'main' ? `--prod-branch ${prodBranch} ` : '';
