@@ -1,11 +1,11 @@
 [package]
 name = "eddacraft-tui"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
-description = "Shared Ratatui component library for the EddaCraft product family"
-repository = "https://github.com/EddaCraft/eddacraft-tui"
+description = "Shared Ratatui component library for the eddacraft product family"
+repository = "https://github.com/eddacraft/eddacraft-tui"
 readme = "README.md"
 keywords = ["tui", "ratatui", "widgets", "terminal"]
 categories = ["command-line-interface"]
