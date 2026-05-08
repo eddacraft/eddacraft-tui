@@ -6,7 +6,8 @@ Wave 1 **Status:** Honest-scope artefact for INTD-012 (Windows CI Matrix)
 > **Status update (2026-05-08):** the `cross-compile` trigger gap this document
 > was written against has been closed. PR #1325 (`ed957ce1`) widened the gate to
 > fire on pushes to `main` **and** `dev`, and on PRs targeting either branch —
-> see [`.github/workflows/rust.yml:422-425`](../../.github/workflows/rust.yml)
+> see
+> [`.github/workflows/rust.yml#L442-L445`](../../.github/workflows/rust.yml#L442-L445)
 > for the current `if:` and
 > [`docs/runbooks/v0.6.0-beta-release-runbook.md`](./v0.6.0-beta-release-runbook.md)
 > §5 for the operator-facing scope description. The TL;DR, "Workflow trigger
