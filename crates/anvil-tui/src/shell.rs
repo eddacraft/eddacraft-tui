@@ -1,12 +1,15 @@
 //! Anvil-branded shell chrome with correct binary version.
+//!
+//! Thin wrapper over `eddacraft_tui::shell::render_shell` that pins the
+//! brand to Anvil-on-EddaCraft and the version to this binary's own
+//! `CARGO_PKG_VERSION`. Surfaces call `render_shell` here rather than the
+//! library directly so brand/version don't have to be re-passed at every
+//! call site.
 
+use eddacraft_tui::shell::{ShellBranding, render_shell as lib_render_shell};
 use eddacraft_tui::theme::Theme;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
-use unicode_width::UnicodeWidthStr;
 
 /// The binary's own version, from the workspace `Cargo.toml`.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -56,56 +59,16 @@ pub fn render_shell(
     help_text: &str,
     theme: &impl Theme,
 ) -> Rect {
-    let chunks = Layout::vertical([
-        Constraint::Length(1), // Header
-        Constraint::Min(1),    // Content
-        Constraint::Length(1), // Footer / help
-    ])
-    .split(area);
-
-    // Header: "Anvil > SurfaceName"
-    let header = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Anvil",
-            Style::default()
-                .fg(theme.accent())
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" > ", Style::default().fg(theme.muted())),
-        Span::styled(surface_name, Style::default().fg(theme.fg())),
-    ]));
-    frame.render_widget(header, chunks[0]);
-
-    // Footer: help text (left) + watermark (right).
-    let watermark = format!("[ \u{25a0} ] e d d a c r a f t  v{VERSION}");
-    let wm_width = watermark.width();
-    let available = chunks[2].width as usize;
-    let min_gap = 2;
-    let max_help = available.saturating_sub(wm_width + min_gap);
-    let help_display: String = if help_text.width() > max_help {
-        let mut truncated = String::new();
-        let mut w = 0;
-        for ch in help_text.chars() {
-            let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-            if w + cw > max_help {
-                break;
-            }
-            truncated.push(ch);
-            w += cw;
-        }
-        truncated
-    } else {
-        help_text.to_string()
-    };
-    let padding = available.saturating_sub(help_display.width() + wm_width);
-    let footer = Paragraph::new(Line::from(vec![
-        Span::styled(help_display, Style::default().fg(theme.muted())),
-        Span::raw(" ".repeat(padding)),
-        Span::styled(watermark, Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(footer, chunks[2]);
-
-    chunks[1]
+    lib_render_shell(
+        frame,
+        area,
+        ShellBranding::EddaCraft,
+        "Anvil",
+        surface_name,
+        help_text,
+        theme,
+        VERSION,
+    )
 }
 
 #[cfg(test)]
@@ -184,10 +147,6 @@ mod tests {
 
     #[test]
     fn version_matches_workspace() {
-        // Sanity check that the rendered watermark is still derived from
-        // the cargo workspace version rather than a hardcoded string. We
-        // assert shape (`v<digit>.…`) rather than a specific minor so the
-        // test does not have to be touched on every release.
         let watermark = format!("v{VERSION}");
         assert!(
             watermark.starts_with('v'),
