@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 268 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 270 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -225,7 +225,7 @@ authorization of the copyright holder.
 
 ## Licence: Apache License 2.0
 
-Used by 9 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 10 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -984,12 +984,13 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | Crate | Version | Licence | Source |
 | --- | --- | --- | --- |
 | `miette` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
+| `eddacraft-tui` | 0.2.2 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
 | `moxcms` | 0.8.1 | Apache License 2.0 | https://github.com/awxkee/moxcms.git |
 | `pxfm` | 0.1.29 | Apache License 2.0 | https://github.com/awxkee/pxfm |
+| `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
 | `aws-lc-sys` | 0.40.0 | Apache License 2.0 | https://github.com/aws/aws-lc-rs |
-| `eddacraft-tui` | 0.1.0 | Apache License 2.0 | https://github.com/EddaCraft/eddacraft-tui |
 | `ryu` | 1.0.23 | Apache License 2.0 | https://github.com/dtolnay/ryu |
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
@@ -1146,6 +1147,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `iri-string` | 0.7.12 | MIT License | https://github.com/lo48576/iri-string |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.16.4 | MIT License | https://github.com/jeromefroe/lru-rs.git |
+| `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
+| `smawk` | 0.3.2 | MIT License | https://github.com/mgeisler/smawk |
 | `static_assertions` | 1.1.0 | MIT License | https://github.com/nvzqz/static-assertions-rs |
 | `darling` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_core` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
