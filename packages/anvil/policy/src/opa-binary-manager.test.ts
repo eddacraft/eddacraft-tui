@@ -84,7 +84,7 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
     it('should use ANVIL_OPA_PATH when set and file exists', async () => {
       // Create a mock binary - verifyVersion will fail but the path check happens first
       const mockPath = join(tempCacheDir, 'mock-opa');
-      writeFileSync(mockPath, '#!/bin/sh\necho "Version: 0.60.0"');
+      writeFileSync(mockPath, '#!/bin/sh\necho "Version: 1.16.1"');
       chmodSync(mockPath, 0o755);
 
       process.env.ANVIL_OPA_PATH = mockPath;
@@ -153,7 +153,7 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
       const plat = PLATFORM_MAP[platform()] || platform();
       const architecture = ARCH_MAP[arch()] || arch();
       const ext = plat === 'windows' ? '.exe' : '';
-      const binaryPath = join(tempCacheDir, `opa-0.60.0-${plat}-${architecture}${ext}`);
+      const binaryPath = join(tempCacheDir, `opa-1.16.1-${plat}-${architecture}${ext}`);
       writeFileSync(binaryPath, 'mock binary');
 
       expect(existsSync(binaryPath)).toBe(true);
@@ -197,7 +197,7 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
       const url = (manager as unknown as { getDownloadUrl(): string }).getDownloadUrl();
 
       expect(url).toMatch(/^https:\/\/openpolicyagent\.org\/downloads\/v\d+\.\d+\.\d+\/opa_/);
-      expect(url).toContain('0.60.0');
+      expect(url).toContain('1.16.1');
       // Should contain platform and architecture
       expect(url).toMatch(/opa_(darwin|linux|windows)_(amd64|arm64)/);
     });
@@ -210,7 +210,7 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
       const url = (customManager as unknown as { getDownloadUrl(): string }).getDownloadUrl();
 
       expect(url).toContain('0.55.0');
-      expect(url).not.toContain('0.60.0');
+      expect(url).not.toContain('1.16.1');
     });
   });
 });

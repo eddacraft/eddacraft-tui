@@ -221,7 +221,7 @@ Coverage is advisory only — no blocking threshold. Each PR produces:
 
 ### OPA + Regal
 
-Both CI workflows install OPA `v0.60.0` (pinned to `DEFAULT_OPA_VERSION` in
+Both CI workflows install OPA `v1.16.1` (pinned to `DEFAULT_OPA_VERSION` in
 `packages/anvil/policy/src/opa-binary-manager.ts`) via
 `open-policy-agent/setup-opa`. Regal lints the fixture policies in `rust.yml`.
 Locally, the policy tests fall back to the host `opa` if available; the TS

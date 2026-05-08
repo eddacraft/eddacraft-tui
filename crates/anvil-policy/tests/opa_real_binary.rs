@@ -2,7 +2,7 @@
 //!
 //! Skipped when `opa` is not on PATH and `ANVIL_OPA_PATH` is unset, so
 //! contributors without OPA installed can still run `cargo test`.
-//! CI installs OPA pinned to `DEFAULT_OPA_VERSION` (v0.60.0), so the suite
+//! CI installs OPA pinned to `DEFAULT_OPA_VERSION` (v1.16.1), so the suite
 //! runs there.
 //!
 //! Covers:

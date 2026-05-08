@@ -42,7 +42,7 @@ Handles automatic download, caching, and version management of the OPA binary.
 - Auto-downloads OPA binary on first use (~50MB per platform)
 - Caches in `~/.anvil/bin/opa-{version}-{platform}-{arch}`
 - Supports Linux (x64, arm64), macOS (x64, arm64), Windows (x64)
-- Pins to OPA v0.60.0 by default (configurable)
+- Pins to OPA v1.16.1 by default (configurable)
 - Verifies version with `opa version`
 
 **Environment Overrides:**
@@ -64,7 +64,7 @@ const binaryPath = await manager.ensureBinary();
 
 // Get binary info
 const info = await manager.getBinaryInfo();
-// { path: '/home/user/.anvil/bin/opa-0.60.0-linux-amd64', version: '0.60.0', platform: 'linux', arch: 'amd64' }
+// { path: '/home/user/.anvil/bin/opa-1.16.1-linux-amd64', version: '1.16.1', platform: 'linux', arch: 'amd64' }
 
 // Force re-download
 await manager.forceDownload();
@@ -619,7 +619,7 @@ violation[violation] {
 
 **External binaries:**
 
-- OPA v0.60.0 (auto-downloaded)
+- OPA v1.16.1 (auto-downloaded)
 
 ---
 

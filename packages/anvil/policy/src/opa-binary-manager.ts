@@ -25,7 +25,7 @@ const execFileAsync = promisify(execFile);
 /**
  * Default OPA version to download
  */
-const DEFAULT_OPA_VERSION = '0.60.0';
+const DEFAULT_OPA_VERSION = '1.16.1';
 
 /**
  * Binary cache directory
@@ -47,12 +47,12 @@ const ARCH_MAP: Record<string, string> = {
 };
 
 const OPA_CHECKSUMS: Record<string, Record<string, string>> = {
-  '0.60.0': {
-    'darwin-amd64': '1b96cb23a63700b75f670e6bca1e3f8e9e7930c29b095753a9f978ce88828fa0',
-    'darwin-arm64': '27c1209fda3a5b8d7ec158b3696246ce7d1bf3f0f08f3698a23bf7dada5a618b',
-    'linux-amd64': '71514c6c70e744713656a302131e3172988c4898b43cb503f273086d47ccc299',
-    'linux-arm64': 'dd2ba13e42faa16f4a7933f80f44ee518bb96a023ea6dfb8193916a8ba134555',
-    'windows-amd64': '8e20b4fcd6b8094be186d8c9ec5596477fb7cb689b340d285865cb716c3c8ea7',
+  '1.16.1': {
+    'darwin-amd64': '7e71d8ed122bb7e4d5382f98c2df6e86125c1f96e7f604c6d3f06f7b412d3a75',
+    'darwin-arm64': 'd46da4dec05aefa40103dd4f4d6272cc3117472da11d840529273d3eb5aeda2f',
+    'linux-amd64': '5c5965761448a6c679f0732f44a757928f102375e140a6494dc299ea4d17e2cd',
+    'linux-arm64': '258dda9e089d99064f7e468670104907da16fc7bb2ecd9f8442017abfc231d3a',
+    'windows-amd64': '57381ba54190207d03b3fb8535e41e15bcb68dbdec85f380db46dffdfd8d007d',
   },
 };
 
@@ -260,13 +260,13 @@ export class OPABinaryManager {
   private async verifyVersion(binaryPath: string): Promise<boolean> {
     try {
       const { stdout } = await execFileAsync(binaryPath, ['version']);
-      // OPA version output format: "Version: 0.60.0"
+      // OPA version output format: "Version: 1.16.1"
       const match = stdout.match(/Version:\s*(\d+\.\d+\.\d+)/);
       if (!match) {
         return false;
       }
       const installedVersion = match[1];
-      // Allow minor version differences (0.60.x matches 0.60.0)
+      // Allow patch version differences (1.16.x matches 1.16.1)
       const [major, minor] = this.version.split('.');
       const [instMajor, instMinor] = installedVersion.split('.');
       return major === instMajor && minor === instMinor;
@@ -345,7 +345,7 @@ export class OPABinaryManager {
     const ext = plat === 'windows' ? '.exe' : '';
 
     // OPA release URL format
-    // https://openpolicyagent.org/downloads/v0.60.0/opa_linux_amd64
+    // https://openpolicyagent.org/downloads/v1.16.1/opa_linux_amd64
     return `https://openpolicyagent.org/downloads/v${this.version}/opa_${plat}_${architecture}${ext}`;
   }
 

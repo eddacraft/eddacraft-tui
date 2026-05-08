@@ -123,21 +123,18 @@ cargo test -p eddacraft-anvil-policy --test opa_real_binary
 
 Same skip behaviour.
 
-### Through the gate pipeline
+### Current real-binary coverage
 
-`packages/anvil/runtime/src/gate/policy.integration.test.ts` exercises
-`GateRunner` → `PolicyCheck` → `OPAExecutor` against a temp workspace populated
-with the fixture pack. Run it with:
-
-```bash
-pnpm -F @eddacraft/anvil-runtime exec vitest run src/gate/policy.integration.test.ts
-```
+The historical TypeScript gate-pipeline integration test moved under
+`archive/anvil-ts-scanner/` when the TypeScript scanner/runtime gate was
+retired. Current real-binary coverage is the direct OPA fixture suite, the
+TypeScript policy executor suite, and the Rust policy executor suite above.
 
 ## OPA binary version
 
 The pinned version lives in **one** place:
 `packages/anvil/policy/src/opa-binary-manager.ts` (`DEFAULT_OPA_VERSION`).
-Currently `0.60.0`. CI installs the same version via
+Currently `1.16.1`. CI installs the same version via
 [`open-policy-agent/setup-opa`](https://github.com/open-policy-agent/setup-opa)
 in both `.github/workflows/ci.yml` and `.github/workflows/rust.yml`.
 
@@ -154,8 +151,8 @@ To bump:
 5. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if the
    pinned version string appears in any file not in the allowlist, which is the
    canary against silent doc rot when this runbook rots.
-6. Run all three integration suites locally (TS executor, Rust executor, gate
-   pipeline) plus `opa test policies/fixtures`.
+6. Run the direct OPA fixture suite plus both real-binary integration suites
+   locally (TS executor and Rust executor).
 7. Note the bump in the relevant ADR / decision log entry if the version change
    is load-bearing for a policy.
 
