@@ -117,6 +117,28 @@ Current trust/provenance direction includes line-level authorship attribution
 planning (human/AI/mixed/unknown + model metadata + confidence), tracked in APS
 module `LAC` and governed by ADR-014 (TypeScript vs Rust allocation tree).
 
+### Test coverage snapshot
+
+Coverage is advisory, not a merge gate. CI publishes the authoritative per-PR
+coverage summaries; this table is a quick local snapshot from 2026-05-08 so
+contributors can see the current shape at a glance.
+
+| Surface                         | Line coverage | Status            | Notes                                                   |
+| ------------------------------- | ------------: | ----------------- | ------------------------------------------------------- |
+| Rust workspace                  |         84.1% | Above target      | `cargo llvm-cov report --summary-only`                  |
+| TypeScript workspace            |         79.5% | Just below target | Aggregated Vitest coverage artifacts across 19 projects |
+| `packages/kindling-integration` |         19.9% | Needs uplift      | Largest TypeScript gap                                  |
+| `packages/libs/render`          |         44.8% | Needs uplift      | Render utility package                                  |
+| `packages/anvil/runtime`        |         70.3% | Needs uplift      | Runtime orchestration surface                           |
+| `apps/anvil-api`                |         73.4% | Needs uplift      | API service                                             |
+| `packages/anvil/policy`         |         74.2% | Needs uplift      | OPA/Rego wrapper package                                |
+| `packages/edda-stack`           |         77.2% | Near target       | Memory lifecycle stack                                  |
+| `packages/anvil-driver-client`  |         77.9% | Near target       | Driver client package                                   |
+
+Target: **80% line coverage** for actively tracked packages and crates. See
+[`plans/modules/test-coverage-uplift.aps.md`](plans/modules/test-coverage-uplift.aps.md)
+for the live uplift plan.
+
 Contributor workflow quick links:
 
 - [Branching strategy](docs/guides/branching-strategy.md) — `main`/`dev` release
@@ -235,13 +257,13 @@ and tooling.
 
 ### Tools
 
-| Directory          | Description                          |
-| ------------------ | ------------------------------------ |
-| `tools/scripts`    | Build and utility scripts            |
-| `tools/generators` | NX code generators                   |
-| `tools/codemods`   | Codemod transformations              |
-| `tools/nx-rust`    | NX plugin for Rust crate integration |
-| `tools/test-utils` | Shared test utilities and fixtures   |
+| Directory          | Description                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `tools/scripts`    | Build and utility scripts                                                               |
+| `tools/generators` | NX code generators                                                                      |
+| `tools/codemods`   | Codemod transformations                                                                 |
+| `tools/nx-rust`    | Historical vendored nxrust copy; active plugin resolves from npm as `@eddacraft/nxrust` |
+| `tools/test-utils` | Shared test utilities and fixtures                                                      |
 
 ### Plans
 

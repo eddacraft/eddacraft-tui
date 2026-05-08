@@ -284,7 +284,7 @@ delivery changes behind each release. For end-user feature summaries, see the
 - **Agent-driven release** (`RELMGMT` Phase 3) — `/release` skill drives version
   pick, branch strategy, tag, workflow, artefact verification, comms, and
   cleanup; reads live `git`/`gh` state each turn
-- **In-house nx-rust plugin** vendored at `tools/nx-rust/` (ADR-026); inferred
+- **nxrust plugin** now consumed from npm as `@eddacraft/nxrust`; inferred
   targets via `cargo metadata`; per-crate `project.json` no longer needed
 - **Husky pre-commit** enforces `oxfmt` on markdown and TOML so format drift
   surfaces locally rather than in CI

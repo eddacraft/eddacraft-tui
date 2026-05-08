@@ -25,6 +25,8 @@ packages:
   - packages/tooling/*
   # Tools
   - tools/*
+  # nxrust now resolves from npm; keep the historical vendored copy out of the workspace.
+  - '!tools/nx-rust'
   # Native binding crates that ship as npm packages (Rust source lives in
   # the cargo workspace; pnpm picks them up here for `pnpm --filter` access).
   - crates/anvil-checks-napi
