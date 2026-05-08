@@ -69,27 +69,27 @@ fallback.
 
 **Current progress snapshot:**
 
-| Area                                               | State                                                                      | What remains                                                                                                                                    |
-| -------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release closeout                                   | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed                                                                                  |
-| A1 — Wow-start activation (`LAUNCH`)               | Complete, 18/18                                                            | LAUNCH-009.6 (PR #1303) + LAUNCH-011 (PRs #1300/#1301) merged 2026-05-06                                                                        |
-| Daemon-backed MCP launch path (`RMCP`)             | Complete, 8/8                                                              | Full parity moves to RMCPF; A2 graduated the daemon-vs-embedded path                                                                            |
-| A2 — Daemon-backed RMCP + driver reach (Waves 1–3) | Complete                                                                   | 8 PRs (#1304..#1311) + remediation (#1322); INTD 16/16, DRVR 5/5 active, RTAI 6/9; Wave 4 (RTAI-005/-007/-009, DRVR-003) out of cut per ADR-033 |
-| v0.6.0-beta post-substrate polish                  | Complete                                                                   | macOS peer-cred parity (#1331), Windows `intercept status` + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335)    |
+| Area                                               | State                                                                      | What remains                                                                                                                                                 |
+| -------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release closeout                                   | `v0.5.1-beta` shipped, latest-corrected, public/private artefacts verified | Close tracking issue #1233 when no further log entry is needed                                                                                               |
+| A1 — Wow-start activation (`LAUNCH`)               | Complete, 18/18                                                            | LAUNCH-009.6 (PR #1303) + LAUNCH-011 (PRs #1300/#1301) merged 2026-05-06                                                                                     |
+| Daemon-backed MCP launch path (`RMCP`)             | Complete, 8/8                                                              | Full parity moves to RMCPF; A2 graduated the daemon-vs-embedded path                                                                                         |
+| A2 — Daemon-backed RMCP + driver reach (Waves 1–3) | Complete                                                                   | 8 PRs (#1304..#1311) + remediation (#1322); INTD 16/16, DRVR 5/5 active, RTAI 6/9; Wave 4 (RTAI-005/-007/-009, DRVR-003) out of cut per ADR-033              |
+| v0.6.0-beta post-substrate polish                  | Complete                                                                   | macOS peer-cred parity (#1331), Windows `intercept status` + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335)                 |
 | Carry-over hardening (`V050F`)                     | In Progress, 14/16                                                         | V050F-006/-011 closed via #1323; V050F-007 closed via #1330. Open: V050F-008 (CI-class bench baseline), V050F-015 (svix → uuid override). Both non-blocking. |
-| `V060F` nominations                                | Complete, 1/1                                                              | No open nomination work                                                                                                                         |
+| `V060F` nominations                                | Complete, 1/1                                                              | No open nomination work                                                                                                                                      |
 
 ### Carry-over backlog (rides any tag, regardless of theme)
 
 These are non-blocking but should not accumulate as silent debt. Triage at lock
 time; pick the ones that match the cut.
 
-| Source                                                        | State          | Open items                                                                                                                                       |
-| ------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`V050F`](./plans/modules/v050-release-followups.aps.md)      | 14/16 complete | 2 open: CI-class bench baseline (V050F-008), `svix → uuid` override removal (V050F-015) |
-| [`V060F`](./plans/modules/v060-release-candidates.aps.md)     | 1/1 complete   | None; RCLI2-009 admin command parity is done                                                                                                     |
-| `v0.5.0-beta` GUI dry-run gaps                                | Closed         | #1194, #1195, and #1197 are closed; validate their behaviours through LAUNCH-009 when activation wires Cursor / Claude Code                      |
-| [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | Closed         | Keep the ADR-031 baseline-comparison check as the daemon-backed latency regression guard                                                         |
+| Source                                                        | State          | Open items                                                                                                                  |
+| ------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [`V050F`](./plans/modules/v050-release-followups.aps.md)      | 14/16 complete | 2 open: CI-class bench baseline (V050F-008), `svix → uuid` override removal (V050F-015)                                     |
+| [`V060F`](./plans/modules/v060-release-candidates.aps.md)     | 1/1 complete   | None; RCLI2-009 admin command parity is done                                                                                |
+| `v0.5.0-beta` GUI dry-run gaps                                | Closed         | #1194, #1195, and #1197 are closed; validate their behaviours through LAUNCH-009 when activation wires Cursor / Claude Code |
+| [`#1191`](https://github.com/eddacraft/anvil-001/issues/1191) | Closed         | Keep the ADR-031 baseline-comparison check as the daemon-backed latency regression guard                                    |
 
 ---
 
