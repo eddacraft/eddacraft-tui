@@ -8,15 +8,14 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-## [0.6.0-beta] — Wow-Start Activation & Daemon-Backed RTV
+## [0.6.0-beta] — Wow-Start Activation & Daemon-Backed Mid-Edit Validation
 
 ### Added
 
 - **`anvil start` activation entrypoint** — `install → cd repo → anvil start` is
-  now the canonical first minute. `anvil start` was a clap alias for `welcome`;
-  it is now the dedicated activation command, with `--verify` for a read-only
-  protection probe and `--watch` to opt into the save-time fallback when MCP
-  cannot attach.
+  now the canonical first minute. `anvil start` is the dedicated activation
+  command, with `--verify` for a read-only protection probe and `--watch` to
+  opt into the save-time fallback when MCP cannot attach.
 - **Activation protection states** — `protecting`, `ready_restart_required`,
   `watching`, `needs_action`, `unsupported`, and `error` are now the single
   shared vocabulary across `anvil start`, `anvil status --verify`,
@@ -28,9 +27,9 @@ engineering maintenance are recorded in the
   HTTP-transport flows remain on `anvil mcp-config`.
 - **Daemon-backed `anvil_validate_write` MCP tool** — the MCP pre-write
   validation path now routes through the local daemon over owner-only IPC (Unix
-  domain socket on Linux/macOS; named-pipe listener on Windows). The embedded
-  validation pipeline remains as a correctness-equivalent fallback when the
-  daemon is not reachable.
+  domain socket on Linux/macOS; named-pipe on Windows). The embedded validation
+  pipeline remains as a correctness-equivalent fallback when the daemon is not
+  reachable.
 - **Repo language profile** — `anvil start`, scan, and watch now honour a
   per-repository language profile so coverage claims are honest. TypeScript is
   the supported tier in `0.6.0-beta`; SQL and Markdown are partial; Python and
@@ -48,87 +47,70 @@ engineering maintenance are recorded in the
   consumers.
 - **macOS daemon peer-credential validation** — the daemon now uses
   `getpeereid(2)` on macOS for the same UID-based same-user trust check the
-  Linux build performs via `SO_PEERCRED`. macOS deployments are now at parity
-  with Linux on the daemon trust boundary.
-- **Windows named-pipe daemon listener and CLI status client** — the daemon
-  listener side ships for Windows via `crates/anvil-intercept-win32`, with an
-  owner-only DACL and `reject_remote_clients(true)`, and the synchronous Win32
-  client (`connect_owner_only_pipe_client`) backs `anvil intercept status` so
-  `--json` returns the same `DaemonStatusV1` shape on Unix and Windows.
-- **`anvil intercept status`** — operator status surface for the daemon over the
-  local IPC on every supported target, returning sessions, fences, latency, and
-  uptime as documented in the RTAI demo runbook contract.
+  Linux build performs via `SO_PEERCRED`. macOS deployments are at parity with
+  Linux on the daemon trust boundary.
+- **`anvil intercept status` on every supported target** — operator status
+  surface for the daemon over local IPC on Linux, macOS, and Windows;
+  `--json` returns the same shape on every OS, covering sessions, fences,
+  latency, and uptime.
 - **`anvil admin` parity in the main CLI** — admin operational commands are now
   reachable from the main `anvil` binary alongside the existing `anvil-admin`
   operator CLI.
 
 ### Changed
 
-- **Foreground daemon is the only supported launch mode in v1** — start the
-  daemon with `anvil intercept start --foreground`. Background launch mechanics
-  exist in the binary but are not a v1 surface; service-manager integration
-  should run the daemon under foreground supervision.
-- **`anvil intercept status` works cross-platform** — Unix speaks the UDS IPC;
-  Windows drives the same wire shape over the named pipe via
-  `connect_owner_only_pipe_client`, and `--json` returns the same
-  `DaemonStatusV1` shape on either OS. The remaining Windows gap is in the MCP
-  correlation envelope only: `correlation.daemonStatus` returned by
-  `anvil_validate_write` is always `not-wired` on Windows because the MCP daemon
-  validation client is gated `cfg(unix)`. The narrower MCP fix lands as part of
-  `chore/windows-status`.
-- **Fences persist across daemon restart by design** — the
-  `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are not
-  wired in v1 (the `FenceStore::unblock_worktree` daemon-side data path ships,
-  but the CLI front-end is a follow-up INTD task). Recovery is to stop the
-  foreground daemon (Ctrl-C, or SIGTERM by PID) and remove the fence directory
-  at `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. The fence file is the source
-  of truth and survives daemon crashes, restarts, and reboots so an interrupted
-  enforcement decision is not silently undone.
-- **macOS interrupt ladder is fence-first in this release** — the
-  `current_process_start_time` helper has a Linux branch only, so the macOS
-  interrupt path falls through to AD-7's fence-on-uncertainty invariant instead
-  of running the SIGINT → SIGTERM → SIGKILL ladder. Recovery is the same
-  daemon-stop + fence-directory removal as above.
+- **Foreground is the only supported daemon launch mode in v1** — start the
+  daemon with `anvil intercept start --foreground`. Service-manager integration
+  should run it under foreground supervision; background launch mechanics are
+  not a v1 surface.
+- **Fences persist across daemon restart by design** — an interrupted
+  enforcement decision is no longer silently undone after a daemon crash,
+  restart, or reboot. Recovery procedure and the deferred
+  `anvil intercept stop` / `unblock` CLI subcommands are documented in
+  `docs/runbooks/v0.6.0-beta-release-runbook.md`.
+- **macOS interrupt path is fence-first this release** — on macOS the
+  interrupt ladder falls through to fence-on-uncertainty rather than running
+  the full SIGINT → SIGTERM → SIGKILL sequence. Recovery is the same
+  daemon-stop + fence-directory removal as above; details in the runbook.
+- **Windows MCP correlation gap** — `correlation.daemonStatus` returned by
+  `anvil_validate_write` is always `not-wired` on Windows in this release; the
+  daemon and `anvil intercept status` are wired, only the MCP correlation
+  envelope on Windows is not. The narrower fix is tracked as a follow-up.
+- **Public docs refresh** — install, quickstart, and the broader public Anvil
+  docs were aligned with the activation-first first-minute and the
+  daemon-backed MCP path.
 
 ### Fixed
 
-- **MCP restart handshakes** — activation now waits for the MCP client's restart
-  handshake before claiming `ready_restart_required` is resolved, so the next
-  status read reflects the real connected state instead of the stale-pre-restart
-  one.
+- **MCP restart handshakes** — activation now waits for the MCP client's
+  restart handshake before claiming `ready_restart_required` is resolved, so
+  the next status read reflects the real connected state instead of the
+  stale-pre-restart one.
 - **Activation denylist alignment** — the activation pre-scan now uses the same
-  file filter as `anvil-checks`, so the first-signal walk does not surface
-  findings the steady-state scan would skip.
-
-### Improved
-
+  file filter as the steady-state scan, so the first-signal walk does not
+  surface findings the steady-state scan would skip.
 - **Activation baseline** — old findings are baselined before the first
-  activation signal so the first genuine save produces a real signal rather than
-  a long pre-existing list.
+  activation signal, so the first genuine save produces a real signal rather
+  than a long pre-existing list.
 - **Honest watch fallback** — when MCP cannot pre-write attach, `anvil start`
   surfaces partial-protection messaging and offers the watch-mode fallback
-  explicitly instead of pretending the activation succeeded.
-- **Public docs refresh** — install, quickstart, and the broader public Anvil
-  docs were aligned with the activation-first first-minute and the daemon-backed
-  MCP path.
+  explicitly instead of pretending activation succeeded.
 
 ### Developer
 
-- **Windows CI cross-compile is `main`-only** — the cross-compile job runs on
-  pushes to `main` and PRs targeting `main`; dev-branch Windows regressions
-  surface at sync rather than at PR. The trade-off and recommended local
-  reproduction
+- **Windows CI cross-compile runs on `main` and `dev`** — the cross-compile
+  matrix now runs on pushes and PRs targeting either branch, closing the gap
+  that let Windows-only build breakage land on `dev` between releases.
+  Recommended local reproduction
   (`cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1`)
-  are documented in `docs/runbooks/intd-012-windows-evidence.md`.
-- **MCP daemon integration tests are `cfg(unix)`-gated** — the daemon-backed
-  integration suite runs on Unix only in this cut; Windows coverage rides the
-  `chore/windows-status` follow-up.
+  is documented in `docs/runbooks/intd-012-windows-evidence.md`.
+- **MCP daemon integration tests run on Unix only this cut** — the
+  daemon-backed integration suite is not yet wired for Windows; Windows
+  coverage rides the same follow-up that closes the MCP correlation gap above.
 - **Operator artefacts** — the release ships
   `docs/runbooks/v0.6.0-beta-release-runbook.md` (five operator items) and
-  `docs/runbooks/v0.6.0-beta-security-note.md` (four HIGH security trade-offs:
-  allowlist file mode, unsalted redaction hash, spec-only §4.4 redaction filter
-  outside `validate_write`, Linux PID-reuse TOCTOU window / macOS fence-only
-  ladder).
+  `docs/runbooks/v0.6.0-beta-security-note.md` (four HIGH security
+  trade-offs documented for review).
 
 ## [0.5.1-beta] — Scanner Signal & TUI Hotfixes
 
