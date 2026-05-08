@@ -70,8 +70,8 @@ engineering maintenance are recorded in the
   `docs/runbooks/v0.6.0-beta-release-runbook.md`.
 - **macOS interrupt path is fence-first this release** — on macOS the interrupt
   ladder falls through to fence-on-uncertainty rather than running the full
-  SIGINT → SIGTERM → SIGKILL sequence. Recovery is the same daemon-stop +
-  fence-directory removal as above; details in the runbook.
+  SIGINT → SIGTERM → SIGKILL sequence. Recovery procedure is documented in
+  `docs/runbooks/v0.6.0-beta-release-runbook.md`.
 - **Windows MCP correlation gap** — `correlation.daemonStatus` returned by
   `anvil_validate_write` is always `not-wired` on Windows in this release; the
   daemon and `anvil intercept status` are wired, only the MCP correlation
@@ -100,10 +100,10 @@ engineering maintenance are recorded in the
 
 - **Windows CI cross-compile runs on `main` and `dev`** — the cross-compile
   matrix now runs on pushes and PRs targeting either branch, closing the gap
-  that let Windows-only build breakage land on `dev` between releases.
-  Recommended local reproduction
-  (`cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1`)
-  is documented in `docs/runbooks/intd-012-windows-evidence.md`.
+  that let Windows-only build breakage land on `dev` between releases. Local
+  reproduction:
+  `cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1`
+  matches the cross-compile job's smoke-test step.
 - **MCP daemon integration tests run on Unix only this cut** — the daemon-backed
   integration suite is not yet wired for Windows; Windows coverage rides the
   same follow-up that closes the MCP correlation gap above.
