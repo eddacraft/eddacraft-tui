@@ -3,6 +3,18 @@
 **Date:** 2026-05-06 **Branch:** `a2/wave1-windows-confidence` **Owner:** A2
 Wave 1 **Status:** Honest-scope artefact for INTD-012 (Windows CI Matrix)
 
+> **Status update (2026-05-08):** the `cross-compile` trigger gap this document
+> was written against has been closed. PR #1325 (`ed957ce1`) widened the gate to
+> fire on pushes to `main` **and** `dev`, and on PRs targeting either branch —
+> see [`.github/workflows/rust.yml:422-425`](../../.github/workflows/rust.yml)
+> for the current `if:` and
+> [`docs/runbooks/v0.6.0-beta-release-runbook.md`](./v0.6.0-beta-release-runbook.md)
+> §5 for the operator-facing scope description. The TL;DR, "Workflow trigger
+> reality" section, and "Items deliberately deferred" item below are preserved
+> as the original 2026-05-06 evidence record but no longer reflect the current
+> workflow gate. Feature branches without a PR to `main`/`dev` still skip
+> cross-compile; that's the residual gap.
+
 This runbook records the evidence that the four intercept crates
 (`anvil-intercept`, `anvil-intercept-proto`, `anvil-intercept-rules`,
 `anvil-intercept-win32`) build and pass tests on `x86_64-pc-windows-msvc`
