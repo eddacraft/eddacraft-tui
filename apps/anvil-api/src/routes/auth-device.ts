@@ -121,7 +121,16 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
 
   const result = await findPendingDeviceCodeWithEmail(sql, normalisedCode);
 
-  if (!result || result.user_email !== normalisedEmail) {
+  if (!result) {
+    // Anti-enumeration: response is identical to the email-mismatch case
+    // below. Server-side log only, so operators can distinguish "no matching
+    // pending+unexpired+unconfirmed row" (typo / expired / already-confirmed
+    // / inactive user — dummy row) from "row exists but email differs".
+    debug('confirm rejected: no matching pending device code');
+    return c.json({ error: 'Invalid or expired code' }, 400);
+  }
+  if (result.user_email !== normalisedEmail) {
+    debug('confirm rejected: email mismatch for code');
     return c.json({ error: 'Invalid or expired code' }, 400);
   }
 

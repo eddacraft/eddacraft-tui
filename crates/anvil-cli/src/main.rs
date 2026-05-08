@@ -282,6 +282,25 @@ fn evaluate_auth(
     }
 }
 
+/// Exchange a stored refresh token for a fresh licence and persist the
+/// result. Returns `Ok(())` only when the new credentials were both
+/// minted and saved. Failures (network, server-side rejection, save
+/// error) are non-fatal — the caller falls through to the existing
+/// expired-session path so behaviour without a refresh token is
+/// preserved.
+fn try_silent_refresh(creds: &auth::credentials::Credentials, verbose: bool) -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("creating tokio runtime for refresh")?;
+    let new_creds = rt.block_on(auth::device_flow::try_refresh_credentials(creds))?;
+    auth::credentials::save(&new_creds)?;
+    if verbose {
+        eprintln!("[auth] refreshed expired session via stored refresh token");
+    }
+    Ok(())
+}
+
 fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> bool {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -453,7 +472,24 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
         return Ok(());
     }
 
-    let loaded = auth::credentials::load();
+    let mut loaded = auth::credentials::load();
+
+    // Silent refresh: if the licence expired locally but we have a refresh
+    // token, exchange it before deciding to prompt or error. The 7-day JWT
+    // lapses long before the 90-day refresh token, so without this every
+    // expired session forced a full re-login through the device flow.
+    if let Ok(Some(creds)) = &loaded
+        && auth::credentials::is_expired(creds)
+        && creds.refresh_token.is_some()
+    {
+        match try_silent_refresh(creds, global.verbose) {
+            Ok(()) => loaded = auth::credentials::load(),
+            Err(err) if global.verbose => {
+                eprintln!("[auth] silent refresh failed: {err:#}");
+            }
+            Err(_) => {}
+        }
+    }
 
     let suppress_interactive =
         global.json || global.no_tui || !allow_interactive || is_non_interactive_env();

@@ -40,6 +40,20 @@ struct OtpVerifyResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RefreshSessionResponse {
+    license: String,
+    refresh_token: String,
+    expires_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RefreshSessionRequest<'a> {
+    refresh_token: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct EdictVerifyResponse {
     valid: bool,
     /// Server-side assertion that this token is an early-access edict, not a
@@ -253,6 +267,50 @@ async fn edict_verify(
         .json()
         .await
         .context("Edict verification failed: unexpected response from the auth server.")
+}
+
+async fn refresh_session(
+    client: &reqwest::Client,
+    url: &str,
+    refresh_token: &str,
+) -> Result<RefreshSessionResponse> {
+    let resp = client
+        .post(format!("{url}/api/v1/auth/session/refresh"))
+        .json(&RefreshSessionRequest { refresh_token })
+        .send()
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Could not reach the auth server ({}). Check your network connection.",
+                friendly_network_error(&e)
+            )
+        })?;
+    check_status(resp, "Session refresh failed")?
+        .json()
+        .await
+        .context("Session refresh failed: unexpected response from the auth server.")
+}
+
+/// Attempt to refresh an expired licence using a stored refresh token.
+///
+/// Returns the new `Credentials` (caller is responsible for persisting via
+/// `credentials::save`). Carries `email` and `is_edict` forward from the
+/// existing credentials since `/session/refresh` does not echo them.
+pub async fn try_refresh_credentials(creds: &Credentials) -> Result<Credentials> {
+    let refresh_token = creds
+        .refresh_token
+        .as_deref()
+        .context("no refresh token stored")?;
+    let url = api_url()?;
+    let client = build_client()?;
+    let resp = refresh_session(&client, &url, refresh_token).await?;
+    Ok(Credentials {
+        license: resp.license,
+        refresh_token: Some(resp.refresh_token),
+        email: creds.email.clone(),
+        expires_at: Some(resp.expires_at),
+        is_edict: creds.is_edict,
+    })
 }
 
 // ── Public entry points (thin wrappers adding I/O) ────────────────────
@@ -807,6 +865,121 @@ mod tests {
 
         assert!(resp.valid);
         assert!(!resp.is_edict);
+    }
+
+    #[tokio::test]
+    async fn refresh_session_returns_new_credentials_on_success() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .and(body_json(serde_json::json!({"refreshToken": "rt-old"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "license": "lic-new",
+                "refreshToken": "rt-new",
+                "expiresAt": "2099-12-31T23:59:59Z"
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let resp = refresh_session(&client, &server.uri(), "rt-old")
+            .await
+            .unwrap();
+
+        assert_eq!(resp.license, "lic-new");
+        assert_eq!(resp.refresh_token, "rt-new");
+        assert_eq!(resp.expires_at, "2099-12-31T23:59:59Z");
+    }
+
+    #[tokio::test]
+    async fn refresh_session_propagates_401_as_user_error() {
+        // Covers expired-refresh-token, revoked, theft-detected, and
+        // user-inactive — they all surface as 401 from the API and must
+        // NOT silently succeed on the CLI side.
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "Refresh token expired"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = refresh_session(&client, &server.uri(), "rt-stale")
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.to_string().contains("Session refresh failed"),
+            "expected user-friendly error, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_session_propagates_5xx() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/session/refresh"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = refresh_session(&client, &server.uri(), "rt-x")
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.to_string().contains("Session refresh failed"),
+            "expected user-friendly error, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn try_refresh_credentials_errors_when_no_refresh_token_stored() {
+        let creds = Credentials {
+            license: "lic-old".to_string(),
+            refresh_token: None,
+            email: Some("user@example.com".to_string()),
+            expires_at: Some("2020-01-01T00:00:00Z".to_string()),
+            is_edict: Some(false),
+        };
+        let err = try_refresh_credentials(&creds).await.unwrap_err();
+        assert!(
+            err.to_string().contains("no refresh token stored"),
+            "expected explicit no-refresh-token message, got: {err}"
+        );
+    }
+
+    #[test]
+    fn deserialise_refresh_session_response() {
+        let json = r#"{
+            "license": "lic-rs",
+            "refreshToken": "rt-rs",
+            "expiresAt": "2099-09-09T09:09:09Z"
+        }"#;
+        let resp: RefreshSessionResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.license, "lic-rs");
+        assert_eq!(resp.refresh_token, "rt-rs");
+        assert_eq!(resp.expires_at, "2099-09-09T09:09:09Z");
+    }
+
+    #[test]
+    fn serialise_refresh_session_request() {
+        let req = RefreshSessionRequest {
+            refresh_token: "rt-ser",
+        };
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["refreshToken"], "rt-ser");
+        assert!(
+            json.get("refresh_token").is_none(),
+            "refresh-session request must use camelCase"
+        );
     }
 
     #[tokio::test]
