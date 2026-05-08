@@ -25,9 +25,15 @@ violations **before they ever leave the developer's machine.**
 0          perceptible delay
 ```
 
-Measured 2026-04-28 against the Rust kernel via Criterion (release build).
-Previously measured 2026-04-03. Governance overhead is effectively zero — anvil
-is in a different category from SAST, not a faster scanner.
+Measured 2026-05-08 on deus (Ryzen 7 5800X) against the Rust kernel via
+Criterion (release build). Previously measured 2026-04-28 and 2026-04-03.
+Governance overhead is effectively zero — anvil is in a different category from
+SAST, not a faster scanner.
+
+Latest standard benchmark snapshot from `cargo bench -p anvil-bench` on deus:
+
+- **Parallel anti-pattern scan** — ~842K–877K elements/sec
+- **Secret scan parallel rollout** — ~3.60K–3.79K elements/sec (~7x faster than serial)
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
