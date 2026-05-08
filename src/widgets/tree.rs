@@ -168,7 +168,11 @@ fn visible_nodes<'a>(
     }
 }
 
-#[cfg(debug_assertions)]
+// Called from inside `debug_assert!` in `Tree::new`. Must NOT be cfg-gated on
+// `debug_assertions`: the macro arg is name-resolved unconditionally, so a
+// cfg-gated definition fails to compile when downstream consumers build us
+// with `debug_assertions = false` (release / `--release-napi` / etc.).
+// See issue #29.
 fn ids_are_unique(nodes: &[TreeNode]) -> bool {
     let mut seen: HashSet<&str> = HashSet::new();
     let mut stack: Vec<(&[TreeNode], usize)> = vec![(nodes, 0)];

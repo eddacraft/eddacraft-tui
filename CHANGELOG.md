@@ -8,6 +8,31 @@ For 0.x releases, a minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-08
+
+Hotfix for a release-build compile error introduced in 0.2.0.
+
+### Fixed
+
+- **`Tree::new` no longer fails to compile in release builds.** The helper
+  `widgets::tree::ids_are_unique` was guarded by `#[cfg(debug_assertions)]`
+  but called inside `debug_assert!` from `Tree::new`. `debug_assert!` only
+  skips _evaluation_ in release builds — name resolution still runs — so
+  any consumer building this crate with `debug_assertions = false`
+  (`--release`, `--release-napi`, etc.) hit `error[E0425]: cannot find
+  function ids_are_unique in this scope`. The cfg-gate has been removed;
+  the helper now exists in every profile (it's still only called by
+  `debug_assert!`, so it's a no-op at runtime in release builds).
+
+### Internal
+
+- **CI now runs `cargo check --release` per feature row.** Catches the
+  exact regression class above: code that compiles cleanly in dev but
+  breaks in release because of `debug_assertions`-gated definitions used
+  inside `debug_assert!`.
+
+Thanks for the report on issue #29.
+
 ## [0.2.1] - 2026-05-08
 
 Brand-alignment patch release. No public Rust API changes; only visual
