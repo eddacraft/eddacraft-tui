@@ -1243,7 +1243,19 @@ mod tests {
 
         dispatcher.on_snapshot();
 
-        // Wait for the child to park, then shutdown.
+        // Wait for the child to park, then shutdown. The timeout is a
+        // synchronization safety net, not a timing assertion — locally
+        // the in-flight slot fills in <50 ms; the bound only fires if
+        // the worker thread genuinely never gets scheduled. The
+        // threshold has ratcheted twice under CI scheduling pressure
+        // (500 ms → 5 s in `43cb9ef1`, then 5 s → 30 s after sustained
+        // failures on ubuntu-latest under nextest's default parallel
+        // execution where this test contends with thousands of others
+        // for CPU). 30 s is generous enough to absorb worst-case CI
+        // contention without losing the safety net entirely; if it
+        // flakes again, the right fix is to replace polling with a
+        // worker-side notification or to put this test in a serial
+        // nextest group, not to keep widening the bound.
         let parked = std::time::Instant::now();
         loop {
             if dispatcher
@@ -1256,9 +1268,9 @@ mod tests {
                 break;
             }
             assert!(
-                parked.elapsed() <= std::time::Duration::from_secs(5),
-                "child did not park within 5 s (flaky on shared CI runners; \
-                 was 500 ms but observed timeouts on macOS aarch64)"
+                parked.elapsed() <= std::time::Duration::from_secs(30),
+                "child did not park within 30 s — worker thread may not be \
+                 getting scheduled at all (sync safety net, not a timing bound)"
             );
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
