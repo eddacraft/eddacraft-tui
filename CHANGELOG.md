@@ -8,6 +8,33 @@ For 0.x releases, a minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-08
+
+Brand-alignment patch release. No public Rust API changes; only visual
+output and brand-text casing.
+
+### Changed
+
+- **Brand glyphs.** `ShellBranding::Anvil` now renders `[‡]` instead of the
+  crossed-hammers `[⚒]`, matching the actual anvil logo (an I-beam silhouette
+  in the eddacraft brackets). The spinner anvil preset's frames are now
+  `["-", "=", "I", "‡"]` — a four-step build-up that resolves to the brand
+  mark — replacing the previous hammer/tools sequence.
+- **Brand text casing.** `eddacraft` and `anvil` are spelled lowercase
+  throughout user-facing copy: `Cargo.toml` description and repository URL,
+  `LICENSE` attribution, `README` brand links, theme doc comments, shell
+  test header strings, and the regenerated `shell_chrome` snapshot. Rust
+  identifiers (`EddaCraftTheme`, `ShellBranding::EddaCraft`,
+  `SpinnerPreset::EddaCraft`) retain their PascalCase form for now —
+  a follow-up rename to `Eddacraft` is tracked for a future breaking release.
+
+### Note for downstream consumers
+
+If you snapshot-test the rendered shell chrome under `ShellBranding::Anvil`,
+or assert the spinner uses the previous hammer glyphs (`⚒`, `🔨`, `🛠`),
+your snapshots/assertions will need updating. No source-code changes are
+needed; the public Rust API is unchanged.
+
 ## [0.2.0] - 2026-05-07
 
 A widget-suite expansion plus supply-chain and release hygiene. This release
@@ -197,5 +224,6 @@ contains breaking changes — see **Breaking** below.
 - `pretext-tui` provides the layout engine integrated as the `pretext`
   module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/eddacraft/eddacraft-tui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/eddacraft/eddacraft-tui/compare/v0.1.0...v0.2.0

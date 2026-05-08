@@ -2,12 +2,12 @@ use ratatui::style::Color;
 
 use super::traits::Theme;
 
-/// The `EddaCraft` Terminal Standard palette.
+/// The `eddacraft` Terminal Standard palette.
 ///
 /// Colour names follow the brand design system:
 /// - The Void (bg), Structure (border)
 /// - Off-White (fg), Ghost Grey (muted)
-/// - Anvil Ember (accent), Edda Growth (success)
+/// - anvil Ember (accent), edda Growth (success)
 /// - Brick Red (error), Dull Amber (warning)
 pub struct EddaCraftTheme;
 

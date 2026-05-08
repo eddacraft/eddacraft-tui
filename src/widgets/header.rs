@@ -77,7 +77,7 @@ mod tests {
     fn renders_separator_and_title() {
         let theme = EddaCraftTheme;
         let mut buf = Buffer::empty(Rect::new(0, 0, 40, 3));
-        Header::new("Anvil", &theme).render(Rect::new(0, 0, 40, 3), &mut buf);
+        Header::new("anvil", &theme).render(Rect::new(0, 0, 40, 3), &mut buf);
 
         assert_eq!(buf[(0, 0)].symbol(), "━");
         assert_eq!(buf[(0, 1)].symbol(), "A");
@@ -87,7 +87,7 @@ mod tests {
     fn renders_subtitle_when_present() {
         let theme = EddaCraftTheme;
         let mut buf = Buffer::empty(Rect::new(0, 0, 40, 3));
-        Header::new("Anvil", &theme)
+        Header::new("anvil", &theme)
             .subtitle("Deterministic automation")
             .render(Rect::new(0, 0, 40, 3), &mut buf);
 
