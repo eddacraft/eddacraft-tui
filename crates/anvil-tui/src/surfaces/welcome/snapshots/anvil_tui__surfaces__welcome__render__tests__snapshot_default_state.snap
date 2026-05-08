@@ -2,7 +2,7 @@
 source: crates/anvil-tui/src/surfaces/welcome/render.rs
 expression: "crate::test_utils::snapshot::buffer_to_string(&buf)"
 ---
-[[fg:#CC5500,bold]■[fg:#CC5500,bold]][fg:#CC5500,bold] A[fg:#CC5500,bold]n[fg:#CC5500,bold]v[fg:#CC5500,bold]i[fg:#CC5500,bold]l[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]W[fg:#EBEBEB]e[fg:#EBEBEB]l[fg:#EBEBEB]c[fg:#EBEBEB]o[fg:#EBEBEB]m[fg:#EBEBEB]e[fg:#EBEBEB]                                                             
+[[fg:#CC5500,bold]■[fg:#CC5500,bold]][fg:#CC5500,bold] a[fg:#CC5500,bold]n[fg:#CC5500,bold]v[fg:#CC5500,bold]i[fg:#CC5500,bold]l[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]W[fg:#EBEBEB]e[fg:#EBEBEB]l[fg:#EBEBEB]c[fg:#EBEBEB]o[fg:#EBEBEB]m[fg:#EBEBEB]e[fg:#EBEBEB]                                                             
                                                                                 
                                                                                 
                                                                                 
