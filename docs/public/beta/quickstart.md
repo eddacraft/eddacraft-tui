@@ -82,8 +82,8 @@ The activation summary ends with a literal protection state -- one of
 - `~/.cursor/mcp.json` (Cursor)
 - `~/.claude.json` (Claude Code)
 
-Restart the editor after activation. On Unix, the MCP path is daemon-backed
-when the local daemon is running; the embedded path is a correctness-equivalent
+Restart the editor after activation. On Unix, the MCP path is daemon-backed when
+the local daemon is running; the embedded path is a correctness-equivalent
 fallback otherwise. On Windows, the daemon path is currently `not-wired` from
 the MCP correlation envelope (this is documented v1 scope, not a regression).
 
@@ -104,8 +104,8 @@ just be redundant noise).
 With `anvil start` reporting `protecting` and your editor restarted, ask the AI
 inside Cursor or Claude Code to make a change you know is wrong (e.g. "add an
 `any` type to this function" or "swallow this error in a try/catch"). The MCP
-tool `anvil_validate_write` is called before the write lands; the daemon
-refuses the write and the AI sees the rejection.
+tool `anvil_validate_write` is called before the write lands; the daemon refuses
+the write and the AI sees the rejection.
 
 For a guided walk-through, see the
 [wow-start demo](/anvil/guides/wow-start-demo).
@@ -151,8 +151,8 @@ anvil watch --source       # Watch source files
 anvil start --watch        # Activate, then drop into the watch fallback
 ```
 
-Save a file and Anvil reports findings after the save. This is **not**
-pre-write protection -- the write already happened. Press `Ctrl+C` to stop.
+Save a file and Anvil reports findings after the save. This is **not** pre-write
+protection -- the write already happened. Press `Ctrl+C` to stop.
 
 ```bash
 anvil watch --plans        # Watch planning documents only
@@ -166,8 +166,8 @@ anvil auth login           # Device-code flow
 anvil auth login --otp     # Email OTP
 ```
 
-Anvil's local protection works without sign-in; auth is for online-only
-features such as update checks.
+Anvil's local protection works without sign-in; auth is for online-only features
+such as update checks.
 
 ---
 
@@ -175,29 +175,29 @@ features such as update checks.
 
 We are especially interested in feedback on these areas in `0.6.0-beta`:
 
-| Area                                          | What to try                                                                                                |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Wow-start activation (`anvil start`)**      | Does the first minute land? Does the printed protection state match what is actually wired?                |
-| **MCP catch via Cursor / Claude Code**        | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?   |
-| **Activation states copy (no over-claim)**    | If activation reports `needs_action` or `unsupported`, is the explanation specific and the next step real? |
-| **Language profile honesty**                  | If your repo is mostly Python or Rust, does the activation summary name the gap instead of pretending?    |
-| **Tutorial experience (`ProtectionLoop`)**    | Is the protection-loop walk clear? Does it leave you in a useful state?                                    |
-| **`anvil version`**                           | Does it correctly identify your install method and print the right upgrade command?                       |
-| **Watch fallback**                            | When MCP can't attach, does `anvil watch --source` / `anvil start --watch` produce useful save-time signal? |
+| Area                                       | What to try                                                                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **Wow-start activation (`anvil start`)**   | Does the first minute land? Does the printed protection state match what is actually wired?                 |
+| **MCP catch via Cursor / Claude Code**     | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?    |
+| **Activation states copy (no over-claim)** | If activation reports `needs_action` or `unsupported`, is the explanation specific and the next step real?  |
+| **Language profile honesty**               | If your repo is mostly Python or Rust, does the activation summary name the gap instead of pretending?      |
+| **Tutorial experience (`ProtectionLoop`)** | Is the protection-loop walk clear? Does it leave you in a useful state?                                     |
+| **`anvil version`**                        | Does it correctly identify your install method and print the right upgrade command?                         |
+| **Watch fallback**                         | When MCP can't attach, does `anvil watch --source` / `anvil start --watch` produce useful save-time signal? |
 
 ## Known Limitations
 
 - **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
   install, and Copilot / Codex CLI integration are explicitly out of scope.
 - **`anvil intercept status` works on every supported target.** The Unix path
-  speaks the UDS IPC; the Windows path drives the same wire shape over the
-  named pipe and `--json` returns the same `DaemonStatusV1` on either OS. The
+  speaks the UDS IPC; the Windows path drives the same wire shape over the named
+  pipe and `--json` returns the same `DaemonStatusV1` on either OS. The
   remaining Windows gap is in the MCP correlation envelope only:
   `correlation.daemonStatus` returned by `anvil_validate_write` is always
   `not-wired` on Windows in this cut, tracked under `chore/windows-status`.
 - **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
-  -- backgrounding is not a v1 surface. Operators running under systemd / launchd
-  should run foreground under the manager's supervision.
+  -- backgrounding is not a v1 surface. Operators running under systemd /
+  launchd should run foreground under the manager's supervision.
 - **Fences survive daemon restart.** The `anvil intercept stop` and
   `anvil intercept unblock` CLI subcommands are not wired in v1 (a follow-up
   INTD task tracks the front-end). Recovery is: stop the foreground daemon
@@ -208,8 +208,8 @@ We are especially interested in feedback on these areas in `0.6.0-beta`:
   the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recover
   the same way as above: stop the daemon and remove the fence directory.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
-  not mean the Windows target was tested for that change. File Windows bugs
-  with that caveat noted.
+  not mean the Windows target was tested for that change. File Windows bugs with
+  that caveat noted.
 - **Gate checks** -- some gates (policy, OPA/Rego) require external tools.
 - **First-run performance** -- the initial scan may be slower while caches are
   built.
@@ -232,22 +232,22 @@ Found a bug or have feedback?
 
 ## Quick Reference
 
-| Command                                        | Purpose                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------- |
-| `anvil start`                                  | Activate protection: init + scan + MCP install                |
-| `anvil start --verify`                         | Read-only activation probe (no writes)                        |
-| `anvil start --watch`                          | Activate, then run the save-time watch fallback               |
-| `anvil mcp install --client cursor`            | Install MCP entry for Cursor only                             |
-| `anvil mcp install --client claude-code`       | Install MCP entry for Claude Code only                        |
-| `anvil status --verify`                        | Read-only activation probe (same backend as `start --verify`) |
-| `anvil version`                                | Current and latest version, plus install-aware upgrade hint   |
-| `anvil tutorial`                               | Interactive protection-loop walk-through                      |
-| `anvil watch --source`                         | Save-time watch fallback                                      |
-| `anvil check --all`                            | Scan entire codebase                                          |
-| `anvil doctor`                                 | Diagnostics and troubleshooting                               |
-| `anvil policy explain <id>`                    | Understand a policy rule                                      |
-| `anvil gate`                                   | Run quality gates                                             |
-| `anvil --help`                                 | See all commands                                              |
+| Command                                  | Purpose                                                       |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| `anvil start`                            | Activate protection: init + scan + MCP install                |
+| `anvil start --verify`                   | Read-only activation probe (no writes)                        |
+| `anvil start --watch`                    | Activate, then run the save-time watch fallback               |
+| `anvil mcp install --client cursor`      | Install MCP entry for Cursor only                             |
+| `anvil mcp install --client claude-code` | Install MCP entry for Claude Code only                        |
+| `anvil status --verify`                  | Read-only activation probe (same backend as `start --verify`) |
+| `anvil version`                          | Current and latest version, plus install-aware upgrade hint   |
+| `anvil tutorial`                         | Interactive protection-loop walk-through                      |
+| `anvil watch --source`                   | Save-time watch fallback                                      |
+| `anvil check --all`                      | Scan entire codebase                                          |
+| `anvil doctor`                           | Diagnostics and troubleshooting                               |
+| `anvil policy explain <id>`              | Understand a policy rule                                      |
+| `anvil gate`                             | Run quality gates                                             |
+| `anvil --help`                           | See all commands                                              |
 
 ## Next Steps
 

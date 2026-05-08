@@ -12,16 +12,15 @@ practices.
 
 :::info Trust boundary in v0.6.0-beta
 
-The Anvil daemon and driver framework run a **same-UID, local-IPC trust
-model** in `v0.6.0-beta`. Owner-only Unix domain sockets (`0700` parent
-directory, `0600` socket file) and an owner-only Windows named pipe with
-remote clients rejected enforce that boundary at the transport layer. There
-is no remote / cross-UID surface, no TLS, and no signed manifests in v1. For
-the four HIGH trade-offs the release council surfaced inside that boundary —
-allowlist file-mode verification, unsalted SHA-256 redaction hash, spec-only
-§4.4 redaction filter for non-`validate_write` MCP tools, and the Linux
-PID-reuse TOCTOU window / macOS fence-on-uncertainty interrupt ladder — see
-the
+The Anvil daemon and driver framework run a **same-UID, local-IPC trust model**
+in `v0.6.0-beta`. Owner-only Unix domain sockets (`0700` parent directory,
+`0600` socket file) and an owner-only Windows named pipe with remote clients
+rejected enforce that boundary at the transport layer. There is no remote /
+cross-UID surface, no TLS, and no signed manifests in v1. For the four HIGH
+trade-offs the release council surfaced inside that boundary — allowlist
+file-mode verification, unsalted SHA-256 redaction hash, spec-only §4.4
+redaction filter for non-`validate_write` MCP tools, and the Linux PID-reuse
+TOCTOU window / macOS fence-on-uncertainty interrupt ladder — see the
 [v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-security-note.md).
 
 :::

@@ -15,11 +15,11 @@ All notable changes to anvil are documented here.
 
 ### Added
 
-- **`anvil start` activation entrypoint** — `install → cd repo → anvil start`
-  is now the canonical first minute. `anvil start` was previously a clap alias
-  for `welcome`; it is now the dedicated activation command, with `--verify`
-  for a read-only protection probe and `--watch` to opt into the save-time
-  fallback when MCP cannot attach.
+- **`anvil start` activation entrypoint** — `install → cd repo → anvil start` is
+  now the canonical first minute. `anvil start` was previously a clap alias for
+  `welcome`; it is now the dedicated activation command, with `--verify` for a
+  read-only protection probe and `--watch` to opt into the save-time fallback
+  when MCP cannot attach.
 - **Activation protection states** — `protecting`, `ready_restart_required`,
   `watching`, `needs_action`, `unsupported`, and `error` are now the single
   shared vocabulary across `anvil start`, `anvil status --verify`,
@@ -29,17 +29,17 @@ All notable changes to anvil are documented here.
   picker when both clients are present. Windsurf, VS Code, and HTTP-transport
   flows remain on `anvil mcp-config`.
 - **Daemon-backed `anvil_validate_write` MCP tool** — the MCP pre-write
-  validation path now routes through the local daemon over owner-only IPC
-  (Unix domain socket on Linux/macOS; named-pipe listener on Windows). The
-  embedded validation pipeline remains as a correctness-equivalent fallback
-  when the daemon is not reachable.
+  validation path now routes through the local daemon over owner-only IPC (Unix
+  domain socket on Linux/macOS; named-pipe listener on Windows). The embedded
+  validation pipeline remains as a correctness-equivalent fallback when the
+  daemon is not reachable.
 - **Repo language profile** — `anvil start`, scan, and watch now honour a
   per-repository language profile so coverage claims are honest. TypeScript is
   the supported tier in `0.6.0-beta`; SQL and Markdown are partial; Python and
   Rust are reported as unsupported instead of silently skipped. Cross-language
   checks (secrets) continue to run on all files.
-- **Protection-loop tutorial** — the default tutorial path now walks through
-  the protection loop end-to-end: protection-loop intro, fixture description,
+- **Protection-loop tutorial** — the default tutorial path now walks through the
+  protection loop end-to-end: protection-loop intro, fixture description,
   simulated check, activation-state vocabulary, and a real
   `anvil start --verify` run. The four legacy paths (Policy, Architecture,
   Drift, CI) remain available.
@@ -53,60 +53,60 @@ All notable changes to anvil are documented here.
   Linux build performs via `SO_PEERCRED`. macOS deployments are now at parity
   with Linux on the daemon trust boundary.
 - **Windows named-pipe daemon listener and CLI status client** — the daemon
-  listener ships on Windows with an owner-only DACL and rejected remote
-  clients, and `anvil intercept status` ships its synchronous Win32 client
-  via `connect_owner_only_pipe_client` so `--json` returns the same
-  `DaemonStatusV1` shape on Unix and Windows.
-- **`anvil intercept status`** — operator status surface for the daemon over
-  the local IPC on every supported target, returning sessions, fences,
-  latency, and uptime per the RTAI demo runbook contract.
+  listener ships on Windows with an owner-only DACL and rejected remote clients,
+  and `anvil intercept status` ships its synchronous Win32 client via
+  `connect_owner_only_pipe_client` so `--json` returns the same `DaemonStatusV1`
+  shape on Unix and Windows.
+- **`anvil intercept status`** — operator status surface for the daemon over the
+  local IPC on every supported target, returning sessions, fences, latency, and
+  uptime per the RTAI demo runbook contract.
 
 ### Changed
 
 - **Foreground daemon is the only supported launch mode in v1** — start the
-  daemon with `anvil intercept start --foreground`. Service-manager
-  integration should run the daemon under foreground supervision. The
-  `anvil intercept stop` CLI subcommand is not wired in v1; stop the
-  daemon with Ctrl-C in its terminal, or SIGTERM by PID externally.
-- **`anvil intercept status` works cross-platform** — Unix speaks the UDS
-  IPC; Windows drives the same wire shape over the named pipe. The
-  remaining Windows gap is in the MCP correlation envelope only:
-  `correlation.daemonStatus` returned by `anvil_validate_write` is always
-  `not-wired` on Windows because the MCP daemon validation client is gated
-  `cfg(unix)`. The narrower MCP fix lands as part of `chore/windows-status`.
+  daemon with `anvil intercept start --foreground`. Service-manager integration
+  should run the daemon under foreground supervision. The `anvil intercept stop`
+  CLI subcommand is not wired in v1; stop the daemon with Ctrl-C in its
+  terminal, or SIGTERM by PID externally.
+- **`anvil intercept status` works cross-platform** — Unix speaks the UDS IPC;
+  Windows drives the same wire shape over the named pipe. The remaining Windows
+  gap is in the MCP correlation envelope only: `correlation.daemonStatus`
+  returned by `anvil_validate_write` is always `not-wired` on Windows because
+  the MCP daemon validation client is gated `cfg(unix)`. The narrower MCP fix
+  lands as part of `chore/windows-status`.
 - **Fences persist across daemon restart by design** — the
   `anvil intercept unblock` CLI subcommand is not wired in v1 (the
   `FenceStore::unblock_worktree` daemon-side data path ships, but the CLI
-  front-end is a follow-up INTD task). Recovery is to stop the foreground
-  daemon (Ctrl-C, or SIGTERM by PID) and remove the fence directory at
-  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. The fence file is the
-  source of truth and survives daemon crashes, restarts, and reboots.
+  front-end is a follow-up INTD task). Recovery is to stop the foreground daemon
+  (Ctrl-C, or SIGTERM by PID) and remove the fence directory at
+  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. The fence file is the source of
+  truth and survives daemon crashes, restarts, and reboots.
 - **macOS interrupt ladder is fence-first in this release** — the
   `current_process_start_time` helper has a Linux branch only, so the macOS
-  interrupt path falls through to a fence-on-uncertainty path instead of
-  running the SIGINT → SIGTERM → SIGKILL ladder. Recovery is the same
-  daemon-stop + fence-directory removal as above.
+  interrupt path falls through to a fence-on-uncertainty path instead of running
+  the SIGINT → SIGTERM → SIGKILL ladder. Recovery is the same daemon-stop +
+  fence-directory removal as above.
 
 ### Fixed
 
-- **MCP restart handshakes** — activation now waits for the MCP client's
-  restart handshake before claiming `ready_restart_required` is resolved, so
-  the next status read reflects the real connected state.
-- **Activation denylist alignment** — the activation pre-scan now uses the
-  same file filter as `anvil-checks`, so the first-signal walk does not
-  surface findings the steady-state scan would skip.
+- **MCP restart handshakes** — activation now waits for the MCP client's restart
+  handshake before claiming `ready_restart_required` is resolved, so the next
+  status read reflects the real connected state.
+- **Activation denylist alignment** — the activation pre-scan now uses the same
+  file filter as `anvil-checks`, so the first-signal walk does not surface
+  findings the steady-state scan would skip.
 
 ### Improved
 
 - **Activation baseline** — old findings are baselined before the first
-  activation signal so the first genuine save produces a real signal rather
-  than a long pre-existing list.
+  activation signal so the first genuine save produces a real signal rather than
+  a long pre-existing list.
 - **Honest watch fallback** — when MCP cannot pre-write attach, `anvil start`
   surfaces partial-protection messaging and offers the watch-mode fallback
   explicitly instead of pretending the activation succeeded.
 - **Public docs refresh** — install, quickstart, and the broader public Anvil
-  docs were aligned with the activation-first first-minute and the
-  daemon-backed MCP path.
+  docs were aligned with the activation-first first-minute and the daemon-backed
+  MCP path.
 
 ## [0.5.1-beta] — 2026-05-03 — Scanner Signal & TUI Hotfixes
 

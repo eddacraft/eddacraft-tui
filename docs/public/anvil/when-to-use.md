@@ -13,8 +13,8 @@ right tool.
 
 :::tip Trying it now?
 
-For the install-to-protection flow, run `anvil start` from your repo root —
-it wires Cursor or Claude Code MCP entries and ends in one literal protection
+For the install-to-protection flow, run `anvil start` from your repo root — it
+wires Cursor or Claude Code MCP entries and ends in one literal protection
 state. See the [Quickstart](/anvil/quickstart) for the full walk-through.
 
 :::
@@ -39,8 +39,8 @@ anvil shines when you have intentional architectural boundaries:
 
 When the MCP path is wired (Cursor or Claude Code), anvil's
 `anvil_validate_write` tool runs **before** the AI's writes. When MCP pre-write
-attach is not available, watch mode is the save-time fallback. If you only
-want CI-time validation, you can use anvil in CI mode — but you lose the
+attach is not available, watch mode is the save-time fallback. If you only want
+CI-time validation, you can use anvil in CI mode — but you lose the
 developer-experience benefit.
 
 ### You value deterministic records
