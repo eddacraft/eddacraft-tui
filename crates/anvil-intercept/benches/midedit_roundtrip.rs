@@ -120,6 +120,8 @@ use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
 #[cfg(unix)]
 use anvil_intercept::Shutdown;
 #[cfg(unix)]
+use anvil_intercept::dos::IpcLimits;
+#[cfg(unix)]
 use anvil_intercept::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipeline};
 #[cfg(unix)]
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
@@ -511,9 +513,25 @@ impl RoundtripHarness {
             .expect("secure tempdir permissions");
         let socket = tmp.path().join("intercept.sock");
         let scan_buffer = ScanBufferService::default();
+        // INTD-016 IPC DoS budgets (100 req/s sustained, 1000 burst)
+        // are sized for production drivers, not for the tight loop a
+        // criterion bench drives over a single persistent connection.
+        // The bench runs thousands of iterations per sample; the
+        // production budget trips with `-32005 Server busy` and
+        // panics the harness at line 551. Lift the per-connection
+        // budget to effectively unbounded so the bench measures the
+        // path it cares about (rule evaluation + transport) instead
+        // of measuring rate-limit error frames. Production daemon
+        // continues using the default budget.
+        let bench_limits = IpcLimits {
+            rps_sustained: f64::MAX,
+            rps_burst: u32::MAX,
+            ..IpcLimits::default()
+        };
         let listener =
             IpcListener::bind_with_scan_buffer_service(&socket, NoopDispatcher, scan_buffer)
-                .expect("bind listener");
+                .expect("bind listener")
+                .with_limits(bench_limits);
         let (shutdown, token) = Shutdown::new();
         let handle = tokio::spawn(async move { listener.serve(token).await });
         Self {
