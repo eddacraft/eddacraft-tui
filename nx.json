@@ -22,7 +22,6 @@
       "{workspaceRoot}/.github/workflows/ci.yml",
       "{workspaceRoot}/.github/workflows/rust.yml",
       "{workspaceRoot}/.github/actions/setup-workspace/**",
-      "{workspaceRoot}/tools/nx-rust/**/*",
       "{workspaceRoot}/package.json",
       "{workspaceRoot}/pnpm-lock.yaml",
       "{workspaceRoot}/pnpm-workspace.yaml",
@@ -68,7 +67,7 @@
       }
     },
     {
-      "plugin": "@eddacraft/nx-rust"
+      "plugin": "@eddacraft/nxrust"
     }
   ],
   "targetDefaults": {

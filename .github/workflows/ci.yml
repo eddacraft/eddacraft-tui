@@ -97,19 +97,6 @@ jobs:
       - name: Build ESLint plugin (required by lint rules)
         run: pnpm exec nx run eslint-plugin-anvil:build
 
-      # Catches src/ edits that didn't rebuild dist/. Vendored Nx plugin
-      # is loaded at startup, so stale dist would silently run wrong code.
-      # See tools/nx-rust/SPLIT.md for context.
-      - name: Verify nx-rust dist matches src
-        run: |
-          pnpm --filter @eddacraft/nx-rust build
-          if ! git diff --quiet -- tools/nx-rust/dist/; then
-            echo "::error::tools/nx-rust/dist/ is out of sync with src/."
-            echo "Run 'cd tools/nx-rust && pnpm build' locally and commit the result."
-            git --no-pager diff --stat -- tools/nx-rust/dist/
-            exit 1
-          fi
-
       - name: Run lint (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -250,7 +237,7 @@ jobs:
       # Rust crates are excluded here because the dedicated Rust workflow
       # (.github/workflows/rust.yml) already runs `cargo check` / `cargo test`
       # / `cargo clippy` / `cargo fmt` against the workspace. Once the
-      # @eddacraft/nx-rust plugin landed, all 9 crates became Nx projects
+      # nxrust landed, all 9 crates became Nx projects
       # with `test` targets, so this job started double-running them — and
       # the runner ran out of disk during Nx's workspace-data SQLite write.
       - name: Run unit tests (affected on PRs, all on push)
@@ -276,7 +263,7 @@ jobs:
             pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
               -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           else
-            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/nx-rust --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
+            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
               -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
           fi
 
