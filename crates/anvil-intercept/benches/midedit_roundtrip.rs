@@ -517,12 +517,12 @@ impl RoundtripHarness {
         // are sized for production drivers, not for the tight loop a
         // criterion bench drives over a single persistent connection.
         // The bench runs thousands of iterations per sample; the
-        // production budget trips with `-32005 Server busy` and
-        // panics the harness at line 551. Lift the per-connection
-        // budget to effectively unbounded so the bench measures the
-        // path it cares about (rule evaluation + transport) instead
-        // of measuring rate-limit error frames. Production daemon
-        // continues using the default budget.
+        // production budget trips with `-32005 Server busy`, which the
+        // response assertion in `run_one` (below) panics on. Lift the
+        // per-connection budget to effectively unbounded so the bench
+        // measures the path it cares about (rule evaluation + transport)
+        // instead of measuring rate-limit error frames. Production
+        // daemon continues using the default budget.
         let bench_limits = IpcLimits {
             rps_sustained: f64::MAX,
             rps_burst: u32::MAX,
