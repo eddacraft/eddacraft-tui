@@ -3,7 +3,7 @@
   "name": "@eddacraft/anvil-checks-native",
   "targets": {
     "test": {
-      "executor": "@eddacraft/nx-rust:test",
+      "executor": "@eddacraft/nxrust:test",
       "cache": true,
       "outputs": ["{options.target-dir}", "{workspaceRoot}/target"],
       "options": {
