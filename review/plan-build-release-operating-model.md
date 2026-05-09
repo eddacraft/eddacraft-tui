@@ -581,8 +581,9 @@ release gate a CI readiness workflow keyed by SHA:
 gh workflow run release-readiness.yml -f sha=<main-sha> -f scope=patch
 ```
 
-The release skill should read that workflow result instead of asking whether a
-local script passed.
+`release-readiness.yml` is a proposed workflow to be added during the migration,
+not a command that exists today. The release skill should read that workflow
+result instead of asking whether a local script passed once the workflow exists.
 
 ### Build Artefacts Earlier Without Publishing
 
@@ -697,11 +698,15 @@ Recommended worktree policy:
 
 Recommended local command split:
 
-- `pnpm verify:fast`: format, lint, affected typecheck/tests.
-- `pnpm verify:full`: full TS checks.
-- `cargo xtask verify`: full Rust checks and policy tests, or equivalent.
+- `pnpm verify:fast`: proposed alias for format, lint, affected typecheck/tests.
+- `pnpm verify:full`: proposed alias for full TS checks.
+- `cargo xtask verify`: proposed Rust verification wrapper, or equivalent.
 - `./scripts/release.sh`: retained as local release readiness mirror, but not
   the authoritative gate.
+
+Current repo commands remain `pnpm format:check`, `pnpm lint:check`,
+`pnpm typecheck`, `pnpm test`, and `pnpm run lint:rust` until those aliases or
+wrappers are implemented.
 
 ## Recovery / Rollback Flows
 
