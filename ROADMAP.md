@@ -79,8 +79,8 @@ without thinking about it.
   network-blocked sandbox.
 
 **Hard release gate.** A protection-claim contract test suite pins the closed
-set of states the user can be in
-(`unprotected | warming | pre-write-only | save-time-only | full | degraded | cross-boundary-mixed | path-uncertain`).
+set of states the user can be in:
+`unprotected | warming | pre-write-embedded | pre-write-daemon | save-time-only | full | degraded-protection | cross-boundary-mixed | multi-daemon-detected | path-uncertain`.
 No item ships until every state is reachable in fixtures and rendered claims
 match.
 

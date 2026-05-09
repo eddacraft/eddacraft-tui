@@ -179,8 +179,8 @@ holds the full wave plan, parallelisation map, and dependency graph.
   sandbox.
 
 **Hard release gate.** **MLP-009** — protection-claim contract test
-suite. Pinned states (`unprotected | warming | pre-write-only |
-save-time-only | full | degraded | cross-boundary-mixed | path-uncertain`)
+suite. Pinned states
+(`unprotected | warming | pre-write-embedded | pre-write-daemon | save-time-only | full | degraded-protection | cross-boundary-mixed | multi-daemon-detected | path-uncertain`)
 must all be reachable in fixtures and rendered claims must match.
 **No MLP item ships Complete in `index.aps.md` until that suite is
 green.**

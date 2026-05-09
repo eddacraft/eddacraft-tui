@@ -673,7 +673,10 @@ session-registry consumers no real ingress.
 ### N3. Carry-forward gates (must close before headline ships)
 
 These are not new work — they are pre-positioning A7 defined for the current
-release. They **must be Accepted / merged before any N1 item lands.**
+release. They **must be Accepted / merged before any code-emitting N1 item
+beyond the MLP-001 minimal project-id slice lands.** G2 below is itself the
+MLP-001 minimal slice landing as A7.2 carry-forward inside the current release;
+the gate is on the rest of N1, not on G2.
 
 | ID  | Gate                                                                                          | Source                | Why blocking                                                                         |
 | --- | --------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------ |
