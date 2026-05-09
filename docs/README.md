@@ -11,6 +11,12 @@ developers.
 | `plans/`       | **Source of truth** for all planning |
 | `docs/public/` | Public-facing documentation          |
 
+## Authority Model
+
+See [guides/documentation-governance.md](guides/documentation-governance.md) for
+the canonical documentation authority model, docs-workflow skill shape, and
+closeout protocol.
+
 ## Structure
 
 ```
@@ -46,6 +52,8 @@ docs/
 
 ### Development
 
+- [guides/documentation-governance.md](guides/documentation-governance.md) —
+  Documentation authority model and agent closeout protocol
 - [guides/testing.md](guides/testing.md) — Test strategy and practices
 - [testing/beta-user-test-scenarios.md](testing/beta-user-test-scenarios.md) —
   Beta tester facilitator script

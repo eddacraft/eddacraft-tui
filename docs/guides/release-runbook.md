@@ -9,9 +9,9 @@ but deterministic work belongs to `scripts/release/*` commands.
 
 Do not hand-edit release state during a normal release.
 
-If a deterministic command fails, fix that command or use its recovery mode. Only
-perform manual recovery when the operator explicitly approves it, and log the
-manual steps in the release tracking issue.
+If a deterministic command fails, fix that command or use its recovery mode.
+Only perform manual recovery when the operator explicitly approves it, and log
+the manual steps in the release tracking issue.
 
 ## Required Tools
 
@@ -90,8 +90,8 @@ bash scripts/release/promote.sh \
   --strategy <direct|stabilisation>
 ```
 
-If the command opens a PR, review and merge it through GitHub. Re-run the command
-after merge so it records the merged state.
+If the command opens a PR, review and merge it through GitHub. Re-run the
+command after merge so it records the merged state.
 
 ### 5. Tag
 
@@ -181,7 +181,8 @@ When a command fails:
 2. Read the command output.
 3. Choose one path: retry after fix, run command recovery mode, skip with
    issue-log justification, or abort.
-4. Do not manually perform the failed command's job unless this is emergency recovery.
+4. Do not manually perform the failed command's job unless this is emergency
+   recovery.
 
 ## Emergency Recovery
 

@@ -33,7 +33,8 @@ SAST, not a faster scanner.
 Latest standard benchmark snapshot from `cargo bench -p anvil-bench` on deus:
 
 - **Parallel anti-pattern scan** — ~842K–877K elements/sec
-- **Secret scan parallel rollout** — ~3.60K–3.79K elements/sec (~7x faster than serial)
+- **Secret scan parallel rollout** — ~3.60K–3.79K elements/sec (~7x faster than
+  serial)
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)

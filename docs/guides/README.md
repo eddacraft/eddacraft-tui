@@ -26,6 +26,8 @@ How-to guides for developers working on Anvil.
 
 - [Custom Architecture Policies](custom-architecture-policies.md) — Writing
   custom OPA policies
+- [Documentation Governance](documentation-governance.md) — Documentation
+  authority model, docs-workflow shape, and closeout protocol
 
 ### Testing & Workflow
 
@@ -39,7 +41,8 @@ How-to guides for developers working on Anvil.
 ### CLI
 
 - [CLI Output Streams](cli-output-streams.md) — CLI output and stream handling
-- [Release Runbook](release-runbook.md) — Release process and checklist
+- [Release Runbook](release-runbook.md) — Operational release runbook retained
+  here during the DOCGOV migration
 - [Release Doc Checklist](release-doc-checklist.md) — Documentation sync
   checklist per release
 
@@ -48,7 +51,7 @@ How-to guides for developers working on Anvil.
 ### For New Contributors
 
 1. Start with [Project README](../../README.md)
-2. Review [Architecture](../architecture/overview.md)
+2. Review [Architecture](../architecture/README.md)
 3. Read [Testing Guide](testing.md)
 
 ### For Building Adapters

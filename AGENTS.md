@@ -57,6 +57,44 @@ that touches system boundaries, check existing decisions first:
 When introducing a new architectural decision, follow
 `docs/guides/adr-process.md` and add the entry to the decision log.
 
+## Documentation Governance
+
+Documentation is executable context for humans and agents. Treat documentation
+changes as operational changes, not prose cleanup.
+
+### Authority model
+
+The canonical documentation authority model lives in
+`docs/guides/documentation-governance.md`. Agent-facing summary:
+
+- APS files authorise and track work.
+- ADRs explain durable architectural decisions and trade-offs.
+- Source code, schemas, tests, and generated artefacts are implementation truth.
+- As-built docs map what is currently shipping and must cite source references.
+- Runbooks define operational procedures and must stay executable.
+- Guides explain development practice and must not duplicate source truth.
+- Public docs describe user-facing behaviour and must match release state.
+- Archived docs are historical unless an active doc explicitly cites them.
+
+### Mandatory docs closeout
+
+When changing `docs/**`, `plans/**`, `README.md`, `CONTRIBUTING.md`,
+`AGENTS.md`, or package/crate READMEs, agents MUST complete documentation
+closeout before the final response:
+
+1. Classify each changed document by type and authority.
+2. Check whether APS, ADRs, as-built docs, runbooks, guides, public docs, or
+   READMEs need cross-link updates.
+3. Update required indexes, especially `plans/index.aps.md`,
+   `plans/decisions/DECISION-LOG.md`, and local README indexes.
+4. Mark stale or superseded information inline, or track unresolved drift in
+   APS.
+5. Run the relevant validation command, or state why it was not run.
+6. Include a short `Docs Closeout` note in the final response.
+
+Use `docs/guides/documentation-governance.md` for the documentation workflow,
+authority routing, and closeout checklist.
+
 ## Repository Operations — gx
 
 Use `gx` for all repository management. Never use raw `git clone`.
