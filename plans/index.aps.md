@@ -99,6 +99,30 @@ version: **`v0.6.0-beta`**. A2 Wave 4 is explicitly out of cut per ADR-033
 | Release nominations + as-built sweep follow-ups | In Progress | V060F 2/25 | V060F-001 (RCLI2-009 admin command parity) complete; V060F-025 OPA runtime pin bumped to 1.16.1 for v0.6.0-beta; V060F-002..V060F-024 filed 2026-05-07 from the v0.6.0-beta as-built sweep — batch 1 (intercept / activation / MCP / checks / kernel) covers CLI gaps, macOS interrupt branch, activation hand-offs, kernel spec divergences; batch 2 (TUI / driver framework / API / observability) adds 8 spec-only JSON-RPC methods, panic-isolation profile drift, reliability-budget persistence, namespace registry partial wiring, observability dead code, and admin-cli retirement; batch 3 (tutorial / widgets / CLI TUI runner / adapter packages) adds CLI TUI runner panic-safety, tutorial legacy-path drift + invariant gap, APS public schema drift, small doc/version drift, archive/eddacraft-tui-local/ clarification |
 | Multi-layer protection | Proposed | MLP 0/17 | Spec [`2026-05-07-anvil-multilayer-protection-architecture.md`](./specs/2026-05-07-anvil-multilayer-protection-architecture.md) + ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md) (rewritten), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [039](./decisions/039-baseline-policy-and-hard-pinned-classes.md). MLP-009 protection-claim contract suite is the hard release gate. |
 
+### Next window (proposed) — _post-`v0.6.0-beta` daemon-working slate_
+
+The next planning window opens after `v0.6.0-beta` tags. **Theme:** _Daemon
+working end-to-end_ — `anvil start` lands a real testable protection claim,
+hooks fire deterministically, the witness chain records every commit, baseline
+adoption works, `anvil-run` wraps agent processes. Target tag candidate:
+**`v0.7.0-beta`**.
+
+Source of truth for sequencing, waves, parallelisation, and dependencies:
+[`RELEASE-PLAN.md` → NEXT RELEASE WINDOW](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate).
+
+| Pick | Status | Progress | Notes |
+| ---- | ------ | -------- | ----- |
+| N1 — Multi-Layer Protection v1 (MLP) | Proposed | 0/17 | Witness chain + hooks + L4 policy + baseline + multi-agent coord + rule distribution. New crates: `anvil-witness`, `anvil-hook`, `anvil-l4`, `anvil-config`, `anvil-baseline`, `anvil-attribution`. **Hard gate: MLP-009.** |
+| N2 — Intercept Launcher v1 (INTL) | Draft | 0/9 | `anvil-run` wrapped-launch ingress. New crate: `anvil-run`. Coordinates `AgentTag` proto change with MLP-014. |
+| N3 — Carry-forward gates | Pending | 0/6 | G1 ADR-036/-037/-038/-039 Accepted; G2 `anvil/project-id`; G3 noise-discipline audit; G4 AIGUARD envelope re-run; G5 INTR-004 promotion; G6 DRVR forward-compat verification. |
+| N4 — Documentation lanes | Pending | 0/6 | Adoption / air-gap / witness-chain / hooks-integration runbooks; migration note; INTL manpage. |
+
+**Window risk:** MLP-002 (witness chain primitive) is the single point of
+failure — every downstream lane reads/writes against it. Spike-first as a
+standalone PR (flock + DAG verification + 80-parallel-hook test) before any
+hook lane starts. See RELEASE-PLAN.md "Daemon-backbone" combo for the recovery
+shape if the spike reveals risk.
+
 ### Last release — `v0.5.0-beta` (shipped 2026-05-01)
 
 The slate below shipped as `v0.5.0-beta` on 2026-05-01. Tables are retained
@@ -649,8 +673,9 @@ INTD/INTR/INTL/DRVR work is queued after the launch shim.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Complete | 16/16 (A1 slice: INTD-001/-002/-003/-005/-007/-013/-014; A2 Wave 1: INTD-008/-012/-015 (PRs #1305/#1306); A2 Wave 2: INTD-004/-006/-009/-010/-016 (PR #1308); A2 Wave 3: INTD-011 (PR #1309)) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 4/8 | anvil-checks, GV2 later for hot-read rules only |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD; coordinates `AgentTag` proto with MLP-014 in next-release window |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 4/8 | anvil-checks, GV2 later for hot-read rules only; INTR-004 promoted to N3 G5 (next-release gate) |
+| [multilayer-protection](./modules/multilayer-protection.aps.md) | MLP | Proposed | 0/17 | INTD, DRVR, RMCP/RMCPF, RTAI, anvil-checks, kindling-integration, anvil-cli activation/init/baseline; ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md) (rewritten), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [039](./decisions/039-baseline-policy-and-hard-pinned-classes.md). **MLP-009 hard release gate**; sits on top of INTD/DRVR. Sequenced as N1 in [next-release window](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate). |
 | [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Complete | 5/5 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 Complete (PR #1304: auth.rs trust boundary v1); DRVR-006 Complete (PR #1304: option-(b) Distinguish recorded); DRVR-001 Complete (PR #1307: shared TS driver client); DRVR-002 Complete (PR #1310: editor-driver protocol design + capability negotiation); DRVR-008 Complete (PR #1310: capability negotiation + manifest method advertisement) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-003 deferred per ADR-033; DRVR-005 (architecture cross-links) remains Draft pending DRVR-003 un-pause |
 
 **Architecture Decisions:**

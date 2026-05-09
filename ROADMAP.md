@@ -1,9 +1,11 @@
 # Anvil Roadmap
 
-**Last updated:** 2026-05-01 (post `v0.5.0-beta` ship — Horizons 0–2 rebased)
+**Last updated:** 2026-05-09 (refresh — horizon-based, feature-level; rebased
+after `v0.6.0-beta` substrate locked and the daemon-working slate proposed)
 
-> Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of
-> release-slice candidates organised by readiness tier.
+> Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
+> slice candidates with waves, dependencies, and parallelisation.
+> Source of truth for module status: [`plans/index.aps.md`](./plans/index.aps.md).
 
 ## Mission
 
@@ -23,224 +25,181 @@ time.**
 - **Warnings over blocks.** Inform; let CI enforce if desired. Exit 0 by
   default.
 - **New edges only.** Baseline existing state; warn on new violations.
-- **Ship-now-with-pre-flight.** The hype phase funds the build. Sequence work
-  via cherry-pick; no time estimates on horizons.
-- **First-touch wow.** Onboarding/init/tutorial is the conversion moment — speed
-  - watcher + real-time validation differentiate.
+- **Defense in depth.** Each surface contributes the strongest layer it can;
+  layers compensate for one another's failure modes.
+- **Honest claim only.** Anvil never says "Protected" when a layer is
+  unverified. False confidence is the worst failure mode.
+- **Air-gapped by default.** Core operation requires no internet; cloud
+  services are opt-in amplifiers, never foundations.
+- **First-touch wow.** Onboarding is the conversion moment — the first minute
+  matters more than the next ten.
 
 ## Horizons
 
-The horizons are **ordered by sequence, not by date**. Each unlocks the next.
+Horizons are **ordered by sequence, not by date.** Each unlocks the next.
+Detailed work-item lists live in `plans/index.aps.md`; this roadmap names
+**capabilities and themes**.
 
-### Horizon 0 — Just Shipped (`v0.5.0-beta`, 2026-05-01)
+### Horizon 0 — Shipped to date
 
-`v0.5.0-beta` shipped the locked A1 + A2 + A3 + A4 slate as a single tagged
-release. The `release/v0.5.0-beta` branch has been merged back to `dev`; the
-current branch (`chore/post-release-clean`) carries the post-release planning
-sweep.
+| Tag           | Theme                                | Headline capability                                                                                                                                |
+| ------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.5.0-beta` | AI Guardrails & Mid-Edit Validation  | Real-time AI validation fires before save through the MCP launch shim. Validation backend was embedded fallback, not yet daemon-backed.            |
+| `v0.5.1-beta` | Scanner Signal & TUI Hotfixes        | Patch — secret/antipattern false-positive fixes, TUI zoom, audit env-template filtering, kernel import bug fixes.                                  |
+| `v0.6.0-beta` (locked, ready to tag) | Wow-Start Activation + Daemon-Backed RTV | `install → cd repo → anvil start` is the canonical first minute. MCP `tools/call` runs through the daemon when owner-only IPC is available, embedded path remains correctness-equivalent fallback. Driver framework + editor-driver protocol shipped. |
 
-What landed:
+### Horizon 1 — Daemon Working End-to-End (next release window)
 
-- **A1 — RTAI Spike Slice** (24 items across INTD, INTR, RMCP, RTAI). Real-time
-  AI validation fires before save through `anvil mcp serve --stdio`. The release
-  was validated **embedded-fallback-backed, not daemon-backed**: RMCP-005's
-  `DaemonValidationClient` defaults to `Unavailable` and MCP `tools/call` runs
-  through the embedded `anvil-checks` pipeline. Three GUI-dry-run gaps tracked
-  outside the contract: #1194 (`mcp install --command` override), #1195 (Claude
-  Code path mismatch), #1197 (clients ignore `anvil_validate_write` without
-  explicit prompt instruction).
-- **A2 — AIGUARD** (4 items). `anvil gate --profile ai` with the stable
-  `anvil.diagnostic.v1` envelope shared with RTAI / INTD / DRVR / RMCP.
-- **A3 — Release Engineering smallest-viable cut** (7 items): GHOOK-001,
-  ATTRIB-001/-002/-003, SCAN-001/-002/-003. ATTRIB-004..-011 and SCAN-004/-005
-  remain outside this release.
-- **A4 — Language Credibility Floor** (9 items): LANGTS-001/-003, OPSUP-001
-  check-ID registry slice, SURFENV-001..-006 (`.env` secret scanning).
-- **TRACE-001** — cross-cutting tracing baseline (anvil-observability crate, W3C
-  `traceparent` propagation, redaction layer, INTD-014 fixture). TRACE-002 (TS
-  mirror) and TRACE-003 (redaction hardening) are post-launch.
+**Theme:** Flip the daemon from "available when invoked" to "always-on,
+in-tree, defensible."
 
-Headline post-release follow-ups (foreground for the next release window):
+`v0.6.0-beta` ships the daemon + driver substrate. This horizon turns that
+substrate into a coherent end-to-end protection loop the user can rely on
+without thinking about it.
 
-- **Daemon-backed RMCP path** — replace RMCP-005's `Unavailable` stub with a
-  live JSON-RPC client; graduate MCP `tools/call` from the embedded fallback to
-  the daemon-backed pipeline. The daemon side (`scan_buffer` RPC, INTD-002
-  listener) is already in place.
-- **V050F** (`v050-release-followups`) — 8/16 done; 8 hardening items
-  outstanding (per-operator audit attribution, family-theft cascade,
-  `/admin/approve` flag-gate, allowlist regex compile cache, eager rayon pool
-  init, CI-class bench baseline, etc.).
-- **Latency CI gating** (#1191) — RTAI mid-edit baseline-comparison gating
-  against the recorded 7-case ADR-031 corpus. Until #1191 lands, regressions are
-  caught only by manual `cargo bench` runs.
-- **TSRET-005 execution** — archive the TS scanner / TS suppression parser /
-  parity harness to `archive/anvil-ts-scanner/` per ADR-033. Unblocked but not
-  executed pre-release.
+**Capabilities delivered:**
 
-### Horizon 1 — Daemon-Backed RTV + Driver Reach (next release, slate not yet locked)
+- **Witness chain.** Per-commit, hash-chained, in-tree proof of which layers
+  fired. Travels via git, survives `git worktree add`, tamper-detectable.
+- **Hook surface.** Pre-commit, pre-push, post-commit / -merge / -rewrite.
+  Self-contained binary, framework-agnostic (husky, lefthook, pre-commit-
+  framework, plain). Silent on success, terse on failure.
+- **L4 policy framework.** Per-branch rules with server-side fallback for
+  unwitnessed commits; legacy acceptance via `cutoff_commit`.
+- **Baseline adoption.** Existing repos adopt Anvil without a wash of
+  warnings. Hard-pinned classes (`secrets`, `command-safety`) cannot be
+  config-disabled.
+- **Multi-agent coordination.** Per-task fence isolation so one bad sub-agent
+  doesn't cascade-fence a whole worktree. `AgentTag` composite session key.
+- **Wrapped-launch ingress (`anvil-run`).** Agent processes register sessions
+  before spawn; PGIDs / Job Objects let the daemon target interrupts;
+  drop-guard cleanup on exit.
+- **L5 audit.** Periodic re-scan of mainline for drift detection — catches
+  what bypassed L0–L4 (admin overrides, force-pushes).
+- **Air-gapped operation guarantee.** Every core command tested under a
+  network-blocked sandbox.
 
-**Theme: graduate real-time AI validation from embedded fallback to the
-daemon-backed pipeline, and bring at least one editor / second-MCP surface
-online.**
+**Hard release gate.** A protection-claim contract test suite pins the closed
+set of states the user can be in (`unprotected | warming | pre-write-only |
+save-time-only | full | degraded | cross-boundary-mixed | path-uncertain`).
+No item ships until every state is reachable in fixtures and rendered claims
+match.
 
-`v0.5.0-beta` proved the demo with the embedded `anvil-checks` pipeline behind
-the MCP launch shim. The next release closes the daemon path end-to-end and
-starts the driver-reach story:
+**Tag candidate:** `v0.7.0-beta`. Detailed sequencing, waves, and
+parallelisation in
+[RELEASE-PLAN.md → NEXT RELEASE WINDOW](./RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate).
 
-- **Daemon-backed RMCP** — wire the live JSON-RPC client; verify the
-  daemon-backed `tools/call` matches the embedded fallback envelope (RTAI
-  contract test, AIGUARD-002 envelope shape).
-- **DRVR-001 / DRVR-002** — shared driver client + editor-driver protocol; the
-  framework that lets a second surface attach.
-- **RMCPF (Rust MCP Full Port)** — graduate the launch shim to feature parity
-  with the archived TS MCP server; reuse the AIGUARD envelope.
-- **RTAI-004 / -005 / -007 / -009** — driver-side debouncer, editor mid-edit
-  path, telemetry mirror, architecture doc + supersession links.
-- **Remaining INTD items** (-004, -006, -008..-012, -015, -016) — watcher
-  integration, process-group interrupt, configuration loading, embedded mode,
-  unregistered-change handling, status / diagnostics, Windows CI matrix,
-  telemetry subscription scoping, DoS protection budgets.
-- **ADR-031 latency CI gating** (#1191).
+### Horizon 2 — Team-Lead Surface
 
-Slate **not yet locked**. Cherry-pick verdict against this horizon lives in
-[`plans/next-steps.md`](./plans/next-steps.md).
+**Theme:** The persona that funds the tool gets a credible browser surface.
 
-### Horizon 2 — Credibility & Hygiene (carry-over from `v0.5.0-beta`)
+Once the daemon is working end-to-end, the second persona — team leads,
+platform engineers, compliance roles — gets a "Team-Lead Glance":
+**last gate run, current warnings ranked by severity, recent activity** in a
+browser without learning CLI commands. The smallest credible demo is a
+warnings list with file/line + severity grouping and a detail panel.
 
-A3 and A4 shipped their **smallest-viable cuts** in `v0.5.0-beta`. The broader
-hygiene tracks remain queued, eligible to ride the next-release window without
-contending for RTAI engineering bandwidth:
+The CLI ↔ dashboard bridge is `anvil export` — canonical
+`.anvil/{warnings,gates,provenance,config}.json` written from the latest run
+state.
 
-- **Release Engineering tail** — ATTRIB-004..-011 (full attribution pipeline
-  v3), SCAN-004..-005 (parallel-scan rollout to remaining call-sites).
-- **Language Credibility tail** — LANGTS-002/-004/-005, OPSUP-002..-007 (drift
-  schema versioning, per-track flags, file-presence guards, FP reporting),
-  SURFSQL Phase 1.
+### Horizon 3 — Enterprise Readiness
 
-### Horizon 3 — Team-Lead Surface (post-launch)
+**Theme:** "How does this deploy in front of N repos for an org-tier
+customer?"
 
-Once RTAI ships, the second persona — team leads, platform engineers, compliance
-roles — gets a credible browser surface.
+A coherent constellation that delivers as a sequenced foundation, not as
+isolated features:
 
-- **Dashboard MVP "Team-Lead Glance"** — DASH foundation + warnings list +
-  detail panel + optional config/diagnostics views. Council B's slice is ~12 of
-  39 dashboard tasks (the 80/20 cut).
-- **`anvil export` CLI work item** (NEW) — bridges CLI output to canonical
-  `.anvil/*.json` artefacts the dashboard reads. Critical missing glue surfaced
-  by Council B.
+- **Gateway control plane** — deployment topology, enforcement contract,
+  observability event model.
+- **Policy federation** — multi-repo publish/subscribe over OPAE bundle
+  primitives.
+- **Org policy hierarchy** — multi-level inheritance.
+- **Policy lifecycle** — canary, grace periods, changelog generation.
+- **Compliance reporting** — SOC 2 / ISO 27001 / NIST framework mapping.
+- **Compliance evidence workspace** — auditor-facing surface.
+- **Trust centre automation** — public trust-artifact publishing pipeline.
 
-### Horizon 4 — Enterprise Readiness (near-term, becoming important soon)
+Promotion to active work is **demand-pulled** — first enterprise prospect or
+design-partner request lights this horizon up.
 
-A coherent constellation of seven modules that together answer "how does this
-deploy in front of N repos for an org-tier customer?" Promoted from parking lot
-to **Tier B (queued)** as enterprise prospects surface.
+### Horizon 4 — Coverage Breadth
 
-- **Gateway Control Plane (GATE)** — deployment topology + enforcement
-  contract + observability event model.
-- **Policy Federation (POLFED)** — multi-repo publish/subscribe workflow over
-  OPAE bundle primitives.
-- **Org Policy Hierarchy (ORGHIER)** — multi-level inheritance.
-- **Policy Lifecycle (POLLC)** — canary, grace periods, changelog generation.
-- **Compliance Reporting (COMPLY)** — SOC 2 / ISO 27001 / NIST framework
-  support; policy-to-control mapper; posture scoring.
-- **Compliance Evidence Workspace (CEWS)** — auditor surfaces (after COMPLY
-  prerequisites land).
-- **Trust Center Automation (TRUST)** — publishing pipeline for public trust
-  artefacts.
+**Theme:** More languages, more surfaces, more packs.
 
-This horizon is where the policy-governance theme delivers — not on the current
-release, but as a coherent enterprise pitch. Sequence: GATE + POLFED + ORGHIER +
-POLLC first (the foundation); COMPLY + CEWS + TRUST second (the auditor
-surface).
+Phased rollout of the language-and-coverage design:
 
-### Horizon 5 — Coverage Breadth (post-launch, demand-pulled)
+- **Phase 1** — TypeScript substrate + SQL migrations + the smallest viable
+  pack set (Pulumi, LLM-provider).
+- **Phase 2** — Rust + Python anchors; Drizzle / Next.js / Hono / Tokio
+  packs; markdown governance slice.
+- **Phase 3** — Surfaces: GitHub Actions, Dockerfile, shell. Tail-wave
+  language coverage.
 
-The 5-track Language & Coverage design (per
-[`plans/specs/2026-04-08-language-and-coverage-design.md`](./plans/specs/2026-04-08-language-and-coverage-design.md))
-delivers in waves:
-
-- **Phase 1 spec-faithful slice** — LANGTS + SURFSQL + PACKPUL + PACKLLM (TS,
-  warn-only). Council D's larger candidate; ships post-launch only.
-- **Phase 2 expansion** — RSTLAN + PYLAN anchors, MDGOV slice 1, remaining Track
-  4 packs (PACKDRZ, PACKNXT, PACKHON, PACKTOK).
-- **Phase 3 / open-ended** — Track 3 surfaces (SURFGHA, SURFDOCK, SURFSH), Track
-  2 tail wave (LANGTAIL).
-
-Demand-pulled. Most of this stays parked until a customer or dogfood signal asks
+Demand-pulled. Most stays parked until a customer or dogfood signal asks
 for it.
 
-### Horizon 6 — Long Bets (parking lot)
+### Horizon 5 — Long Bets
 
-Real concepts, no current consumer:
+Real concepts, no current consumer. Held in the catalogue so they don't get
+lost or duplicated:
 
-- **Agent Infrastructure (WEAVE)** — provider-agnostic agent runtime in upstream
-  `eddacraft/weave-rs`, anvil-weave harness with zero-copy semantic graph
-  access. Greenfield import + harness build.
-- **Graph v2 Foundation (GV2)** — joined semantic/dependency/trust/control/
-  provenance graph substrate. Anvil-first foundation for enforcement and
-  provenance; assistant context delivery is a projection over it.
-- **Rust MCP Full Port (RMCPF)** — next-release full parity port of the existing
-  TypeScript MCP server after RMCP proves the launch path.
-- **PocketFlow Orchestration Gateway (PFGW)** — agent-task orchestration layer
-  (capsule lifecycle, memory I/O routing). Complementary to INTD/DRVR, not a
-  substitute. PocketFlow-RS upstream as substrate option.
-- **Intent Ledger Governance (ILGOV)** — Anvil's _original_ use case: prove the
-  plan was followed via captured intent → code diff → gate decision. The current
-  version is more powerful — uses the symbol/architecture graph to predict
-  effect of a change against captured intent.
-- **Lineage & Authorship Confidence (LAC)** — line-level human/AI/mixed
+- **Agent infrastructure** — provider-agnostic agent runtime + harness with
+  zero-copy semantic graph access.
+- **Graph v2 substrate** — joined semantic / dependency / trust / control /
+  provenance graph. Anvil-first foundation; assistant context delivery
+  becomes a projection over it.
+- **Symbol-graph-driven effect prediction** — predict the effect of a change
+  against captured intent. Anvil's _original_ use case, sharpened by the
+  graph substrate.
+- **Lineage & authorship confidence** — line-level human / AI / mixed
   attribution.
-- **Pocketflow Gateway**, **Open-Spec Adapter (OPENSPEC)**, **Graph Context
-  Delivery (GCTX)**, **Unified Config Format (UCFG)** — supporting concepts that
-  surface when their primary horizons land.
+- **Adjacent surfaces** — gateway integrations, open-spec ingestion,
+  unified config formats. Surface when their primary horizon lands.
 
-## Big bets, named
+## Big bets
 
-| Bet                                         | Why it matters                                                                                | Where it lives                                          |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **Intercept Daemon + Rust MCP launch shim** | Mechanical validation at the surface where AI tools propose writes, without a Node sidecar.   | INTD, INTR, RMCP, RTAI (Horizon 1)                      |
-| **Real-time AI validation**                 | The launch demo. Refuse the bad write before disk.                                            | RTAI (Horizon 1)                                        |
-| **AI guardrail diagnostic envelope**        | Stable JSON shape AI tools consume. The integration surface.                                  | AIGUARD (Horizon 1)                                     |
-| **Dashboard for non-developer personas**    | Team-lead/platform-engineer/compliance — the buyer that funds the tool.                       | DASH/DASHCORE (Horizon 3)                               |
-| **Enterprise readiness constellation**      | The org-tier deployment story. Becoming important soon.                                       | GATE/POLFED/ORGHIER/POLLC/COMPLY/CEWS/TRUST (Horizon 4) |
-| **Graph v2 substrate**                      | Joined structural model for enforcement, trust, control, provenance, and later agent context. | GV2/GCTX (Horizon 6+)                                   |
-| **Symbol-graph-driven effect prediction**   | What ILGOV becomes — predict effect of a change against captured intent.                      | ILGOV rescope (Horizon 6)                               |
+| Bet                          | Why it matters                                                                                            | Where it lives           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Witness chain + hooks**    | The load-bearing primitive that makes "Anvil protects this project" a defensible claim across machines.   | Horizon 1                |
+| **Daemon + drivers**         | Mechanical validation at the surface where AI tools propose writes, without a Node sidecar.                | Horizon 0 (shipped) → Horizon 1 (always-on) |
+| **Real-time AI validation**  | Refuse the bad write before disk. The launch demo.                                                        | Horizon 0 (shipped)      |
+| **Wrapped-launch ingress**   | Daemon-coordinated session lifecycle for shell-launched AI agents (Claude Code in tmux, etc.).            | Horizon 1                |
+| **Team-lead dashboard**      | The persona that funds the tool. Buyer surface, not developer surface.                                    | Horizon 2                |
+| **Enterprise constellation** | The org-tier deployment story — gateway, federation, hierarchy, lifecycle, compliance.                    | Horizon 3                |
+| **Graph v2 substrate**       | Joined structural model for enforcement, trust, control, provenance, and later agent context.             | Horizon 5                |
+| **Effect prediction**        | What intent-ledger governance becomes — predict effect of a change against captured intent.               | Horizon 5                |
 
-## Cuts and parks
+## Doctrine pinned to architecture
 
-After the audit + 5 councils, **no modules are recommended for archive.** The
-audit and councils were systematically too aggressive on archive recommendations
-— they conflated _archived planning modules_ (work-item lists that completed)
-with _archived components_ (code that no longer exists). Components are live in
-`packages/edda-stack/` and `packages/kindling-integration/`.
+These are non-negotiable architectural commitments. Every horizon must trace
+back to one or more.
 
-What changed instead:
-
-- **7 modules rescoped** with corrected banners (PFGW, ILGOV, CFGINT, AGOV,
-  AIGUARD, POLFED, GATE) — see followup tasks #17–22.
-- **Status corrections** — false-Ready signals demoted to Draft on GATE, ILGOV,
-  TUIDASH, CEWS.
-- **AGOV-002 → CPACKS migration** — the only intra-module consolidation.
-- **Enterprise Readiness reclassification** — 7 modules promoted Tier C → B
-  (followup task #23).
-
-## Decisions referenced by this roadmap
-
-- [ADR-011: Ratatui replaces Ink](./plans/decisions/011-ink-vs-ratatui-watch-mode-performance.md)
-- [ADR-015: Intercept Loop Enforcement](./plans/decisions/015-intercept-loop-enforcement.md)
-- [ADR-026: Rust scanner is authoritative](./plans/decisions/026-rust-scanner-authoritative.md)
-- [ADR-027: Pack Architecture](./plans/decisions/027-pack-architecture.md)
-- [ADR-028: Markdown Governance Crate](./plans/decisions/028-markdown-governance-crate.md)
-- [ADR-029: Suppression Parser Authority](./plans/decisions/029-suppression-parser-authority.md)
-- [ADR-030: Surface Drivers Supersede napi Cutover](./plans/decisions/030-surface-drivers-supersede-napi-cutover.md)
-- [ADR-031: Validation Latency Rubric](./plans/decisions/031-validation-latency-rubric.md)
-- [ADR-033: Park IDE/MCP, retire TS scanner](./plans/decisions/033-park-ide-mcp-retire-ts-scanner.md)
+1. **Deterministic, pre-commit.** Anvil catches violations before they land in
+   shared history.
+2. **Defense in depth.** L0 (mid-edit MCP) is best-effort; L2 / L3 / L4
+   (save-time, pre-commit, pre-push) are mandatory deterministic gates; L5
+   (audit) catches what slipped through.
+3. **Failure reduces noise, not increases it.** Silent on success; one terse
+   line on warning; repeat-suppressed.
+4. **Honest claim only.** Closed-set status states; never "Protected" when a
+   layer is unverified.
+5. **Planless-first.** Works without config; `anvil start` writes minimal
+   anvil-managed files; nothing else required.
+6. **New edges only.** Existing state grandfathered at adoption time;
+   security-class rules exempt.
+7. **Anvil cloud is opt-in.** Hosted services are amplifiers, never
+   foundations.
+8. **Air-gapped by default.** Core operation requires no internet.
 
 ## What this roadmap is NOT
 
 - **Not a schedule.** No quarter or month commitments. Sequence over date.
-- **Not a feature list.** Themes and bets, not a backlog dump.
+- **Not a backlog dump.** Capabilities and themes, not work items.
 - **Not the source of truth for module status.** That lives in
-  [`plans/index.aps.md`](./plans/index.aps.md). This roadmap is the narrative.
+  [`plans/index.aps.md`](./plans/index.aps.md).
 - **Not the release menu.** That lives in
   [`RELEASE-PLAN.md`](./RELEASE-PLAN.md).
+- **Not the cherry-pick verdict.** That lives in
+  [`plans/next-steps.md`](./plans/next-steps.md).

@@ -13,14 +13,11 @@ merge that changes strategic shape.
 
 # Anvil — Next Steps
 
-> **Last refreshed:** 2026-05-01 (`v0.5.0-beta` shipped (PR #1219) and
-> **TSRET-005 engine archive cascade** lands on top — TS scanner /
-> suppression / drift / gate runner / explainer / parity harness all
-> moved under `archive/anvil-ts-scanner/`; minimal `Warning` type
-> extracted to `core/src/warnings/types.ts`; Rust-side parity test
-> deleted; TSRET module reaches terminal state. Horizons stay rebased:
-> H1 closes as shipped, H2 becomes daemon-backed RTV + driver reach
-> (slate not yet locked), H3 stays GA).
+> **Last refreshed:** 2026-05-09 (`v0.6.0-beta` substrate locked + ready to
+> tag; daemon-working slate proposed as the next window per
+> [`RELEASE-PLAN.md` → NEXT RELEASE WINDOW](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate);
+> horizons rebased: H1 + H2 closed-as-shipped, H3 daemon-working becomes the
+> next-release window, H4 GA pushed back).
 >
 > **Purpose:** Hold the strategic context that does not survive a fresh
 > chat. When a new session opens and asks "where are we, what is next,
@@ -32,56 +29,41 @@ merge that changes strategic shape.
 
 ## Where we are right now
 
-- **Branch:** `chore/post-release-clean` off `dev`. Tag `v0.5.0-beta` cut
-  from `release/v0.5.0-beta`; release branch merged back to `dev` via
-  PR #1215.
-- **What just shipped (`v0.5.0-beta`, 2026-05-01):** the locked
-  A1 + A2 + A3 + A4 slate per
-  [`RELEASE-PLAN.md`](../RELEASE-PLAN.md):
-  - **A1 — RTAI Spike Slice** (24 items, INTD/INTR/RMCP/RTAI). Real-
-    time AI validation fires before save through `anvil mcp serve --stdio`.
-    Validation backend recorded as **embedded-fallback-backed, not daemon-
-    backed**: RMCP-005's `DaemonValidationClient` defaults to `Unavailable`
-    so MCP `tools/call` runs through embedded `anvil-checks`. Three GUI-
-    dry-run gaps tracked outside the contract (#1194 missing `--command`
-    override, #1195 Claude Code config-path mismatch, #1197 clients ignore
-    `anvil_validate_write` without prompt instruction).
-  - **A2 — AIGUARD** (4 items): `anvil gate --profile ai` + canonical
-    `anvil.diagnostic.v1` envelope shared with RTAI / INTD / RMCP / DRVR.
-  - **A3 — Release Engineering smallest-viable cut** (7 items): GHOOK-001,
-    ATTRIB-001/-002/-003, SCAN-001/-002/-003. ATTRIB-004..-011 and
-    SCAN-004/-005 stay queued.
-  - **A4 — Language Credibility Floor** (9 items): LANGTS-001/-003,
-    OPSUP-001 check-ID registry slice, SURFENV-001..-006.
-  - **TRACE-001** — cross-cutting tracing baseline (anvil-observability
-    crate, `traceparent` envelope round-trip, INTD-014 conformance assert).
-    TRACE-002 (TS mirror) and TRACE-003 (redaction hardening) are post-
-    launch.
-- **Open follow-ups (foreground for the next release window):**
-  - **Daemon-backed RMCP path** — replace RMCP-005's `Unavailable` stub
-    with a live JSON-RPC client; graduate `tools/call` from embedded
-    fallback to daemon-backed pipeline. Daemon side (`scan_buffer`,
-    INTD-002 listener) already in place.
-  - **V050F** — 8/16 done, 8 outstanding (per-operator audit attribution,
-    cascade revoke, `/admin/approve` flag-gate, regex compile cache, eager
-    rayon pool init, CI-class bench baseline, custom-pattern compile errors,
-    svix>uuid override removal).
-  - **#1191** — wire RTAI mid-edit baseline-comparison gating into CI
-    against the recorded 7-case ADR-031 corpus; until then, manual
-    `cargo bench -p eddacraft-anvil-intercept --bench midedit_roundtrip`
-    is the only safety net.
-  - **TSRET-005 execution** — archive `crates/anvil-checks/tests/scanner_parity.rs`
-    + the `packages/anvil/core/src/antipattern/` and
-    `packages/anvil/core/src/suppression/parser.ts` trees + `tests/scanner-parity/`
-    to `archive/anvil-ts-scanner/` per ADR-033. Unblocked but not executed
-    pre-release.
-- **Last few commits:**
-  - `9e623aba2` fix(plans): correct broken Contents anchor for
-    Infrastructure as Code
-  - `4e727b5be` chore(plans): reconcile APS index against code
-  - `92cd0967f` chore: merge release v0.5.0-beta back to dev (#1215)
-  - `5e8040854` fix(intercept): avoid codeql macro false positive
-  - `9ded49664` fix(release): address security review blockers
+- **Branch:** `dev`. Tag candidate for `v0.6.0-beta` ready; A1 (Wow-Start
+  Activation) and A2 (Daemon-Backed RMCP + Driver Reach Waves 1–3) both
+  fully shipped on `dev`. `v0.5.1-beta` was the last public tag (2026-05-03).
+- **What just shipped (`v0.6.0-beta` substrate, locked and ready to tag):**
+  - **A1 — Wow-Start Activation** (LAUNCH 18/18). `install → cd repo →
+    anvil start` is the canonical first minute. Cursor and Claude Code MCP
+    paths activate honestly; watch mode is the save-time fallback when MCP
+    can't attach.
+  - **A2 — Daemon-Backed RMCP + Driver Reach** (INTD 16/16, DRVR 5/5
+    active, RTAI 6/9, RMCP 8/8). MCP `tools/call` runs through the daemon
+    when owner-only IPC is available; embedded path remains correctness-
+    equivalent fallback. Editor-driver protocol + capability negotiation
+    + shared TS driver client all shipped. A2 Wave 4 (RTAI-005/-007/-009,
+    DRVR-003) deferred per ADR-033 — VS Code extension archived.
+  - **Release artefacts:** `docs/runbooks/v0.6.0-beta-security-note.md`
+    (4 HIGH trade-offs documented) and
+    `docs/runbooks/v0.6.0-beta-release-runbook.md` (5 ops items).
+- **What was already shipped before this window:**
+  - **`v0.5.0-beta` (2026-05-01):** AI guardrails + mid-edit validation.
+    Validation backend was embedded fallback, not yet daemon-backed.
+  - **`v0.5.1-beta` (2026-05-03):** Scanner signal + TUI hotfixes.
+- **Open follow-ups carried by `v0.6.0-beta`:**
+  - **V050F** — 14/16 done; 2 non-blocking carry-overs (CI-class bench
+    baseline `V050F-008`, `svix → uuid` override removal `V050F-015`).
+  - **V060F** — 2/25 done; nominations + as-built sweep follow-ups filed
+    2026-05-07 (CLI gaps, macOS interrupt branch, JSON-RPC method
+    surface drift, kernel spec divergences, etc.).
+  - **Tracking issue [#1233](https://github.com/eddacraft/anvil-001/issues/1233)**
+    — durable release log; close when no further entry needed.
+- **What's been proposed for the next window (slate not yet locked):**
+  - **Daemon-working slate** — MLP (17 items) + INTL (9 items) + 6 carry-
+    forward gates + documentation runbooks. Target tag candidate
+    `v0.7.0-beta`. **MLP-009** (protection-claim contract test suite) is
+    the hard release gate. Spec:
+    [`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`](./specs/2026-05-07-anvil-multilayer-protection-architecture.md).
 
 ---
 
@@ -98,348 +80,366 @@ after, not in PR review, not as a save-time post-hoc warning.
 
 The architecture is daemon + drivers. A long-running Rust daemon
 (`anvil-intercept`) owns the rule engine, the session registry, and
-the enforcement ladder. Editor surfaces (VSCode, then any LSP-shaped
-client), MCP surfaces, future surfaces (tmux, web sessions, remote
-shells) attach as **drivers** over JSON-RPC 2.0. This is what
-ADR-030 commits to and what the next architectural mile of work
-exists to deliver.
+the enforcement ladder. Editor surfaces, MCP surfaces, and future
+surfaces (tmux, web sessions, remote shells) attach as **drivers** over
+JSON-RPC 2.0. ADR-030 commits to this; `v0.6.0-beta` made the data
+path real.
 
-The funding context: the hype-builder release shipped on 2026-05-01 as
-`v0.5.0-beta`, the **primary funding mechanism**. Influencers and
-industry mates are lined up against this tag to drive waitlist signal;
-the resulting numbers are what investors are looking at. The hype phase
-is the highest-leverage horizon — the next release window has to convert
-that signal into a credible "headline capability proven on the daemon
-path" demo, not a warm-up for some later "real" launch.
+The next architectural mile — **the daemon-working slate** — turns the
+daemon from "available when invoked" into "always-on, in-tree,
+defensible." The witness chain is the load-bearing primitive: every
+commit carries a hash-chained record of which layers fired, in-tree,
+travelling with git. Pre-commit / pre-push hooks are deterministic
+gates that can't be bypassed silently. `anvil baseline` lets existing
+repos adopt without a wash of warnings. `anvil-run` wraps shell-
+launched agents so the session-attribution story holds outside the
+editor.
+
+The funding context: hype-builder shipped, daemon substrate shipped.
+The next-release window has to convert that proven substrate into a
+defensible **claim** — "Anvil protects this project" must be testable,
+not a slogan. The protection-claim contract test suite (MLP-009) is
+the hard gate that prevents the claim from drifting.
 
 ---
 
-## Three horizons
+## Four horizons
 
 > No dates. Sequence and dependency only. Releases get planned after
 > each release ships.
 
 ### H1 — Hype-builder release ✅ SHIPPED as `v0.5.0-beta` (2026-05-01)
 
-**What it was.** First-touch surface recommendable to the audience the
-launch is aimed at: demo-grade *but not embarrassing*. The product
-story shipped as "save-time trust today, in-flight AI oversight
-imminent" — except "imminent" turned out to mean *in the same release*:
-the embedded fallback behind the MCP launch shim already validates AI
-output before disk, just not yet through the daemon-backed path.
+**What shipped.** A1 (RTAI Spike Slice) + A2 (AIGUARD) + A3 (Release
+Engineering smallest-viable cut) + A4 (Language Credibility Floor) —
+44 items as a single tagged release. Real-time AI validation fires
+before save through the MCP launch shim. The `anvil.diagnostic.v1`
+envelope is shared across RTAI / RMCP / DRVR / INTD.
 
-**What shipped.** The locked A1 + A2 + A3 + A4 slate (44 items).
-LAUNCH-001 (glob filter), LAUNCH-004 (post-init auto-analysis), and
-LAUNCH-005 (doctor remediation depth) all shipped Complete; LAUNCH-007
-(unified interactive fix handling) closed in the same window.
-LAUNCH-002, LAUNCH-003 and LAUNCH-006 remain Todo and roll into the
-next-release window. DOCSYNC and EATEST shipped what fitted.
+**Caveat (closed by H2).** Validation backend was embedded-fallback-
+backed, not daemon-backed.
 
-**Embedded-fallback caveat.** The launch demo runs through the embedded
-`anvil-checks` pipeline behind RMCP, not the live daemon. This is the
-single load-bearing caveat for the headline framing: RTV-before-disk
-fires today; daemon-backed RTV-before-disk is the H2 deliverable.
-Three GUI-dry-run gaps tracked outside the release contract (#1194 /
-#1195 / #1197) and **do not retroactively un-ship A1**.
+**Patch follow-up.** `v0.5.1-beta` (2026-05-03) — scanner false-positive
+fixes, TUI zoom controls, audit env-template filtering, kernel import
+bug fixes.
 
-**Tag convention.** Hybrid resolution of the X5 contradiction (Open
-Decision 1): **sequencing followed Option B-ish** — INTD work shipped
-inside the hype-builder cut rather than being deferred behind it —
-**while tagging stayed at `-beta`** rather than being renamed to
-`-preview` / `-rc` per Option A. The tag-rename option is still open
-for the daemon-backed product release but is not blocking.
+### H2 — Daemon-backed RTV + driver reach ✅ SHIPPED as `v0.6.0-beta` (substrate locked 2026-05-08)
 
-### H2 — Daemon-backed RTV + driver reach (next release window, slate not yet locked)
+**What shipped.** Wow-start activation (A1: LAUNCH 18/18) +
+daemon-backed RMCP graduation (A2: RMCP 8/8, INTD 16/16, DRVR 5/5
+active, RTAI 6/9). MCP `tools/call` runs through the live daemon when
+owner-only IPC is available; embedded path remains correctness-
+equivalent fallback. Editor-driver protocol + capability negotiation +
+shared TS driver client all shipped. The "daemon + drivers"
+architecture is no longer aspirational.
 
-**What it is.** The product release. RTV — validating AI output mid-
-edit through the **live daemon**, not the embedded fallback — is the
-headline upgrade over `v0.5.0-beta`. A second surface (editor or second
-MCP target) attaches via DRVR-001/-002. The "daemon + drivers"
-architecture is no longer aspirational; it is the actual data path for
-the next demo.
+**Caveat (addressed by H3).** Daemon is "available when invoked" —
+not always-on. Hooks don't fire. Witness chain doesn't exist.
+Baseline adoption story is missing. `anvil-run` is still draft.
 
-**Already shipped via A1 (counts toward H2 in the original framing).**
-INTD-001/-002/-003/-005/-007/-013/-014, INTR-001/-002/-006/-008,
-RMCP-001..-008, RTAI-001/-002/-003/-006/-008. The launch shim and the
-mid-edit RPC are real; the daemon-backed wiring is the missing edge.
+**Deferred.** A2 Wave 4 (RTAI-005/-007/-009, DRVR-003) per ADR-033 —
+VS Code extension archived; replacement editor surface decision is a
+separate horizon.
 
-**What is left for H2.**
+### H3 — Daemon working end-to-end (next release window, slate proposed)
 
-- **Daemon-backed RMCP** — replace RMCP-005's `Unavailable` stub with
-  a live JSON-RPC client; verify the daemon-backed `tools/call`
-  matches the embedded fallback envelope (RTAI contract test +
-  AIGUARD-002 envelope shape).
-- **DRVR-001 / DRVR-002** — shared driver client + editor-driver
-  protocol.
-- **RMCPF (Rust MCP Full Port)** — graduate the launch shim to feature
-  parity with the archived TS MCP server.
-- **RTAI-004 / -005 / -007 / -009** — driver-side debouncer, editor
-  mid-edit path, telemetry mirror, architecture doc + supersession
-  links.
-- **Remaining INTD items** — -004 (watcher), -006 (process-group
-  interrupt), -008..-012 (config / embedded / unregistered-change /
-  status / Windows CI matrix), -015 (telemetry subscription scoping),
-  -016 (DoS protection budgets).
-- **#1191** — wire RTAI mid-edit baseline-comparison gating into CI
-  against the recorded ADR-031 corpus.
-- **TSRET-005 execution** — archive the TS scanner / suppression
-  parser / parity harness per ADR-033. Unblocked but not executed
-  pre-`v0.5.0-beta`.
-- The post-release follow-ups in **V050F** that should ride this
-  window (per-operator audit attribution, family-theft cascade,
-  `/admin/approve` flag-gate, regex compile cache, eager rayon pool
-  init, CI-class bench baseline, custom-pattern compile errors).
+**What it is.** The release that flips the daemon from "available when
+invoked" to "always-on, in-tree, defensible." `anvil start` lands a
+real testable protection claim. Hooks fire deterministically.
+`anvil/witnessed.ndjson` records every commit with a hash chain.
+Existing repos can adopt via `anvil baseline` without a wash of
+warnings. Sub-agent waves get per-task fence isolation.
+`anvil-run` wraps shell-launched agents.
 
-**Gate to call it ready.** Mid-edit diagnostics from a real AI tool
-session reach the user inside the latency budget through the **daemon-
-backed** path on at least one surface; the embedded fallback remains
-correctness-equivalent. Architecture docs reflect shipped reality
-(RTAI-009). RMCP-008 dry-run repeated against the daemon backend.
+**Source of truth for sequencing.**
+[`RELEASE-PLAN.md` → NEXT RELEASE WINDOW](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate)
+holds the full wave plan, parallelisation map, and dependency graph.
 
-**Deferred.** Multi-driver parity (DRVR-008 capability negotiation
-matters, but second-editor reach is H3). Reasoning-pattern catalogue
-itself — the AI-001..AI-007 detectors live in `anvil-checks`, not in
-RTAI; their own roadmap is downstream.
+**Capabilities delivered.**
 
-### H3 — GA
+- **Witness chain.** `anvil/witnessed.ndjson` (active) + manifest +
+  archive with rollover; `flock`-protected hash chain; DAG-aware
+  verification; `merge=union -text` via `.gitattributes`.
+- **Hook surface.** Pre-commit / pre-push / post-commit / post-merge /
+  post-rewrite. Self-contained binary, framework-agnostic. Silent on
+  success, terse on failure, repeat-suppressed.
+- **L4 policy framework.** `anvil/policy.yml` per-branch rules;
+  `validate_at_l4` server-side fallback; `cutoff_commit` legacy
+  acceptance.
+- **Baseline adoption.** `anvil baseline` scans + grandfathers per
+  rule class; `secrets` and `command-safety` are hard-pinned and
+  cannot be config-disabled.
+- **Multi-agent coordination.** Per-task fence isolation,
+  `(WorktreeKey, AgentTag)` composite session key,
+  cascade-fence detection.
+- **Wrapped-launch ingress.** `anvil-run` + shell integration; PGIDs /
+  Job Objects let the daemon target interrupts; drop-guard cleanup.
+- **L5 audit.** `anvil audit` on-demand re-scan + nightly cron template.
+- **Air-gapped guarantee.** Core operation tested under network-blocked
+  sandbox.
 
-**What it is.** Multi-driver, multi-language, compliance packs,
-dashboard, the long tail of governance work that exists mostly as
-Draft today.
+**Hard release gate.** **MLP-009** — protection-claim contract test
+suite. Pinned states (`unprotected | warming | pre-write-only |
+save-time-only | full | degraded | cross-boundary-mixed | path-uncertain`)
+must all be reachable in fixtures and rendered claims must match.
+**No MLP item ships Complete in `index.aps.md` until that suite is
+green.**
 
-**What is in it.** Track 1/2/3/4/5 language work; the Policy
-Governance constellation (OPAE, ORGHIER, POLLC, COMPLY, POLFED,
-POLVAL, ARCHCFG, AIGUARD, OPAG, EVAL, CEWS, CPOL, IORISK, GATE,
-ATC, PATT, TRUST, AGOV, CPACKS); the Web Dashboard waves
-(DASH, DASHCORE, DASHARCH, DASHOPS, DASHAI); WEAVE; CFGINT; OBS;
-CGBDG; SCAN remainder; FLAGCAT; BMAD4; UCFG; the long-tail Future
-modules.
+**Tag candidate.** `v0.7.0-beta`. Narrower fall-back shape
+(`v0.6.x-beta`) is the "Daemon-backbone" combo from RELEASE-PLAN.md
+— witness backbone + hooks + baseline + config without pre-push,
+multi-session, audit, GH Action.
 
-**Gate to call it ready.** Out of scope for this document. Scope it
-when H2 ships.
+**Deferred from H3.** Multi-driver parity (DRVR-008 capability
+negotiation already shipped, but second-editor-surface reach stays in
+H4). Reasoning-pattern catalogue itself (AI-001..AI-007 detectors live
+in `anvil-checks`, not in MLP). GitHub App / GitLab native
+integrations. Anvil cloud sidecar.
 
-**Deferred from explicit H3 list.** Items flagged REVISIT below — a
-strategic decision is owed before they consume effort.
+### H4 — GA
+
+**What it is.** Multi-driver, multi-language, dashboard, compliance
+packs, enterprise constellation, the long tail of governance work that
+exists mostly as Draft today.
+
+**What is in it.**
+
+- **Team-lead dashboard surface.** DASH foundation + warnings list +
+  detail panel; `anvil export` CLI bridge.
+- **Enterprise readiness constellation.** Gateway / federation /
+  hierarchy / lifecycle / compliance / evidence workspace / trust
+  centre.
+- **Coverage breadth.** Phase 1 → Phase 3 of the language-and-coverage
+  design.
+- **Long bets.** Agent infrastructure (WEAVE), Graph v2 substrate,
+  effect prediction (ILGOV rescope), lineage / authorship confidence.
+
+**Gate to call it ready.** Out of scope for this document. Scope
+when H3 ships.
 
 ---
 
-## The next release (daemon-backed RTV) in detail
+## The next release (daemon-working slate) in detail
 
 This is the section the team executes against. Everything else in
-this document is context. Slate **not yet locked**; the entries below
-are the cherry-pick verdicts that survived the post-`v0.5.0-beta`
-sweep.
+this document is context. Slate **proposed**; lock occurs when the
+ADRs (036/037/038/039) are promoted Proposed → Accepted.
 
 ### In scope (working slate, pending lock)
 
-| ID | Module | Why it ships next |
-|----|--------|-------------------|
-| Daemon-backed RMCP | RMCP / RMCPF | Replace RMCP-005's `Unavailable` stub with a live JSON-RPC client; graduate `tools/call` from embedded fallback to daemon-backed pipeline. The single load-bearing caveat that gates the headline framing. |
-| `DRVR-001` / `DRVR-002` | DRVR | Shared driver client + editor-driver protocol. Lets a second surface attach. |
-| `RTAI-004` / `-005` / `-007` / `-009` | RTAI | Driver-side debouncer, editor mid-edit path, telemetry mirror, architecture doc + supersession links. Closes the H2 RTAI checklist. |
-| Remaining `INTD-004/-006/-008..-012/-015/-016` | INTD | Watcher integration, process-group interrupt, config / embedded / unregistered-change / status / Windows CI matrix, telemetry subscription scoping, DoS protection budgets. |
-| `INTR-003` / `-004` / `-005` / `-007` | INTR | The remaining rule traits + configuration; prereq for second-rule expansion behind the daemon. |
-| `#1191` | (RTAI ops) | Wire ADR-031 mid-edit baseline-comparison gating into CI against the recorded 7-case corpus. Until landed, manual `cargo bench` is the only safety net. |
-| `TSRET-005` | TSRET | Archive the TS scanner / suppression parser / parity harness to `archive/anvil-ts-scanner/` per ADR-033. Unblocked, not yet executed. |
-| `LAUNCH-002` / `-003` / `-006` | LAUNCH | Watch polish that did not make `v0.5.0-beta`. Should land in this window so the watch flow is solid by the time the daemon-backed demo ships against it. -003 still watches for TUIDASH supersession. |
-| V050F outstanding (8 items) | V050F | Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, custom-pattern compile errors, svix>uuid override removal. |
+| Pick | What | Why it ships next |
+|------|------|-------------------|
+| **N1 — MLP** (17 items) | Witness chain + hooks + L4 policy + baseline + multi-agent coordination + rule distribution | The architectural mile that turns the daemon into always-on protection. Hard gate: MLP-009. |
+| **N2 — INTL** (9 items) | `anvil-run` wrapped-launch ingress | Closes the session-attribution gap for shell-launched agents (Claude Code in tmux, etc.). Coordinates `AgentTag` proto with MLP-014. |
+| **N3 — Carry-forward gates** (6 items) | ADR promotion, project-id, noise-discipline audit, AIGUARD re-run, INTR-004 promotion, DRVR fwd-compat | Pre-positioning A7 defined for the current release. None can land alongside Proposed ADRs. |
+| **N4 — Documentation** (6 docs) | Adoption / air-gap / witness-chain / hooks-integration runbooks; migration note; INTL manpage | Air-gapped operation, baseline adoption, and witness-chain ergonomics need operator-facing docs at tag time. |
 
-Each ships as **a standalone PR**, not bundled. No single "next
-release" branch. The slate is a **sequencing label**, not a release
-label.
+Each item ships as **a standalone PR**, not bundled. No single
+"next release" branch. The slate is a **sequencing label**, not a
+release label.
+
+### Wave summary (cross-lane parallelisation)
+
+| Wave | Active in parallel | Gate to next |
+|------|--------------------|--------------|
+| 0 — Gates | ADRs Accepted, noise-discipline audit, DRVR fwd-compat, doc skeletons | All ADRs Accepted |
+| 1 — Foundations | Witness backbone, config + rules_sha, air-gap harness, INTL scaffold | MLP-002 contract pinned |
+| 2 — Adoption + connectivity | Hooks (pre-commit / post-* / bootstrap), baseline, L4 policy, INTL daemon path, INTR-004 | Hooks deterministic on green path |
+| 3 — Coordination + extensions | Pre-push, multi-session, audit, L1→Kindling, GH Action, INTL spawn + cleanup, hook side-channel, runbooks | All consumer-facing items code-complete |
+| 4 — Hard gate | MLP-009 contract suite, INTL cross-platform tests, runbooks final, migration note | Suite green; tag |
+
+### Hard sequencing rules
+
+1. **No `anvil-witness` consumer ships before MLP-002 contract pin.**
+   Witness line schema cannot drift after first hook merges.
+2. **Hard-pinned class enforcement (MLP-013) merges with the config
+   parser (MLP-011).** A loophole window for security-class rules is
+   unacceptable.
+3. **MLP-009 last.** Protection-claim states must be reachable before
+   the contract suite pins them.
+4. **`AgentTag` proto change is one shared PR** between MLP-014 and
+   INTL-003. Do not let either ship a session shape the other has to
+   break.
 
 ### Not in scope, deliberately
 
-- All Web Dashboard waves. DASH/DASHCORE/DASHARCH/DASHOPS/DASHAI is
-  the team-lead-surface horizon (H3); pulling any of it forward
-  fragments the daemon-backed demo.
-- All Policy Governance constellation work. OPAE/ORGHIER/POLLC/etc.
-  remain Draft and stay there until H3.
-- All Language & Coverage tail work beyond the smallest-viable A4 cut
-  that already shipped.
-- WEAVE / agent-infrastructure import. Schedule after the intercept-
-  loop thesis is proven on the daemon path.
+- All Web Dashboard waves. The team-lead surface is H4; pulling any
+  of it forward fragments the daemon-working window.
+- All Policy Governance constellation work beyond the L4 framework
+  in MLP-006. OPAE / ORGHIER / POLLC / etc. stay parked.
+- All Language & Coverage tail work. LANGTS-002/-004/-005,
+  OPSUP-002..-007, SURFSQL Phase 1 — H4.
+- WEAVE / agent-infrastructure import. Schedule after the daemon-
+  working thesis is proven.
 - Any new Open-Spec / Pocketflow / Graph v2 work — see REVISIT.
 
-### The leverage move that is not in H2 but is gated by H2
+### The leverage move that is not in H3 but is gated by H3
 
-**Plan the H3 dashboard scoping conversation now.** Once the daemon-
-backed RTV path is live, the Dashboard MVP "Team-Lead Glance" cut
-(Council B's ~12-of-39 80/20 slice) is the next coherent product
-release after H2. The `anvil export` CLI work item is the load-bearing
-glue between CLI artefacts and the dashboard read path. Neither is in
-scope for H2; both should have a Ready Checklist drafted before H2
-tags so the H3 cut does not start cold.
+**Plan the H4 dashboard scoping conversation now.** Once the daemon-
+working slate is live, the Dashboard MVP "Team-Lead Glance" cut is
+the next coherent product release. The `anvil export` CLI work item is
+the load-bearing glue between CLI artefacts and the dashboard read
+path. Neither is in scope for H3; both should have a Ready Checklist
+drafted before H3 tags so the H4 cut does not start cold.
 
 ---
 
 ## Cherry-pick output
 
-Verdicts assigned against the H1-shipped / H2-daemon-RTV / H3-GA frame
-after `v0.5.0-beta`. Sorted by verdict, then by module ID. Active and
-Draft modules only; already-archived modules are not re-listed.
+Verdicts assigned against the H1-shipped / H2-shipped / H3-daemon-
+working / H4-GA frame after the `v0.6.0-beta` substrate lock. Sorted
+by verdict, then by module ID. Active and Draft modules only;
+already-archived modules are not re-listed.
 
-### 🔥 SHIPPED in `v0.5.0-beta` — H1 is closed
+### 🔥 SHIPPED in `v0.5.0-beta` / `v0.5.1-beta` / `v0.6.0-beta` substrate
 
-| Module | ID | Final state at `v0.5.0-beta` ship | Notes |
-|--------|----|-----------------------------------|-------|
-| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | In Progress 5/7 | LAUNCH-001/-004/-005/-007 Complete; -002/-003/-006 roll into H2 watch polish. |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress 7/16 | A1 slice closed: -001/-002/-003/-005/-007/-013/-014. -004/-006/-008..-012/-015/-016 roll into H2. |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress 4/8 | A1 slice closed: -001/-002/-006/-008. -003/-004/-005/-007 roll into H2. |
-| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete 8/8 | Embedded-fallback-backed; daemon-backed graduation rolls into H2 RMCPF and RMCP follow-up. |
-| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress 5/9 | A1 slice closed: -001/-002/-003/-006/-008. -004/-005/-007/-009 roll into H2. |
-| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Complete 4/4 | Diagnostic envelope shared with RTAI / RMCP / DRVR. |
+| Module | ID | Final state | Notes |
+|--------|----|-------------|-------|
+| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | Complete 18/18 | Wow-Start Activation A1 — full slate. |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Complete 16/16 | A1 slice + A2 Waves 1–3. Daemon binary, IPC, watcher, fence, enforcement, telemetry, status, DoS budgets. |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress 4/8 | A1 slice closed: -001/-002/-006/-008. -003/-005/-007 stay queued; **-004 (path-deny) promoted to N3 G5**. |
+| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete 8/8 | Daemon-backed `tools/call` + embedded fallback both shipping; A2 graduated the daemon-vs-embedded path. |
+| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress 6/9 | A1 + A2 Waves 1–3 closed. -005/-007/-009 deferred per ADR-033. |
+| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Complete 4/4 | Diagnostic envelope shared across RTAI / RMCP / DRVR / INTD. |
+| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Complete 5/5 active | Editor-driver protocol + capability negotiation + shared TS driver client. -003 deferred per ADR-033; -004 superseded by RMCP/RMCPF. |
 | [git-config-hooks](./archive/modules/git-config-hooks.aps.md) | GHOOK | Complete 6/6 | A3 hygiene cut. |
-| [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | In Progress 3/11 | A3 smallest-viable cut: ATTRIB-001/-002/-003. -004..-011 roll into H2. |
-| [scan-performance](./modules/scan-performance.aps.md) | SCAN | In Progress 3/5 | A3 smallest-viable cut: SCAN-001/-002/-003. -004/-005 stay queued. |
-| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Ready 2/5 | A4 floor: -001/-003 shipped. -002/-004/-005 stay queued. |
+| [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | In Progress 3/11 | A3 smallest-viable cut. -004..-011 stay queued. |
+| [scan-performance](./modules/scan-performance.aps.md) | SCAN | In Progress 3/5 | A3 smallest-viable cut. -004/-005 stay queued. |
+| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | In Progress 2/5 | A4 floor: -001/-003 shipped. -002/-004/-005 stay queued. |
 | [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | In Progress 1/7 | A4 check-ID registry slice. -002..-007 stay queued. |
 | [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | Complete 6/6 | A4 `.env` secret scan. |
-| [tracing-foundation](./modules/tracing-foundation.aps.md) | TRACE | In Progress 1/3 | TRACE-001 (anvil-observability + traceparent) shipped; -002/-003 are post-launch. |
+| [tracing-foundation](./modules/tracing-foundation.aps.md) | TRACE | In Progress 1/3 | TRACE-001 shipped. -002/-003 post-launch. |
+| [v050-release-followups](./modules/v050-release-followups.aps.md) | V050F | In Progress 14/16 | Two non-blocking carry-overs: V050F-008, V050F-015. |
+| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Complete (terminal) | TSRET-005 archive cascade executed. Module reaches terminal state. |
 
-### ➡️ NEXT — needed for H2 daemon-backed RTV
+### ➡️ NEXT — needed for H3 daemon-working slate
 
-The headline-capability work and everything that gates it.
-
-| Module | ID | Status | Verdict rationale |
-|--------|----|--------|-------------------|
-| Daemon-backed RMCP / RMCPF | RMCP / RMCPF | RMCP Complete 8/8; RMCPF Draft 0/9 | Replace RMCP-005's `Unavailable` stub with a live JSON-RPC client; graduate `tools/call` from embedded fallback to daemon-backed. RMCPF brings full TS-MCP parity. The single load-bearing caveat from `v0.5.0-beta`. |
-| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | In Progress 7/16 | Remaining INTD-004/-006/-008..-012/-015/-016. Watcher integration, process-group interrupt, config / embedded / unregistered-change / status / Windows CI matrix, telemetry subscription scoping, DoS protection budgets. Critical-path tail. |
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft 0/9 | Session ingress for shell-launched agents. Required for the daemon's session-attribution story to hold once non-editor agents (Claude Code in a tmux pane) become a demo target. |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress 4/8 | Remaining INTR-003/-004/-005/-007. Rule trait extension + configuration; prereq for second-rule expansion behind the daemon. |
-| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Draft 0/4 active | DRVR-001/-002 (shared driver client + editor-driver protocol) is the H2 minimum. DRVR-003 (VSCode editor driver) deferred per ADR-033 until a new extension package is created on the daemon-driver path. DRVR-004 superseded by RMCP/RMCPF. |
-| [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress 5/9 | Remaining RTAI-004/-005/-007/-009. Driver-side debouncer, editor mid-edit path, telemetry mirror, architecture doc + supersession links. |
-| [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | In Progress 2/5 active | TSRET-005 unblocked under ADR-033 but execution is post-`v0.5.0-beta`. Module reaches terminal state once -005 archives the TS scanner / TS suppression parser / parity harness to `archive/anvil-ts-scanner/`. |
-| `LAUNCH-002` / `-003` / `-006` (within LAUNCH) | LAUNCH | In Progress 5/7 | Watch polish that did not make `v0.5.0-beta`. Should land in this window so the watch flow is solid by the time the daemon-backed demo ships against it. LAUNCH-003 watches for TUIDASH supersession. |
-| `#1191` (RTAI ops) | n/a | Open | Wire ADR-031 mid-edit baseline-comparison gating into CI against the recorded 7-case corpus. Until then, manual `cargo bench` is the only safety net. |
-| [v050-release-followups](./modules/v050-release-followups.aps.md) | V050F | In Progress 8/16 | 8 outstanding hardening items deferred from `v0.5.0-beta` review rounds. Per-operator audit attribution, family-theft cascade, `/admin/approve` flag-gate, regex compile cache, eager rayon pool init, CI-class bench baseline, custom-pattern compile errors, svix>uuid override removal. |
-
-### 🌱 LATER — needed for H3 GA, parked until H2 ships
-
-These have real product value at GA. They do not move the needle for
-either the funding-phase demo or the headline-capability launch.
-Letting them consume cycles before H2 is the most likely failure mode
-for the project.
-
-#### Web dashboard
+The architectural mile and everything that gates it.
 
 | Module | ID | Status | Verdict rationale |
 |--------|----|--------|-------------------|
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | Useful for team-leads / compliance roles; not the developer-trust story. |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | Same. |
-| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | Same. |
-| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | Same. |
-| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | json-render builder; a wow demo, but not the wow demo. |
-| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Ready | TUI side of json-render. May supersede LAUNCH-003 — important to *track*, not to *ship* in H1/H2. |
+| [multilayer-protection](./modules/multilayer-protection.aps.md) | MLP | Proposed 0/17 | The witness chain + hooks + L4 + baseline + multi-agent coordination + rule distribution backbone. **Hard gate: MLP-009** (protection-claim contract suite). New crates: `anvil-witness`, `anvil-hook`, `anvil-l4`, `anvil-config`, `anvil-baseline`, `anvil-attribution`. |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft 0/9 | `anvil-run` wrapped-launch ingress for shell-launched agents. New crate: `anvil-run`. **Coordinates `AgentTag` proto with MLP-014.** |
+| ADRs to promote | n/a | Proposed | ADR-036 (rewritten), ADR-037, ADR-038, ADR-039 — all must be Accepted before any MLP code merges. **N3 G1.** |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR-004 only | Draft | Path-deny rule promoted from B1 → **N3 G5**. Rule registration metadata feeds MLP-013 hard-pinned class. |
+| [v060-release-candidates](./modules/v060-release-candidates.aps.md) | V060F | In Progress 2/25 | As-built sweep follow-ups filed 2026-05-07. Triage and slot opportunistically across H3 waves. |
+| #1233 closeout | n/a | Open | Tracking issue for the v0.5.x release log; close when no further log entry needed. |
 
-#### Policy governance constellation
+### 🌱 LATER — needed for H4 GA, parked until H3 ships
 
-All the OPA-derived governance work. Right premise, wrong horizon.
-None of this exists in code; all are Draft.
+These have real product value at GA. Letting them consume cycles
+before H3 is the most likely failure mode for the project.
 
-| Module | ID | Status | Verdict rationale |
-|--------|----|--------|-------------------|
-| [opa-enhancements](./modules/opa-enhancements.aps.md) | OPAE | Draft | 36 tasks. Battle-tested core engine prerequisite. |
-| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md) | ORGHIER | Draft | Multi-repo / fleet aggregation. |
-| [policy-lifecycle](./modules/policy-lifecycle.aps.md) | POLLC | Draft | Versioning and rollout for policies. |
-| [compliance-reporting](./modules/compliance-reporting.aps.md) | COMPLY | Draft | SOC 2 / ISO 27001 mapping. |
-| [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | Cross-org policy sharing. |
-| [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | Policy-pack QA. |
-| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | Architecture config QA. |
-| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | Guardrail-style governance profile. RTAI is the *capability*; AIGUARD is the *enterprise packaging*. Sequence in that order. |
-| [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | Orchestration of OPA evaluation. |
-| [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | External eval framework adapter. |
-| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | Evidence collection for compliance. |
-| [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | Per-context policy assertions. |
-| [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | IO-risk taxonomy and scanner. |
-| [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Ready | Reference topologies for control-plane gateways. |
-| [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | Adversarial probe catalogue. |
-| [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | Prompt-attack regression. |
-| [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | Automated trust-centre publishing. |
-| [agent-governance-patterns](./modules/agent-governance-patterns.aps.md) | AGOV | Draft | Governance patterns for agent-driven flows. |
-| [compliance-policy-packs](./modules/compliance-policy-packs.aps.md) | CPACKS | Draft | Off-the-shelf compliance policy packs. |
-
-> The "Ready" status on many of these is **specification-ready**, not
-> "ready to execute against the funding window". Do not pull from
-> this list to fill H1/H2 cycles.
-
-#### Language and coverage
-
-The five-track plan. Excellent design work; entirely H3.
+#### Web dashboard (the team-lead surface)
 
 | Module | ID | Status | Verdict rationale |
 |--------|----|--------|-------------------|
-| [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Draft | Anchor item zero. |
-| [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Draft | Anchor T3. |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | Buyer surface; not the developer-trust story. |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | The smallest credible demo: warnings list + detail panel. Pin to today's CLI `--json` shapes; ship-now over governance. |
+| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Demoted Ready → Draft | Pending real schema source from `crates/anvil-architecture` + drift snapshot format. |
+| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready (subset) | Plan/role/AI-tool views are spec-orphan. Config viewer + diagnostics ride H4 dashboard cut. |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | Wave 4 of dashboard. |
+| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Demoted Ready → Draft | Pending DASHAI catalogue resolution and schema source pin. |
+| `anvil export` CLI work item | n/a | Not yet filed | The load-bearing glue between CLI and dashboard. File before H4 cut. |
+
+#### Enterprise readiness constellation
+
+The org-tier deployment story. **Promotion-gated** — first enterprise
+prospect or design-partner request lights this horizon up.
+
+| Module | ID | Status | Verdict rationale |
+|--------|----|--------|-------------------|
+| [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Draft | Foundation: deployment topology + enforcement contract. |
+| [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | Multi-repo publish/subscribe over OPAE bundle primitives. |
+| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md) | ORGHIER | Draft | Multi-level inheritance. |
+| [policy-lifecycle](./modules/policy-lifecycle.aps.md) | POLLC | Draft | Canary, grace periods, changelog generation. |
+| [compliance-reporting](./modules/compliance-reporting.aps.md) | COMPLY | Draft | SOC 2 / ISO 27001 / NIST mapping. |
+| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Draft | Auditor surfaces; depends on COMPLY-001..004. |
+| [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Draft | Public trust-artifact publishing pipeline. |
+
+Sequence: GATE + POLFED + ORGHIER + POLLC first; COMPLY + CEWS +
+TRUST second.
+
+#### Policy governance support modules
+
+| Module | ID | Status | Verdict rationale |
+|--------|----|--------|-------------------|
+| [opa-enhancements](./modules/opa-enhancements.aps.md) | OPAE | Draft | 36 tasks. Only policy-library + bundle inheritance pieces are launch-relevant; defer until a "policy library beats gate" slice. |
+| [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | Necessary precondition for any pack work. |
+| [compliance-policy-packs](./modules/compliance-policy-packs.aps.md) | CPACKS | Draft | Off-the-shelf packs; ships as ecosystem content after OPAE library + POLVAL. |
+| [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | Orchestration on a policy stack that does not exist yet. |
+| [agent-governance-patterns](./modules/agent-governance-patterns.aps.md) | AGOV | Draft | Signal-producer for CPACKS / MDGOV. |
+| [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | Isolated, complements OPAE; small scope. |
+| [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | Closest to RTAI's I/O validation theme. |
+| [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | Pair with PATT as v0.7 safety pack. |
+| [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | Pair with ATC. |
+| [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | Adapter contract small; useful for RTAI regression once H3 ships. |
+
+#### Coverage breadth (Language & Coverage)
+
+The five-track plan. Excellent design work; entirely H4. Phased
+rollout per `2026-04-08-language-and-coverage-design.md`.
+
+| Module | ID | Status | Verdict rationale |
+|--------|----|--------|-------------------|
+| [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Draft | Anchor T3. Self-dogfood compelling, not launch-blocking. |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Draft | Anchor T3. |
 | [lang-tail-wave](./modules/lang-tail-wave.aps.md) | LANGTAIL | Draft | Tail T1 batched sprint. |
-| [surface-sql-migrations](./modules/surface-sql-migrations.aps.md) | SURFSQL | Draft | Phase 1 surface. |
-| [surface-github-actions](./modules/surface-github-actions.aps.md) | SURFGHA | Draft | Phase 2 surface. |
-| [surface-dockerfile](./modules/surface-dockerfile.aps.md) | SURFDOCK | Draft | Phase 3 surface. |
-| [surface-shell](./modules/surface-shell.aps.md) | SURFSH | Draft | Phase 3 surface. |
-| [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | Draft | Phase 3 surface. |
-| [pack-pulumi](./modules/pack-pulumi.aps.md) | PACKPUL | Draft | Phase 1 pack. |
-| [pack-llm-provider](./modules/pack-llm-provider.aps.md) | PACKLLM | Draft | Phase 1+2 pack. Tactically relevant to the AI-trust pitch — promote to NEXT *if* a pack-style demo would land better than the editor demo, not by default. |
-| [pack-drizzle](./modules/pack-drizzle.aps.md) | PACKDRZ | Draft | Phase 2 pack. |
-| [pack-nextjs](./modules/pack-nextjs.aps.md) | PACKNXT | Draft | Phase 2 pack. |
-| [pack-hono](./modules/pack-hono.aps.md) | PACKHON | Draft | Phase 2 pack. |
-| [pack-tokio](./modules/pack-tokio.aps.md) | PACKTOK | Draft | Phase 2 pack. |
-| [markdown-governance](./modules/markdown-governance.aps.md) | MDGOV | Draft | Track 5. |
-| [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | Draft | Cross-track infrastructure for the language tracks. |
+| Surface modules (SURFSQL, SURFGHA, SURFDOCK, SURFSH) | various | Draft | Phase 1–3 surfaces. |
+| Pack modules (PACKPUL, PACKLLM, PACKDRZ, PACKNXT, PACKHON, PACKTOK) | various | Draft | Phase 1–2 packs. **PACKLLM PII heuristics are a false-positive minefield** — keep out unless explicitly green-lit. |
+| [markdown-governance](./modules/markdown-governance.aps.md) | MDGOV | Draft | Track 5. M1 wellformedness as internal compounding value. |
 
-#### Other H3 modules
+#### Long bets
 
 | Module | ID | Status | Verdict rationale |
 |--------|----|--------|-------------------|
-| [observability-foundation](./modules/observability-foundation.aps.md) | OBS | Draft | Telemetry contract / Neon health / runbooks. Real, but not what the launch is being judged on. |
-| [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | Draft | Manifest unification across surfaces. Nice-to-have. |
-| [scan-performance](./modules/scan-performance.aps.md) | SCAN | Proposed | Roll out the parallel-scan pattern to remaining call-sites. Low-risk wins; opportunistic. |
-| [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | Compat for BMAD v4 documents. Demand-pulled. |
-| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Proposed | LLM council → deterministic attestation bridge. Intriguing premise, no demo lift for H1/H2. |
+| [weave](./modules/weave.aps.md) | WEAVE / AHARNESS | Draft | Greenfield import + harness build. Schedule after intercept-loop thesis is proven. |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | Draft | Joined semantic / dependency / trust / control / provenance graph. Anvil-first foundation. |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | Projection over GV2; assistant context delivery. |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Draft (rescope) | Becomes "predict effect of a change against captured intent" via the symbol/architecture graph. |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | Line-level human / AI / mixed attribution. |
+
+#### Other H4 modules
+
+| Module | ID | Status | Verdict rationale |
+|--------|----|--------|-------------------|
+| [observability-foundation](./modules/observability-foundation.aps.md) | OBS | Draft | Park; rescope post-launch against `apps/anvil-api`. |
+| [feature-flag-catalogue](./modules/feature-flag-catalogue.aps.md) | FLAGCAT | Draft | Manifest unification across surfaces. |
 | [api-governance](./modules/api-governance.aps.md) | APGOV | Proposed | API contract governance. |
 | [security](./modules/security.aps.md) | SEC | Proposed | Cargo audit / pnpm audit cadence. Hygiene. |
-| [testing-strategy](./modules/testing-strategy.aps.md) | TEST | Proposed | Strategy doc; the executable test work is TCOV/TINT/TEXT below. |
 | [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | In Progress | 14/25; Phase 4 needs scope refresh. Background hygiene. |
-| [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | Integration boundary tests. |
-| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | External service contract tests. |
-| [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Ready | Tests-that-would-have-caught-real-bugs. Slot opportunistically. |
-| [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Ready | Deferred council findings. Slot opportunistically. |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | In Progress | Keep docs current with H1 ship; rolling. |
-| [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | Proposed | Schema-contract enforcement. |
-| [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | Draft | Cross-language dependency graph from config files. Premise survives RTV pivot — feeds the architecture-edge detector. H3. |
-| [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | Tier 2 commands (`check`, `pr-comment`, `policy-debug`, etc.). Useful, not blocking. |
-| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | Tier 3 commands (Edda, APS, Agent). Required to fully archive the Node CLI; not blocking. |
-| [weave](./modules/weave.aps.md) | WEAVE / AHARNESS | Draft | Agent runtime (Apache-2.0, in `eddacraft/weave-rs`) plus harness with zero-copy graph access. Greenfield — schedule after the intercept-loop thesis is proven, per index. |
-| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Ready | Intent-ledger governance. |
-| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | Lineage / authorship confidence. |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | Graph-context delivery for policy evaluation. |
-| [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | Gateway integration. |
-| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | Parse open-spec format as a planning source. |
-| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Proposed | Unified config-format ADR (ADR-016 Proposed). H3 unless a surface forces it sooner. |
+| [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | Promote Draft → Ready — TFIX/RCLI/KERN deps now archived-Complete. |
+| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | External service contract tests. Not on launch critical path. |
+| [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Ready | Rust-aligned. 38 items. |
+| [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Ready | Rust-aligned. 50 items. |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | In Progress | Rolling. |
+| [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | Proposed | TS↔Rust contract parity; activate when the parity surface starts churning. |
+| [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | Draft | Cross-language dependency graph. Feeds the architecture-edge detector. |
+| [rust-cli-tier2](./modules/rust-cli-tier2.aps.md) | RCLI2 | Proposed | Tier 2 commands. Re-audit before commit. |
+| [rust-cli-tier3](./modules/rust-cli-tier3.aps.md) | RCLI3 | Proposed | Tier 3 commands. Pure historical-contract work. |
+| [skills-discovery-observability](./modules/skobs.aps.md) | SKOBS | Draft | Newly registered 2026-05-04. Promote when scope locks. |
 
 ### ❓ REVISIT — premise should be re-examined
 
 Modules whose framing predates either the daemon + drivers
-architecture (ADR-030) or the RTV-is-the-product framing of this
-session. Each is a decision waiting to be made.
+architecture (ADR-030), the multi-layer protection architecture
+(ADRs 036–039 Proposed), or the RTV-is-the-product framing.
 
 | Module | ID | Status | What to revisit |
 |--------|----|--------|-----------------|
-| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Proposed | The driver-framework already implies `.anvil.yaml` as the config root. Does UCFG still buy anything beyond what driver-config + INTD-008 already specify? Re-read against the ADR-030 stack before scheduling. |
-| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | Anvil's own planning is APS, not open-spec. Was this targeting cross-tool plan ingestion? If yes, low priority; if it was speculative, close it. |
-| [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | Pocketflow integration predates the driver-framework. The driver-framework ADR positions MCP as a driver; does PFGW still have a distinct role, or is it absorbed by DRVR + MCP driver? |
-| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Proposed | Bridges Claude-Code council reviews into Anvil attestations. Discovery-first by design. Worth keeping, but verify the bridge target (attestation format) hasn't shifted under the daemon work. |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | Graph context for policy evaluation. INTR explicitly *forbids* graph recomputation on the hot path. GCTX may belong to the cold-path policy evaluation story; the framing should be re-pointed. |
-| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Ready | "Ready" but the executable consumer is unclear post-RTAI. Confirm scope. |
-| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | Same — promising, but does it *plug into* INTD-013's notification envelope cleanly, or does it want a separate emission path? |
-| [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | BMAD v4 backward compat. Demand for v4 is unproven post-v6.0.3. Defer or archive based on a real user signal. |
+| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Proposed | The driver-framework already implies `.anvil.yaml` as the config root; MLP-011 adds JSON/TOML support. Does UCFG still buy anything beyond what MLP-011 + INTD-008 already specify? Re-read against the multi-layer stack before scheduling. |
+| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | Anvil's own planning is APS, not open-spec. Was this targeting cross-tool plan ingestion? Close it or downgrade to "discovery-only". |
+| [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | Pocketflow integration predates the driver-framework. Does PFGW still have a distinct role, or is it absorbed by DRVR + MCP driver? |
+| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Proposed | Bridges Claude-Code council reviews into Anvil attestations. Verify the bridge target hasn't shifted under the witness-chain work — MLP-002's witness lines may **be** the attestation format. |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Draft (rescope) | Per Big Bets, becomes "effect prediction" via the symbol/architecture graph. Confirm scope before any code lands. |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | Does it plug into INTD-013's notification envelope cleanly, or want a separate emission path? Re-verify against the witness chain (MLP-002). |
+| [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | Demand for v4 is unproven. Defer or archive based on a real user signal. |
 
 ### ✅ DONE — already complete or in-flight under another module
 
 | Module | ID | Status | Notes |
 |--------|----|--------|-------|
 | (Most of the index's "Complete" entries) | — | — | See [index.aps.md](./index.aps.md) Release Plan tables and [completed-index.aps.md](./completed-index.aps.md). |
-| [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md) | NXRUST | Complete (8/8) | Archived to `plans/archive/modules/`; sweep complete. |
 
 ---
 
@@ -448,86 +448,55 @@ session. Each is a decision waiting to be made.
 The decisions on this list change downstream sequencing. Each needs a
 human call.
 
-### 1. The X5 contradiction in ADR-030 — effectively resolved by Option B-ish
+### 1. Tag rename for `v0.7.0-beta`
 
-**Where it lived.** [`plans/decisions/030-surface-drivers-supersede-napi-cutover.md`](./decisions/030-surface-drivers-supersede-napi-cutover.md)
-"Sequencing decision (2026-04-24, X5 closed)" section.
+The hype-builder shipped under `-beta`; the daemon-backed RTV cut
+shipped under `-beta`. The next-window cut (daemon-working slate) is
+the candidate that genuinely earns dropping `-beta` — it's the first
+release where "Anvil protects this project" is testable as a closed
+contract via MLP-009. Open: keep `-beta`, move to `-rc`, or graduate
+out of `-beta`. Decide at H3 lock; not blocking implementation.
 
-**How `v0.5.0-beta` resolved it.** Reality picked **(B)-ish**: INTD
-work was *not* deferred behind the hype-builder cut. The A1 INTD slice
-(INTD-001/-002/-003/-005/-007/-013/-014) shipped *as part of*
-`v0.5.0-beta`, alongside RMCP and the RTAI A1 items, with a tag of
-`-beta`. The launch shim is real but embedded-fallback-backed, so the
-"beta is still aspirational on RTV" reading holds — but ADR-030's
-"after the v0.4.0-beta release" language is now historical.
+### 2. ADR promotion gate (Proposed → Accepted)
 
-**Outstanding sub-question — tag rename for H2.** Whether the next
-release (daemon-backed RTV) tags as `-beta` again, `-rc`, or graduates
-out of `-beta` is still open and downstream of audience-reading
-considerations. Not blocking; pick at H2 lock.
+ADR-036 (rewritten), ADR-037, ADR-038, ADR-039 are all **Proposed**.
+N3 G1 requires them Accepted before any MLP code merges. **Open:**
+single council session for all four, or separate sessions per ADR?
+Recommend single session — they form one architectural commit
+(daemon-scope + witness chain + hooks + baseline). Decide before
+Wave 0 starts.
 
-### 2. Promote the cross-cutting module convention to a first-class APS primitive?
+### 3. RTAI-005/-007/-009 + DRVR-003 disposition
 
-**Where it lives.** Trialled in
-[LAUNCH](./modules/launch-flow-readiness.aps.md) ("Cross-cutting
-convention" section). Reused in
-[RTAI](./modules/realtime-ai-validation.aps.md) ("Cross-cutting
-convention" section, with explicit acknowledgement of the second-use
-trigger).
+A2 Wave 4 was deferred per ADR-033. The mid-edit editor path,
+telemetry mirror, and architecture supersession links sit waiting on
+the next editor-surface decision. **Open:** wait for a new extension
+package on the daemon-driver path (could come from RMCPF), or
+re-pause indefinitely? No urgency; stays parked until either MLP-016
+(L1 driver → Kindling) or a new editor surface forces the call.
 
-**The rule LAUNCH set.** "Do not copy this convention to a second
-module before it has been tried in anger here. If the pattern proves
-useful across at least one further cross-cutting bundle, promote it
-to a first-class module type in `aps-rules.md` — ideally with a
-machine-readable callout syntax (e.g. YAML frontmatter) so a lint can
-verify references."
+### 4. RTAI's three open questions (still relevant for H3 telemetry)
 
-**The trigger has fired.** RTAI is the second use. The pattern works:
-both modules have legible cross-references that survive review.
-**Open question:** promote now (write the rule into
-[`plans/aps-rules.md`](./aps-rules.md), add a typed callout shape,
-add a lint), or one more cycle of trial?
-
-**Risk of waiting.** A third author copies the prose convention into
-a third module; cross-references silently rot at the next module
-rename or archive (the same risk LAUNCH's own warning called out).
-The rot is real but slow; promoting now adds a small build cost (the
-lint).
-
-### 3. RTAI's three open questions (from RTAI's own "Open questions" section)
-
-- **3a. Mid-edit blocking semantics.** Does a mid-edit diagnostic
+- **4a. Mid-edit blocking semantics.** Does a mid-edit diagnostic
   ever escalate to `block` / `interrupt`, or is it always advisory?
-  The MCP pre-write path *can* refuse a tool call. The LSP
-  `didChange` path *cannot* prevent the editor from showing the user
-  their own keystrokes. Asymmetric capability needs to be in the
-  protocol from RTAI-002 if it is going to land at all — bolting on
-  later is the bad shape.
-- **3b. Where do reasoning-pattern rules live?** Add to existing
-  `anvil-checks` antipattern crate, or carve out a new
-  `anvil-checks-reasoning` crate? Decide before RTAI-003 lands. RTAI
-  is intentionally agnostic here — it consumes whatever INTR
-  registers — but the catalogue authors need a target.
-- **3c. Mid-edit + suppression UX.** Save-time has a suppression
-  model. Mid-edit diagnostics have no on-disk anchor yet. Out of
-  scope for v1, but the protocol must not preclude it.
+  MCP pre-write *can* refuse a tool call. LSP `didChange` *cannot*
+  prevent the editor from showing the user their own keystrokes.
+  Asymmetric capability needs to be in the protocol from the start
+  if it is going to land at all — bolting on later is the bad shape.
+- **4b. Where do reasoning-pattern rules live?** `anvil-checks`
+  antipattern crate, or a new `anvil-checks-reasoning` crate?
+  Catalogue authors need a target.
+- **4c. Mid-edit + suppression UX.** Save-time has a suppression
+  model. Mid-edit diagnostics have no on-disk anchor yet. The
+  protocol must not preclude it.
 
-### 4. Tag rename bandwidth
+### 5. The `eddacraft/anvil-action` publishing repo
 
-`v0.5.0-beta` shipped under `-beta` so the in-session call held. The
-question only resurfaces if H2 (daemon-backed RTV) wants a different
-tag (`-rc`, drop `-beta`, or stay). Decide at H2 lock; not blocking.
-
-### 5. ~~Archive sweep owed~~ (resolved)
-
-NXRUST module file is now at `plans/archive/modules/nx-rust-plugin.aps.md`
-as expected. Sweep complete; the active-module list and the index
-agree.
-
-### 6. ~~The pre-flight scope of LAUNCH-005~~ (resolved)
-
-LAUNCH-005 (doctor remediation depth) shipped Complete in
-`v0.5.0-beta`. Decision retired.
+MLP-010 (GitHub Marketplace action) needs a separate publishing repo
+at `github.com/eddacraft/anvil-action`. **Open:** create the skeleton
+repo in Wave 0 of H3, or stand it up on first publish? Recommend
+Wave 0 — gives MLP-010 somewhere to publish in Wave 3 without a
+sequencing scramble.
 
 ---
 
@@ -536,223 +505,111 @@ LAUNCH-005 (doctor remediation depth) shipped Complete in
 > Append-only. Newest entry first. A future session reads this to
 > see what has moved since the last refresh.
 
-### 2026-05-01 (TSRET-005 — engine archive cascade on top of post-`v0.5.0-beta` dev)
+### 2026-05-09 (daemon-working slate proposed; horizons rebased)
 
-- TSRET-005 executed via cherry-pick onto `chore/TSRET-005-v2`,
-  cut from `dev` after the `v0.5.0-beta` ship (the original
-  `chore/TSRET-005` branch was 2026-04-26-era and stale; only
-  `fb218848b` from it was novel — the rest were patch-id
-  duplicates of commits that landed via the release path).
-  Terminal state for the TSRET module.
-- Engine code moved to `archive/anvil-ts-scanner/` under sub-dirs
-  `core-antipattern/`, `core-suppression/`, `core-drift/`,
-  `core-explain-antipattern.{ts,test.ts}`, `runtime-gate/`,
-  `runtime-export/`, `scanner-parity/` — all reachable from the
-  archive's `README.md`.
-- Cascade resolution: the TS components that provided drift
-  detection and the antipattern explainer were end-to-end coupled
-  to the archived engine; the TS gate runner, gate checks,
-  constraint collector, and formatters likewise. All archived
-  together — they had no active consumers outside the now-archived
-  MCP server / VSCode extension. The capabilities split as
-  follows: anti-pattern detection, suppression handling, and gate
-  evaluation are served by the Rust scanner / RMCP; drift
-  snapshot/compare and the TS-side export pipeline have **no
-  active replacement** today and are deferred. The TS components
-  themselves survive only as historical reference under
-  `archive/anvil-ts-scanner/`.
-- A minimal `Warning` type was extracted to
-  `packages/anvil/core/src/warnings/types.ts` so active
-  consumers (`warnings/warning-id`, the boundary half of
-  `explain/explain-service`) keep a typed handle on warnings
-  emitted by the Rust scanner.
-- **Carve-out:** `packages/anvil/core/src/antipattern/format/`
-  (`compile.ts`, `parse.ts`, `sections.ts`, `schemas.ts`) was kept
-  active. It is still the sole producer of
-  `patterns/compiled/registry.json`, which the Rust scanner
-  (`crates/anvil-checks/src/antipattern/registry_loader.rs`)
-  consumes as its single source of truth. The `patterns:compile`
-  / `patterns:check` scripts in `packages/anvil/core/package.json`
-  still resolve. The original 2026-04-29 commit archived `format/`
-  along with the rest of `core-antipattern/`; this branch un-
-  archived it because dev now exposes the active script via
-  `packages/anvil/core/scripts/compile-patterns.ts` (added after
-  the original branch's baseline).
-- `crates/anvil-checks/tests/scanner_parity.rs` deleted. Root
-  `test:scanner-parity` script removed from `package.json`.
-- ADR-033 "Code archived" reference block updated to record the
-  full cascade. TSRET module flipped to **Complete** (3/5
-  active, 1 superseded). Index updated.
+- **`v0.6.0-beta` substrate locked** on `dev`. A1 (Wow-Start
+  Activation, LAUNCH 18/18) and A2 (Daemon-Backed RMCP + Driver
+  Reach Waves 1–3, INTD 16/16, DRVR 5/5 active, RTAI 6/9) both
+  fully shipped. Daemon-backed `tools/call` runs through live
+  daemon when owner-only IPC is available; embedded path remains
+  correctness-equivalent fallback. Tag candidate ready; release
+  artefacts at `docs/runbooks/v0.6.0-beta-{security-note,release-runbook}.md`.
+- **MLP architecture spec landed** (commit `c93d0b9b`, 2026-05-07):
+  [`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`](./specs/2026-05-07-anvil-multilayer-protection-architecture.md)
+  — supersedes the earlier daemon-lifecycle spec; consolidates the
+  full multi-layer protection architecture (witness chain, hooks,
+  L4 policy, baseline, multi-agent coordination, rule
+  distribution).
+- **MLP module created** with 17 work items, status Proposed.
+  Hard release gate **MLP-009** (protection-claim contract suite)
+  pinned. New crates: `anvil-witness`, `anvil-hook`, `anvil-l4`,
+  `anvil-config`, `anvil-baseline`, `anvil-attribution`.
+- **Four ADRs filed Proposed:** ADR-036 (rewritten — daemon scope
+  + discovery + OS-boundary), ADR-037 (witness chain + L4 policy),
+  ADR-038 (hook surface + noise discipline / Serena rule), ADR-039
+  (baseline policy + hard-pinned classes). All gate H3 entry.
+- **RELEASE-PLAN.md updated** with the next-release window section
+  defining N1 (MLP) + N2 (INTL) + N3 (carry-forward gates) + N4
+  (documentation runbooks). Full wave plan with parallelisation
+  map, dependency graph, anti-parallelism rules, hard sequencing.
+- **B1 (Intercept Loop v0) absorbed** into N2 (INTL) + N3 G5
+  (INTR-004). Back-pointer preserved.
+- **Index updated** with next-window subsection and MLP module
+  registry row in the Intercept Loop section.
+- **Horizons rebased.** H1 (hype-builder) and H2 (daemon-backed
+  RTV + driver reach) both closed-as-shipped. H3 becomes daemon-
+  working end-to-end (the MLP + INTL slate). H4 absorbs former H3
+  GA scope plus the now-pushed-back horizons.
+- **Strategic frame this snapshot records:** the funding-phase
+  releases shipped on schedule; the daemon path is real; the next
+  release window converts the substrate into a defensible claim
+  via the witness chain + hooks. MLP-009 is the gate that prevents
+  the claim from drifting.
 
-### 2026-05-01 (`v0.5.0-beta` shipped — H1 closed, horizons rebased)
+### 2026-05-07 (MLP architecture spec + ADRs Proposed)
 
-- `v0.5.0-beta` tagged from `release/v0.5.0-beta`, public release
-  artefacts published, release branch merged back to `dev` via
-  PR #1215.
-- The locked A1 + A2 + A3 + A4 slate (44 items) shipped as a single
-  cut. A1 RTAI Spike Slice closed at 24/24 with RMCP-008 Cursor /
-  Claude Code GUI dry-run recorded in
-  `plans/specs/2026-04-26-rtai-demo-runbook.md` §8. Backend recorded
-  as **embedded-fallback-backed, not daemon-backed** — RMCP-005's
-  `DaemonValidationClient` defaults to `Unavailable` and `tools/call`
-  runs through the embedded `anvil-checks` pipeline. Three GUI-dry-
-  run gaps tracked outside the contract (#1194 missing `--command`,
-  #1195 Claude Code config-path mismatch, #1197 clients ignore
-  `anvil_validate_write` without prompt instruction).
-- TRACE-001 (anvil-observability crate, `traceparent` envelope,
-  INTD-014 conformance assert) shipped as a cross-cutting baseline
-  per ADR-034 / ADR-035; TRACE-002 (TS mirror) and TRACE-003
-  (redaction hardening) remain post-launch.
-- V050F advanced 5/16 during the release window (cargo-dist installer
-  pin, scoop PAT scope, winget `gh` arg regression, migration runner,
-  private-release Latest promotion). It is now 6/16 after the
-  `WAITLIST_PAUSED` runbook follow-up, with 10 items outstanding as
-  post-release follow-ups.
-- ADR-033 surface archives executed:
-  `packages/vscode-extension/` → `archive/anvil-vscode-extension/`,
-  `packages/mcp-server/` → `archive/anvil-mcp-server/`.
-  Engine-side TSRET-005 archive cascade follows in the next entry.
-- X5 contradiction effectively resolved by reality: INTD work *did*
-  ship inside the `-beta` cut. Tag-rename question for H2 is still
-  open but no longer load-bearing.
-- Strategic frame this snapshot records: H1 hype-builder is closed;
-  H2 daemon-backed RTV + driver reach is the next-release window
-  (slate not yet locked); H3 GA is unchanged.
+- Multi-layer protection brainstorm → spec → 4 ADRs landed in a
+  single planning push. Spec consolidates daemon-lifecycle (DLIFE)
+  and extends it to the full L0–L5 model. DLIFE-008 promoted to
+  MLP-014 (per-task fence isolation in v1).
+- ADR-036 rewritten from "Proposed (single per-user daemon)" to
+  "Proposed (per-execution-scope daemons by design, multi-daemon)
+  with `info.json` runtime sidecar + hardened `os_locality_token`.
+- ADR-037 / -038 / -039 added to the architecture decisions list
+  in the index.
 
-### 2026-04-29 (ADR-033 — archive IDE/MCP, retire TS scanner now)
+### 2026-05-03 (Wow-Start Activation council ratified)
 
-- ADR-033 authored
-  ([`plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`](./decisions/033-park-ide-mcp-retire-ts-scanner.md)),
-  Status Proposed. Archives the VSCode extension and TS MCP
-  server under the project's `archive/<name>/` convention
-  (precedent: `archive/anvil-cli-node/` ADR-012,
-  `archive/anvil-tui-ink/` ADR-011a); retires TS scanner / TS
-  suppression parser / parity harness under TSRET-005 to
-  `archive/anvil-ts-scanner/` rather than waiting on
-  DRVR-003/-004; CI for archived packages switches off via the
-  existing `'!archive/**'` workspace exclusion; napi crate stays
-  as a build canary; surfaces return as **new** active packages
-  via DRVR / RMCPF / a future return-path ADR.
-- ADR-026, 028, 029, 030 carry append-only Status notes pointing
-  at ADR-033. Decisions in those ADRs are unchanged; only the
-  carve-outs and sequencing referencing TS-stays-alive are
-  amended/moot.
-- DECISION-LOG updated: new ADR-033 row under Rust Migration;
-  amendment markers on 026/028/029/030 rows.
-- TSRET module re-pointed: TSRET-005 unblocked (no longer waits
-  on DRVR; rewritten as "Archive the TS scanner" with explicit
-  `archive/anvil-ts-scanner/` destination); TSRET-006 superseded
-  (transition window collapses); module reaches terminal state
-  once -005 lands.
-- DRVR module re-pointed: DRVR-003 (VSCode editor driver)
-  deferred until a new extension package is created on the
-  daemon-driver path; DRVR-001/-002/-005 continue against
-  existing INTD dependencies.
-- RMCPF module re-pointed: starts from "TS MCP server is
-  archived" rather than "active migration source"; Decision #4
-  amended; RMCPF-031 partially executed by ADR-033 (package
-  already in `archive/`).
-- Index updated for TSRET / DRVR / RMCPF rows; ADR-033 added to
-  the Intercept and Drivers section's Architecture Decisions.
-- *Open Decisions §1 (the X5 contradiction) is unaffected — ADR-033
-  is about TS engine code, not about INTD sequencing relative to
-  the H1 cut.*
-- **Surface packages physically archived:**
-  `packages/vscode-extension/` → `archive/anvil-vscode-extension/`;
-  `packages/mcp-server/` → `archive/anvil-mcp-server/` (both via
-  `git mv`). READMEs rewritten to the Archived banner shape
-  matching `archive/anvil-cli-node/`. Workspace glob
-  `'!archive/**'` already excludes them from build/test/publish.
-  `pnpm-lock.yaml` regenerated to drop the stale workspace
-  references (Vercel deployments use `--frozen-lockfile` and
-  failed on the original commit).
-- **Root configs reconciled:**
-  `pnpm-workspace.yaml` — `packages/mcp-server` and
-  `packages/vscode-extension` lines removed (replaced by an
-  archive-pointer comment).
-  `tsconfig.json` — `./packages/mcp-server` project reference
-  dropped.
-  `tsconfig.base.json` — `@eddacraft/anvil-mcp-server` path
-  mapping dropped.
-  `vitest.config.ts` — `@eddacraft/anvil-mcp-server` and
-  `vscode` mock aliases dropped (with archive-pointer comments).
-- All active-plan cross-refs (`plans/index.aps.md`,
-  `plans/modules/{anvil-ts-scanner-retirement,surface-drivers,rust-mcp-launch-shim,rust-mcp-full-port}.aps.md`,
-  `plans/specs/{rust-mcp-launch-shim,anvil-driver-framework/editor-and-mcp-driver-design}.md`)
-  updated from `packages/{vscode-extension,mcp-server}/` to the
-  `archive/anvil-{vscode-extension,mcp-server}/` paths.
-- **Still untouched:** CI workflow disabling for the parity
-  harness job; TSRET-005 execution proper (move
-  `packages/anvil/core/src/antipattern/`,
-  `packages/anvil/core/src/suppression/parser.ts`,
-  `tests/scanner-parity/` to `archive/anvil-ts-scanner/` and rip
-  out inbound imports across `packages/`); deletion of the
-  Rust-side `crates/anvil-checks/tests/scanner_parity.rs`. These
-  are real refactors that need build-green verification —
-  pending approval of ADR-033 before execution.
+- Five independent agent brainstorms (Claude / Codex / Copilot /
+  Gemini / Opencode) converged on the same gap; planning council
+  ratified `anvil start` as the activation entrypoint.
+- LAUNCH module promoted from "in-flight" to "headline next-tag
+  investment"; A1 cut sequenced as 6 PRs (later 7 with LAUNCH-009.6).
+- Cursor + Claude Code MCP paths scoped as v1; Windsurf, VS Code,
+  Copilot CLI, Codex CLI, process auto-attach explicitly deferred
+  until RMCP / DRVR verifies them.
 
-### 2026-04-26 (v0.4.0-beta release prep)
+### 2026-05-01 (`v0.5.0-beta` shipped; TSRET-005 archive cascade)
 
-- Branch `release/v0.4.0-beta` cut from `dev` for the H1 hype-builder
-  tag. Stabilisation strategy. CHANGELOG and ENGINEERING-HISTORY
-  rewritten in the 0.3.3-beta user-centric style covering the full
-  390-commit window (LAUNCH, NOTIFY, RSCAN/ANVFMT/SPG, RUSTNX,
-  ADMINCLIH, FLAGM, TSRET, DIST-011, plus a 7-issue GH sweep).
-- Workspace + 14 bundled `package.json` manifests + `crates/anvil-checks-napi/package.json`
-  bumped to `0.4.0-beta`. Cargo.lock regenerated. `cargo-hakari` clean.
+- `v0.5.0-beta` tagged from `release/v0.5.0-beta`; release branch
+  merged back to `dev` via PR #1215. Locked A1 + A2 + A3 + A4
+  slate (44 items) shipped as a single cut. Validation backend
+  recorded as embedded-fallback-backed, not yet daemon-backed.
+- TSRET-005 engine archive cascade executed onto
+  `chore/TSRET-005-v2`. TS scanner / suppression / drift / gate
+  runner / explainer / parity harness moved under
+  `archive/anvil-ts-scanner/`. Module reaches terminal state.
+- Strategic frame: H1 hype-builder closed; H2 daemon-backed RTV +
+  driver reach is the next-release window.
+
+### 2026-04-29 (ADR-033 — archive IDE/MCP, retire TS scanner)
+
+- ADR-033 authored. VSCode extension and TS MCP server archived
+  under `archive/`; TS scanner / suppression parser / parity
+  harness retire to `archive/anvil-ts-scanner/`. CI for archived
+  packages switches off via existing `'!archive/**'` workspace
+  exclusion.
+- DRVR-003 (VSCode editor driver) deferred until a new extension
+  package is created on the daemon-driver path. RMCPF starts from
+  "TS MCP server is archived" rather than "active migration source".
+
+### 2026-04-26 (`v0.4.0-beta` release prep)
+
 - Three rounds of council ran against the release branch, plus an
-  external Codex CLI review each round. ~25 findings surfaced
-  in total; 18 fixed in-flight across rounds 1–3 (commits
-  `eae47b3d`, `f9961b28`, `6f16b059`, `907af5f2` plus the bench
-  refresh and CI-unblock commits). 10 hardening items consciously
-  deferred to V050F (see new module).
-- V050F module created
-  ([`plans/modules/v050-release-followups.aps.md`](./modules/v050-release-followups.aps.md))
-  with 10 work items, status Ready. Captures the 10 deferred items
-  so the deferral does not silently rot:
-  cargo-dist installer pin (V050F-001), per-operator audit attribution
-  (V050F-002), family-theft cascade revoke (V050F-003), `/admin/approve`
-  flag-gate (V050F-004), graded-scope regression tests (V050F-005),
-  allowlist regex compile cache (V050F-006), eager rayon pool init
-  (V050F-007), CI-class bench baseline (V050F-008), `release/*` push
-  filter (V050F-009), `WAITLIST_PAUSED` runbook (V050F-010).
-- Bench baselines refreshed on `release/v0.4.0-beta`:
-  `antipattern_scan` ≈ 11.2 ms (~28.6 K artefacts/s), 23% faster than
-  the 2026-04-22 pre-RUSTNX-008 baseline. Kernel hot-path rewrite
-  (monotonic `next_id` counter + `HashSet<String>` of tracked files)
-  validated by the new measurement.
+  external Codex CLI review each round. ~25 findings surfaced;
+  18 fixed in-flight. 10 hardening items consciously deferred to
+  V050F.
 
-### 2026-04-24 (this session)
+### 2026-04-24 (RTAI module + cross-cutting convention)
 
-- LAUNCH module created
-  ([`plans/modules/launch-flow-readiness.aps.md`](./modules/launch-flow-readiness.aps.md))
-  with 6 work items, status Draft. Trials the cross-cutting module
+- LAUNCH module created, trialing the cross-cutting module
   convention.
-- RTVS superseded and archived
-  ([`plans/archive/modules/real-time-validation-simplified.aps.md`](./archive/modules/real-time-validation-simplified.aps.md)).
-  Watch intent → LAUNCH; validation core intent → RTAI.
-- RTAI module created
-  ([`plans/modules/realtime-ai-validation.aps.md`](./modules/realtime-ai-validation.aps.md))
-  with 9 work items, status Proposed. Real-time AI-output validation
-  on the daemon + drivers architecture per ADR-030. Reuses the
-  cross-cutting convention from LAUNCH.
-- RTVF superseded and archived
-  ([`plans/archive/modules/real-time-validation-full.aps.md`](./archive/modules/real-time-validation-full.aps.md))
-  in the same change. Its "unified validation server" framing
-  pre-dated ADR-030; the work is replaced by RTAI on the daemon.
-- ADR-030 sequencing decision (Option A) recorded —
-  [`plans/decisions/030-surface-drivers-supersede-napi-cutover.md`](./decisions/030-surface-drivers-supersede-napi-cutover.md)
-  Sequencing section. Council review item X5 closed in that doc, but
-  re-opened *strategically* by this session (see Open Decision 1).
-- Council session council-881a8ca8 ran on the RTAI / LAUNCH change
-  set: 10 findings, 8 fixed, 2 deferred, verdict PASS.
-- Strategic frame this document records was set in this session: RTV
-  is the product, hype phase funds the product, ship-now-with-pre-
-  flight, no time estimates, cherry-pick lens for sequencing, second
-  use of cross-cutting convention is the trigger to consider
-  promotion.
-- TSRET-002 marked Complete under the ADR-030-reduced scope (commit
-  `57be8fc1`).
+- RTAI module created (9 items) on the daemon + drivers
+  architecture per ADR-030. Reuses cross-cutting convention from
+  LAUNCH — second use is the trigger to consider promoting to a
+  first-class APS primitive (see Open Decisions item rotated
+  out of this snapshot — promotion deferred until MLP lands).
+- ADR-030 sequencing decision (Option A) recorded.
 
 ---
 
@@ -770,14 +627,13 @@ This doc is a **snapshot**, not a contract. It rots whenever:
 - After every merge that touches `plans/modules/` materially.
 - After every ADR landing.
 - Always at the start of a new release window (re-cherry-pick all
-  modules against the new H1).
+  modules against the new H_n).
 
-**How to re-run.** Invoke the cherry-pick agent with the same brief
-that produced this version: read `plans/aps-rules.md`,
-`plans/index.aps.md`, every active module file (skim for
-purpose + status), the critical-path modules in full
-(LAUNCH / RTAI / INTD / DRVR), and the load-bearing ADRs (currently
-ADR-030, ADR-033). Apply the H1 / H2 / H3 lens; assign one of
+**How to re-run.** Read `plans/aps-rules.md`, `plans/index.aps.md`,
+every active module file (skim for purpose + status), the critical-
+path modules in full (MLP / INTL / INTD / DRVR / RMCP / RTAI), and
+the load-bearing ADRs (currently ADR-030, ADR-033, ADR-036, ADR-037,
+ADR-038, ADR-039). Apply the H1 / H2 / H3 / H4 lens; assign one of
 🔥 SHIPPED / ➡️ NEXT / 🌱 LATER / ❓ REVISIT / ✅ DONE per module; surface
 contradictions explicitly; do not paper over the open decisions.
 

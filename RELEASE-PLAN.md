@@ -1,7 +1,7 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-05-07 (post-A2-substrate ship + post-tag-remediation —
-slate locked for `v0.6.0-beta`)
+**Last updated:** 2026-05-09 (added next-release window: daemon-working slate —
+MLP + INTL + gates + docs)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) — themes, big bets, horizons. Source of
 > truth for module status: [`plans/index.aps.md`](./plans/index.aps.md).
@@ -488,22 +488,258 @@ slice while pre-positioning v1.
 
 ---
 
+## NEXT RELEASE WINDOW (proposed) — _post-`v0.6.0-beta` daemon-working slate_
+
+**Theme:** _Daemon working end-to-end._ `v0.6.0-beta` shipped the daemon +
+driver substrate ("available when invoked"); this window flips it to "always-on,
+in-tree, defensible." `anvil start` lands a real testable protection claim;
+hooks fire deterministically; the witness chain records every commit; baseline
+adoption works on existing repos; `anvil-run` wraps agent processes with
+mechanical fence-on-fail.
+
+**Target tag:** **`v0.7.0-beta`** when N1 + N2 + N3 land together. Narrower
+cuts (e.g. MLP backbone only, no INTL) tag as `v0.6.x-beta`.
+
+**Hard release gate — MLP-009 (protection-claim contract test suite).** Pinned
+states for `unprotected | warming | pre-write-embedded | pre-write-daemon |
+save-time-only | full | degraded-protection | cross-boundary-mixed |
+multi-daemon-detected | path-uncertain` must all be reachable in fixtures and
+rendered claims must match. **No MLP item flips Complete in `index.aps.md`
+until that suite is green.**
+
+**Source artefacts:**
+
+- Spec:
+  [`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`](./plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md)
+- MLP module:
+  [`plans/modules/multilayer-protection.aps.md`](./plans/modules/multilayer-protection.aps.md)
+  (17 items, Proposed)
+- INTL module:
+  [`plans/modules/intercept-launcher.aps.md`](./plans/modules/intercept-launcher.aps.md)
+  (9 items, Draft)
+- ADRs (must be Accepted before any N1 code merges):
+  [036 (rewritten)](./plans/decisions/036-daemon-scope-discovery-and-boundaries.md),
+  [037](./plans/decisions/037-witness-chain-and-l4-policy.md),
+  [038](./plans/decisions/038-hook-surface-and-noise-discipline.md),
+  [039](./plans/decisions/039-baseline-policy-and-hard-pinned-classes.md)
+
+---
+
+### N1. Multi-Layer Protection v1 (MLP) — _the daemon-working backbone_
+
+**Goal:** Ship the witness chain, hook surface, L4 policy, baseline,
+multi-agent coordination, and rule distribution model that turn the daemon from
+"binary that runs" into "background protection the user can trust." 17 items.
+
+**New crates introduced (~6):** `anvil-witness`, `anvil-hook`, `anvil-l4`,
+`anvil-config`, `anvil-baseline`, `anvil-attribution`.
+
+**Dependency graph (top-down; siblings parallelisable):**
+
+```text
+[Wave 0 — gates, no code]
+   ADR-036 / -037 / -038 / -039 promoted Proposed → Accepted (G1)
+   ADR-038 noise-discipline audit of existing surfaces (G3)
+   AIGUARD envelope contract test re-run against both backends (G4)
+                            │
+       ┌────────────────────┼────────────────────┐
+       │                    │                    │
+[Wave 1A — backbone]   [Wave 1B — config]   [Wave 1C — air-gap]
+  MLP-001 project-id    MLP-011 multi-fmt    MLP-017 net-blocked
+  MLP-002 witness chain MLP-013 hard-pinned   sandbox + tests
+       │                MLP-012 rules_sha
+       │                    │
+       └────────┬───────────┘
+                │
+[Wave 2 — adoption + hooks (parallel within wave)]
+   MLP-003 pre-commit hook   ←── MLP-001/-002
+   MLP-007 anvil baseline    ←── MLP-001/-002
+   MLP-006 L4 policy         ←── MLP-002, MLP-007 for cutoff_commit
+   INTR-004 path-deny rule   ←── promoted from B1 → feeds MLP-013 metadata
+                │
+[Wave 3 — coordination + extensions]
+   MLP-004 pre-push (L4 client)   ←── MLP-002/-003/-006
+   MLP-005 post-commit / -merge / -rewrite ←── MLP-002/-003
+   MLP-008 anvil hook bootstrap   ←── MLP-002/-003
+   MLP-014 multi-session + per-task fence ←── MLP-002/-003 + INTL-003 schema
+   MLP-015 anvil audit (L5)       ←── MLP-006
+   MLP-016 L1 driver → kindling   ←── DRVR-002 + RTAI-007 (already shipped)
+   MLP-010 eddacraft/anvil-action publish ←── MLP-006 + new publishing repo
+                │
+[Wave 4 — hard gate]
+   MLP-009 protection-claim contract test suite  ←── MLP-002..-008 stable
+```
+
+**Lane / owner map (parallelisable across waves):**
+
+| Lane                     | Items                                | Owner type            | Notes                                                                                       |
+| ------------------------ | ------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
+| **Witness backbone**     | MLP-001, MLP-002                     | Rust crate            | Gates everything downstream; flock + DAG verification + 80-parallel-hook test is highest-risk piece |
+| **Config + rules_sha**   | MLP-011, MLP-012, MLP-013            | Rust crate            | Independent of backbone; can ship before                                                    |
+| **Air-gap harness**      | MLP-017                              | Test infra            | Independent; sandbox at `tools/test-harness/network-blocked/`                               |
+| **Hooks**                | MLP-003, MLP-005, MLP-008            | Rust + shell template | Three siblings after MLP-002 lands                                                          |
+| **L4 + adoption**        | MLP-006, MLP-007                     | Rust crate            | MLP-007 (baseline) feeds `cutoff_commit` into MLP-006                                       |
+| **Pre-push + audit**     | MLP-004, MLP-015                     | Rust + workflows      | After MLP-006 stable                                                                        |
+| **Multi-session**        | MLP-014                              | `crates/anvil-intercept/` extension | Extends INTD-003 registry — **must coordinate `AgentTag` proto change with INTL-003** |
+| **L1 + GH publish**      | MLP-016, MLP-010                     | TS + separate repo    | Parallel with everything; MLP-010 needs `eddacraft/anvil-action` publishing repo created    |
+| **Hard gate (terminal)** | MLP-009                              | Rust + e2e            | Last; cannot start until -002..-008 merged                                                  |
+
+**Anti-parallelism (hard sequencing — do NOT violate):**
+
+1. **No `anvil-witness` consumer ships before MLP-002 contract is pinned.**
+   The witness line schema cannot drift after the first hook merges.
+2. **MLP-013 hard-pinned class enforcement merges with the config parser
+   (MLP-011), not after.** A loophole window is unacceptable for security-class
+   rules.
+3. **MLP-009 last.** Pinning protection-claim states earlier locks in
+   unfinished states; the suite must run after every state is reachable.
+4. **`AgentTag` proto change is a single PR shared between MLP-014 and
+   INTL-003.** Do not let INTL-003 ship a session shape MLP-014 has to break.
+
+**Out-of-scope (explicit; do NOT pull forward):**
+
+- GitHub App / GitLab / Bitbucket native integrations (vNext)
+- Pre-receive hook script for self-hosted git (vNext)
+- Anvil cloud sidecar / hosted services (vNext, opt-in only)
+- `prepare-commit-msg` / `commit-msg` hooks (v1.5)
+- macOS App Sandbox detection observability (DLIFE-010, v1.5)
+- Cross-Windows ↔ WSL surface bridging (vNext, separate ADR)
+- Migration tooling for `project_uuid` changes (per direction)
+
+**Adversarial risk: First-witness lottery.** Baseline scan on a 100k-LOC repo
+with thousands of pre-existing findings must not stall the CLI for >60s, and
+the resulting `anvil/baseline.json` must not bloat git operations on adoption.
+**Mitigation:** MLP-007's bounded scan + async continuation budget plus
+content-addressed archive naming so `anvil/witness/archive/` doesn't churn
+`git status`.
+
+**Recommendation: PICK as the headline of the next window.**
+
+---
+
+### N2. Intercept Launcher v1 (INTL) — _wrapped-launch ingress_
+
+**Goal:** `anvil-run`-wrapped agent launches with daemon-coordinated session
+lifecycle and mechanical fence-on-fail. Sessions register before children
+spawn; PGIDs / Job Objects let the daemon target interrupts; cleanup is
+drop-guard guaranteed. 9 items.
+
+**New crate:** `crates/anvil-run/` (binary).
+
+**Dependency graph:**
+
+```text
+INTL-001 launcher binary scaffold
+   │
+   ├── INTL-006 shell integration (zsh / bash)            ← parallel from -001
+   │
+   └── INTL-002 daemon connectivity + fence check
+          │
+          └── INTL-003 session registration               ← carries AgentTag (coord with MLP-014)
+                 │
+                 ├── INTL-004 process-group / Job Object launch
+                 │      │
+                 │      └── INTL-005 cleanup on exit (drop guard)
+                 │
+                 └── INTL-007 hook side-channel registration  ← Claude Code PreToolUse path
+
+INTL-008 cross-platform parity tests   ← wave-end gate, wraps -004/-005
+INTL-009 documentation + manpage       ← parallel with everything
+```
+
+**Parallelisation:**
+
+- INTL-001 → INTL-006 (shell wrapper) runs in parallel with INTL-002 →
+  INTL-005 (binary daemon path); shell script is independent.
+- INTL-007 only needs the registration **contract** from INTL-003 — prototype
+  against fakes while INTL-004 lands.
+- INTL-008 is a wave-end checkpoint, not a discrete work item — gate on it
+  before promoting INTL.
+
+**Cross-dependency with N1:** MLP-014 (multi-session + per-task fence) extends
+the session registry that INTL-003 talks to. The `AgentTag` schema is shared.
+**Land it as one proto PR** before either consumer commits its branch.
+
+**Adversarial risk: Windows Job Object semantics ≠ POSIX PGIDs.** INTL-004
+alone is platform-bisected work; the Job Object name handshake (launcher →
+daemon) is the failure-prone interface. Pin a contract test that round-trips
+through a named Job Object on the Windows CI matrix before INTL-005 merges.
+
+**Recommendation: PICK alongside N1.** INTL without MLP is half-protected; MLP
+without INTL leaves `anvil-run` as Tier B debt and gives the launcher's
+session-registry consumers no real ingress.
+
+---
+
+### N3. Carry-forward gates (must close before headline ships)
+
+These are not new work — they are pre-positioning A7 defined for the current
+release. They **must be Accepted / merged before any N1 item lands.**
+
+| ID  | Gate                                                                                  | Source                            | Why blocking                                                                            |
+| --- | ------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------- |
+| G1  | ADR-036 (rewritten), ADR-037, ADR-038, ADR-039 promoted Proposed → Accepted           | A7.1 carry-forward                | MLP code cannot land against Proposed ADRs                                              |
+| G2  | `anvil/project-id` UUID written by `anvil start` (MLP-001 minimal slice)              | A7.2 carry-forward                | Witness chain (MLP-002) writes against this; `anvil/` becomes tracked-dir convention    |
+| G3  | ADR-038 noise-discipline audit of existing surfaces                                   | A7.7 carry-forward                | New hook output cannot pass noise discipline if existing surfaces violate it            |
+| G4  | AIGUARD envelope contract test re-run against both backends                           | A2 cross-cutting glue             | Witness lines carry diagnostic envelopes; rerun as N1 gate                              |
+| G5  | INTR-004 (path-deny rule) promoted from B1 → Wave 2                                   | B1 absorption                     | Rule registration metadata feeds MLP-013 hard-pinned class                              |
+| G6  | DRVR forward-compat verification (DRVR-001/-002/-008 don't lock out `info.json` / `AgentTag`) | A7.8 carry-forward       | Coordination gate; ensures DRVR ships compatible with MLP-014                           |
+
+---
+
+### N4. Documentation + comms (parallel with code)
+
+| Doc                                            | Trigger                  | Notes                                                                                    |
+| ---------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| `docs/runbooks/anvil-baseline-adoption.md`     | After MLP-007 functional | How an existing repo adopts MLP without a wash of warnings                               |
+| `docs/runbooks/anvil-air-gapped.md`            | With MLP-017             | Declares the air-gapped guarantee and how it's tested                                    |
+| `docs/runbooks/anvil-witness-chain.md`         | After MLP-002 contract pinned | Operator-facing description of `anvil/witnessed.ndjson`, manifest, archive, recovery |
+| `docs/runbooks/anvil-hooks-integration.md`     | After MLP-003/-008 stable | Husky / lefthook / pre-commit-framework / no-framework integration matrix                |
+| Migration note for `v0.6.0-beta` → `v0.7.0-beta` users | Tag candidate    | `anvil/` directory becomes tracked; `.gitattributes` ships `merge=union -text`           |
+| INTL `man anvil-run`                           | INTL-009                 | Standard manpage + `anvil-run --help` parity                                             |
+
+---
+
+### Wave summary (cross-lane)
+
+| Wave | Lanes active in parallel                                                                                                                                           | Gate to next wave                       |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| 0    | G1 (ADRs Accepted), G3 (noise audit), G6 (DRVR fwd-compat), N4 doc skeletons                                                                                       | All ADRs Accepted                       |
+| 1    | Witness backbone (MLP-001/-002), Config (MLP-011/-012/-013), Air-gap harness (MLP-017), INTL scaffold (INTL-001/-006)                                              | MLP-002 contract pinned                 |
+| 2    | Hooks (MLP-003/-005/-008), Baseline (MLP-007), L4 policy (MLP-006), INTR-004 promotion, INTL daemon path (INTL-002/-003 with shared AgentTag)                       | Hooks deterministic on green path       |
+| 3    | Pre-push (MLP-004), Multi-session (MLP-014), Audit (MLP-015), L1 → kindling (MLP-016), GH Action (MLP-010), INTL spawn + cleanup (INTL-004/-005), Hook side-channel (INTL-007), runbooks | All consumer-facing items code-complete |
+| 4    | MLP-009 protection-claim contract suite, INTL-008/-009 cross-platform tests + docs, runbooks finalised, migration note                                              | Suite green; tag                        |
+
+---
+
+### Adversarial risk: window scope
+
+This window is **larger than `v0.6.0-beta`** (17 + 9 = 26 work items vs
+`v0.6.0-beta`'s ~21). The hard-gate pattern (MLP-009) prevents
+partial-completion drift, but the **witness chain primitive (MLP-002) is the
+single point of failure** — every downstream lane reads or writes against it.
+
+**Mitigation:** Spike MLP-002 first as a standalone PR (witness chain crate +
+flock + DAG verification + 80-parallel-hook test) before any hook lane starts.
+If the spike reveals correctness or performance issues, the rest of the window
+remains decomposable into a `v0.6.x-beta` patch shape (MLP-001 + MLP-011..-013
+- INTL scaffold) without forcing a full re-plan.
+
+---
+
 ## TIER B — Queued (next slice candidates)
 
-### B1. Intercept Loop v0 — _the wrapped-launch v2 narrative_
+### B1. Intercept Loop v0 — _absorbed into next-release window_
 
-**Goal:** `anvil-run`-wrapped agent launches with mechanical fence-on-fail
-enforcement.
+> **Status (2026-05-09):** B1 is no longer a queued candidate; INTL has been
+> promoted to **N2** in the next-release window above, and INTR-004 has been
+> promoted to **N3 G5**. Remaining INTD items (none — module is 16/16
+> Complete) are not part of this absorption. This entry is preserved as a
+> back-pointer for anyone arriving from older planning notes.
 
-**Modules:** INTD remainder not in A1, INTL (all 9 items), INTR-004 (path-deny).
-~20 items.
-
-**Why queued:** Coherent product story but **not the wow-start path**. Promote
-after A1 (wow-start activation) ships and A2 (daemon-backed RTV) is stable.
-
-**Adversarial risk:** Cross-platform Windows parity (INTD-012). Job Object
-semantics ≠ PGIDs. INTL-004 alone is two weeks of platform work that does not
-show up in the demo.
+**Adversarial risk (preserved):** Cross-platform Windows parity (INTD-012 —
+shipped). Job Object semantics ≠ PGIDs. INTL-004 alone is platform-bisected
+work that does not show up in the demo.
 
 ---
 
@@ -678,6 +914,20 @@ they're glue some Tier A picks need.
 6. **TS MCP parity oracle** — required by A3. The archived TS server in
    `archive/anvil-ts-scanner/` is the parity oracle until a Rust-side parity
    harness retires it.
+7. **`AgentTag` proto change** — required by N1+N2 (next-release window).
+   Single shared PR to `crates/anvil-intercept-proto/` covering the new session
+   composite key; both MLP-014 and INTL-003 consume it. Land before either
+   begins implementation against its own branch.
+8. **`eddacraft/anvil-action` publishing repo** — required by N1 (MLP-010).
+   Separate GitHub repo + release pipeline for the marketplace action. Create
+   skeleton in Wave 0 so MLP-010 has somewhere to publish in Wave 3.
+9. **`anvil/` directory tracking convention** — required by N1 + downstream
+   git ergonomics. `.gitattributes` ships `merge=union -text` for
+   `anvil/witnessed.ndjson` and `anvil/witness/manifest/chain.ndjson`. Pin
+   in Wave 0 so adoption (MLP-007) doesn't have to retro-fit it.
+10. **ADR-036 / -037 / -038 / -039 promotion** — required by N1 (G1). Council
+    review session pre-Wave 0; remediation lives in the same PR as the
+    promotion. No N1 code lands against Proposed ADRs.
 
 ---
 
@@ -692,12 +942,20 @@ they're glue some Tier A picks need.
 | **Wow-start + hygiene**              | A1 + A4 + A5                | LAUNCH 1 + release/language tails       | Activation + finishes the `v0.5.0-beta` tails. Skips daemon graduation — A2 follows in next window.   |
 | **Founder-pitch slate**              | A1 + A2 + A6                | LAUNCH 1 + A2 remaining + dashboard MVP | Activation + daemon + dashboard. Largest persona expansion. Highest A6/A1 bandwidth contention.       |
 | **Full slate**                       | A1 + A2 + A3 + A4 + A5 + A6 | All Tier A remaining                    | Most ambitious; only realistic if A1 ships clean and bandwidth holds.                                 |
+| **Daemon-working (next window)**     | N1 + N2 + N3 + N4           | MLP 17 + INTL 9 + 6 gates + runbooks    | The full daemon-working slate post-`v0.6.0-beta`. Tags as `v0.7.0-beta`. Largest window since `v0.5.0-beta`; MLP-009 hard gate. |
+| **Daemon-backbone (narrower next)**  | N1 Waves 0–2 only + N3      | MLP-001/-002/-003/-006/-007/-011/-012/-013/-017 + INTL-001/-006 + gates | Witness + hooks + baseline + config; defers pre-push, multi-session, audit, GH Action. Tags as `v0.6.x-beta`. Recovery shape if MLP-002 spike reveals risk. |
 
 The councils' lesson from `v0.5.0-beta` plus the 2026-05-03 activation council:
 **A1 + A2 + carry-over** is the highest-confidence cut for the next tag. A1
 alone tags `v0.5.2-beta`-shaped; A1+A2 together earns `v0.6.0-beta`. A3 (RMCPF)
 and A6 (Dashboard) are the high-leverage adds; both are the candidates most
 likely to slip if A1 takes longer than estimated.
+
+**Post-`v0.6.0-beta`:** the **Daemon-working** combo (N1+N2+N3+N4) is the
+proposed slate; **Daemon-backbone** is the smaller fall-back if the witness
+spike (MLP-002) shows correctness or performance risk. Either choice keeps
+A4 (release-engineering tail) and A5 (language-credibility tail) available as
+parallel hygiene picks if bandwidth holds.
 
 ---
 
