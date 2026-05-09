@@ -1,460 +1,206 @@
-# Anvil CLI Release Runbook
+# Anvil Release Runbook
 
-Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
+Purpose: ship Anvil with the least manual choreography possible.
 
-## Quick start
+The release process is command-driven. Use `/release` as the operator wrapper,
+but deterministic work belongs to `scripts/release/*` commands.
 
-The release process is split between a deterministic preflight script and a
-`/release` Claude skill that owns every judgment step:
+## Golden Rule
 
-1. **Run the preflight script** — deterministic checks only (cargo fmt / clippy
-   / test, pnpm format / lint / typecheck / test):
+Do not hand-edit release state during a normal release.
 
-   ```bash
-   ./scripts/release.sh
-   ```
+If a deterministic command fails, fix that command or use its recovery mode. Only
+perform manual recovery when the operator explicitly approves it, and log the
+manual steps in the release tracking issue.
 
-   The script runs every check to completion, prints a `PASS`/`FAIL` summary
-   table, and exits with the number of failed steps (0 on a clean pass). No
-   prompts, no git or GitHub operations.
+## Required Tools
 
-2. **Invoke `/release` in Claude Code** — the judgment half:
-
-   ```
-   /release
-   ```
-
-   The skill confirms preflight passed, reads live repository and GitHub state
-   to assess the release, proposes a version and branch strategy, opens a
-   tracking issue, drives the version bump, PR, tag, and workflow monitoring,
-   then handles artefact verification, changelog / docs review, comms, and
-   cleanup. The tracking issue is the durable record — there is no local handoff
-   artefact and the flow is resumable: if the Claude session dies mid-release,
-   re-invoking `/release` picks up from live state.
-
-The sections below are the **reference manual** — the script handles preflight,
-the skill handles everything else. Refer to them directly when something goes
-wrong or when you need to understand what a step does.
-
----
-
-## Release policy (current)
-
-- **Distribution:** pre-built binaries via GitHub Releases on `eddacraft/anvil`
-  (public).
-- **Install method:** shell installer script (`curl ... | sh`).
-- **Targets:** x86_64 + aarch64 for Linux, macOS, and Windows.
-- **Workflow source of truth:** `.github/workflows/release.yml` (auto-generated
-  by cargo-dist).
-- **Configuration:** `dist-workspace.toml`.
-
----
-
-## 1) Preflight checklist (required)
-
-### Automated — run `./scripts/release.sh`
-
-This is the required preflight gate before invoking `/release`. It runs, in
-order:
-
-- `cargo fmt --all --check`
-- `cargo clippy --workspace --all-targets -- -D warnings`
-- `cargo test --workspace`
-- `pnpm format:check`
-- `pnpm lint:check`
-- `pnpm typecheck`
-- `pnpm test`
-
-The `pnpm test` step uses the root
-`nx run-many -t test --exclude=@eddacraft/anvil-e2e` command, so bundled package
-scope is managed in `nx.json` / workspace config rather than in the script.
-
-The script does not prompt, touch git, or call GitHub. It is re-runnable and
-exits with the count of failed steps (0 = clean). You can run it any time to
-sanity-check the workspace before release work.
-
-### Additional manual checks (not covered by the script)
-
-Run these from repo root after the script passes — they exercise the release
-binary and a full TS build, which the script intentionally skips:
+From the repository root, these commands must work before release day:
 
 ```bash
-cargo build --release -p eddacraft-anvil
-./target/release/anvil --help
-./target/release/anvil --version
-
-pnpm install --frozen-lockfile
-pnpm build
+bash scripts/release/assess.sh --help
+bash scripts/release/preflight.sh --help
+bash scripts/release/prepare.sh --help
+bash scripts/release/promote.sh --help
+bash scripts/release/tag.sh --help
+bash scripts/release/monitor.sh --help
+bash scripts/release/verify.sh --help
+bash scripts/release/closeout.sh --help
 ```
 
-Sanity assertions before release:
+If any command is missing, the release process is not ready. Do not substitute a
+manual checklist.
 
-- `Cargo.toml` workspace version is correct.
-- `CHANGELOG.md` has release notes.
-- `docs/public/anvil/beta-testing-guide.md` version is current.
-- `docs/public/anvil/releases/upgrade-notes.md` has a section for this version.
+## Happy Path
 
-### Performance regression guard (SPG-005)
+### 1. Start The Release
 
-Before a release, spot-check the scanner throughput baseline:
-
-```bash
-cargo bench -p anvil-bench --bench antipattern_scan
-```
-
-Compare against the baseline in `crates/anvil-bench/README.md` (~21.9 K
-artifacts/sec on a dev Linux box; GitHub runners will be materially slower due
-to lower core count — compare against a same-machine-class baseline). A > 2×
-regression on the same machine class should be investigated before releasing —
-`registry_compile_diagnostics` and `scan_artifacts` are the likely suspects.
-
----
-
-## 2) Cut the release branch or promote directly
-
-All day-to-day work lands on `dev`. Releases are promoted from `dev` into
-`main`. For small, low-risk releases, a direct `dev -> main` PR is acceptable.
-For anything larger, cut a short-lived `release/*` branch from `dev` and do
-stabilisation there.
-
-See `docs/guides/branching-strategy.md` for the full policy.
-
-### Option A: direct promotion for small releases
-
-Use this when the change set is small, reviewable, and already stable on `dev`.
-
-1. Ensure `dev` is green.
-2. Open a PR from `dev` to `main`.
-3. Title convention: `release: vX.Y.Z`.
-4. Once the release gate passes, merge the PR.
-
-```bash
-gh pr create --base main --head dev --title "release: vX.Y.Z" \
-  --body "Promote dev to main for release vX.Y.Z"
-```
-
-### Option B: stabilise on `release/*` for non-trivial releases
-
-Use this when you want a short hardening window for packaging, docs, final bug
-fixes, or release validation.
-
-1. Ensure `dev` is green.
-2. Create `release/x.y.z` from `dev`.
-3. Allow only release hardening on the release branch.
-4. Open a PR from `release/x.y.z` to `main`.
-5. Once the release gate passes, merge the PR.
-
-```bash
-git switch dev && git pull --ff-only origin dev
-git switch -c release/x.y.z
-git push -u origin release/x.y.z
-
-gh pr create --base main --head release/x.y.z --title "release: vX.Y.Z" \
-  --body "Promote release/x.y.z to main for release vX.Y.Z"
-```
-
-Release branch scope is intentionally narrow:
-
-- version bumps
-- changelog and release notes
-- docs updates required for release
-- packaging and workflow fixes
-- bug fixes discovered during final validation
-
----
-
-## 3) Version, tag + GitHub Release
-
-1. Switch to `main` and pull the merge:
-
-```bash
-git switch main && git pull
-```
-
-2. On `dev`, bump version in `Cargo.toml` (`[workspace.package].version`).
-3. On `dev`, update `CHANGELOG.md`.
-4. On `dev`, update `docs/public/anvil/beta-testing-guide.md` -- bump "Current
-   version" and add any new feature areas to "What to Test".
-5. On `dev`, update `docs/public/anvil/releases/upgrade-notes.md` -- add a new
-   section.
-6. Commit the release prep on `dev`, promote to `main`, then tag on `main`:
-
-```bash
-git switch dev && git pull --ff-only origin dev
-git add Cargo.toml CHANGELOG.md \
-  docs/public/anvil/beta-testing-guide.md \
-  docs/public/anvil/releases/upgrade-notes.md
-git commit -m "chore(release): prepare vX.Y.Z"
-
-# promote dev -> main (direct or via release/x.y.z)
-git tag -a vX.Y.Z -m "vX.Y.Z"
-git push origin main
-git push origin vX.Y.Z
-```
-
-Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
-all 6 targets and creates a GitHub Release automatically (pre-release for beta
-tags).
-
-For beta releases, either format works:
-
-```bash
-vX.Y.Z-beta      # e.g. v0.3.0-beta
-vX.Y.Z-beta.N    # e.g. v0.3.0-beta.0
-```
-
-After tagging, merge the release line back to `dev` immediately.
-
-If the release went direct from `dev`, no extra sync PR is needed.
-
-If the release used `release/x.y.z`, merge that release branch back to `dev`
-after tagging so `dev` retains all release-only fixes and versioning changes.
-
-```bash
-gh pr create --base dev --head release/x.y.z \
-  --title "chore: merge release vX.Y.Z back to dev" \
-  --body "Sync release hardening, version bump, and changelog from vX.Y.Z"
-```
-
-If the release was cut directly from `dev`, create a sync PR only if an
-additional commit landed on `main` outside the original release promotion.
-
-Example:
-
-```bash
-gh pr create --base dev --head main \
-  --title "chore: merge release vX.Y.Z back to dev" \
-  --body "Sync version bump and changelog from release vX.Y.Z"
-```
-
----
-
-## 4) Monitor release workflow
-
-Watch run in real time:
-
-```bash
-gh run list --repo eddacraft/anvil-001 --limit 5
-gh run watch <run-id> --repo eddacraft/anvil-001
-```
-
-Or inspect a completed run:
-
-```bash
-gh run view <run-id> --repo eddacraft/anvil-001 --log-failed
-```
-
-Expected behaviour:
-
-- `plan` job succeeds and identifies the release.
-- `build-local-artifacts` jobs compile for all 6 targets.
-- `build-global-artifacts` job produces shell and PowerShell installers.
-- `host` job creates or updates GitHub Releases on both `eddacraft/anvil-001`
-  (private) and `eddacraft/anvil` (public) with all artefacts.
-- `host` job promotes both releases with `--prerelease=false --latest` while
-  Anvil tags are still beta releases.
-- `announce` job posts release notes.
-
----
-
-## 5) Post-release verification (required)
-
-Install on a clean machine (or container):
-
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
-
-anvil --version
-anvil doctor
-anvil auth login
-anvil gate
-```
-
-Verify all 6 platform binaries are present in both GitHub Releases:
-
-```bash
-gh release view vX.Y.Z --repo eddacraft/anvil-001
-gh release view vX.Y.Z --repo eddacraft/anvil
-```
-
-Expected artefacts:
-
-- `eddacraft-anvil-aarch64-apple-darwin.tar.xz`
-- `eddacraft-anvil-x86_64-apple-darwin.tar.xz`
-- `eddacraft-anvil-aarch64-unknown-linux-gnu.tar.xz`
-- `eddacraft-anvil-x86_64-unknown-linux-gnu.tar.xz`
-- `eddacraft-anvil-x86_64-pc-windows-msvc.zip`
-- `eddacraft-anvil-aarch64-pc-windows-msvc.zip`
-- `eddacraft-anvil-installer.sh`
-- `eddacraft-anvil-installer.ps1`
-
----
-
-## 6) Fast incident playbook
-
-### If login fails for testers
-
-- Verify API health + auth endpoint.
-- If needed as immediate fallback:
-
-```bash
-export ANVIL_API_URL=https://eddacraft-api.vercel.app
-```
-
-### If a binary is broken on one platform
-
-1. Check the build log for that target in the release workflow.
-2. Fix on a short-lived `hotfix/*` or `release/*` branch.
-3. Cut a patch release (vX.Y.Z+1).
-
-### If `registry-patterns-compile` fires on a live install
-
-This check (SPG-002) flags rules whose regex failed to compile under the Rust
-scanner. It is a silent-drop warning — affected rules never match. Steps:
-
-1. Run `anvil doctor --json` and read the `registry-patterns-compile` entry for
-   the failing rule IDs and compile errors.
-2. Check whether `ANVIL_REGISTRY_PATH` is set to a non-repo path:
-
-   ```bash
-   env | grep ANVIL_REGISTRY_PATH
-   ```
-
-   If set, unset it so the scanner falls back to the in-tree registry:
-
-   ```bash
-   unset ANVIL_REGISTRY_PATH
-   ```
-
-3. If the in-tree registry is the one that fails, roll back `patterns/` to the
-   last green commit. The `anvil check --json` output also carries a
-   `diagnostics` key with the same information if automation needs to parse it.
-
-### If public release publish fails (partial release)
-
-The workflow creates or updates the private release in `eddacraft/anvil-001`
-first, then publishes to `eddacraft/anvil`. If the public step fails:
-
-1. Download artefacts from the private release:
-
-```bash
-gh release download vX.Y.Z --repo eddacraft/anvil-001 --dir ./artifacts
-```
-
-2. Remove manifests (the automated pipeline does this before publishing):
-
-```bash
-rm -f artifacts/*-dist-manifest.json
-```
-
-3. Ensure the tag exists on the public repo (mirrors the automated pipeline's
-   tag-creation step to prevent tag drift):
-
-```bash
-if gh api repos/eddacraft/anvil/git/ref/tags/vX.Y.Z >/dev/null 2>&1; then
-  echo "Tag vX.Y.Z already exists on eddacraft/anvil; skipping."
-else
-  PUBLIC_HEAD=$(gh api repos/eddacraft/anvil/git/ref/heads/main -q '.object.sha')
-  gh api repos/eddacraft/anvil/git/refs \
-    -f ref="refs/tags/vX.Y.Z" \
-    -f sha="$PUBLIC_HEAD"
-fi
-```
-
-4. Manually publish to the public repo:
-
-```bash
-gh release create vX.Y.Z \
-  --repo eddacraft/anvil \
-  --verify-tag \
-  --title "Anvil CLI vX.Y.Z" \
-  --notes "See changelog in private repo" \
-  artifacts/*
-```
-
-5. If the `ANVIL_RELEASES_TOKEN` was the issue, check the secret in repo
-   settings and re-run the failed workflow job.
-
-### If a bad version needs to be retracted
-
-1. Delete the git tag locally and remotely:
-
-```bash
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
-```
-
-2. Delete the GitHub Release from both repos:
-
-```bash
-gh release delete vX.Y.Z --repo eddacraft/anvil --yes
-gh release delete vX.Y.Z --repo eddacraft/anvil-001 --yes
-```
-
-3. Fix the issue, bump to a new version, and re-release.
-
----
-
-## 7) Known gotchas
-
-- **Release branch lifetime:** `release/*` branches should live for days, not
-  weeks. If stabilisation keeps growing, the branch was cut too early or is
-  taking too much non-release work.
-- **cargo-dist PR mode:** PRs only run the `plan` job (no builds). Full builds
-  only fire on version tags. This is configured in `dist-workspace.toml` as
-  `pr-run-mode = "plan"`.
-- **allow-dirty CI:** `dist-workspace.toml` has `allow-dirty = ["ci"]` so manual
-  edits to `release.yml` (e.g. path filters) are preserved across
-  `cargo dist init` re-runs.
-- **Cross-compilation:** aarch64-linux uses cross-compilation in CI. If it
-  fails, check the cross toolchain setup in the workflow.
-- **Dual release:** The workflow creates releases on both the private repo
-  (`eddacraft/anvil-001`) and the public `eddacraft/anvil`. The private release
-  is the internal source-of-truth record; the public one is for distribution.
-- **ANVIL_RELEASES_TOKEN:** A PAT/fine-grained token with `contents: write` on
-  `eddacraft/anvil` and `eddacraft/homebrew-tap`. Must be set as a repository
-  secret on `anvil-001`. Scoop and WinGet publishing also need write access to
-  the `eddacraft/scoop-bucket` and the upstream WinGet manifest fork; if
-  publishing returns 403, **edit the existing fine-grained PAT scope** (add the
-  missing repo) rather than rotating the token. Rotation churns workflow secrets
-  without fixing the underlying scope mismatch.
-- **cargo-dist installer pinned by SHA256:** the release workflow installs
-  `cargo-dist` via a SHA256-pinned URL rather than `latest`, which avoids silent
-  installer drift between releases. When you bump `cargo-dist`, also update the
-  pinned SHA in the workflow.
-- **Scoop / WinGet pre-flight:** the Scoop publisher runs a token-reachability
-  pre-flight before submitting a manifest, and the WinGet publisher checks the
-  fork is up to date and that the `gh` CLI invocation parses. Both hardenings
-  landed during the 0.5.0-beta cycle after the v0.4.0-beta tag run surfaced
-  silent 403s. If either pre-flight fails, fix the underlying token/fork issue
-  before re-running the publisher.
-
----
-
-## 8) Human comms template
-
-After successful release, send:
-
-- version + install command
-- one-line auth command
-- known temporary workarounds (if any)
-
-Example:
+Run the release skill:
 
 ```text
-Anvil CLI vX.Y.Z is live.
-Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
-Login: anvil auth login
+/release
 ```
 
----
+The skill reads live state, checks for open release issues, and runs:
 
-## 9) Release rules that matter most
+```bash
+bash scripts/release/assess.sh --base main --head dev --json
+```
 
-1. Day-to-day work lands on `dev`.
-2. Small releases may go directly from `dev` to `main`.
-3. Larger releases should use a temporary `release/*` branch.
-4. Any fix that lands during release stabilisation must be merged back to `dev`
-   immediately after release.
-5. If `dev -> main` promotion feels too large, promotion waited too long.
+Approve or override the proposed:
+
+- version
+- release type: `beta` or `production`
+- strategy: `direct` or `stabilisation`
+
+### 2. Run Preflight
+
+```bash
+bash scripts/release/preflight.sh --base main --head dev
+```
+
+This must pass before release prep starts. It owns formatting, linting,
+typechecking, tests, and release tool pin checks.
+
+### 3. Prepare Release State
+
+```bash
+bash scripts/release/prepare.sh \
+  --version <version> \
+  --release-type <beta|production> \
+  --strategy <direct|stabilisation>
+```
+
+This command owns:
+
+- version surfaces
+- release notes
+- generated public docs
+- release metadata
+- release tracking issue
+- release preparation commit
+
+Do not manually edit these files if prepare fails.
+
+### 4. Promote To Main
+
+```bash
+bash scripts/release/promote.sh \
+  --version <version> \
+  --strategy <direct|stabilisation>
+```
+
+If the command opens a PR, review and merge it through GitHub. Re-run the command
+after merge so it records the merged state.
+
+### 5. Tag
+
+```bash
+bash scripts/release/tag.sh --version <version>
+```
+
+The tag command must verify:
+
+- local and remote `main` agree
+- the version on `main` is correct
+- the remote is `EddaCraft/anvil-001`
+- provenance state is recorded before tag push
+
+### 6. Monitor Publishing
+
+```bash
+bash scripts/release/monitor.sh --version <version>
+```
+
+This watches the cargo-dist release workflow until it finishes. If it fails,
+stop and decide whether to retry, recover, skip with justification, or abort.
+
+### 7. Verify The Release
+
+```bash
+bash scripts/release/verify.sh --version <version>
+```
+
+Verification must confirm:
+
+- private GitHub release exists on `EddaCraft/anvil-001`
+- public GitHub release exists on `EddaCraft/anvil`
+- expected cargo-dist assets are present
+- provenance names the build source SHA and workflow run
+- Homebrew, Scoop, and WinGet publication state is recorded
+- `https://install.eddacraft.ai` returns HTTP 200
+
+### 8. Approve Comms
+
+If `verify.sh` produces a release announcement draft, approve or edit it before
+posting.
+
+Suggested minimum message:
+
+```text
+Anvil CLI <version> is live.
+
+Install:
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh \
+  | sh
+```
+
+### 9. Close Out
+
+```bash
+bash scripts/release/closeout.sh --version <version>
+```
+
+This owns:
+
+- back-merge or sync PR
+- release branch cleanup
+- final release issue update
+- release issue closure
+
+## Strategy Guide
+
+Use `direct` when:
+
+- `dev` is already green
+- the release diff is small
+- no release hardening branch is needed
+
+Use `stabilisation` when:
+
+- the diff is large
+- release-critical Rust, installer, auth, infra, or packaging code changed
+- the release needs hardening commits before `main`
+
+## Failure Policy
+
+When a command fails:
+
+1. Stop.
+2. Read the command output.
+3. Choose one path: retry after fix, run command recovery mode, skip with
+   issue-log justification, or abort.
+4. Do not manually perform the failed command's job unless this is emergency recovery.
+
+## Emergency Recovery
+
+Manual recovery must be logged in the release issue with:
+
+- what failed
+- why deterministic recovery was insufficient
+- exact commands run
+- repos, tags, releases, or package-manager records changed
+- follow-up needed to encode the recovery into `scripts/release/*`
+
+## Done Definition
+
+A release is done only when all are true:
+
+- `verify.sh` passed
+- public release assets are present
+- install site returns 200
+- downstream package-manager state is recorded
+- comms are approved or explicitly skipped
+- `closeout.sh` completed
+- release issue is closed
