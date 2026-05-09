@@ -350,10 +350,122 @@ to be permanently releasable.
 - PRs must reference APS item IDs unless explicitly marked as unplanned
   operational work.
 - Required CI is based on changed files, not target branch differences.
-- Council is required for non-trivial code or policy changes, but the council
-  result should attach to the PR as structured output.
+- Every non-trivial agent-authored change should receive targeted agent review
+  before PR open.
+- PR-level council is an escalation path for risky or system-changing changes,
+  not the default first review gate.
+- Any PR-level council result should attach to the PR as structured output.
 - PR size limits should be enforced by guidance and optionally by a warning bot,
   not by release branches.
+
+### Review Timing
+
+Review should happen as early as it can provide useful feedback, but not so
+early that it slows local iteration. The target split is:
+
+```text
+precommit = mechanical only
+pre-PR = targeted agent review by default
+PR = CI + human review + risk-triggered council
+post-merge = drift and release-readiness checks
+```
+
+Do not run council as a literal Git pre-commit hook. Pre-commit hooks should be
+fast, deterministic, and mechanical. Agent review belongs before PR open, once
+the change is coherent enough to critique.
+
+| Stage      | Purpose                                   | Should Run                                                      |
+| ---------- | ----------------------------------------- | --------------------------------------------------------------- |
+| Precommit  | Stop obviously broken staged changes      | format, lint-staged, cheap static checks                        |
+| Pre-PR     | Improve quality before externalising work | targeted single-agent review; mini council for medium-risk work |
+| PR         | Validate merge readiness                  | CI, human review, required risk-triggered council               |
+| Post-merge | Detect drift and release readiness issues | APS reconciliation, release readiness, candidate checks         |
+
+Default flow:
+
+```text
+local work
+  -> targeted single-agent review
+  -> fix findings
+  -> open PR
+  -> CI + human review
+  -> optional PR council if triggered
+  -> merge
+```
+
+This saves CI cycles and reviewer attention by catching issues while the agent
+or human still has fresh local context.
+
+### Review Tiers
+
+Use review tiers by risk, not habit.
+
+| Change Type                                        | Review Mode                                                       | Timing                                     |
+| -------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------ |
+| Docs-only, typo, generated metadata                | No council                                                        | PR CI only                                 |
+| Small local code change                            | Single targeted reviewer                                          | Pre-PR                                     |
+| Medium feature/fix touching one subsystem          | Single targeted reviewer; adversarial pass if risky               | Pre-PR                                     |
+| Cross-boundary change                              | Mini council                                                      | Pre-PR or PR, based on risk                |
+| Security/auth/policy/release/CI changes            | Mini or full council                                              | Pre-PR targeted review, then PR escalation |
+| Release candidate operating model / process change | Full council                                                      | PR, before adoption                        |
+| Hotfix patch                                       | Single targeted reviewer                                          | Pre-PR; post-release review if rushed      |
+| Large architecture change                          | Planning council before implementation, full council before merge | Planning and PR                            |
+
+Recommended reviewer selection:
+
+| Risk Area                               | Reviewer                   |
+| --------------------------------------- | -------------------------- |
+| General correctness and maintainability | `Council — General`        |
+| Edge cases, failure paths, assumptions  | `Council — Adversarial`    |
+| CI, release, deployment, operability    | `Council — Operations`     |
+| Auth, secrets, policy, trust boundaries | `Council — Security`       |
+| Scope, proportionality, delivery risk   | `Council — Pragmatic Lead` |
+
+Recommended pairings for mini council:
+
+| Change Shape              | Reviewers                   |
+| ------------------------- | --------------------------- |
+| Feature behaviour         | General + Adversarial       |
+| Release, CI, or process   | Operations + Pragmatic Lead |
+| Auth, policy, or security | Security + Adversarial      |
+| Architecture boundary     | General + Pragmatic Lead    |
+
+Mechanical trigger rules should be encoded as labels or path-based automation:
+
+| Trigger                                                   | Required Review             |
+| --------------------------------------------------------- | --------------------------- |
+| `docs/**` only                                            | none                        |
+| `plans/**` only                                           | Pragmatic Lead or General   |
+| `.github/**`, `scripts/release.sh`, `dist-workspace.toml` | Operations + Pragmatic Lead |
+| `.claude/skills/release/**`, release runbooks             | Operations + Adversarial    |
+| `crates/**` normal                                        | General                     |
+| `crates/**` auth/security/policy paths                    | Security + Adversarial      |
+| `packages/anvil/policy/**`, `policies/**`                 | Security + General          |
+| APS schema/rules                                          | Pragmatic Lead + Operations |
+| Branch/release/workflow model docs                        | Full council                |
+| Public installer/release artefact paths                   | Operations + Security       |
+
+Target rule:
+
+```text
+small PR = pre-PR single reviewer
+risky PR = pre-PR single reviewer + PR mini council
+system-changing PR = pre-PR targeted reviewer + PR full council
+```
+
+Patch-release exception:
+
+```text
+fix
+  -> targeted pre-PR reviewer
+  -> PR
+  -> CI
+  -> merge
+  -> release
+```
+
+If PR council is skipped for speed during an urgent patch, open a post-release
+review item and run mini or full council within 24 hours.
 
 ### Release Lifecycle
 
