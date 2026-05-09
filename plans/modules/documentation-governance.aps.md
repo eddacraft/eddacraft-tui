@@ -116,11 +116,12 @@ archive.
 ### DOCGOV-005: Add documentation validation baseline
 
 - **Status:** Proposed
-- **Intent:** Convert closeout from memory-based hygiene into a small set of
-  repeatable checks.
-- **Expected Outcome:** A local command or documented check sequence covers link
-  integrity, APS/index consistency, ADR integrity, required metadata, and
-  as-built source path existence.
+- **Intent:** Convert closeout from memory-based hygiene into fully automated
+  checks.
+- **Expected Outcome:** `pnpm docs:check` validates metadata, tags, links,
+  APS/index consistency, ADR integrity, generated-index freshness, and as-built
+  source path existence. Manual indexing is not allowed; the only manual input is
+  document-local metadata and approved tag catalogue updates.
 - **Validation:** `pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-004
 - **Confidence:** medium
@@ -139,10 +140,12 @@ archive.
 ### DOCGOV-007: Generate or reconcile documentation indexes
 
 - **Status:** Proposed
-- **Intent:** Avoid hand-maintained shadow indexes by generating or validating
-  documentation inventories from canonical files.
-- **Expected Outcome:** ADR, runbook, as-built, and APS module indexes are either
-  generated or checked against source files.
+- **Intent:** Replace hand-maintained documentation discovery with generated
+  indexes.
+- **Expected Outcome:** `pnpm docs:index` generates indexes by type, authority,
+  owner, status, and tag from document metadata; `pnpm docs:index:check` fails CI
+  when generated indexes are stale. New tags are added through the approved tag
+  catalogue, not by manually editing indexes.
 - **Validation:** `pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-005
 - **Confidence:** medium

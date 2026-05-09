@@ -117,6 +117,40 @@ Until dedicated tooling exists, use the smallest relevant check set:
 
 DOCGOV will replace these manual checks with explicit validators over time.
 
+## Automated Indexing Requirement
+
+Documentation indexes must be generated, not manually maintained. The only
+manual indexing input should be document-local metadata and, when needed, adding
+a new approved tag to the tag catalogue.
+
+Target flow:
+
+```text
+document metadata -> scanner -> generated indexes -> CI freshness check
+```
+
+The generator should:
+
+- scan documentation sources and package/crate READMEs
+- parse document-local metadata
+- infer safe fields such as title and path
+- generate indexes by type, authority, owner, status, and tag
+- reject unknown tags unless they exist in the approved tag catalogue
+- fail CI when required metadata is missing
+- fail CI when generated indexes are stale
+
+Required commands:
+
+```bash
+pnpm docs:index        # regenerate generated indexes
+pnpm docs:index:check  # fail if generated indexes are stale
+pnpm docs:check        # metadata, tags, links, and index freshness
+```
+
+Generated indexes must be marked as generated and must not contain hand-written
+authority prose. They are discovery surfaces over canonical documents, not a new
+source of truth.
+
 ## Drift Rule
 
 Known documentation drift must not be left as tribal knowledge. Resolve it in
