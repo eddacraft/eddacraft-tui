@@ -4,8 +4,8 @@
 after `v0.6.0-beta` substrate locked and the daemon-working slate proposed)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
-> slice candidates with waves, dependencies, and parallelisation.
-> Source of truth for module status: [`plans/index.aps.md`](./plans/index.aps.md).
+> slice candidates with waves, dependencies, and parallelisation. Source of
+> truth for module status: [`plans/index.aps.md`](./plans/index.aps.md).
 
 ## Mission
 
@@ -29,8 +29,8 @@ time.**
   layers compensate for one another's failure modes.
 - **Honest claim only.** Anvil never says "Protected" when a layer is
   unverified. False confidence is the worst failure mode.
-- **Air-gapped by default.** Core operation requires no internet; cloud
-  services are opt-in amplifiers, never foundations.
+- **Air-gapped by default.** Core operation requires no internet; cloud services
+  are opt-in amplifiers, never foundations.
 - **First-touch wow.** Onboarding is the conversion moment — the first minute
   matters more than the next ten.
 
@@ -42,16 +42,16 @@ Detailed work-item lists live in `plans/index.aps.md`; this roadmap names
 
 ### Horizon 0 — Shipped to date
 
-| Tag           | Theme                                | Headline capability                                                                                                                                |
-| ------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.5.0-beta` | AI Guardrails & Mid-Edit Validation  | Real-time AI validation fires before save through the MCP launch shim. Validation backend was embedded fallback, not yet daemon-backed.            |
-| `v0.5.1-beta` | Scanner Signal & TUI Hotfixes        | Patch — secret/antipattern false-positive fixes, TUI zoom, audit env-template filtering, kernel import bug fixes.                                  |
+| Tag                                  | Theme                                    | Headline capability                                                                                                                                                                                                                                   |
+| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.5.0-beta`                        | AI Guardrails & Mid-Edit Validation      | Real-time AI validation fires before save through the MCP launch shim. Validation backend was embedded fallback, not yet daemon-backed.                                                                                                               |
+| `v0.5.1-beta`                        | Scanner Signal & TUI Hotfixes            | Patch — secret/antipattern false-positive fixes, TUI zoom, audit env-template filtering, kernel import bug fixes.                                                                                                                                     |
 | `v0.6.0-beta` (locked, ready to tag) | Wow-Start Activation + Daemon-Backed RTV | `install → cd repo → anvil start` is the canonical first minute. MCP `tools/call` runs through the daemon when owner-only IPC is available, embedded path remains correctness-equivalent fallback. Driver framework + editor-driver protocol shipped. |
 
 ### Horizon 1 — Daemon Working End-to-End (next release window)
 
-**Theme:** Flip the daemon from "available when invoked" to "always-on,
-in-tree, defensible."
+**Theme:** Flip the daemon from "available when invoked" to "always-on, in-tree,
+defensible."
 
 `v0.6.0-beta` ships the daemon + driver substrate. This horizon turns that
 substrate into a coherent end-to-end protection loop the user can rely on
@@ -66,22 +66,21 @@ without thinking about it.
   framework, plain). Silent on success, terse on failure.
 - **L4 policy framework.** Per-branch rules with server-side fallback for
   unwitnessed commits; legacy acceptance via `cutoff_commit`.
-- **Baseline adoption.** Existing repos adopt Anvil without a wash of
-  warnings. Hard-pinned classes (`secrets`, `command-safety`) cannot be
-  config-disabled.
+- **Baseline adoption.** Existing repos adopt Anvil without a wash of warnings.
+  Hard-pinned classes (`secrets`, `command-safety`) cannot be config-disabled.
 - **Multi-agent coordination.** Per-task fence isolation so one bad sub-agent
   doesn't cascade-fence a whole worktree. `AgentTag` composite session key.
 - **Wrapped-launch ingress (`anvil-run`).** Agent processes register sessions
-  before spawn; PGIDs / Job Objects let the daemon target interrupts;
-  drop-guard cleanup on exit.
-- **L5 audit.** Periodic re-scan of mainline for drift detection — catches
-  what bypassed L0–L4 (admin overrides, force-pushes).
+  before spawn; PGIDs / Job Objects let the daemon target interrupts; drop-guard
+  cleanup on exit.
+- **L5 audit.** Periodic re-scan of mainline for drift detection — catches what
+  bypassed L0–L4 (admin overrides, force-pushes).
 - **Air-gapped operation guarantee.** Every core command tested under a
   network-blocked sandbox.
 
 **Hard release gate.** A protection-claim contract test suite pins the closed
-set of states the user can be in (`unprotected | warming | pre-write-only |
-save-time-only | full | degraded | cross-boundary-mixed | path-uncertain`).
+set of states the user can be in
+(`unprotected | warming | pre-write-only | save-time-only | full | degraded | cross-boundary-mixed | path-uncertain`).
 No item ships until every state is reachable in fixtures and rendered claims
 match.
 
@@ -93,11 +92,11 @@ parallelisation in
 
 **Theme:** The persona that funds the tool gets a credible browser surface.
 
-Once the daemon is working end-to-end, the second persona — team leads,
-platform engineers, compliance roles — gets a "Team-Lead Glance":
-**last gate run, current warnings ranked by severity, recent activity** in a
-browser without learning CLI commands. The smallest credible demo is a
-warnings list with file/line + severity grouping and a detail panel.
+Once the daemon is working end-to-end, the second persona — team leads, platform
+engineers, compliance roles — gets a "Team-Lead Glance": **last gate run,
+current warnings ranked by severity, recent activity** in a browser without
+learning CLI commands. The smallest credible demo is a warnings list with
+file/line + severity grouping and a detail panel.
 
 The CLI ↔ dashboard bridge is `anvil export` — canonical
 `.anvil/{warnings,gates,provenance,config}.json` written from the latest run
@@ -105,8 +104,7 @@ state.
 
 ### Horizon 3 — Enterprise Readiness
 
-**Theme:** "How does this deploy in front of N repos for an org-tier
-customer?"
+**Theme:** "How does this deploy in front of N repos for an org-tier customer?"
 
 A coherent constellation that delivers as a sequenced foundation, not as
 isolated features:
@@ -130,46 +128,45 @@ design-partner request lights this horizon up.
 
 Phased rollout of the language-and-coverage design:
 
-- **Phase 1** — TypeScript substrate + SQL migrations + the smallest viable
-  pack set (Pulumi, LLM-provider).
-- **Phase 2** — Rust + Python anchors; Drizzle / Next.js / Hono / Tokio
-  packs; markdown governance slice.
-- **Phase 3** — Surfaces: GitHub Actions, Dockerfile, shell. Tail-wave
-  language coverage.
+- **Phase 1** — TypeScript substrate + SQL migrations + the smallest viable pack
+  set (Pulumi, LLM-provider).
+- **Phase 2** — Rust + Python anchors; Drizzle / Next.js / Hono / Tokio packs;
+  markdown governance slice.
+- **Phase 3** — Surfaces: GitHub Actions, Dockerfile, shell. Tail-wave language
+  coverage.
 
-Demand-pulled. Most stays parked until a customer or dogfood signal asks
-for it.
+Demand-pulled. Most stays parked until a customer or dogfood signal asks for it.
 
 ### Horizon 5 — Long Bets
 
-Real concepts, no current consumer. Held in the catalogue so they don't get
-lost or duplicated:
+Real concepts, no current consumer. Held in the catalogue so they don't get lost
+or duplicated:
 
 - **Agent infrastructure** — provider-agnostic agent runtime + harness with
   zero-copy semantic graph access.
 - **Graph v2 substrate** — joined semantic / dependency / trust / control /
-  provenance graph. Anvil-first foundation; assistant context delivery
-  becomes a projection over it.
+  provenance graph. Anvil-first foundation; assistant context delivery becomes a
+  projection over it.
 - **Symbol-graph-driven effect prediction** — predict the effect of a change
-  against captured intent. Anvil's _original_ use case, sharpened by the
-  graph substrate.
+  against captured intent. Anvil's _original_ use case, sharpened by the graph
+  substrate.
 - **Lineage & authorship confidence** — line-level human / AI / mixed
   attribution.
-- **Adjacent surfaces** — gateway integrations, open-spec ingestion,
-  unified config formats. Surface when their primary horizon lands.
+- **Adjacent surfaces** — gateway integrations, open-spec ingestion, unified
+  config formats. Surface when their primary horizon lands.
 
 ## Big bets
 
-| Bet                          | Why it matters                                                                                            | Where it lives           |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Witness chain + hooks**    | The load-bearing primitive that makes "Anvil protects this project" a defensible claim across machines.   | Horizon 1                |
-| **Daemon + drivers**         | Mechanical validation at the surface where AI tools propose writes, without a Node sidecar.                | Horizon 0 (shipped) → Horizon 1 (always-on) |
-| **Real-time AI validation**  | Refuse the bad write before disk. The launch demo.                                                        | Horizon 0 (shipped)      |
-| **Wrapped-launch ingress**   | Daemon-coordinated session lifecycle for shell-launched AI agents (Claude Code in tmux, etc.).            | Horizon 1                |
-| **Team-lead dashboard**      | The persona that funds the tool. Buyer surface, not developer surface.                                    | Horizon 2                |
-| **Enterprise constellation** | The org-tier deployment story — gateway, federation, hierarchy, lifecycle, compliance.                    | Horizon 3                |
-| **Graph v2 substrate**       | Joined structural model for enforcement, trust, control, provenance, and later agent context.             | Horizon 5                |
-| **Effect prediction**        | What intent-ledger governance becomes — predict effect of a change against captured intent.               | Horizon 5                |
+| Bet                          | Why it matters                                                                                          | Where it lives                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **Witness chain + hooks**    | The load-bearing primitive that makes "Anvil protects this project" a defensible claim across machines. | Horizon 1                                   |
+| **Daemon + drivers**         | Mechanical validation at the surface where AI tools propose writes, without a Node sidecar.             | Horizon 0 (shipped) → Horizon 1 (always-on) |
+| **Real-time AI validation**  | Refuse the bad write before disk. The launch demo.                                                      | Horizon 0 (shipped)                         |
+| **Wrapped-launch ingress**   | Daemon-coordinated session lifecycle for shell-launched AI agents (Claude Code in tmux, etc.).          | Horizon 1                                   |
+| **Team-lead dashboard**      | The persona that funds the tool. Buyer surface, not developer surface.                                  | Horizon 2                                   |
+| **Enterprise constellation** | The org-tier deployment story — gateway, federation, hierarchy, lifecycle, compliance.                  | Horizon 3                                   |
+| **Graph v2 substrate**       | Joined structural model for enforcement, trust, control, provenance, and later agent context.           | Horizon 5                                   |
+| **Effect prediction**        | What intent-ledger governance becomes — predict effect of a change against captured intent.             | Horizon 5                                   |
 
 ## Doctrine pinned to architecture
 
@@ -189,8 +186,7 @@ back to one or more.
    anvil-managed files; nothing else required.
 6. **New edges only.** Existing state grandfathered at adoption time;
    security-class rules exempt.
-7. **Anvil cloud is opt-in.** Hosted services are amplifiers, never
-   foundations.
+7. **Anvil cloud is opt-in.** Hosted services are amplifiers, never foundations.
 8. **Air-gapped by default.** Core operation requires no internet.
 
 ## What this roadmap is NOT
