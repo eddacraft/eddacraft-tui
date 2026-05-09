@@ -407,6 +407,8 @@ phases, with the rest explicitly Phase-2-tracked.
   succeeds; differential-window log is recorded on the tracking issues for
   the 3 releases used as evidence.
 - **Files:** `.claude/skills/release/SKILL.md`,
-  `docs/guides/release-runbook.md`, `scripts/release.sh` (deletion),
-  `scripts/release/_differential-window.md` (the comparison record).
+  `docs/guides/release-runbook.md`, `scripts/release.sh` (deletion). The
+  differential-window evidence lives on the tracking issues for the 3
+  releases used (per Constraint #2) — not in a checked-in file — so it does
+  not reintroduce on-disk state across commands.
 - **Coordinates with:** `RELORCH-004`.
