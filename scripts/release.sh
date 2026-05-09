@@ -70,8 +70,11 @@ require_release_tool_pins_synced() {
   local workflow_hakari
   local workflow_deny
 
-  workflow_hakari=$(awk -F': ' '/CARGO_HAKARI_VERSION:/ {print $2; exit}' "${workflow}")
-  workflow_deny=$(awk -F': ' '/CARGO_DENY_VERSION:/ {print $2; exit}' "${workflow}")
+  # Strip surrounding YAML quotes — `rust.yml` writes the values as
+  # `CARGO_HAKARI_VERSION: '0.9.37'` (single-quoted) but the script's
+  # own constants are unquoted, so a raw awk extract would never match.
+  workflow_hakari=$(awk -F': ' '/CARGO_HAKARI_VERSION:/ {print $2; exit}' "${workflow}" | tr -d "'\"")
+  workflow_deny=$(awk -F': ' '/CARGO_DENY_VERSION:/ {print $2; exit}' "${workflow}" | tr -d "'\"")
 
   if [[ "${workflow_hakari}" != "${CARGO_HAKARI_VERSION}" ]]; then
     echo -e "  ${RED}cargo-hakari pin drift:${NC} script=${CARGO_HAKARI_VERSION} rust.yml=${workflow_hakari}"
