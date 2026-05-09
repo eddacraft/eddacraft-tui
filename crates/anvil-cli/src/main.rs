@@ -453,8 +453,18 @@ fn allows_interactive_auth_prompt(cmd: &Commands) -> bool {
 ///
 /// Returns `Ok(false)` on EOF (`read_line` returning 0 bytes) so a closed
 /// stdin fails closed rather than fail-open into launching device flow.
+///
+/// Defensively restores cooked terminal mode before reading. A previous
+/// TUI in the same shell session (e.g. the MCP picker via `demand` →
+/// `console::Term`) can leave the terminal in raw mode after an
+/// abnormal exit; in raw mode the kernel never line-terminates stdin,
+/// so `read_line` would block indefinitely even though the user is
+/// typing `y` / `n` + Enter. `disable_raw_mode` is a no-op when the
+/// terminal is already cooked, so this is safe to run unconditionally.
 fn prompt_yes_no(message: &str, default_yes: bool) -> std::io::Result<bool> {
     use std::io::{BufRead, Write};
+    let _ = crossterm::terminal::disable_raw_mode();
+
     let mut stderr = std::io::stderr();
     let hint = if default_yes { "[Y/n]" } else { "[y/N]" };
     write!(stderr, "{message} {hint} ")?;

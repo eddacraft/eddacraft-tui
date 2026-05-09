@@ -497,6 +497,13 @@ fn install_one(
 ///
 /// Returns `Ok(vec![])` if the user dismisses the prompt without
 /// selecting anything (Enter on empty).
+///
+/// Wraps the call in [`RawModeGuard`] — `demand` enables raw mode via
+/// `console::Term` and on its happy path restores it, but a panic /
+/// SIGINT / interrupt error during render can leak the raw flag. The
+/// next interactive prompt in the same shell session (e.g. the
+/// `Log in now?` yes/no in `main::prompt_yes_no`) would then hang
+/// because the kernel never delivers `\n` to `read_line`.
 fn show_picker(candidates: &[&Candidate]) -> std::io::Result<Vec<McpClientId>> {
     use demand::{DemandOption, MultiSelect};
 
@@ -519,6 +526,7 @@ fn show_picker(candidates: &[&Candidate]) -> std::io::Result<Vec<McpClientId>> {
         );
     }
 
+    let _raw_guard = RawModeGuard;
     match picker.run() {
         Ok(ids) => Ok(ids),
         Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {
@@ -527,6 +535,18 @@ fn show_picker(candidates: &[&Candidate]) -> std::io::Result<Vec<McpClientId>> {
             Ok(Vec::new())
         }
         Err(e) => Err(e),
+    }
+}
+
+/// Drop-guard that defensively disables crossterm raw mode whenever it
+/// goes out of scope. Used to wrap interactive TUI calls so a panic /
+/// `?`-unwind / abnormal exit can't leave the user's terminal stuck
+/// in raw mode, which silently breaks every later line-buffered prompt
+/// in the same shell session.
+struct RawModeGuard;
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        let _ = crossterm::terminal::disable_raw_mode();
     }
 }
 
