@@ -16,6 +16,43 @@ The target is not more ceremony. The target is earlier, cheaper, more precise
 agent review that prevents expensive CI failures, stale plans, and late release
 rework.
 
+## Relationship To The Operating Model
+
+This proposal defines the review and council mechanics for the target operating
+model in `2026-05-09-plan-build-release-operating-model.md`. It does not define a
+parallel lifecycle.
+
+Shared lifecycle vocabulary:
+
+```text
+APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+```
+
+Council and review sessions provide judgement evidence at specific transitions:
+
+| Transition | Review role |
+| --- | --- |
+| Draft / Proposed plan creation | Planning council creation or direction validation. |
+| Ready -> In Progress for non-trivial work | Planning council pre-execution validation or documented lightweight exception. |
+| Local work -> PR | Targeted pre-PR review, mini council, or full council based on risk. |
+| PR -> Merged | PR review, CI, and any triggered council escalation. |
+| Merged -> Released/Shipped | Release candidate and verification checks; council only for risk-triggered release/process changes. |
+
+Review terminology is canonical across the new specs:
+
+| Term | Definition |
+| --- | --- |
+| Targeted review | One selected reviewer role, usually pre-PR. |
+| Mini council | Two selected reviewer roles for elevated risk. |
+| Full council | Formal multi-reviewer review for system-changing work. |
+| Planning council | Plan creation, direction validation, or pre-execution reality validation. |
+
+Review findings are not validation proof. They are structured judgement evidence
+that can require deterministic checks, APS amendments, or implementation changes.
+CI remains validation authority for commit SHAs.
+
+Hooks may print deterministic review guidance, but hooks must not run LLM review.
+
 ## Current Council Surfaces Reviewed
 
 Repository-local surfaces:

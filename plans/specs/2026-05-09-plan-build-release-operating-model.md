@@ -65,6 +65,66 @@ items can be added as the design is refined.
 The spec should stay concise enough to reason about under pressure. Detailed
 procedure belongs in the downstream artefacts above.
 
+## Cross-Stream Coherence Contract
+
+This specification is the target-state authority for the Plan / Build / Release
+operating model. The companion agentic and council specs define execution and
+review mechanics that must implement this model, not alternate lifecycles.
+
+Until migration completes, current-state documents may still describe `dev` as
+the integration branch. Such documents are compatibility guidance only. Target-
+state artefacts must say so explicitly and must not silently mix `dev` promotion
+with trunk-first `main` release semantics.
+
+Normative boundaries:
+
+| Concern | Canonical authority | Notes |
+| --- | --- | --- |
+| Intent, readiness, scope, dependencies | APS | APS is not a runtime log and does not embed CI output or agent transcripts. |
+| Code history | Git | Work branches are disposable; target state branches from `main`. |
+| Validation evidence | CI result for a commit SHA | Local checks are fast feedback, not release authority. |
+| Released source | Annotated tag on `main` | Tags are immutable once external automation may have observed them. |
+| Distributed artefacts | GitHub Release assets | cargo-dist logs are evidence, not the artefact authority. |
+| Shipped-state reconciliation | Release record | The release record joins tag, APS items, artefacts, and verification. |
+| Operator narrative and recovery log | GitHub tracking issue | The issue is durable operational context, not shipped-state truth. |
+| Review judgement | Review/council session and PR summary | Review is evidence of critique, not validation proof. |
+
+Shared lifecycle vocabulary:
+
+```text
+APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+```
+
+- `Ready` means execution is authorised.
+- `In Progress` means work has started.
+- `Merged` means code reached the integration target, but has not necessarily
+  shipped.
+- `Released` / `Shipped` means a release record proves inclusion in a verified
+  release.
+- `Complete` means the APS item or module has no remaining active closeout work
+  and may be archived under APS rules.
+
+`Committed` is treated as legacy wording for `Merged` unless a specific module
+defines a narrower transition. New operating-model artefacts should prefer
+`Merged` and `Released/Shipped`.
+
+Review vocabulary is shared with the council spec:
+
+| Term | Meaning |
+| --- | --- |
+| Targeted review | One selected reviewer role, usually pre-PR. |
+| Mini council | Two selected reviewer roles for elevated risk. |
+| Full council | Formal multi-reviewer review for system-changing work. |
+| Planning council | Plan creation, direction validation, or pre-execution reality validation. |
+
+Hook and agent vocabulary is shared with the agentic execution spec:
+
+- Hooks are deterministic guardrails only.
+- Skills route to playbooks and deterministic commands.
+- Agents provide judgement, synthesis, and critique.
+- Scripts and CI own deterministic execution.
+- Sessions and events own continuity and recovery context.
+
 ## Operating Principles
 
 - `main` is the only long-lived product branch.

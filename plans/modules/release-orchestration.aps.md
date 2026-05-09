@@ -48,6 +48,40 @@ module owns the design (`RELORCH-001`) and the work to honour it. Until
 `RELORCH-001` ratifies the contract, the docs PR describes a target, not an
 agreement.
 
+## Coherence With The New Operating Model
+
+RELORCH is a release-command implementation module for the target operating
+model in
+[`2026-05-09-plan-build-release-operating-model.md`](../specs/2026-05-09-plan-build-release-operating-model.md).
+It does not own branching strategy, APS lifecycle semantics, or release
+authority vocabulary beyond the release command surface.
+
+Current-state versus target-state boundary:
+
+- Current-state release assets still include legacy `scripts/release.sh` and
+  may still execute against the repository's `dev` integration model while the
+  migration is incomplete.
+- Target-state release commands must be compatible with tagging a verified
+  `main` SHA and must not encode `dev -> main` promotion as a permanent
+  assumption.
+- Any command that accepts `--base main --head dev` during migration must treat
+  that as compatibility input, not as the canonical future release topology.
+
+Release state authority:
+
+| State | Authority |
+| --- | --- |
+| Operator decisions, recovery narrative, resumability comments | GitHub release tracking issue |
+| Candidate metadata and generated notes | Deterministic command output and CI artefact, shape defined by `RELORCH-001` |
+| Released source snapshot | Annotated tag on `main` |
+| Distributed artefacts | GitHub Release assets |
+| Shipped-state reconciliation for APS | Machine-readable release record |
+
+The GitHub tracking issue is the single durable operator log. It is not the
+canonical shipped-state artefact. `RELORCH-001` must define how release commands
+create or locate the release record without reintroducing the old mutable
+`.release/manifest.json` handoff.
+
 ## In Scope
 
 - A design spec (`RELORCH-001`) that supersedes the relevant parts of the
@@ -86,10 +120,12 @@ questions for the spec to redecide.
    inherits that decision. If a transient is unavoidable (e.g. multi-edit
    atomicity inside `prepare.sh`), it must be `mktemp`-scoped to a single
    process and cleaned up on any exit path.
-2. **GitHub tracking issue is the single durable record.** The 13-field
+2. **GitHub tracking issue is the single durable operator log.** The 13-field
    metadata block currently described in `SKILL.md` §Resumability lives in
    structured comments on the tracking issue, not in a side-channel file.
    `RELORCH-001` ratifies the comment shape and the parser the skill uses.
+   Shipped-state truth remains the release record that joins tag, APS items,
+   artefacts, and verification evidence.
 3. **Idempotency is local-state-only by default.** Commands must be safe to
    re-run before any irreversible side effect. `tag.sh` (`RELORCH-007`) is
    the explicit exception: pre-push is idempotent, post-push requires
@@ -210,13 +246,15 @@ phases, with the rest explicitly Phase-2-tracked.
   arguments, exit codes, JSON output schema, the structured-comment metadata
   shape on the tracking issue, the local-vs-remote idempotency split for
   `tag.sh`, and the failure-reporting shape the `/release` skill consumes.
-  Honour the load-bearing constraints (above) without redebating them.
+  Honour the load-bearing constraints (above) without redebating them. Define
+  how the command surface emits or locates the release record while preserving
+  the no-persistent-local-manifest constraint.
 - **Expected Outcome:** A new design doc under `plans/specs/` that
   supersedes the relevant parts of `2026-04-20-relmgmt-agent-driven-release-design.md`
   and is the single document `RELORCH-002..-011` cite.
 - **Validation:** Spec links from this module; spec explicitly addresses each
-  of the four constraints above; spec defines the harness schema in a form
-  `RELORCH-002` can consume.
+  of the four constraints above; spec defines the tracking-issue comment shape,
+  release-record shape, and harness schema in a form `RELORCH-002` can consume.
 - **Confidence:** medium — main risk is the structured-comment design
   ratifying without surprises.
 - **Files:** `plans/specs/<date>-release-orchestration-design.md`,

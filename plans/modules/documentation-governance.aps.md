@@ -51,6 +51,10 @@ archive.
 - `docs/architecture/README.md` — current architecture taxonomy seed
 - `docs/architecture/_as-built-template.md` — as-built documentation pattern
 - `AGENTS.md` — repository-wide agent behaviour rules
+- `plans/specs/2026-05-09-plan-build-release-operating-model.md` — target
+  operating lifecycle and source-of-truth hierarchy
+- `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md` — skill,
+  agent, hook, session, and event authority boundaries
 
 **Exposes:**
 
@@ -58,6 +62,20 @@ archive.
 - Documentation workflow and closeout protocol
 - Validation backlog for documentation integrity
 - Migration plan for taxonomy, metadata, and generated indexes
+
+## Coherence Boundary
+
+DOCGOV owns documentation classification, authority routing, closeout, metadata,
+and validation. It does not own the Plan / Build / Release lifecycle, release
+state semantics, or agent execution taxonomy. When documentation governance needs
+those concepts, it links to the operating-model and agentic-execution specs
+instead of redefining them.
+
+Current planned validation commands such as `pnpm docs:check`,
+`pnpm docs:index`, and `pnpm docs:index:check` are target commands until
+DOCGOV-005 and DOCGOV-007 implement them. Before those items land, docs changes
+use the minimal validation baseline in
+`docs/guides/documentation-governance.md`.
 
 ## Tasks
 
@@ -121,7 +139,9 @@ archive.
 - **Expected Outcome:** `pnpm docs:check` validates metadata, tags, links,
   APS/index consistency, ADR integrity, generated-index freshness, and as-built
   source path existence. Manual indexing is not allowed; the only manual input is
-  document-local metadata and approved tag catalogue updates.
+  document-local metadata and approved tag catalogue updates. Until this ships,
+  references to `pnpm docs:check` are target-state guidance, not an available
+  repository command.
 - **Validation:** `pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-004
 - **Confidence:** medium
@@ -145,7 +165,9 @@ archive.
 - **Expected Outcome:** `pnpm docs:index` generates indexes by type, authority,
   owner, status, and tag from document metadata; `pnpm docs:index:check` fails CI
   when generated indexes are stale. New tags are added through the approved tag
-  catalogue, not by manually editing indexes.
+  catalogue, not by manually editing indexes. Until this ships, generated-index
+  requirements remain planned and must not be treated as current closeout
+  commands.
 - **Validation:** `pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-005
 - **Confidence:** medium

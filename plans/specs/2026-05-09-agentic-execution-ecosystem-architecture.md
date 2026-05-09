@@ -21,6 +21,47 @@ low-friction human supervision.
 APS remains mandatory and foundational. APS may evolve in integration and
 execution semantics, but it remains the authoritative planning and intent layer.
 
+## Alignment With Plan / Build / Release
+
+This architecture implements the execution layer of
+`2026-05-09-plan-build-release-operating-model.md`. It does not define a
+separate lifecycle.
+
+The shared lifecycle is:
+
+```text
+APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+```
+
+Agentic execution contributes routing, judgement, sessions, events, leases, and
+playbooks around that lifecycle. It must not redefine release authority,
+validation authority, or APS shipped-state semantics.
+
+Target-state versus migration-state rule:
+
+- Target-state agent workflows branch from `main`, open PRs to `main`, and use
+  release records to update shipped APS state.
+- During migration, agents may encounter current-state docs that still route
+  through `dev`. Those are compatibility instructions, not a competing target
+  architecture.
+- If a skill, command, or playbook sees both models in scope, it must state which
+  one it is following and stop if the conflict changes a safety or release
+  decision.
+
+Authority boundaries inherited from the operating model:
+
+| Concern | Agentic responsibility | Non-responsibility |
+| --- | --- | --- |
+| APS intent | Load, validate, reconcile, and link evidence | Do not invent untracked work authority from chat. |
+| Validation | Run or request deterministic checks and record evidence links | Do not treat agent judgement as pass/fail proof. |
+| Release | Route to release playbooks and deterministic commands | Do not manually replace release commands except approved emergency recovery. |
+| Shipped state | Consume release records for APS reconciliation | Do not mark shipped from PR merge, changelog prose, or memory. |
+| Observability | Emit workflow/session events and evidence links | Do not use spans or chat as source-of-truth. |
+
+Release tracking issues and release records have distinct roles: the issue is the
+operator log and recovery narrative; the release record is the canonical
+machine-readable proof of what shipped.
+
 ## Current-State Assessment
 
 ### Surfaces Observed
@@ -520,7 +561,7 @@ Define a standard context envelope passed to agents and playbooks:
 context:
   repo: EddaCraft/anvil-001
   branch: docs/example
-  base: dev
+  base: main
   sha: abc123
   aps:
     items: [MOD-001]
@@ -537,6 +578,9 @@ context:
 ```
 
 Agents should not have to reconstruct this independently for every workflow.
+During migration, `base` may be `dev` only when the workflow explicitly declares
+it is executing the current compatibility model rather than the target operating
+model.
 
 ## Memory And State Recommendations
 
