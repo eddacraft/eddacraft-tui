@@ -72,7 +72,7 @@ operating model. The companion agentic and council specs define execution and
 review mechanics that must implement this model, not alternate lifecycles.
 
 Until migration completes, current-state documents may still describe `dev` as
-the integration branch. Such documents are compatibility guidance only. Target-
+the integration branch. Such documents are compatibility guidance only. Target
 state artefacts must say so explicitly and must not silently mix `dev` promotion
 with trunk-first `main` release semantics.
 
@@ -81,7 +81,7 @@ Normative boundaries:
 | Concern | Canonical authority | Notes |
 | --- | --- | --- |
 | Intent, readiness, scope, dependencies | APS | APS is not a runtime log and does not embed CI output or agent transcripts. |
-| Code history | Git | Work branches are disposable; target state branches from `main`. |
+| Code history | Git | Work branches are disposable; target-state work branches branch from `main`. |
 | Validation evidence | CI result for a commit SHA | Local checks are fast feedback, not release authority. |
 | Released source | Annotated tag on `main` | Tags are immutable once external automation may have observed them. |
 | Distributed artefacts | GitHub Release assets | cargo-dist logs are evidence, not the artefact authority. |
