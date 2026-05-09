@@ -53,7 +53,9 @@ items can be added as the design is refined.
 | Release runbook update | Tag-from-main release process and recovery paths | Needed |
 | Release skill update | Agent release orchestration against CI readiness and release records | Needed |
 | APS schema/rules update | Machine-readable readiness, validation, and release-note metadata | Needed |
+| Planning council playbooks | Creation-time and pre-execution plan validation workflows | Needed |
 | Review trigger rules | Path/label matrix for pre-PR and PR-level reviews | Needed |
+| Agent guidance script | Deterministic path-to-playbook/review/check guidance for hooks, agents, and CI | Needed |
 | CI release-readiness workflow | Canonical pre-tag readiness gate keyed by SHA | Needed |
 | Candidate artefact workflow | Non-publishing release artefact build before tag | Needed |
 | Release record schema | Machine-readable link between tag, APS items, artefacts, and verification | Needed |
@@ -171,12 +173,28 @@ latest good tag -> hotfix/* -> minimal fix -> PR to main -> CI -> patch tag -> i
 
 Work starts from APS.
 
+Planning should use council review at two gates:
+
+1. **Plan creation or direction validation:** Planning Council reviews the
+   proposed direction before an APS plan is treated as the execution source.
+2. **Pre-execution reality validation:** Before work starts on a Ready plan or
+   work item, Planning Council validates that the plan is still fit for purpose
+   against current repository state.
+
+This intentionally slows the start of substantial work. The trade-off is
+accepted because early multi-perspective validation is cheaper than late
+refactors caused by stale assumptions, missing dependencies, or repo drift.
+
 Before implementation:
 
 - Work item must be Ready or explicitly approved as urgent unplanned work.
 - Acceptance criteria must be clear enough for review.
 - Validation command must exist or the absence must be justified.
 - User-visible changes should include release-note metadata.
+- For non-trivial work, a Planning Council validation must be current enough to
+  trust. If the repo, dependencies, branch base, or target architecture changed
+  materially since the plan was written, rerun Planning Council validation before
+  execution.
 
 Recommended work item metadata:
 
@@ -198,6 +216,33 @@ files:
 
 APS status must not be marked shipped from memory. Shipped state requires a
 verified release record.
+
+### Planning Council Gates
+
+Planning Council has three modes in this operating model:
+
+| Mode | When | Purpose | Output |
+| --- | --- | --- | --- |
+| Creation council | During new plan creation | Interrogate problem, negotiate direction, produce APS/ADR/spec artefacts | Proposed plan artefacts |
+| Direction validation | After a plan is drafted or materially changed | Validate that the chosen direction is coherent before marking work Ready | Objections, amendments, or approval |
+| Pre-execution validation | Immediately before executing a non-trivial Ready item or module | Check the plan against current repo reality and recent decisions | Proceed, amend, split, or replan recommendation |
+
+Pre-execution validation must check:
+
+- the target files still exist and have the expected shape
+- relevant ADRs and specs have not changed the direction
+- dependencies are still complete or correctly ordered
+- validation commands still exist and are meaningful
+- expected outcomes are still valuable
+- work can still be sliced safely
+- any as-built documentation requirements are known before coding starts
+
+If Planning Council finds material drift, do not start implementation. Amend the
+plan first, then restart the execution gate.
+
+Small or urgent work may use a lightweight validation pass instead of a full
+Planning Council, but the exception and reason should be visible in the PR or
+APS item.
 
 ## Build Specification
 
@@ -538,6 +583,8 @@ Agents should operate through explicit commands or skills:
 
 - `aps next`: select Ready work and create a branch from `main`.
 - `aps reconcile`: compare changed files, commits, PRs, and APS status.
+- `plan validate`: run Planning Council reality validation before executing a
+  non-trivial Ready item.
 - `build ready`: run local fast checks and request CI readiness if needed.
 - `review pre-pr`: run targeted single-agent review before PR open.
 - `release candidate`: compute version, notes, APS items, and validations for a
@@ -590,8 +637,10 @@ Migration should be staged:
 6. Add release-readiness workflow keyed by SHA.
 7. Add candidate artefact build without publishing.
 8. Add APS metadata and drift checks in warning mode.
-9. Retire or protect `dev` against normal pushes.
-10. Remove `dev -> main`, normal `release/*`, and back-merge steps from runbooks
+9. Add Planning Council validation gates for plan creation and pre-execution.
+10. Add deterministic agent guidance for hooks, agents, and CI.
+11. Retire or protect `dev` against normal pushes.
+12. Remove `dev -> main`, normal `release/*`, and back-merge steps from runbooks
     and agent skills.
 
 ## Minimum Viable Operating Model
@@ -621,3 +670,5 @@ Minimum rules:
 - Exact path labels and required-review automation.
 - Exact definition of candidate artefact build frequency.
 - Whether `dev` is deleted, archived, or protected after migration.
+- Exact freshness rule for Planning Council pre-execution validation.
+- Exact location and output schema for deterministic agent guidance.
