@@ -2,14 +2,18 @@
 
 ## Overview
 
-Use worktrees as lightweight execution spaces for active branches.
+Use worktrees as lightweight execution spaces for active branches. The branch or
+PR is the unit of work; the worktree is only the local workspace.
 
-This repository keeps two permanent anchor worktrees and treats everything else
-as disposable.
+This policy now separates current compatibility execution from the target
+`main`-first model. Until `OPMODEL-012` completes the branch cutover, normal
+work still branches from `dev` and normal PRs still target `dev`.
 
 ## Permanent Worktrees
 
-Keep exactly two long-lived worktrees:
+### Current Compatibility Model
+
+Keep two long-lived anchor worktrees:
 
 1. `main`
 2. `dev`
@@ -19,7 +23,17 @@ Suggested directories:
 - `../anvil.main`
 - `../anvil.dev`
 
-These are the stable anchors for release and integration work.
+`main` is the stable release anchor. `dev` is the active integration anchor.
+
+### Target Model
+
+After `OPMODEL-012`, keep one long-lived product anchor:
+
+1. `main`
+
+`dev` should be removed locally unless it is explicitly retained as a dated
+compatibility branch. Normal work should not require a permanent `dev` worktree
+after cutover.
 
 ## Disposable Worktrees
 
@@ -44,25 +58,37 @@ Examples:
 - `../wt-release-0.3.0`
 - `../wt-hotfix-auth`
 
-## Why disposable is the default
+## Branch Creation Rules
+
+Current compatibility rules, before `OPMODEL-012`:
+
+1. Create normal work branches from `dev`.
+2. Create release branches from `dev`.
+3. Create hotfix branches from `main` or the active `release/*` branch.
+4. Merge completed work into its target branch, then remove the worktree.
+
+Target rules, after `OPMODEL-012`:
+
+1. Create normal work branches from `main`.
+2. Create `release/*` only when `main` cannot be tagged directly and the branch
+   has an explicit expiry.
+3. Create `hotfix/*` from `main`, or from the latest good tag only for an
+   incident where `main` is unreleasable.
+4. Merge completed work into its target branch, then remove the worktree.
+
+## Why Disposable Is the Default
 
 Disposable worktrees reduce drift and maintenance overhead.
 
 Permanent feature worktrees tend to accumulate:
 
 - stale branches
-- hidden divergence from `dev`
+- hidden divergence from the integration target
 - rebasing overhead
 - unfinished work that feels active but is not moving
 
-The branch or PR is the unit of work. The worktree is just the workspace.
-
-## Branch Creation Rules
-
-1. Create normal work branches from `dev`.
-2. Create release branches from `dev`.
-3. Create hotfix branches from `main` or the active `release/*` branch.
-4. Merge completed work into its target branch, then remove the worktree.
+Use the branch and PR as the durable record. Remove local worktrees once the
+stream is merged, abandoned, superseded, or blocked without near-term action.
 
 ## Age Limits
 
@@ -108,28 +134,25 @@ Check for:
 1. merged branches that still have a worktree
 2. stale branches with no recent progress
 3. branches that should be split or rebased
-4. streams that should be promoted into `dev`
-
-## Relationship to Branching
-
-Worktree policy supports the repository branching model:
-
-1. `main` remains stable.
-2. `dev` remains the integration branch.
-3. disposable worktrees support parallel execution without turning every stream
-   into a permanent branch.
-4. frequent `dev -> main` promotion prevents worktree sprawl from becoming
-   branch drift.
+4. streams that should be promoted into the current integration target
 
 ## Practical Rule of Thumb
 
-1. Keep `main` and `dev` open all the time.
-2. Open disposable worktrees for active streams.
+Before `OPMODEL-012`:
+
+1. Keep `main` and `dev` anchors available.
+2. Open disposable worktrees for active streams from `dev`.
 3. Remove them as soon as the stream is merged, replaced, or paused.
-4. If a worktree feels permanent, that is usually a signal to merge or split the
-   work.
+
+After `OPMODEL-012`:
+
+1. Keep `main` as the product anchor.
+2. Open disposable worktrees for active streams from `main`.
+3. Remove them as soon as the stream is merged, replaced, or paused.
+4. If a worktree feels permanent, merge, split, or close the stream.
 
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)
 - [Release Runbook](release-runbook.md)
+- [Operating Model Spec](../../plans/specs/2026-05-09-plan-build-release-operating-model.md)

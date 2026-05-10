@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 1/12     |
+| OPMODEL | —     | In Progress | 2/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -190,7 +190,10 @@ This module is Complete when:
 
 ### OPMODEL-002: Branching and worktree policy target-state update
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved executing OPMODEL-002 on
+  2026-05-10; this approval treated the item as Ready for this slice before it
+  moved to Complete.
 - **Intent:** Update human-facing branch and worktree guidance so it clearly
   separates current compatibility behaviour from the target `main`-first model.
 - **Expected Outcome:** Branching and worktree docs describe one permanent
@@ -199,6 +202,10 @@ This module is Complete when:
 - **Validation:** `pnpm format:check && pnpm lint:md`
 - **Files:** `docs/guides/branching-strategy.md`, `docs/guides/worktree-policy.md`
 - **Blocks on:** OPMODEL-001
+- **Completed:** 2026-05-10 — Updated branch and worktree guidance to separate
+  current `dev` compatibility execution from target `main`-first execution;
+  validation passed with `pnpm format:check`, `pnpm lint:md`, and
+  `git diff --check`.
 - **Confidence:** high
 
 ---
