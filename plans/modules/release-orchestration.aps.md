@@ -242,7 +242,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-001: Command surface design spec
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Phase:** 1
 - **Intent:** Define the contract every `scripts/release/*.sh` command obeys —
   arguments, exit codes, JSON output schema, the structured-comment metadata
@@ -271,7 +271,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-002: Test harness for command surface
 
-- **Status:** Complete
+- **Status:** In Progress
 - **Phase:** 1
 - **Execution authorisation:** Operator request "move onto RELORCH-002" on
   2026-05-10 authorises executing this item from Proposed state under
