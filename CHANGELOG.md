@@ -14,46 +14,46 @@ engineering maintenance are recorded in the
 
 - **`anvil start` MCP picker no longer reprints the question on every arrow
   press.** Long option labels (which embedded full drift paths) wrapped on
-  normal terminals, confusing `demand`'s line-count-based redraw. Labels are
-  now tilde-shortened with a one- or two-word state tag so they fit in a
-  single row; the from→to drift detail is preserved in the post-install
-  render block. ([#1366](https://github.com/eddacraft/anvil-001/pull/1366))
+  normal terminals, confusing `demand`'s line-count-based redraw. Labels are now
+  tilde-shortened with a one- or two-word state tag so they fit in a single row;
+  the from→to drift detail is preserved in the post-install render block.
+  ([#1366](https://github.com/eddacraft/anvil-001/pull/1366))
 - **`anvil start` home-tilde path display is now component-aware.** A home
-  directory like `/home/al` no longer matches a path under `/home/alice/...`
-  and render as `~ice/...`. Switched from `String::strip_prefix` to
-  `Path::strip_prefix`. ([#1366](https://github.com/eddacraft/anvil-001/pull/1366))
-- **`Log in now?` prompt no longer hangs when a previous TUI leaked raw
-  mode.** `prompt_yes_no` defensively calls
-  `crossterm::terminal::disable_raw_mode()` before reading; the MCP picker
-  is wrapped in a `RawModeGuard` so a panic / SIGINT / unwind in the picker
-  cannot leak the raw flag in the first place. ([#1371](https://github.com/eddacraft/anvil-001/pull/1371))
-- **Silent licence refresh.** When the 7-day JWT lapses but the 90-day
-  refresh token is still valid, `anvil` exchanges it inline before falling
-  through to the `Log in now?` prompt. Eliminates a forced device-code
-  re-login every week.
+  directory like `/home/al` no longer matches a path under `/home/alice/...` and
+  render as `~ice/...`. Switched from `String::strip_prefix` to
+  `Path::strip_prefix`.
+  ([#1366](https://github.com/eddacraft/anvil-001/pull/1366))
+- **`Log in now?` prompt no longer hangs when a previous TUI leaked raw mode.**
+  `prompt_yes_no` defensively calls `crossterm::terminal::disable_raw_mode()`
+  before reading; the MCP picker is wrapped in a `RawModeGuard` so a panic /
+  SIGINT / unwind in the picker cannot leak the raw flag in the first place.
+  ([#1371](https://github.com/eddacraft/anvil-001/pull/1371))
+- **Silent licence refresh.** When the 7-day JWT lapses but the 90-day refresh
+  token is still valid, `anvil` exchanges it inline before falling through to
+  the `Log in now?` prompt. Eliminates a forced device-code re-login every week.
 - **Vercel deploy infra:** `domainImports` gated on prod stack with input
   validation; `delete-before-replace` env-var ordering for the
   `www.eddacraft.ai` cutover.
-- **Watch cancellation test deflaked.** Extracted
-  `WaitOutcome::to_send_args` as a pure helper and asserted the mapping
-  directly, removing the 30 s polling barrier and the
-  `serial-watch-cancellation` nextest pin. ([#1379](https://github.com/eddacraft/anvil-001/pull/1379))
+- **Watch cancellation test deflaked.** Extracted `WaitOutcome::to_send_args` as
+  a pure helper and asserted the mapping directly, removing the 30 s polling
+  barrier and the `serial-watch-cancellation` nextest pin.
+  ([#1379](https://github.com/eddacraft/anvil-001/pull/1379))
 
 ### Added
 
-- **`anvil auth refresh` subcommand.** Exchanges the stored refresh token
-  for a fresh licence without re-running the device flow. Supports
-  `--json`; bypasses the licence-gate pre-check by design.
-- **Cause-specific auth errors.** `/session/refresh` distinguishes
-  expired / revoked / theft / inactive responses; the CLI surfaces an
-  actionable message for each instead of a generic 401.
+- **`anvil auth refresh` subcommand.** Exchanges the stored refresh token for a
+  fresh licence without re-running the device flow. Supports `--json`; bypasses
+  the licence-gate pre-check by design.
+- **Cause-specific auth errors.** `/session/refresh` distinguishes expired /
+  revoked / theft / inactive responses; the CLI surfaces an actionable message
+  for each instead of a generic 401.
 
 ### Security
 
 - Bump `@babel/plugin-transform-modules-systemjs` to `>=7.29.4` via pnpm
-  override (CVE-2026-44728, HIGH — arbitrary code generation when
-  compiling malicious input). Pulled in transitively via
-  `@babel/preset-env` → `@babel/core`.
+  override (CVE-2026-44728, HIGH — arbitrary code generation when compiling
+  malicious input). Pulled in transitively via `@babel/preset-env` →
+  `@babel/core`.
 
 ## [0.6.0-beta] — Wow-Start Activation & Daemon-Backed Mid-Edit Validation
 

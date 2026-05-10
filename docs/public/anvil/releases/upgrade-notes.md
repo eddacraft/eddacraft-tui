@@ -13,15 +13,15 @@ Guides for upgrading between anvil versions.
 
 ## Upgrading to 0.6.1-beta
 
-Drop-in upgrade from `0.6.0-beta`. No breaking changes — this is a patch
-release that fixes the `anvil start` interactive flow end-to-end (the MCP
-picker no longer reprints on every arrow press, the `Log in now?` prompt
-no longer hangs when a previous TUI leaked raw mode, and the home-tilde
-path display is now component-aware). Auth UX gains silent refresh via
-the stored refresh token plus an explicit `anvil auth refresh` subcommand
-with cause-specific server error messages. A HIGH-severity transitive
-CVE (`@babel/plugin-transform-modules-systemjs`, CVE-2026-44728) is
-cleared via a pnpm override.
+Drop-in upgrade from `0.6.0-beta`. No breaking changes — this is a patch release
+that fixes the `anvil start` interactive flow end-to-end (the MCP picker no
+longer reprints on every arrow press, the `Log in now?` prompt no longer hangs
+when a previous TUI leaked raw mode, and the home-tilde path display is now
+component-aware). Auth UX gains silent refresh via the stored refresh token plus
+an explicit `anvil auth refresh` subcommand with cause-specific server error
+messages. A HIGH-severity transitive CVE
+(`@babel/plugin-transform-modules-systemjs`, CVE-2026-44728) is cleared via a
+pnpm override.
 
 ```bash
 # Upgrade via the installer
@@ -49,24 +49,23 @@ scoop update anvil
 
 - **`anvil start` interactive flow now usable end-to-end** — the MCP install
   picker stays on a single row (no more question reprinting on every arrow
-  press), the `Log in now?` prompt accepts input even when a prior TUI left
-  the terminal in raw mode, and home-tilde path display matches by path
-  component (no more `~ice/...` for `/home/al` prefixes).
-- **Silent licence refresh** — when a 7-day JWT lapses but the 90-day
-  refresh token is still valid, `anvil` exchanges it inline before falling
-  through to the `Log in now?` prompt. Eliminates a forced device-code
-  re-login every week.
-- **`anvil auth refresh` subcommand** — explicit refresh that exchanges
-  the stored refresh token without re-running the device flow. `--json`
-  supported; bypasses the licence-gate pre-check by design.
-- **Cause-specific auth errors** — `/session/refresh` distinguishes
-  expired / revoked / theft / inactive responses; the CLI surfaces an
-  actionable message for each instead of a generic 401.
-- **Vercel deploy hardening** — `domainImports` gated on prod stack with
-  input validation; `delete-before-replace` env-var ordering for the
+  press), the `Log in now?` prompt accepts input even when a prior TUI left the
+  terminal in raw mode, and home-tilde path display matches by path component
+  (no more `~ice/...` for `/home/al` prefixes).
+- **Silent licence refresh** — when a 7-day JWT lapses but the 90-day refresh
+  token is still valid, `anvil` exchanges it inline before falling through to
+  the `Log in now?` prompt. Eliminates a forced device-code re-login every week.
+- **`anvil auth refresh` subcommand** — explicit refresh that exchanges the
+  stored refresh token without re-running the device flow. `--json` supported;
+  bypasses the licence-gate pre-check by design.
+- **Cause-specific auth errors** — `/session/refresh` distinguishes expired /
+  revoked / theft / inactive responses; the CLI surfaces an actionable message
+  for each instead of a generic 401.
+- **Vercel deploy hardening** — `domainImports` gated on prod stack with input
+  validation; `delete-before-replace` env-var ordering for the
   `www.eddacraft.ai` cutover.
-- **Security** — bumps `@babel/plugin-transform-modules-systemjs` to
-  `>=7.29.4` via pnpm override (CVE-2026-44728, HIGH).
+- **Security** — bumps `@babel/plugin-transform-modules-systemjs` to `>=7.29.4`
+  via pnpm override (CVE-2026-44728, HIGH).
 
 ## Upgrading to 0.6.0-beta
 

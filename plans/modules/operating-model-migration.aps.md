@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 3/12     |
+| OPMODEL | —     | In Progress | 4/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -234,7 +234,9 @@ This module is Complete when:
 
 ### OPMODEL-004: Release record schema and authority contract
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved moving on through OPMODEL work
+  on 2026-05-10; this approval treated OPMODEL-004 as Ready for this slice.
 - **Intent:** Define the release record as the canonical shipped-state artefact
   without conflicting with RELORCH's GitHub tracking issue operator log.
 - **Expected Outcome:** A schema specifies release version, source SHA, previous
@@ -242,10 +244,14 @@ This module is Complete when:
   timestamp, and policy decisions. The schema states where records are emitted
   and how APS reconciliation consumes them.
 - **Validation:** `pnpm format:check && pnpm lint:md`
-- **Files:** `plans/specs/<date>-release-record-schema.md` or RELORCH-001's
-  design spec
+- **Files:** `plans/specs/2026-05-10-release-record-schema.md`,
+  `plans/specs/2026-05-09-plan-build-release-operating-model.md`
 - **Blocks on:** RELORCH-001 if the schema is folded into the release command
   surface design
+- **Completed:** 2026-05-10 — Added the release-record schema and authority
+  contract while preserving RELORCH ownership of command implementation;
+  validation passed with `pnpm format:check`, `pnpm lint:md`, and
+  `git diff --check`.
 - **Confidence:** medium
 
 ---
