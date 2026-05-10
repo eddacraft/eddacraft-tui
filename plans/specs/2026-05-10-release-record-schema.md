@@ -2,7 +2,7 @@
 
 Date: 2026-05-10
 
-Status: Proposed
+Status: Complete
 
 APS work item: OPMODEL-004
 
@@ -56,7 +56,7 @@ and APS reconciliation can consume it without parsing prose.
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.0.0",
   "lifecycleState": "published",
   "supersededBy": null,
   "version": "v0.6.1-beta",
@@ -74,6 +74,7 @@ and APS reconciliation can consume it without parsing prose.
     "versionOverrideReason": null
   },
   "aps": {
+    "emptyReason": null,
     "items": [
       {
         "id": "MOD-001",
@@ -143,12 +144,13 @@ All records require these fields:
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `schemaVersion` | Yes | Schema version for deterministic parsers. |
+| `schemaVersion` | Yes | Semver schema version, for example `1.0.0`, for deterministic parsers. |
 | `lifecycleState` | Yes | `candidate`, `published`, or `superseded`. |
 | `source.repository` | Yes | Repository containing the released source snapshot. |
 | `source.commitSha` | Yes | Exact commit SHA validated and tagged. |
 | `releaseIntent` | Yes | Versioning and change-shape summary. |
-| `aps.items` | Yes | APS work items included in this release. Empty only for explicit no-APS emergency releases. |
+| `aps.items` | Yes | APS work items included in this release. Empty only when `aps.emptyReason` records an explicit no-APS emergency release reason. |
+| `aps.emptyReason` | Yes, when `aps.items` is empty | Human-readable reason for an intentional no-APS emergency release. Must be `null` or omitted when `aps.items` is not empty. |
 
 Published and superseded records additionally require these fields:
 
@@ -156,7 +158,7 @@ Published and superseded records additionally require these fields:
 | --- | --- | --- |
 | `version` | Yes | Published semantic version tag, including prefix/suffix. |
 | `source.tag` | Yes | Immutable release tag. |
-| `source.previousTag` | Yes | Previous release boundary used for release contents. |
+| `source.previousTag` | Yes, except initial release | Previous release boundary used for release contents. Initial releases must set this to `null` and record the initial-release decision in `policyDecisions`. |
 | `artifacts` | Yes | Distributed release assets and integrity metadata. |
 | `releases.private` | Yes | Private release location. |
 | `releases.public` | Yes when public artefacts exist | Public release location. |
@@ -180,6 +182,14 @@ Each published artifact entry requires:
 | `integrityRef` | Yes, when `sha256` is absent | Pointer to equivalent integrity metadata. |
 | `sizeBytes` | Yes, when available from the release host | Published asset size. |
 
+When `lifecycleState` is `superseded`, `supersededBy` must be an object with:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `version` | Yes | Replacement release version. |
+| `tag` | Yes | Replacement release tag. |
+| `recordUrl` | Yes | Location of the replacement release record. |
+
 ## Lifecycle States
 
 | State | Meaning | APS effect |
@@ -189,7 +199,8 @@ Each published artifact entry requires:
 | `superseded` | A later release replaces or repairs this release. | Preserve historical shipped state and link the successor. |
 
 `superseded` records must set `supersededBy` to the replacement release version,
-tag, and release-record location once that successor exists.
+tag, and release-record location once that successor exists. `candidate` and
+`published` records must set `supersededBy` to `null` or omit it.
 
 ## APS Reconciliation Rules
 
