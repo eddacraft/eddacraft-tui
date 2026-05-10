@@ -556,7 +556,10 @@ impl DispatcherInner {
                 let _ = child.kill();
                 let _ = child.wait();
             }
-            self.send_result(None, start.elapsed(), Some("cancelled".to_string()));
+            // Route through `to_send_args` so the "cancelled" string lives
+            // in exactly one place — same helper the post-wait branch uses.
+            let (exit_code, error_detail) = WaitOutcome::Cancelled.to_send_args();
+            self.send_result(exit_code, start.elapsed(), error_detail);
             return;
         }
 

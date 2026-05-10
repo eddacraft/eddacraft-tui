@@ -14,7 +14,8 @@ success-output = "immediate"
 # (Removed.) The watch cancellation test previously needed a
 # single-thread group pin because it polled for a worker thread to
 # park a `/bin/sleep` child; under contended CI it could starve past
-# even a 30 s bound. The test was rewritten to drive `run_one_action`
-# synchronously on the test thread with `cancel` pre-set, removing
-# the only timing-dependent step. No serialisation needed — see the
-# test's doc comment in `crates/anvil-cli/src/commands/watch.rs`.
+# even a 30 s bound. The test was rewritten to assert
+# `WaitOutcome::to_send_args` directly — a pure function with no
+# child processes, no worker thread, and no timing dependency. No
+# serialisation needed. See the test's doc comment in
+# `crates/anvil-cli/src/commands/watch.rs`.
