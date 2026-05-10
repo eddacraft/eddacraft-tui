@@ -18,18 +18,77 @@
 | Task | Execution authority | Outcome, validation command | How to implement |
 | Action | Checkpoint | Observable state | Implementation steps |
 
-## Module Statuses
-Modules progress through these statuses:
+## Lifecycle Statuses
+
+Target operating-model artefacts use this lifecycle vocabulary:
+
+```text
+APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+```
+
+`Committed` is legacy wording for `Merged` unless a specific module defines a
+narrower transition. New APS text should prefer `Merged` and
+`Released/Shipped`.
+
+Modules and work items progress through these statuses:
 
 | Status | Meaning | Tasks Executable? |
 |--------|---------|-------------------|
-| Proposed / Draft | Work in progress, not ready | No |
-| Ready | Scope clear, dependencies identified, tasks defined | Yes |
+| Draft | Early capture; scope and acceptance criteria may be incomplete | No |
+| Proposed | Reviewed direction exists, but execution is not yet authorised | No |
+| Ready | Scope clear, dependencies identified, validation known, execution authorised | Yes |
 | In Progress | Actively being worked on | Yes |
-| Done / Complete | All tasks done | N/A |
+| Merged | Code or docs reached the integration target, but have not necessarily shipped | No new execution |
+| Released / Shipped | A release record proves inclusion in a verified release | No new execution |
+| Complete | No remaining active closeout work; may be archived under APS rules | N/A |
+| Archived | Historical record only | N/A |
 | Blocked | Cannot proceed (document reason) | No |
 
-> Note: "Proposed" and "Done" are the current spec values; "Draft" and "Complete" are supported for backwards compatibility.
+### Status Rules
+
+1. Do not execute `Draft` or `Proposed` work unless the operator explicitly
+   approves the item as urgent authorised work; record that authorisation inline.
+2. Mark work `In Progress` before making substantive changes for that item.
+3. Mark work `Merged` only when the PR or equivalent integration step has landed.
+4. Mark work `Released` / `Shipped` only from release-record evidence. Do not infer
+   shipped state from memory, a PR merge, or release notes prose.
+5. Mark work `Complete` only when validation, closeout, and cross-reference sweeps
+   are done.
+6. Archive completed modules with `git mv` into `plans/archive/modules/` and
+   update `plans/index.aps.md` in the same change.
+
+## Release Metadata
+
+Target-state work items should carry enough metadata to reconstruct release
+intent without reading PR prose. Add these fields where relevant:
+
+```yaml
+changeType: fix | feature | docs | internal | breaking
+releaseIntent: candidate | hold | never
+holdCondition: required when releaseIntent is hold
+releaseScope: patch | minor | major | none
+releaseNote:
+  audience: user | operator | developer | none
+  type: added | fixed | changed | removed | security
+  text: optional one-sentence release note
+validation:
+  - command to prove the item
+```
+
+Rules:
+
+1. `changeType` describes the change shape, not the git commit type.
+2. `releaseIntent: candidate` means the item is eligible for release candidate
+   contents once merged.
+3. `releaseIntent: hold` means merged work should not ship until `holdCondition`
+   is satisfied.
+4. `releaseIntent: never` is for docs/internal work that should not drive a
+   product release by itself.
+5. `releaseScope` is `none` for non-releasable work.
+6. `releaseNote.audience: none` means no user/operator/developer-facing note is
+   expected.
+7. `validation` records commands that prove the item; CI remains the validation
+   authority for release readiness.
 
 ## Cross-Cutting Modules
 
@@ -139,6 +198,11 @@ Tasks are **execution authority** — permission to make changes.
 - **Expected Outcome:** Testable/observable result
 - **Validation:** Command to verify completion (also accepts **Test:**)
 - **Confidence:** low/medium/high
+- **changeType:** `fix`, `feature`, `docs`, `internal`, or `breaking`
+- **releaseIntent:** `candidate`, `hold`, or `never`
+- **holdCondition:** Required when `releaseIntent` is `hold`
+- **releaseScope:** `patch`, `minor`, `major`, or `none`
+- **releaseNote:** Audience, type, and one-sentence text for release notes
 
 ### Optional Fields
 

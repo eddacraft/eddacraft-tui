@@ -167,16 +167,34 @@ pnpm test src/auth/login.test.ts
 ### Fields
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| ----- | -------- | ----------- |
 | ID | Yes | Unique identifier (e.g., `AUTH-001`) |
 | Title | Yes | Short description |
 | Intent | Yes | What the task aims to achieve |
-| Status | No | Current state (`open`, `locked`, `completed`, `cancelled`) |
+| Status | No | Package-level state (`open`, `locked`, `completed`, `cancelled`) |
 | Expected Outcome | No | Success criteria |
 | Validation | No | Command to verify completion |
 | Confidence | No | `low`, `medium` (default), `high` |
 | Dependencies | No | Other tasks that must complete first |
 | Scopes | No | File access constraints |
+
+### Anvil Repository Extension
+
+The Anvil repository's operating-model migration uses a richer lifecycle and
+release metadata for active planning. This is repository guidance, not the
+current package-level schema contract:
+
+```text
+APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+```
+
+| Field | Description |
+| ----- | ----------- |
+| changeType | `fix`, `feature`, `docs`, `internal`, or `breaking` |
+| releaseIntent | `candidate`, `hold`, or `never` |
+| holdCondition | Required condition when `releaseIntent` is `hold` |
+| releaseScope | `patch`, `minor`, `major`, or `none` |
+| releaseNote | Audience, type, and one-sentence release-note text |
 
 ### Task IDs
 

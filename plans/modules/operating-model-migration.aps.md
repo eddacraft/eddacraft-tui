@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 2/12     |
+| OPMODEL | —     | In Progress | 3/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -212,7 +212,9 @@ This module is Complete when:
 
 ### OPMODEL-003: APS lifecycle and release metadata rules
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved moving on through OPMODEL work
+  on 2026-05-10; this approval treated OPMODEL-003 as Ready for this slice.
 - **Intent:** Make APS rules describe the shared lifecycle and metadata required
   for target-state execution and release reconstruction.
 - **Expected Outcome:** `plans/aps-rules.md` defines `Merged`,
@@ -222,6 +224,10 @@ This module is Complete when:
 - **Files:** `plans/aps-rules.md`, `docs/public/aps/**` if public APS docs need
   alignment
 - **Coordinates with:** DOCGOV-003
+- **Completed:** 2026-05-10 — Updated APS lifecycle rules, release metadata, and
+  public APS docs so package schema truth stays distinct from Anvil repository
+  operating-model extensions; validation passed with `pnpm format:check`,
+  `pnpm lint:md`, and `git diff --check`.
 - **Confidence:** medium
 
 ---
@@ -370,7 +376,8 @@ This module is Complete when:
 - **Validation:** Branch protections and CI pass on `main`; docs and PR template
   cite the main-first model; no active runbook requires normal back-merge.
 - **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-003, OPMODEL-004,
-  OPMODEL-005, OPMODEL-006, OPMODEL-007, OPMODEL-008, OPMODEL-010
+  OPMODEL-005, OPMODEL-006, OPMODEL-007, OPMODEL-008, OPMODEL-010,
+  OPMODEL-011
 - **Files:** `docs/guides/branching-strategy.md`, `docs/guides/worktree-policy.md`,
   `.github/PULL_REQUEST_TEMPLATE.md`, `docs/guides/release-runbook.md`
 - **Confidence:** medium

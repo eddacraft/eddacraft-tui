@@ -74,12 +74,41 @@ interface ModuleMetadata {
   path?: string; // Path to spec file
   scope?: string; // Scope prefix for task IDs
   owner?: string; // Person/team responsible
-  status?: 'Draft' | 'Ready' | 'In Progress' | 'Complete' | 'Blocked';
+  status?: 'Proposed' | 'Ready' | 'In Progress' | 'Done' | 'Blocked';
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   dependencies?: string[]; // Other modules this depends on
 }
 ```
+
+## Operating Model Extension
+
+The current exported schemas above are the package-level validation contract.
+The Anvil repository is migrating to a richer operating-model lifecycle for
+active APS planning:
+
+```text
+APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+```
+
+Target-state APS work items may also carry release reconstruction metadata:
+
+```typescript
+interface OperatingModelReleaseMetadata {
+  changeType?: 'fix' | 'feature' | 'docs' | 'internal' | 'breaking';
+  releaseIntent?: 'candidate' | 'hold' | 'never';
+  holdCondition?: string; // Required when releaseIntent is 'hold'
+  releaseScope?: 'patch' | 'minor' | 'major' | 'none';
+  releaseNote?: {
+    audience: 'user' | 'operator' | 'developer' | 'none';
+    type: 'added' | 'fixed' | 'changed' | 'removed' | 'security';
+    text?: string;
+  };
+}
+```
+
+Until the package schemas are updated, this lifecycle is repository guidance,
+not the exported `@eddacraft/anvil-aps` runtime schema.
 
 ### Parsed Document
 

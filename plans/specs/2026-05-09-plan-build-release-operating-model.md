@@ -263,6 +263,7 @@ id: MOD-001
 status: Ready
 changeType: fix | feature | docs | internal | breaking
 releaseIntent: candidate | hold | never
+holdCondition: required when releaseIntent is hold
 releaseScope: patch | minor | major | none
 releaseNote:
   audience: user | operator | developer | none
