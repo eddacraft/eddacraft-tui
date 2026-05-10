@@ -249,11 +249,77 @@ The marker line is mandatory. The JSON block is the parser contract. Human prose
 may appear before or after the block, but commands must ignore it for state
 reconstruction.
 
-The metadata block carries the 13 resumability fields named by the release skill:
+The metadata block carries the resumability fields named by the release skill:
 `version`, `releaseType`, `strategy`, `sourceSha`, `devSha`, `mainSha`, `tagSha`,
 `workflowRun`, `privateReleaseUrl`, `publicReleaseUrl`, `homebrew`, `scoop`,
 `winget`, and `installSite`. Additional fields are allowed only when they are
 schema-versioned and ignored safely by older commands.
+
+## Release Readiness Contract
+
+Release readiness is CI authority for the exact source SHA that may be tagged.
+`preflight.sh` proves local deterministic gates only; it does not create canonical
+readiness evidence. RELORCH commands consume the workflow contract in
+[`2026-05-10-release-readiness-workflow.md`](./2026-05-10-release-readiness-workflow.md).
+
+Readiness ownership is split across commands:
+
+| Command | Responsibility |
+| --- | --- |
+| `assess.sh` | Select the candidate `sourceSha`, previous boundary, channel, and requested version inputs for readiness. |
+| `prepare.sh` | Create or locate the tracking issue, then request or resume readiness and candidate artefact runs when not already present. |
+| `tag.sh` | Refuse to tag unless canonical readiness succeeded for the exact `sourceSha` and expected branch reachability. |
+| `verify.sh` | Carry canonical readiness evidence into the published release record. |
+
+`prepare.sh` must support two readiness modes:
+
+- `--request-readiness`: trigger or resume a `readiness` workflow run for the
+  selected SHA.
+- `--request-candidate-artifacts`: trigger or resume a `candidate-artifacts` run
+  when operator policy requires candidate binaries before tag publication.
+
+Both modes are idempotent. If a matching in-progress or completed workflow run is
+found for the same `sourceSha`, `mode`, `channel`, `expectedReachableFrom`,
+`baseBoundary`, and `requestedVersion`, `prepare.sh` must report that run instead
+of creating another one.
+
+Readiness metadata in command JSON uses this shape:
+
+```json
+{
+  "readiness": {
+    "required": true,
+    "status": "success",
+    "mode": "readiness",
+    "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+    "expectedReachableFrom": "main",
+    "baseBoundary": "v0.6.0-beta",
+    "requestedVersion": "v0.7.0-beta",
+    "resolvedVersion": "v0.7.0-beta",
+    "workflowRunUrl": "https://github.com/EddaCraft/anvil-001/actions/runs/123",
+    "candidateMetadataArtifact": "release-candidate-metadata-readiness-0123456-123",
+    "candidateMetadataSha256": "hex-encoded-sha256",
+    "failureClass": null,
+    "safeToRerun": false
+  }
+}
+```
+
+Allowed readiness statuses are `not-requested`, `requested`, `in-progress`,
+`success`, `failed`, and `stale`. `failureClass` uses the release-readiness
+workflow classes: `invalid-input`, `stale-source`, `validation-failed`,
+`artifact-build-failed`, `integrity-failed`, and `infra-failed`.
+
+Canonical release-record integration rules:
+
+- only readiness runs with `expectedReachableFrom: main` may populate
+  `verification.ciRunUrl` or equivalent release-record checks
+- compatibility `expectedReachableFrom: migration-dev` runs may be logged on the
+  tracking issue but must not populate canonical release-record verification
+- candidate artefact metadata may be cited as supporting evidence but must not be
+  listed as published release artefacts
+- any source SHA change after readiness requires a new readiness run before
+  `tag.sh` can push
 
 ## Release Record Contract
 

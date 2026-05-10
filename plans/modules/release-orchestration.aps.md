@@ -122,12 +122,12 @@ questions for the spec to redecide.
    inherits that decision. If a transient is unavoidable (e.g. multi-edit
    atomicity inside `prepare.sh`), it must be `mktemp`-scoped to a single
    process and cleaned up on any exit path.
-2. **GitHub tracking issue is the single durable operator log.** The 13-field
-   metadata block currently described in `SKILL.md` §Resumability lives in
-   structured comments on the tracking issue, not in a side-channel file.
-   `RELORCH-001` ratifies the comment shape and the parser the skill uses.
-   Shipped-state truth remains the release record that joins tag, APS items,
-   artefacts, and verification evidence.
+2. **GitHub tracking issue is the single durable operator log.** The
+   resumability metadata block currently described in `SKILL.md`
+   §Resumability lives in structured comments on the tracking issue, not in a
+   side-channel file. `RELORCH-001` ratifies the comment shape and the parser
+   the skill uses. Shipped-state truth remains the release record that joins
+   tag, APS items, artefacts, and verification evidence.
 3. **Idempotency is local-state-only by default.** Commands must be safe to
    re-run before any irreversible side effect. `tag.sh` (`RELORCH-007`) is
    the explicit exception: pre-push is idempotent, post-push requires
