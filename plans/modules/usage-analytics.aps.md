@@ -171,16 +171,25 @@ require founder review.
 - Command name (e.g. `scan`, `kindling.list`).
 - Anonymised principal — one-way hash (per OQ2: per-deployment salt).
 - Timestamp.
-- Argument *shape*: arg names + length + type + presence. **Not values.**
-- Argument values matching `anvil_observability::redaction::SENSITIVE_FIELDS`
-  → replaced with `<redacted>`.
+- Per-argument metadata only: argument name, plus shape fields
+  (length / type / presence). **Raw argument values are never
+  recorded.**
+- For arguments whose **name** matches
+  `anvil_observability::redaction::SENSITIVE_FIELDS`, even the shape
+  fields are elided and replaced with the literal `<redacted>` marker
+  (the value of the `REDACTED` constant). A sensitive argument's
+  *existence* (its name) is still visible; nothing about its value
+  or shape leaks via metadata.
 - Active flag set — the resolved snapshot referenced under OQ5.
 - `traceparent` (cross-pipe correlation per ADR-035).
 
 **NOT captured:**
 
-- Raw argument values (shape only by default; widening requires a
-  follow-up review, not a routine code change).
+- Raw argument values, ever. Widening to a fuller capture is a
+  follow-up review, not a routine code change — and is the only path
+  that introduces value content into a usage row.
+- Shape fields for sensitive-named arguments (see above — these
+  collapse to `<redacted>`).
 - Command results, output, stdout, stderr.
 - File contents touched by the command.
 - Network traffic.
@@ -223,11 +232,13 @@ requires founder review. The contract doc lives in
     flag set (placeholder field until USAGE-002 lands the snapshot
     contract per FLAGCAT-007), `traceparent`.
   - Argument redaction defers to
-    `anvil_observability::redaction`. Values for fields matching
-    `SENSITIVE_FIELDS` are replaced with `REDACTED`; other values
-    are recorded in *shape only* (length / type / presence) until
-    the founder approves a fuller value capture under a follow-up
-    review.
+    `anvil_observability::redaction`. Raw argument values are never
+    recorded; non-sensitive arguments contribute *shape* metadata
+    only (name + length + type + presence). For arguments whose
+    *name* matches `SENSITIVE_FIELDS`, the shape metadata is elided
+    and the per-arg payload is the literal `<redacted>` marker (the
+    value of the `REDACTED` constant). A fuller value capture
+    requires a follow-up review and is out of scope for this task.
   - A privacy contract published at
     `docs/observability/usage-analytics.md` (new) covering: what is
     captured, what is not, anonymisation policy, retention

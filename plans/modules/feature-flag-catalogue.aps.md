@@ -273,6 +273,8 @@ Change status to **Ready** when:
   `grep -q "single source of truth" docs/guides/feature-flag-inventory.md`
 - **Confidence:** high
 
+<a id="flagcat-007"></a>
+
 ### FLAGCAT-007: Catalogue → Kindling snapshot shape and stable join key for USAGE-002 — Draft
 
 - **Intent:** Answer the three sub-questions USAGE-002 raised under
