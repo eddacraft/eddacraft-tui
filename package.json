@@ -37,6 +37,8 @@
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
     "codemod:imports": "tsx tools/codemods/src/cli.ts imports",
     "codemod:imports:dry": "tsx tools/codemods/src/cli.ts imports --dry-run",
+    "ci:classify": "bash scripts/ci/classify-changes.sh",
+    "test:ci-classify": "bash scripts/ci/classify-changes.test.sh",
     "ci:cost": "bash scripts/ci/cost-report.sh",
     "generate:package": "nx g @eddacraft/anvil-generators:package",
     "generate:anvil-package": "nx g @eddacraft/anvil-generators:anvil-package",

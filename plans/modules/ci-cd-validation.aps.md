@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 1/12     |
+| CICD | —     | In Progress | 2/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -154,7 +154,7 @@ This module is Complete when:
 
 ### CICD-002: Shared path and risk classifier contract
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Replace per-workflow path heuristics with one deterministic
   classifier consumed by hooks, agents, scripts, and CI.
 - **Expected Outcome:** Classifier emits JSON with path classes, risk classes,
@@ -162,9 +162,17 @@ This module is Complete when:
   push contexts.
 - **Validation:** Fixture tests cover docs-only, TS, Rust, policy, release,
   workflow, infra, NAPI, lockfile, and mixed changes.
-- **Files:** `scripts/agent/guidance.sh`, `scripts/ci/`, `.github/actions/`, test
-  fixture path chosen by implementation
+- **Files:** `scripts/ci/classify-changes.sh`,
+  `scripts/ci/classify-changes.test.sh`, `package.json`
 - **Coordinates with:** OPMODEL-007, council/review specs
+- **Completed:** 2026-05-10 — Added `pnpm ci:classify` backed by
+  `scripts/ci/classify-changes.sh`. The classifier emits JSON with
+  `pathClasses`, `riskClasses`, `requiredChecks`, `requiredReviews`, and
+  `warnings` for staged, branch, PR, and push contexts. Added fixture coverage
+  for docs-only, TypeScript, Rust, policy, release, workflow, infra, NAPI,
+  lockfile, and mixed changes via `pnpm test:ci-classify`.
+- **Validation Run:** `pnpm test:ci-classify`,
+  `bash -n scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh`
 - **Confidence:** medium
 
 ---
