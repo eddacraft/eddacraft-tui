@@ -11,6 +11,12 @@ interface ResponseLine {
   delay: number;
 }
 
+interface DisplayedLine {
+  id: string;
+  text: string;
+  colorClass: string;
+}
+
 interface WaitlistSubmitResult {
   success: boolean;
   error?: string;
@@ -61,6 +67,33 @@ async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
   }
 }
 
+function buildResponseLines(
+  userEmail: string,
+  submitWarning: string | null,
+  emailFailed: boolean
+): ResponseLine[] {
+  const lines: ResponseLine[] = [
+    { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
+    { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
+    {
+      text:
+        submitWarning && submitWarning.includes('WARN')
+          ? `Welcome aboard. Access is queued for ${userEmail}`
+          : `Welcome aboard. We'll be in touch at ${userEmail}`,
+      colorClass: 'text-text-muted',
+      delay: 0,
+    },
+  ];
+  if (emailFailed) {
+    lines.push({
+      text: '[ WARN ] Confirmation email could not be sent — you are still on the list',
+      colorClass: 'text-amber-400',
+      delay: 300,
+    });
+  }
+  return lines;
+}
+
 export function CLIFooter() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -68,44 +101,21 @@ export function CLIFooter() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitWarning, setSubmitWarning] = useState<string | null>(null);
   const [emailFailed, setEmailFailed] = useState(false);
-  const [displayedLines, setDisplayedLines] = useState<{ text: string; colorClass: string }[]>([]);
+  const [displayedLines, setDisplayedLines] = useState<DisplayedLine[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
-  const [showFinalCursor, setShowFinalCursor] = useState(false);
   const [showPreReleaseModal, setShowPreReleaseModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const getResponseLines = (userEmail: string): ResponseLine[] => {
-    const lines: ResponseLine[] = [
-      { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
-      { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
-      {
-        text:
-          submitWarning && submitWarning.includes('WARN')
-            ? `Welcome aboard. Access is queued for ${userEmail}`
-            : `Welcome aboard. We'll be in touch at ${userEmail}`,
-        colorClass: 'text-text-muted',
-        delay: 0,
-      },
-    ];
-    if (emailFailed) {
-      lines.push({
-        text: '[ WARN ] Confirmation email could not be sent — you are still on the list',
-        colorClass: 'text-amber-400',
-        delay: 300,
-      });
-    }
-    return lines;
-  };
+  const showFinalCursor =
+    submitted && currentLineIndex >= buildResponseLines(email, submitWarning, emailFailed).length;
 
   // Typewriter effect
   useEffect(() => {
     if (!submitted) return;
 
-    const responseLines = getResponseLines(email);
+    const responseLines = buildResponseLines(email, submitWarning, emailFailed);
 
     if (currentLineIndex >= responseLines.length) {
-      setShowFinalCursor(true);
       return;
     }
 
@@ -117,7 +127,11 @@ export function CLIFooter() {
         setDisplayedLines((prev) => {
           const newLines = [...prev];
           if (!newLines[currentLineIndex]) {
-            newLines[currentLineIndex] = { text: '', colorClass: currentLine.colorClass };
+            newLines[currentLineIndex] = {
+              id: currentLine.text,
+              text: '',
+              colorClass: currentLine.colorClass,
+            };
           }
           newLines[currentLineIndex] = {
             ...newLines[currentLineIndex],
@@ -259,11 +273,12 @@ export function CLIFooter() {
 
               {/* Response Lines with Typewriter */}
               {displayedLines.map((line, index) => (
-                <div key={index} className="flex items-center gap-3">
+                <div key={line.id} className="flex items-center gap-3">
                   <span className="text-text-muted opacity-0">$</span>
                   <span className={line.colorClass}>{line.text}</span>
                   {index === currentLineIndex &&
-                    currentCharIndex < getResponseLines(email)[index]?.text.length && (
+                    currentCharIndex <
+                      buildResponseLines(email, submitWarning, emailFailed)[index]?.text.length && (
                       <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
                     )}
                 </div>

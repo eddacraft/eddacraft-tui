@@ -79,7 +79,7 @@ export class EvolutionService {
           rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
         throw new Error(
           `Failed to save replacement memory (${saveErr}) and rollback also failed (${rbErr}) — memory ${oldMemoryId} may be stuck in superseded state`,
-          { cause: error }
+          { cause: rollbackError }
         );
       }
       throw error;

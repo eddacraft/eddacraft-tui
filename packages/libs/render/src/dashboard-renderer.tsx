@@ -84,8 +84,8 @@ function ValidationErrors({ errors }: { errors: string[] }): ReactNode {
     >
       <strong>Spec validation failed</strong>
       <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem', color: 'var(--text-muted)' }}>
-        {errors.map((e, i) => (
-          <li key={i}>{e}</li>
+        {errors.map((e) => (
+          <li key={e}>{e}</li>
         ))}
       </ul>
     </div>
@@ -121,7 +121,7 @@ export function DashboardRenderer({ spec, className }: DashboardRendererProps): 
   try {
     resetKey = JSON.stringify(spec);
   } catch {
-    resetKey = String(Date.now());
+    resetKey = 'unserializable-spec';
   }
 
   return (

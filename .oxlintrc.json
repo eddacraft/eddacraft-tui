@@ -10,6 +10,8 @@
     "no-explicit-any": "off",
     "no-await-in-loop": "off",
     "no-shadow": "off",
+    "no-new": "off",
+    "no-underscore-dangle": "off",
     "unicorn/no-array-sort": "off",
     "unicorn/consistent-function-scoping": "off"
   },

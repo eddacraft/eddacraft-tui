@@ -77,7 +77,7 @@ export function parseBMADDocument(content: string): BMADDocument {
   const changeLog = isYamlType ? [] : extractChangeLog(content);
 
   // Derive title and intent from YAML or markdown
-  let title: string | null = null;
+  let title: string | null;
   let intent: string;
 
   if (agentYaml) {

@@ -81,7 +81,7 @@ export class FileStorage implements IStorageProvider {
           try {
             const realParent = realpathSync(parent);
             if (realParent !== realBase && !realParent.startsWith(realBase + sep)) {
-              throw new Error(`Path escapes base directory (symlink): ${filePath}`);
+              throw new Error(`Path escapes base directory (symlink): ${filePath}`, { cause: err });
             }
             break; // found existing parent, it's inside base — OK
           } catch (parentErr) {

@@ -190,9 +190,10 @@ describe('SpecKitImportAdapterV2 - Official Format', () => {
 
     expect(result.success).toBe(true);
     if (result.success && result.data) {
-      expect(result.data.metadata?.clarifications).toBeDefined();
-      expect(Array.isArray(result.data.metadata?.clarifications)).toBe(true);
-      expect((result.data.metadata?.clarifications as string[]).length).toBeGreaterThan(0);
+      const clarifications = result.data.metadata?.clarifications;
+      expect(clarifications).toBeDefined();
+      expect(Array.isArray(clarifications)).toBe(true);
+      expect((clarifications as string[]).length).toBeGreaterThan(0);
     }
   });
 

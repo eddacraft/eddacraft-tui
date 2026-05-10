@@ -55,7 +55,7 @@ export async function runRevokeCommand(
     }
     const prompt = deps.prompt ?? defaultPrompt;
     stderr(
-      `About to revoke ${target}.\n` + `This cannot be undone. Type "${CONFIRM_WORD}" to confirm.\n`
+      `About to revoke ${target}.\nThis cannot be undone. Type "${CONFIRM_WORD}" to confirm.\n`
     );
     const answer = (await prompt(`> `)).trim();
     if (answer !== CONFIRM_WORD) {
