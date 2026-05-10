@@ -2,7 +2,7 @@
 
 Date: 2026-05-10
 
-Status: Proposed
+Status: Complete
 
 Related work item: OPMODEL-009
 
@@ -115,7 +115,7 @@ Events may additionally include:
   sensitive inputs/outputs.
 - `validationResult`: command/check name, status, and evidence URL/path.
 - `error`: error class, message, retryability, and recovery hint.
-- `approval`: approval decision, approver, scope, and expiry/review date.
+- `approval`: approval decision, decision actor, scope, and expiry/review date.
 - `traceparent`: cross-pipe correlation key.
 - `payloadDigest`: digest for any payload not embedded directly.
 
@@ -174,7 +174,7 @@ Release and recovery sessions use:
 - Store paths/URLs to durable evidence when safe.
 - If evidence may contain secrets, store only the digest and the command/check
   identity.
-- Human approvals must include scope and actor; do not infer approval from
+- Human approval events must include scope and decision actor; do not infer approval from
   silence or elapsed time.
 
 ## Current-State Limits

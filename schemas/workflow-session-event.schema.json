@@ -60,12 +60,12 @@
     "approval": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["decision", "scope", "approvedBy", "approvedAt"],
+      "required": ["decision", "scope", "decidedBy", "decidedAt"],
       "properties": {
         "decision": { "type": "string", "enum": ["approved", "rejected", "revoked"] },
         "scope": { "type": "string", "minLength": 1 },
-        "approvedBy": { "$ref": "#/$defs/actor" },
-        "approvedAt": { "type": "string", "format": "date-time" },
+        "decidedBy": { "$ref": "#/$defs/actor" },
+        "decidedAt": { "type": "string", "format": "date-time" },
         "expiresAt": { "type": "string", "format": "date-time" },
         "rationale": { "type": "string" }
       }
@@ -185,7 +185,10 @@
         "error": { "$ref": "#/$defs/errorInfo" },
         "approval": { "$ref": "#/$defs/approval" },
         "evidence": { "$ref": "#/$defs/evidence" },
-        "traceparent": { "type": "string" },
+        "traceparent": {
+          "type": "string",
+          "pattern": "^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$"
+        },
         "payloadDigest": { "$ref": "#/$defs/digest" }
       },
       "allOf": [
@@ -366,7 +369,10 @@
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
         },
-        "traceparent": { "type": "string" },
+        "traceparent": {
+          "type": "string",
+          "pattern": "^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$"
+        },
         "evidence": {
           "type": "array",
           "items": { "$ref": "#/$defs/evidence" }
