@@ -9,6 +9,12 @@ Supersedes: Part of `RELMGMT-009` (interactive shell orchestration) and
 `RELMGMT-010` (manifest-gated `/release` skill). Both remain in history; the
 runtime surfaces they describe are being replaced.
 
+Superseded in part: `RELORCH-001` replaces the single-script release surface,
+skill handoff, validation, and runtime command-shape sections with
+[`2026-05-10-release-orchestration-design.md`](./2026-05-10-release-orchestration-design.md).
+The RELMGMT Phase 3 trade-off that rejects persistent local manifests is retained
+as a hard RELORCH constraint.
+
 ## Goal
 
 Replace the current `scripts/release.sh` + `.release/manifest.json` +

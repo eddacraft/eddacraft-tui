@@ -28,7 +28,9 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | Proposed | 0/11     |
+| RELORCH | —     | In Progress | 1/11     |
+
+**Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
 
 **Predecessor:** [release-management](../archive/modules/release-management.aps.md) (RELMGMT — Complete)
 **Supersedes (in part):** [2026-04-20-relmgmt-agent-driven-release-design.md](../specs/2026-04-20-relmgmt-agent-driven-release-design.md) — its multi-script removal stands; its no-persistent-manifest tradeoff is inherited as a hard constraint below.
@@ -240,7 +242,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-001: Command surface design spec
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 1
 - **Intent:** Define the contract every `scripts/release/*.sh` command obeys —
   arguments, exit codes, JSON output schema, the structured-comment metadata
@@ -251,10 +253,14 @@ phases, with the rest explicitly Phase-2-tracked.
   the no-persistent-local-manifest constraint.
 - **Expected Outcome:** A new design doc under `plans/specs/` that
   supersedes the relevant parts of `2026-04-20-relmgmt-agent-driven-release-design.md`
-  and is the single document `RELORCH-002..-011` cite.
+  and is the single document `RELORCH-002..-011` cite:
+  [`2026-05-10-release-orchestration-design.md`](../specs/2026-05-10-release-orchestration-design.md).
 - **Validation:** Spec links from this module; spec explicitly addresses each
   of the four constraints above; spec defines the tracking-issue comment shape,
   release-record shape, and harness schema in a form `RELORCH-002` can consume.
+- **Completed:** 2026-05-10 — Added
+  [`2026-05-10-release-orchestration-design.md`](../specs/2026-05-10-release-orchestration-design.md)
+  and marked the superseded RELMGMT Phase 3 sections.
 - **Confidence:** medium — main risk is the structured-comment design
   ratifying without surprises.
 - **Files:** `plans/specs/<date>-release-orchestration-design.md`,
