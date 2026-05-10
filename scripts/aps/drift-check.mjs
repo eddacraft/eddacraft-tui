@@ -67,6 +67,10 @@ function normalisePath(path) {
   return path.replaceAll('\\', '/').replace(/^\.\//, '');
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractModule(path) {
   const text = readText(path);
   const id = text.match(/^\|\s*([A-Z][A-Z0-9-]*)\s*\|.*?\|\s*(\d+)\/(\d+)\s*\|\s*$/m);
@@ -133,7 +137,9 @@ const indexPath = join(root, 'plans/index.aps.md');
 if (existsSync(indexPath)) {
   const indexText = readText(indexPath);
   for (const module of modules) {
-    const indexProgress = indexText.match(new RegExp(`\\b${module.id}\\b[^\\n]*?(\\d+)\\/(\\d+)`));
+    const indexProgress = indexText.match(
+      new RegExp(`\\b${escapeRegExp(module.id)}\\b[^\\n]*?(\\d+)\\/(\\d+)`)
+    );
     if (!indexProgress || module.progressDone === null || module.progressTotal === null) continue;
     const done = Number(indexProgress[1]);
     const total = Number(indexProgress[2]);
