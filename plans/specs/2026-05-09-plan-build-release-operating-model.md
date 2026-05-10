@@ -47,7 +47,7 @@ items can be added as the design is refined.
 | Artefact | Purpose | Status |
 | --- | --- | --- |
 | Operating model spec | Normative Plan / Build / Release process | Proposed in this document |
-| Migration plan | Stepwise move from `dev` integration to trunk-first `main` | Needed |
+| Migration plan | Stepwise move from `dev` integration to trunk-first `main` | In progress via OPMODEL-001 |
 | Branching guide update | Human-facing branch rules after `dev` retirement | Needed |
 | Worktree policy update | One permanent `main` worktree plus disposable branches | Needed |
 | Release runbook update | Tag-from-main release process and recovery paths | Needed |
@@ -452,7 +452,9 @@ review item and run mini or full council within 24 hours.
 
 ## PR Specification
 
-All normal PRs target `main`.
+In the target state, all normal PRs target `main`. Until OPMODEL-012 changes
+executable branch authority, normal PRs continue to target `dev` under current
+repository guidance.
 
 PRs should include:
 
@@ -639,6 +641,10 @@ Permitted responses:
 
 ## Agent Workflow Specification
 
+This section describes target-state agent workflow after OPMODEL-012 changes
+executable branch authority. Until then, agents must follow current repository
+guidance and execute normal work against `dev`.
+
 Agents should operate through explicit commands or skills:
 
 - `aps next`: select Ready work and create a branch from `main`.
@@ -660,6 +666,10 @@ Agent invariants:
 - Prefer one explicit state transition per command.
 
 ## Human Workflow Specification
+
+This section describes target-state human workflow after OPMODEL-012 changes
+executable branch authority. Until then, humans should follow current repository
+guidance and execute normal work against `dev`.
 
 Normal human flow:
 
@@ -687,21 +697,55 @@ Patch human flow:
 
 ## Migration Specification
 
-Migration should be staged:
+Migration should be staged in dependency order:
 
-1. Add observability for `main`/`dev` divergence and APS drift.
-2. Promote current `dev` to `main` using the existing runbook.
-3. Stop accepting normal new PRs into `dev`.
-4. Retarget normal work to `main`.
-5. Move CI gates to main-first operation.
-6. Add release-readiness workflow keyed by SHA.
-7. Add candidate artefact build without publishing.
-8. Add APS metadata and drift checks in warning mode.
-9. Add Planning Council validation gates for plan creation and pre-execution.
-10. Add deterministic agent guidance for hooks, agents, and CI.
-11. Retire or protect `dev` against normal pushes.
-12. Remove `dev -> main`, normal `release/*`, and back-merge steps from runbooks
+1. Declare current-state and target-state boundaries.
+2. Update branch, worktree, APS, release, review, and skill guidance to cite the
+   same lifecycle and source-of-truth hierarchy.
+3. Add release-readiness workflow keyed by SHA.
+4. Add candidate artefact build without publishing.
+5. Add APS metadata and drift checks in warning mode.
+6. Add Planning Council validation gates for plan creation and pre-execution.
+7. Add deterministic agent guidance for hooks, agents, and CI.
+8. Move CI gates to main-first operation in warning or compatibility mode.
+9. Prepare PR templates, branch protections, and guidance for a single cutover
+   window.
+10. Freeze normal new PRs into `dev` during the cutover window.
+11. Promote current `dev` to `main` only after guidance and release readiness are
+   coherent enough to keep normal work on `main`.
+12. Retarget normal work to `main` before reopening normal PR flow.
+13. Retire or protect `dev` against normal pushes.
+14. Remove `dev -> main`, normal `release/*`, and back-merge steps from runbooks
     and agent skills.
+
+### Current-State To Target-State Migration Map
+
+Until OPMODEL-012 completes the branch cutover, agents and humans must continue
+to execute normal repository work against the current compatibility model:
+branch from `dev` and open normal PRs to `dev`. Repository guidance must label
+whether it describes current compatibility execution or the target operating
+model. The target model wins for designing new operating-model artefacts, but it
+does not authorise `main`-first execution before cutover.
+
+| Surface | Current behaviour | Target behaviour | Owner | Cutover preconditions | Do not mix |
+| --- | --- | --- | --- | --- | --- |
+| Permanent branches | `dev` is the normal integration branch; `main` is promoted from `dev` for release. | `main` is the only permanent product branch; normal work never requires a promotion branch. | OPMODEL | OPMODEL-002 separates guidance; OPMODEL-012 executes cutover after APS lifecycle, release records, readiness, runbook/skill boundaries, deterministic guidance, review routing, and drift checks are coherent enough for normal `main` work. | Do not describe `main` as continuously releasable while requiring normal `dev -> main` promotion. |
+| Work branches and worktrees | Normal work branches from `dev`; disposable worktrees are removed after merge. | Normal work branches from `main`; disposable worktrees remain the default. | OPMODEL | Branching and worktree guides separate compatibility rules from target rules; OPMODEL-012 changes executable branch authority. | Do not branch new target-state work from `main` before OPMODEL-012, and do not branch from `dev` after the cutover gate. |
+| APS lifecycle | Active plans use `Draft`/`Proposed`/`Ready`/`In Progress`/`Complete`; some guidance still says `Committed`. | Shared lifecycle is `APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived`. | OPMODEL + DOCGOV | OPMODEL-003 updates APS rules and public APS docs where needed. | Do not mark shipped or complete from merge state alone. |
+| APS release metadata | Release impact is inferred from prose, PR summaries, and release planning notes. | APS items carry enough metadata to reconstruct release intent, scope, release-note audience, and validation. | OPMODEL + DOCGOV | APS metadata fields are documented and drift checks warn before enforcement. | Do not make PR descriptions the only source of release-note truth. |
+| Local validation | Local checks are used as strong confidence for PR readiness. | Local checks are fast feedback; CI result for the commit SHA is validation authority. | OPMODEL | CI readiness and drift checks identify the commit SHA being validated. | Do not treat local command output as release readiness evidence. |
+| PR target and merge | Normal PRs target `dev`; release PRs or promotions move state toward `main`. | Normal PRs target `main`; there is no normal release promotion PR. | OPMODEL | OPMODEL-012 updates PR templates, branch protections, and docs after release readiness, release-runbook/skill boundaries, deterministic guidance, APS lifecycle, and review routing are coherent. | Do not open normal PRs to `main` before OPMODEL-012, and do not keep target-state release semantics while opening normal PRs to `dev`. |
+| Review and council | Review expectations are split across prompts, commands, specs, and PR convention. | Changed paths and risk classes choose targeted review, mini council, or full council through one rule source. | OPMODEL + CGBDG | OPMODEL-007 and OPMODEL-008 align deterministic guidance and entrypoints. | Do not run probabilistic council review from hooks or treat review as CI proof. |
+| Hooks and agent guidance | Hooks mostly enforce formatting and staged-file hygiene; agent routing is prompt-driven. | Hooks call deterministic guardrails only; skills route to playbooks and scripts; agents provide judgement. | OPMODEL | Deterministic guidance exists in advisory mode before enforcement. | Do not put slow or non-deterministic review in precommit. |
+| Release readiness | Release readiness is assembled through runbook steps and current branch state. | CI records release readiness for a selected `main` SHA before tag. | RELORCH + OPMODEL | Release-readiness workflow and candidate metadata exist. | Do not infer readiness from the name of the branch being released. |
+| Candidate artefacts | Release artefacts are primarily produced by tag/publish workflows. | Optional candidate artefacts can be built without publishing before tag. | RELORCH | Candidate artefact workflow defines trigger, retention, and failure handling. | Do not publish candidate artefacts or treat them as GitHub Release assets. |
+| Release records | GitHub tracking issues preserve the operational narrative and recovery log. | Machine-readable release records prove shipped state and drive APS reconciliation. | RELORCH + OPMODEL | Release record schema and emission path are defined. | Do not make the tracking issue the canonical shipped-state record. |
+| Documentation closeout | Agents manually inspect documentation drift and update relevant indexes. | Documentation authority, validation, freshness, and indexes are checked by deterministic commands where possible. | DOCGOV + OPMODEL | DOCGOV validators and OPMODEL drift checks exist in warning mode. | Do not duplicate source truth in guides when as-built docs or schemas own it. |
+| Drift and recovery | Drift is detected through review, manual closeout, and release follow-up. | APS/repo/release drift checks warn first, then stable checks become required gates; recovery has executable playbooks. | OPMODEL + RELORCH + DOCGOV | OPMODEL-010 and OPMODEL-011 define checks and incident playbooks. | Do not archive unresolved cross-cutting callouts or reuse observed release tags. |
+
+This table is the authoritative surface map; the numbered staging list above is
+the authoritative order. OPMODEL-012 is the only task that changes executable
+branch authority from `dev` to `main`.
 
 ## Minimum Viable Operating Model
 

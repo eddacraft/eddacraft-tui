@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | Proposed | 0/12     |
+| OPMODEL | —     | In Progress | 1/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -138,8 +138,9 @@ narrower transition. New operating-model artefacts should prefer `Merged` and
    executable through playbooks and sessions.
 5. **Implement release records and readiness:** add release candidate,
    release-readiness, candidate artefact, and release-record contracts.
-6. **Migrate branching:** promote current `dev` to `main`, stop normal PRs to
-   `dev`, retarget normal work to `main`, and protect or retire `dev`.
+6. **Migrate branching:** prepare cutover controls, freeze new `dev` PRs during
+   the cutover window, promote current `dev` to `main`, retarget normal work to
+   `main`, and protect or retire `dev`.
 7. **Promote drift checks:** start warning-only, then require stable APS/repo/
    release consistency checks.
 
@@ -163,7 +164,10 @@ This module is Complete when:
 
 ### OPMODEL-001: Current-state to target-state migration map
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved executing OPMODEL-001 on
+  2026-05-10; this approval treated the item as Ready for this slice before it
+  moved to Complete.
 - **Intent:** Produce the authoritative migration map from today's `dev`-based
   workflow to trunk-first `main`, including what remains current-state, what is
   target-state, and what must not be mixed.
@@ -174,6 +178,9 @@ This module is Complete when:
 - **Files:** `plans/specs/2026-05-09-plan-build-release-operating-model.md`,
   `plans/modules/operating-model-migration.aps.md`
 - **Coordinates with:** RELORCH, DOCGOV
+- **Completed:** 2026-05-10 — Added the authoritative current-state to
+  target-state migration map to the operating model specification; validation
+  passed with `pnpm format:check`, `pnpm lint:md`, and `git diff --check`.
 - **Confidence:** high
 
 ---
@@ -352,8 +359,8 @@ This module is Complete when:
   runbooks and PR templates no longer describe normal `dev -> main` promotion.
 - **Validation:** Branch protections and CI pass on `main`; docs and PR template
   cite the main-first model; no active runbook requires normal back-merge.
-- **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-005, OPMODEL-006,
-  OPMODEL-007
+- **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-003, OPMODEL-004,
+  OPMODEL-005, OPMODEL-006, OPMODEL-007, OPMODEL-008, OPMODEL-010
 - **Files:** `docs/guides/branching-strategy.md`, `docs/guides/worktree-policy.md`,
   `.github/PULL_REQUEST_TEMPLATE.md`, `docs/guides/release-runbook.md`
 - **Confidence:** medium
