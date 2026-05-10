@@ -4,12 +4,12 @@
 | ----- | ------ | ------- | -------- |
 | CGBDG | @aneki | Blocked | 0/6      |
 
-**Status:** Deferred — blocked on MLP-002 (witness chain). The bridge target
-may shift once witness lines land; MLP-002's per-commit witness format may
-subsume what this module would otherwise design. Do not start discovery until
-MLP-002 is `Merged` and the witness schema is stable. Re-evaluate scope at that
-point — CGBDG may collapse to "council emits witness lines" rather than a
-separate attestation bridge.
+**Status:** Blocked — deferred until MLP-002 (witness chain) is `Merged` and
+the witness schema is stable. The bridge target may shift once witness lines
+land; MLP-002's per-commit witness format may subsume what this module would
+otherwise design. Do not start discovery until that point. Re-evaluate scope
+when unblocking — CGBDG may collapse to "council emits witness lines" rather
+than a separate attestation bridge.
 
 **Last reviewed:** 2026-05-10 — discovery-only module; attestation work still
 lives at `packages/anvil/core/src/provenance/`. If/when attestation moves to a
@@ -99,7 +99,7 @@ runtime gate can verify.
 
 ## Dependencies
 
-- **Blocking:** MLP-002 (witness chain) — must be `Merged` before this module
+- **Blocks on:** MLP-002 (witness chain) — must be `Merged` before this module
   unblocks. Witness format may replace the bridge's attestation target.
 - Existing: `packages/anvil/core/src/provenance/` (attestation schema)
 - Existing: `.claude/commands/council.md` and `.claude/agents/plan-synthesizer.md` (council output format)
