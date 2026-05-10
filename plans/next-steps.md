@@ -295,19 +295,19 @@ already-archived modules are not re-listed.
 
 | Module | ID | Final state | Notes |
 |--------|----|-------------|-------|
-| [launch-flow-readiness](./modules/launch-flow-readiness.aps.md) | LAUNCH | Complete 18/18 | Wow-Start Activation A1 — full slate. |
+| [launch-flow-readiness](./archive/modules/launch-flow-readiness.aps.md) | LAUNCH | Complete 18/18 | Wow-Start Activation A1 — full slate. |
 | [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Complete 16/16 | A1 slice + A2 Waves 1–3. Daemon binary, IPC, watcher, fence, enforcement, telemetry, status, DoS budgets. |
 | [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress 4/8 | A1 slice closed: -001/-002/-006/-008. -003/-005/-007 stay queued; **-004 (path-deny) promoted to N3 G5**. |
-| [rust-mcp-launch-shim](./modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete 8/8 | Daemon-backed `tools/call` + embedded fallback both shipping; A2 graduated the daemon-vs-embedded path. |
+| [rust-mcp-launch-shim](./archive/modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete 8/8 | Daemon-backed `tools/call` + embedded fallback both shipping; A2 graduated the daemon-vs-embedded path. |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md) | RTAI | In Progress 6/9 | A1 + A2 Waves 1–3 closed. -005/-007/-009 deferred per ADR-033. |
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Complete 4/4 | Diagnostic envelope shared across RTAI / RMCP / DRVR / INTD. |
-| [surface-drivers](./modules/surface-drivers.aps.md) | DRVR | Complete 5/5 active | Editor-driver protocol + capability negotiation + shared TS driver client. -003 deferred per ADR-033; -004 superseded by RMCP/RMCPF. |
+| [surface-drivers](./archive/modules/surface-drivers.aps.md) | DRVR | Complete 5/5 active | Editor-driver protocol + capability negotiation + shared TS driver client. -003 deferred per ADR-033; -004 superseded by RMCP/RMCPF. |
 | [git-config-hooks](./archive/modules/git-config-hooks.aps.md) | GHOOK | Complete 6/6 | A3 hygiene cut. |
 | [attribution-pipeline-v3](./modules/attribution-pipeline-v3.aps.md) | ATTRIB | In Progress 3/11 | A3 smallest-viable cut. -004..-011 stay queued. |
 | [scan-performance](./modules/scan-performance.aps.md) | SCAN | In Progress 3/5 | A3 smallest-viable cut. -004/-005 stay queued. |
 | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | In Progress 2/5 | A4 floor: -001/-003 shipped. -002/-004/-005 stay queued. |
 | [operational-supplement](./modules/operational-supplement.aps.md) | OPSUP | In Progress 1/7 | A4 check-ID registry slice. -002..-007 stay queued. |
-| [surface-env-files](./modules/surface-env-files.aps.md) | SURFENV | Complete 6/6 | A4 `.env` secret scan. |
+| [surface-env-files](./archive/modules/surface-env-files.aps.md) | SURFENV | Complete 6/6 | A4 `.env` secret scan. |
 | [tracing-foundation](./modules/tracing-foundation.aps.md) | TRACE | In Progress 1/3 | TRACE-001 shipped. -002/-003 post-launch. |
 | [v050-release-followups](./modules/v050-release-followups.aps.md) | V050F | In Progress 14/16 | Two non-blocking carry-overs: V050F-008, V050F-015. |
 | [anvil-ts-scanner-retirement](./modules/anvil-ts-scanner-retirement.aps.md) | TSRET | Complete (terminal) | TSRET-005 archive cascade executed. Module reaches terminal state. |

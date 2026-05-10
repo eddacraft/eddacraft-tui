@@ -14,7 +14,7 @@ See: plans/aps-rules.md
 
 **Last reviewed:** 2026-05-07
 
-> **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
+> **Plan change (2026-04-29, [ADR-033](../../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The IDE/MCP surfaces this module integrates are **archived**
 > (`archive/anvil-vscode-extension/`,
 > `archive/anvil-mcp-server/`). DRVR-003 (VSCode editor driver) is
@@ -51,7 +51,7 @@ harness) can execute.
 > `DriverClient` solely to bridge MCP back into Rust. A1 uses
 > [RMCP](./rust-mcp-launch-shim.aps.md): a narrow Rust
 > `anvil mcp serve --stdio` launch shim for pre-write validation. Full existing
-> MCP-server parity moves to [RMCPF](./rust-mcp-full-port.aps.md) next release.
+> MCP-server parity moves to [RMCPF](../../modules/rust-mcp-full-port.aps.md) next release.
 > DRVR remains the broader driver-framework home, especially for editor drivers
 > and daemon capability contracts.
 
@@ -275,7 +275,7 @@ define graph schema.
 ### DRVR-003: VSCode extension cut over to editor driver — **Deferred (ADR-033)**
 
 - **Status:** Deferred until the VSCode extension resumes (per
-  [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)).
+  [ADR-033](../../decisions/033-park-ide-mcp-retire-ts-scanner.md)).
   The extension is archived — there is no consumer to cut over today.
   Re-enter when a return-path ADR un-pauses
   `archive/anvil-vscode-extension/`.
@@ -306,7 +306,7 @@ define graph schema.
 ### DRVR-004: MCP server cut over to MCP driver — superseded by RMCPF
 
 - **Status:** Superseded by [RMCP](./rust-mcp-launch-shim.aps.md) for the
-  current release launch path and [RMCPF](./rust-mcp-full-port.aps.md) for the
+  current release launch path and [RMCPF](../../modules/rust-mcp-full-port.aps.md) for the
   next-release full port.
 - **Intent:** Historical TS-server plan: MCP tool handlers would stop calling
   `@eddacraft/anvil-runtime`'s `GateRunner` and become TS `DriverClient`

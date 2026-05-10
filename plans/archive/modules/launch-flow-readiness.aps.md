@@ -60,7 +60,7 @@ new primitive, this module follows three rules:
 > ⚠️ **Do not copy this convention to a second module before it has been
 > tried in anger here.** If the pattern proves useful across at least
 > one further cross-cutting bundle, promote it to a first-class module
-> type in [`aps-rules.md`](../aps-rules.md) — ideally with a
+> type in [`aps-rules.md`](../../aps-rules.md) — ideally with a
 > machine-readable callout syntax (e.g. YAML frontmatter) so a lint can
 > verify references, since prose callouts cannot be enforced. At the
 > point a second author is tempted to copy, that is the trigger:
@@ -216,7 +216,7 @@ new primitive, this module follows three rules:
   install receipt), and a `dev_build` tier (`target/debug` /
   `target/release`); falls back to `unknown / manual`. Per-method
   upgrade commands are pinned in
-  [`upgrade_command_for`](../../crates/anvil-cli/src/commands/version.rs).
+  [`upgrade_command_for`](../../../crates/anvil-cli/src/commands/version.rs).
   Latest-release lookup uses an async `reqwest` call wrapped in a
   fresh tokio runtime (matching axoupdater's pattern); a 3-second
   timeout makes network failures non-fatal — the local version still

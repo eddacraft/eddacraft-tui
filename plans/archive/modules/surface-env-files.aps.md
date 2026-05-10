@@ -18,7 +18,7 @@
 ## Purpose
 
 Bring `.env` files to **T1 (Scanned)** per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §5.2, §8.3 row 5. Demand: 2 confirmed (Anvil + User B), assumed universal.
 Blast: critical. Strategic: supports.
 
@@ -55,10 +55,10 @@ Phase 3 deliverable.
 **Depends on:**
 
 - Existing secret scanner (consumes its findings; does not duplicate).
-- [`operational-supplement`](./operational-supplement.aps.md) — check
+- [`operational-supplement`](../../modules/operational-supplement.aps.md) — check
   registry, per-track feature flag, file-presence guard.
 - Rust suppression parser per
-  [ADR-029](../decisions/029-suppression-parser-authority.md) — `.env`
+  [ADR-029](../../decisions/029-suppression-parser-authority.md) — `.env`
   files use `#` comments (already supported).
 
 **Exposes:**
@@ -68,7 +68,7 @@ Phase 3 deliverable.
 ## Prerequisites
 
 - OPSUP slices landed (see SURFSQL).
-- [ADR-029](../decisions/029-suppression-parser-authority.md) Accepted.
+- [ADR-029](../../decisions/029-suppression-parser-authority.md) Accepted.
 
 ## Ready Checklist
 
