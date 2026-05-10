@@ -209,6 +209,7 @@ else
         add_command 'pnpm lint:check'
         ;;
       release-dry-run)
+        add_command 'bash -lc '\''for tool in cargo-hakari cargo-deny; do if ! command -v "$tool" >/dev/null 2>&1; then echo "$tool is required for release validation. Install the pinned version from scripts/release.sh before rerunning." >&2; exit 2; fi; done'\'''
         add_command 'ANVIL_RELEASE_STEP_TIMEOUT=120 bash scripts/release.sh'
         ;;
       platform-smoke)
@@ -220,6 +221,7 @@ else
         add_command 'pnpm lint:check'
         add_command 'pnpm typecheck'
         add_command 'pnpm test'
+        add_command 'bash -lc '\''if ! command -v trivy >/dev/null 2>&1; then echo "trivy is required for dependency-audit validation. Install Trivy or rely on CI Dependency Audit (PR)." >&2; exit 2; fi'\'''
         add_command 'trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 .'
         ;;
       *)

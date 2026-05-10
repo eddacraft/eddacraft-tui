@@ -63,7 +63,10 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.markdownlint-required == 'true'
+    if: |
+      needs.detect-changes.outputs.markdownlint-required == 'true' &&
+      needs.detect-changes.outputs.lint-required != 'true' &&
+      needs.detect-changes.outputs.format-required != 'true'
 
     steps:
       - name: Checkout repository

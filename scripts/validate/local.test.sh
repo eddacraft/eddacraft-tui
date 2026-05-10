@@ -45,6 +45,16 @@ jq -e '.commands[] | select(contains("scripts/validate/local.sh"))' >/dev/null <
 jq -e '.commands | index("cargo test --workspace")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("opa test --verbose policies/fixtures/")' >/dev/null <<<"${plan}"
 
+dependency_paths="${tmp_dir}/dependency.paths"
+printf '%s\n' 'pnpm-lock.yaml' >"${dependency_paths}"
+dependency_plan=$(bash "${validator}" --changed --paths-file "${dependency_paths}" --dry-run --json)
+jq -e '.commands[] | select(contains("trivy is required"))' >/dev/null <<<"${dependency_plan}"
+
+release_paths="${tmp_dir}/release.paths"
+printf '%s\n' 'scripts/release.sh' >"${release_paths}"
+release_plan=$(bash "${validator}" --changed --paths-file "${release_paths}" --dry-run --json)
+jq -e '.commands[] | select(contains("cargo-hakari cargo-deny"))' >/dev/null <<<"${release_plan}"
+
 full=$(bash "${validator}" --full --dry-run --json)
 jq -e '.mode == "full"' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm format:check")' >/dev/null <<<"${full}"
