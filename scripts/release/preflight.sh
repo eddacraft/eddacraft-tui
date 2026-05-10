@@ -42,7 +42,7 @@ Options:
   -h, --help          Show this help.
 
 Test fixture mode:
-  ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass|fail|version-mismatch
+  ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass|fail|version-mismatch|missing-tool
   ANVIL_RELEASE_PREFLIGHT_FIXTURE_FAILURES=cargo-test,pnpm-lint
 USAGE
 }
@@ -196,10 +196,16 @@ run_gate() {
         deny_installed="0.0.0"
         deny_status="mismatch"
       fi
+    elif [[ "$fixture" == "missing-tool" && "$gate_id" == "pnpm-test" ]]; then
+      rc=127
+      status="failed"
+      if (( reserved_exit == 0 )); then
+        reserved_exit=127
+      fi
     elif [[ "$fixture" == "fail" ]] && fixture_has_failure "$gate_id"; then
       rc=1
       status="failed"
-    elif [[ "$fixture" != "pass" && "$fixture" != "fail" && "$fixture" != "version-mismatch" ]]; then
+    elif [[ "$fixture" != "pass" && "$fixture" != "fail" && "$fixture" != "version-mismatch" && "$fixture" != "missing-tool" ]]; then
       rc=1
       status="failed"
     fi
@@ -290,9 +296,9 @@ emit_json() {
   printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
   printf '"releaseRecord":{"lifecycleState":"candidate","recordUrl":null,"sha256":null},'
   printf '"data":{"failedGateCount":%s,"passedGateCount":%s,"toolVersions":{' "$failed_count" "$((${#GATE_IDS[@]} - failed_count))"
-  printf '"git":{"version":%s},' "$(tool_version git --version)"
-  printf '"gh":{"version":%s},' "$(tool_version gh --version)"
-  printf '"pnpm":{"version":%s},' "$(tool_version pnpm --version)"
+  printf '"git":%s,' "$(tool_version git --version)"
+  printf '"gh":%s,' "$(tool_version gh --version)"
+  printf '"pnpm":%s,' "$(tool_version pnpm --version)"
   printf '"cargoHakari":{"expected":%s,"installed":%s,"status":%s},' "$(json_string "$hakari_expected")" "$(json_nullable_string "$hakari_installed")" "$(json_string "$hakari_status")"
   printf '"cargoDeny":{"expected":%s,"installed":%s,"status":%s}' "$(json_string "$deny_expected")" "$(json_nullable_string "$deny_installed")" "$(json_string "$deny_status")"
   printf '},"gates":['
@@ -305,10 +311,14 @@ emit_json() {
     else
       printf ','
     fi
+    local gate_status="fail"
+    if [[ "${GATE_STATUS[$i]}" == "passed" ]]; then
+      gate_status="pass"
+    fi
     printf '{"id":%s,"name":%s,"status":%s,"command":%s,"exitCode":%s,"durationMs":%s}' \
       "$(json_string "${GATE_IDS[$i]}")" \
       "$(json_string "${GATE_NAMES[$i]}")" \
-      "$(json_string "${GATE_STATUS[$i]}")" \
+      "$(json_string "$gate_status")" \
       "$(json_string "${GATE_COMMANDS[$i]}")" \
       "${GATE_EXIT_CODES[$i]}" \
       "$((GATE_DURATIONS[$i] * 1000))"
@@ -420,9 +430,9 @@ main() {
   exit_code="${reserved_exit:-0}"
   if (( exit_code == 0 )); then
     exit_code="$failed_count"
-  fi
-  if (( exit_code > 125 )); then
-    exit_code=125
+    if (( exit_code > 125 )); then
+      exit_code=125
+    fi
   fi
 
   if [[ "$json" == true ]]; then

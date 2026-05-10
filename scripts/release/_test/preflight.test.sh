@@ -58,12 +58,15 @@ fi
 node - "$tmp/failures.json" <<'NODE'
 const fs = require('node:fs');
 const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const failedIds = doc.data.gates.filter((gate) => gate.status === 'failed').map((gate) => gate.id);
+const failedIds = doc.data.gates.filter((gate) => gate.status === 'fail').map((gate) => gate.id);
 if (doc.status !== 'failed') throw new Error(`expected failed status, got ${doc.status}`);
 if (doc.data.failedGateCount !== 2) throw new Error(`expected 2 failed gates, got ${doc.data.failedGateCount}`);
 if (!doc.data.gates.every((gate) => typeof gate.durationMs === 'number')) throw new Error('expected durationMs on each gate');
 for (const tool of ['git', 'gh', 'pnpm']) {
   if (!(tool in doc.data.toolVersions)) throw new Error(`missing toolVersions.${tool}`);
+  if (doc.data.toolVersions[tool] !== null && typeof doc.data.toolVersions[tool] !== 'string') {
+    throw new Error(`expected scalar toolVersions.${tool}`);
+  }
 }
 if (doc.next.command !== 'preflight') throw new Error(`expected failed preflight to point back to preflight, got ${doc.next.command}`);
 if (!failedIds.includes('cargo-test') || !failedIds.includes('pnpm-lint')) {
@@ -78,6 +81,13 @@ bash "$HARNESS" run-contract \
   --expected-exit 129 \
   --expected-command preflight \
   -- bash "$PREFLIGHT" --json --unknown
+
+ANVIL_RELEASE_PREFLIGHT_FIXTURE=missing-tool \
+  bash "$HARNESS" run-contract \
+    --name preflight-missing-tool \
+    --expected-exit 127 \
+    --expected-command preflight \
+    -- bash "$PREFLIGHT" --json
 
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=version-mismatch \
   bash "$PREFLIGHT" --json >"$tmp/version.json" || rc=$?
