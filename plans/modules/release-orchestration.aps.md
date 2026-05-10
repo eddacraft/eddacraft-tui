@@ -228,7 +228,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 - `scripts/release/*.sh` — per-phase command surface.
 - A JSON output schema per command (defined in `RELORCH-001`).
-- A structured comment shape on the GH tracking issue carrying the 13-field
+- A structured comment shape on the GH tracking issue carrying the resumability
   metadata `SKILL.md` §Resumability currently lists.
 
 **Consumers:**
