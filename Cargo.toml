@@ -21,7 +21,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.0-beta"
+version = "0.6.1-beta"
 edition = "2024"
 license = "LicenseRef-Proprietary"
 repository = "https://github.com/eddacraft/anvil-001"

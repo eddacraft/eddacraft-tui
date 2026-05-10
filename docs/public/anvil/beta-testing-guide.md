@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.6.0-beta
+**Current version:** 0.6.1-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
