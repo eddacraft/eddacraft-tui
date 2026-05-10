@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 9/12     |
+| OPMODEL | —     | In Progress | 10/12    |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -390,7 +390,10 @@ This module is Complete when:
 
 ### OPMODEL-010: APS/repo/release drift checks
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly requested continuing with the next
+  OPMODEL steps on 2026-05-10; this approval treated the item as Ready for this
+  slice.
 - **Intent:** Add warning-mode checks for inconsistent APS, repository, and
   release state before promoting stable rules to required gates.
 - **Expected Outcome:** Checks detect changed files without APS references,
@@ -399,8 +402,22 @@ This module is Complete when:
   release artefacts, and shipped APS state without release records.
 - **Validation:** Fixture tests for each drift class; CI warning output on a
   controlled fixture
-- **Files:** `scripts/` or `crates/` path chosen by design, CI workflow touchpoints
+- **Files:** `scripts/aps/drift-check.mjs`, `scripts/aps/_test/drift-check.test.sh`,
+  `.github/workflows/ci.yml`, `package.json`
 - **Coordinates with:** DOCGOV-005, RELORCH, release-readiness workflow
+- **Completed:** 2026-05-10 — Added warning-mode APS/repo/release drift checks
+  that report changed files without APS references, inconsistent module/index
+  counts, Complete items without validation evidence, candidate records missing
+  merged APS items, version/tag mismatches, missing release artefact integrity,
+  and shipped APS state without matching published release records. CI runs the
+  checker as a non-blocking advisory job, and fixture tests cover each drift
+  class. Validation passed with `pnpm test:aps-drift`, `pnpm format:check`,
+  `pnpm lint:md`, and `git diff --check`.
+- **Coordination closeout:** DOCGOV-005 remains the downstream owner for broader
+  documentation validators and generated indexes. RELORCH and the
+  release-readiness workflow remain owners of release-record emission and
+  candidate inputs; this slice provides warning-only consistency checks and does
+  not make them required gates.
 - **Confidence:** medium
 
 ---

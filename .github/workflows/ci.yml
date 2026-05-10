@@ -202,6 +202,30 @@ jobs:
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
 
+  aps-drift:
+    name: APS Drift Check
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    needs: detect-changes
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build changed-file fixture
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/aps-drift-files.txt
+          else
+            git diff --name-only "${{ github.event.before }}...${{ github.sha }}" > /tmp/aps-drift-files.txt
+          fi
+
+      - name: Run warning-mode drift checks
+        run: node scripts/aps/drift-check.mjs --changed-files /tmp/aps-drift-files.txt
+
   # ── Job 1: Lint + Format ─────────────────────────────────────────
   # Gated on source-changed (not code-changed): pure-Rust PRs are
   # covered by rust.yml, while security.yml continues to run via
