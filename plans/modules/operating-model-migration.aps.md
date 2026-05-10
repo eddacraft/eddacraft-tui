@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 6/12     |
+| OPMODEL | —     | In Progress | 7/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -303,7 +303,9 @@ This module is Complete when:
 
 ### OPMODEL-007: Deterministic agent guidance script
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved moving on through OPMODEL work
+  on 2026-05-10; this approval treated OPMODEL-007 as Ready for this slice.
 - **Intent:** Add one deterministic rules engine that maps changed paths, APS
   items, and risk classes to playbooks, review tiers, and required checks.
 - **Expected Outcome:** `scripts/agent/guidance.sh` supports staged, branch, and
@@ -314,6 +316,12 @@ This module is Complete when:
 - **Files:** `scripts/agent/guidance.sh`, `scripts/agent/_test/`, CI warning
   touchpoint when implemented
 - **Coordinates with:** council/review specs, hooks, CI workflows
+- **Completed:** 2026-05-10 — Added advisory `scripts/agent/guidance.sh` with
+  staged, branch, PR, and fixture-file modes; text and JSON output; deterministic
+  path rules for release, APS, docs, agent workflow, CI, TypeScript, and Rust
+  changes; and shell fixture tests. CI integration remains a later warning-mode
+  touchpoint. Validation passed with `bash scripts/agent/_test/guidance.test.sh`,
+  `pnpm format:check`, `pnpm lint:md`, and `git diff --check`.
 - **Confidence:** medium
 
 ---
