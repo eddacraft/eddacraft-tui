@@ -28,7 +28,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | In Progress | 1/11     |
+| RELORCH | —     | In Progress | 2/11     |
 
 **Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
 
@@ -271,8 +271,11 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-002: Test harness for command surface
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 1
+- **Execution authorisation:** Operator request "move onto RELORCH-002" on
+  2026-05-10 authorises executing this item from Proposed state under
+  `plans/aps-rules.md` status rule 1.
 - **Intent:** Provide the harness that gates every command on the JSON /
   exit-code contract from `RELORCH-001`. Include `kill -9` mid-run + re-run
   cases for idempotency proof, fixture repos, and CI wiring so a contract
@@ -282,6 +285,9 @@ phases, with the rest explicitly Phase-2-tracked.
   break exit-code semantics) fails the harness; healthy run is green.
 - **Validation:** Harness runs on macOS + Linux CI; `kill -9` test is real,
   not mocked.
+- **Completed:** 2026-05-10 — Added `scripts/release/_test/harness.sh`, the
+  contract self-test and fixtures, plus `.github/workflows/release-harness.yml`
+  to run the harness on Ubuntu and macOS for PRs touching `scripts/release/**`.
 - **Files:** `scripts/release/_test/`, CI config touchpoints.
 
 ---
