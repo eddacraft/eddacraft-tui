@@ -327,6 +327,24 @@ enum WaitOutcome {
     WaitFailed(String),
 }
 
+impl WaitOutcome {
+    /// Convert a wait outcome into the `(exit_code, error_detail)` pair
+    /// `send_result` needs. Pulled out as a pure function so the
+    /// `Cancelled → "cancelled"` and `WaitFailed → "wait failed: …"`
+    /// invariants (#1279 review: cause-specific `error_detail`) can be
+    /// asserted without spawning child processes or racing the worker
+    /// thread. Adversarial regression: if a future refactor restored
+    /// the pre-#1279 "spawn failed" string for cancellation outcomes,
+    /// the unit test below catches it deterministically.
+    fn to_send_args(&self) -> (Option<i32>, Option<String>) {
+        match self {
+            Self::Exited(code) => (*code, None),
+            Self::Cancelled => (None, Some("cancelled".to_string())),
+            Self::WaitFailed(reason) => (None, Some(format!("wait failed: {reason}"))),
+        }
+    }
+}
+
 struct DispatcherInner {
     action: String,
     workspace_root: PathBuf,
@@ -542,30 +560,19 @@ impl DispatcherInner {
             return;
         }
 
-        match self.wait_for_completion() {
-            WaitOutcome::Exited(code) => {
-                if !self.tui_parent
-                    && let Some(c) = code
-                    && c != 0
-                {
-                    eprintln!("[warn] Action '{}' exited with code {c}", self.action);
-                    tracing::info!(action = %self.action, exit_code = c, "action exited non-zero");
-                }
-                self.send_result(code, start.elapsed(), None);
-            }
-            WaitOutcome::Cancelled => {
-                // Footer renders `error_detail` verbatim — say what
-                // happened, not "spawn failed" (#1279 review).
-                self.send_result(None, start.elapsed(), Some("cancelled".to_string()));
-            }
-            WaitOutcome::WaitFailed(reason) => {
-                self.send_result(
-                    None,
-                    start.elapsed(),
-                    Some(format!("wait failed: {reason}")),
-                );
-            }
+        let outcome = self.wait_for_completion();
+        if !self.tui_parent
+            && let WaitOutcome::Exited(Some(c)) = &outcome
+            && *c != 0
+        {
+            eprintln!("[warn] Action '{}' exited with code {c}", self.action);
+            tracing::info!(action = %self.action, exit_code = *c, "action exited non-zero");
         }
+        // Footer renders `error_detail` verbatim — `to_send_args` keeps
+        // cancellation as "cancelled" and wait failures as "wait failed:
+        // …", never "spawn failed" (#1279 review).
+        let (exit_code, error_detail) = outcome.to_send_args();
+        self.send_result(exit_code, start.elapsed(), error_detail);
     }
 
     fn wait_for_completion(&self) -> WaitOutcome {
@@ -1220,82 +1227,68 @@ mod tests {
 
     /// **#1279 review: cause-specific `error_detail`.**
     ///
-    /// Cancellation produces `error_detail = "cancelled"`, not the
-    /// generic "spawn failed: ..." the previous footer rendered for
-    /// every `exit_code = None` case. The renderer reads this verbatim,
-    /// so the user can tell "spawn failed: Permission denied" apart
-    /// from "cancelled" apart from "wait failed: ...".
-    #[cfg(unix)]
+    /// `WaitOutcome::to_send_args` is the single source of truth for
+    /// the `(exit_code, error_detail)` pair `run_one_action` ships to
+    /// `send_result`. Asserting it directly catches a future refactor
+    /// that restored the pre-#1279 "spawn failed" string for
+    /// cancellation outcomes — without spawning child processes,
+    /// without racing the worker thread, without nextest pinning.
+    ///
+    /// History: the previous version of this test drove `on_snapshot`
+    /// → spawn `/bin/sleep` → poll the `in_flight` slot for up to 30 s
+    /// waiting for the worker to park, then called `shutdown` and
+    /// inspected the channel. It flaked under contended CI even after
+    /// two timeout ratchets (500 ms → 5 s → 30 s) and a single-thread
+    /// nextest group pin. The flake is structural: `send_result` is
+    /// cancel-aware (drops the result when `cancel` is set) so once
+    /// shutdown fires, the cancellation result almost always vanishes
+    /// before the channel sees it. The polling barrier was an attempt
+    /// to widen the window where the worker raced through
+    /// `send_result` first; it could never be made deterministic.
+    /// Routing the assertion through the pure helper closes the gap.
     #[test]
     fn cancellation_emits_cancelled_error_detail_not_spawn_failed() {
-        let (tx, rx) =
-            std::sync::mpsc::sync_channel::<anvil_tui::surfaces::watch::ActionResultLine>(1);
-
-        let dispatcher = ActionDispatcher::new_with_exe(
-            "30".to_string(),
-            PathBuf::from("/tmp"),
-            false,
-            false,
-            true, // tui_parent — sender path active
-            Some(tx),
-            Some(PathBuf::from("/bin/sleep")),
+        let (exit_code, detail) = WaitOutcome::Cancelled.to_send_args();
+        assert!(exit_code.is_none(), "cancellation has no exit code");
+        let detail = detail.expect("cancellation must populate error_detail");
+        assert!(
+            !detail.contains("spawn failed"),
+            "cancellation must not be reported as spawn failure, got: {detail:?}"
         );
+        assert_eq!(detail, "cancelled");
+    }
 
-        dispatcher.on_snapshot();
+    /// Mirror coverage for the non-cancel outcomes so a refactor that
+    /// changed *all* outcomes' strings can't slip past.
+    #[test]
+    fn wait_failed_outcome_uses_wait_failed_prefix_not_spawn_failed() {
+        let (exit_code, detail) =
+            WaitOutcome::WaitFailed("Permission denied".to_string()).to_send_args();
+        assert!(exit_code.is_none());
+        let detail = detail.expect("wait failure must populate error_detail");
+        assert!(
+            !detail.contains("spawn failed"),
+            "wait failure must not be reported as spawn failure, got: {detail:?}"
+        );
+        assert_eq!(detail, "wait failed: Permission denied");
+    }
 
-        // Wait for the child to park, then shutdown. The timeout is a
-        // synchronization safety net, not a timing assertion — locally
-        // the in-flight slot fills in <50 ms; the bound only fires if
-        // the worker thread genuinely never gets scheduled. The
-        // threshold has ratcheted twice under CI scheduling pressure
-        // (500 ms → 5 s in `43cb9ef1`, then 5 s → 30 s after sustained
-        // failures on ubuntu-latest under nextest's default parallel
-        // execution where this test contended with thousands of others
-        // for CPU). The 30 s bound also flaked, so the test is now
-        // pinned to a single-thread `serial-watch-cancellation` group
-        // in `.config/nextest.toml`; do NOT widen this bound further
-        // without first checking whether the override is still in
-        // effect.
-        let parked = std::time::Instant::now();
-        loop {
-            if dispatcher
-                .0
-                .in_flight
-                .lock()
-                .ok()
-                .is_some_and(|g| g.is_some())
-            {
-                break;
-            }
-            assert!(
-                parked.elapsed() <= std::time::Duration::from_secs(30),
-                "child did not park within 30 s — worker thread may not be \
-                 getting scheduled at all (sync safety net, not a timing bound)"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
+    #[test]
+    fn exited_outcome_carries_exit_code_and_no_error_detail() {
+        let (exit_code, detail) = WaitOutcome::Exited(Some(0)).to_send_args();
+        assert_eq!(exit_code, Some(0));
+        assert!(detail.is_none(), "successful exit has no error_detail");
 
-        dispatcher.shutdown();
+        let (exit_code, detail) = WaitOutcome::Exited(Some(2)).to_send_args();
+        assert_eq!(exit_code, Some(2));
+        assert!(detail.is_none(), "non-zero exit has no error_detail");
 
-        // The worker's `send_result` for the cancelled action races with
-        // shutdown's cancel flag — it may try_send before or after
-        // shutdown completes. Drain the channel and accept either: a
-        // cancellation result is delivered with the right error_detail,
-        // OR the worker bailed before sending (cancel-aware send_result
-        // returns early). The behaviour we explicitly forbid is a
-        // result with `error_detail` claiming "spawn failed".
-        if let Ok(line) = rx.try_recv() {
-            assert!(line.errored(), "cancelled action should report errored()");
-            let detail = line.error_detail.as_deref().unwrap_or("");
-            assert!(
-                !detail.contains("spawn failed"),
-                "cancelled action must not be reported as spawn failure, got: {detail:?}"
-            );
-            assert!(
-                detail.contains("cancelled"),
-                "expected `error_detail` to contain `cancelled`, got: {detail:?}"
-            );
-        }
+        let (exit_code, detail) = WaitOutcome::Exited(None).to_send_args();
+        assert!(
+            exit_code.is_none(),
+            "signal-killed children report no exit code"
+        );
+        assert!(detail.is_none(), "signal-killed children have no error_detail");
     }
 
     /// **Deadlock regression test (council finding: adversarial + ops).**

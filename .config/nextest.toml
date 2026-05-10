@@ -11,15 +11,10 @@
 [profile.default]
 success-output = "immediate"
 
-# Serialise the watch cancellation test. It uses real /bin/sleep child
-# processes and a 30 s polling barrier waiting for the worker thread to
-# park; under nextest's default parallel execution it contends with
-# thousands of other tests for CPU and the worker can starve past the
-# bound. Pinning to one thread gives it a predictable runner without
-# widening the timeout further.
-[test-groups]
-serial-watch-cancellation = { max-threads = 1 }
-
-[[profile.default.overrides]]
-filter = 'binary(anvil) and test(=commands::watch::tests::cancellation_emits_cancelled_error_detail_not_spawn_failed)'
-test-group = 'serial-watch-cancellation'
+# (Removed.) The watch cancellation test previously needed a
+# single-thread group pin because it polled for a worker thread to
+# park a `/bin/sleep` child; under contended CI it could starve past
+# even a 30 s bound. The test was rewritten to drive `run_one_action`
+# synchronously on the test thread with `cancel` pre-set, removing
+# the only timing-dependent step. No serialisation needed — see the
+# test's doc comment in `crates/anvil-cli/src/commands/watch.rs`.
