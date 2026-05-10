@@ -43,6 +43,11 @@ The target workflow is a manually triggered CI workflow with two modes:
 | `readiness` | Prove a selected SHA can be tagged. | No | CI result is readiness authority for that SHA. |
 | `candidate-artifacts` | Build release-like assets without tag publication. | No | Artefacts are temporary validation evidence only. |
 
+Machine identifiers intentionally use fixed ASCII strings and US spelling where
+needed for compatibility with workflow conventions. Implementations must use
+`candidate-artifacts` and `artifact-build-failed` exactly; do not convert them to
+UK-spelled identifiers such as `candidate-artefacts`.
+
 Inputs:
 
 | Input | Required | Meaning |
@@ -122,7 +127,11 @@ Minimum JSON fields:
   "requestedVersion": "v0.7.0-beta",
   "resolvedVersion": "v0.7.0-beta+candidate.123.0123456",
   "apsItems": ["MOD-001"],
-  "trackingIssue": 1234,
+  "trackingIssue": {
+    "repository": "eddacraft/anvil-001",
+    "number": 1234,
+    "url": "https://github.com/eddacraft/anvil-001/issues/1234"
+  },
   "workflowRunUrl": "https://github.com/eddacraft/anvil-001/actions/runs/123",
   "workflowRef": "eddacraft/anvil-001/.github/workflows/release-readiness.yml@0123456",
   "manifestSha256": "hex-encoded-sha256",
@@ -169,9 +178,11 @@ Failures are classified so agents and operators know the next action:
 | `integrity-failed` | Checksums or manifests are missing or inconsistent. | Rebuild or repair integrity metadata. |
 | `infra-failed` | Runner, cache, network, or GitHub API failure. | Rerun only after identifying transient evidence. |
 
-The workflow summary must include the requested SHA, resolved SHA, mode,
+The workflow summary must include the requested SHA, validated SHA, mode,
 `expectedReachableFrom`, `baseBoundary`, failure class, failed job links, and
-whether a rerun is safe.
+whether a rerun is safe. The validated SHA is the commit actually checked out and
+verified by the workflow; it must equal `sourceSha` or the workflow fails with
+`invalid-input`.
 
 ## Release Record Integration
 
