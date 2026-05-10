@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 4/12     |
+| OPMODEL | —     | In Progress | 5/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -258,15 +258,22 @@ This module is Complete when:
 
 ### OPMODEL-005: Release readiness and candidate artefact workflow design
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved moving on through OPMODEL work
+  on 2026-05-10; this approval treated OPMODEL-005 as Ready for this slice.
 - **Intent:** Define the CI workflow that proves a selected `main` SHA is ready
   to tag and optionally builds non-publishing candidate artefacts.
 - **Expected Outcome:** CI design covers trigger, inputs, required checks,
   release candidate metadata, candidate artefact retention, and failure handling.
 - **Validation:** `pnpm format:check && pnpm lint:md`
-- **Files:** `plans/specs/<date>-release-readiness-workflow.md`,
+- **Files:** `plans/specs/2026-05-10-release-readiness-workflow.md`,
   `.github/workflows/` when implemented
 - **Coordinates with:** RELORCH, CI workflows
+- **Completed:** 2026-05-10 — Added the release-readiness and candidate artefact
+  workflow specification, defining trigger inputs, required checks, candidate
+  metadata, artefact retention, failure classes, and release-record integration;
+  workflow implementation remains with RELORCH/CI follow-up work. Validation
+  passed with `pnpm format:check`, `pnpm lint:md`, and `git diff --check`.
 - **Confidence:** medium
 
 ---
