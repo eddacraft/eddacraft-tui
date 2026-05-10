@@ -156,9 +156,10 @@ if [[ "${mode}" == 'full' ]]; then
   add_command 'pnpm lint:check'
   add_command 'pnpm typecheck'
   add_command 'pnpm test'
-  add_command "$(shell_syntax_command scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/validate/local.sh scripts/validate/local.test.sh)"
+  add_command "$(shell_syntax_command scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/ci/fast-pr-validation.test.sh scripts/validate/local.sh scripts/validate/local.test.sh)"
   add_command 'pnpm test:ci-classify'
   add_command 'pnpm test:ci-cost'
+  add_command 'pnpm test:ci-fast-pr'
   add_command 'pnpm test:validate-local'
   add_command 'cargo test --workspace'
   add_command 'opa test --verbose policies/fixtures/'
@@ -192,6 +193,7 @@ else
       script-fixtures)
         add_command 'pnpm test:ci-classify'
         add_command 'pnpm test:ci-cost'
+        add_command 'pnpm test:ci-fast-pr'
         add_command 'pnpm test:validate-local'
         ;;
       cargo-test)
@@ -207,13 +209,18 @@ else
         add_command 'pnpm lint:check'
         ;;
       release-dry-run)
-        add_command 'bash -n scripts/release.sh'
+        add_command 'ANVIL_RELEASE_STEP_TIMEOUT=120 bash scripts/release.sh'
         ;;
       platform-smoke)
-        add_command 'pnpm test'
+        add_command 'pnpm --filter @eddacraft/anvil-checks-native build:debug'
+        add_command 'pnpm --filter @eddacraft/anvil-checks-native test'
         ;;
       dependency-audit)
-        add_command 'pnpm audit --audit-level high'
+        add_command 'pnpm format:check'
+        add_command 'pnpm lint:check'
+        add_command 'pnpm typecheck'
+        add_command 'pnpm test'
+        add_command 'trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 .'
         ;;
       *)
         echo "unsupported required check from classifier: ${check}" >&2

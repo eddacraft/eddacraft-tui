@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 3/12     |
+| CICD | —     | In Progress | 4/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -204,7 +204,7 @@ This module is Complete when:
 
 ### CICD-004: Fast PR validation redesign
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Make every PR receive cheap, deterministic, path-targeted validation
   without routine coverage, broad matrices, or unrelated security work.
 - **Expected Outcome:** PR validation runs format/lint/typecheck/affected tests
@@ -215,6 +215,18 @@ This module is Complete when:
   `.github/actions/`
 - **Coordinates with:** OPMODEL migration boundary; normal PR target remains `dev`
   until OPMODEL-012
+- **Completed:** 2026-05-10 — Fast PR validation now consumes classifier-required
+  checks for Node, docs, workflow, shell, policy, dependency, infra, release, and
+  platform surfaces. Routine PR unit tests no longer collect/upload coverage,
+  broad build and E2E work is no longer triggered for unrelated PR changes, and
+  dev-target Rust PRs skip the cross-compile matrix unless they are release-gate
+  PRs to `main`. Added `pnpm test:ci-fast-pr` as a workflow contract fixture.
+- **Validation Run:** `pnpm test:ci-classify`, `pnpm test:ci-cost`,
+  `pnpm test:ci-fast-pr`, `pnpm test:validate-local`, `pnpm format:check`,
+  `pnpm lint:md`, `git diff --check`, Council convergence review.
+- **Residual Risk:** Full `pnpm typecheck` currently stops on pre-existing Nx
+  workspace sync drift before typechecking; PR CI remains the executable workflow
+  authority for the changed CI paths.
 - **Confidence:** medium
 
 ---

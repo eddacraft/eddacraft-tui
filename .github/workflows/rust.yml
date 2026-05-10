@@ -5,8 +5,10 @@ on:
     branches: [main, dev, 'rust-*', 'release/*']
     paths:
       - 'crates/**'
+      - 'packages/anvil-checks-native/native/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'dist-workspace.toml'
       - 'rust-toolchain.toml'
       - 'pnpm-workspace.yaml'
       - 'nx.json'
@@ -17,8 +19,10 @@ on:
   pull_request:
     paths:
       - 'crates/**'
+      - 'packages/anvil-checks-native/native/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'dist-workspace.toml'
       - 'rust-toolchain.toml'
       - 'pnpm-workspace.yaml'
       - 'nx.json'
@@ -81,8 +85,10 @@ jobs:
           filters: |
             rust:
               - 'crates/**'
+              - 'packages/anvil-checks-native/native/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'dist-workspace.toml'
               - 'rust-toolchain.toml'
               - '.github/workflows/rust.yml'
 
@@ -426,9 +432,8 @@ jobs:
   cross-compile:
     name: Cross (${{ matrix.target }})
     # Run cross-compilation (incl. the Windows matrix) on pushes to main
-    # and dev, and on PRs targeting either branch. Feature-branch PRs
-    # still skip this job — coverage scales with the integration target,
-    # not with every transient feature branch.
+    # and dev, and on PRs targeting main as a release gate. Normal dev PRs
+    # stay on the fast Rust check/test/clippy/format path.
     #
     # Additionally gate on `detect-rust-changes` so JS-only diffs (e.g.
     # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
@@ -438,8 +443,8 @@ jobs:
     # file itself — still fire cross-compile.
     if: >-
       ((github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
-      github.ref)) || (github.event_name == 'pull_request' && contains(fromJSON('["main", "dev"]'),
-      github.base_ref))) && needs.detect-rust-changes.outputs.rust-changed == 'true'
+      github.ref)) || (github.event_name == 'pull_request' && github.base_ref == 'main')) &&
+      needs.detect-rust-changes.outputs.rust-changed == 'true'
     runs-on: ${{ matrix.os }}
     needs: [check, detect-rust-changes]
     strategy:

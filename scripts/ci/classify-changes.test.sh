@@ -46,7 +46,7 @@ assert_json_contains "${ts}" '.pathClasses | index("ts")' 'TS path class'
 assert_json_contains "${ts}" '.requiredChecks | index("typecheck")' 'TS requires typecheck'
 assert_json_contains "${ts}" '.requiredChecks | index("unit-tests")' 'TS requires unit tests'
 
-rust=$(run_case rust crates/anvil-cli/src/main.rs Cargo.toml)
+rust=$(run_case rust crates/anvil-cli/src/main.rs Cargo.toml Cargo.lock rust-toolchain.toml dist-workspace.toml)
 assert_json_contains "${rust}" '.pathClasses | index("rust")' 'Rust path class'
 assert_json_contains "${rust}" '.requiredChecks | index("cargo-check")' 'Rust requires cargo check'
 assert_json_contains "${rust}" '.requiredChecks | index("cargo-test")' 'Rust requires cargo test'
@@ -73,6 +73,7 @@ assert_json_contains "${shell}" '.requiredChecks | index("script-fixtures")' 'sc
 infra=$(run_case infra infra/pulumi/Pulumi.yaml deploy/cloudformation/template.yml)
 assert_json_contains "${infra}" '.pathClasses | index("infra")' 'infra path class'
 assert_json_contains "${infra}" '.riskClasses | index("infra")' 'infra risk class'
+assert_json_contains "${infra}" '.requiredChecks | index("infra-static-check")' 'infra static check required'
 
 napi=$(run_case napi packages/anvil-checks-native/native/src/lib.rs packages/anvil-checks-native/npm/linux-x64/package.json)
 assert_json_contains "${napi}" '.pathClasses | index("napi")' 'NAPI path class'

@@ -135,7 +135,7 @@ for path in "${paths[@]}"; do
   esac
 
   case "${path}" in
-    *.rs | crates/* | crates/**/* | Cargo.toml)
+    *.rs | crates/* | crates/**/* | Cargo.toml | Cargo.lock | rust-toolchain.toml | dist-workspace.toml)
       add_unique path_classes 'rust'
       add_unique risk_classes 'source'
       matched=true
