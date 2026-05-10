@@ -411,10 +411,22 @@ parse_args() {
   done
 }
 
+prescan_json_arg() {
+  local arg
+  for arg in "$@"; do
+    if [[ "$arg" == "--json" ]]; then
+      json=true
+      return 0
+    fi
+  done
+}
+
 main() {
   local started_at
   local ended_at
   started_at=$(timestamp)
+
+  prescan_json_arg "$@"
 
   if ! parse_args "$@"; then
     ended_at=$(timestamp)

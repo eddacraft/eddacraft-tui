@@ -43,6 +43,7 @@ ANVIL_RELEASE_PREFLIGHT_FIXTURE_FAILURES="cargo-test,pnpm-lint" \
     --expected-command preflight \
     -- bash "$PREFLIGHT" --json --base main --head dev
 
+rc=0
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=fail \
 ANVIL_RELEASE_PREFLIGHT_FIXTURE_FAILURES="cargo-test,pnpm-lint" \
   bash "$PREFLIGHT" --json >"$tmp/failures.json" 2>"$tmp/failures.err" || rc=$?
@@ -76,6 +77,8 @@ NODE
 
 invalid_json="$(bash "$PREFLIGHT" --json --unknown 2>/dev/null || true)"
 assert_contains "$invalid_json" '"code":"invalid-input"'
+invalid_json_reordered="$(bash "$PREFLIGHT" --unknown --json 2>/dev/null || true)"
+assert_contains "$invalid_json_reordered" '"code":"invalid-input"'
 bash "$HARNESS" run-contract \
   --name preflight-invalid-json \
   --expected-exit 129 \
@@ -89,6 +92,7 @@ ANVIL_RELEASE_PREFLIGHT_FIXTURE=missing-tool \
     --expected-command preflight \
     -- bash "$PREFLIGHT" --json
 
+rc=0
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=version-mismatch \
   bash "$PREFLIGHT" --json >"$tmp/version.json" || rc=$?
 rc="${rc:-0}"
