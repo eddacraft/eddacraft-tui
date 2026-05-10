@@ -88,8 +88,8 @@ All commands support these arguments unless explicitly marked not applicable.
 | Argument | Meaning |
 | --- | --- |
 | `--json` | Emit only the common JSON envelope. |
-| `--repo <owner/name>` | Private source repository; defaults to `EddaCraft/anvil-001`. |
-| `--public-repo <owner/name>` | Public release repository; defaults to `EddaCraft/anvil`. |
+| `--repo <owner/name>` | Private source repository; defaults to `eddacraft/anvil-001`. |
+| `--public-repo <owner/name>` | Public release repository; defaults to `eddacraft/anvil`. |
 | `--tracking-issue <number-or-url>` | Existing release issue to append to or resume from. |
 | `--version <vX.Y.Z[-suffix]>` | Release version or tag. Required after assessment chooses a version. |
 | `--base <ref>` | Comparison base, usually `main` or previous tag. |
@@ -116,7 +116,7 @@ Command-specific fields live under `data`.
   "status": "success",
   "startedAt": "2026-05-10T00:00:00Z",
   "endedAt": "2026-05-10T00:00:01Z",
-  "repository": "EddaCraft/anvil-001",
+  "repository": "eddacraft/anvil-001",
   "inputs": {
     "base": "main",
     "head": "dev",
@@ -125,10 +125,10 @@ Command-specific fields live under `data`.
     "trackingIssue": null
   },
   "trackingIssue": {
-    "repository": "EddaCraft/anvil-001",
+    "repository": "eddacraft/anvil-001",
     "number": 1234,
-    "url": "https://github.com/EddaCraft/anvil-001/issues/1234",
-    "metadataCommentUrl": "https://github.com/EddaCraft/anvil-001/issues/1234#issuecomment-1"
+    "url": "https://github.com/eddacraft/anvil-001/issues/1234",
+    "metadataCommentUrl": "https://github.com/eddacraft/anvil-001/issues/1234#issuecomment-1"
   },
   "releaseRecord": {
     "lifecycleState": "candidate",
@@ -304,7 +304,7 @@ Readiness metadata in command JSON uses this shape:
     "baseBoundary": "v0.6.0-beta",
     "requestedVersion": "v0.7.0-beta",
     "resolvedVersion": "v0.7.0-beta",
-    "workflowRunUrl": "https://github.com/EddaCraft/anvil-001/actions/runs/123",
+    "workflowRunUrl": "https://github.com/eddacraft/anvil-001/actions/runs/123",
     "candidateMetadataArtifact": "release-candidate-metadata-readiness-0123456-123",
     "candidateMetadataSha256": "hex-encoded-sha256",
     "failureClass": null,
@@ -339,9 +339,9 @@ Storage decision:
 
 - The canonical published record is attached as
   `anvil-release-record-<version>.json` to the private GitHub Release on
-  `EddaCraft/anvil-001`.
+  `eddacraft/anvil-001`.
 - A redacted copy may be attached to the public GitHub Release on
-  `EddaCraft/anvil` when it does not expose private-only URLs or issue details.
+  `eddacraft/anvil` when it does not expose private-only URLs or issue details.
 - Candidate records are CI artefacts or tracking-issue metadata references only;
   they are not canonical shipped-state evidence.
 
@@ -486,8 +486,8 @@ install site health, and release record consistency.
 
 Required behaviour:
 
-- confirm private release exists on `EddaCraft/anvil-001`
-- confirm public release exists on `EddaCraft/anvil`
+- confirm private release exists on `eddacraft/anvil-001`
+- confirm public release exists on `eddacraft/anvil`
 - verify expected cargo-dist assets, checksums, provenance, and source SHA
 - record Homebrew, Scoop, and WinGet publication state
 - verify `https://install.eddacraft.ai` health and `/releases/latest` behaviour
