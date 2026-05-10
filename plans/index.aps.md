@@ -307,7 +307,7 @@ format. Discovery-first: understand the interface before building.
 
 | Module                                                      | Scope | Status   | Progress | Dependencies |
 | ----------------------------------------------------------- | ----- | -------- | -------- | ------------ |
-| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Proposed | 0/6      | —            |
+| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Blocked  | 0/6      | MLP-002      |
 
 ### Observability Foundation
 
