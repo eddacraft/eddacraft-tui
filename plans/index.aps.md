@@ -3,12 +3,11 @@
 
 # Anvil — Save-time Trust
 
-> **Latest shipped release: `v0.5.1-beta` (2026-05-03).** Scanner signal and TUI
-> hotfixes shipped after `v0.5.0-beta`; private and public `/releases/latest`
-> now resolve to `v0.5.1-beta`, and the WinGet follow-up PR merged. The next
-> release slate is **not yet locked**. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
-> for the current candidate menu and [`ROADMAP.md`](../ROADMAP.md) for thematic
-> context across horizons.
+> **Latest verified release tag: `v0.6.1-beta`.** The current delivery window is
+> operational: `OPMODEL` plus CI/CD release-readiness, release records, drift
+> checks, and release orchestration. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
+> for the current parallel delivery lanes and [`ROADMAP.md`](../ROADMAP.md) for
+> thematic context across horizons.
 
 ## Overview
 
@@ -80,35 +79,33 @@ class reaches across architectural contexts.
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
-### Current window — slate unlocked
+### Current window — OPMODEL + CI/CD readiness
 
-The current planning window starts after `v0.5.1-beta`. The slate is now
-**LOCKED for `v0.6.0-beta`**: A1 (Wow-Start Activation) and A2 (Daemon-Backed
-RMCP + Driver Reach Waves 1–3) both fully shipped on `dev`. Tag candidate
-version: **`v0.6.0-beta`**. A2 Wave 4 is explicitly out of cut per ADR-033
-(VS Code extension archived).
+The current planning window starts after `v0.6.1-beta`. The slate is operational:
+finish the minimum viable Plan / Build / Release operating model before the
+`main`-first cutover, and make CI release-readiness evidence executable enough
+that future tags are validated by exact SHA rather than prose-only runbooks.
 
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
-| Release closeout | Shipped | `v0.5.1-beta` verified | Tracking issue #1233 remains open as the durable release log |
-| Wow-start activation (A1) | Complete | LAUNCH 18/18 | LAUNCH-011 (PRs #1300/#1301) and LAUNCH-009.6 (PR #1303) merged 2026-05-06 |
-| Daemon-backed MCP launch path | Complete | RMCP 8/8 | RMCP-005 live daemon client committed; embedded fallback remains correctness-equivalent |
-| Daemon-backed RMCP + driver reach (A2 Waves 1–3) | Complete | INTD 16/16, DRVR 5/5 active, RTAI 6/9 | A2 substrate shipped via 8 PRs (#1304..#1311) + remediation (#1322); Wave 4 (RTAI-005/-007/-009, DRVR-003) deferred per ADR-033; v0.6.0-beta release notes at `docs/runbooks/v0.6.0-beta-{security-note,release-runbook}.md` |
-| v0.6.0-beta post-substrate polish | Complete | n/a | macOS peer-cred parity (#1331), Windows status surface + Cross-on-dev gate (#1325/#1329/#1332), MCP integration tests Unix-gated (#1335) |
-| Release hardening follow-ups | In Progress | V050F 14/16 | V050F-006 + V050F-011 closed via #1323 (cache scanner hot-path regex compiles); V050F-007 closed via #1330 (eager rayon pool init). Open carry-over: V050F-008 (CI-class bench baseline), V050F-015 (svix → uuid override removal). Both non-blocking. |
-| Release nominations + as-built sweep follow-ups | In Progress | V060F 2/25 | V060F-001 (RCLI2-009 admin command parity) complete; V060F-025 OPA runtime pin bumped to 1.16.1 for v0.6.0-beta; V060F-002..V060F-024 filed 2026-05-07 from the v0.6.0-beta as-built sweep — batch 1 (intercept / activation / MCP / checks / kernel) covers CLI gaps, macOS interrupt branch, activation hand-offs, kernel spec divergences; batch 2 (TUI / driver framework / API / observability) adds 8 spec-only JSON-RPC methods, panic-isolation profile drift, reliability-budget persistence, namespace registry partial wiring, observability dead code, and admin-cli retirement; batch 3 (tutorial / widgets / CLI TUI runner / adapter packages) adds CLI TUI runner panic-safety, tutorial legacy-path drift + invariant gap, APS public schema drift, small doc/version drift, archive/eddacraft-tui-local/ clarification |
-| Multi-layer protection | Proposed | MLP 0/17 | Spec [`2026-05-07-anvil-multilayer-protection-architecture.md`](./specs/2026-05-07-anvil-multilayer-protection-architecture.md) + ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md) (rewritten), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [039](./decisions/039-baseline-policy-and-hard-pinned-classes.md). MLP-009 protection-claim contract suite is the hard release gate. |
+| Shipped baseline | Shipped | `v0.6.1-beta` verified tag | Wow-start activation and daemon-backed validation are behind us; current work should not reopen `v0.6.0-beta` scope. |
+| Operating model migration | In Progress | OPMODEL 6/12 | Completed: migration map, branching/worktree guidance, APS lifecycle/release metadata, release-record schema, release-readiness workflow design, release runbook/skill boundary. Next: deterministic guidance, review routing, drift checks, rollback playbooks, then cutover. |
+| CI/CD release readiness | In Progress | OPMODEL-005 spec complete; implementation pending | Implement exact-SHA readiness and optional non-publishing candidate artefacts. Until implemented, do not claim CI readiness as shipped validation authority. |
+| Release orchestration | Proposed | RELORCH 0/11 | Build deterministic `scripts/release/*.sh` commands. RELORCH-001 design and RELORCH-002 harness are sequential; command implementation parallelises after the harness exists. |
+| Main-first cutover | Proposed | OPMODEL-012 blocked | Do not execute until deterministic guidance, review routing, warning drift checks, and rollback playbooks are usable. |
+| Daemon-working product slate | Queued | MLP 0/17, INTL 0/9 | Keep queued until operating-model and CI/CD release machinery are trustworthy enough to carry a larger product claim. |
 
-### Next window (proposed) — _post-`v0.6.0-beta` daemon-working slate_
+### Next window (proposed) — _post-OPMODEL daemon-working slate_
 
-The next planning window opens after `v0.6.0-beta` tags. **Theme:** _Daemon
-working end-to-end_ — `anvil start` lands a real testable protection claim,
-hooks fire deterministically, the witness chain records every commit, baseline
-adoption works, `anvil-run` wraps agent processes. Target tag candidate:
-**`v0.7.0-beta`**.
+The next product planning window opens after OPMODEL/CI/CD release machinery is
+trustworthy. **Theme:** _Daemon working end-to-end_ — `anvil start` lands a real
+testable protection claim, hooks fire deterministically, the witness chain
+records every commit, baseline adoption works, and `anvil-run` wraps agent
+processes. Target tag candidate remains **`v0.7.0-beta`** unless the operational
+release sequence changes version policy.
 
-Source of truth for sequencing, waves, parallelisation, and dependencies:
-[`RELEASE-PLAN.md` → NEXT RELEASE WINDOW](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate).
+Source of truth for current parallelisation and release dependencies:
+[`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 | Pick | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
@@ -120,8 +117,8 @@ Source of truth for sequencing, waves, parallelisation, and dependencies:
 **Window risk:** MLP-002 (witness chain primitive) is the single point of
 failure — every downstream lane reads/writes against it. Spike-first as a
 standalone PR (flock + DAG verification + 80-parallel-hook test) before any
-hook lane starts. See RELEASE-PLAN.md "Daemon-backbone" combo for the recovery
-shape if the spike reveals risk.
+hook lane starts. Keep the recovery shape in the active release plan when MLP is
+promoted back into the current release window.
 
 ### Last release — `v0.5.0-beta` (shipped 2026-05-01)
 
