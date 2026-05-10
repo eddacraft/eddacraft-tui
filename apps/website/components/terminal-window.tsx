@@ -9,17 +9,23 @@ export function TerminalWindow() {
 
   useEffect(() => {
     let charIndex = 0;
+    let outputTimeout: ReturnType<typeof setTimeout> | undefined;
     const typeInterval = setInterval(() => {
       if (charIndex < command.length) {
         setTypedCommand(command.slice(0, charIndex + 1));
         charIndex++;
       } else {
         clearInterval(typeInterval);
-        setTimeout(() => setShowOutput(true), 400);
+        outputTimeout = setTimeout(() => setShowOutput(true), 400);
       }
     }, 80);
 
-    return () => clearInterval(typeInterval);
+    return () => {
+      clearInterval(typeInterval);
+      if (outputTimeout) {
+        clearTimeout(outputTimeout);
+      }
+    };
   }, []);
 
   return (

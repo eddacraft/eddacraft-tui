@@ -14,7 +14,7 @@ function getClient(): SecretClient {
       client = new SecretClient(vaultUrl, new DefaultAzureCredential());
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to initialise Azure Key Vault client: ${message}`);
+      throw new Error(`Failed to initialise Azure Key Vault client: ${message}`, { cause: err });
     }
   }
   return client;
@@ -43,7 +43,9 @@ export function getSecret(secretName: string): pulumi.Output<string> {
               );
               return `<preview:${secretName}>`;
             }
-            throw new Error(`Secret '${secretName}' was not found in Key Vault '${vaultName}'.`);
+            throw new Error(`Secret '${secretName}' was not found in Key Vault '${vaultName}'.`, {
+              cause: e,
+            });
           }
           throw e;
         }

@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 
+const COPYRIGHT_YEAR = new Date().getFullYear();
+
 export default function HomePage() {
   return (
     <>
@@ -52,7 +54,7 @@ export default function HomePage() {
         </a>
       </section>
 
-      <footer className="footer">&copy; {new Date().getFullYear()} eddacraft</footer>
+      <footer className="footer">&copy; {COPYRIGHT_YEAR} eddacraft</footer>
     </>
   );
 }

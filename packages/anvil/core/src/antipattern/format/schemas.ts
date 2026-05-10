@@ -79,7 +79,7 @@ const RegexDetectionSchema = z
   })
   .superRefine((val, ctx) => {
     try {
-      new RegExp(val.pattern, val.flags ?? '');
+      RegExp(val.pattern, val.flags ?? '');
     } catch (err) {
       ctx.addIssue({
         code: 'custom',

@@ -65,6 +65,9 @@
     },
     {
       "path": "./packages/shared/admin-contracts"
+    },
+    {
+      "path": "./packages/anvil-driver-client"
     }
   ]
 }

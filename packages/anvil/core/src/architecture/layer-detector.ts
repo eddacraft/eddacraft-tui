@@ -23,7 +23,7 @@ interface LayerPattern {
 /**
  * Common source root directories that indicate where the actual source code starts
  */
-const SOURCE_ROOT_PATTERNS = ['src', 'lib', 'source', 'app'];
+const SOURCE_ROOT_PATTERNS = new Set(['src', 'lib', 'source', 'app']);
 
 /**
  * Default layer patterns with priorities
@@ -131,7 +131,7 @@ function getDirectoryPositionFromEnd(filePath: string, dirName: string): number 
 function findSourceRootIndex(filePath: string): number {
   const parts = filePath.split('/');
   for (let i = 0; i < parts.length; i++) {
-    if (SOURCE_ROOT_PATTERNS.includes(parts[i])) {
+    if (SOURCE_ROOT_PATTERNS.has(parts[i])) {
       return i;
     }
   }

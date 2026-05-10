@@ -7,6 +7,27 @@ import type { Spec } from '@json-render/core';
 import { registry } from './catalog-registry.js';
 import { validateSpec } from './schema-validator.js';
 
+const unserializableSpecIds = new WeakMap<object, string>();
+let nextUnserializableSpecId = 0;
+
+function resetKeyForSpec(spec: unknown): string {
+  try {
+    return JSON.stringify(spec);
+  } catch {
+    if ((typeof spec === 'object' && spec !== null) || typeof spec === 'function') {
+      const objectSpec = spec as object;
+      const existing = unserializableSpecIds.get(objectSpec);
+      if (existing) {
+        return existing;
+      }
+      const next = `unserializable-spec-${nextUnserializableSpecId++}`;
+      unserializableSpecIds.set(objectSpec, next);
+      return next;
+    }
+    return `unserializable-spec-${String(spec)}`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Error boundary
 // ---------------------------------------------------------------------------
@@ -71,6 +92,13 @@ class RenderErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 // ---------------------------------------------------------------------------
 
 function ValidationErrors({ errors }: { errors: string[] }): ReactNode {
+  const counts = new Map<string, number>();
+  const keyedErrors = errors.map((message) => {
+    const occurrence = (counts.get(message) ?? 0) + 1;
+    counts.set(message, occurrence);
+    return { id: `${message}:${occurrence}`, message };
+  });
+
   return (
     <div
       role="alert"
@@ -84,8 +112,8 @@ function ValidationErrors({ errors }: { errors: string[] }): ReactNode {
     >
       <strong>Spec validation failed</strong>
       <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem', color: 'var(--text-muted)' }}>
-        {errors.map((e, i) => (
-          <li key={i}>{e}</li>
+        {keyedErrors.map((error) => (
+          <li key={error.id}>{error.message}</li>
         ))}
       </ul>
     </div>
@@ -115,14 +143,9 @@ export function DashboardRenderer({ spec, className }: DashboardRendererProps): 
     return <ValidationErrors errors={validation.errors} />;
   }
 
-  // Stable key derived from spec content so the error boundary resets only
-  // when the spec actually changes, not on every parent rerender.
-  let resetKey: string;
-  try {
-    resetKey = JSON.stringify(spec);
-  } catch {
-    resetKey = String(Date.now());
-  }
+  // Stable key derived from spec content or object identity so the error
+  // boundary resets when the spec changes, not on every parent rerender.
+  const resetKey = resetKeyForSpec(spec);
 
   return (
     <RenderErrorBoundary resetKey={resetKey}>

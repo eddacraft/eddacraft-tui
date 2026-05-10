@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import { validateSpec, getComponentNames } from './schema-validator.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const specsDir = resolve(__dirname, '..', 'specs');
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const specsDir = resolve(currentDir, '..', 'specs');
 
 // Discover spec files at module level so describe.each can iterate dynamically.
 // Wrapped in try/catch so a missing directory produces a clear assertion failure
@@ -40,7 +40,7 @@ describe('dashboard spec templates', () => {
       try {
         raw = JSON.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
       } catch (err) {
-        throw new Error(`Failed to parse spec ${file}: ${String(err)}`);
+        throw new Error(`Failed to parse spec ${file}: ${String(err)}`, { cause: err });
       }
     });
 

@@ -382,11 +382,11 @@ export class SpecKitExportAdapter extends BaseAdapter {
   }
 
   private filterCustomMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
-    const standardKeys = ['overview', 'goals', 'requirements', 'source_format'];
+    const standardKeys = new Set(['overview', 'goals', 'requirements', 'source_format']);
 
     const custom: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(metadata)) {
-      if (!standardKeys.includes(key)) {
+      if (!standardKeys.has(key)) {
         custom[key] = value;
       }
     }

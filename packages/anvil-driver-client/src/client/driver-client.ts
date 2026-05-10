@@ -538,7 +538,7 @@ export class DriverClient {
     if (subs === undefined || subs.size === 0) {
       return;
     }
-    for (const handler of [...subs]) {
+    for (const handler of subs) {
       try {
         handler(params);
       } catch (cause) {
@@ -658,7 +658,7 @@ export class DriverClient {
     if (set === undefined || set.size === 0) {
       return;
     }
-    for (const handler of [...set]) {
+    for (const handler of set) {
       try {
         handler(payload);
       } catch {
