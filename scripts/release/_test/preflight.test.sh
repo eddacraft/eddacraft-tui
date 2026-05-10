@@ -62,7 +62,7 @@ const failedIds = doc.data.gates.filter((gate) => gate.status === 'fail').map((g
 if (doc.status !== 'failed') throw new Error(`expected failed status, got ${doc.status}`);
 if (doc.data.failedGateCount !== 2) throw new Error(`expected 2 failed gates, got ${doc.data.failedGateCount}`);
 if (!doc.data.gates.every((gate) => typeof gate.durationMs === 'number')) throw new Error('expected durationMs on each gate');
-for (const tool of ['git', 'gh', 'pnpm']) {
+for (const tool of ['git', 'gh', 'cargo', 'node', 'opa', 'pnpm']) {
   if (!(tool in doc.data.toolVersions)) throw new Error(`missing toolVersions.${tool}`);
   if (doc.data.toolVersions[tool] !== null && typeof doc.data.toolVersions[tool] !== 'string') {
     throw new Error(`expected scalar toolVersions.${tool}`);

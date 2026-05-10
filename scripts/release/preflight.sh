@@ -115,7 +115,7 @@ require_cargo_tool_version() {
     else
       deny_status="missing"
     fi
-    return 1
+    return 127
   fi
 
   if ! output=$(cargo "$subcommand" --version 2>&1); then
@@ -124,7 +124,7 @@ require_cargo_tool_version() {
     else
       deny_status="probe-failed"
     fi
-    return 1
+    return 126
   fi
 
   installed=$(awk '{print $2}' <<<"$output")
@@ -298,6 +298,9 @@ emit_json() {
   printf '"data":{"failedGateCount":%s,"passedGateCount":%s,"toolVersions":{' "$failed_count" "$((${#GATE_IDS[@]} - failed_count))"
   printf '"git":%s,' "$(tool_version git --version)"
   printf '"gh":%s,' "$(tool_version gh --version)"
+  printf '"cargo":%s,' "$(tool_version cargo --version)"
+  printf '"node":%s,' "$(tool_version node --version)"
+  printf '"opa":%s,' "$(tool_version opa version)"
   printf '"pnpm":%s,' "$(tool_version pnpm --version)"
   printf '"cargoHakari":{"expected":%s,"installed":%s,"status":%s},' "$(json_string "$hakari_expected")" "$(json_nullable_string "$hakari_installed")" "$(json_string "$hakari_status")"
   printf '"cargoDeny":{"expected":%s,"installed":%s,"status":%s}' "$(json_string "$deny_expected")" "$(json_nullable_string "$deny_installed")" "$(json_string "$deny_status")"
