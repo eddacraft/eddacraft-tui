@@ -58,7 +58,7 @@ items can be added as the design is refined.
 | Agent guidance script | Deterministic path-to-playbook/review/check guidance for hooks, agents, and CI | Needed |
 | CI release-readiness workflow | Canonical pre-tag readiness gate keyed by SHA | Needed |
 | Candidate artefact workflow | Non-publishing release artefact build before tag | Needed |
-| Release record schema | Machine-readable link between tag, APS items, artefacts, and verification | Needed |
+| Release record schema | Machine-readable link between tag, APS items, artefacts, and verification | Defined by [`2026-05-10-release-record-schema.md`](./2026-05-10-release-record-schema.md) |
 | Drift checks | APS/repo/release consistency checks | Needed |
 | Rollback/incident playbook | Recovery flows for bad `main`, bad artefact, bad release | Needed |
 
@@ -562,7 +562,10 @@ Required release verification:
 - install command reaches the expected public artefact
 - `/releases/latest` points to the intended release where applicable
 
-Release workflow should emit a machine-readable release record:
+Release workflow should emit a machine-readable release record. The canonical
+schema lives in
+[`2026-05-10-release-record-schema.md`](./2026-05-10-release-record-schema.md);
+the compact example below shows the minimum shape:
 
 ```json
 {
