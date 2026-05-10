@@ -1,82 +1,101 @@
 ---
 name: review
-description: Comprehensive code review of recent changes or specified files
+description: Targeted pre-PR review routed by changed paths and risk
 ---
 
-# Code Review
+# Targeted Review
 
 ## Target
 
 $ARGUMENTS
 
-## Instructions
+## Purpose
 
-Perform a thorough code review covering:
+`/review` is the lightweight pre-PR review entrypoint. It should produce focused
+review evidence for the current change without running a full council by
+default.
 
-### 1. Gather Context
+Use `/council mini` or `/council full` when deterministic guidance or the change
+shape requires multiple reviewer roles.
 
-- Read the files or changes to review
-- Understand the purpose of the changes
-- Check related tests
+Reference documents:
 
-### 2. Review Checklist
+- `plans/specs/2026-05-09-council-agent-skill-change-proposal.md`
+- `plans/specs/2026-05-09-plan-build-release-operating-model.md`
+- `plans/aps-rules.md`
 
-#### Functionality
+## Routing
 
-- [ ] Code does what it's supposed to do
-- [ ] Edge cases are handled
-- [ ] Error handling is appropriate
-- [ ] No obvious bugs
+1. Resolve the target:
+   - explicit file, glob, commit, or range from `$ARGUMENTS`
+   - `staged` if staged changes exist
+   - otherwise `recent` for the last commit
+2. Run deterministic guidance when reviewing changed files:
+   - staged: `scripts/agent/guidance.sh --staged --json`
+   - branch or PR prep: `scripts/agent/guidance.sh --branch --json`
+3. Select the reviewer role from the guidance and file paths.
 
-#### Security
+Translate guidance output before reporting the review:
 
-- [ ] No hardcoded secrets or credentials
-- [ ] Input is validated
-- [ ] No injection vulnerabilities
-- [ ] Proper authentication/authorization
+| Guidance value | Review value |
+| --- | --- |
+| `targeted` review tier | targeted pre-PR review |
+| `mini` review tier | `/council mini` |
+| `full` review tier | `/council full` |
+| `council-reviewer` | `general` |
+| `adversarial-reviewer` | `adversarial` |
+| `operations-reviewer` | `operations` |
+| `security-reviewer` | `security` |
+| `pragmatic-lead` | `pragmatic` |
 
-#### Quality
+## Reviewer Selection
 
-- [ ] Code is readable and maintainable
-- [ ] No unnecessary duplication
-- [ ] Good naming conventions
-- [ ] Appropriate abstraction level
+| Trigger | Primary reviewer | Escalation |
+| --- | --- | --- |
+| normal code | `general` | `/council mini` for cross-boundary changes |
+| docs-only | `general` if substantive | none |
+| APS or planning process | `pragmatic` | planning council if scope/readiness changed |
+| CI, release, deployment, workflow | `operations` | `/council mini` with `pragmatic` |
+| auth, secrets, policy, trust boundary | `security` | `/council mini` with `adversarial` |
+| edge-case-heavy or failure-path work | `adversarial` | `/council mini` with `general` |
 
-#### Performance
+Stable role names are `general`, `adversarial`, `operations`, `security`, and
+`pragmatic`. Runtime agent IDs may differ by tool.
 
-- [ ] No obvious performance issues
-- [ ] Efficient algorithms used
-- [ ] No memory leaks
-- [ ] Database queries optimized
+## Review Checklist
 
-#### Testing
+Focus on issues that affect merge safety:
 
-- [ ] Adequate test coverage
-- [ ] Tests are meaningful
-- [ ] Edge cases tested
+- correctness and behavioural regressions
+- missed edge cases or failure paths
+- security and trust-boundary mistakes
+- insufficient deterministic validation
+- APS, documentation, or release authority drift
+- missing tests or missing evidence for the change shape
 
-### 3. Output Format
+## Output Format
 
 ```markdown
-## Code Review Summary
+## Targeted Review: <target>
 
-### Overall Assessment: [APPROVED | NEEDS_CHANGES | REJECTED]
+### Findings
+- [severity] <category>: <description> — `<file>:<line>`
+  Fix: <concrete action>
 
-### Critical Issues (must fix)
+**Reviewer role:** <role>
+**Verdict:** APPROVE | NEEDS CHANGES | ESCALATE TO COUNCIL
 
-- Issue with file:line reference
+### Evidence Needed
+- `<command>` or durable evidence reference
 
-### Major Suggestions (should fix)
-
-- Suggestion with file:line reference
-
-### Minor Notes (nice to fix)
-
-- Note with file:line reference
-
-### Positive Observations
-
-- What was done well
+### Escalation
+- None | `/council mini <target>` | `/council full <target>`
 ```
 
-Be specific with file:line references. Explain the "why" behind each suggestion.
+Findings must come first. If there are no findings, state that explicitly and
+list residual risks or validation gaps.
+
+## PR Evidence
+
+Before opening a PR, summarise the review in the PR body or link to a durable
+summary under `plans/reviews/` when the review is substantial.

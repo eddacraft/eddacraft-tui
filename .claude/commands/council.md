@@ -1,8 +1,8 @@
 ---
 name: council
 description:
-  Multi-perspective code review — spawns specialist agents in parallel, collects
-  structured findings, synthesises a verdict
+  Risk-tiered Council review. Runs quick, mini, or full review based on target
+  risk, then publishes PR-ready evidence.
 ---
 
 # Council Review
@@ -11,174 +11,133 @@ description:
 
 $ARGUMENTS
 
+## Purpose
+
+`/council` is the repo-local entrypoint for judgement evidence before PRs and
+for risk-triggered PR escalation. It follows the operating-model review tiers in
+`plans/specs/2026-05-09-council-agent-skill-change-proposal.md`.
+
+Council findings are review evidence, not validation proof. CI and local checks
+remain validation authority.
+
 ## Usage
 
-```
-/council <target>
-```
-
-Where `<target>` is one of:
-
-- A file path or glob (`src/lib/*.ts`)
-- A commit reference (`HEAD`, `abc1234`)
-- A branch diff (`main...HEAD`)
-- `staged` — review staged changes (`git diff --cached`)
-- `recent` — review the last commit (`HEAD~1..HEAD`)
-- Empty — defaults to `staged` if there are staged changes, otherwise `recent`
-
-## Council Members
-
-| Agent                  | Lens                                       |
-| ---------------------- | ------------------------------------------ |
-| `council-reviewer`     | Structured findings (security, correctness) |
-| `kernel-maintainer`    | Simplicity, performance, zero bloat        |
-| `adversarial-reviewer` | Edge cases, failure modes, abuse vectors   |
-| `operations-reviewer`  | Observability, reliability, deploy safety  |
-| `pragmatic-lead`       | Velocity, consensus, ship-readiness        |
-
-## Orchestration Protocol
-
-### Step 1: Resolve Target
-
-Determine what to review:
-
-1. If `$ARGUMENTS` is empty:
-   - Run `git diff --cached --stat` — if non-empty, target is `staged`
-   - Otherwise target is `recent` (last commit)
-2. If `$ARGUMENTS` is a file/glob, read those files
-3. If `$ARGUMENTS` is a commit ref or range, get the diff
-
-Capture the diff or file contents into a variable for agent prompts.
-
-### Step 2: Spawn Council Members in Parallel
-
-Launch **all five agents concurrently** using the Agent tool. Each agent
-receives the same diff/content and returns structured findings.
-
-For each agent, use this prompt template:
-
-```
-You are participating in a Council code review.
-
-**Review target:** {target_description}
-**Your role:** {agent_role_description}
-
-**Changes to review:**
-{diff_or_content}
-
-**Instructions:**
-Review the changes through your specialist lens. Produce findings as a JSON
-object with this structure:
-
-{
-  "agent": "{agent_name}",
-  "findings": [
-    {
-      "severity": "critical|major|minor|nit",
-      "category": "security|correctness|edge-case|performance|architecture|style|test-coverage|documentation|observability|reliability",
-      "description": "Clear description of the issue",
-      "file": "path/to/file",
-      "line": 42,
-      "suggestion": "Concrete fix or improvement"
-    }
-  ],
-  "verdict": "approve|needs-changes|reject",
-  "summary": "One paragraph assessment from your perspective"
-}
-
-Only flag real issues. Be specific with file and line references. If no issues
-found, return an empty findings array with verdict "approve".
+```text
+/council [quick|mini|full] <target>
+/council status
+/council publish
 ```
 
-Agent-specific focus instructions:
+Targets may be file paths, globs, commit refs, branch ranges such as
+`dev...HEAD`, `staged`, `recent`, or empty. Empty defaults to `staged` when
+staged changes exist, otherwise `recent`.
 
-- **council-reviewer**: Full-spectrum review — security, correctness, edge cases,
-  architecture, test coverage. You are the primary reviewer.
-- **kernel-maintainer**: Focus on unnecessary complexity, bloat, performance
-  regressions, and avoidable dependencies. Reject anything that could be simpler.
-- **adversarial-reviewer**: Focus on attack vectors, untrusted input, failure
-  modes, and "what if" scenarios. Assume the worst.
-- **operations-reviewer**: Focus on logging, error messages, failure recovery,
-  deploy safety, and production readiness.
-- **pragmatic-lead**: Focus on whether this is shippable. Flag only blockers.
-  Note if other reviewers are over-engineering their concerns.
+## Review Tiers
 
-### Step 3: Collect and Deduplicate
+| Tier | Reviewers | Use |
+| --- | --- | --- |
+| `quick` | one selected reviewer | Default for normal pre-PR review. |
+| `mini` | two selected reviewers | Cross-boundary, CI, release, security, or workflow risk. |
+| `full` | all reviewer roles | Branch/release operating-model changes or high-risk design changes. |
 
-After all agents return:
+Default to `quick` unless the target or `scripts/agent/guidance.sh` indicates a
+higher tier.
 
-1. Parse each agent's JSON response
-2. Collect all findings into a unified list
-3. Deduplicate — if two agents flag the same file+line with the same category,
-   keep the higher-severity one and note which agents agreed
-4. Sort by severity: critical > major > minor > nit
+## Role Map
 
-### Step 4: Synthesise Verdict
+Store stable role names in summaries; runtime agent IDs may differ by tool.
 
-Determine the overall verdict:
+| Role | Claude agent | Focus |
+| --- | --- | --- |
+| `general` | `council-reviewer` | Correctness, maintainability, test coverage. |
+| `adversarial` | `adversarial-reviewer` | Edge cases, failure paths, abuse cases. |
+| `operations` | `operations-reviewer` | CI, release, deployment, observability, recovery. |
+| `security` | `council-reviewer` | Secrets, auth, policy, injection, trust boundaries. |
+| `pragmatic` | `pragmatic-lead` | Proportionality, scope, ship-readiness. |
 
-| Condition                               | Verdict        |
-| --------------------------------------- | -------------- |
-| Any agent returns `reject`              | **reject**     |
-| Any critical or major findings exist    | **needs-changes** |
-| Only minor/nit findings                 | **approve** (with notes) |
-| No findings                             | **approve**    |
+## Guidance Translation
 
-### Step 5: Report
+`scripts/agent/guidance.sh` is the deterministic source for changed-path risk,
+but it currently emits migration-state names. Translate them before reporting
+Council state:
 
-Output the council report in this format:
+| Guidance value | Council value |
+| --- | --- |
+| `targeted` review tier | `quick` council tier |
+| `mini` review tier | `mini` council tier |
+| `full` review tier | `full` council tier |
+| `council-reviewer` | `general` |
+| `adversarial-reviewer` | `adversarial` |
+| `operations-reviewer` | `operations` |
+| `security-reviewer` | `security` |
+| `pragmatic-lead` | `pragmatic` |
+
+## Routing
+
+1. Resolve the requested tier and target.
+2. Run `scripts/agent/guidance.sh --staged`, `--branch`, or `--files-from` when a
+   changed-file list is available.
+3. Use guidance output to select reviewers:
+   - release, CI, workflow, or branch/release model: `operations` + `pragmatic`
+   - auth, secrets, policy, or untrusted input: `security` + `adversarial`
+   - cross-boundary source changes: `general` + `pragmatic`
+   - normal code or docs: `general`
+4. Escalate to `full` for branch/release operating-model changes or when a
+   reviewer returns critical/major findings that need multi-role judgement.
+
+## Commands
+
+### `quick`
+
+Run one targeted reviewer. Use this as the normal pre-PR council pass.
+
+### `mini`
+
+Run two reviewers selected by risk. Use this for elevated risk before PR or when
+CI/release/security/workflow files changed.
+
+### `full`
+
+Run all roles: `general`, `adversarial`, `operations`, `security`, and
+`pragmatic`. Use this sparingly for operating-model, release, branch, and other
+system-changing work.
+
+### `status`
+
+Report the current in-chat or local review session state if one exists: target,
+tier, open findings, resolved findings, evidence, and publish status. Until
+OPMODEL-009 adds durable workflow/session records, `status` must not imply there
+is a repository-backed session store. If no current session exists, report that
+explicitly.
+
+### `publish`
+
+Produce a PR-ready summary from the current converged review. Until OPMODEL-009
+adds durable session records, the source is the current chat/local review state
+or an explicitly provided review file under `plans/reviews/`.
 
 ```markdown
-## Council Review: {target}
+## Council Review
 
-**Verdict: {APPROVE | NEEDS CHANGES | REJECT}**
-**Reviewed by:** council-reviewer, kernel-maintainer, adversarial-reviewer, operations-reviewer, pragmatic-lead
+### Findings
+- <severity> <role>: <finding> — `<file>:<line>`
 
-### Critical ({n})
-- [{category}] {description} — `{file}:{line}` (flagged by: {agents})
-  **Fix:** {suggestion}
+**Status:** Converged
+**Tier:** quick | mini | full
+**Target:** <target>
 
-### Major ({n})
-- [{category}] {description} — `{file}:{line}` (flagged by: {agents})
-  **Fix:** {suggestion}
-
-### Minor ({n})
-- [{category}] {description} — `{file}:{line}` (flagged by: {agents})
-
-### Nits ({n})
-- [{category}] {description} — `{file}:{line}`
-
-### Agent Summaries
-
-**council-reviewer:** {summary}
-**kernel-maintainer:** {summary}
-**adversarial-reviewer:** {summary}
-**operations-reviewer:** {summary}
-**pragmatic-lead:** {summary}
+### Evidence
+- `<command>`
 ```
 
-### Step 6: Handle Findings
+Write durable summaries under `plans/reviews/` when the review is substantial or
+when the PR body needs a stable reference.
 
-After presenting the report, ask the user how to proceed:
+## Output Rules
 
-- **fix** — Apply fixes for critical and major findings, then re-run council on
-  the changed files only
-- **defer** — File remaining findings as GitHub issues or APS work items using
-  `forge-defer.sh` if available
-- **dismiss** — Acknowledge and move on (only valid if no critical findings)
-- **commit** — Proceed to commit (only valid if verdict is approve)
-
-## Configuration
-
-| Variable                   | Default | Description                     |
-| -------------------------- | ------- | ------------------------------- |
-| `CLAUDE_COUNCIL_MEMBERS`   | all 5   | Comma-separated agent list      |
-| `CLAUDE_COUNCIL_AUTO_FIX`  | false   | Auto-fix critical/major         |
-| `CLAUDE_COUNCIL_SKIP_NITS` | true    | Suppress nit-level findings     |
-
-## Notes
-
-- Council is heavier than `/review` — use it for significant changes, pre-merge
-  reviews, or release prep
-- For quick single-perspective reviews, use `/review` instead
-- Council findings can feed into the Forge pipeline if deferred
+- Findings first, ordered by severity.
+- Include file and line references.
+- Critical and major findings must be fixed, explicitly deferred, or waived with
+  rationale before PR.
+- Do not run LLM review from Git hooks; hooks may only print deterministic
+  guidance.

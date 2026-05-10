@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 7/12     |
+| OPMODEL | —     | In Progress | 8/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -328,7 +328,10 @@ This module is Complete when:
 
 ### OPMODEL-008: Review and council entrypoint alignment
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly requested starting OPMODEL-008 after
+  OPMODEL-007 on 2026-05-10; this approval treated the item as Ready for this
+  slice.
 - **Intent:** Make `/review`, `/council`, and planning-council playbooks use the
   same review tiers and transition points defined by the operating model.
 - **Expected Outcome:** `/review` becomes targeted pre-PR review; `/council`
@@ -338,6 +341,14 @@ This module is Complete when:
 - **Files:** `.claude/commands/review.md`, `.claude/commands/council.md`,
   `.claude/skills/planning-council/**` or equivalent skill/playbook paths
 - **Coordinates with:** CGBDG
+- **Completed:** 2026-05-10 — Updated repo-local `/review` to be targeted
+  pre-PR review, updated `/council` to support quick, mini, full, status, and
+  publish modes, and added local planning-council playbooks for plan creation,
+  direction validation, pre-execution validation, and amendment. Validation
+  passed with `pnpm format:check`, `pnpm lint:md`, and `git diff --check`.
+- **Coordination closeout:** CGBDG remains the downstream owner for durable
+  council evidence bridging. This slice aligns entrypoint vocabulary only;
+  durable session/schema integration stays with OPMODEL-009 and CGBDG.
 - **Confidence:** medium
 
 ---
