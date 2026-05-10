@@ -267,7 +267,8 @@ Readiness ownership is split across commands:
 | Command | Responsibility |
 | --- | --- |
 | `assess.sh` | Select the candidate `sourceSha`, previous boundary, channel, and requested version inputs for readiness. |
-| `prepare.sh` | Create or locate the tracking issue, then request or resume readiness and candidate artefact runs when not already present. |
+| `prepare.sh` | Create or locate the tracking issue, then request or resume pre-promotion readiness and candidate artefact runs when not already present. |
+| `promote.sh` | After compatibility promotion reaches `main`, request or resume canonical readiness for the final `main` SHA that may be tagged. |
 | `tag.sh` | Refuse to tag unless canonical readiness succeeded for the exact `sourceSha` and expected branch reachability. |
 | `verify.sh` | Carry canonical readiness evidence into the published release record. |
 
@@ -280,8 +281,15 @@ Readiness ownership is split across commands:
 
 Both modes are idempotent. If a matching in-progress or completed workflow run is
 found for the same `sourceSha`, `mode`, `channel`, `expectedReachableFrom`,
-`baseBoundary`, and `requestedVersion`, `prepare.sh` must report that run instead
-of creating another one.
+`baseBoundary`, and `requestedVersion`, the requesting command must report that
+run instead of creating another one.
+
+Compatibility promotion has a second readiness point. If `promote.sh` observes a
+merge, squash, or rebase result whose `mergedSha` differs from the pre-promotion
+candidate SHA, it must request canonical `readiness` for `mergedSha` with
+`expectedReachableFrom: main` before returning a taggable state. `tag.sh` must use
+that final readiness run, not any pre-promotion or `migration-dev` run, as the
+tagging gate.
 
 Readiness metadata in command JSON uses this shape:
 
@@ -431,12 +439,15 @@ Required behaviour:
 
 - in compatibility mode, create or locate the release/promotion PR and report
   review, conflict, and merge state
+- after merge, request or resume canonical readiness for the final `main` SHA
+  before reporting a taggable `merged` state
 - in target mode after OPMODEL cutover, exit `0` with `status: noop` when no
   promotion is required
 - never merge a PR directly unless an explicit future option authorises it
 
 Required `data` fields include `pullRequest`, `mergeState`, `mergedSha`, and
-`operatorActionRequired`.
+`operatorActionRequired`. When `mergeState` is `merged`, `data.readiness` is also
+required and must identify the canonical readiness run for `mergedSha`.
 
 ### `tag.sh`
 
