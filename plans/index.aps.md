@@ -89,7 +89,7 @@ that future tags are validated by exact SHA rather than prose-only runbooks.
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
 | Shipped baseline | Shipped | `v0.6.1-beta` verified tag | Wow-start activation and daemon-backed validation are behind us; current work should not reopen `v0.6.0-beta` scope. |
-| Operating model migration | In Progress | OPMODEL 6/12 | Completed: migration map, branching/worktree guidance, APS lifecycle/release metadata, release-record schema, release-readiness workflow design, release runbook/skill boundary. Next: deterministic guidance, review routing, drift checks, rollback playbooks, then cutover. |
+| Operating model migration | In Progress | OPMODEL 8/12 | Completed: migration map, branching/worktree guidance, APS lifecycle/release metadata, release-record schema, release-readiness workflow design, release runbook/skill boundary, deterministic guidance, review/council entrypoints. Next: workflow session/event schema, drift checks, rollback playbooks, then cutover. |
 | CI/CD release readiness | In Progress | OPMODEL-005 spec complete; implementation pending | Implement exact-SHA readiness and optional non-publishing candidate artefacts. Until implemented, do not claim CI readiness as shipped validation authority. |
 | Release orchestration | Proposed | RELORCH 0/11 | Build deterministic `scripts/release/*.sh` commands. RELORCH-001 design and RELORCH-002 harness are sequential; command implementation parallelises after the harness exists. |
 | Main-first cutover | Proposed | OPMODEL-012 blocked | Do not execute until deterministic guidance, review routing, warning drift checks, and rollback playbooks are usable. |

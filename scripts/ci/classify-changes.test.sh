@@ -64,6 +64,12 @@ workflow=$(run_case workflow .github/workflows/ci.yml .github/actions/setup/acti
 assert_json_contains "${workflow}" '.pathClasses | index("workflow")' 'workflow path class'
 assert_json_contains "${workflow}" '.requiredReviews | index("operations")' 'operations review required'
 
+shell=$(run_case shell scripts/ci/classify-changes.sh scripts/validate/local.sh)
+assert_json_contains "${shell}" '.pathClasses | index("shell")' 'shell path class'
+assert_json_contains "${shell}" '.riskClasses | index("automation")' 'automation risk class'
+assert_json_contains "${shell}" '.requiredChecks | index("shell-syntax")' 'shell syntax required'
+assert_json_contains "${shell}" '.requiredChecks | index("script-fixtures")' 'script fixtures required'
+
 infra=$(run_case infra infra/pulumi/Pulumi.yaml deploy/cloudformation/template.yml)
 assert_json_contains "${infra}" '.pathClasses | index("infra")' 'infra path class'
 assert_json_contains "${infra}" '.riskClasses | index("infra")' 'infra risk class'
@@ -80,5 +86,10 @@ assert_json_contains "${lockfile}" '.requiredChecks | index("dependency-audit")'
 mixed=$(run_case mixed docs/guides/testing.md packages/anvil-core/src/index.ts crates/anvil-cli/src/main.rs)
 assert_json_contains "${mixed}" '.pathClasses | index("mixed")' 'mixed path class'
 assert_json_contains "${mixed}" '.warnings | index("mixed-change-set")' 'mixed warning emitted'
+
+unknown=$(run_case unknown nx.json)
+assert_json_contains "${unknown}" '.pathClasses | index("unknown")' 'unknown path class'
+assert_json_contains "${unknown}" '.requiredChecks | index("typecheck")' 'unknown fails closed with typecheck'
+assert_json_contains "${unknown}" '.requiredReviews | index("operations")' 'unknown requires operations review'
 
 echo 'classify-changes fixtures passed'

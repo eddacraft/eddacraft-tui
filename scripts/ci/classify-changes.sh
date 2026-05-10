@@ -85,11 +85,18 @@ add_unique() {
   local name="$1"
   local value="$2"
   local item
-  eval "local existing=(\"\${${name}[@]}\")"
-  for item in "${existing[@]}"; do
+  case "${name}" in
+    path_classes | risk_classes | required_checks | required_reviews | warnings) ;;
+    *)
+      echo "unsupported target array: ${name}" >&2
+      exit 2
+      ;;
+  esac
+  local -n target="${name}"
+  for item in "${target[@]}"; do
     [[ "${item}" == "${value}" ]] && return 0
   done
-  eval "${name}+=(\"${value}\")"
+  target+=("${value}")
 }
 
 json_array() {
@@ -142,6 +149,13 @@ for path in "${paths[@]}"; do
     .github/workflows/* | .github/actions/* | .github/actions/**/*)
       add_unique path_classes 'workflow'
       add_unique risk_classes 'workflow'
+      ;;
+  esac
+
+  case "${path}" in
+    scripts/*.sh | scripts/**/*.sh)
+      add_unique path_classes 'shell'
+      add_unique risk_classes 'automation'
       ;;
   esac
 
@@ -214,6 +228,11 @@ for path_class in "${path_classes[@]}"; do
       add_unique required_checks 'workflow-lint'
       add_unique required_reviews 'operations'
       ;;
+    shell)
+      add_unique required_checks 'shell-syntax'
+      add_unique required_checks 'script-fixtures'
+      add_unique required_reviews 'operations'
+      ;;
     infra)
       add_unique required_checks 'infra-static-check'
       add_unique required_reviews 'operations'
@@ -229,6 +248,13 @@ for path_class in "${path_classes[@]}"; do
     lockfile)
       add_unique required_checks 'dependency-audit'
       add_unique required_reviews 'security'
+      ;;
+    unknown)
+      add_unique required_checks 'format'
+      add_unique required_checks 'lint'
+      add_unique required_checks 'typecheck'
+      add_unique required_checks 'unit-tests'
+      add_unique required_reviews 'operations'
       ;;
   esac
 done

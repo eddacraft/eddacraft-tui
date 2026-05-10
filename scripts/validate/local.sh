@@ -134,11 +134,21 @@ add_command() {
   commands+=("${command}")
 }
 
+json_array() {
+  if (($# == 0)); then
+    printf '[]\n'
+    return 0
+  fi
+  printf '%s\n' "$@" | jq -R . | jq -s .
+}
+
 if [[ "${mode}" == 'full' ]]; then
   add_command 'pnpm format:check'
   add_command 'pnpm lint:check'
   add_command 'pnpm typecheck'
   add_command 'pnpm test'
+  add_command 'cargo test --workspace'
+  add_command 'opa test --verbose policies/fixtures/'
 else
   mapfile -t required_checks < <(jq -r '.requiredChecks[]?' <<<"${classification}")
   for check in "${required_checks[@]}"; do
@@ -161,25 +171,56 @@ else
       cargo-clippy)
         add_command 'pnpm lint:rust'
         ;;
+      shell-syntax)
+        add_command 'bash -n scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/validate/local.sh scripts/validate/local.test.sh'
+        ;;
+      script-fixtures)
+        add_command 'pnpm test:ci-classify'
+        add_command 'pnpm test:ci-cost'
+        add_command 'pnpm test:validate-local'
+        ;;
       cargo-test)
         add_command 'cargo test --workspace'
         ;;
       opa-test)
         add_command 'opa test --verbose policies/fixtures/'
         ;;
+      regal)
+        add_command 'regal lint policies/fixtures/'
+        ;;
+      infra-static-check)
+        add_command 'pnpm lint:check'
+        ;;
+      release-dry-run)
+        add_command 'bash -n scripts/release.sh'
+        ;;
+      platform-smoke)
+        add_command 'pnpm test'
+        ;;
       dependency-audit)
         add_command 'pnpm audit --audit-level high'
         ;;
       *)
+        echo "unsupported required check from classifier: ${check}" >&2
+        exit 2
         ;;
     esac
   done
 fi
 
+if ((${#commands[@]} == 0)); then
+  if jq -e '.warnings | index("no-changed-paths")' >/dev/null <<<"${classification}"; then
+    :
+  else
+    echo 'no validation commands selected' >&2
+    exit 2
+  fi
+fi
+
 plan_json=$(jq -n \
   --arg mode "${mode}" \
   --argjson classification "${classification}" \
-  --argjson commands "$(printf '%s\n' "${commands[@]}" | jq -R . | jq -s .)" \
+  --argjson commands "$(json_array "${commands[@]}")" \
   '{mode: $mode, classification: $classification, commands: $commands}')
 
 if [[ "${json}" == true ]]; then
