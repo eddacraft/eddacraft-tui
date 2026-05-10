@@ -9,20 +9,23 @@ DEFAULT_REPO="eddacraft/anvil-001"
 json=false
 repo="$DEFAULT_REPO"
 base_ref=""
-head_ref="HEAD"
+head_ref=""
+source_sha=""
+mode="compatibility"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 usage() {
   cat <<'USAGE'
-Usage: assess.sh [--json] [--base <ref>] [--head <ref>] [--repo <owner/name>]
+Usage: assess.sh --base <ref> (--head <ref> | --source-sha <sha>) [--json] [--repo <owner/name>]
 
 Assess local git state for a release candidate. This initial implementation
 does not call GitHub or the network.
 
 Options:
   --json             Emit one JSON object only
-  --base <ref>       Comparison base ref; defaults to previous tag when present
-  --head <ref>       Comparison head ref; defaults to HEAD
+  --base <ref>       Comparison base ref or previous release boundary
+  --head <ref>       Compatibility-mode comparison head ref
+  --source-sha <sha> Target-mode exact source SHA to assess
   --repo <owner/name> Source repository name; defaults to eddacraft/anvil-001
   -h, --help         Show this help
 USAGE
@@ -43,7 +46,7 @@ emit_envelope() {
 
   node - \
     "$SCHEMA_VERSION" "$COMMAND" "$PHASE" "$status" "$started_at" "$ended_at" \
-    "$repo" "${base_ref:-}" "${head_ref:-}" "$data_json" "$failures_json" \
+    "$repo" "$mode" "${base_ref:-}" "${head_ref:-}" "${source_sha:-}" "$data_json" "$failures_json" \
     "$next_command" "$next_reason" <<'NODE'
 const [
   schemaVersion,
@@ -53,8 +56,10 @@ const [
   startedAt,
   endedAt,
   repository,
+  mode,
   base,
   head,
+  sourceSha,
   dataRaw,
   failuresRaw,
   nextCommand,
@@ -65,7 +70,7 @@ process.stdout.write(JSON.stringify({
   schemaVersion,
   command,
   phase,
-  mode: 'compatibility',
+  mode,
   status,
   startedAt,
   endedAt,
@@ -74,7 +79,7 @@ process.stdout.write(JSON.stringify({
     base: base || null,
     head: head || null,
     version: null,
-    sourceSha: null,
+    sourceSha: sourceSha || null,
     trackingIssue: null,
   },
   trackingIssue: {
@@ -148,6 +153,12 @@ while (($# > 0)); do
       head_ref="$2"
       shift 2
       ;;
+    --source-sha)
+      require_value "$1" "${2:-}"
+      source_sha="$2"
+      mode="target"
+      shift 2
+      ;;
     --repo)
       require_value "$1" "${2:-}"
       repo="$2"
@@ -168,20 +179,25 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   exit 129
 fi
 
-head_sha="$(git rev-parse --verify "${head_ref}^{commit}" 2>/dev/null || true)"
-[[ -n "$head_sha" ]] || fail_usage "head ref is not a commit: $head_ref"
-
-previous_tag="$(git describe --tags --abbrev=0 "$head_sha" 2>/dev/null || true)"
-if [[ -z "$base_ref" ]]; then
-  if [[ -n "$previous_tag" ]]; then
-    base_ref="$previous_tag"
-  elif git rev-parse --verify "${head_sha}~1^{commit}" >/dev/null 2>&1; then
-    base_ref="${head_sha}~1"
-  else
-    base_ref="$head_sha"
-  fi
+[[ -n "$base_ref" ]] || fail_usage "--base is required"
+if [[ -n "$source_sha" && -n "$head_ref" ]]; then
+  fail_usage "use either --head or --source-sha, not both"
+fi
+if [[ -z "$source_sha" && -z "$head_ref" ]]; then
+  fail_usage "--head or --source-sha is required"
 fi
 
+if [[ -n "$source_sha" ]]; then
+  head_sha="$(git rev-parse --verify "${source_sha}^{commit}" 2>/dev/null || true)"
+  [[ -n "$head_sha" ]] || fail_usage "source SHA is not a commit: $source_sha"
+  source_sha="$head_sha"
+  head_ref="$head_sha"
+else
+  head_sha="$(git rev-parse --verify "${head_ref}^{commit}" 2>/dev/null || true)"
+  [[ -n "$head_sha" ]] || fail_usage "head ref is not a commit: $head_ref"
+fi
+
+previous_tag="$(git describe --tags --abbrev=0 "$head_sha" 2>/dev/null || true)"
 base_sha="$(git rev-parse --verify "${base_ref}^{commit}" 2>/dev/null || true)"
 [[ -n "$base_sha" ]] || fail_usage "base ref is not a commit: $base_ref"
 

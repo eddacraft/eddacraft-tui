@@ -106,4 +106,20 @@ bash "$HARNESS" run-contract \
 help_output="$(bash "$ASSESS" --help)"
 assert_contains "$help_output" 'Usage: assess.sh'
 
+target_repo="$tmp/target-repo"
+init_repo "$target_repo"
+printf '%s\n' 'target mode' >"$target_repo/target.txt"
+git -C "$target_repo" add target.txt
+git -C "$target_repo" commit -q -m "feat: target mode RELORCH-003"
+target_sha="$(git -C "$target_repo" rev-parse HEAD)"
+(cd "$target_repo" && bash "$ASSESS" --json --base v0.6.1-beta --source-sha "$target_sha") >"$tmp/target.json"
+node - "$tmp/target.json" "$target_sha" <<'NODE'
+const fs = require('node:fs');
+const [path, expectedSha] = process.argv.slice(2);
+const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
+if (doc.mode !== 'target') throw new Error(`expected target mode, got ${doc.mode}`);
+if (doc.inputs.sourceSha !== expectedSha) throw new Error(`unexpected input sourceSha ${doc.inputs.sourceSha}`);
+if (doc.data.sourceSha !== expectedSha) throw new Error(`unexpected data sourceSha ${doc.data.sourceSha}`);
+NODE
+
 echo "assess.test.sh: ok"
