@@ -10,6 +10,7 @@ json=false
 base=""
 head=""
 repo="$DEFAULT_REPO"
+parse_error=""
 
 declare -a GATE_IDS=()
 declare -a GATE_NAMES=()
@@ -17,6 +18,8 @@ declare -a GATE_COMMANDS=()
 declare -a GATE_STATUS=()
 declare -a GATE_EXIT_CODES=()
 declare -a GATE_DURATIONS=()
+
+reserved_exit=0
 
 hakari_expected="$CARGO_HAKARI_VERSION"
 hakari_installed=""
@@ -57,6 +60,21 @@ json_nullable_string() {
     printf 'null'
   else
     json_string "$1"
+  fi
+}
+
+tool_version() {
+  local binary="$1"
+  shift
+  if ! command -v "$binary" >/dev/null 2>&1; then
+    printf 'null'
+    return 0
+  fi
+  local output
+  if output=$("$binary" "$@" 2>/dev/null); then
+    json_string "$output"
+  else
+    printf 'null'
   fi
 }
 
@@ -131,6 +149,8 @@ require_cargo_tool_version() {
 run_real_command() {
   if declare -F "$1" >/dev/null 2>&1; then
     "$@"
+  elif ! command -v "$1" >/dev/null 2>&1; then
+    return 127
   elif [[ "$STEP_TIMEOUT" != "0" ]] && command -v timeout >/dev/null 2>&1; then
     timeout "$STEP_TIMEOUT" "$@"
   else
@@ -187,6 +207,9 @@ run_gate() {
     run_real_command "$@" >/dev/null 2>&1 || rc=$?
     if (( rc != 0 )); then
       status="failed"
+      if (( rc == 126 || rc == 127 )) && (( reserved_exit == 0 )); then
+        reserved_exit="$rc"
+      fi
     fi
   fi
 
@@ -267,6 +290,9 @@ emit_json() {
   printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
   printf '"releaseRecord":{"lifecycleState":"candidate","recordUrl":null,"sha256":null},'
   printf '"data":{"failedGateCount":%s,"passedGateCount":%s,"toolVersions":{' "$failed_count" "$((${#GATE_IDS[@]} - failed_count))"
+  printf '"git":{"version":%s},' "$(tool_version git --version)"
+  printf '"gh":{"version":%s},' "$(tool_version gh --version)"
+  printf '"pnpm":{"version":%s},' "$(tool_version pnpm --version)"
   printf '"cargoHakari":{"expected":%s,"installed":%s,"status":%s},' "$(json_string "$hakari_expected")" "$(json_nullable_string "$hakari_installed")" "$(json_string "$hakari_status")"
   printf '"cargoDeny":{"expected":%s,"installed":%s,"status":%s}' "$(json_string "$deny_expected")" "$(json_nullable_string "$deny_installed")" "$(json_string "$deny_status")"
   printf '},"gates":['
@@ -279,13 +305,13 @@ emit_json() {
     else
       printf ','
     fi
-    printf '{"id":%s,"name":%s,"status":%s,"command":%s,"exitCode":%s,"durationSeconds":%s}' \
+    printf '{"id":%s,"name":%s,"status":%s,"command":%s,"exitCode":%s,"durationMs":%s}' \
       "$(json_string "${GATE_IDS[$i]}")" \
       "$(json_string "${GATE_NAMES[$i]}")" \
       "$(json_string "${GATE_STATUS[$i]}")" \
       "$(json_string "${GATE_COMMANDS[$i]}")" \
       "${GATE_EXIT_CODES[$i]}" \
-      "${GATE_DURATIONS[$i]}"
+      "$((GATE_DURATIONS[$i] * 1000))"
   done
   printf ']},'
   printf '"warnings":[],'
@@ -301,15 +327,40 @@ emit_json() {
     else
       printf ','
     fi
-    printf '{"code":"validation-failed","message":%s,"retryable":true,"recovery":"fix-and-rerun","evidence":{"command":%s,"url":null,"path":null,"gate":%s,"exitCode":%s}}' \
+    local failure_code="validation-failed"
+    if (( GATE_EXIT_CODES[$i] == 126 || GATE_EXIT_CODES[$i] == 127 )); then
+      failure_code="tool-unavailable"
+    fi
+    printf '{"code":%s,"message":%s,"retryable":true,"recovery":"fix-and-rerun","evidence":{"command":%s,"url":null,"path":null,"gate":%s,"exitCode":%s}}' \
+      "$(json_string "$failure_code")" \
       "$(json_string "${GATE_NAMES[$i]} failed")" \
       "$(json_string "${GATE_COMMANDS[$i]}")" \
       "$(json_string "${GATE_IDS[$i]}")" \
       "${GATE_EXIT_CODES[$i]}"
   done
   printf '],'
-  printf '"next":{"command":%s,"reason":%s}' "$(json_nullable_string "prepare")" "$(json_string "Preflight passed; prepare the release candidate next.")"
+  if (( failed_count == 0 )); then
+    printf '"next":{"command":%s,"reason":%s}' "$(json_string "prepare")" "$(json_string "Preflight passed; prepare the release candidate next.")"
+  else
+    printf '"next":{"command":%s,"reason":%s}' "$(json_string "preflight")" "$(json_string "Fix failed gates before preparing the release candidate.")"
+  fi
   printf '}\n'
+}
+
+emit_invalid_json() {
+  local started_at="$1"
+  local ended_at="$2"
+  local message="$3"
+
+  printf '{'
+  printf '"schemaVersion":"1.0.0","command":"preflight","phase":"preflight","mode":"compatibility","status":"failed",'
+  printf '"startedAt":%s,"endedAt":%s,"repository":%s,' "$(json_string "$started_at")" "$(json_string "$ended_at")" "$(json_string "$repo")"
+  printf '"inputs":{"base":%s,"head":%s,"version":null,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")"
+  printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
+  printf '"releaseRecord":{"lifecycleState":null,"recordUrl":null,"sha256":null},'
+  printf '"data":{"failedGateCount":0,"passedGateCount":0,"toolVersions":{},"gates":[]},"warnings":[],'
+  printf '"failures":[{"code":"invalid-input","message":%s,"retryable":false,"recovery":"correct-usage","evidence":{"command":"scripts/release/preflight.sh","url":null,"path":null}}],' "$(json_string "$message")"
+  printf '"next":{"command":"preflight","reason":"Fix command arguments and rerun preflight."}}\n'
 }
 
 parse_args() {
@@ -321,17 +372,17 @@ parse_args() {
         ;;
       --base)
         base="${2:-}"
-        [[ -n "$base" ]] || return 129
+        [[ -n "$base" ]] || { parse_error="--base requires a value"; return 129; }
         shift 2
         ;;
       --head)
         head="${2:-}"
-        [[ -n "$head" ]] || return 129
+        [[ -n "$head" ]] || { parse_error="--head requires a value"; return 129; }
         shift 2
         ;;
       --repo)
         repo="${2:-}"
-        [[ -n "$repo" ]] || return 129
+        [[ -n "$repo" ]] || { parse_error="--repo requires a value"; return 129; }
         shift 2
         ;;
       -h|--help)
@@ -339,7 +390,8 @@ parse_args() {
         exit 0
         ;;
       *)
-        echo "preflight: unknown argument: $1" >&2
+        parse_error="unknown argument: $1"
+        echo "preflight: ${parse_error}" >&2
         return 129
         ;;
     esac
@@ -347,20 +399,28 @@ parse_args() {
 }
 
 main() {
+  local started_at
+  local ended_at
+  started_at=$(timestamp)
+
   if ! parse_args "$@"; then
+    ended_at=$(timestamp)
+    if [[ "$json" == true ]]; then
+      emit_invalid_json "$started_at" "$ended_at" "${parse_error:-invalid arguments}"
+    fi
     exit 129
   fi
 
-  local started_at
-  local ended_at
   local failed_count
   local exit_code
 
-  started_at=$(timestamp)
   run_gates
   ended_at=$(timestamp)
   failed_count=$(failed_gate_count)
-  exit_code="$failed_count"
+  exit_code="${reserved_exit:-0}"
+  if (( exit_code == 0 )); then
+    exit_code="$failed_count"
+  fi
   if (( exit_code > 125 )); then
     exit_code=125
   fi

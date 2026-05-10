@@ -61,10 +61,23 @@ const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const failedIds = doc.data.gates.filter((gate) => gate.status === 'failed').map((gate) => gate.id);
 if (doc.status !== 'failed') throw new Error(`expected failed status, got ${doc.status}`);
 if (doc.data.failedGateCount !== 2) throw new Error(`expected 2 failed gates, got ${doc.data.failedGateCount}`);
+if (!doc.data.gates.every((gate) => typeof gate.durationMs === 'number')) throw new Error('expected durationMs on each gate');
+for (const tool of ['git', 'gh', 'pnpm']) {
+  if (!(tool in doc.data.toolVersions)) throw new Error(`missing toolVersions.${tool}`);
+}
+if (doc.next.command !== 'preflight') throw new Error(`expected failed preflight to point back to preflight, got ${doc.next.command}`);
 if (!failedIds.includes('cargo-test') || !failedIds.includes('pnpm-lint')) {
   throw new Error(`missing expected failed gate ids: ${failedIds.join(',')}`);
 }
 NODE
+
+invalid_json="$(bash "$PREFLIGHT" --json --unknown 2>/dev/null || true)"
+assert_contains "$invalid_json" '"code":"invalid-input"'
+bash "$HARNESS" run-contract \
+  --name preflight-invalid-json \
+  --expected-exit 129 \
+  --expected-command preflight \
+  -- bash "$PREFLIGHT" --json --unknown
 
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=version-mismatch \
   bash "$PREFLIGHT" --json >"$tmp/version.json" || rc=$?
