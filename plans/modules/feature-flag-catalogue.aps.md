@@ -5,11 +5,13 @@
 
 | Scope   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | Draft  | 0/6      |
+| FLAGCAT | —     | medium   | Draft  | 0/7      |
 
-**Last reviewed:** 2026-04-26 — FLAGS and FLAGM are archived as Complete; the
+**Last reviewed:** 2026-05-11 — FLAGS and FLAGM are archived as Complete; the
 five flag definitions and per-surface modules referenced below are still the
-current state on `dev`.
+current state on `dev`. **2026-05-11:** FLAGCAT-007 added to answer the
+USAGE-002 cross-clarification (resolved-snapshot shape, stable join key,
+ADR-019 gate-affecting-only scope).
 
 ## Purpose
 
@@ -270,3 +272,69 @@ Change status to **Ready** when:
 - **Validation:** `pnpm nx test flags-catalogue` +
   `grep -q "single source of truth" docs/guides/feature-flag-inventory.md`
 - **Confidence:** high
+
+### FLAGCAT-007: Catalogue → Kindling snapshot shape and stable join key for USAGE-002 — Draft
+
+- **Intent:** Answer the three sub-questions USAGE-002 raised under
+  OQ5 so the usage module can reference the resolved flag context per
+  invocation without duplicating flag-evaluation facts. The output of
+  this task is either a thin ADR or a section in the FLAGCAT design
+  note pinning the contract.
+- **Concrete failure mode (today):** USAGE-002 cannot decide the
+  shape of its `flag_set` field without knowing whether the catalogue
+  publishes a queryable snapshot or only per-evaluation rows, what
+  the stable join key is, and whether non-gate-affecting flags
+  (informational rollouts, off-state kill switches) ever land in
+  Kindling under ADR-019's existing rule. Without an answer, USAGE-002
+  either duplicates flag state on every usage row (fragile) or only
+  joins gate-affecting flags (incomplete).
+- **Expected Outcome:**
+  - Sub-question (a) — resolved-snapshot shape: written answer on
+    whether the catalogue (today, post-FLAGCAT-002..-005) persists
+    a per-invocation resolved snapshot of all active flag values
+    to Kindling, or only individual evaluation rows for
+    gate-affecting outcomes. If only the latter, the ADR records
+    whether USAGE-002 should be the trigger to add a snapshot
+    publisher, or whether USAGE-002 stores the snapshot inline on
+    each row.
+  - Sub-question (b) — stable join key: the canonical identifier
+    USAGE rows use to reference a flag definition. Likely candidates:
+    the manifest entry's `key` (string, today's de facto identifier),
+    a generated UUID at first publish, or the manifest's existing
+    `createdFor` task ID. Decision pinned, with a rule on what
+    happens at rename / retirement so historical USAGE rows stay
+    queryable.
+  - Sub-question (c) — ADR-019 scope: a written answer on whether
+    USAGE rows that touch a non-gate-affecting flag have anything
+    to join to. If the answer is "no", either ADR-019's
+    gate-affecting-only rule is widened (with a separate Council
+    round), or USAGE-002 explicitly scopes to gate-affecting flags
+    and documents the gap.
+  - The answer is captured in either a new ADR (numbered after the
+    current latest) or a dedicated section in `flags/manifest.json`'s
+    design note, whichever the founder prefers when the task is
+    picked up.
+- **Coordinates with:** USAGE-002 — this task's output is USAGE-002's
+  precondition; closing this unblocks USAGE-002's promotion to
+  Ready.
+- **Coordinates with:** ADR-019 (flags observability alignment) — if
+  sub-question (c) requires widening the gate-affecting-only rule,
+  ADR-019 is amended in the same change.
+- **Coordinates with:** ADR-035 (three-pipe rule) — the snapshot,
+  wherever it lives, must obey the matrix (governance facts on
+  Kindling, not on tracing).
+- **Scope:** `flags/manifest.json` schema (if changes are needed),
+  `crates/anvil-kernel-types` (if Rust codegen needs to expose the
+  join key), `plans/decisions/` (new ADR if needed),
+  `plans/decisions/019-flags-observability-alignment.md` (cross-link
+  or amendment).
+- **Non-scope:** Implementing the snapshot publisher itself if one
+  is needed — that's a follow-up task whose scope falls out of this
+  task's answers; FLAGCAT-007 only pins the contract.
+- **Dependencies:** FLAGCAT-002 (catalogue package exists and is the
+  source of truth before the snapshot shape is decided).
+- **Validation:** TBD when picked up — at minimum a written answer
+  to all three sub-questions referenced from USAGE-002's task body
+  and from this module's index entry.
+- **Confidence:** medium — the questions are well-shaped, but the
+  answer to (a) drives a follow-up task whose scope is unknown.

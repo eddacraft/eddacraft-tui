@@ -17,7 +17,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 | ----- | ---------- | ------ | -------- |
 | USAGE | @eddacraft | Draft  | 0/3      |
 
-**Last reviewed:** 2026-05-10
+**Last reviewed:** 2026-05-11
 
 > **Provenance:** Founder request 2026-05-10. Current observability story
 > (TRACE-001 + JSON logs) gives a debug surface but no durable answer to
@@ -141,18 +141,58 @@ contract** in USAGE-001.
 
 This module is **Ready** when:
 
-- [ ] Founder confirms the privacy contract (invocation-only, args
-      redacted, no result capture) reflects intent.
-- [ ] OQ5 resolved: FLAGS cross-clarification — does FLAGS already
-      publish a resolved snapshot USAGE can reference, what is the
-      stable join key, and does ADR-019's gate-affecting-outcomes-only
-      rule break the join for non-gate flags.
+- [x] Founder confirmed 2026-05-11: privacy contract (invocation-only,
+      args redacted by `SENSITIVE_FIELDS`, arg shape only — no values
+      by default, no result capture) reflects intent. Codified in the
+      Privacy Contract section below; USAGE-001 publishes the same
+      text at `docs/observability/usage-analytics.md`.
+- [x] OQ2 resolved 2026-05-11: principal anonymised via one-way hash
+      with a per-deployment salt held in the existing secrets store.
+      Salt rotation is a deliberate privacy reset, not routine.
+      USAGE-001's contract test pins the hash function and asserts the
+      raw principal never lands in a Kindling row.
+- [ ] OQ5 resolved: FLAGS cross-clarification ([`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007))
+      — does the catalogue publish a resolved snapshot USAGE can
+      reference, what is the stable join key, and does ADR-019's
+      gate-affecting-outcomes-only rule break the join for non-gate
+      flags.
 - [ ] OQ1 resolved: reuse-existing vs new `command.invoked` kind
       (founder lean 2026-05-10 → new kind, pending OQ5).
-- [ ] OQ2 resolved: anonymisation strategy for the principal field
-      (recommendation 2026-05-10: hashed with per-deployment salt;
-      pending founder confirmation).
 - [ ] At least one task approved for execution.
+
+## Privacy contract
+
+Founder-confirmed 2026-05-11. USAGE-001 publishes the same text at
+`docs/observability/usage-analytics.md`. Changes to this section
+require founder review.
+
+**Captured per invocation:**
+
+- Command name (e.g. `scan`, `kindling.list`).
+- Anonymised principal — one-way hash (per OQ2: per-deployment salt).
+- Timestamp.
+- Argument *shape*: arg names + length + type + presence. **Not values.**
+- Argument values matching `anvil_observability::redaction::SENSITIVE_FIELDS`
+  → replaced with `<redacted>`.
+- Active flag set — the resolved snapshot referenced under OQ5.
+- `traceparent` (cross-pipe correlation per ADR-035).
+
+**NOT captured:**
+
+- Raw argument values (shape only by default; widening requires a
+  follow-up review, not a routine code change).
+- Command results, output, stdout, stderr.
+- File contents touched by the command.
+- Network traffic.
+- Stack traces or error messages — those stay on the tracing pipe.
+
+**Retention:** defers to Kindling's retention policy. *Open: confirm
+Kindling's policy is acceptable for usage rows specifically; tighten
+under a follow-up if not.*
+
+**Change control:** any change to the captured / not-captured lists
+requires founder review. The contract doc lives in
+`docs/observability/`, separate from code, so a PR diff is visible.
 
 ## Tasks
 
@@ -177,9 +217,11 @@ This module is **Ready** when:
     (`crates/anvil-cli/src/main.rs`) and the JSON-RPC dispatcher
     (`crates/anvil-intercept/src/ipc.rs`) emits exactly one
     observation per user-initiated invocation with: command name,
-    principal (per OQ2), timestamp, redacted argument shape, active
+    principal (one-way hash + per-deployment salt per OQ2 — salt
+    sourced from the existing secrets store; raw principal MUST NOT
+    appear in any field), timestamp, redacted argument shape, active
     flag set (placeholder field until USAGE-002 lands the snapshot
-    contract), `traceparent`.
+    contract per FLAGCAT-007), `traceparent`.
   - Argument redaction defers to
     `anvil_observability::redaction`. Values for fields matching
     `SENSITIVE_FIELDS` are replaced with `REDACTED`; other values
@@ -211,10 +253,12 @@ This module is **Ready** when:
   that a CLI invocation produces one Kindling row with the expected
   fields; (b) a unit test that a JSON-RPC call produces one row with
   the matching `traceparent`; (c) a unit test that a sensitive arg
-  name results in a redacted value; (d) the contract test against
-  the registered command/method list.
-- **Confidence:** medium — depends on Kindling's existing observation
-  kinds and the principal-anonymisation OQ.
+  name results in a redacted value; (d) a unit test that the raw
+  principal never appears in any captured field (only the salted
+  hash); (e) the contract test against the registered command/method
+  list.
+- **Confidence:** medium — OQ2 resolved; OQ1 / OQ5 still gate the
+  observation-kind decision and the FLAGCAT-007 cross-reference.
 - **Status:** Draft
 
 ---
@@ -311,13 +355,12 @@ This module is **Ready** when:
   a new `command.invoked` Kindling observation kind. Final decision
   recorded in USAGE-001 once OQ5's FLAGS cross-clarification confirms
   no existing kind already covers the shape USAGE-002 needs.
-- **OQ2 (open — recommendation pending founder decision):** Principal
-  anonymisation. Recommendation as of 2026-05-10: hash the principal
-  ID with a per-deployment salt held in the existing secrets store;
-  rotation is a deliberate privacy reset, not routine. Same-person →
-  same hash within a deployment, no cross-deployment join, distinct-
-  user counts remain answerable, raw IDs never land in logs. Recorded
-  in `docs/observability/usage-analytics.md` once founder confirms.
+- **OQ2 (resolved 2026-05-11):** Principal anonymised via one-way
+  hash with a per-deployment salt held in the existing secrets
+  store. Salt rotation is a deliberate privacy reset, not routine.
+  Same-person → same hash within a deployment; no cross-deployment
+  join; distinct-user counts remain answerable; raw IDs never land
+  in logs. Codified in the Privacy Contract section above.
 - **OQ3:** Whether USAGE-003's canned views ship as CLI subcommands,
   documented `kindling` queries, or both. Decided in USAGE-003.
 - **OQ4 (deferred):** External analytics pipeline (Mixpanel /
@@ -325,11 +368,12 @@ This module is **Ready** when:
   evidence-based dev-investment decisions need cross-system joins
   or when a third party (board / investor) asks for usage rollups
   outside Anvil.
-- **OQ5 (open — FLAGS cross-clarification, raised 2026-05-10):**
-  USAGE-002 assumes the FLAGS evaluator already publishes a resolved
+- **OQ5 (open — FLAGS cross-clarification, raised 2026-05-10;
+  ownership 2026-05-11 → [`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007)):**
+  USAGE-002 assumes the flag catalogue publishes a resolved
   `anvil.flags.*` snapshot to Kindling per ADR-019, in a shape USAGE
   rows can reference rather than duplicate. Three sub-questions:
-  (a) does FLAGS today persist a queryable snapshot, or only
+  (a) does the catalogue today persist a queryable snapshot, or only
   per-evaluation rows? (b) are flag IDs stable across renames /
   retirements, and what is the join key? (c) does ADR-019's
   "gate-affecting outcomes only" rule mean USAGE rows that reference
