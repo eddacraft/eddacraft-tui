@@ -28,7 +28,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | In Progress | 1/11     |
+| RELORCH | —     | In Progress | 2/11     |
 
 **Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
 
@@ -313,8 +313,11 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-004: `scripts/release/preflight.sh`
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 1
+- **Execution authorisation:** Operator request "Implement RELORCH-004" on
+  2026-05-10 authorises executing this item from Proposed state under
+  `plans/aps-rules.md` status rule 1.
 - **Intent:** Run deterministic local gates (fmt, clippy, tests, lint,
   typecheck, pnpm test) and verify pinned tool versions; reach parity with
   legacy `scripts/release.sh` and add the version-pin checks RELMGMT Phase 3
@@ -325,6 +328,10 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Validation:** Harness contract green; clean checkout exits 0; induced
   failure (invalid Rust syntax) exits non-zero with the failed gate
   identified in JSON.
+- **Completed:** 2026-05-10 — Added standalone
+  `scripts/release/preflight.sh` with legacy gate parity, JSON contract output,
+  fixture-mode tests for pass/fail/version-mismatch paths, and CI harness
+  coverage.
 - **Files:** `scripts/release/preflight.sh`.
 - **Coordinates with:** `RELORCH-011` (differential trust-building window
   before legacy `scripts/release.sh` is removed).
