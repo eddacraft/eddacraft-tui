@@ -39,7 +39,7 @@ Modules and work items progress through these statuses:
 | Ready | Scope clear, dependencies identified, validation known, execution authorised | Yes |
 | In Progress | Actively being worked on | Yes |
 | Merged | Code or docs reached the integration target, but have not necessarily shipped | No new execution |
-| Released / Shipped | A release record proves inclusion in a verified release | No new execution |
+| Released/Shipped | A release record proves inclusion in a verified release | No new execution |
 | Complete | No remaining active closeout work; may be archived under APS rules | N/A |
 | Archived | Historical record only | N/A |
 | Blocked | Cannot proceed (document reason) | No |
@@ -50,7 +50,7 @@ Modules and work items progress through these statuses:
    approves the item as urgent authorised work; record that authorisation inline.
 2. Mark work `In Progress` before making substantive changes for that item.
 3. Mark work `Merged` only when the PR or equivalent integration step has landed.
-4. Mark work `Released` / `Shipped` only from release-record evidence. Do not infer
+4. Mark work `Released/Shipped` only from release-record evidence. Do not infer
    shipped state from memory, a PR merge, or release notes prose.
 5. Mark work `Complete` only when validation, closeout, and cross-reference sweeps
    are done.

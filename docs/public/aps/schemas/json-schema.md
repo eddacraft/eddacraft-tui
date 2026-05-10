@@ -77,6 +77,7 @@ interface ModuleMetadata {
   status?: 'Proposed' | 'Ready' | 'In Progress' | 'Done' | 'Blocked';
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
+  packages?: string[]; // Package names in monorepo modules
   dependencies?: string[]; // Other modules this depends on
 }
 ```
