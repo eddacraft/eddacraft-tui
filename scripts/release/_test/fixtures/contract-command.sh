@@ -50,9 +50,15 @@ process.stdout.write(JSON.stringify({
   inputs: {},
   trackingIssue: null,
   releaseRecord: null,
-  data: { failedGateCount: 2 },
+  data: { failedGateCount: 3 },
   warnings: [],
-  failures: [],
+  failures: [{
+    code: 'validation-failed',
+    message: 'two gates failed',
+    retryable: true,
+    recovery: 'fix-and-rerun',
+    evidence: { command: 'fixture preflight', url: null, path: null },
+  }],
   next: null,
 }) + '\n');
 NODE

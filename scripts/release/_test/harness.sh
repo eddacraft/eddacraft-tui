@@ -83,6 +83,9 @@ try {
 const actualExit = Number(actualExitRaw);
 const expectedExit = Number(expectedExitRaw);
 const failures = [];
+const allowedModes = new Set(['compatibility', 'target', 'migration-exercise']);
+const allowedStatuses = new Set(['success', 'noop', 'blocked', 'failed', 'recoverable', 'needs-operator']);
+const allowedPhases = new Set(['assessment', 'preflight', 'prepare', 'promote', 'tag', 'monitor', 'verify', 'closeout']);
 
 function requireField(name, predicate = (value) => value !== undefined && value !== null && value !== '') {
   if (!predicate(doc[name])) failures.push(`missing or invalid ${name}`);
@@ -96,6 +99,16 @@ requireField('status');
 requireField('startedAt');
 requireField('endedAt');
 requireField('repository');
+requireField('inputs', (value) => value && typeof value === 'object' && !Array.isArray(value));
+requireField('data', (value) => value && typeof value === 'object' && !Array.isArray(value));
+
+if (!('trackingIssue' in doc)) failures.push('missing trackingIssue');
+if (!('releaseRecord' in doc)) failures.push('missing releaseRecord');
+if (!('next' in doc)) failures.push('missing next');
+
+if (!allowedModes.has(doc.mode)) failures.push(`invalid mode: ${doc.mode}`);
+if (!allowedStatuses.has(doc.status)) failures.push(`invalid status: ${doc.status}`);
+if (!allowedPhases.has(doc.phase)) failures.push(`invalid phase: ${doc.phase}`);
 
 if (expectedCommand && doc.command !== expectedCommand) {
   failures.push(`expected command ${expectedCommand}, got ${doc.command}`);
@@ -103,6 +116,14 @@ if (expectedCommand && doc.command !== expectedCommand) {
 
 if (actualExit !== expectedExit) {
   failures.push(`expected exit ${expectedExit}, got ${actualExit}`);
+}
+
+if (doc.command === 'preflight') {
+  if (!doc.data || typeof doc.data.failedGateCount !== 'number') {
+    failures.push('preflight output must include data.failedGateCount');
+  } else if (actualExit !== Math.min(doc.data.failedGateCount, 125)) {
+    failures.push(`preflight exit ${actualExit} does not match failedGateCount ${doc.data.failedGateCount}`);
+  }
 }
 
 if (!Array.isArray(doc.warnings)) failures.push('warnings must be an array');
@@ -160,13 +181,13 @@ run_kill9_rerun() {
   ((${#command_args[@]} > 0)) || fail "run-kill9-rerun requires a command"
 
   rm -f "$state_file"
-  "${command_args[@]}" >/dev/null 2>&1 &
+  perl -e 'setpgrp(0, 0) or die "setpgrp: $!"; exec @ARGV or die "exec: $!"' -- "${command_args[@]}" >/dev/null 2>&1 &
   local pid=$!
 
   local waited=0
   while [[ ! -f "$state_file" ]]; do
     if (( waited >= 50 )); then
-      kill -9 "$pid" >/dev/null 2>&1 || true
+      kill -9 "-$pid" >/dev/null 2>&1 || kill -9 "$pid" >/dev/null 2>&1 || true
       wait "$pid" 2>/dev/null || true
       fail "kill test command did not report started state"
     fi
@@ -174,7 +195,7 @@ run_kill9_rerun() {
     waited=$((waited + 1))
   done
 
-  kill -9 "$pid" >/dev/null 2>&1 || true
+  kill -9 "-$pid" >/dev/null 2>&1 || kill -9 "$pid" >/dev/null 2>&1 || true
   wait "$pid" 2>/dev/null || true
 
   local tmp

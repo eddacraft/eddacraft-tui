@@ -40,10 +40,10 @@ if bash "$HARNESS" run-contract \
   --expected-exit 2 \
   --expected-command preflight \
   -- bash "$FIXTURE" missing-failure >/"$tmp/missing-failure.out" 2>&1; then
-  echo "expected non-zero command without failures[] to fail contract validation" >&2
+  echo "expected preflight exit mismatch to fail contract validation" >&2
   exit 1
 fi
-assert_contains "$(<"$tmp/missing-failure.out")" "non-zero exits must include failures[]"
+assert_contains "$(<"$tmp/missing-failure.out")" "preflight exit 2 does not match failedGateCount"
 
 bash "$HARNESS" run-kill9-rerun \
   --name killable-idempotency \
