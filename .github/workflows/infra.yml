@@ -19,6 +19,7 @@ on:
       - 'apps/anvil-api/src/db/migrations/**'
       - 'apps/anvil-api/src/db/migrate.ts'
       - 'apps/anvil-api/scripts/migrate.mjs'
+  workflow_dispatch:
 
 concurrency:
   group: infra-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
