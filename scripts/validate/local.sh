@@ -135,7 +135,7 @@ add_command() {
 }
 
 shell_syntax_command() {
-  local command="bash -lc 'for script do bash -n \"\$script\"; done' bash"
+  local command="bash -lc 'set -e; for script do bash -n -- \"\$script\"; done' bash"
   local script
   for script in "$@"; do
     command+=" $(printf '%q' "${script}")"
