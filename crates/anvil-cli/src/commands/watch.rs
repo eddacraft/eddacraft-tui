@@ -1288,7 +1288,10 @@ mod tests {
             exit_code.is_none(),
             "signal-killed children report no exit code"
         );
-        assert!(detail.is_none(), "signal-killed children have no error_detail");
+        assert!(
+            detail.is_none(),
+            "signal-killed children have no error_detail"
+        );
     }
 
     /// **Deadlock regression test (council finding: adversarial + ops).**
