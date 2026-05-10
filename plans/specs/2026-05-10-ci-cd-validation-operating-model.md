@@ -152,7 +152,7 @@ Current weaknesses:
   a second test pass.
 - Rust check, test, clippy, format, hakari, deny, acknowledgements, and smoke
   checks are split across many jobs, each paying setup overhead.
-- Security checks duplicate dependency, license, secret, Semgrep, CodeQL, and
+- Security checks duplicate dependency, licence, secret, Semgrep, CodeQL, and
   cargo-deny concerns across workflows.
 - The release skill/runbook target architecture expects `scripts/release/*`, but
   the current repository only has the legacy `scripts/release.sh` until RELORCH
@@ -245,7 +245,7 @@ Recommended risk selectors:
 | `scripts/release*`, `dist-workspace.toml` | release command tests | release-readiness impact, cargo-dist plan |
 | `infra/**`, migrations | static validation and preview | Pulumi preview/apply gates as today |
 | NAPI binding paths | targeted NAPI checks | NAPI matrix |
-| lockfiles/manifests | package manager and dependency checks | Trivy/cargo-deny/license/acknowledgements |
+| lockfiles/manifests | package manager and dependency checks | Trivy/cargo-deny/licence/acknowledgements |
 
 Push semantics:
 

@@ -176,30 +176,34 @@ summary_json=$(jq -n \
     sampledRuns: ($normalisedRuns | length),
     workflowTotals: (
       $normalisedRuns
+      | sort_by(.workflowName)
       | group_by(.workflowName)
       | map({
           workflow: .[0].workflowName,
           runs: length,
           minutes: (map(.minutes) | add // 0),
           conclusions: status_counts(.),
-          events: (group_by(.event) | map({event: .[0].event, runs: length}))
+          events: (sort_by(.event) | group_by(.event) | map({event: .[0].event, runs: length}))
         })
       | sort_by(-.minutes)
     ),
     eventTotals: (
       $normalisedRuns
+      | sort_by(.event)
       | group_by(.event)
       | map({event: .[0].event, runs: length, minutes: (map(.minutes) | add // 0)})
       | sort_by(-.minutes)
     ),
     branchTotals: (
       $normalisedRuns
-      | group_by(.headBranch)
+      | sort_by(.headBranch // "")
+      | group_by(.headBranch // "")
       | map({branch: (.[0].headBranch // ""), runs: length, minutes: (map(.minutes) | add // 0)})
       | sort_by(-.minutes)
     ),
     jobTotals: (
       $jobItems
+      | sort_by(.workflowName, .name)
       | group_by(.workflowName, .name)
       | map({
           workflow: .[0].workflowName,
