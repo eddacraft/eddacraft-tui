@@ -28,7 +28,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | In Progress | 2/11     |
+| RELORCH | —     | In Progress | 3/11     |
 
 **Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
 
@@ -297,8 +297,11 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-003: `scripts/release/assess.sh`
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 1
+- **Execution authorisation:** Operator request "Implement RELORCH-003" on
+  2026-05-10 authorises executing this item from Proposed state under
+  `plans/aps-rules.md` status rule 1.
 - **Intent:** Produce a structured assessment of the candidate release —
   candidate version, release type, branch strategy recommendation, touched
   areas, risk signal — from live `git` / `gh` state. No persistent state.
@@ -307,6 +310,11 @@ phases, with the rest explicitly Phase-2-tracked.
   mode prints a human summary; exit 0 even when no release is warranted.
 - **Validation:** Harness contract green; dry run on current `main`/`dev`
   divergence produces expected fields.
+- **Completed:** 2026-05-10 — Added standalone local-git
+  `scripts/release/assess.sh` plus command-specific shell tests for success,
+  noop, help, and invalid-argument contract behaviour.
+- **Confidence:** medium — initial slice intentionally avoids network and `gh`
+  state; later orchestration work must add tracking-issue and remote evidence.
 - **Files:** `scripts/release/assess.sh`.
 
 ---
