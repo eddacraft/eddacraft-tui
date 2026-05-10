@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 8/12     |
+| OPMODEL | —     | In Progress | 9/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -358,7 +358,9 @@ This module is Complete when:
 
 ### OPMODEL-009: Workflow session and event schema alignment
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly requested moving on to OPMODEL-009 on
+  2026-05-10; this approval treated the item as Ready for this slice.
 - **Intent:** Define the durable session and event records needed for agents,
   reviews, planning validation, release, and recovery without making chat
   history authoritative.
@@ -368,8 +370,20 @@ This module is Complete when:
   cites ADR-035.
 - **Validation:** `pnpm format:check && pnpm lint:md`
 - **Files:** `plans/specs/<date>-workflow-session-and-event-schema.md`,
-  `.claude/council/schema.json` when implemented
+  `schemas/workflow-session-event.schema.json`, `.claude/council/schema.json`
+  when migrated
 - **Coordinates with:** TRACE / ADR-035, CGBDG
+- **Completed:** 2026-05-10 — Added the workflow session/event schema spec and
+  tracked `schemas/workflow-session-event.schema.json` contract covering workflow id, state
+  transitions, actors, tool invocations, input/output digests, APS items,
+  branch/SHA anchors, validation results, error classes, and human approval
+  events. Existing `.claude/council/schema.json` remains the shared council
+  schema symlink until CGBDG migrates writers/readers. The spec cites ADR-035
+  pipe allocation and keeps chat history non-authoritative. Validation passed
+  with `pnpm format:check`, `pnpm lint:md`, and `git diff --check`.
+- **Coordination closeout:** TRACE / ADR-035 owns the pipe allocation rule and
+  future trace correlation; CGBDG remains the downstream owner for durable
+  council evidence bridging. This slice defines the shared contract only.
 - **Confidence:** medium
 
 ---
