@@ -118,9 +118,11 @@ if ((${#paths[@]} == 0)); then
 fi
 
 for path in "${paths[@]}"; do
+  matched=false
   case "${path}" in
     docs/* | README.md | CONTRIBUTING.md | AGENTS.md | CHANGELOG.md | plans/*.md | plans/**/*.md | *.md)
       add_unique path_classes 'docs'
+      matched=true
       ;;
   esac
 
@@ -128,6 +130,7 @@ for path in "${paths[@]}"; do
     *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | packages/*/src/* | packages/*/__tests__/* | apps/*/src/*)
       add_unique path_classes 'ts'
       add_unique risk_classes 'source'
+      matched=true
       ;;
   esac
 
@@ -135,6 +138,7 @@ for path in "${paths[@]}"; do
     *.rs | crates/* | crates/**/* | Cargo.toml)
       add_unique path_classes 'rust'
       add_unique risk_classes 'source'
+      matched=true
       ;;
   esac
 
@@ -142,6 +146,7 @@ for path in "${paths[@]}"; do
     policies/* | policies/**/* | *.rego)
       add_unique path_classes 'policy'
       add_unique risk_classes 'policy'
+      matched=true
       ;;
   esac
 
@@ -149,6 +154,7 @@ for path in "${paths[@]}"; do
     .github/workflows/* | .github/actions/* | .github/actions/**/*)
       add_unique path_classes 'workflow'
       add_unique risk_classes 'workflow'
+      matched=true
       ;;
   esac
 
@@ -156,6 +162,7 @@ for path in "${paths[@]}"; do
     scripts/*.sh | scripts/**/*.sh)
       add_unique path_classes 'shell'
       add_unique risk_classes 'automation'
+      matched=true
       ;;
   esac
 
@@ -163,6 +170,7 @@ for path in "${paths[@]}"; do
     infra/* | infra/**/* | deploy/* | deploy/**/* | Pulumi.yaml | Pulumi.*.yaml | docker-compose.* | Dockerfile)
       add_unique path_classes 'infra'
       add_unique risk_classes 'infra'
+      matched=true
       ;;
   esac
 
@@ -170,6 +178,7 @@ for path in "${paths[@]}"; do
     scripts/release* | scripts/release/* | scripts/release/**/* | .changeset/* | .changeset/**/* | docs/public/anvil/releases/* | docs/public/anvil/releases/**/*)
       add_unique path_classes 'release'
       add_unique risk_classes 'release'
+      matched=true
       ;;
   esac
 
@@ -177,6 +186,7 @@ for path in "${paths[@]}"; do
     *native* | *napi* | packages/*-native/* | packages/*-native/**/*)
       add_unique path_classes 'napi'
       add_unique risk_classes 'platform'
+      matched=true
       ;;
   esac
 
@@ -184,8 +194,15 @@ for path in "${paths[@]}"; do
     pnpm-lock.yaml | package-lock.json | yarn.lock | Cargo.lock | package.json | Cargo.toml | crates/*/Cargo.toml | crates/**/Cargo.toml | packages/*/package.json | packages/**/package.json)
       add_unique path_classes 'lockfile'
       add_unique risk_classes 'dependencies'
+      matched=true
       ;;
   esac
+
+  if [[ "${matched}" == false ]]; then
+    add_unique path_classes 'unknown'
+    add_unique risk_classes 'unknown'
+    add_unique warnings 'unclassified-paths'
+  fi
 done
 
 if ((${#path_classes[@]} == 1)) && [[ "${path_classes[0]}" == 'docs' ]]; then
@@ -197,7 +214,7 @@ if ((${#path_classes[@]} > 1)); then
   add_unique warnings 'mixed-change-set'
 fi
 
-if ((${#path_classes[@]} == 0)); then
+if ((${#path_classes[@]} == 0)) && ((${#paths[@]} > 0)); then
   add_unique path_classes 'unknown'
   add_unique risk_classes 'unknown'
   add_unique warnings 'unclassified-paths'

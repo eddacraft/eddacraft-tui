@@ -108,11 +108,11 @@ detect_paths() {
 }
 
 if [[ -n "${paths_file}" ]]; then
-  if [[ ! -f "${paths_file}" ]]; then
-    echo "paths file not found: ${paths_file}" >&2
+  if [[ ! -r "${paths_file}" ]]; then
+    echo "paths file not readable: ${paths_file}" >&2
     exit 2
   fi
-  cp "${paths_file}" "${path_file}"
+  cat "${paths_file}" >"${path_file}"
 else
   detect_paths
 fi
@@ -134,6 +134,15 @@ add_command() {
   commands+=("${command}")
 }
 
+shell_syntax_command() {
+  local command="bash -lc 'for script do bash -n \"\$script\"; done' bash"
+  local script
+  for script in "$@"; do
+    command+=" $(printf '%q' "${script}")"
+  done
+  printf '%s\n' "${command}"
+}
+
 json_array() {
   if (($# == 0)); then
     printf '[]\n'
@@ -147,8 +156,13 @@ if [[ "${mode}" == 'full' ]]; then
   add_command 'pnpm lint:check'
   add_command 'pnpm typecheck'
   add_command 'pnpm test'
+  add_command "$(shell_syntax_command scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/validate/local.sh scripts/validate/local.test.sh)"
+  add_command 'pnpm test:ci-classify'
+  add_command 'pnpm test:ci-cost'
+  add_command 'pnpm test:validate-local'
   add_command 'cargo test --workspace'
   add_command 'opa test --verbose policies/fixtures/'
+  add_command 'regal lint policies/fixtures/'
 else
   mapfile -t required_checks < <(jq -r '.requiredChecks[]?' <<<"${classification}")
   for check in "${required_checks[@]}"; do
@@ -172,7 +186,8 @@ else
         add_command 'pnpm lint:rust'
         ;;
       shell-syntax)
-        add_command 'bash -n scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/validate/local.sh scripts/validate/local.test.sh'
+        mapfile -t shell_paths < <(jq -r '.paths[]? | select(test("^scripts/.+\\.sh$"))' <<<"${classification}")
+        add_command "$(shell_syntax_command "${shell_paths[@]}")"
         ;;
       script-fixtures)
         add_command 'pnpm test:ci-classify'

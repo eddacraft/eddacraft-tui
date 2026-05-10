@@ -92,4 +92,14 @@ assert_json_contains "${unknown}" '.pathClasses | index("unknown")' 'unknown pat
 assert_json_contains "${unknown}" '.requiredChecks | index("typecheck")' 'unknown fails closed with typecheck'
 assert_json_contains "${unknown}" '.requiredReviews | index("operations")' 'unknown requires operations review'
 
+mixed_unknown=$(run_case mixed_unknown README.md nx.json)
+assert_json_contains "${mixed_unknown}" '.pathClasses | index("docs")' 'mixed unknown includes docs class'
+assert_json_contains "${mixed_unknown}" '.pathClasses | index("unknown")' 'mixed unknown includes unknown class'
+assert_json_contains "${mixed_unknown}" '.warnings | index("unclassified-paths")' 'mixed unknown warns'
+assert_json_contains "${mixed_unknown}" '.riskClasses | index("docs-only") | not' 'mixed unknown is not docs-only'
+
+empty=$(run_case empty)
+assert_json_contains "${empty}" '.pathClasses == []' 'empty path set has no path classes'
+assert_json_contains "${empty}" '.warnings == ["no-changed-paths"]' 'empty path set warns no changed paths'
+
 echo 'classify-changes fixtures passed'
