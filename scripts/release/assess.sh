@@ -127,7 +127,12 @@ NODE
 
 fail_usage() {
   local message="$1"
-  emit_envelope "failed" "$(empty_data_json)" "$(failure_json invalid-input "$message" false correct-usage)" "assess" "Fix command arguments and rerun assessment."
+  if [[ "$json" == "true" ]]; then
+    emit_envelope "failed" "$(empty_data_json)" "$(failure_json invalid-input "$message" false correct-usage)" "assess" "Fix command arguments and rerun assessment."
+  else
+    printf 'assess: %s\n' "$message" >&2
+    usage >&2
+  fi
   exit 129
 }
 
@@ -286,8 +291,9 @@ NODE
 if [[ "$json" == "true" ]]; then
   emit_envelope "$status" "$data_json" "[]" "$next_command" "$next_reason"
 else
+  head_display="${head_ref:-$head_sha}"
   if [[ "$status" == "noop" ]]; then
-    printf 'Assessment: no release warranted (%s..%s has no changed paths)\n' "$base_ref" "$head_ref"
+    printf 'Assessment: no release warranted (%s..%s has no changed paths)\n' "$base_ref" "$head_display"
   else
     printf 'Assessment: release warranted for %s (%s paths, source %s)\n' "$candidate_version" "$changed_count" "$head_sha"
   fi

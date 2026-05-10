@@ -87,6 +87,9 @@ NODE
 
 invalid_output="$(bash "$ASSESS" --json --unknown 2>/dev/null || true)"
 assert_contains "$invalid_output" '"status":"failed"'
+invalid_human_output="$(bash "$ASSESS" --unknown 2>&1 >/dev/null || true)"
+assert_contains "$invalid_human_output" 'assess: unknown argument: --unknown'
+assert_contains "$invalid_human_output" 'Usage: assess.sh'
 if bash "$ASSESS" --json --unknown >/dev/null 2>&1; then
   echo "expected invalid argument to exit non-zero" >&2
   exit 1
@@ -127,5 +130,8 @@ if bash -c 'cd "$1" && bash "$2" --json --base v0.6.1-beta --source-sha HEAD >/d
   echo "expected symbolic --source-sha to fail" >&2
   exit 1
 fi
+
+target_noop_output="$(cd "$target_repo" && bash "$ASSESS" --base "$target_sha" --source-sha "$target_sha")"
+assert_contains "$target_noop_output" "$target_sha has no changed paths"
 
 echo "assess.test.sh: ok"
