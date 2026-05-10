@@ -29,17 +29,17 @@ if bash "$HARNESS" run-contract \
   --name non-json-stdout \
   --expected-exit 0 \
   --expected-command assess \
-  -- bash "$FIXTURE" non-json >/"$tmp/non-json.out" 2>&1; then
+  -- bash "$FIXTURE" non-json >"$tmp/non-json.out" 2>&1; then
   echo "expected non-JSON stdout to fail contract validation" >&2
   exit 1
 fi
 assert_contains "$(<"$tmp/non-json.out")" "stdout is not valid JSON"
 
 if bash "$HARNESS" run-contract \
-  --name missing-failure-object \
+  --name failed-gate-mismatch \
   --expected-exit 2 \
   --expected-command preflight \
-  -- bash "$FIXTURE" missing-failure >/"$tmp/missing-failure.out" 2>&1; then
+  -- bash "$FIXTURE" failed-gate-mismatch >"$tmp/missing-failure.out" 2>&1; then
   echo "expected preflight exit mismatch to fail contract validation" >&2
   exit 1
 fi

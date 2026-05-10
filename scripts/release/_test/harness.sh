@@ -101,10 +101,27 @@ requireField('endedAt');
 requireField('repository');
 requireField('inputs', (value) => value && typeof value === 'object' && !Array.isArray(value));
 requireField('data', (value) => value && typeof value === 'object' && !Array.isArray(value));
+requireField('trackingIssue', (value) => value && typeof value === 'object' && !Array.isArray(value));
+requireField('releaseRecord', (value) => value && typeof value === 'object' && !Array.isArray(value));
+requireField('next', (value) => value && typeof value === 'object' && !Array.isArray(value));
 
-if (!('trackingIssue' in doc)) failures.push('missing trackingIssue');
-if (!('releaseRecord' in doc)) failures.push('missing releaseRecord');
-if (!('next' in doc)) failures.push('missing next');
+if (doc.trackingIssue && typeof doc.trackingIssue === 'object') {
+  for (const field of ['repository', 'number', 'url', 'metadataCommentUrl']) {
+    if (!(field in doc.trackingIssue)) failures.push(`trackingIssue missing ${field}`);
+  }
+}
+
+if (doc.releaseRecord && typeof doc.releaseRecord === 'object') {
+  for (const field of ['lifecycleState', 'recordUrl', 'sha256']) {
+    if (!(field in doc.releaseRecord)) failures.push(`releaseRecord missing ${field}`);
+  }
+}
+
+if (doc.next && typeof doc.next === 'object') {
+  for (const field of ['command', 'reason']) {
+    if (!(field in doc.next)) failures.push(`next missing ${field}`);
+  }
+}
 
 if (!allowedModes.has(doc.mode)) failures.push(`invalid mode: ${doc.mode}`);
 if (!allowedStatuses.has(doc.status)) failures.push(`invalid status: ${doc.status}`);
@@ -169,11 +186,11 @@ run_contract() {
 
   local tmp
   tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"; trap - RETURN' RETURN
 
   local rc=0
   "${command_args[@]}" >"$tmp/stdout.json" 2>"$tmp/stderr.log" || rc=$?
   validate_json_contract "$tmp/stdout.json" "$rc" "$expected_exit" "$expected_command"
-  rm -rf "$tmp"
 }
 
 run_kill9_rerun() {
@@ -183,6 +200,8 @@ run_kill9_rerun() {
   [[ -n "$name" ]] || fail "run-kill9-rerun requires --name"
   [[ -n "$state_file" ]] || fail "run-kill9-rerun requires --state-file"
   ((${#command_args[@]} > 0)) || fail "run-kill9-rerun requires a command"
+
+  require_node
 
   rm -f "$state_file"
   perl -e 'setpgrp(0, 0) or die "setpgrp: $!"; exec @ARGV or die "exec: $!"' -- "${command_args[@]}" >/dev/null 2>&1 &
@@ -204,6 +223,7 @@ run_kill9_rerun() {
 
   local tmp
   tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"; trap - RETURN' RETURN
 
   local rc=0
   "${command_args[@]}" >"$tmp/stdout.json" 2>"$tmp/stderr.log" || rc=$?
@@ -219,7 +239,6 @@ if (!resumed && !recoverable) {
   process.exit(1);
 }
 NODE
-  rm -rf "$tmp"
 }
 
 main() {

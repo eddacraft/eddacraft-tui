@@ -25,17 +25,29 @@ process.stdout.write(JSON.stringify({
   endedAt: timestamp,
   repository: 'eddacraft/anvil-001',
   inputs: {},
-  trackingIssue: null,
-  releaseRecord: null,
+  trackingIssue: {
+    repository: 'eddacraft/anvil-001',
+    number: 1234,
+    url: 'https://github.com/eddacraft/anvil-001/issues/1234',
+    metadataCommentUrl: 'https://github.com/eddacraft/anvil-001/issues/1234#issuecomment-1',
+  },
+  releaseRecord: {
+    lifecycleState: 'candidate',
+    recordUrl: null,
+    sha256: null,
+  },
   data: extraData,
   warnings: [],
   failures: [],
-  next: null,
+  next: {
+    command: 'preflight',
+    reason: 'fixture next command',
+  },
 }) + '\n');
 NODE
 }
 
-emit_missing_failure() {
+emit_failed_gate_mismatch() {
   node - "$(now)" <<'NODE'
 const timestamp = process.argv[2];
 process.stdout.write(JSON.stringify({
@@ -48,8 +60,17 @@ process.stdout.write(JSON.stringify({
   endedAt: timestamp,
   repository: 'eddacraft/anvil-001',
   inputs: {},
-  trackingIssue: null,
-  releaseRecord: null,
+  trackingIssue: {
+    repository: 'eddacraft/anvil-001',
+    number: 1234,
+    url: 'https://github.com/eddacraft/anvil-001/issues/1234',
+    metadataCommentUrl: 'https://github.com/eddacraft/anvil-001/issues/1234#issuecomment-1',
+  },
+  releaseRecord: {
+    lifecycleState: 'candidate',
+    recordUrl: null,
+    sha256: null,
+  },
   data: { failedGateCount: 3 },
   warnings: [],
   failures: [{
@@ -59,7 +80,10 @@ process.stdout.write(JSON.stringify({
     recovery: 'fix-and-rerun',
     evidence: { command: 'fixture preflight', url: null, path: null },
   }],
-  next: null,
+  next: {
+    command: 'preflight',
+    reason: 'fixture next command',
+  },
 }) + '\n');
 NODE
   exit 2
@@ -85,8 +109,8 @@ case "${1:-}" in
   non-json)
     printf '%s\n' 'human output before json'
     ;;
-  missing-failure)
-    emit_missing_failure
+  failed-gate-mismatch)
+    emit_failed_gate_mismatch
     ;;
   killable)
     run_killable "${2:?state file required}"
