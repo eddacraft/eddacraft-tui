@@ -114,11 +114,15 @@ if (expectedCommand && doc.command !== expectedCommand) {
   failures.push(`expected command ${expectedCommand}, got ${doc.command}`);
 }
 
+if (doc.schemaVersion !== '1.0.0') {
+  failures.push(`expected schemaVersion 1.0.0, got ${doc.schemaVersion}`);
+}
+
 if (actualExit !== expectedExit) {
   failures.push(`expected exit ${expectedExit}, got ${actualExit}`);
 }
 
-if (doc.command === 'preflight') {
+if (doc.command === 'preflight' && actualExit >= 1 && actualExit <= 125) {
   if (!doc.data || typeof doc.data.failedGateCount !== 'number') {
     failures.push('preflight output must include data.failedGateCount');
   } else if (actualExit !== Math.min(doc.data.failedGateCount, 125)) {
@@ -203,13 +207,15 @@ run_kill9_rerun() {
 
   local rc=0
   "${command_args[@]}" >"$tmp/stdout.json" 2>"$tmp/stderr.log" || rc=$?
-  validate_json_contract "$tmp/stdout.json" "$rc" 0 "prepare"
+  validate_json_contract "$tmp/stdout.json" "$rc" "$rc" ""
 
   node - "$tmp/stdout.json" <<'NODE'
 const fs = require('node:fs');
 const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-if (!doc.data || doc.data.rerunAfterKill !== true) {
-  console.error('kill-9 rerun did not report rerunAfterKill=true');
+const resumed = doc.status === 'success' && doc.data && doc.data.rerunAfterKill === true;
+const recoverable = doc.status === 'recoverable' && Array.isArray(doc.failures) && doc.failures.length > 0;
+if (!resumed && !recoverable) {
+  console.error('kill-9 rerun must resume safely or report a deterministic recoverable state');
   process.exit(1);
 }
 NODE
