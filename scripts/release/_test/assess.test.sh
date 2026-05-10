@@ -119,7 +119,13 @@ const [path, expectedSha] = process.argv.slice(2);
 const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
 if (doc.mode !== 'target') throw new Error(`expected target mode, got ${doc.mode}`);
 if (doc.inputs.sourceSha !== expectedSha) throw new Error(`unexpected input sourceSha ${doc.inputs.sourceSha}`);
+if (doc.inputs.head !== null) throw new Error(`expected target mode head input to be null, got ${doc.inputs.head}`);
 if (doc.data.sourceSha !== expectedSha) throw new Error(`unexpected data sourceSha ${doc.data.sourceSha}`);
 NODE
+
+if bash -c 'cd "$1" && bash "$2" --json --base v0.6.1-beta --source-sha HEAD >/dev/null 2>&1' _ "$target_repo" "$ASSESS"; then
+  echo "expected symbolic --source-sha to fail" >&2
+  exit 1
+fi
 
 echo "assess.test.sh: ok"

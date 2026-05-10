@@ -188,10 +188,12 @@ if [[ -z "$source_sha" && -z "$head_ref" ]]; then
 fi
 
 if [[ -n "$source_sha" ]]; then
+  if [[ ! "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    fail_usage "--source-sha requires a full 40-character commit SHA"
+  fi
   head_sha="$(git rev-parse --verify "${source_sha}^{commit}" 2>/dev/null || true)"
   [[ -n "$head_sha" ]] || fail_usage "source SHA is not a commit: $source_sha"
   source_sha="$head_sha"
-  head_ref="$head_sha"
 else
   head_sha="$(git rev-parse --verify "${head_ref}^{commit}" 2>/dev/null || true)"
   [[ -n "$head_sha" ]] || fail_usage "head ref is not a commit: $head_ref"
