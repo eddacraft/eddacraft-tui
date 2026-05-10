@@ -93,6 +93,9 @@ RELORCH or DOCGOV.
 
 - RELORCH — release command surface, release tracking issue comments, release
   record generation, and release skill/runbook wiring.
+- CICD — CI/CD cost controls, validation layering, shared path/risk
+  classification, local-first validation commands, and release-readiness workflow
+  implementation.
 - DOCGOV — documentation taxonomy, metadata, closeout, generated indexes, and
   docs validation commands.
 - CGBDG — council evidence bridge where review outputs become durable evidence.
@@ -268,7 +271,7 @@ This module is Complete when:
 - **Validation:** `pnpm format:check && pnpm lint:md`
 - **Files:** `plans/specs/2026-05-10-release-readiness-workflow.md`,
   `.github/workflows/` when implemented
-- **Coordinates with:** RELORCH, CI workflows
+- **Coordinates with:** RELORCH, CICD, CI workflows
 - **Completed:** 2026-05-10 — Added the release-readiness and candidate artefact
   workflow specification, defining trigger inputs, required checks, candidate
   metadata, artefact retention, failure classes, and release-record integration;
