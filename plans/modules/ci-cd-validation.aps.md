@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 2/12     |
+| CICD | —     | In Progress | 3/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -179,7 +179,7 @@ This module is Complete when:
 
 ### CICD-003: Local deterministic validation command surface
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Move deterministic feedback earlier so CI is not the first broad
   validator humans and agents rely on.
 - **Expected Outcome:** `validate:staged`, `validate:changed`, and
@@ -187,8 +187,17 @@ This module is Complete when:
   enforce where practical.
 - **Validation:** Commands succeed on a clean workspace and fail on controlled
   fixture drift.
-- **Files:** `package.json`, `scripts/validate/`, `.husky/pre-commit`
+- **Files:** `package.json`, `scripts/validate/local.sh`,
+  `scripts/validate/local.test.sh`
 - **Coordinates with:** OPMODEL-007, DOCGOV-005
+- **Completed:** 2026-05-10 — Added `pnpm validate:staged`,
+  `pnpm validate:changed`, and `pnpm validate:full` backed by
+  `scripts/validate/local.sh`. The staged and changed modes use the shared
+  classifier to build a deterministic command plan; full mode runs the full local
+  deterministic suite. Added fixture coverage via `pnpm test:validate-local`.
+- **Validation Run:** `pnpm test:validate-local`,
+  `pnpm validate:changed -- --dry-run --json`,
+  `pnpm validate:full -- --dry-run --json`
 - **Confidence:** high
 
 ---
