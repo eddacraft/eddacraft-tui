@@ -56,8 +56,8 @@ items can be added as the design is refined.
 | Planning council playbooks | Creation-time and pre-execution plan validation workflows | Needed |
 | Review trigger rules | Path/label matrix for pre-PR and PR-level reviews | Needed |
 | Agent guidance script | Deterministic path-to-playbook/review/check guidance for hooks, agents, and CI | Needed |
-| CI release-readiness workflow | Canonical pre-tag readiness gate keyed by SHA | Needed |
-| Candidate artefact workflow | Non-publishing release artefact build before tag | Needed |
+| CI release-readiness workflow | Canonical pre-tag readiness gate keyed by SHA | Defined by [`2026-05-10-release-readiness-workflow.md`](./2026-05-10-release-readiness-workflow.md) |
+| Candidate artefact workflow | Non-publishing release artefact build before tag | Defined by [`2026-05-10-release-readiness-workflow.md`](./2026-05-10-release-readiness-workflow.md) |
 | Release record schema | Machine-readable link between tag, APS items, artefacts, and verification | Defined by [`2026-05-10-release-record-schema.md`](./2026-05-10-release-record-schema.md) |
 | Drift checks | APS/repo/release consistency checks | Needed |
 | Rollback/incident playbook | Recovery flows for bad `main`, bad artefact, bad release | Needed |
@@ -493,13 +493,14 @@ Default release flow:
 
 ```text
 1. Select current green main SHA.
-2. Generate release candidate metadata from APS and merged PRs since previous tag.
-3. Compute proposed version from change metadata.
-4. Run release-readiness workflow for the SHA.
-5. Build candidate artefacts without publishing when required.
-6. Open a release-prep PR only if generated files must change.
-7. Merge release-prep PR to main.
-8. Tag the exact green main SHA.
+2. Generate draft release candidate metadata from APS and merged PRs since
+   previous tag.
+3. Open and merge a release-prep PR only if generated files must change.
+4. Select the final green main SHA after any release-prep merge.
+5. Compute final proposed version from change metadata.
+6. Run release-readiness workflow for the final SHA.
+7. Build candidate artefacts without publishing when required.
+8. Tag the exact SHA validated by release readiness.
 9. Release workflow builds and publishes artefacts.
 10. Post-publish verification confirms artefacts, installers, and latest pointers.
 11. Release record is emitted.
@@ -510,9 +511,9 @@ Fast patch release flow:
 
 ```text
 1. Merge fix PR to main.
-2. Run release-readiness workflow for patch scope.
+2. Run release-readiness workflow for the exact green main SHA.
 3. Generate patch notes from APS and PR metadata.
-4. Tag the green main SHA.
+4. Tag the exact SHA validated by release readiness.
 5. Publish artefacts.
 6. Verify install and release assets.
 7. Update APS shipped state from the release record.
@@ -781,7 +782,7 @@ Minimum rules:
 - Whether generated changelog updates happen before tag or as part of candidate
   PR.
 - Exact path labels and required-review automation.
-- Exact definition of candidate artefact build frequency.
+- Exact implementation schedule for the release-readiness workflow.
 - Whether `dev` is deleted, archived, or protected after migration.
 - Exact freshness rule for Planning Council pre-execution validation.
 - Exact location and output schema for deterministic agent guidance.
