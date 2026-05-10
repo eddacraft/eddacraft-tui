@@ -1,0 +1,339 @@
+<!--
+APS Module: Usage Analytics
+===========================
+Cross-cutting durable usage observations on Kindling — command
+invocations, flag-evaluation rollups, dev-investment query views.
+Touches every command surface (CLI / JSON-RPC) and consumes the
+flag-context the FLAGS module already publishes to Kindling per
+ADR-019. Third trial of the cross-cutting module convention promoted
+under ADR-034.
+
+Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
+-->
+
+# Usage Analytics
+
+| ID    | Owner      | Status | Progress |
+| ----- | ---------- | ------ | -------- |
+| USAGE | @eddacraft | Draft  | 0/3      |
+
+**Last reviewed:** 2026-05-10
+
+> **Provenance:** Founder request 2026-05-10. Current observability story
+> (TRACE-001 + JSON logs) gives a debug surface but no durable answer to
+> "who is using what" for dev-investment decisions. Per
+> [ADR-035](../decisions/035-three-pipe-observability-rule.md), usage
+> facts are governance-shaped (durable, queryable, source-of-truth) and
+> belong on Kindling, not on the tracing pipe. This module is the
+> **third trial** of the cross-cutting module convention promoted under
+> [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md).
+
+## Cross-cutting convention
+
+This module follows the cross-cutting convention. The normative spec
+lives in [`plans/aps-rules.md#cross-cutting-modules`][rules] and is
+cited by anchor link wherever a callout is used in a task body.
+
+[rules]: ../aps-rules.md#cross-cutting-modules
+
+> **Anti-drift hook (per ADR-034):** changes to the
+> `## Cross-Cutting Modules` section of `aps-rules.md` update this
+> module's header reference, `launch-flow-readiness.aps.md`, and
+> `tracing-foundation.aps.md` in the same PR.
+
+## Purpose
+
+Give the founder a durable, queryable answer to **what is being used
+and what is not** so dev-investment decisions are evidence-based
+rather than gut-led. Specifically:
+
+- Record every CLI command invocation and JSON-RPC method call as a
+  Kindling row carrying the active flag context and the cross-pipe
+  `traceparent`.
+- Roll up `anvil.flags.*` evaluations so the founder can ask "which
+  gates fired for whom this week" without rebuilding the index from
+  spans.
+- Publish canned query views answering "top N commands", "commands
+  never invoked", "flag-dependent paths exercised vs not".
+
+This module is **explicitly not** about result/output capture — it
+records *that* a command ran, not *what it produced*. See **Privacy
+contract** in USAGE-001.
+
+## In scope
+
+- A new Kindling observation kind for command invocation (or reuse of
+  an existing kind, decided in USAGE-001), carrying: command name,
+  anonymised principal, timestamp, redacted argument *shape* (arg
+  names but not values), active flag set, `traceparent`.
+- A producer wired into the CLI entrypoint and the JSON-RPC dispatcher
+  emitting one observation per user-initiated invocation. Library
+  crates do not emit; only entrypoints.
+- Query helpers / canned views — at minimum a `kindling`-style query
+  surface and a runbook describing the top-N / never-invoked queries.
+- Alignment with ADR-019's `anvil.flags.*` Kindling rows so a single
+  query joins "who ran what" to "which gates fired".
+- A privacy contract documenting the redaction rule (the same
+  `SENSITIVE_FIELDS` deny-list `anvil-observability` exposes today).
+- A new `anvil.usage.*` namespace registry entry (per ADR-035 / the
+  namespace registry doc) for any tracing-pipe attributes the
+  producer also emits for debugging — Kindling-side fields are the
+  source-of-truth, the tracing-pipe attributes are breadcrumbs.
+
+## Out of scope
+
+- Identity provider / principal minting — assumes a stable
+  user/session ID is already available on the call path. If it is
+  not, USAGE-001 surfaces that as a blocker; it does not solve it.
+- Result or output capture — the founder's stated requirement is
+  invocation, not results. Adding result capture later is a follow-up
+  task with its own privacy review.
+- Dashboard rendering of usage data — that lives with the dashboard
+  surface (TUIDASH / dashboard-ops-views) and is post-launch.
+- Exporting usage data to an external analytics pipeline (Mixpanel /
+  PostHog / a warehouse). Out of scope for v1; revisit if
+  evidence-based dev-investment decisions need cross-system joins.
+- Production tracing sink choice — owned by EXPORT.
+
+## Interfaces
+
+**Depends on:**
+
+- Kindling — the source-of-truth pipe per ADR-035; USAGE writes here
+  exclusively.
+- TRACE-001 — `anvil-observability::TraceContext` provides the
+  `traceparent` correlation key every usage row carries.
+- ADR-019 — `anvil.flags.*` Kindling rows are the join target;
+  USAGE does not duplicate flag-evaluation facts, it references them.
+
+**Coordinates with:**
+
+- TRACE-004 — every usage observation needs an active `traceparent`
+  at write time. TRACE-004 binds the incoming context; USAGE-001
+  reads it. The two land in either order, but both must be in place
+  before the first end-to-end "trace ↔ usage" join works.
+- FLAGS module — the active flag set on each usage row is the
+  resolved `anvil.flags.*` snapshot the FLAGS evaluator already
+  publishes; USAGE-002 closes the loop.
+- TRACE-003 — argument redaction shares the `SENSITIVE_FIELDS`
+  deny-list. USAGE inherits the advisory-only constraint until
+  TRACE-003 lands the layer; producers MUST NOT bypass it.
+- OBS-001 (post-launch) — once OBS goes Ready, the usage signal
+  inventory becomes a row in OBS-001's contract; until then USAGE
+  publishes its own narrow contract.
+- INTD-013 / INTD-015 — usage observations carry no
+  `notification.context` payload, so the redaction risk on that
+  field is not relevant here. Documented to forestall confusion.
+
+**Exposes:**
+
+- A Kindling observation kind for command invocation (kind name
+  decided in USAGE-001).
+- A query helper (`kindling`-style) and a runbook describing the
+  canned dev-investment views.
+- The privacy contract: invocation-only, args redacted by the same
+  deny-list `anvil-observability` carries.
+- A new `anvil.usage.*` row in
+  `docs/observability/namespace-registry.md` (tracing-pipe
+  breadcrumbs only; Kindling rows are not registry-tracked).
+
+## Ready Checklist
+
+This module is **Ready** when:
+
+- [ ] Founder confirms the privacy contract (invocation-only, args
+      redacted, no result capture) reflects intent.
+- [ ] OQ5 resolved: FLAGS cross-clarification — does FLAGS already
+      publish a resolved snapshot USAGE can reference, what is the
+      stable join key, and does ADR-019's gate-affecting-outcomes-only
+      rule break the join for non-gate flags.
+- [ ] OQ1 resolved: reuse-existing vs new `command.invoked` kind
+      (founder lean 2026-05-10 → new kind, pending OQ5).
+- [ ] OQ2 resolved: anonymisation strategy for the principal field
+      (recommendation 2026-05-10: hashed with per-deployment salt;
+      pending founder confirmation).
+- [ ] At least one task approved for execution.
+
+## Tasks
+
+> Status: Draft. No tasks Committed. USAGE-001 is the launch-blocker
+> path if the founder wants pre-launch usage visibility; USAGE-002 and
+> USAGE-003 follow once invocations land.
+
+### USAGE-001: Command-invocation observation kind and producer
+
+- **Intent:** Every CLI command and JSON-RPC method call lands as one
+  Kindling row carrying enough context to answer "who ran what"
+  later.
+- **Concrete failure mode (today):** The founder asks "which commands
+  did anyone run last week?" and the only available data is JSON log
+  lines on stderr (ephemeral) or `traceparent`-stamped envelopes
+  (also ephemeral, no archive). The answer is unrecoverable.
+- **Expected Outcome:**
+  - Decision recorded (in the PR or a thin ADR) on whether to reuse
+    an existing Kindling observation kind or introduce a new one
+    (working title `command.invoked`).
+  - A producer at the CLI entrypoint
+    (`crates/anvil-cli/src/main.rs`) and the JSON-RPC dispatcher
+    (`crates/anvil-intercept/src/ipc.rs`) emits exactly one
+    observation per user-initiated invocation with: command name,
+    principal (per OQ2), timestamp, redacted argument shape, active
+    flag set (placeholder field until USAGE-002 lands the snapshot
+    contract), `traceparent`.
+  - Argument redaction defers to
+    `anvil_observability::redaction`. Values for fields matching
+    `SENSITIVE_FIELDS` are replaced with `REDACTED`; other values
+    are recorded in *shape only* (length / type / presence) until
+    the founder approves a fuller value capture under a follow-up
+    review.
+  - A privacy contract published at
+    `docs/observability/usage-analytics.md` (new) covering: what is
+    captured, what is not, anonymisation policy, retention
+    expectation, and the change-control rule (founder review for
+    contract changes).
+  - Contract pinned by a Kindling-side fixture: a known invocation
+    produces a known row, asserted with a test analogous to the
+    INTD-014 conformance fixture. The fixture iterates the
+    *registered* command/method list — adding a command without an
+    observation fails the test (R2 mitigation).
+- **Coordinates with:** TRACE-004 — incoming `traceparent` is on the
+  current span; USAGE reads from there.
+- **Coordinates with:** FLAGS — active flag set is the resolved
+  `anvil.flags.*` snapshot (placeholder field until USAGE-002).
+- **Files (best-effort):** `crates/anvil-cli/src/main.rs`,
+  `crates/anvil-intercept/src/ipc.rs`,
+  `crates/<kindling-crate>/src/<observation-module>` (path TBD when
+  the observation-kind decision lands), tests in the same crates,
+  `docs/observability/usage-analytics.md` (new),
+  `docs/observability/namespace-registry.md` (new
+  `anvil.usage.*` row for any tracing-pipe breadcrumbs).
+- **Validation:** TBD when picked up — at minimum (a) a unit test
+  that a CLI invocation produces one Kindling row with the expected
+  fields; (b) a unit test that a JSON-RPC call produces one row with
+  the matching `traceparent`; (c) a unit test that a sensitive arg
+  name results in a redacted value; (d) the contract test against
+  the registered command/method list.
+- **Confidence:** medium — depends on Kindling's existing observation
+  kinds and the principal-anonymisation OQ.
+- **Status:** Draft
+
+---
+
+### USAGE-002: Flag-context correlation on usage rows
+
+- **Intent:** Every usage row carries the resolved `anvil.flags.*`
+  snapshot active at invocation time so "which gates fired for whom"
+  is a single Kindling query.
+- **Expected Outcome:**
+  - The active flag set is captured as a stable, queryable field on
+    every USAGE-001 observation. Shape decided in this task — likely
+    a sorted list of flag IDs with their resolved values, modelled
+    on ADR-019's `anvil.flags.*` precedent.
+  - A canned query / view in
+    `docs/observability/usage-analytics.md` answering "for command
+    X, which flag set was active across the invocations this week?".
+  - Cross-link from ADR-019's "Consequences" section noting USAGE-002
+    is the consumer that joins flag-evaluation rows to the commands
+    that triggered them.
+- **Coordinates with:** USAGE-001 (extends the row shape).
+- **Coordinates with:** FLAGS module (consumes the resolved flag
+  snapshot the evaluator publishes; does not re-evaluate).
+- **Files (best-effort):**
+  `crates/<kindling-crate>/src/<observation-module>`,
+  `docs/observability/usage-analytics.md`,
+  `plans/decisions/019-flags-observability-alignment.md`
+  (cross-link only).
+- **Validation:** TBD when picked up — at minimum a query test that
+  joins a known invocation to its known flag set and returns the
+  expected pairing.
+- **Confidence:** medium
+- **Status:** Draft
+
+---
+
+### USAGE-003: Dev-investment query views
+
+- **Intent:** The founder has a small, named set of queries answering
+  "what is being used vs not" without writing ad-hoc SQL each time.
+- **Expected Outcome:**
+  - A runbook / docs page enumerating: top N commands by invocation
+    count (week / month / since launch), commands never invoked,
+    flag-dependent paths exercised vs not, principals by activity
+    level (per the OQ2 anonymisation contract).
+  - Query helpers shipped either as CLI subcommands
+    (`anvil kindling usage <view>`) or as a documented `kindling`
+    query — decided in this task.
+  - A short "how to use this for dev investment decisions" note in
+    the same doc — explicitly: this is *signal*, not *evidence*.
+    Small populations, flag bias, and survivorship effects mean the
+    views inform direction, not decisions in isolation.
+- **Coordinates with:** USAGE-001, USAGE-002.
+- **Coordinates with:** OBS-001 — when OBS reaches Ready, this view
+  set becomes a row in its signal inventory contract.
+- **Files (best-effort):**
+  `docs/observability/usage-analytics.md`,
+  `crates/anvil-cli/src/...` (only if CLI subcommand is the chosen
+  shape).
+- **Validation:** TBD when picked up — at minimum a smoke test for
+  each canned view returning a non-empty result against a fixture
+  Kindling state.
+- **Confidence:** medium-low — depends on USAGE-001/-002 shapes.
+- **Status:** Draft
+
+## Risks
+
+- **R1 (privacy):** Recording who ran which command is itself
+  sensitive, even without args or results. Mitigation: OQ2's
+  anonymisation strategy plus the `SENSITIVE_FIELDS` deny-list on
+  any arg-shape capture. Founder reviews the privacy contract before
+  USAGE-001 reaches Ready.
+- **R2 (silent drift — new commands skip USAGE):** A new CLI
+  subcommand or JSON-RPC method ships without emitting a usage
+  observation, and the dev-investment views silently undercount it.
+  Mitigation: USAGE-001's contract test iterates the *registered*
+  command/method list — adding one without an observation fails the
+  test. Decide the registration shape in USAGE-001.
+- **R3 (Kindling row volume):** High-frequency JSON-RPC calls
+  (per-keystroke completions, scan probes) could fill Kindling with
+  per-invocation noise the way ADR-019 explicitly pushed back on for
+  flag evaluations. Mitigation: USAGE-001 emits one row **per
+  user-initiated command**, not per internal call. Internal RPCs
+  triggered by a single user command share that command's row via
+  `traceparent` (the debug breadcrumbs stay on the tracing pipe).
+- **R4 (anonymisation drift):** The principal field's anonymisation
+  policy gets weakened over time as someone adds "just one debug
+  field". Mitigation: the privacy contract is a separate doc, not
+  code comments, and changes to it require founder review.
+
+## Open questions
+
+- **OQ1 (founder lean 2026-05-10 → new kind, pending OQ5):** Introduce
+  a new `command.invoked` Kindling observation kind. Final decision
+  recorded in USAGE-001 once OQ5's FLAGS cross-clarification confirms
+  no existing kind already covers the shape USAGE-002 needs.
+- **OQ2 (open — recommendation pending founder decision):** Principal
+  anonymisation. Recommendation as of 2026-05-10: hash the principal
+  ID with a per-deployment salt held in the existing secrets store;
+  rotation is a deliberate privacy reset, not routine. Same-person →
+  same hash within a deployment, no cross-deployment join, distinct-
+  user counts remain answerable, raw IDs never land in logs. Recorded
+  in `docs/observability/usage-analytics.md` once founder confirms.
+- **OQ3:** Whether USAGE-003's canned views ship as CLI subcommands,
+  documented `kindling` queries, or both. Decided in USAGE-003.
+- **OQ4 (deferred):** External analytics pipeline (Mixpanel /
+  PostHog / warehouse). Out of scope for v1. Revisit when
+  evidence-based dev-investment decisions need cross-system joins
+  or when a third party (board / investor) asks for usage rollups
+  outside Anvil.
+- **OQ5 (open — FLAGS cross-clarification, raised 2026-05-10):**
+  USAGE-002 assumes the FLAGS evaluator already publishes a resolved
+  `anvil.flags.*` snapshot to Kindling per ADR-019, in a shape USAGE
+  rows can reference rather than duplicate. Three sub-questions:
+  (a) does FLAGS today persist a queryable snapshot, or only
+  per-evaluation rows? (b) are flag IDs stable across renames /
+  retirements, and what is the join key? (c) does ADR-019's
+  "gate-affecting outcomes only" rule mean USAGE rows that reference
+  a non-gate-affecting flag have nothing to join to? Resolution gates
+  USAGE-002 promotion to Ready and may also unblock OQ1 (an existing
+  FLAGS-emitted observation kind may be the right host for command
+  invocations rather than a new one).

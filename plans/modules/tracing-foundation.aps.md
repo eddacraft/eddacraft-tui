@@ -13,9 +13,9 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status      | Progress |
 | ----- | ---------- | ----------- | -------- |
-| TRACE | @eddacraft | In Progress | 1/3      |
+| TRACE | @eddacraft | In Progress | 1/4      |
 
-**Last reviewed:** 2026-04-30
+**Last reviewed:** 2026-05-10
 
 > **Provenance:** Architecture decision record
 > [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md)
@@ -57,9 +57,13 @@ Give Anvil a runtime tracing baseline that:
 - Turns ADR-019's `anvil.flags.*` precedent into a registry-based
   contribution model without designing every domain's attributes for them.
 
-The narrow launch-blocker scope is **TRACE-001 only**. Everything else
-(TS-side mirror, redaction hardening, EXPORT sink choice, the OBS module's
-domain ops work) is post-launch.
+The launch-blocker scope is **TRACE-001 (shipped) + TRACE-004 (Draft,
+confirmed launch-blocker 2026-05-10)**. TRACE-004 lands call-path
+instrumentation, `traceparent`-to-span binding, and a local-only dev sink
+so developers can debug a request through the daemon end-to-end before
+the first external user. Everything else (TS-side mirror, redaction
+hardening, EXPORT sink choice, the OBS module's domain ops work) is
+post-launch.
 
 ## In scope
 
@@ -122,6 +126,10 @@ domain ops work) is post-launch.
   acts on the tracing-pipe side of that mitigation.
 - TUIDASH / dashboard-ops-views — they consume `traceparent` from the
   notification envelope **after** TRACE-002 lands the TS-side parser.
+- USAGE module — TRACE-004's span-binding helper is the source of the
+  `traceparent` USAGE-001 stamps on every Kindling row. The two land in
+  either order, but both must be in place before the first end-to-end
+  "trace ↔ usage" join works.
 
 **Exposes:**
 
@@ -152,9 +160,10 @@ This module is **Ready** when:
 
 ## Tasks
 
-> Status: Ready (LAUNCH-003 callout sweep closed 2026-04-30). TRACE-001 is
-> launch-blocker scope; TRACE-002 and TRACE-003 are post-launch hardening and
-> stay Draft until picked up.
+> Status: In Progress. TRACE-001 Complete 2026-04-30. **TRACE-004 confirmed
+> launch-blocker 2026-05-10** (Draft; ready for promotion to Proposed/Ready
+> when picked up). TRACE-002 (TS mirror) and TRACE-003 (redaction
+> hardening) stay Draft as post-launch hardening.
 
 ### TRACE-001: Tracing baseline crate, propagation, and namespace registry
 
@@ -256,6 +265,85 @@ This module is **Ready** when:
 - **Confidence:** low — depends on INTD-015's shape and EXPORT's sink.
 - **Status:** Draft
 
+---
+
+### TRACE-004: Instrument call paths and bind incoming `traceparent` to span context
+
+- **Intent:** Anvil's daemon and CLI emit spans on the call paths
+  developers actually need to debug, and an incoming `traceparent`
+  becomes the parent context for the local span tree so a single trace
+  ID joins the JSON-RPC envelope to the work it triggered.
+- **Concrete failure mode (today):** A developer reproducing a JSON-RPC
+  bug runs the daemon under `RUST_LOG=debug`, sees flat log lines with
+  no span tree, and cannot distinguish concurrent requests beyond
+  timing. The `traceparent` is parsed and echoed but never bound to the
+  work the daemon does after parsing.
+- **Expected Outcome:**
+  - `anvil-observability` exposes a
+    `bind_traceparent_to_current_span(&TraceContext)` helper that
+    records `trace_id`, `parent_id`, and `trace_flags` as fields on the
+    enclosing `tracing::Span`, so subscriber output and any future
+    exporter see one continuous trace.
+  - `#[instrument]` (or equivalent `info_span!`) on: the JSON-RPC
+    dispatch loop, scan-buffer handlers, the CLI command entrypoints,
+    and the kernel work surfaces. Span attributes follow the
+    [namespace registry](../../docs/observability/namespace-registry.md)
+    conventions; new attributes added by this pass are recorded in
+    the registry in the same PR.
+  - A local-only dev sink behind `ANVIL_TRACE_SINK`: unset (default) =
+    formatter-only as today; `=otlp[=<endpoint>]` = OTLP exporter
+    pointing at a local collector; `=file=<path>` = JSON-line file
+    exporter. Production sinks remain EXPORT's call.
+  - `docs/observability/local-tracing.md` (new) — short developer-facing
+    doc with a `docker-compose.yml` snippet for local Jaeger and a
+    `cargo run` walkthrough that produces one connected trace.
+  - The INTD-014 conformance fixture's `traceparent_round_trips_*`
+    test extended (or a sibling test added) asserting that the
+    daemon's handler span carries the matching `trace_id` /
+    `parent_id` fields.
+- **Coordinates with:** TRACE-001 — consumes `TraceContext` and the
+  existing subscriber init; TRACE-001 added no instrumentation,
+  TRACE-004 is the rest of the iceberg.
+- **Coordinates with:** TRACE-002 — TS mirror inherits the span-binding
+  contract; whatever `bind_traceparent_to_current_span` does in Rust,
+  the TS mirror does in TS.
+- **Coordinates with:** TRACE-003 — any new span attributes flow
+  through the future redaction layer; until TRACE-003 lands, producers
+  honour the advisory `SENSITIVE_FIELDS` deny-list and treat sensitive
+  attribute values as a known gap (DA-OBS-004 risk acceptance per
+  ADR-035 R1).
+- **Coordinates with:** EXPORT-001 — `ANVIL_TRACE_SINK=otlp` is the
+  dev-time half; EXPORT's production sink choice is independent and
+  remains Draft until its trigger fires.
+- **Coordinates with:** USAGE-001 — every usage observation Kindling
+  records carries the active `traceparent` so a usage row joins to the
+  spans that produced it. USAGE-001 is the writer; TRACE-004
+  guarantees the trace context exists at write time.
+- **Files (best-effort):** `crates/anvil-observability/src/lib.rs` (new
+  binding helper + `ANVIL_TRACE_SINK` plumbing),
+  `crates/anvil-observability/Cargo.toml` (optional OTLP exporter dep
+  behind a feature flag), `crates/anvil-intercept/src/ipc.rs`
+  (instrument dispatch; bind incoming `traceparent`),
+  `crates/anvil-intercept/src/main.rs` (sink wiring at init),
+  `crates/anvil-cli/src/main.rs` (instrument command entrypoints),
+  `crates/anvil-kernel/src/...` (instrument the kernel surface
+  methods — exact list when picked up),
+  `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (extend the
+  round-trip test), `docs/observability/local-tracing.md` (new),
+  `docs/observability/namespace-registry.md` (record any new
+  attributes added by the instrumentation pass).
+- **Validation:** TBD when picked up — at minimum (a) a unit test that
+  `bind_traceparent_to_current_span` records the trace/parent IDs on
+  the current span; (b) the existing INTD-014 fixture asserts the
+  handler span carries the matching IDs; (c) a manual smoke test
+  running `anvil scan` against a local Jaeger and seeing one
+  connected trace.
+- **Confidence:** medium-high — the missing pieces are well-shaped
+  (helper + attribute pass + opt-in sink) and TRACE-001's plumbing is
+  the integration point. Risk lives in the breadth of the
+  instrumentation pass.
+- **Status:** Draft
+
 ## Risks
 
 - **R1 (accepted pre-launch, see ADR-035):** A `notification.context`
@@ -276,6 +364,12 @@ This module is **Ready** when:
   TRACE task with an open `Blocks on:` callout reaches Complete and the
   closer sweeps it, the spec's "provisional" flag is removed in the same
   edit.
+- **R5 (TRACE-004 breadth):** The instrumentation pass touches every
+  command surface and the kernel, so a missed call path silently drops
+  out of the trace tree. Mitigation: TRACE-004's INTD-014 fixture
+  extension asserts the handler span carries the matching IDs, and the
+  USAGE-001 contract test (which iterates the registered command list)
+  fails if a command emits no span context.
 
 ## Open questions
 

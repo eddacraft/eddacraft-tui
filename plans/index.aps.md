@@ -22,6 +22,7 @@
 - [Dev Tooling Bridge](#dev-tooling-bridge)
 - [Observability Foundation](#observability-foundation)
 - [Tracing Foundation](#tracing-foundation)
+- [Usage Analytics](#usage-analytics)
 - [Infrastructure as Code](#infrastructure-as-code)
 - [Web Dashboard](#web-dashboard)
 - [Policy Governance](#policy-governance)
@@ -335,7 +336,7 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 
 | Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
 | --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 1/3      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views; cites ADR-019 (flags observability alignment), ADR-034 (cross-cutting primitive), ADR-035 (three-pipe rule); TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); TRACE-002 / TRACE-003 remain post-launch |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 1/4      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views, USAGE; cites ADR-019, ADR-034, ADR-035; TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); **TRACE-004 confirmed launch-blocker 2026-05-10** (Draft) — call-path instrumentation + `traceparent`-to-span binding + local dev sink; TRACE-002 / TRACE-003 remain post-launch |
 | [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
 
 > **Precondition resolved 2026-04-30:** LAUNCH-003's open
@@ -343,6 +344,25 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 > LAUNCH-003 shipped first; the conditional "Superseded by" branch did not
 > fire. The named `WatchStats` contract is the inheritance TUIDASH-009 will
 > consume when the dashboard surface lands. TRACE is now **In Progress** (TRACE-001 Complete 2026-04-30).
+
+### Usage Analytics
+
+Cross-cutting durable usage observations on Kindling — command invocations,
+flag-evaluation rollups, dev-investment query views. Third trial of the
+cross-cutting module convention promoted under
+[ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md). Founder
+request 2026-05-10 — answers "who is using what" durably so dev-investment
+decisions are evidence-based. Per
+[ADR-035](./decisions/035-three-pipe-observability-rule.md), usage facts are
+governance-shaped (durable, queryable, source-of-truth) and live on Kindling,
+not on the tracing pipe. USAGE-001 is the launch-blocker candidate (founder
+lean 2026-05-10 → new `command.invoked` Kindling kind, pending FLAGS
+cross-clarification under OQ5); USAGE-002 (flag-context correlation) and
+USAGE-003 (canned dev-investment query views) follow once invocations land.
+
+| Module                                              | Scope | Status | Progress | Dependencies                                                                                                                                                                                                                |
+| --------------------------------------------------- | ----- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [usage-analytics](./modules/usage-analytics.aps.md) | USAGE | Draft  | 0/3      | Kindling, TRACE-001 (consumes `TraceContext`); coordinates with TRACE-004 (incoming `traceparent` binding), FLAGS (`anvil.flags.*` per ADR-019), TRACE-003 (shared `SENSITIVE_FIELDS` deny-list), OBS-001 (post-launch) |
 
 ### Infrastructure as Code
 
@@ -842,9 +862,10 @@ it.
   persistence ([ADR](./decisions/015-intercept-loop-enforcement.md))
 - **D-034:** Cross-cutting modules as APS primitive — promoted from LAUNCH's
   local convention block to a normative `## Cross-Cutting Modules` section in
-  `aps-rules.md`; LAUNCH (first trial) and TRACE (second trial) cite by anchor;
-  `Blocks on:` callout type carried as provisional until exercised through a
-  real close ([ADR](./decisions/034-cross-cutting-modules-as-aps-primitive.md))
+  `aps-rules.md`; LAUNCH (first trial), TRACE (second trial), and USAGE
+  (third trial, founder-requested 2026-05-10) cite by anchor; `Blocks on:`
+  callout type carried as provisional until exercised through a real close
+  ([ADR](./decisions/034-cross-cutting-modules-as-aps-primitive.md))
   — **Accepted**
 - **D-035:** Three-pipe observability rule — Kindling = governance facts (write
   -once, source-of-truth); Notification envelope = user-visible state (live

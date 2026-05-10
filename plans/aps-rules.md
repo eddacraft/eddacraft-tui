@@ -119,14 +119,17 @@ owning a single product surface. Such modules MUST follow these rules:
    unresolved.
 
 **Anti-drift hook:** Changes to this section update
-`plans/modules/launch-flow-readiness.aps.md` and
-`plans/modules/tracing-foundation.aps.md` headers in the same PR. New
+`plans/modules/launch-flow-readiness.aps.md`,
+`plans/modules/tracing-foundation.aps.md`, and
+`plans/modules/usage-analytics.aps.md` headers in the same PR. New
 cross-cutting modules cite this section by anchor link.
 
 > Provenance: this section was promoted from the LAUNCH module's local
 > convention block (the first trial) under
 > [ADR-034](decisions/034-cross-cutting-modules-as-aps-primitive.md). The
-> second trial is [`tracing-foundation`](modules/tracing-foundation.aps.md).
+> second trial is [`tracing-foundation`](modules/tracing-foundation.aps.md);
+> the third trial is [`usage-analytics`](modules/usage-analytics.aps.md)
+> (founder-requested 2026-05-10, durable usage observations on Kindling).
 > When LAUNCH archives, sweep its remaining callouts per rule 4 and revisit
 > the still-provisional `Blocks on:` clause based on whatever close cycles
 > have happened in the meantime.
