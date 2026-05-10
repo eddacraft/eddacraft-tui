@@ -40,6 +40,7 @@
     "ci:classify": "bash scripts/ci/classify-changes.sh",
     "test:ci-classify": "bash scripts/ci/classify-changes.test.sh",
     "test:release-readiness-workflow": "bash scripts/ci/release-readiness-workflow.test.sh",
+    "test:ci-cost": "bash scripts/ci/cost-report.test.sh",
     "validate:staged": "bash scripts/validate/local.sh --staged",
     "validate:changed": "bash scripts/validate/local.sh --changed",
     "validate:full": "bash scripts/validate/local.sh --full",

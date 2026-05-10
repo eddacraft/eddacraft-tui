@@ -64,6 +64,12 @@ workflow=$(run_case workflow .github/workflows/ci.yml .github/actions/setup/acti
 assert_json_contains "${workflow}" '.pathClasses | index("workflow")' 'workflow path class'
 assert_json_contains "${workflow}" '.requiredReviews | index("operations")' 'operations review required'
 
+shell=$(run_case shell scripts/ci/classify-changes.sh scripts/validate/local.sh)
+assert_json_contains "${shell}" '.pathClasses | index("shell")' 'shell path class'
+assert_json_contains "${shell}" '.riskClasses | index("automation")' 'automation risk class'
+assert_json_contains "${shell}" '.requiredChecks | index("shell-syntax")' 'shell syntax required'
+assert_json_contains "${shell}" '.requiredChecks | index("script-fixtures")' 'script fixtures required'
+
 infra=$(run_case infra infra/pulumi/Pulumi.yaml deploy/cloudformation/template.yml)
 assert_json_contains "${infra}" '.pathClasses | index("infra")' 'infra path class'
 assert_json_contains "${infra}" '.riskClasses | index("infra")' 'infra risk class'
@@ -80,5 +86,20 @@ assert_json_contains "${lockfile}" '.requiredChecks | index("dependency-audit")'
 mixed=$(run_case mixed docs/guides/testing.md packages/anvil-core/src/index.ts crates/anvil-cli/src/main.rs)
 assert_json_contains "${mixed}" '.pathClasses | index("mixed")' 'mixed path class'
 assert_json_contains "${mixed}" '.warnings | index("mixed-change-set")' 'mixed warning emitted'
+
+unknown=$(run_case unknown nx.json)
+assert_json_contains "${unknown}" '.pathClasses | index("unknown")' 'unknown path class'
+assert_json_contains "${unknown}" '.requiredChecks | index("typecheck")' 'unknown fails closed with typecheck'
+assert_json_contains "${unknown}" '.requiredReviews | index("operations")' 'unknown requires operations review'
+
+mixed_unknown=$(run_case mixed_unknown README.md nx.json)
+assert_json_contains "${mixed_unknown}" '.pathClasses | index("docs")' 'mixed unknown includes docs class'
+assert_json_contains "${mixed_unknown}" '.pathClasses | index("unknown")' 'mixed unknown includes unknown class'
+assert_json_contains "${mixed_unknown}" '.warnings | index("unclassified-paths")' 'mixed unknown warns'
+assert_json_contains "${mixed_unknown}" '.riskClasses | index("docs-only") | not' 'mixed unknown is not docs-only'
+
+empty=$(run_case empty)
+assert_json_contains "${empty}" '.pathClasses == []' 'empty path set has no path classes'
+assert_json_contains "${empty}" '.warnings == ["no-changed-paths"]' 'empty path set warns no changed paths'
 
 echo 'classify-changes fixtures passed'

@@ -23,6 +23,7 @@ printf '%s\n' \
   'packages/anvil-core/src/index.ts' \
   'crates/anvil-cli/src/main.rs' \
   'policies/fixtures/security.rego' \
+  'scripts/validate/local.sh' \
   >"${paths_file}"
 
 plan=$(bash "${validator}" --changed --paths-file "${paths_file}" --dry-run --json)
@@ -36,6 +37,10 @@ jq -e '.commands | index("pnpm format:check")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm lint:check")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm typecheck")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm test")' >/dev/null <<<"${plan}"
+jq -e '.commands | index("pnpm test:ci-classify")' >/dev/null <<<"${plan}"
+jq -e '.commands | index("pnpm test:ci-cost")' >/dev/null <<<"${plan}"
+jq -e '.commands | index("pnpm test:validate-local")' >/dev/null <<<"${plan}"
+jq -e '.commands[] | select(contains("scripts/validate/local.sh"))' >/dev/null <<<"${plan}"
 jq -e '.commands | index("cargo test --workspace")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("opa test --verbose policies/fixtures/")' >/dev/null <<<"${plan}"
 
@@ -45,6 +50,37 @@ jq -e '.commands | index("pnpm format:check")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm lint:check")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm typecheck")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm test")' >/dev/null <<<"${full}"
+jq -e '.commands | index("pnpm test:ci-classify")' >/dev/null <<<"${full}"
+jq -e '.commands | index("pnpm test:ci-cost")' >/dev/null <<<"${full}"
+jq -e '.commands | index("pnpm test:validate-local")' >/dev/null <<<"${full}"
+jq -e '.commands | index("cargo test --workspace")' >/dev/null <<<"${full}"
+jq -e '.commands | index("opa test --verbose policies/fixtures/")' >/dev/null <<<"${full}"
+jq -e '.commands | index("regal lint policies/fixtures/")' >/dev/null <<<"${full}"
+
+empty_paths="${tmp_dir}/empty.paths"
+: >"${empty_paths}"
+empty=$(bash "${validator}" --changed --paths-file "${empty_paths}" --dry-run --json)
+jq -e '.commands == []' >/dev/null <<<"${empty}"
+
+dev_null=$(bash "${validator}" --changed --paths-file /dev/null --dry-run --json)
+jq -e '.commands == []' >/dev/null <<<"${dev_null}"
+
+agent_shell_paths="${tmp_dir}/agent-shell.paths"
+printf '%s\n' 'scripts/agent/guidance.sh' >"${agent_shell_paths}"
+agent_shell=$(bash "${validator}" --changed --paths-file "${agent_shell_paths}" --dry-run --json)
+jq -e '.commands[] | select(contains("scripts/agent/guidance.sh"))' >/dev/null <<<"${agent_shell}"
+
+mkdir -p "${tmp_dir}/scripts"
+printf '%s\n' 'if then' >"${tmp_dir}/scripts/bad.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${tmp_dir}/scripts/good.sh"
+syntax_paths="${tmp_dir}/syntax.paths"
+printf '%s\n' 'scripts/bad.sh' 'scripts/good.sh' >"${syntax_paths}"
+syntax_plan=$(bash "${validator}" --changed --paths-file "${syntax_paths}" --dry-run --json)
+syntax_command=$(jq -r '.commands[] | select(contains("bash -n"))' <<<"${syntax_plan}")
+if (cd "${tmp_dir}" && bash -lc "${syntax_command}"); then
+  echo 'expected shell syntax command to fail on the first invalid script' >&2
+  exit 1
+fi
 
 if bash "${validator}" --changed --paths-file "${tmp_dir}/missing.paths" --dry-run --json >/dev/null 2>&1; then
   echo 'expected missing paths file to fail' >&2

@@ -171,8 +171,8 @@ This module is Complete when:
   `warnings` for staged, branch, PR, and push contexts. Added fixture coverage
   for docs-only, TypeScript, Rust, policy, release, workflow, infra, NAPI,
   lockfile, and mixed changes via `pnpm test:ci-classify`.
-- **Validation Run:** `pnpm test:ci-classify`,
-  `bash -n scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh`
+- **Validation Run:** `pnpm test:ci-classify`, per-script shell syntax loop for
+  `scripts/ci/classify-changes.sh` and `scripts/ci/classify-changes.test.sh`
 - **Confidence:** medium
 
 ---

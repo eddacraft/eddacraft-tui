@@ -96,7 +96,7 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ -n "${input_file}" ]]; then
-  jq '.' "${input_file}" >"${runs_file}"
+  jq --argjson limit "${limit}" '.[0:$limit]' "${input_file}" >"${runs_file}"
 else
   if ! command -v gh >/dev/null 2>&1; then
     echo "gh is required unless --input is provided" >&2
