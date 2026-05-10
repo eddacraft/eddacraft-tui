@@ -61,9 +61,10 @@ assert_contains "$content" 'ref: ${{ inputs.sourceSha }}' 'workflow must checkou
 assert_contains "$content" 'checked_out_sha="$(git rev-parse HEAD)"' 'workflow must read the validated SHA from git'
 assert_contains "$content" 'checked out SHA does not match sourceSha' 'workflow must fail on SHA mismatch'
 assert_contains "$content" 'git merge-base --is-ancestor' 'workflow must check expected reachability'
+assert_contains "$content" 'trackingIssue must be an integer greater than zero when provided' 'workflow must reject malformed tracking issues'
 
 assert_contains "$content" 'release-candidate-metadata.json' 'workflow must emit candidate metadata JSON'
-assert_contains "$content" 'release-candidate-metadata-${{ inputs.mode }}-' 'metadata artefact name must include mode and SHA'
+assert_contains "$content" 'artifact-name=release-candidate-metadata-' 'metadata artefact name must be built without YAML folding'
 assert_contains "$content" 'lifecycleState' 'metadata must identify candidate lifecycle state'
 assert_contains "$content" 'workflowRunUrl' 'metadata must link back to the workflow run'
 

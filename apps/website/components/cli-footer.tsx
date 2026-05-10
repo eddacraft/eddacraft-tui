@@ -196,7 +196,6 @@ export function CLIFooter() {
     setDisplayedLines([]);
     setCurrentLineIndex(0);
     setCurrentCharIndex(0);
-    setShowFinalCursor(false);
   };
 
   return (

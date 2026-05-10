@@ -78,12 +78,9 @@ export class FileStorage implements IStorageProvider {
         // Walk up until we find an existing directory
         while (parent !== resolvedBase) {
           parent = dirname(parent);
+          let realParent: string;
           try {
-            const realParent = realpathSync(parent);
-            if (realParent !== realBase && !realParent.startsWith(realBase + sep)) {
-              throw new Error(`Path escapes base directory (symlink): ${filePath}`, { cause: err });
-            }
-            break; // found existing parent, it's inside base — OK
+            realParent = realpathSync(parent);
           } catch (parentErr) {
             if (
               parentErr instanceof Error &&
@@ -94,6 +91,11 @@ export class FileStorage implements IStorageProvider {
             }
             throw parentErr;
           }
+          if (realParent !== realBase && !realParent.startsWith(realBase + sep)) {
+            // oxlint-disable-next-line preserve-caught-error -- the caught ENOENT is not the cause of this escape failure.
+            throw new Error(`Path escapes base directory (symlink): ${filePath}`); // eslint-disable-line preserve-caught-error -- the caught ENOENT is not the cause of this escape failure.
+          }
+          break; // found existing parent, it's inside base — OK
         }
         return resolvedTarget;
       }
