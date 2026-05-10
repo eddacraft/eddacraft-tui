@@ -749,6 +749,11 @@ branch authority from `dev` to `main`.
 
 ## Minimum Viable Operating Model
 
+This is the target-state minimum after OPMODEL-012 changes executable branch
+authority. Until that cutover completes, the current compatibility model remains
+the executable workflow: normal branches start from `dev` and normal PRs target
+`dev`.
+
 The smallest acceptable version of this specification is:
 
 ```text

@@ -181,6 +181,9 @@ This module is Complete when:
 - **Completed:** 2026-05-10 — Added the authoritative current-state to
   target-state migration map to the operating model specification; validation
   passed with `pnpm format:check`, `pnpm lint:md`, and `git diff --check`.
+- **Closeout follow-up:** PR #1378 merged before Copilot's post-merge comments;
+  this follow-up clarifies the Minimum Viable Operating Model cutover caveat and
+  records the documentation closeout in the PR body.
 - **Confidence:** high
 
 ---
