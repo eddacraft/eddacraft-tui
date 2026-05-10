@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 5/12     |
+| OPMODEL | —     | In Progress | 6/12     |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -280,7 +280,9 @@ This module is Complete when:
 
 ### OPMODEL-006: Release runbook and skill migration boundary
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly approved moving on through OPMODEL work
+  on 2026-05-10; this approval treated OPMODEL-006 as Ready for this slice.
 - **Intent:** Align the release runbook and release skill with current-state and
   target-state truth so agents do not execute non-existent commands or mix `dev`
   promotion with tag-from-main release semantics.
@@ -290,6 +292,11 @@ This module is Complete when:
 - **Validation:** `pnpm format:check && pnpm lint:md`
 - **Files:** `docs/guides/release-runbook.md`, `.claude/skills/release/SKILL.md`
 - **Coordinates with:** RELORCH-011
+- **Completed:** 2026-05-10 — Split the release runbook and release skill into
+  current compatibility mode and target command mode so agents do not execute
+  missing `scripts/release/*` commands or treat target `main` release semantics
+  as executable before OPMODEL-012. Validation passed with `pnpm format:check`,
+  `pnpm lint:md`, and `git diff --check`.
 - **Confidence:** high
 
 ---

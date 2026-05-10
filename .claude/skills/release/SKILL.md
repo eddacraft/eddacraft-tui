@@ -5,9 +5,10 @@ description: Agent-driven Anvil release. Thin operator wrapper around determinis
 
 # Release — Agent-Orchestrated Anvil Release
 
-You are the operator interface for an Anvil release. Deterministic release work
-must be performed by checked-in commands, not by re-implementing the workflow in
-agent instructions.
+You are the operator interface for an Anvil release. Separate current
+compatibility execution from the target command-driven model. Deterministic
+release work must be performed by checked-in commands when those commands exist;
+do not describe target commands as executable before RELORCH implements them.
 
 Your responsibilities:
 
@@ -31,9 +32,40 @@ operator explicitly asks for emergency recovery.
 - Issue label: `release`
 - Install site: `https://install.eddacraft.ai`
 
+## Mode Selection
+
+At entry, detect which release model is executable:
+
+1. **Target command mode:** all `scripts/release/*.sh` commands listed below are
+   present and invokable with `bash`, `RELORCH-011` is Complete, and OPMODEL
+   cutover guidance authorises the target flow.
+2. **Current compatibility mode:** target commands are missing but
+   `scripts/release.sh` exists, or target commands exist before cutover authority.
+
+Until `RELORCH-011` implements and wires the target commands, use current
+compatibility mode. Until `OPMODEL-012` completes branch cutover, normal release
+execution remains in the `dev -> main` compatibility model; do not tag a
+main-first target-state flow unless the operator explicitly approves an emergency
+exception.
+
+In compatibility mode, run only the checked-in deterministic preflight unless the
+operator supplies exact release mutation commands for an explicitly approved
+release or emergency recovery:
+
+```bash
+bash scripts/release.sh
+```
+
+After preflight, stop before mutating branches, tags, GitHub Releases, package
+registries, taps, or installer state. Mutating steps are operator-owned in
+compatibility mode: require explicit per-step approval, exact commands, live
+precondition checks, and release-issue logging. Do not improvise missing
+`scripts/release/*` responsibilities. Do not claim compatibility-mode issue notes
+are release records or APS shipped-state evidence.
+
 ## Required Commands
 
-The release skill depends on deterministic helper commands under
+Target command mode depends on deterministic helper commands under
 `scripts/release/`. At entry, verify they exist and are executable or invokable
 with `bash`:
 
@@ -48,8 +80,15 @@ bash scripts/release/verify.sh --help
 bash scripts/release/closeout.sh --help
 ```
 
-If any command is missing, stop and report the missing command. Do not fall back
-to manually performing that command's responsibility.
+If any command is missing in target command mode, stop and report the missing
+command. Do not fall back to manually performing that command's responsibility.
+If the repository is still in current compatibility mode, report that target
+commands are not implemented yet and use `bash scripts/release.sh` as the only
+deterministic release helper.
+
+If target commands exist before RELORCH/OPMODEL cutover authority, do not use
+them as the normal release path. Treat them as implementation under validation
+unless the operator explicitly approves a bounded migration exercise.
 
 Expected command ownership:
 
@@ -69,7 +108,7 @@ Expected command ownership:
 
 ## Entry Flow
 
-1. Verify required commands exist.
+1. Select target command mode or current compatibility mode.
 2. Read live state:
 
 ```bash
@@ -80,20 +119,23 @@ gh issue list --repo EddaCraft/anvil-001 --label release --state open --json num
 
 3. If an open release issue exists, summarise the likely current phase and ask
    whether to resume it or start a new release.
-4. Run assessment:
+4. In current compatibility mode, run `bash scripts/release.sh`, then stop before
+   release mutation. Continue only when the operator provides exact commands and
+   approval for each mutating step. Do not run the target command sequence below.
+5. In target command mode, run assessment:
 
 ```bash
 bash scripts/release/assess.sh --base main --head dev --json
 ```
 
-5. Present the assessment to the operator and ask for confirmation or override
+6. Present the assessment to the operator and ask for confirmation or override
    of version, release type, and branch strategy.
 
 ## Release Flow
 
-After operator confirmation, run the commands in order. Each command must be
-idempotent: if re-run after a partial failure, it should resume or explain the
-conflict.
+After operator confirmation in target command mode, run the commands in order.
+Each command must be idempotent: if re-run after a partial failure, it should
+resume or explain the conflict.
 
 ### 1. Preflight
 
@@ -187,13 +229,19 @@ On any command failure:
 1. Stop immediately.
 2. Summarise the failed command, exit code, and actionable output.
 3. Offer only these choices: retry after fixes, run a command-provided recovery
-   mode, skip with issue-log justification, or abort.
-4. Do not improvise manual equivalents of deterministic commands.
+   mode, or abort.
+4. Do not offer generic skip as a normal path for readiness, tag, publish,
+   provenance, verification, or closeout gates.
+5. Do not improvise manual equivalents of deterministic commands unless the
+   operator approves emergency recovery with exact compensating evidence recorded
+   in the release issue.
 
 ## Resumability
 
-Resume from live state plus structured release metadata. The tracking issue or
-release metadata block should contain at least:
+Resume from live state plus structured release metadata. In compatibility mode,
+the tracking issue is the durable operator log. In target command mode, the
+tracking issue may point to release records but is not shipped-state authority.
+The tracking issue or release metadata block should contain at least:
 
 - `version`
 - `releaseType`
@@ -210,9 +258,12 @@ release metadata block should contain at least:
 - `winget`
 - `installSite`
 
-At resume, run `assess.sh` first and then the appropriate deterministic command
-for the next incomplete phase. If expected state and live state disagree, stop
-and ask the operator which source should be trusted.
+At resume in compatibility mode, read live state and the tracking issue, rerun
+`bash scripts/release.sh` if a fresh preflight is needed, then stop before any
+mutation unless the operator provides exact commands and approval. At resume in
+target command mode, run `assess.sh` first and then the appropriate deterministic
+command for the next incomplete phase. If expected state and live state disagree,
+stop and ask the operator which source should be trusted.
 
 ## Emergency Recovery
 
