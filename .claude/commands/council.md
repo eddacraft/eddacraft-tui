@@ -67,9 +67,9 @@ Council state:
 | `mini` review tier | `mini` council tier |
 | `full` review tier | `full` council tier |
 | `council-reviewer` | `general` |
+| `council-reviewer` with security-sensitive paths | `security` |
 | `adversarial-reviewer` | `adversarial` |
 | `operations-reviewer` | `operations` |
-| `security-reviewer` | `security` |
 | `pragmatic-lead` | `pragmatic` |
 
 ## Routing

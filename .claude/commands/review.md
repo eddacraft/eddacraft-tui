@@ -43,9 +43,9 @@ Translate guidance output before reporting the review:
 | `mini` review tier | `/council mini` |
 | `full` review tier | `/council full` |
 | `council-reviewer` | `general` |
+| `council-reviewer` with security-sensitive paths | `security` |
 | `adversarial-reviewer` | `adversarial` |
 | `operations-reviewer` | `operations` |
-| `security-reviewer` | `security` |
 | `pragmatic-lead` | `pragmatic` |
 
 ## Reviewer Selection
