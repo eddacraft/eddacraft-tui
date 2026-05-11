@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 0/open   |
+| CIB | —     | In Progress | 0/0      |
 
 ## Purpose
 
@@ -23,6 +23,9 @@ This is a standing APS module. It does not close merely because all currently
 listed items are done. Keep it active while the project is active, append new
 items as they are identified, and only archive it if a future APS decision
 explicitly replaces the intake model.
+
+Progress stays numeric for APS drift tooling. Use `0/0` while no items are
+listed, then update it to `done/total` as `CIB-NNN` items are added.
 
 ## In Scope
 
