@@ -90,12 +90,23 @@ assert_block_contains "${rust_workflow}" "^  cross-compile:" "rust-changed == 't
 assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "refs/heads/dev"
 # CICD-011 cycle-2 council: a failed `check` must skip the matrix so a
 # broken `cargo check --workspace` on a `main` push does not spin up
-# six expensive matrix legs. The `always()` from cycle-1 admitted them;
-# the `needs.check.result == 'success' || needs.check.result ==
-# 'skipped'` guard restores the skip path without re-opening the
-# detect-rust-changes silent-skip bug. `workflow_dispatch` is exempt.
+# six expensive matrix legs. `workflow_dispatch` is exempt.
 assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == 'success'"
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == 'skipped'"
+# #1438 follow-up: collapse per-leg detect-rust-changes failure into
+# a single gate job. `cross-compile-gate` is a one-leg ubuntu job
+# that fails fast if `detect-rust-changes` did not succeed; cross-
+# compile then depends on it so the PR UI shows one named failure
+# instead of six identical `Cross (target)` legs.
+assert_contains "${rust_workflow}" '  cross-compile-gate:'
+assert_block_contains "${rust_workflow}" "^  cross-compile-gate:" "github.event_name != 'workflow_dispatch'"
+assert_block_contains "${rust_workflow}" "^  cross-compile-gate:" "Fail if Rust-change detection failed"
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.cross-compile-gate.result == 'success'"
+# #1438 follow-up: the forward-compat `check.result == 'skipped'`
+# clause was dead today (`check` has no `if:` or `needs:`, so it
+# cannot be skipped via cascade). Removed to keep the gate honest.
+# If a future maintainer adds an `if:` guard to `check`, the clause
+# can be reintroduced at that point.
+assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == 'skipped'"
 
 # ── napi.yml: path-gated matrix (correct as-is) ─────────────────
 # The NAPI binding is inherently platform-sensitive; the workflow-level

@@ -385,6 +385,32 @@ jobs:
             exit 1
           fi
 
+  # #1438 follow-up: collapse the six-leg fail-loud pattern (one
+  # `::error::` per matrix target on detect-rust-changes failure) into
+  # a single named gate job. The PR check UI then shows ONE red
+  # `Cross-compile detection gate` instead of six identically-failing
+  # `Cross (target)` legs that mislead 2am triage into looking at Rust
+  # compilation. `cross-compile` depends on the gate (plus `check`),
+  # so detect-rust-changes failure now skips the matrix instead of
+  # spinning it up just to fail in setup.
+  cross-compile-gate:
+    name: Cross-compile detection gate
+    # Skip on `workflow_dispatch` — operators may dispatch against any
+    # ref, with or without a healthy change-detection signal. The gate
+    # is the safety net for trigger-driven runs only.
+    if: always() && github.event_name != 'workflow_dispatch'
+    needs: detect-rust-changes
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Fail if Rust-change detection failed
+        if: needs.detect-rust-changes.result != 'success'
+        run: |
+          echo "::error::detect-rust-changes did not complete (result=${{ needs.detect-rust-changes.result }}); refusing to run the cross-compile matrix in an unknown change-detection state. Re-run the workflow once detection is healthy, or use \`workflow_dispatch\` to bypass."
+          exit 1
+
   cross-compile:
     name: Cross (${{ matrix.target }})
     # Run cross-compilation (incl. the Windows matrix) on release-gate
@@ -413,32 +439,23 @@ jobs:
     # moved in the dispatched ref.
     #
     # CICD-011 cycle-2 council: scope the override so a `detect-rust-
-    # changes` failure fails-loud (cycle-1 intent) but a `check` failure
-    # still skips the matrix (cycle-1 regression). The plain `always()`
-    # from cycle-1 overrode GitHub's default skip-on-needs-failure for
-    # *all* `needs:` jobs — including `check` — so a broken
-    # `cargo check --workspace` on a `main` push spun up six matrix legs
-    # before failing in setup. The conditional below admits the matrix
-    # only when `check` itself reports `success`, while still running on
-    # a `detect-rust-changes` failure so the in-step guard can hard-stop
-    # with a clear error. `workflow_dispatch` bypasses both guards —
+    # changes` failure fails-loud (now via `cross-compile-gate`) but a
+    # `check` failure still skips the matrix (cycle-1 regression). The
+    # plain `always()` from cycle-1 overrode GitHub's default skip-on-
+    # needs-failure for *all* `needs:` jobs — including `check` — so a
+    # broken `cargo check --workspace` on a `main` push spun up six
+    # matrix legs before failing in setup. The conditional below
+    # admits the matrix only when both `check` and `cross-compile-gate`
+    # report `success`. `workflow_dispatch` bypasses both guards —
     # operators may run the matrix without `check` (the dispatch entry
-    # point in rust.yml has no `needs:` resolution from a normal trigger
-    # event).
-    #
-    # The `result == 'skipped'` clause is forward-compatibility: `check`
-    # has no job-level `if:` and no `needs:` today, so it can never
-    # report `skipped` via the cascade — workflow-level path filtering
-    # skips the entire run, not individual jobs. If a future maintainer
-    # adds an `if:` guard to `check` (e.g. to bypass it on tag-only
-    # events), this clause keeps cross-compile admissible in that case
-    # rather than treating the skip as failure. The matrix-targeting
-    # fixture locks the clause so it cannot be silently dropped.
+    # point in rust.yml has no `needs:` resolution from a normal
+    # trigger event).
     if: >-
       always() && (
         github.event_name == 'workflow_dispatch' ||
         (
-          (needs.check.result == 'success' || needs.check.result == 'skipped') &&
+          needs.check.result == 'success' &&
+          needs.cross-compile-gate.result == 'success' &&
           (
             (
               (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
@@ -448,13 +465,12 @@ jobs:
                 (startsWith(github.head_ref, 'release/') ||
                  startsWith(github.head_ref, 'hotfix/')))
             ) &&
-            (needs.detect-rust-changes.result != 'success' ||
-             needs.detect-rust-changes.outputs.rust-changed == 'true')
+            needs.detect-rust-changes.outputs.rust-changed == 'true'
           )
         )
       )
     runs-on: ${{ matrix.os }}
-    needs: [check, detect-rust-changes]
+    needs: [check, detect-rust-changes, cross-compile-gate]
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -479,19 +495,6 @@ jobs:
             os: windows-latest
             can_test: false
     steps:
-      # CICD-011 council follow-up: hard-stop the matrix leg if
-      # `detect-rust-changes` did not complete. Runs before any
-      # expensive setup so the per-incident runner cost is bounded to
-      # spin-up time. `workflow_dispatch` skips this check — operators
-      # may dispatch on refs where detection didn't run.
-      - name: Fail when Rust-change detection failed
-        if: |
-          github.event_name != 'workflow_dispatch' &&
-          needs.detect-rust-changes.result != 'success'
-        run: |
-          echo "::error::detect-rust-changes did not complete (result=${{ needs.detect-rust-changes.result }}); refusing to run the cross-compile matrix in an unknown change-detection state"
-          exit 1
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1

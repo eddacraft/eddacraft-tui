@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -286,11 +286,22 @@ for (const item of items.filter((entry) => entry.status === 'Released/Shipped'))
 // work item ID (e.g. `CICD-005`, `OPMODEL-012`) anywhere in its title or body,
 // or explicitly opt out via an `Unplanned-work:` line in the body. Falls
 // through silently when no PR metadata was supplied (e.g. push events).
-// CICD-011 council follow-up: `[a-z]?` mirrors the headingPattern so PR
-// references to suffixed IDs (e.g. `RCLI3-016b`) are matched. The trailing
-// `\b` is preserved so `OAUTH2-001x123` still doesn't match.
-const apsWorkItemPattern = /\b[A-Z][A-Z0-9]{1,15}-\d{3}[a-z]?\b/g;
+//
+// Pattern notes (#1438 follow-up):
+//   - `[a-z]?` after `\d{3}` admits suffixed IDs (`RCLI3-016b`).
+//   - `(?<![\w-])` negative lookbehind prevents `pre-FIX-001` from matching
+//     `FIX-001`: `-` is a non-word char, so `\b` alone would accept the
+//     hyphen-preceded form. The lookbehind also covers `\w`, which is what
+//     a normal `\b` already gives us.
+//   - The character class `[A-Z][A-Z0-9]{1,15}` deliberately admits
+//     digit-tail prefixes like `RCLI3` because that's a real module prefix.
+//     False positives from `HTTP-404` / `EC2-123` / `TLS13-001` are handled
+//     downstream by checking against known APS prefixes — if the matched
+//     token's prefix isn't a prefix any module declares, treat it as
+//     non-APS noise rather than a malformed reference.
+const apsWorkItemPattern = /(?<![\w-])[A-Z][A-Z0-9]{1,15}-\d{3}[a-z]?\b/g;
 const knownApsItems = new Set(items.map((entry) => entry.id));
+const knownApsPrefixes = new Set([...knownApsItems].map((id) => id.split('-')[0]));
 if (prTitle || prBodyPath) {
   const prBody = prBodyPath && existsSync(prBodyPath) ? readText(prBodyPath) : '';
   // PR #1439 council follow-up: scan ALL APS-shaped tokens in title +
@@ -299,18 +310,31 @@ if (prTitle || prBodyPath) {
   // CICD-005 path` would extract `HTTP-404` first and fire a false-
   // positive `pr-aps-reference-unknown` even though CICD-005 is a
   // legitimate reference. The spec rule is "reference at least one
-  // APS work item anywhere", so the right policy is:
+  // APS work item anywhere".
+  //
+  // #1438 follow-up: route tokens by prefix awareness.
   //   - if ANY match is in knownApsItems → silent (resolved)
-  //   - else if AT LEAST ONE match exists → `pr-aps-reference-unknown`
-  //     names a representative unknown token (first one) so the
-  //     operator knows what to investigate
-  //   - else (no matches) → fall through to the missing/opt-out check
+  //   - else if a match has a KNOWN prefix but unknown ID
+  //     (e.g. `CICD-999` against a `CICD` module) → `pr-aps-reference-
+  //     unknown` names that token — the operator typed an APS-shaped
+  //     reference that doesn't resolve, worth investigating
+  //   - else (matches exist but no prefix matches a real module —
+  //     `HTTP-404`, `EC2-123`, etc.) → treat as non-APS noise and
+  //     fall through to the missing/opt-out check
+  //   - else (no matches at all) → missing/opt-out check
   const titleMatches = [...prTitle.matchAll(apsWorkItemPattern)].map((m) => m[0]);
   const bodyMatches = [...prBody.matchAll(apsWorkItemPattern)].map((m) => m[0]);
   const allMatches = [...titleMatches, ...bodyMatches];
   const knownMatch = allMatches.find((id) => knownApsItems.has(id));
-  const firstUnknown = allMatches.find((id) => !knownApsItems.has(id));
-  const unplannedOptOut = /^\s*Unplanned-work:\s*\S+/im.test(prBody);
+  const knownPrefixUnknownId = allMatches.find(
+    (id) => !knownApsItems.has(id) && knownApsPrefixes.has(id.split('-')[0])
+  );
+  // #1438 follow-up: `Unplanned-work:` opt-out is now case-sensitive
+  // and requires a value of at least 4 non-whitespace characters. The
+  // old `/i` flag silently absorbed prose lines like `This is
+  // unplanned-work: see thread`; the length requirement stops trivial
+  // `Unplanned-work: x` from satisfying it.
+  const unplannedOptOut = /^\s*Unplanned-work:\s*\S{4,}/m.test(prBody);
   // CICD-011 council follow-up: surface a `pr-aps-check-degraded`
   // advisory when no known items are loaded. The earlier
   // `knownApsItems.size > 0` guard on `pr-aps-reference-unknown` was
@@ -334,18 +358,24 @@ if (prTitle || prBodyPath) {
       'pr-aps-check-degraded',
       'No APS work items extracted from plans/modules/ — PR-reference checks are disabled for this run.'
     );
-  } else if (allMatches.length === 0 && !unplannedOptOut) {
+  } else if (knownMatch) {
+    // At least one match resolves to a real APS item — silent. No
+    // finding.
+  } else if (knownPrefixUnknownId) {
+    addFinding(
+      'pr-aps-reference-unknown',
+      `PR references APS work item ${knownPrefixUnknownId}, but no module under plans/modules/ declares that ID.`,
+      {
+        apsItem: knownPrefixUnknownId,
+      }
+    );
+  } else if (!unplannedOptOut) {
+    // No match resolved to a known APS ID *and* no match's prefix is
+    // a known module prefix (so any matches were `HTTP-404`-style
+    // false positives, not malformed APS refs). Treat as missing.
     addFinding(
       'pr-missing-aps-reference',
       'PR title and body do not reference an APS work item (e.g. `CICD-005`) and do not declare `Unplanned-work:` in the body.'
-    );
-  } else if (!knownMatch && firstUnknown) {
-    addFinding(
-      'pr-aps-reference-unknown',
-      `PR references APS work item ${firstUnknown}, but no module under plans/modules/ declares that ID.`,
-      {
-        apsItem: firstUnknown,
-      }
     );
   }
 }
@@ -362,6 +392,45 @@ if (json) {
   } else {
     for (const finding of findings) {
       console.log(`- [${finding.code}] ${finding.message}`);
+    }
+  }
+
+  // #1438 follow-up: drift advisories live in raw job logs by default,
+  // which `continue-on-error: true` renders as an ignorable yellow ✓.
+  // Surface them via GitHub Actions workflow commands when we detect a
+  // runner context:
+  //   - `::warning::` emits a Files-Changed-tab annotation so the
+  //     finding appears in the PR review surface as well as the job
+  //     log.
+  //   - `$GITHUB_STEP_SUMMARY` writes a Markdown block visible in the
+  //     job summary panel, giving operators a single discoverable view
+  //     without log-diving.
+  // We DO NOT mutate exit code — these remain advisory.
+  if (process.env.GITHUB_ACTIONS === 'true' && findings.length > 0) {
+    for (const finding of findings) {
+      // Workflow-command escaping: `::warning::` parses commas in the
+      // message body as parameter separators, so collapse newlines and
+      // strip embedded `::` to avoid breaking the annotation.
+      const safe = finding.message.replace(/[\r\n]+/g, ' ').replace(/::/g, ':');
+      console.log(`::warning title=APS drift / ${finding.code}::${safe}`);
+    }
+    const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+    if (summaryPath) {
+      try {
+        const lines = ['## APS drift findings', ''];
+        lines.push(
+          `Advisory-only — ${findings.length} finding${findings.length === 1 ? '' : 's'}:`
+        );
+        lines.push('');
+        for (const finding of findings) {
+          lines.push(`- \`${finding.code}\` — ${finding.message}`);
+        }
+        lines.push('');
+        appendFileSync(summaryPath, `${lines.join('\n')}\n`);
+      } catch {
+        // Best-effort observability surface — never fail the run on a
+        // step-summary write error.
+      }
     }
   }
 }

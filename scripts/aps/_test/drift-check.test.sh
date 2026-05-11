@@ -20,6 +20,27 @@ if (!doc.findings.some((finding) => finding.code === code)) {
 ' "$code"
 }
 
+# #1438 follow-up: assert the message text on load-bearing findings so
+# a silent rename (refactor that changes the human-readable message)
+# is caught. The `code` field is the machine-readable surface, but the
+# message is what operators read in the CI log — keep both stable.
+assert_json_has_message_substring() {
+  local json="$1"
+  local code="$2"
+  local substring="$3"
+  printf '%s' "$json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const [code, substring] = process.argv.slice(1);
+const finding = doc.findings.find((f) => f.code === code);
+if (!finding) {
+  throw new Error(`no finding with code: ${code}\n${JSON.stringify(doc, null, 2)}`);
+}
+if (!finding.message || !finding.message.includes(substring)) {
+  throw new Error(`finding ${code} message did not include substring "${substring}"; got: ${finding.message}`);
+}
+' "$code" "$substring"
+}
+
 write_module() {
   local path="$1"
   mkdir -p "$(dirname "$path")"
@@ -92,6 +113,13 @@ assert_json_has_code "$candidate_json" 'changed-file-without-aps-reference'
 assert_json_has_code "$candidate_json" 'candidate-missing-merged-aps-item'
 assert_json_has_code "$candidate_json" 'shipped-aps-without-release-record'
 
+# #1438 follow-up: lock the message text on load-bearing findings so
+# silent renames are caught. `changed-file-without-aps-reference` is
+# the one operators most often act on, and `aps-progress-mismatch`'s
+# `/N` count is the regression sentinel for the b-suffix fix.
+assert_json_has_message_substring "$candidate_json" 'changed-file-without-aps-reference' 'src/unknown.ts'
+assert_json_has_message_substring "$candidate_json" 'aps-progress-mismatch' '/5'
+
 cat > "$tmp/published.json" <<'EOF'
 {
   "lifecycleState": "published",
@@ -148,10 +176,40 @@ if (!/\/5/.test(finding.message)) {
 }
 '; then echo "extractModule did not count the b-suffix item" >&2; exit 1; fi
 
-# A PR that references an APS work item that no module declares flags
-# `pr-aps-reference-unknown`.
-pr_unknown_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat: NOPE-999 something else' --json)"
+# A PR that references a KNOWN prefix with an unknown ID
+# (e.g. `FIX-999` against the `FIX` fixture module) flags
+# `pr-aps-reference-unknown` — the operator typed an APS-shaped reference
+# that doesn't resolve to any declared item under that prefix.
+pr_unknown_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat: FIX-999 something else' --json)"
 assert_json_has_code "$pr_unknown_json" 'pr-aps-reference-unknown'
+
+# #1438 follow-up: prefix-unknown tokens (e.g. `NOPE-999`,
+# `HTTP-404`, `EC2-123` against a fixture that only declares `FIX`)
+# are treated as non-APS noise and fall through to
+# `pr-missing-aps-reference` rather than `pr-aps-reference-unknown`.
+# This stops common phrases like "fix HTTP-404 errors" from
+# misleading operators with a fake unknown-reference warning.
+pr_noise_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat: fix HTTP-404 errors' --json)"
+assert_json_has_code "$pr_noise_json" 'pr-missing-aps-reference'
+if printf '%s' "$pr_noise_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-aps-reference-unknown")) {
+  throw new Error("non-APS token with unknown prefix must not fire pr-aps-reference-unknown");
+}
+'; then :; else echo "noise-token classification broke: HTTP-404 mislabeled as unknown-reference" >&2; exit 1; fi
+
+# #1438 follow-up: `pre-FIX-001` must not match `FIX-001` via the
+# trailing word-boundary on `pre-`. Negative lookbehind `(?<![\w-])`
+# rejects the hyphen-preceded form. A PR title with only this string
+# should be classified as missing (no real APS reference).
+pr_prehyphen_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'docs: ref pre-FIX-001 inline' --json)"
+assert_json_has_code "$pr_prehyphen_json" 'pr-missing-aps-reference'
+if printf '%s' "$pr_prehyphen_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-aps-reference-unknown")) {
+  throw new Error("hyphen-preceded prose like pre-FIX-001 must not match the APS pattern");
+}
+'; then :; else echo "negative lookbehind regression: pre-FIX-001 leaked through" >&2; exit 1; fi
 
 # PR #1439 council follow-up: scan ALL APS-shaped tokens, not just the
 # first match. A PR like `addresses HTTP-404 in FIX-001 path` mentions
@@ -169,6 +227,7 @@ if (doc.findings.some((f) => f.code === "pr-missing-aps-reference" || f.code ===
 '; then :; else echo "pr-metadata scan-all-matches missed a known reference next to an unknown token" >&2; exit 1; fi
 
 # A PR with `Unplanned-work:` opt-out in the body suppresses the warning.
+# Value must be at least 4 non-whitespace characters (#1438 follow-up).
 printf 'Unplanned-work: production hotfix\n' > "$tmp/pr-body.txt"
 pr_unplanned_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'fix: prod regression' --pr-body-file "$tmp/pr-body.txt" --json)"
 if printf '%s' "$pr_unplanned_json" | node -e '
@@ -177,6 +236,21 @@ if (doc.findings.some((f) => f.code === "pr-missing-aps-reference")) {
   throw new Error("did not expect pr-missing-aps-reference when Unplanned-work: is declared");
 }
 '; then :; else echo "pr-metadata false-positive on Unplanned-work opt-out" >&2; exit 1; fi
+
+# #1438 follow-up: trivial opt-out values (< 4 chars) must NOT
+# satisfy the opt-out. `Unplanned-work: x` is just dismissive boilerplate;
+# require a real justification token like `hotfix` or `incident-1234`.
+printf 'Unplanned-work: x\n' > "$tmp/pr-body-trivial.txt"
+pr_trivial_optout_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'fix: ad-hoc' --pr-body-file "$tmp/pr-body-trivial.txt" --json)"
+assert_json_has_code "$pr_trivial_optout_json" 'pr-missing-aps-reference'
+
+# #1438 follow-up: case-sensitive header — prose like `This is
+# unplanned-work: see thread` (lowercase, narrative) must NOT count
+# as an opt-out. Only the exact `Unplanned-work:` form (capitalised
+# marker, line-anchored) qualifies.
+printf 'This is unplanned-work: see linked thread\n' > "$tmp/pr-body-lowercase.txt"
+pr_prose_optout_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'docs: thread context' --pr-body-file "$tmp/pr-body-lowercase.txt" --json)"
+assert_json_has_code "$pr_prose_optout_json" 'pr-missing-aps-reference'
 
 # CICD-011 council follow-up: when plans/modules/ is missing or empty,
 # the PR-aps-reference-unknown check is degraded — drift-check must
