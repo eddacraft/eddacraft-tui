@@ -32,9 +32,9 @@ Do **not** use this playbook for:
 
 ## Required access
 
-- Repo admin on `EddaCraft/anvil-001` (branch protection, default branch).
+- Repo admin on `eddacraft/anvil-001` (branch protection, default branch).
 - Push access to `main` and `dev`.
-- `gh` authenticated against `EddaCraft/anvil-001`.
+- `gh` authenticated against `eddacraft/anvil-001`.
 
 ## Pre-flight
 
@@ -81,7 +81,7 @@ Announce in the team channel that merges to `dev` are frozen. Confirm no
 in-flight CI on `dev`:
 
 ```bash
-gh run list --repo EddaCraft/anvil-001 --branch dev --limit 5 \
+gh run list --repo eddacraft/anvil-001 --branch dev --limit 5 \
   --json status,conclusion,workflowName,headSha
 ```
 
@@ -140,7 +140,7 @@ git rm .github/workflows/pr-base-guard.yml
 # release-harness.yml, rust.yml, security.yml per the Phase 0 audit.
 git commit -m "chore(ci): retire pr-base-guard after main-first cutover"
 git push -u origin chore/opmodel-012-workflow-cleanup
-gh pr create --repo EddaCraft/anvil-001 --base main \
+gh pr create --repo eddacraft/anvil-001 --base main \
   --title "chore(ci): retire pr-base-guard after main-first cutover" \
   --body "Per OPMODEL-012 Phase 2; see docs/runbooks/main-first-cutover.md."
 ```
@@ -159,7 +159,7 @@ move to fix-forward.
 Verify the workflow is gone:
 
 ```bash
-gh api repos/EddaCraft/anvil-001/contents/.github/workflows/pr-base-guard.yml \
+gh api repos/eddacraft/anvil-001/contents/.github/workflows/pr-base-guard.yml \
   2>&1 | grep -q '"message": "Not Found"' && echo "deleted" || echo "still present"
 ```
 
@@ -185,7 +185,7 @@ rather than legacy branch protection.
 # Replace REQUIRED_CHECKS with the operator-confirmed list.
 REQUIRED_CHECKS='["APS Drift Check","Docs Lint","Lint & Format","Type Check","Unit Tests (Node 22.x, ubuntu-latest)","Security Summary","Detect Changes"]'
 
-gh api -X PUT repos/EddaCraft/anvil-001/branches/main/protection \
+gh api -X PUT repos/eddacraft/anvil-001/branches/main/protection \
   -H "Accept: application/vnd.github+json" \
   --input - <<EOF
 {
@@ -215,7 +215,7 @@ paths exist.
 Verify:
 
 ```bash
-gh api repos/EddaCraft/anvil-001/branches/main/protection \
+gh api repos/eddacraft/anvil-001/branches/main/protection \
   --jq '{required_checks: .required_status_checks.contexts, reviews: .required_pull_request_reviews.required_approving_review_count, force_push: .allow_force_pushes.enabled, deletions: .allow_deletions.enabled}'
 ```
 
@@ -225,8 +225,8 @@ Expect: required-check list matches `REQUIRED_CHECKS`,
 ### 6. Set `main` as repo default branch
 
 ```bash
-gh api -X PATCH repos/EddaCraft/anvil-001 -f default_branch=main
-gh api repos/EddaCraft/anvil-001 --jq .default_branch     # must print "main"
+gh api -X PATCH repos/eddacraft/anvil-001 -f default_branch=main
+gh api repos/eddacraft/anvil-001 --jq .default_branch     # must print "main"
 ```
 
 Open a small **non-empty** test PR against `main` to confirm the default-branch
@@ -272,7 +272,7 @@ than a permanent stub.
   git tag "${RETIREMENT_TAG}" origin/dev
   git push origin "${RETIREMENT_TAG}"
 
-  gh api -X PUT repos/EddaCraft/anvil-001/branches/dev/protection \
+  gh api -X PUT repos/eddacraft/anvil-001/branches/dev/protection \
     -H "Accept: application/vnd.github+json" \
     --input - <<'EOF'
   {
@@ -344,7 +344,7 @@ cases).
 The cutover is verified when all of the following hold:
 
 - `git rev-parse origin/main` equals the SHA captured in Step 3.
-- Default branch on `EddaCraft/anvil-001` is `main`
+- Default branch on `eddacraft/anvil-001` is `main`
   (`gh api repos/... --jq .default_branch`).
 - Branch protection on `main` is active with the operator-confirmed required
   checks (`gh api repos/.../branches/main/protection`).
@@ -367,11 +367,11 @@ will not be reviewed without these):
 git rev-parse origin/main
 
 # Branch protection summary:
-gh api repos/EddaCraft/anvil-001/branches/main/protection \
+gh api repos/eddacraft/anvil-001/branches/main/protection \
   --jq '{required_checks: .required_status_checks.contexts, reviews: .required_pull_request_reviews.required_approving_review_count, force_push: .allow_force_pushes.enabled, deletions: .allow_deletions.enabled}'
 
 # Default branch:
-gh api repos/EddaCraft/anvil-001 --jq .default_branch
+gh api repos/eddacraft/anvil-001 --jq .default_branch
 ```
 
 Record each verification in the OPMODEL-012 completion line on the module file
@@ -408,13 +408,13 @@ happen after Step 4 has merged, so `dev`-deleted implies past-boundary.)
 2. Remove branch protection on `main`:
 
    ```bash
-   gh api -X DELETE repos/EddaCraft/anvil-001/branches/main/protection
+   gh api -X DELETE repos/eddacraft/anvil-001/branches/main/protection
    ```
 
 3. Restore the default branch to `dev` if it was changed:
 
    ```bash
-   gh api -X PATCH repos/EddaCraft/anvil-001 -f default_branch=dev
+   gh api -X PATCH repos/eddacraft/anvil-001 -f default_branch=dev
    ```
 
 4. Restore `pr-base-guard.yml` if it was deleted. Use a content-addressed
@@ -446,7 +446,7 @@ happen after Step 4 has merged, so `dev`-deleted implies past-boundary.)
    If `dev` was protect-and-kept, just remove the restrictive protection:
 
    ```bash
-   gh api -X DELETE repos/EddaCraft/anvil-001/branches/dev/protection
+   gh api -X DELETE repos/eddacraft/anvil-001/branches/dev/protection
    ```
 
 6. Reset local `origin/HEAD` for everyone with a clone:

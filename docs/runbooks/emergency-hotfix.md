@@ -34,7 +34,7 @@ Do **not** use this playbook for:
 
 ## Required access
 
-- Push access to `EddaCraft/anvil-001` and the public mirror as required for
+- Push access to `eddacraft/anvil-001` and the public mirror as required for
   release.
 - `gh` authenticated against both repos.
 - Permission to publish GitHub Releases and update Homebrew, Scoop, WinGet, and
@@ -80,8 +80,8 @@ issue labelled `release`) before any branch mutation.
 ```bash
 git fetch origin --tags
 git tag --sort=-creatordate | head -5
-gh release view --repo EddaCraft/anvil-001 --json tagName,name,publishedAt
-gh issue list --repo EddaCraft/anvil-001 --label release --state open \
+gh release view --repo eddacraft/anvil-001 --json tagName,name,publishedAt
+gh issue list --repo eddacraft/anvil-001 --label release --state open \
   --json number,title,url
 ```
 
@@ -116,7 +116,7 @@ fix the drift in a separate PR after the hotfix ships; do not bundle.
 Hotfix PRs target `main` directly.
 
 ```bash
-gh pr create --repo EddaCraft/anvil-001 --base main \
+gh pr create --repo eddacraft/anvil-001 --base main \
   --title "fix: <one-line reason>" \
   --body "$(cat <<'EOF'
 ## Reason

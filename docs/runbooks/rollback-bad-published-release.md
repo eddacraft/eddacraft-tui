@@ -1,8 +1,8 @@
 # Rollback Bad Published Release
 
 > **Owner:** Release council **Scope:** Released versions — the tag is pushed,
-> GitHub Releases are published on `EddaCraft/anvil-001` (private) and/or
-> `EddaCraft/anvil` (public), and at least one downstream surface (Homebrew,
+> GitHub Releases are published on `eddacraft/anvil-001` (private) and/or
+> `eddacraft/anvil` (public), and at least one downstream surface (Homebrew,
 > Scoop, WinGet, install site) may have already updated. **Companion
 > playbooks:** [`rollback-bad-main.md`](./rollback-bad-main.md),
 > [`rollback-bad-candidate-artefact.md`](./rollback-bad-candidate-artefact.md),
@@ -42,7 +42,7 @@ but no tag has been pushed against it — switch to
 
 ## Required access
 
-- Push access to `EddaCraft/anvil-001` (and `EddaCraft/anvil` for public
+- Push access to `eddacraft/anvil-001` (and `eddacraft/anvil` for public
   mirroring of release artefacts where applicable).
 - `gh` authenticated against both repos.
 - Permission to publish or yank GitHub Releases on both repos.
@@ -76,9 +76,9 @@ must be quoted inline.
 ### Inspect published state
 
 ```bash
-gh release view <tag> --repo EddaCraft/anvil-001
-gh release view <tag> --repo EddaCraft/anvil    # public mirror, if applicable
-gh api repos/EddaCraft/anvil-001/releases/tags/<tag> --jq '.assets[].name'
+gh release view <tag> --repo eddacraft/anvil-001
+gh release view <tag> --repo eddacraft/anvil    # public mirror, if applicable
+gh api repos/eddacraft/anvil-001/releases/tags/<tag> --jq '.assets[].name'
 curl -sSI https://install.eddacraft.ai/ | head -5
 ```
 
@@ -127,8 +127,8 @@ installer resolution; `--prerelease` is a separate signal and should not be
 toggled as part of a yank:
 
 ```bash
-gh release edit <bad-tag> --repo EddaCraft/anvil-001 --draft=true
-gh release edit <bad-tag> --repo EddaCraft/anvil --draft=true
+gh release edit <bad-tag> --repo eddacraft/anvil-001 --draft=true
+gh release edit <bad-tag> --repo eddacraft/anvil --draft=true
 ```
 
 Stop and ask the operator before each step. For installers:
@@ -148,8 +148,8 @@ Tag and assets stay. Edit release notes and the release-record `releaseNote`
 text in place:
 
 ```bash
-gh release edit <tag> --repo EddaCraft/anvil-001 --notes-file <fixed-notes.md>
-gh release edit <tag> --repo EddaCraft/anvil --notes-file <fixed-notes.md>
+gh release edit <tag> --repo eddacraft/anvil-001 --notes-file <fixed-notes.md>
+gh release edit <tag> --repo eddacraft/anvil --notes-file <fixed-notes.md>
 ```
 
 Add an inline note in the release record explaining what the original notes got

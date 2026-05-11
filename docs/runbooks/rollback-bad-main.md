@@ -32,8 +32,8 @@ against the bad commit — switch to
 
 ## Required access
 
-- Push access to `EddaCraft/anvil-001` for the target branch (compat: `main`).
-- `gh` authenticated against `EddaCraft/anvil-001`.
+- Push access to `eddacraft/anvil-001` for the target branch (compat: `main`).
+- `gh` authenticated against `eddacraft/anvil-001`.
 - Write access to the open release tracking issue (`label:release`) if one is
   open.
 - Operator approval to freeze promotion is required before any branch mutation.
@@ -58,7 +58,7 @@ issue labelled `release` if none is open) before mutating the branch.
 Before any mutation:
 
 ```bash
-gh pr list --repo EddaCraft/anvil-001 --base main --state open \
+gh pr list --repo eddacraft/anvil-001 --base main --state open \
   --json number,title,headRefName,statusCheckRollup
 ```
 
@@ -72,8 +72,8 @@ merge any further PR into the target branch until the recovery commit is in.
 ```bash
 git fetch origin
 git log --oneline origin/main -n 20
-gh run list --repo EddaCraft/anvil-001 --branch main --limit 10
-gh run view --repo EddaCraft/anvil-001 <run-id> --log-failed
+gh run list --repo eddacraft/anvil-001 --branch main --limit 10
+gh run view --repo eddacraft/anvil-001 <run-id> --log-failed
 ```
 
 Identify the commit (or commit range) that introduced the breakage.
@@ -90,7 +90,7 @@ git revert --no-edit <bad-sha>           # or: git revert --no-edit <range>
 Open the PR:
 
 ```bash
-gh pr create --repo EddaCraft/anvil-001 --base main \
+gh pr create --repo eddacraft/anvil-001 --base main \
   --title "revert: <one-line reason>" \
   --body "$(cat <<'EOF'
 ## Reason

@@ -37,7 +37,7 @@ switch to
 
 ## Required access
 
-- Read access to the readiness workflow runs on `EddaCraft/anvil-001`.
+- Read access to the readiness workflow runs on `eddacraft/anvil-001`.
 - Write access to the open release tracking issue (`label:release`) and to the
   candidate release-record location (compatibility mode: tracking-issue comment
   block; target mode: the record location chosen by RELORCH-001).
@@ -66,10 +66,10 @@ making changes to artefacts or records.
 ### Inspect candidate state
 
 ```bash
-gh run list --repo EddaCraft/anvil-001 \
+gh run list --repo eddacraft/anvil-001 \
   --workflow release-readiness.yml --limit 10
-gh run view --repo EddaCraft/anvil-001 <run-id> --log-failed
-gh release list --repo EddaCraft/anvil-001 --exclude-drafts=false | head -20
+gh run view --repo eddacraft/anvil-001 <run-id> --log-failed
+gh release list --repo eddacraft/anvil-001 --exclude-drafts=false | head -20
 ```
 
 If candidate artefacts were uploaded as a draft release or workflow artefact,
@@ -82,14 +82,14 @@ Delete the artefacts and record the discard in the candidate record:
 ```bash
 # Draft release path:
 gh release delete <candidate-tag-or-name> \
-  --repo EddaCraft/anvil-001 --cleanup-tag --yes
+  --repo eddacraft/anvil-001 --cleanup-tag --yes
 
 # Workflow artefact path — list, then delete each artefact by ID:
-gh api repos/EddaCraft/anvil-001/actions/runs/<run-id>/artifacts \
+gh api repos/eddacraft/anvil-001/actions/runs/<run-id>/artifacts \
   --jq '.artifacts[] | "\(.id)\t\(.name)"'
-gh api -X DELETE repos/EddaCraft/anvil-001/actions/artifacts/<artifact-id>
+gh api -X DELETE repos/eddacraft/anvil-001/actions/artifacts/<artifact-id>
 # Optional once all artefacts are deleted: also delete the run record itself.
-gh run delete --repo EddaCraft/anvil-001 <run-id>
+gh run delete --repo eddacraft/anvil-001 <run-id>
 ```
 
 `gh run delete` removes the run from the Actions UI but leaves uploaded
@@ -109,14 +109,14 @@ five inputs per
 
 ```bash
 gh workflow run release-readiness.yml \
-  --repo EddaCraft/anvil-001 \
+  --repo eddacraft/anvil-001 \
   --ref <known-good-sha> \
   --field sourceSha=<known-good-sha> \
   --field mode=<readiness|candidate-artifacts> \
   --field channel=<beta|stable> \
   --field expectedReachableFrom=<main|migration-dev> \
   --field baseBoundary=<previous-tag-or-sha>
-gh run watch --repo EddaCraft/anvil-001 <new-run-id>
+gh run watch --repo eddacraft/anvil-001 <new-run-id>
 ```
 
 All five `--field` values are required; omitting any of them fails dispatch with

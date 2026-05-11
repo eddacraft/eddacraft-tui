@@ -132,7 +132,7 @@ The tag command must verify:
 - local and remote `main` agree
 - the version on `main` is correct
 - release-readiness passed for the exact source SHA
-- the remote is `EddaCraft/anvil-001`
+- the remote is `eddacraft/anvil-001`
 - provenance state is recorded before tag push
 
 #### 6. Monitor Publishing
@@ -156,8 +156,8 @@ bash scripts/release/verify.sh --version <version> --source-sha <promoted-source
 
 Verification must confirm:
 
-- private GitHub release exists on `EddaCraft/anvil-001`
-- public GitHub release exists on `EddaCraft/anvil`
+- private GitHub release exists on `eddacraft/anvil-001`
+- public GitHub release exists on `eddacraft/anvil`
 - expected cargo-dist assets are present
 - provenance names the build source SHA and workflow run
 - Homebrew, Scoop, and WinGet publication state is recorded
@@ -179,7 +179,7 @@ Anvil CLI <version> is live.
 
 Install:
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh \
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh \
   | sh
 ```
 
