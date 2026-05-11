@@ -21,7 +21,7 @@
     "@eddacraft/anvil-ports": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.6.2",
     "vitest": "^4.1.5"
   },
   "keywords": [
