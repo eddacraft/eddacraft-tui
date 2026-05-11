@@ -377,8 +377,11 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-006: `scripts/release/promote.sh`
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Phase:** 2
+- **Execution authorisation:** Operator request "move on to RELORCH-005 and
+  RELORCH-006 in parallel" on 2026-05-11 authorises executing this item from
+  Proposed state under `plans/aps-rules.md` status rule 1.
 - **Intent:** Open or resume the promotion PR (direct or stabilisation
   branch), report merge status, surface conflict / review-block conditions.
 - **Expected Outcome:** Re-running while the PR is open returns "awaiting
@@ -386,6 +389,11 @@ phases, with the rest explicitly Phase-2-tracked.
   proceed.
 - **Validation:** Harness contract green; dry run reproduces existing
   release-PR shape on a scratch branch.
+- **Progress:** 2026-05-11 — Added the initial local/dry-run
+  `scripts/release/promote.sh` implementation plus command-specific tests for
+  compatibility promotion planning, target-mode noop, invalid arguments, and
+  help output. Remaining before completion: GitHub promotion PR create/resume,
+  review/conflict state inspection, and post-merge readiness request/resume.
 - **Files:** `scripts/release/promote.sh`.
 
 ---
