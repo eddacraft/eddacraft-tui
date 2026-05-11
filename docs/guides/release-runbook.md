@@ -94,11 +94,11 @@ Run the release skill:
 ```
 
 The skill reads live state, checks for open release issues, and runs assessment
-against the selected `main` SHA (exact form gated on RELORCH-011's final command
-contract):
+against the selected `main` SHA. `assess.sh` accepts target-mode inputs
+`--base <previous-tag> --source-sha <main-sha>`; `--base` is required.
 
 ```bash
-bash scripts/release/assess.sh --sha <main-sha> --json
+bash scripts/release/assess.sh --base <previous-tag> --source-sha <main-sha> --json
 ```
 
 Approve or override the proposed:
@@ -109,8 +109,12 @@ Approve or override the proposed:
 
 #### 2. Run Preflight
 
+`preflight.sh` runs deterministic local gates. `--base` and `--head` are
+optional and only used for the JSON record of what was compared; preflight
+itself does not require a SHA input.
+
 ```bash
-bash scripts/release/preflight.sh --sha <main-sha>
+bash scripts/release/preflight.sh --base <previous-tag>
 ```
 
 This must pass before release prep starts. It owns formatting, linting,
@@ -139,12 +143,16 @@ Do not manually edit these files if prepare fails.
 #### 4. Open Release PR (stabilisation strategy only)
 
 ```bash
-bash scripts/release/promote.sh --version <version> --strategy stabilisation
+bash scripts/release/promote.sh \
+  --version <version> \
+  --strategy stabilisation \
+  --source-sha <main-sha>
 ```
 
 Used only when the `stabilisation` strategy applies — `main` cannot be tagged
 directly and a short-lived `release/*` branch carries hardening commits. Direct
-strategy skips this step and tags `main` immediately.
+strategy invokes `promote.sh` with `--strategy direct --source-sha <main-sha>`
+to record the no-op promotion and tag `main` immediately.
 
 If the command opens a PR, review and merge it through GitHub. Re-run the
 command after merge so it records the merged state.

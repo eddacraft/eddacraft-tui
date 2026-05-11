@@ -125,11 +125,11 @@ gh issue list --repo EddaCraft/anvil-001 --label release --state open --json num
    release mutation. Continue only when the operator provides exact commands
    and approval for each mutating step. Do not run the target command
    sequence below.
-5. In target command mode, run assessment against the selected `main` SHA
-   (exact form gated on RELORCH-011's final command contract):
+5. In target command mode, run assessment against the selected `main` SHA.
+   `--base` is required; `--source-sha` carries the target-mode exact SHA:
 
 ```bash
-bash scripts/release/assess.sh --sha <main-sha> --json
+bash scripts/release/assess.sh --base <previous-tag> --source-sha <main-sha> --json
 ```
 
 6. Present the assessment to the operator and ask for confirmation or
@@ -143,8 +143,11 @@ resume or explain the conflict.
 
 ### 1. Preflight
 
+`preflight.sh` flags are optional; `--base` and `--head` only affect the
+JSON record of what was compared.
+
 ```bash
-bash scripts/release/preflight.sh --sha <main-sha>
+bash scripts/release/preflight.sh --base <previous-tag>
 ```
 
 If this fails, stop. Report the failed gate and ask whether to abort or fix
