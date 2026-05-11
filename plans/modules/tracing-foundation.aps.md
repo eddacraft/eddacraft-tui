@@ -161,8 +161,8 @@ This module is **Ready** when:
 ## Tasks
 
 > Status: In Progress. TRACE-001 Complete 2026-04-30. **TRACE-004 confirmed
-> launch-blocker 2026-05-10** (Draft; ready for promotion to Proposed/Ready
-> when picked up). TRACE-002 (TS mirror) and TRACE-003 (redaction
+> launch-blocker 2026-05-10** (In Progress as of 2026-05-11).
+> TRACE-002 (TS mirror) and TRACE-003 (redaction
 > hardening) stay Draft as post-launch hardening.
 
 ### TRACE-001: Tracing baseline crate, propagation, and namespace registry
@@ -269,21 +269,33 @@ This module is **Ready** when:
 
 ### TRACE-004: Instrument call paths and bind incoming `traceparent` to span context
 
+> **Status update (2026-05-11):** In Progress. First shippable cut landed:
+> `anvil-observability` exposes current-span and explicit-span binding helpers;
+> JSON-RPC dispatch records valid incoming `traceparent` as correlation fields on
+> handler spans;
+> scan-buffer and CLI entry spans are instrumented; `ANVIL_TRACE_SINK=file=<path>`
+> writes local JSON-line output with restrictive Unix create permissions; OTLP
+> remains deferred to EXPORT to avoid SDK dependency churn. Remaining TRACE-004
+> breadth: fuller kernel-surface span coverage and true exporter-backed parent
+> propagation / local collector walkthrough.
+
 - **Intent:** Anvil's daemon and CLI emit spans on the call paths
   developers actually need to debug, and an incoming `traceparent`
-  becomes the parent context for the local span tree so a single trace
-  ID joins the JSON-RPC envelope to the work it triggered.
+  is recorded as correlation fields on the local dispatch span so a
+  single trace ID joins the JSON-RPC envelope to the work it triggered.
 - **Concrete failure mode (today):** A developer reproducing a JSON-RPC
   bug runs the daemon under `RUST_LOG=debug`, sees flat log lines with
   no span tree, and cannot distinguish concurrent requests beyond
   timing. The `traceparent` is parsed and echoed but never bound to the
-  work the daemon does after parsing.
+  work the daemon does after parsing. Full OpenTelemetry parent propagation
+  remains EXPORT scope.
 - **Expected Outcome:**
   - `anvil-observability` exposes a
     `bind_traceparent_to_current_span(&TraceContext)` helper that
     records `trace_id`, `parent_id`, and `trace_flags` as fields on the
-    enclosing `tracing::Span`, so subscriber output and any future
-    exporter see one continuous trace.
+    enclosing `tracing::Span`, so subscriber output exposes a stable
+    correlation key. It does not create an OpenTelemetry parent relationship;
+    EXPORT owns exporter-backed propagation.
   - `#[instrument]` (or equivalent `info_span!`) on: the JSON-RPC
     dispatch loop, scan-buffer handlers, the CLI command entrypoints,
     and the kernel work surfaces. Span attributes follow the
@@ -291,12 +303,11 @@ This module is **Ready** when:
     conventions; new attributes added by this pass are recorded in
     the registry in the same PR.
   - A local-only dev sink behind `ANVIL_TRACE_SINK`: unset (default) =
-    formatter-only as today; `=otlp[=<endpoint>]` = OTLP exporter
-    pointing at a local collector; `=file=<path>` = JSON-line file
-    exporter. Production sinks remain EXPORT's call.
+    formatter-only as today; `=file=<path>` = JSON-line file sink.
+    `=otlp[=<endpoint>]` and production sinks remain EXPORT's call.
   - `docs/observability/local-tracing.md` (new) — short developer-facing
-    doc with a `docker-compose.yml` snippet for local Jaeger and a
-    `cargo run` walkthrough that produces one connected trace.
+    doc for local file tracing. Local Jaeger / OTLP collector walkthrough
+    remains deferred to EXPORT.
   - The INTD-014 conformance fixture's `traceparent_round_trips_*`
     test extended (or a sibling test added) asserting that the
     daemon's handler span carries the matching `trace_id` /
@@ -329,20 +340,20 @@ This module is **Ready** when:
   `crates/anvil-kernel/src/...` (instrument the kernel surface
   methods — exact list when picked up),
   `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (extend the
-  round-trip test), `docs/observability/local-tracing.md` (new),
+  round-trip / handler-span test), `docs/observability/local-tracing.md` (new),
   `docs/observability/namespace-registry.md` (record any new
   attributes added by the instrumentation pass).
 - **Validation:** TBD when picked up — at minimum (a) a unit test that
   `bind_traceparent_to_current_span` records the trace/parent IDs on
   the current span; (b) the existing INTD-014 fixture asserts the
-  handler span carries the matching IDs; (c) a manual smoke test
-  running `anvil scan` against a local Jaeger and seeing one
-  connected trace.
+  handler span carries the matching IDs; (c) a local file-sink smoke
+  test can inspect JSON-line output. Jaeger / connected OTLP trace
+  verification is deferred to EXPORT.
 - **Confidence:** medium-high — the missing pieces are well-shaped
   (helper + attribute pass + opt-in sink) and TRACE-001's plumbing is
   the integration point. Risk lives in the breadth of the
   instrumentation pass.
-- **Status:** Draft
+- **Status:** In Progress
 
 ## Risks
 

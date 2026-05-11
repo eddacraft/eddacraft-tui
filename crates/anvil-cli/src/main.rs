@@ -641,9 +641,22 @@ fn main() -> ExitCode {
         }
     };
 
+    let command_name = command_canonical_name(&cli.command);
+    let cli_span = tracing::info_span!(
+        target: "anvil_cli",
+        "cli.command",
+        command = command_name,
+        json = cli.global.json,
+        no_tui = cli.global.no_tui,
+        verbose = cli.global.verbose,
+    );
+    let _cli_span_guard = cli_span.enter();
+    tracing::info!(target: "anvil_cli", "cli command parsed");
+
     if requires_auth(&cli.command)
         && let Err(code) = check_auth(&cli.global, allows_interactive_auth_prompt(&cli.command))
     {
+        tracing::warn!(target: "anvil_cli", "cli command authentication required");
         if cli.global.json {
             eprintln!(
                 "{}",

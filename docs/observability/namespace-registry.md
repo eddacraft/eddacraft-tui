@@ -23,11 +23,33 @@ and which pipe each attribute lands on per the ADR-035 three-pipe matrix.
 
 ## Initial namespace entries
 
-| Namespace       | Owner / origin                                                                       | Pipe(s)                                                | Notes                                                                               |
-| --------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `anvil.flags.*` | FLAGS module / [ADR-019](../../plans/decisions/019-flags-observability-alignment.md) | Tracing (per-eval), Kindling (gate-affecting outcomes) | Routine evaluations on tracing; only gate-affecting outcomes earn a Kindling row.   |
-| `kindling.*`    | Kindling system (Edda Stack)                                                         | Kindling                                               | Governance facts only; write-once, query-shaped. Source-of-truth for governance.    |
-| `anvil.rtai.*`  | RTAI module (provisional)                                                            | Tracing                                                | Provisional namespace pending RTAI promotion; ratified via TRACE-001 registry stub. |
+| Namespace           | Owner / origin                                                                       | Pipe(s)                                                | Notes                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `anvil.flags.*`     | FLAGS module / [ADR-019](../../plans/decisions/019-flags-observability-alignment.md) | Tracing (per-eval), Kindling (gate-affecting outcomes) | Routine evaluations on tracing; only gate-affecting outcomes earn a Kindling row.   |
+| `anvil.cli.*`       | CLI / TRACE-004                                                                      | Tracing                                                | Command-entry debugging spans; local diagnostics only, not a governance pipe.       |
+| `anvil.intercept.*` | Intercept daemon / TRACE-004                                                         | Tracing                                                | JSON-RPC dispatch and scan-buffer debugging spans.                                  |
+| `kindling.*`        | Kindling system (Edda Stack)                                                         | Kindling                                               | Governance facts only; write-once, query-shaped. Source-of-truth for governance.    |
+| `anvil.rtai.*`      | RTAI module (provisional)                                                            | Tracing                                                | Provisional namespace pending RTAI promotion; ratified via TRACE-001 registry stub. |
+
+## TRACE-004 span attributes
+
+The TRACE-004 first cut records the following tracing-pipe attributes:
+
+| Span                  | Attribute          | Meaning                                                          |
+| --------------------- | ------------------ | ---------------------------------------------------------------- |
+| `jsonrpc.dispatch`    | `trace_id`         | W3C trace ID from a valid incoming `traceparent`.                |
+| `jsonrpc.dispatch`    | `parent_id`        | W3C parent/span ID from a valid incoming `traceparent`.          |
+| `jsonrpc.dispatch`    | `trace_flags`      | W3C trace flags byte as two-character lower-case hex.            |
+| `jsonrpc.dispatch`    | `method`           | JSON-RPC method name being dispatched.                           |
+| `jsonrpc.dispatch`    | `method_truncated` | Whether the method name was capped before recording.             |
+| `jsonrpc.dispatch`    | `is_notification`  | Whether the JSON-RPC frame has no response id.                   |
+| `jsonrpc.scan_buffer` | `path_basename`    | Requested scan-buffer file name only; full paths are not logged. |
+| `jsonrpc.scan_buffer` | `mode`             | Parsed scan-buffer mode.                                         |
+| `jsonrpc.scan_buffer` | `version`          | Client-supplied buffer version.                                  |
+| `cli.command`         | `command`          | Canonical CLI command name.                                      |
+| `cli.command`         | `json`             | Whether `--json` output is enabled.                              |
+| `cli.command`         | `no_tui`           | Whether TUI rendering is disabled.                               |
+| `cli.command`         | `verbose`          | Whether verbose logging is enabled.                              |
 
 ## Field-naming rules
 

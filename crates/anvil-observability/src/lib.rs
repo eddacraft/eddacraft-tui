@@ -35,7 +35,18 @@ pub mod traceparent;
 
 pub use traceparent::{TraceContext, TraceContextError};
 
+use std::fs::{File, OpenOptions};
+use std::io::{self, ErrorKind, Write};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+use tracing::Span;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+
+const TRACE_SINK_ENV: &str = "ANVIL_TRACE_SINK";
 
 /// Identifies the binary calling [`init_tracing`]. The variant drives the
 /// default `EnvFilter` directive when neither `ANVIL_LOG` nor `RUST_LOG`
@@ -82,6 +93,30 @@ pub enum InitTracingError {
     /// initialise the global subscriber.
     #[error("global tracing subscriber already installed")]
     AlreadyInstalled,
+    /// The requested local development sink could not be opened or was not
+    /// recognised.
+    #[error("invalid {TRACE_SINK_ENV}: {0}")]
+    TraceSink(String),
+}
+
+/// Record a parsed `traceparent` onto the current span.
+///
+/// The target span must declare `trace_id`, `parent_id`, and `trace_flags`
+/// fields (usually as [`tracing::field::Empty`]); `tracing` ignores fields that
+/// do not exist on the span. This helper intentionally records correlation
+/// fields only and does not install an OpenTelemetry parent relationship;
+/// exporter wiring and true parent propagation are owned by the EXPORT module.
+pub fn bind_traceparent_to_current_span(context: &TraceContext) {
+    bind_traceparent_to_span(&Span::current(), context);
+}
+
+/// Record a parsed `traceparent` onto an explicit span.
+///
+/// See [`bind_traceparent_to_current_span`] for the field declaration contract.
+pub fn bind_traceparent_to_span(span: &Span, context: &TraceContext) {
+    span.record("trace_id", context.trace_id());
+    span.record("parent_id", context.parent_id());
+    span.record("trace_flags", format_args!("{:02x}", context.flags()));
 }
 
 /// Install the global tracing subscriber for an Anvil binary.
@@ -115,10 +150,38 @@ pub fn init_tracing(kind: BinaryKind) -> Result<(), InitTracingError> {
         .with_current_span(true)
         .with_span_list(false);
 
-    let subscriber = tracing_subscriber::registry().with(resolved).with(layer);
-
-    tracing::subscriber::set_global_default(subscriber)
-        .map_err(|_| InitTracingError::AlreadyInstalled)?;
+    match std::env::var(TRACE_SINK_ENV).ok().as_deref() {
+        None | Some("") => {
+            let subscriber = tracing_subscriber::registry().with(resolved).with(layer);
+            tracing::subscriber::set_global_default(subscriber)
+                .map_err(|_| InitTracingError::AlreadyInstalled)?;
+        }
+        Some(value) if value.starts_with("file=") => {
+            let path = value.strip_prefix("file=").expect("checked prefix");
+            if path.is_empty() {
+                return Err(InitTracingError::TraceSink(
+                    "file sink path must not be empty".to_owned(),
+                ));
+            }
+            let file = open_trace_file(path)?;
+            let writer = SharedTraceWriter::new(file);
+            let subscriber = tracing_subscriber::registry()
+                .with(resolved)
+                .with(layer.with_writer(move || writer.clone()));
+            tracing::subscriber::set_global_default(subscriber)
+                .map_err(|_| InitTracingError::AlreadyInstalled)?;
+        }
+        Some(value) if value.starts_with("otlp") => {
+            return Err(InitTracingError::TraceSink(
+                "otlp sink is deferred to EXPORT; use file=<path> locally".to_owned(),
+            ));
+        }
+        Some(value) => {
+            return Err(InitTracingError::TraceSink(format!(
+                "unsupported sink {value:?}; expected file=<path>"
+            )));
+        }
+    }
 
     tracing::info!(
         target: "anvil_observability",
@@ -127,4 +190,178 @@ pub fn init_tracing(kind: BinaryKind) -> Result<(), InitTracingError> {
         "tracing subscriber installed",
     );
     Ok(())
+}
+
+fn open_trace_file(path: &str) -> Result<File, InitTracingError> {
+    #[cfg(unix)]
+    validate_existing_trace_file(Path::new(path))?;
+
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    options
+        .open(Path::new(path))
+        .map_err(|err| InitTracingError::TraceSink(format!("file={path}: {err}")))
+}
+
+#[cfg(unix)]
+fn validate_existing_trace_file(path: &Path) -> Result<(), InitTracingError> {
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => {
+            return Err(InitTracingError::TraceSink(format!(
+                "file={}: {err}",
+                path.display()
+            )));
+        }
+    };
+
+    if metadata.file_type().is_symlink() {
+        return Err(InitTracingError::TraceSink(format!(
+            "file={} must not be a symlink",
+            path.display()
+        )));
+    }
+
+    let mode = metadata.permissions().mode();
+    if mode & 0o077 != 0 {
+        return Err(InitTracingError::TraceSink(format!(
+            "file={} must not be readable or writable by group/other",
+            path.display()
+        )));
+    }
+
+    Ok(())
+}
+
+#[derive(Clone)]
+struct SharedTraceWriter {
+    file: Arc<Mutex<File>>,
+}
+
+impl SharedTraceWriter {
+    fn new(file: File) -> Self {
+        Self {
+            file: Arc::new(Mutex::new(file)),
+        }
+    }
+}
+
+impl Write for SharedTraceWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.file
+            .lock()
+            .map_err(|_| io::Error::other("trace sink lock poisoned"))?
+            .write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.file
+            .lock()
+            .map_err(|_| io::Error::other("trace sink lock poisoned"))?
+            .flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use tracing::{field, info_span};
+    use tracing_subscriber::Layer;
+    use tracing_subscriber::layer::Context;
+    use tracing_subscriber::registry::LookupSpan;
+
+    use super::*;
+
+    #[derive(Debug, Default, Clone)]
+    struct RecordedFields(Arc<Mutex<HashMap<String, String>>>);
+
+    impl RecordedFields {
+        fn get(&self, key: &str) -> Option<String> {
+            self.0.lock().expect("fields").get(key).cloned()
+        }
+    }
+
+    struct RecordingLayer {
+        fields: RecordedFields,
+    }
+
+    impl<S> Layer<S> for RecordingLayer
+    where
+        S: tracing::Subscriber,
+        S: for<'lookup> LookupSpan<'lookup>,
+    {
+        fn on_record(
+            &self,
+            _span: &tracing::Id,
+            values: &tracing::span::Record<'_>,
+            _ctx: Context<'_, S>,
+        ) {
+            values.record(&mut FieldVisitor {
+                fields: self.fields.clone(),
+            });
+        }
+    }
+
+    struct FieldVisitor {
+        fields: RecordedFields,
+    }
+
+    impl field::Visit for FieldVisitor {
+        fn record_debug(&mut self, field: &field::Field, value: &dyn std::fmt::Debug) {
+            self.fields
+                .0
+                .lock()
+                .expect("fields")
+                .insert(field.name().to_owned(), format!("{value:?}"));
+        }
+
+        fn record_str(&mut self, field: &field::Field, value: &str) {
+            self.fields
+                .0
+                .lock()
+                .expect("fields")
+                .insert(field.name().to_owned(), value.to_owned());
+        }
+
+        fn record_u64(&mut self, field: &field::Field, value: u64) {
+            self.fields
+                .0
+                .lock()
+                .expect("fields")
+                .insert(field.name().to_owned(), value.to_string());
+        }
+    }
+
+    #[test]
+    fn bind_traceparent_to_span_records_trace_fields() {
+        let context =
+            TraceContext::parse("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+                .expect("valid traceparent");
+        let fields = RecordedFields::default();
+        let subscriber = tracing_subscriber::registry().with(RecordingLayer {
+            fields: fields.clone(),
+        });
+
+        tracing::subscriber::with_default(subscriber, || {
+            let span = info_span!(
+                "test.span",
+                trace_id = field::Empty,
+                parent_id = field::Empty,
+                trace_flags = field::Empty,
+            );
+            super::bind_traceparent_to_span(&span, &context);
+        });
+
+        assert_eq!(
+            fields.get("trace_id").as_deref(),
+            Some("0af7651916cd43dd8448eb211c80319c")
+        );
+        assert_eq!(fields.get("parent_id").as_deref(), Some("b7ad6b7169203331"));
+        assert_eq!(fields.get("trace_flags").as_deref(), Some("01"));
+    }
 }

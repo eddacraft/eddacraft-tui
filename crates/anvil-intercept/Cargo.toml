@@ -63,6 +63,7 @@ anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraf
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
 tempfile = "3"
+tracing-subscriber = { workspace = true }
 
 [lints]
 workspace = true

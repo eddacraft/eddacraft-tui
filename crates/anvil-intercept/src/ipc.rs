@@ -31,17 +31,19 @@
 //! See `plans/modules/intercept-daemon.aps.md` INTD-002 for the
 //! end-to-end pinning council review M8 demanded.
 
+use std::borrow::Cow;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
-use anvil_observability::TraceContext;
+use anvil_observability::{TraceContext, bind_traceparent_to_span};
 use serde_json::{Value, json};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::task::JoinSet;
+use tracing::{Instrument, field};
 
 use crate::ShutdownToken;
 use crate::dos::{IpcLimits, RpsBucket};
@@ -64,6 +66,7 @@ pub const MAX_ACTIVE_CONNECTIONS: usize = 32;
 pub const CONNECTION_READ_TIMEOUT: Duration = Duration::from_mins(1);
 const MAX_JSONRPC_ID_BYTES: usize = 256;
 const MAX_SCAN_BUFFER_MODE_BYTES: usize = 32;
+const MAX_TRACE_METHOD_LEN: usize = 128;
 
 /// How long [`IpcListener::shutdown`] waits for in-flight handler tasks
 /// to drain before aborting them. Kept small so a misbehaving handler
@@ -1806,6 +1809,27 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     };
     let is_notification = !has_id;
     let params = map.get("params").unwrap_or(&Value::Null);
+    let trace_context = traceparent.and_then(|raw| TraceContext::parse(raw).ok());
+    let method_label = trace_method_label(method);
+    let dispatch_span = tracing::info_span!(
+        target: "anvil_intercept::ipc",
+        "jsonrpc.dispatch",
+        method = %method_label,
+        method_truncated = method_label.len() != method.len(),
+        is_notification,
+        trace_id = field::Empty,
+        parent_id = field::Empty,
+        trace_flags = field::Empty,
+    );
+    if let Some(context) = &trace_context {
+        bind_traceparent_to_span(&dispatch_span, context);
+    }
+    dispatch_span.in_scope(|| {
+        tracing::info!(
+            target: "anvil_intercept::ipc",
+            "jsonrpc dispatch received"
+        );
+    });
 
     // Mid-edit scan: dual-routed under DRVR-002.
     //
@@ -1833,6 +1857,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             is_notification,
             scan_buffer,
         )
+        .instrument(dispatch_span)
         .await;
     }
 
@@ -1855,23 +1880,27 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     if method == LEGACY_QUERY_STATUS_METHOD
         || method == anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY
     {
-        return handle_query_status_jsonrpc(
+        return dispatch_span.in_scope(|| {
+            handle_query_status_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                status_provider,
+            )
+        });
+    }
+
+    dispatch_span.in_scope(|| {
+        dispatch_session_jsonrpc(
+            method,
             params,
             response_id,
             traceparent,
             is_notification,
-            status_provider,
-        );
-    }
-
-    dispatch_session_jsonrpc(
-        method,
-        params,
-        response_id,
-        traceparent,
-        is_notification,
-        dispatcher,
-    )
+            dispatcher,
+        )
+    })
 }
 
 /// Legacy JSON-RPC method name for INTD-011 daemon status queries.
@@ -2201,6 +2230,22 @@ fn validate_scan_buffer_request_shape(
     Ok(())
 }
 
+fn trace_method_label(method: &str) -> Cow<'_, str> {
+    if method.len() <= MAX_TRACE_METHOD_LEN {
+        Cow::Borrowed(method)
+    } else {
+        let mut end = 0;
+        for (index, ch) in method.char_indices() {
+            let next = index + ch.len_utf8();
+            if next > MAX_TRACE_METHOD_LEN {
+                break;
+            }
+            end = next;
+        }
+        Cow::Owned(format!("{}...", &method[..end]))
+    }
+}
+
 async fn scan_buffer_from_jsonrpc(
     params: &Value,
     method: &str,
@@ -2224,17 +2269,34 @@ async fn scan_buffer_from_jsonrpc(
             mode,
         }
     };
+    let scan_span = tracing::info_span!(
+        target: "anvil_intercept::ipc",
+        "jsonrpc.scan_buffer",
+        path_basename = scan_buffer_path_basename(&request.path),
+        mode = ?request.mode,
+        version = request.version,
+    );
 
-    let result = scan_buffer
-        .scan_buffer(request)
-        .await
-        .map_err(|err| scan_buffer_failure(method, &err))?;
+    let result = async {
+        tracing::info!(target: "anvil_intercept::ipc", "scan_buffer dispatched");
+        scan_buffer.scan_buffer(request).await
+    }
+    .instrument(scan_span)
+    .await
+    .map_err(|err| scan_buffer_failure(method, &err))?;
 
     serde_json::to_value(result).map_err(|err| JsonRpcFailure {
         code: -32603,
         message: "Internal error",
         data: json!({"error": err.to_string()}),
     })
+}
+
+fn scan_buffer_path_basename(path: &Path) -> &str {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("<unknown>")
 }
 
 fn scan_buffer_failure(method: &str, err: &midedit::ScanBufferError) -> JsonRpcFailure {
@@ -2423,19 +2485,122 @@ fn dispatch_command<D: SessionDispatcher>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
     #[cfg(unix)]
     use anvil_intercept_proto::{SessionId, SessionRecord};
-    #[cfg(unix)]
-    use std::sync::Mutex;
     #[cfg(unix)]
     use std::time::Duration;
     #[cfg(unix)]
     use tokio::io::AsyncWriteExt;
     #[cfg(unix)]
     use tokio::net::UnixStream;
+    use tracing::field;
+    use tracing_subscriber::Layer;
+    use tracing_subscriber::layer::Context;
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::registry::LookupSpan;
 
     #[cfg(unix)]
     use crate::registry::RegistryError;
+
+    #[derive(Debug, Default, Clone)]
+    struct RecordedFields(Arc<Mutex<HashMap<String, String>>>);
+
+    impl RecordedFields {
+        fn get(&self, key: &str) -> Option<String> {
+            self.0.lock().expect("fields").get(key).cloned()
+        }
+    }
+
+    struct RecordingLayer {
+        fields: RecordedFields,
+    }
+
+    impl<S> Layer<S> for RecordingLayer
+    where
+        S: tracing::Subscriber,
+        S: for<'lookup> LookupSpan<'lookup>,
+    {
+        fn on_record(
+            &self,
+            _span: &tracing::Id,
+            values: &tracing::span::Record<'_>,
+            _ctx: Context<'_, S>,
+        ) {
+            values.record(&mut FieldVisitor {
+                fields: self.fields.clone(),
+            });
+        }
+    }
+
+    struct FieldVisitor {
+        fields: RecordedFields,
+    }
+
+    impl field::Visit for FieldVisitor {
+        fn record_debug(&mut self, field: &field::Field, value: &dyn std::fmt::Debug) {
+            self.fields
+                .0
+                .lock()
+                .expect("fields")
+                .insert(field.name().to_owned(), format!("{value:?}"));
+        }
+
+        fn record_str(&mut self, field: &field::Field, value: &str) {
+            self.fields
+                .0
+                .lock()
+                .expect("fields")
+                .insert(field.name().to_owned(), value.to_owned());
+        }
+
+        fn record_u64(&mut self, field: &field::Field, value: u64) {
+            self.fields
+                .0
+                .lock()
+                .expect("fields")
+                .insert(field.name().to_owned(), value.to_string());
+        }
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_dispatch_span_records_valid_incoming_traceparent() {
+        let fields = RecordedFields::default();
+        let subscriber = tracing_subscriber::registry().with(RecordingLayer {
+            fields: fields.clone(),
+        });
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let _guard = tracing::subscriber::set_default(subscriber);
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": "session.list",
+                "id": "trace-test",
+                "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(
+            response["traceparent"],
+            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+        );
+        assert_eq!(
+            fields.get("trace_id").as_deref(),
+            Some("0af7651916cd43dd8448eb211c80319c")
+        );
+        assert_eq!(fields.get("parent_id").as_deref(), Some("b7ad6b7169203331"));
+        assert_eq!(fields.get("trace_flags").as_deref(), Some("01"));
+    }
 
     // ----- Recording dispatcher used by behaviour tests. ------------
 
