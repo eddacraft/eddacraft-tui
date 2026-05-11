@@ -41,8 +41,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
-  # Pinned so cache invalidation is intentional when we bump this.
-  CARGO_LLVM_COV_VERSION: '0.6.14'
   # Pinned so nextest behaviour (retry/timeout/output) is reproducible.
   CARGO_NEXTEST_VERSION: '0.9.133'
   # RUSTNX-008/009: pinned hakari/deny/about versions — see
@@ -174,8 +172,6 @@ jobs:
         run: sh scripts/check-opa-version-pin.sh
 
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
-        with:
-          components: llvm-tools-preview
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: rust-ci
@@ -208,7 +204,11 @@ jobs:
       - name: Lint policies with Regal
         run: regal lint --format github policies/fixtures/
 
-      - name: Run tests (affected on PRs, full coverage on push)
+      # CICD-006: coverage moved to nightly assurance (ci-nightly.yml).
+      # PR/integration push runs are the strict test gate only — no
+      # cargo-llvm-cov install, no coverage instrumentation pass, no
+      # coverage summary, no coverage artefact upload.
+      - name: Run tests (affected on PRs)
         if: github.event_name == 'pull_request'
         env:
           AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
@@ -219,22 +219,6 @@ jobs:
           fi
           pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
 
-      - name: Cache cargo-llvm-cov
-        if: github.event_name != 'pull_request'
-        id: cache-llvm-cov
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: ~/.cargo/bin/cargo-llvm-cov
-          # Version-scoped key so bumping CARGO_LLVM_COV_VERSION below
-          # invalidates the cache deterministically rather than serving a
-          # stale pre-upgrade binary forever.
-          key: cargo-llvm-cov-${{ runner.os }}-${{ env.CARGO_LLVM_COV_VERSION }}
-
-      - name: Install cargo-llvm-cov
-        if: github.event_name != 'pull_request' && steps.cache-llvm-cov.outputs.cache-hit != 'true'
-        # TODO: swap to taiki-e/install-action@<verified-sha> for faster install
-        run: cargo install cargo-llvm-cov --locked --version ${{ env.CARGO_LLVM_COV_VERSION }}
-
       - name: Install cargo-nextest
         if: github.event_name != 'pull_request'
         uses: taiki-e/install-action@cca35edeb1d01366c2843b68fc3ca441446d73d3 # v2.77.1
@@ -242,68 +226,18 @@ jobs:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
       # Tests are the gate — strict, no coverage instrumentation. PR
-      # builds use `nx run-many -t test` (no coverage) and run elsewhere
-      # in this workflow; this step is the equivalent gate for push
-      # events. Failure here MUST fail the workflow.
+      # builds use `nx run-many -t test` and run elsewhere in this
+      # workflow; this step is the equivalent gate for push events.
+      # Failure here MUST fail the workflow.
       - name: Run tests (nextest)
         if: github.event_name != 'pull_request'
         run: cargo nextest run --workspace --no-fail-fast
 
-      # Coverage is observability, not a gate. `cargo llvm-cov` started
-      # consistently failing the post-test `llvm-profdata merge` on `dev`
-      # pushes after 9325a918 — corrupt `.profraw` files (likely from
-      # intentional panic-recovery tests under nextest unwinding) trip
-      # `error: no profile can be merged` while every test in the run
-      # passes. The strict test gate above already proved tests pass, so
-      # this step is best-effort: mark it `continue-on-error` so a merge
-      # failure does not break the workflow while the underlying issue
-      # is fixed forward. Tests run twice on push (once strict, once
-      # under coverage instrumentation) — accepted trade-off for clean
-      # signal.
-      - name: Collect coverage (nextest)
-        if: github.event_name != 'pull_request'
-        continue-on-error: true
-        run: |
-          cargo llvm-cov nextest --workspace --json --output-path coverage-rust.json
-          cargo llvm-cov report --html --output-dir target/llvm-cov
-          cargo llvm-cov report --summary-only | tee coverage-rust-summary.txt
-
       # nextest does not run doctests, so we run them separately to preserve
       # the same test surface as the pre-RUSTNX-002 `cargo test` invocation.
-      # `if: always()` so doctest failures surface even if the coverage step
-      # failed — we want both signals, not a short-circuit.
       - name: Run doctests
-        if: always()
+        if: github.event_name != 'pull_request'
         run: cargo test --doc --workspace
-
-      - name: Rust coverage summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "### Rust Coverage"
-            echo
-            echo '<details><summary>Per-file / workspace summary (cargo llvm-cov)</summary>'
-            echo
-            echo '```'
-            if [ -f coverage-rust-summary.txt ]; then
-              cat coverage-rust-summary.txt
-            else
-              echo "(coverage summary not produced — cargo llvm-cov step failed)"
-            fi
-            echo '```'
-            echo '</details>'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Rust coverage report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-report-rust
-          path: |
-            coverage-rust.json
-            coverage-rust-summary.txt
-            target/llvm-cov/html/
 
   clippy:
     name: Clippy

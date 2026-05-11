@@ -428,6 +428,9 @@ jobs:
       # nxrust landed, all 9 crates became Nx projects
       # with `test` targets, so this job started double-running them — and
       # the runner ran out of disk during Nx's workspace-data SQLite write.
+      # CICD-006: coverage moved to nightly assurance (ci-nightly.yml).
+      # PR/integration push runs use plain tests — no --coverage flags,
+      # no coverage summary, no coverage artefact upload.
       - name: Run unit tests (affected on PRs, all on push)
         run: |
           RUST_EXCLUDES=(
@@ -450,49 +453,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"
           else
-            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
-              -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
+            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"
           fi
-
-      - name: TypeScript coverage summary
-        if: github.event_name != 'pull_request' && always()
-        shell: bash
-        run: |
-          {
-            echo "### TypeScript Coverage"
-            echo
-            echo "<details><summary>Per-project line/branch/function/statement coverage</summary>"
-            echo
-            echo "| Project | Lines | Branches | Functions | Statements |"
-            echo "| ------- | -----:| --------:| ---------:| ----------:|"
-            found=0
-            while IFS= read -r f; do
-              found=1
-              proj=$(dirname "$(dirname "$f")")
-              proj=${proj#./}
-              [ -z "$proj" ] && proj=.
-              row=$(jq -r '.total | "| \(.lines.pct)% | \(.branches.pct)% | \(.functions.pct)% | \(.statements.pct)% |"' "$f" 2>/dev/null || echo "| — | — | — | — |")
-              echo "| \`$proj\` $row"
-            done < <(find . -path '*/coverage/coverage-summary.json' \
-              -not -path '*/node_modules/*' \
-              -not -path '*/.nx/*' \
-              -not -path '*/dist/*' | sort)
-            if [ "$found" = "0" ]; then
-              echo "| _no coverage summaries found_ | — | — | — | — |"
-            fi
-            echo
-            echo "</details>"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload coverage reports
-        if: github.event_name != 'pull_request' && always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-report-22.x
-          path: |
-            coverage/
-            packages/**/coverage/
-            apps/**/coverage/
 
   # NOTE: Cross-platform (macOS/Windows) and Node 22+ tests moved to
   # nightly workflow (ci-nightly.yml) to save CI minutes.

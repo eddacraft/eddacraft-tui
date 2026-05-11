@@ -54,9 +54,10 @@ assert_contains "${ci_workflow}" 'bash -n scripts/release/*.sh'
 assert_contains "${ci_workflow}" 'pnpm --filter @eddacraft/anvil-checks-native build:debug'
 assert_contains "${ci_workflow}" "needs.detect-changes.result != 'success'"
 assert_contains "${ci_workflow}" "needs.detect-changes.outputs.lint-required != 'true'"
-assert_contains "${ci_workflow}" 'if: github.event_name != '\''pull_request'\'' && always()'
 assert_contains "${ci_workflow}" 'pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
-assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \'
-assert_contains "${ci_workflow}" '--run --coverage --coverage.reporter=json-summary --coverage.reporter=text'
+assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
+# CICD-006: PR/integration runs do not invoke coverage flags or upload coverage artefacts.
+assert_not_contains "${ci_workflow}" '--coverage --coverage.reporter=json-summary --coverage.reporter=text'
+assert_not_contains "${ci_workflow}" 'name: coverage-report-22.x'
 
 echo 'fast PR validation workflow checks passed'

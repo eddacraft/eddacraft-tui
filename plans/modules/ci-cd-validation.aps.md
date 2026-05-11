@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 4/12     |
+| CICD | —     | In Progress | 5/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -249,7 +249,7 @@ This module is Complete when:
 
 ### CICD-006: Coverage and artefact retention cost controls
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Stop paying coverage and artefact-upload cost on routine validation
   where it provides marginal confidence.
 - **Expected Outcome:** TypeScript and Rust coverage move to scheduled assurance
@@ -260,6 +260,17 @@ This module is Complete when:
 - **Files:** `.github/workflows/ci.yml`, `.github/workflows/rust.yml`,
   `.github/workflows/ci-nightly.yml`
 - **Coordinates with:** TCOV, OPMODEL-005
+- **Completed:** 2026-05-11 — `.github/workflows/ci.yml` push test step no longer
+  passes `--coverage --coverage.reporter=json-summary --coverage.reporter=text`
+  and no longer runs the TypeScript coverage summary or `coverage-report-22.x`
+  upload. `.github/workflows/rust.yml` push events drop the cargo-llvm-cov cache,
+  install, instrumentation pass, coverage summary, and `coverage-report-rust`
+  upload; the strict `cargo nextest run --workspace --no-fail-fast` gate plus
+  doctests remain. Equivalent `coverage-typescript` and `coverage-rust` jobs were
+  added to `.github/workflows/ci-nightly.yml` so scheduled assurance still
+  publishes the same artefact names and step-summary tables; nightly uploads use
+  `retention-days: 14`. `CARGO_LLVM_COV_VERSION` and `llvm-tools-preview` move
+  with the coverage work into the nightly file.
 - **Confidence:** high
 
 ---
