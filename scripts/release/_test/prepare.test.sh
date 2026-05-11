@@ -85,7 +85,21 @@ bash "$HARNESS" run-contract \
 bash "$HARNESS" run-kill9-rerun \
   --name prepare-kill-rerun \
   --state-file "$tmp/prepare-kill.state" \
-  -- bash -c 'cd "$1" && ANVIL_RELEASE_PREPARE_KILL_STATE="$3" bash "$2" --json --dry-run --version v0.7.0-beta --release-type beta --strategy direct' _ "$repo" "$PREPARE" "$tmp/prepare-kill.state"
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=kill-rerun ANVIL_RELEASE_TEST_TIMEOUT_SECONDS=5 ANVIL_RELEASE_PREPARE_KILL_STATE="$3" bash "$2" --json --dry-run --version v0.7.0-beta --release-type beta --strategy direct' _ "$repo" "$PREPARE" "$tmp/prepare-kill.state"
+
+rc=0
+(cd "$repo" && ANVIL_RELEASE_PREPARE_KILL_STATE="$tmp/unguarded.state" bash "$PREPARE" --json --dry-run --version v0.7.0-beta --release-type beta --strategy direct >"$tmp/unguarded.json") || rc=$?
+if [[ "$rc" != "129" ]]; then
+  echo "expected unguarded kill-state hook to exit 129, got $rc" >&2
+  exit 1
+fi
+node - "$tmp/unguarded.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (!doc.failures.some((failure) => failure.code === 'invalid-input')) {
+  throw new Error('expected unguarded kill-state hook to report invalid-input');
+}
+NODE
 
 help_output="$(bash "$PREPARE" --help)"
 assert_contains "$help_output" 'Usage: prepare.sh'

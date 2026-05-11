@@ -27,7 +27,7 @@ Prepare release metadata from live git state. This initial implementation is
 local and dry-run safe; it does not call GitHub or mutate release files.
 
 Options:
-  --json                         Emit one JSON object only
+  --json                         Accepted for command-surface consistency; output is always one JSON object
   --dry-run                      Report planned preparation without mutation
   --version <version>            Release version, e.g. v0.7.0-beta
   --release-type <type>          beta or production
@@ -179,13 +179,21 @@ else
 fi
 
 if [[ -n "${ANVIL_RELEASE_PREPARE_KILL_STATE:-}" ]]; then
+  if [[ "${ANVIL_RELEASE_TEST_MODE:-}" != "kill-rerun" ]]; then
+    emit_envelope "failed" "$(empty_data_json)" "$(failure_json invalid-input "ANVIL_RELEASE_PREPARE_KILL_STATE requires ANVIL_RELEASE_TEST_MODE=kill-rerun" false correct-test-usage)" "prepare" "Unset the test hook or enable explicit kill-rerun test mode."
+    exit 129
+  fi
   if [[ -f "$ANVIL_RELEASE_PREPARE_KILL_STATE" ]]; then
-    data='{"prepCommitSha":null,"changedFiles":[],"trackingIssueUrl":null,"candidateMetadata":{"rerunAfterKill":true},"idempotencyKey":"prepare-kill-rerun","rerunAfterKill":true}'
+    data='{"prepCommitSha":null,"changedFiles":[],"trackingIssueUrl":null,"candidateMetadata":{},"idempotencyKey":"prepare-kill-rerun","rerunAfterKill":true}'
     emit_envelope "success" "$data" "[]" "promote" "Prepare resumed after interruption; continue to promotion."
     exit 0
   fi
+  printf '%s\n' 'prepare: entering explicit kill-rerun test hook' >&2
   printf '%s\n' started >"$ANVIL_RELEASE_PREPARE_KILL_STATE"
-  while true; do sleep 1; done
+  timeout_seconds="${ANVIL_RELEASE_TEST_TIMEOUT_SECONDS:-30}"
+  sleep "$timeout_seconds"
+  emit_envelope "recoverable" "$(empty_data_json)" "$(failure_json operator-required "kill-rerun test hook timed out without signal" true rerun-prepare)" "prepare" "Rerun prepare to verify resumability."
+  exit 1
 fi
 
 if [[ "$dry_run" != "true" && -n "$(git status --porcelain)" ]]; then
