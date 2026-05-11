@@ -18,7 +18,7 @@ and reset APS state so no work item carries spurious shipped-state evidence.
 
 Trigger any of the following:
 
-- A merged PR breaks `pnpm validate:core`, `pnpm lint:md`, `pnpm format:check`,
+- A merged PR breaks `pnpm validate:full`, `pnpm lint:md`, `pnpm format:check`,
   or required CI checks on the target branch.
 - A merged PR introduces a regression visible in smoke checks
   ([`post-deploy-smoke-check.md`](./post-deploy-smoke-check.md)) before any
@@ -101,7 +101,7 @@ Reverts <bad-sha>. <Why the original change was bad>.
 
 ## Validation
 
-- `pnpm validate:core`
+- `pnpm validate:full`
 - Target branch CI back to green
 EOF
 )"
@@ -117,7 +117,7 @@ git switch main
 git pull --ff-only origin main
 git switch -c fix/<short-slug>
 # implement the fix
-pnpm validate:core
+pnpm validate:full
 ```
 
 Open the PR with `fix:` prefix and link the bad SHA in the body:
@@ -150,7 +150,7 @@ done" signal.
 ## Success criteria
 
 - Target branch CI is green on the recovery commit.
-- `pnpm validate:core` passes locally on the target branch HEAD.
+- `pnpm validate:full` passes locally on the target branch HEAD.
 - `pnpm aps:drift` reports no new finding compared to the last clean run before
   the incident. If no pre-incident baseline was captured, record the current
   findings in the tracking issue and defer resolution to a follow-up.

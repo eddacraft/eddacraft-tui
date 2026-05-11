@@ -102,20 +102,28 @@ externally or referenced in comms.
 ### Option 2 — rebuild
 
 Confirm the source SHA and re-run readiness against that exact SHA (not just
-`main` HEAD, which may have moved):
+`main` HEAD, which may have moved). The workflow's `workflow_dispatch` requires
+five inputs per
+[`2026-05-10-release-readiness-workflow.md`](../../plans/specs/2026-05-10-release-readiness-workflow.md#inputs)
+— reuse the original run's inputs unless the operator explicitly changes one:
 
 ```bash
 gh workflow run release-readiness.yml \
   --repo EddaCraft/anvil-001 \
   --ref <known-good-sha> \
-  --field sourceSha=<known-good-sha>
+  --field sourceSha=<known-good-sha> \
+  --field mode=<readiness|candidate-artifacts> \
+  --field channel=<beta|stable> \
+  --field expectedReachableFrom=<main|migration-dev> \
+  --field baseBoundary=<previous-tag-or-sha>
 gh run watch --repo EddaCraft/anvil-001 <new-run-id>
 ```
 
-The workflow input is `sourceSha` (camelCase) per
-[`2026-05-10-release-readiness-workflow.md`](../../plans/specs/2026-05-10-release-readiness-workflow.md).
-The `--ref` and `--field sourceSha` values must match — the workflow re-checks
-the SHA and fails if the ref does not resolve to the input SHA.
+All five `--field` values are required; omitting any of them fails dispatch with
+`invalid-input`. The `--ref` and `--field sourceSha` values must match — the
+workflow re-checks the SHA and fails if the ref does not resolve to the input
+SHA. Recover the original inputs from the prior run's summary block, the release
+tracking issue, or `gh run view <prior-run-id> --json …`.
 
 Once the new run reports `success`, treat the prior candidate as superseded (see
 Option 3).
@@ -153,7 +161,11 @@ The
 [record schema](../../plans/specs/2026-05-10-release-record-schema.md#lifecycle-states)
 defines exactly three lifecycle states (`candidate`, `published`, `superseded`).
 Discard does not have a dedicated state today, so it is recorded via
-`policyDecisions` rather than by inventing a new `lifecycleState`.
+`policyDecisions` rather than by inventing a new `lifecycleState`. Tightening
+this convention into a ratified schema state is tracked as
+[RELORCH-012](../../plans/modules/release-orchestration.aps.md#relorch-012-yank-lifecycle-state-and-policydecisions-conventions);
+when that lands, this section's `policyDecisions` instructions will be replaced
+with a direct `lifecycleState` value.
 
 - **Discard:** keep `lifecycleState: candidate`. Append a `policyDecisions`
   entry describing the discard so reconciliation tools can refuse to consume the

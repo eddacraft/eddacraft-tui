@@ -104,7 +104,7 @@ Apply the change scoped per the operator's written answers above. Do not include
 refactors, formatting fixes, or unrelated dependency bumps.
 
 ```bash
-pnpm validate:core
+pnpm validate:full
 pnpm lint:md
 pnpm format:check
 ```
@@ -134,7 +134,7 @@ gh pr create --repo EddaCraft/anvil-001 --base main \
 
 ## Validation
 
-- `pnpm validate:core`
+- `pnpm validate:full`
 - `pnpm lint:md`
 - `pnpm format:check`
 
@@ -169,7 +169,7 @@ history). Cherry-pick the hotfix delta instead:
 git fetch origin --tags
 git switch -c backmerge/<successor-tag> origin/dev
 git cherry-pick <hotfix-merge-commit-sha>     # the squash/merge commit on main
-pnpm validate:core
+pnpm validate:full
 git push -u origin backmerge/<successor-tag>
 gh pr create --repo EddaCraft/anvil-001 --base dev \
   --title "chore: back-merge <successor-tag> hotfix into dev" \

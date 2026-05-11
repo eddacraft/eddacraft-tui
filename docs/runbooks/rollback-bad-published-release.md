@@ -94,7 +94,7 @@ moved in a way the operator explicitly approves shipping.
 git fetch origin --tags
 git switch -c hotfix/<bad-tag>-<short-slug> <bad-tag>
 # implement the fix
-pnpm validate:core
+pnpm validate:full
 ```
 
 Open the PR, merge after CI is green and council review per repo policy. Then
@@ -214,12 +214,13 @@ Per the [record schema](../../plans/specs/2026-05-10-release-record-schema.md):
 
 ### Schema follow-up
 
-Add a tracked follow-up against RELORCH the first time this playbook executes a
-yank: the
-[release-record schema](../../plans/specs/2026-05-10-release-record-schema.md#lifecycle-states)
-needs a `yanked` lifecycle state (or equivalent) so reconciliation tools can
-detect the yank without depending on a `policyDecisions` convention. Until that
-ships, the manual APS demotion in the next section is load-bearing.
+The release-record schema gap that forces this `policyDecisions` convention is
+already tracked as
+[RELORCH-012](../../plans/modules/release-orchestration.aps.md#relorch-012-yank-lifecycle-state-and-policydecisions-conventions):
+add a `yanked` lifecycle state (or equivalent) so reconciliation tools can
+detect the yank without depending on prose conventions. Until RELORCH-012 ships,
+the manual APS demotion in the next section is load-bearing — do not skip it on
+the assumption that automated reconciliation will catch the yank.
 
 ## APS / issue closeout
 
