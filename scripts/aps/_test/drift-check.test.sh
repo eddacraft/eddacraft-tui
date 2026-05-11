@@ -23,12 +23,14 @@ if (!doc.findings.some((finding) => finding.code === code)) {
 write_module() {
   local path="$1"
   mkdir -p "$(dirname "$path")"
+  # CICD-011 council follow-up: FIX-005b exercises the b-suffix code path
+  # (drift-check.mjs headingPattern + apsWorkItemPattern admit `\d{3}[a-z]?`).
   cat > "$path" <<'EOF'
 # Fixture Module
 
 | ID | Owner | Status | Progress |
 | --- | --- | --- | --- |
-| FIX | — | In Progress | 2/4 |
+| FIX | — | In Progress | 2/5 |
 
 ### FIX-001: Complete item
 
@@ -53,6 +55,12 @@ write_module() {
 - **Status:** Ready
 - **Validation:** `pnpm test`
 - **Files:** `src/ready.ts`
+
+### FIX-005b: Suffixed item
+
+- **Status:** Ready
+- **Validation:** `pnpm test`
+- **Files:** `src/suffixed.ts`
 EOF
 }
 
@@ -105,7 +113,7 @@ pr_missing_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'chore: bump deps' --j
 assert_json_has_code "$pr_missing_json" 'pr-missing-aps-reference'
 
 # A PR title that names an APS work item resolves the warning. The
-# fixture module declares FIX-001..FIX-004, so referencing FIX-001 is
+# fixture module declares FIX-001..FIX-005b, so referencing FIX-001 is
 # valid; no `pr-missing-aps-reference` or `pr-aps-reference-unknown`
 # should appear.
 pr_ok_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat(fix): cover FIX-001 follow-ups' --json)"
@@ -115,6 +123,30 @@ if (doc.findings.some((f) => f.code === "pr-missing-aps-reference" || f.code ===
   throw new Error("did not expect PR-metadata drift on a title that references a known APS item");
 }
 '; then :; else echo "pr-metadata false-positive on known APS reference" >&2; exit 1; fi
+
+# CICD-011 council follow-up: PR referencing the b-suffix item must
+# resolve as known — guards against drift-check regexes losing the
+# `[a-z]?` admission after `\d{3}`. The fixture's FIX-005b is the
+# extractable analogue of real-world RCLI3-016b / RCLI3-017b.
+pr_suffix_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat: wrap FIX-005b case' --json)"
+if printf '%s' "$pr_suffix_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-missing-aps-reference" || f.code === "pr-aps-reference-unknown")) {
+  throw new Error("did not expect PR-metadata drift on a title that references a known b-suffix APS item");
+}
+'; then :; else echo "pr-metadata false-positive on b-suffix APS reference" >&2; exit 1; fi
+
+# extractModule must count the b-suffix item: the fixture declares 5
+# items (FIX-001..005b). The progress mismatch message must mention "/5"
+# so a regex regression that drops the b-suffix item surfaces here.
+if ! printf '%s' "$candidate_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const finding = doc.findings.find((f) => f.code === "aps-progress-mismatch");
+if (!finding) throw new Error("expected aps-progress-mismatch finding");
+if (!/\/5/.test(finding.message)) {
+  throw new Error("aps-progress-mismatch message did not reflect 5 fixture items: " + finding.message);
+}
+'; then echo "extractModule did not count the b-suffix item" >&2; exit 1; fi
 
 # A PR that references an APS work item that no module declares flags
 # `pr-aps-reference-unknown`.
@@ -130,5 +162,21 @@ if (doc.findings.some((f) => f.code === "pr-missing-aps-reference")) {
   throw new Error("did not expect pr-missing-aps-reference when Unplanned-work: is declared");
 }
 '; then :; else echo "pr-metadata false-positive on Unplanned-work opt-out" >&2; exit 1; fi
+
+# CICD-011 council follow-up: when plans/modules/ is missing or empty,
+# the PR-aps-reference-unknown check is degraded — drift-check must
+# emit the explicit `pr-aps-check-degraded` advisory rather than
+# silently skipping. Tmp root with no plans/modules/ directory exercises
+# the empty-knownApsItems path.
+degraded_tmp="$(mktemp -d)"
+# Replace the existing trap with one that cleans both tmp dirs (a bare
+# `trap ... EXIT` would clobber the first trap and leak the original).
+trap 'rm -rf "$tmp" "$degraded_tmp"' EXIT
+mkdir -p "$degraded_tmp/plans"
+cat > "$degraded_tmp/package.json" <<'EOF'
+{"version":"1.2.3"}
+EOF
+degraded_json="$("${CHECK[@]}" --root "$degraded_tmp" --pr-title 'feat: NOPE-999 case' --json)"
+assert_json_has_code "$degraded_json" 'pr-aps-check-degraded'
 
 echo "drift-check.test.sh: ok"

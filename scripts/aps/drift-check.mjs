@@ -86,7 +86,12 @@ function extractModule(path) {
   const id = text.match(/^\|\s*([A-Z][A-Z0-9-]*)\s*\|.*?\|\s*(\d+)\/(\d+)\s*\|\s*$/m);
   const slug = basename(path, '.aps.md');
   const items = [];
-  const headingPattern = /^###\s+([A-Z][A-Z0-9]*-\d{3})(?::|\s+[—-])\s+(.+)$/gm;
+  // CICD-011 council follow-up: `[a-z]?` after `\d{3}` admits suffixed
+  // work-item IDs (e.g. `RCLI3-016b`) that real modules already declare.
+  // Without it, b-suffix items are silently dropped from extractModule's
+  // count, which under-reports progress and false-positives
+  // pr-missing-aps-reference for any PR mentioning a b-suffix ID.
+  const headingPattern = /^###\s+([A-Z][A-Z0-9]*-\d{3}[a-z]?)(?::|\s+[—-])\s+(.+)$/gm;
   const headings = [...text.matchAll(headingPattern)];
 
   headings.forEach((heading, index) => {
@@ -281,7 +286,10 @@ for (const item of items.filter((entry) => entry.status === 'Released/Shipped'))
 // work item ID (e.g. `CICD-005`, `OPMODEL-012`) anywhere in its title or body,
 // or explicitly opt out via an `Unplanned-work:` line in the body. Falls
 // through silently when no PR metadata was supplied (e.g. push events).
-const apsWorkItemPattern = /\b[A-Z][A-Z0-9]{1,15}-\d{3}\b/;
+// CICD-011 council follow-up: `[a-z]?` mirrors the headingPattern so PR
+// references to suffixed IDs (e.g. `RCLI3-016b`) are matched. The trailing
+// `\b` is preserved so `OAUTH2-001x123` still doesn't match.
+const apsWorkItemPattern = /\b[A-Z][A-Z0-9]{1,15}-\d{3}[a-z]?\b/;
 const knownApsItems = new Set(items.map((entry) => entry.id));
 if (prTitle || prBodyPath) {
   const prBody = prBodyPath && existsSync(prBodyPath) ? readText(prBodyPath) : '';
@@ -289,6 +297,22 @@ if (prTitle || prBodyPath) {
   const bodyMatch = prBody.match(apsWorkItemPattern);
   const referenced = titleMatch?.[0] ?? bodyMatch?.[0];
   const unplannedOptOut = /^\s*Unplanned-work:\s*\S+/im.test(prBody);
+  // CICD-011 council follow-up: surface a `pr-aps-check-degraded`
+  // advisory when no known items are loaded. The earlier
+  // `knownApsItems.size > 0` guard on `pr-aps-reference-unknown` was
+  // present to avoid false-positives in a brand-new repo, but the
+  // active-block guard (`prTitle || prBodyPath`) already covers that
+  // case; an empty set during a real PR run means module extraction
+  // is degraded (broken headingPattern, refactored layout, sparse
+  // checkout) and the unknown-reference check is silently disabled.
+  // Emit the advisory so the degraded state is observable rather than
+  // invisible.
+  if (knownApsItems.size === 0) {
+    addFinding(
+      'pr-aps-check-degraded',
+      'No APS work items extracted from plans/modules/ — pr-aps-reference-unknown is disabled for this run.'
+    );
+  }
   if (!referenced && !unplannedOptOut) {
     addFinding(
       'pr-missing-aps-reference',

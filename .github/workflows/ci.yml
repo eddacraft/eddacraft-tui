@@ -20,6 +20,10 @@ jobs:
   # Detect what changed to skip unnecessary jobs
   detect-changes:
     name: Detect Changes
+    # CICD-011 council follow-up: bound the cheap classification job so a
+    # stuck checkout cannot pin a runner slot near the GitHub default of
+    # 360 minutes.
+    timeout-minutes: 10
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -68,6 +72,7 @@ jobs:
   # remove the duplicate.
   docs-lint:
     name: Docs Lint
+    timeout-minutes: 15
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -107,6 +112,7 @@ jobs:
 
   metadata-validation:
     name: CI Metadata Checks
+    timeout-minutes: 20
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -188,6 +194,7 @@ jobs:
 
   platform-smoke:
     name: Platform Smoke
+    timeout-minutes: 20
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -209,6 +216,7 @@ jobs:
 
   dependency-audit:
     name: Dependency Audit (PR)
+    timeout-minutes: 15
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -235,6 +243,7 @@ jobs:
 
   aps-drift:
     name: APS Drift Check
+    timeout-minutes: 10
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -246,12 +255,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      # CICD-011 council follow-up: mirror the fallback pattern from
+      # `.github/actions/detect-changes/action.yml`. On first push the
+      # `before` SHA is 0000…, and on a force-push the before SHA can be
+      # garbage-collected; `git diff` exits 128 in both cases. Under the
+      # default `set -e` runner shell that kills the step and silently
+      # drops every advisory drift finding for the run. Catch the failure
+      # explicitly and fall through with an empty changed-file list so
+      # drift-check.mjs still runs (it emits no `changed-file-without-aps-
+      # reference` warnings for an empty list, which is the right
+      # behaviour: we have no diff to analyse, not "everything is fine").
       - name: Build changed-file fixture
         run: |
+          : > /tmp/aps-drift-files.txt
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/aps-drift-files.txt
+            if ! git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/aps-drift-files.txt 2>/dev/null; then
+              echo "::warning::aps-drift: git diff failed against origin/${{ github.base_ref }}...HEAD (shallow clone?) — proceeding with empty changed-files list"
+              : > /tmp/aps-drift-files.txt
+            fi
           else
-            git diff --name-only "${{ github.event.before }}...${{ github.sha }}" > /tmp/aps-drift-files.txt
+            if ! git diff --name-only "${{ github.event.before }}...${{ github.sha }}" > /tmp/aps-drift-files.txt 2>/dev/null; then
+              echo "::warning::aps-drift: git diff failed against ${{ github.event.before }}...${{ github.sha }} (first push or force-push past gc'd SHA?) — proceeding with empty changed-files list"
+              : > /tmp/aps-drift-files.txt
+            fi
           fi
 
       # CICD-011: pass PR title + body so drift-check.mjs can warn when
@@ -259,11 +285,21 @@ jobs:
       # `Unplanned-work:`. PR body lands in a file because GitHub
       # Actions step inputs strip multi-line content and the body can
       # contain shell-significant characters.
+      #
+      # CICD-011 council follow-up: `::add-mask::` registers the body as
+      # a secret with the runner so any later step (including those run
+      # under `ACTIONS_STEP_DEBUG=true`) redacts the value from its
+      # logs. The body never reaches the integration-readiness step
+      # summary because drift-check.mjs only emits finding codes and
+      # messages, not the body content.
       - name: Capture PR metadata
         if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
+          if [ -n "${PR_BODY:-}" ]; then
+            echo "::add-mask::${PR_BODY}"
+          fi
           printf '%s' "${PR_BODY:-}" > /tmp/aps-drift-pr-body.txt
 
       - name: Run warning-mode drift checks (push)
@@ -286,6 +322,7 @@ jobs:
   # code-changed. Same rationale applies to typecheck/test/build below.
   lint:
     name: Lint & Format
+    timeout-minutes: 30
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -335,6 +372,7 @@ jobs:
   # ── Job 2: Type Check ───────────────────────────────────────────
   typecheck:
     name: Type Check
+    timeout-minutes: 30
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -424,6 +462,7 @@ jobs:
   # ── Job 3a: Unit Tests — Ubuntu ──────────────────────────────────
   test:
     name: Unit Tests (Node 22.x, ubuntu-latest)
+    timeout-minutes: 45
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -539,6 +578,7 @@ jobs:
   # macOS (10x) + Windows (2x) matrix when no Node source moved.
   test-release-gate:
     name: Release Gate (Node 22.x, ${{ matrix.os }})
+    timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: |
@@ -599,6 +639,7 @@ jobs:
   # ── Job 4: Build ─────────────────────────────────────────────────
   build:
     name: Build (Node 22.x)
+    timeout-minutes: 30
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -631,6 +672,7 @@ jobs:
   # so the Rust CLI is not required in this job.
   e2e-harness:
     name: E2E Harness (Node 22.x)
+    timeout-minutes: 30
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -686,9 +728,15 @@ jobs:
   # commit level.
   integration-readiness:
     name: Integration Readiness
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
+    # CICD-011 council follow-up: this job is push-only; simplifying the
+    # runner expression removes the dead `pull_request.head.repo.fork`
+    # branch that was inherited from PR-capable jobs.
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    # CICD-011 council follow-up: bound the aggregator so a stuck upstream
+    # job cannot pin the runner near GitHub's 360-minute default. The
+    # job itself is pure bash; 20 minutes leaves headroom for upstream
+    # `needs` resolution.
+    timeout-minutes: 20
     if: always() && github.event_name == 'push'
     needs:
       - detect-changes
@@ -706,6 +754,9 @@ jobs:
         env:
           INTEGRATION_SHA: ${{ github.sha }}
           INTEGRATION_REF: ${{ github.ref }}
+          INTEGRATION_RUN_ID: ${{ github.run_id }}
+          INTEGRATION_SERVER_URL: ${{ github.server_url }}
+          INTEGRATION_REPO: ${{ github.repository }}
           DOCS_LINT_RESULT: ${{ needs.docs-lint.result }}
           METADATA_RESULT: ${{ needs.metadata-validation.result }}
           PLATFORM_SMOKE_RESULT: ${{ needs.platform-smoke.result }}
@@ -720,15 +771,23 @@ jobs:
           summary() {
             printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
           }
-          summary "## Integration Readiness"
+          summary "## Integration Readiness (Node side)"
           summary ""
           summary "**SHA:** \`${INTEGRATION_SHA}\`"
           summary "**Ref:** \`${INTEGRATION_REF}\`"
+          summary "**Run:** [${INTEGRATION_RUN_ID}](${INTEGRATION_SERVER_URL}/${INTEGRATION_REPO}/actions/runs/${INTEGRATION_RUN_ID})"
           summary ""
           summary "Per the CI/CD operating model, push validation proves the"
-          summary "merged integration SHA. PR-only fillers (lint-skip,"
-          summary "typecheck-skip, test-skip) and PR commentary (Dependency"
-          summary "Audit (PR), Security Summary) are intentionally absent."
+          summary "merged integration SHA on the **Node / TypeScript** surface."
+          summary "Rust validation (\`cargo check/test/clippy/fmt\`, Hakari,"
+          summary "cargo-deny, acknowledgements, cross-compile) is owned by"
+          summary "\`rust.yml\` and is intentionally not aggregated here —"
+          summary "a Rust-only push will show all rows below as \`skipped\`"
+          summary "and the authoritative gate lives in the \`Rust\` workflow."
+          summary ""
+          summary "PR-only fillers (lint-skip, typecheck-skip, test-skip)"
+          summary "and PR commentary (Dependency Audit (PR), Security"
+          summary "Summary) are intentionally absent."
           summary ""
           summary "| Job | Result |"
           summary "| --- | --- |"
@@ -769,9 +828,11 @@ jobs:
             label="${label_result%%:*}"
             result="${label_result##*:}"
             # `skipped` is acceptable (path-gated job did not need to run).
-            # `success` is acceptable. Anything else fails the contract.
+            # `success` is acceptable. `failure` / `cancelled` / any other
+            # value fails the contract. GitHub Actions never emits an
+            # empty result, so the case statement does not whitelist `''`.
             case "$result" in
-              success|skipped|'') ;;
+              success|skipped) ;;
               *)
                 echo "::error::Integration readiness failed: ${label} reported ${result}"
                 failed=1

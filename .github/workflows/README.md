@@ -58,11 +58,23 @@ See
   `Dependency Audit` job owns the equivalent check on push.
 - `Security Summary` (`security.yml`) is PR-only — there is no PR to comment on
   for a push event.
-- `Integration Readiness` (`ci.yml`) is push-only — it emits a single step
-  summary identifying the SHA, the ref, and the validating job results. It fails
-  the workflow if any required integration job failed; `APS Drift Check` is
-  treated as warning-only evidence per
+- `Integration Readiness` (`ci.yml`) is push-only and aggregates the **Node /
+  TypeScript** side of the integration push (`docs-lint`, `metadata-validation`,
+  `platform-smoke`, `lint`, `typecheck`, `test`, `build`, `e2e-harness`). It
+  emits a single step summary identifying the SHA, the ref, the run link, and
+  the validating job results, and fails the workflow if any required Node-side
+  job reports `failure` / `cancelled`. `APS Drift Check` is treated as
+  warning-only evidence per
   [CICD-011](../../plans/modules/ci-cd-validation.aps.md#cicd-011-apsreporelease-drift-checks-in-ci).
+- **Rust validation is intentionally not aggregated by `Integration Readiness`**
+  — `rust.yml` (`Check`, `Test`, `Clippy`, `Format`, `Hakari verify`,
+  `cargo-deny`, `Acknowledgements freshness`, `Cross (target)`) is the
+  authoritative Rust integration gate. A Rust-only push will show every row of
+  the Integration Readiness summary as `skipped`; the merged-SHA evidence in
+  that case lives in the Rust workflow's job statuses, not in the readiness
+  summary. If `Integration Readiness` is later elevated to a required branch
+  protection check, the Rust workflow's job statuses must be required alongside
+  it; the readiness aggregate is not a substitute.
 
 ### Authority audit (no duplicated gates)
 

@@ -411,20 +411,34 @@ jobs:
     # intentionally exempt from the rust-changed gate so operators can
     # force a matrix run for verification work even when no Rust paths
     # moved in the dispatched ref.
+    #
+    # CICD-011 council follow-up: gate on `always()` plus an explicit
+    # `detect-rust-changes.result` check so a detection failure
+    # (e.g. paths-filter flake, runner OOM) fails the release gate
+    # loudly instead of silently skipping. Without this, the empty
+    # output of a failed detection job evaluates `'' == 'true'` as
+    # false and the cross-compile matrix vanishes from the run. The
+    # first matrix step (`Fail when Rust-change detection failed`)
+    # hard-stops on detection failure so the cost ceiling per incident
+    # is bounded.
     if: >-
-      github.event_name == 'workflow_dispatch' || (
-        (
-          (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
-            startsWith(github.ref, 'refs/heads/release/'))) ||
-          (github.event_name == 'pull_request' && github.base_ref == 'main' &&
-            github.event.pull_request.head.repo.full_name == github.repository &&
-            (startsWith(github.head_ref, 'release/') ||
-             startsWith(github.head_ref, 'hotfix/')))
-        ) &&
-        needs.detect-rust-changes.outputs.rust-changed == 'true'
+      always() && (
+        github.event_name == 'workflow_dispatch' || (
+          (
+            (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+              startsWith(github.ref, 'refs/heads/release/'))) ||
+            (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+              github.event.pull_request.head.repo.full_name == github.repository &&
+              (startsWith(github.head_ref, 'release/') ||
+               startsWith(github.head_ref, 'hotfix/')))
+          ) &&
+          (needs.detect-rust-changes.result != 'success' ||
+           needs.detect-rust-changes.outputs.rust-changed == 'true')
+        )
       )
     runs-on: ${{ matrix.os }}
     needs: [check, detect-rust-changes]
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -448,6 +462,19 @@ jobs:
             os: windows-latest
             can_test: false
     steps:
+      # CICD-011 council follow-up: hard-stop the matrix leg if
+      # `detect-rust-changes` did not complete. Runs before any
+      # expensive setup so the per-incident runner cost is bounded to
+      # spin-up time. `workflow_dispatch` skips this check — operators
+      # may dispatch on refs where detection didn't run.
+      - name: Fail when Rust-change detection failed
+        if: |
+          github.event_name != 'workflow_dispatch' &&
+          needs.detect-rust-changes.result != 'success'
+        run: |
+          echo "::error::detect-rust-changes did not complete (result=${{ needs.detect-rust-changes.result }}); refusing to run the cross-compile matrix in an unknown change-detection state"
+          exit 1
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
