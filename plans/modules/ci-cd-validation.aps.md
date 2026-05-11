@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 5/12     |
+| CICD | —     | In Progress | 6/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -311,7 +311,7 @@ This module is Complete when:
 
 ### CICD-009: Release candidate readiness workflow
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Create a CI readiness gate for an explicit SHA before release tags
   are pushed.
 - **Expected Outcome:** Candidate workflow records readiness evidence, candidate
@@ -322,6 +322,14 @@ This module is Complete when:
 - **Files:** `.github/workflows/`, `scripts/release/` when RELORCH command surface
   exists
 - **Coordinates with:** OPMODEL-005, RELORCH-001, RELORCH-002
+- **Completed:** 2026-05-10 — `.github/workflows/release-readiness.yml` shipped
+  via PR #1398. The workflow is `workflow_dispatch`-only, enforces exact
+  `sourceSha` checkout, validates reachability from `main` (or `migration-dev`
+  for explicit compatibility probes), runs the required readiness checks
+  (`pnpm format:check`, `pnpm lint:md`, guidance and classifier fixtures), and
+  emits candidate metadata as a versioned artefact with bounded retention. It
+  carries `permissions: contents: read` only — no tag, registry, OIDC, or
+  deployment credentials are available, matching the OPMODEL-005 spec.
 - **Confidence:** medium
 
 ---
