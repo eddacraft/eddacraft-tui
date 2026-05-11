@@ -14,6 +14,7 @@ use crate::commands::check_catalog::{
     GATE_INTERNAL_CHECKS, canonical_check_name, gate_canonical_name_from_internal,
     gate_canonical_names, gate_internal_name,
 };
+use crate::util::is_ignored_dir_name;
 
 #[derive(Debug, Default, Args)]
 #[allow(clippy::struct_excessive_bools)]
@@ -350,23 +351,6 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
         },
     }
 }
-
-/// Directories to skip when walking the workspace for source files.
-/// Aligned with kernel `FileFilter::default_patterns` in
-/// `crates/anvil-kernel/src/watcher/filter.rs`.
-pub(crate) const WALK_IGNORE_DIRS: &[&str] = &[
-    "node_modules",
-    ".git",
-    "target",
-    "dist",
-    "build",
-    ".next",
-    ".turbo",
-    ".nx",
-    "coverage",
-    ".anvil",
-    "__pycache__",
-];
 
 const SECRET_SCAN_IGNORE: &[&str] = &[
     "node_modules",
@@ -815,7 +799,7 @@ fn walk_source_files(project_root: &Path, extensions: &[&str]) -> Vec<String> {
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             if e.file_type().is_some_and(|ft| ft.is_dir()) {
-                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
+                return !is_ignored_dir_name(&name);
             }
             true
         })

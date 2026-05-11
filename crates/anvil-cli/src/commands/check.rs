@@ -18,6 +18,7 @@ use anvil_checks::antipattern::{
 
 use crate::GlobalArgs;
 use crate::output::{self, OutputMode};
+use crate::util::is_ignored_dir_name;
 
 /// JSON output schema version — shared across all output paths.
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
@@ -28,21 +29,6 @@ const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 /// build artefact piped by accident). Stops the artifact path from
 /// OOM-ing on `std::fs::read_to_string`.
 const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
-
-/// Default directories to ignore during file scanning.
-const IGNORE_DIRS: &[&str] = &[
-    "node_modules",
-    "dist",
-    "build",
-    ".git",
-    "target",
-    ".anvil",
-    ".next",
-    ".turbo",
-    ".nx",
-    "coverage",
-    "__pycache__",
-];
 
 // TODO(RCLI2): The following Node.js CLI flags are intentionally deferred:
 //   --no-cache       (caching infrastructure not yet ported)
@@ -607,7 +593,7 @@ fn get_all_source_files(extensions: &[String]) -> Result<Vec<String>> {
         .filter_entry(|e| {
             if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 let name = e.file_name().to_string_lossy();
-                !IGNORE_DIRS.contains(&name.as_ref())
+                !is_ignored_dir_name(&name)
             } else {
                 true
             }

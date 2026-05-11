@@ -8,6 +8,8 @@ use anvil_checks::antipattern::{
 use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content};
 use walkdir::WalkDir;
 
+use crate::util::is_ignored_dir_name;
+
 /// Maximum number of files we will scan in the post-init analysis.
 /// Matches the IFR-003 budget.
 pub const SAMPLE_SIZE_LIMIT: usize = 50;
@@ -20,22 +22,6 @@ pub const SAMPLE_HISTORY_DAYS: u32 = 30;
 /// we just surface the cost so a slow scan is visible to the user.
 /// Matches the IFR-003 5-second target.
 pub const ANALYSIS_TIME_BUDGET: Duration = Duration::from_secs(5);
-
-/// Directories we skip during sample selection. Same set the `check`
-/// command uses for `--all`.
-const IGNORE_DIRS: &[&str] = &[
-    "node_modules",
-    "dist",
-    "build",
-    ".git",
-    "target",
-    ".anvil",
-    ".next",
-    ".turbo",
-    ".nx",
-    "coverage",
-    "__pycache__",
-];
 
 /// Outcome of the post-init sample analysis. Holds the data the init
 /// command needs to render a compact human summary.
@@ -388,7 +374,7 @@ fn walk_repo_for_sample(
         .filter_entry(|e| {
             if e.file_type().is_dir() {
                 let name = e.file_name().to_string_lossy();
-                !IGNORE_DIRS.contains(&name.as_ref())
+                !is_ignored_dir_name(&name)
             } else {
                 true
             }

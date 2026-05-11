@@ -12,26 +12,12 @@ use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
 
 use crate::GlobalArgs;
 use crate::output::{self, OutputMode};
+use crate::util::is_ignored_dir_name;
 
 const SNAPSHOTS_DIR: &str = "snapshots";
 const ANVIL_DIR: &str = ".anvil";
 const SNAPSHOT_PREFIX: &str = "snapshot-";
 const SCHEMA_VERSION: &str = "1.0.0";
-
-/// Default directories to ignore during file scanning.
-const IGNORE_DIRS: &[&str] = &[
-    "node_modules",
-    "dist",
-    "build",
-    ".git",
-    "target",
-    ".anvil",
-    ".next",
-    ".turbo",
-    ".nx",
-    "coverage",
-    "__pycache__",
-];
 
 #[derive(Debug, Args)]
 pub struct DriftArgs {
@@ -777,7 +763,7 @@ fn get_source_files(workspace: &Path) -> Result<Vec<String>> {
         .filter_entry(|e| {
             if e.file_type().is_some_and(|ft| ft.is_dir()) {
                 let name = e.file_name().to_string_lossy();
-                !IGNORE_DIRS.contains(&name.as_ref())
+                !is_ignored_dir_name(&name)
             } else {
                 true
             }

@@ -3,6 +3,29 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+/// Directory names that anvil's file walkers always skip.
+///
+/// Shared by `check`, `drift`, `gate`, and `sample_analyser`. Add new
+/// entries here, not at the call site.
+pub(crate) const IGNORE_DIRS: &[&str] = &[
+    ".anvil",
+    ".git",
+    ".next",
+    ".nx",
+    ".turbo",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "target",
+];
+
+/// Returns `true` if `name` is one of the directories anvil's walkers skip.
+pub(crate) fn is_ignored_dir_name(name: &str) -> bool {
+    IGNORE_DIRS.contains(&name)
+}
+
 /// Resolve the workspace root via `git rev-parse --show-toplevel`.
 ///
 /// Canonicalises the git result to collapse symlinks. Falls back to
@@ -302,6 +325,26 @@ fn restrict_windows_permissions(path: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_ignored_dir_name_matches_full_list() {
+        for entry in IGNORE_DIRS {
+            assert!(
+                is_ignored_dir_name(entry),
+                "expected {entry} to be ignored"
+            );
+        }
+    }
+
+    #[test]
+    fn is_ignored_dir_name_rejects_unknown() {
+        for name in ["src", "tests", "lib", "node_modules.bak", "Target", ""] {
+            assert!(
+                !is_ignored_dir_name(name),
+                "expected {name} to not be ignored"
+            );
+        }
+    }
 
     #[test]
     fn atomic_write_creates_file() {
