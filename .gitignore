@@ -81,6 +81,7 @@ docs/analysis/claude-code-safety-net-review.md
 .claude/autonomous-state.json
 .claude/skills/*
 !.claude/skills/release/
+!.claude/skills/dev-workflow/
 .claude/VERSION
 # SKOBS — skill discovery & observability snapshots (local, not committed)
 .claude/.skill-snapshots/
