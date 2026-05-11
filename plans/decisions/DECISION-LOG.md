@@ -4,7 +4,9 @@ Condensed index of all Architecture Decision Records (ADRs). Read the linked
 document for full context and trade-off analysis.
 
 For the ADR process and when to write one, see
-[docs/guides/adr-process.md](../../docs/guides/adr-process.md).
+[docs/guides/adr-process.md](../../docs/guides/adr-process.md). For ADR
+integrity (no duplicate numbers, no missing entries) run
+`pnpm test:adr-integrity`.
 
 ## Core Philosophy
 
@@ -36,6 +38,7 @@ These define how Anvil behaves by default. All features must align.
 | [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
 | [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted (amended by ADR-033) |
 | [033](033-park-ide-mcp-retire-ts-scanner.md) | Archive VSCode extension and TS MCP server (`archive/anvil-vscode-extension/`, `archive/anvil-mcp-server/`); archive TS scanner, TS suppression parser, and parity harness to `archive/anvil-ts-scanner/`; CI excluded via `'!archive/**'`; napi crate stays as build canary; surfaces return as new active packages via DRVR / RMCPF / future ADR | Proposed |
+| [040](040-rust-policy-engine-regorus.md) | Adopt `regorus` as the embedded Rust policy engine; single-binary policy stack consistent with ADR-026 | Draft |
 
 ## Product and Distribution
 
@@ -43,14 +46,15 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [018](018-product-ip-architecture.md) | Free base tier, source-proprietary model; three foundational repos as OSS | Accepted |
 | [020](020-versioning-strategy.md) | Lockstep versioning for Anvil core; independent versioning for separate products, OSS, and peripherals | Accepted |
+| [025](025-package-manager-distribution.md) | Package manager distribution strategy across npm / crates.io / GitHub Releases | Accepted |
 
 ## Configuration and Structure
 
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [016](016-unified-config-format.md) | Consolidate three config files into single TOML with source delegation | Proposed |
+| [021](021-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) (originally drafted as ADR-026; renumbered in DOCGOV-004 to resolve a duplicate-number conflict) | Proposed |
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
-| [026](026-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) | Proposed |
 
 ## Intercept and Enforcement
 
@@ -58,14 +62,18 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [015](015-intercept-loop-enforcement.md) | Rust daemon detects file changes from AI agents, evaluates policy, interrupts sessions | Proposed |
 | [031](031-validation-latency-rubric.md) | Shared latency measurement rubric for intercept validation modes; standardises modes, timing boundaries, dimensions, and warm p95 SLOs so INTD / DRVR / RTAI cite one source | Proposed |
+| [036](036-daemon-scope-discovery-and-boundaries.md) | Daemon scope, discovery, and OS-boundary policy: what the intercept daemon is allowed to see, watch, and act on | Proposed |
+| [038](038-hook-surface-and-noise-discipline.md) | Hook surface contract and noise-discipline rules for the intercept hook system | Proposed |
 
 ## Policy and Governance
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
 | [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
+| [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
 | [035](035-three-pipe-observability-rule.md) | Three-pipe observability rule: Kindling = governance facts, Notification = user-visible state, tracing/OTEL = ephemeral debugging (never source-of-truth); `traceparent` is the cross-pipe correlation key | Accepted |
+| [037](037-witness-chain-and-l4-policy.md) | Witness chain and L4 policy framework for cross-surface policy evidence | Proposed |
+| [039](039-baseline-policy-and-hard-pinned-classes.md) | Baseline policy and hard-pinned rule classes; codifies which warning classes never get baselined | Proposed |
 | [041](041-flag-snapshot-usage-join-contract.md) | Usage rows store resolved flag context inline; manifest `key` is the stable join key; ADR-019 stays gate-affecting-only for standalone Kindling flag facts | Accepted |
 
 ## Planning and Process
@@ -85,6 +93,12 @@ These define how Anvil behaves by default. All features must align.
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [013](013-eval-harness-adoption.md) | External eval harness behind `EvalHarnessPort` adapter boundary | Proposed |
+
+## Edge and Infrastructure
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [032](032-edge-architecture-afd.md) | Azure Front Door as the canonical edge layer for eddacraft.ai; supersedes the implicit "Vercel as both origin and edge" assumption | Accepted |
 
 ## Language and Coverage
 

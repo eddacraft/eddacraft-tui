@@ -1,8 +1,13 @@
-# ADR-026: In-house `@eddacraft/nx-rust` Nx plugin
+# ADR-021: In-house `@eddacraft/nx-rust` Nx plugin
 
 ## Status
 
 Proposed
+
+> **Renumbered (DOCGOV-004, 2026-05-12):** originally drafted as ADR-026; the
+> number was already taken by [ADR-026 — Rust Scanner is
+> Authoritative](./026-rust-scanner-authoritative.md), which was merged first.
+> This ADR was renumbered to fill the previously unassigned ADR-021 slot.
 
 ## Date
 

@@ -22,20 +22,34 @@ Do **not** write an ADR for:
 
 ## How to Create an ADR
 
-1. Copy the template:
+1. Run `pnpm test:adr-integrity` to confirm the log is currently clean and to
+   see the next available number printed by the script
+2. Copy the template:
    `cp plans/decisions/adr-template.md plans/decisions/NNN-short-title.md`
-2. Use the next available number (check existing files in `plans/decisions/`)
-3. Use kebab-case for the filename: `NNN-short-description.md`
-4. Set status to **Proposed**
-5. Fill in all sections — Context and Decision are mandatory; Alternatives
+3. Use the next available number; if you raced another author and they took it
+   first, **renumber yours before merge** and update any references — do not
+   introduce a duplicate
+4. Use kebab-case for the filename: `NNN-short-description.md`
+5. Set status to **Proposed** (or **Draft** for in-flight ideas not yet ready
+   for council/PR review)
+6. Fill in all sections — Context and Decision are mandatory; Alternatives
    Considered is strongly encouraged
-6. Commit the ADR alongside the code it relates to, or in the planning PR
+7. Add the ADR row to the appropriate section of
+   [`plans/decisions/DECISION-LOG.md`](../../plans/decisions/DECISION-LOG.md) in
+   the same PR
+8. Commit the ADR alongside the code it relates to, or in the planning PR
 
 ## Numbering
 
-- Sequential three-digit numbers: `000`, `001`, ..., `016`
+- Sequential three-digit numbers, zero-padded: `000`, `001`, …, `041` …
 - Suffix variants with a letter: `011a` (for a follow-up to ADR-011)
-- No gaps — if an ADR is rejected, keep the number and set status to Rejected
+- **No gaps** — if an ADR is rejected, keep the number and set status to
+  Rejected. If a gap exists from a historical race, the next renumber-on- rename
+  event should backfill it (see ADR-021 / ADR-026 history in the decision log
+  for an example).
+- **No duplicate numbers** — `pnpm test:adr-integrity` fails if two ADR files
+  share a number, and if any ADR file is not indexed in `DECISION-LOG.md`, or
+  vice versa.
 
 ## Status Lifecycle
 

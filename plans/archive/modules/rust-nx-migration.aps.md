@@ -203,7 +203,8 @@ The Rust workspace has 9 crates (`anvil-kernel`, `anvil-cli`, `anvil-tui`,
   `project.json` files. The plugin's `cargo metadata` graph driver
   auto-registers every workspace member with pre-wired executors and
   dependency edges, so `nx affected` is correct across Rust-to-Rust
-  edges. ADR-026 captures the tooling decision.
+  edges. ADR-021 captures the tooling decision (originally drafted as ADR-026
+  before DOCGOV-004 renumbered it to ADR-021).
 
 ### RUSTNX-005: Workspace-level cache inputs for Rust [Complete]
 

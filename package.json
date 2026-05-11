@@ -50,6 +50,8 @@
     "test:ci-cutover-readiness": "bash scripts/ci/cutover-readiness.test.sh",
     "test:aps-drift": "bash scripts/aps/_test/drift-check.test.sh",
     "aps:drift": "node scripts/aps/drift-check.mjs",
+    "test:adr-integrity": "bash scripts/docs/adr-integrity.test.sh",
+    "adr:check": "bash scripts/docs/adr-integrity.sh",
     "validate:staged": "bash scripts/validate/local.sh --staged",
     "validate:changed": "bash scripts/validate/local.sh --changed",
     "validate:full": "bash scripts/validate/local.sh --full",

@@ -10,7 +10,9 @@ orchestration in RUSTNX.
 > **Delivered as upstream + vendored copy.** The plugin lives canonically
 > at [`eddacraft/nxrust`](https://github.com/EddaCraft/nxrust) (Apache-2.0)
 > and is vendored into `tools/nx-rust/` as `@eddacraft/nx-rust` (PROPRIETARY)
-> per [ADR-026](../decisions/026-in-house-nx-rust-plugin.md). The vendor
+> per [ADR-021](../decisions/021-in-house-nx-rust-plugin.md) (originally
+> drafted as ADR-026, renumbered to ADR-021 in DOCGOV-004 to resolve the
+> duplicate-number conflict with ADR-026 Rust scanner authoritative). The vendor
 > copy's anvil-specific divergences and sync contract are enumerated in
 > [`tools/nx-rust/SPLIT.md`](../../tools/nx-rust/SPLIT.md). Upstream is the
 > spiritual successor to [`@monodon/rust`](https://github.com/Cammisuli/monodon)
@@ -138,7 +140,7 @@ hashing, output caching, and project-graph edges for Nx.
 - [x] Cargo workspace members list known (9 crates)
 - [x] Nx 22.6.5 present; `@nx/devkit` already used in
       `tools/generators/`
-- [x] ADR-026 drafted to capture the tooling decision (see Decisions)
+- [x] ADR-021 drafted to capture the tooling decision (see Decisions; originally drafted as ADR-026)
 - [x] Plugin spike on `anvil-kernel-types` run and cached
 
 ---
@@ -358,8 +360,9 @@ hashing, output caching, and project-graph edges for Nx.
 
 ## Decisions
 
-- **ADR-026 (Proposed)** —
-  `plans/decisions/026-in-house-nx-rust-plugin.md`. Captures: reject
+- **ADR-021 (Proposed)** (originally drafted as ADR-026; renumbered in
+  DOCGOV-004) — `plans/decisions/021-in-house-nx-rust-plugin.md`. Captures:
+  reject
   cargo-make as non-substitute for Nx; reject `@monodon/rust` due to
   missing licence, stale upstream, and open-issue backlog; adopt
   in-house plugin mirroring `@eddacraft/anvil-generators`.

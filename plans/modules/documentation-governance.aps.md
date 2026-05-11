@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 3/8      |
+| DOCGOV | —     | In Progress | 4/8      |
 
 ## Purpose
 
@@ -143,14 +143,34 @@ use the minimal validation baseline in
 
 ### DOCGOV-004: Repair ADR integrity and enforcement
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Make ADR numbering, lifecycle, and decision-log coverage
   mechanically trustworthy.
 - **Expected Outcome:** Duplicate/missing ADR index entries are resolved, the ADR
   process guide matches the current repository, and a validation path exists for
   future ADR changes.
-- **Validation:** `pnpm format:check`
+- **Validation:** `pnpm test:adr-integrity && pnpm adr:check && pnpm format:check`
 - **Dependencies:** DOCGOV-002
+- **Files:** `plans/decisions/DECISION-LOG.md`,
+  `plans/decisions/021-in-house-nx-rust-plugin.md` (renamed from
+  `026-in-house-nx-rust-plugin.md`), `plans/archive/modules/nx-rust-plugin.aps.md`,
+  `plans/archive/modules/rust-nx-migration.aps.md`,
+  `docs/guides/adr-process.md`, `scripts/docs/adr-integrity.sh`,
+  `scripts/docs/adr-integrity.test.sh`, `package.json`,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Closeout:** ADR-026 duplicate resolved by renaming the in-house nx-rust
+  plugin ADR to ADR-021 (fills the previously empty 021 slot); cross-references
+  in the two archived nx-rust modules updated with a renumber note.
+  `DECISION-LOG.md` rebuilt with all 42 ADR files indexed (added previously
+  unindexed ADR-025, -032, -036, -037, -038, -039, -040), section ordering
+  by number within section, and a new "Edge and Infrastructure" section
+  for ADR-032. `docs/guides/adr-process.md` updated to point at
+  `pnpm test:adr-integrity`, codify the no-gap / no-duplicate invariants,
+  and require a DECISION-LOG row in the same PR. New script
+  `scripts/docs/adr-integrity.sh` (plus fixture tests in
+  `adr-integrity.test.sh`) checks for duplicate numbers, log/file orphans,
+  and prints the next available ADR number; wired in as
+  `pnpm adr:check` (one-shot) and `pnpm test:adr-integrity` (fixture tests).
 - **Confidence:** high
 
 ### DOCGOV-005: Add documentation validation baseline
