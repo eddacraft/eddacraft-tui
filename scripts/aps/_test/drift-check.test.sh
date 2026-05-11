@@ -153,6 +153,21 @@ if (!/\/5/.test(finding.message)) {
 pr_unknown_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat: NOPE-999 something else' --json)"
 assert_json_has_code "$pr_unknown_json" 'pr-aps-reference-unknown'
 
+# PR #1439 council follow-up: scan ALL APS-shaped tokens, not just the
+# first match. A PR like `addresses HTTP-404 in FIX-001 path` mentions
+# a non-APS token first and a known APS item second; the policy is
+# "reference at least one APS work item anywhere", so this must be
+# silent (no missing-reference, no unknown-reference). Previously a
+# `.match()` keyed on the first token only and false-positived as
+# unknown-reference for HTTP-404.
+pr_mixed_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'addresses HTTP-404 in FIX-001 path' --json)"
+if printf '%s' "$pr_mixed_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-missing-aps-reference" || f.code === "pr-aps-reference-unknown")) {
+  throw new Error("did not expect PR-metadata drift when a known APS item appears alongside unknown tokens");
+}
+'; then :; else echo "pr-metadata scan-all-matches missed a known reference next to an unknown token" >&2; exit 1; fi
+
 # A PR with `Unplanned-work:` opt-out in the body suppresses the warning.
 printf 'Unplanned-work: production hotfix\n' > "$tmp/pr-body.txt"
 pr_unplanned_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'fix: prod regression' --pr-body-file "$tmp/pr-body.txt" --json)"

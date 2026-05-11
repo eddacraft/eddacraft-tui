@@ -24,6 +24,15 @@ assert_contains() {
   fi
 }
 
+# `block_marker` is interpreted as an awk regex (a job anchor like
+# `^  cross-compile:`); `expected` / `forbidden` are matched as FIXED
+# STRINGS via awk's `index()` so callers can pass quote characters and
+# punctuation verbatim without escaping. This matches the contract used
+# by `drift-check-integration.test.sh` and locks the YAML syntax tight
+# enough that a regression that switches single-quote literals to a
+# subtly-different form (e.g. removing the quotes) actually fails the
+# fixture instead of slipping through via accidental `.` wildcards.
+# (Council follow-up from PR #1439.)
 assert_block_contains() {
   local file="$1"
   local block_marker="$2"
@@ -31,7 +40,7 @@ assert_block_contains() {
   if ! awk -v marker="${block_marker}" -v expected="${expected}" '
     $0 ~ marker { inside = 1; next }
     inside && /^  [a-z]/ { inside = 0 }
-    inside && $0 ~ expected { found = 1 }
+    inside && index($0, expected) > 0 { found = 1 }
     END { exit (found ? 0 : 1) }
   ' "${file}"; then
     echo "expected block matching '${block_marker}' in ${file} to contain: ${expected}" >&2
@@ -46,7 +55,7 @@ assert_block_not_contains() {
   if awk -v marker="${block_marker}" -v forbidden="${forbidden}" '
     $0 ~ marker { inside = 1; next }
     inside && /^  [a-z]/ { inside = 0 }
-    inside && $0 ~ forbidden { found = 1 }
+    inside && index($0, forbidden) > 0 { found = 1 }
     END { exit (found ? 0 : 1) }
   ' "${file}"; then
     echo "expected block matching '${block_marker}' in ${file} not to contain: ${forbidden}" >&2
@@ -58,9 +67,9 @@ assert_block_not_contains() {
 # Docs-only release PRs and docs-only release-sync pushes must not
 # spin up the macOS + Windows matrix.
 assert_contains "${ci_workflow}" '  test-release-gate:'
-assert_block_contains "${ci_workflow}" "^  test-release-gate:" "source-changed == .true."
-assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.base_ref == .main."
-assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.ref == .refs/heads/main."
+assert_block_contains "${ci_workflow}" "^  test-release-gate:" "source-changed == 'true'"
+assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.base_ref == 'main'"
+assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.ref == 'refs/heads/main'"
 
 # ── rust.yml: cross-compile is release-gate-only ────────────────
 # - Push to `dev` must NOT trigger cross-compile (dev is the integration
@@ -71,11 +80,11 @@ assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.ref == .r
 # - The job must still gate on rust-changed when not dispatched.
 assert_contains "${rust_workflow}" '  workflow_dispatch: {}'
 assert_contains "${rust_workflow}" '  cross-compile:'
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.event_name == .workflow_dispatch."
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.ref == .refs/heads/main."
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.event_name == 'workflow_dispatch'"
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.ref == 'refs/heads/main'"
 assert_block_contains "${rust_workflow}" "^  cross-compile:" "refs/heads/release/"
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.base_ref == .main."
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "rust-changed == .true."
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.base_ref == 'main'"
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "rust-changed == 'true'"
 # Critical: dev pushes must NOT trigger cross-compile. The previous
 # gating contained `refs/heads/dev`; the new gating must not.
 assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "refs/heads/dev"
@@ -85,8 +94,8 @@ assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "refs/heads/dev
 # the `needs.check.result == 'success' || needs.check.result ==
 # 'skipped'` guard restores the skip path without re-opening the
 # detect-rust-changes silent-skip bug. `workflow_dispatch` is exempt.
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == .success."
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == .skipped."
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == 'success'"
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == 'skipped'"
 
 # ── napi.yml: path-gated matrix (correct as-is) ─────────────────
 # The NAPI binding is inherently platform-sensitive; the workflow-level

@@ -8,10 +8,13 @@ This directory contains GitHub Actions workflows for CI/CD automation.
 
 Per the
 [CI/CD and validation operating model](../../plans/specs/2026-05-10-ci-cd-validation-operating-model.md),
-each workflow has a single validation contract. Five contracts cover the entire
-target pipeline (the spec's MVP CI Operating Model); every workflow under
-`.github/workflows/` maps to exactly one contract (plus a small set of explicit
-**auxiliary** workflows for labels, gates, and observability).
+five contracts cover the entire target pipeline (the spec's MVP CI Operating
+Model). A workflow may implement **one or more** of these contracts depending on
+its trigger surface — `ci.yml`, for example, runs both PR validation
+(`pull_request` event) and Integration push (`push` event) from the same file.
+The Workflow Contract Map below lists each workflow with the contract(s) it
+implements. A small set of explicit **auxiliary** workflows (labels, gates,
+observability) sit outside the five contracts.
 
 | #   | Contract              | Authoritative for                                                   |
 | --- | --------------------- | ------------------------------------------------------------------- |
@@ -23,9 +26,11 @@ target pipeline (the spec's MVP CI Operating Model); every workflow under
 
 ### Workflow Contract Map (CICD-010)
 
-The table is the single source of truth — every file under `.github/workflows/`
-(excluding `*.example`) must appear in exactly one row. The
-`scripts/ci/workflow-contracts.test.sh` fixture enforces this.
+This map is the single source of truth for which workflow implements which
+contract. Every workflow under `.github/workflows/` (excluding `*.example`) must
+appear here, and every backtick-quoted workflow name in this file must
+correspond to a file on disk. The `scripts/ci/workflow-contracts.test.sh`
+fixture enforces both directions.
 
 | Workflow                | Contract                                          | Trigger surface                                                                                                     | Owner module |
 | ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ |

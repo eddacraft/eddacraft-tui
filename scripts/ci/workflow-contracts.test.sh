@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# CICD-010: lock the workflow → contract map.
+# CICD-010: lock the workflow → contract map in both directions.
 #
-# Every `.github/workflows/*.yml` file (excluding `*.example`) must appear
-# in the Workflow Contract Map table in `.github/workflows/README.md`.
-# This fixture catches:
+# Every `.github/workflows/*.yml` file (excluding `*.example`) must
+# appear in the Workflow Contract Map table in
+# `.github/workflows/README.md`, AND every workflow filename the README
+# references inside backticks must exist on disk. This fixture catches:
 #   - new workflows added without a contract entry
-#   - workflow files renamed/removed without a README update
+#   - workflow files renamed/removed without a README update (phantom
+#     entries that would mislead branch-protection or audit consumers)
 #   - the contract map drifting away from the on-disk reality
 
 set -euo pipefail
@@ -26,20 +28,25 @@ if ! grep -Fq -- '### Workflow Contract Map (CICD-010)' "${readme}"; then
   exit 1
 fi
 
-# Walk every YAML file under workflows/, skipping the example. Assert
-# each base name (`<file>.yml`) appears at least once inside a backtick
-# in the README. The README per-file detail headings (`### \`<file>.yml\``)
-# satisfy this, as do the contract-map table cells (`\`<file>.yml\``).
-missing=()
+# Forward direction: every YAML file under workflows/ (excluding the
+# example) must appear at least once inside a backtick in the README.
+# The README per-file detail headings (`### \`<file>.yml\``) satisfy
+# this, as do the contract-map table cells (`\`<file>.yml\``).
+on_disk=()
 while IFS= read -r path; do
   name=$(basename "${path}")
   case "${name}" in
     *.example | *.example.yml) continue ;;
   esac
+  on_disk+=("${name}")
+done < <(find "${workflows_dir}" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+
+missing=()
+for name in "${on_disk[@]}"; do
   if ! grep -Fq -- "\`${name}\`" "${readme}"; then
     missing+=("${name}")
   fi
-done < <(find "${workflows_dir}" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+done
 
 if [ "${#missing[@]}" -gt 0 ]; then
   echo "workflow files not referenced in ${readme}:" >&2
@@ -47,6 +54,32 @@ if [ "${#missing[@]}" -gt 0 ]; then
     echo "  - ${name}" >&2
   done
   echo "add an entry to the Workflow Contract Map table." >&2
+  exit 1
+fi
+
+# Inverse direction (council follow-up from PR #1439): every
+# backtick-quoted `<file>.yml` / `<file>.yaml` reference in the README
+# must correspond to a workflow file actually on disk. Catches the
+# regression where a workflow is deleted/renamed and the README still
+# advertises the old name as if it existed — phantom entries that would
+# mislead operators configuring branch protection or following the
+# audit. We extract matches like `` `name.yml` ``, deduplicate, and
+# whitelist the contract-table example-row anchors that intentionally
+# do not exist (none today, but the structure leaves room).
+phantom=()
+while IFS= read -r name; do
+  case " ${on_disk[*]} " in
+    *" ${name} "*) continue ;;
+  esac
+  phantom+=("${name}")
+done < <(grep -oE '\`[a-zA-Z0-9_.-]+\.ya?ml\`' "${readme}" | tr -d '`' | sort -u)
+
+if [ "${#phantom[@]}" -gt 0 ]; then
+  echo "${readme} references workflow names that are not on disk:" >&2
+  for name in "${phantom[@]}"; do
+    echo "  - ${name}" >&2
+  done
+  echo "remove stale entries from the Workflow Contract Map table." >&2
   exit 1
 fi
 

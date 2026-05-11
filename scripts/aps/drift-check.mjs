@@ -289,13 +289,27 @@ for (const item of items.filter((entry) => entry.status === 'Released/Shipped'))
 // CICD-011 council follow-up: `[a-z]?` mirrors the headingPattern so PR
 // references to suffixed IDs (e.g. `RCLI3-016b`) are matched. The trailing
 // `\b` is preserved so `OAUTH2-001x123` still doesn't match.
-const apsWorkItemPattern = /\b[A-Z][A-Z0-9]{1,15}-\d{3}[a-z]?\b/;
+const apsWorkItemPattern = /\b[A-Z][A-Z0-9]{1,15}-\d{3}[a-z]?\b/g;
 const knownApsItems = new Set(items.map((entry) => entry.id));
 if (prTitle || prBodyPath) {
   const prBody = prBodyPath && existsSync(prBodyPath) ? readText(prBodyPath) : '';
-  const titleMatch = prTitle.match(apsWorkItemPattern);
-  const bodyMatch = prBody.match(apsWorkItemPattern);
-  const referenced = titleMatch?.[0] ?? bodyMatch?.[0];
+  // PR #1439 council follow-up: scan ALL APS-shaped tokens in title +
+  // body, not just the first. The earlier `.match(pattern)` returned
+  // the first match only, so a PR like `addresses HTTP-404 in
+  // CICD-005 path` would extract `HTTP-404` first and fire a false-
+  // positive `pr-aps-reference-unknown` even though CICD-005 is a
+  // legitimate reference. The spec rule is "reference at least one
+  // APS work item anywhere", so the right policy is:
+  //   - if ANY match is in knownApsItems → silent (resolved)
+  //   - else if AT LEAST ONE match exists → `pr-aps-reference-unknown`
+  //     names a representative unknown token (first one) so the
+  //     operator knows what to investigate
+  //   - else (no matches) → fall through to the missing/opt-out check
+  const titleMatches = [...prTitle.matchAll(apsWorkItemPattern)].map((m) => m[0]);
+  const bodyMatches = [...prBody.matchAll(apsWorkItemPattern)].map((m) => m[0]);
+  const allMatches = [...titleMatches, ...bodyMatches];
+  const knownMatch = allMatches.find((id) => knownApsItems.has(id));
+  const firstUnknown = allMatches.find((id) => !knownApsItems.has(id));
   const unplannedOptOut = /^\s*Unplanned-work:\s*\S+/im.test(prBody);
   // CICD-011 council follow-up: surface a `pr-aps-check-degraded`
   // advisory when no known items are loaded. The earlier
@@ -320,17 +334,17 @@ if (prTitle || prBodyPath) {
       'pr-aps-check-degraded',
       'No APS work items extracted from plans/modules/ — PR-reference checks are disabled for this run.'
     );
-  } else if (!referenced && !unplannedOptOut) {
+  } else if (allMatches.length === 0 && !unplannedOptOut) {
     addFinding(
       'pr-missing-aps-reference',
       'PR title and body do not reference an APS work item (e.g. `CICD-005`) and do not declare `Unplanned-work:` in the body.'
     );
-  } else if (referenced && !knownApsItems.has(referenced)) {
+  } else if (!knownMatch && firstUnknown) {
     addFinding(
       'pr-aps-reference-unknown',
-      `PR references APS work item ${referenced}, but no module under plans/modules/ declares that ID.`,
+      `PR references APS work item ${firstUnknown}, but no module under plans/modules/ declares that ID.`,
       {
-        apsItem: referenced,
+        apsItem: firstUnknown,
       }
     );
   }
