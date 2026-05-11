@@ -20,6 +20,12 @@ engineering maintenance are recorded in the
   `winget upgrade --id eddacraft.anvil` or re-running the PowerShell
   installer, with a note about closing editors running an Anvil MCP server.
   `--check` still works.
+- **`anvil update` now detects WinGet and Scoop installs** and prints the
+  one command that will actually upgrade you (`winget upgrade --id
+  eddacraft.anvil` or `scoop update anvil`), mirroring the existing
+  Homebrew dispatch. Previously WinGet/Scoop users fell through to the
+  generic Windows refusal, which listed extra alternatives they did not
+  need.
 - **`anvil check` no-args error now suggests next steps.** A bare
   `anvil check` previously bailed with `No files specified. Use --all,
   --changed, or provide file paths.` — terse for first-time users. The

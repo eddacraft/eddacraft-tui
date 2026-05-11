@@ -33,22 +33,12 @@ pub struct UpdateArgs {
 pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let current = env!("CARGO_PKG_VERSION");
 
-    // 1. Homebrew detection
-    if is_homebrew_install() {
-        if global.json {
-            println!(
-                "{}",
-                serde_json::json!({
-                    "current_version": current,
-                    "install_method": "homebrew",
-                    "message": "Installed via Homebrew. Run `brew upgrade eddacraft/tap/anvil` instead."
-                })
-            );
-        } else {
-            println!(
-                "anvil was installed via Homebrew. Run `brew upgrade eddacraft/tap/anvil` instead."
-            );
-        }
+    // 1. Package-manager installs: defer to the package manager so the user
+    //    gets the one command that will work, not a menu of options. Detected
+    //    via path markers shared with `commands::version` (see
+    //    `package_manager_for_exe`).
+    if let Some(pm) = detect_package_manager() {
+        report_package_manager_install(current, global, pm);
         return Ok(());
     }
 
@@ -64,22 +54,67 @@ pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     run_library_update(args, global)
 }
 
-// ── Homebrew detection ──────────────────────────────────────────────
+// ── Package-manager detection ───────────────────────────────────────
 
-const HOMEBREW_PREFIXES: &[&str] = &["/opt/homebrew/", "/usr/local/Cellar/", "/home/linuxbrew/"];
-
-fn is_homebrew_install() -> bool {
-    let Ok(exe) = std::env::current_exe() else {
-        return false;
-    };
-    is_path_under_homebrew(&exe)
+/// A package manager that owns the installed `anvil` binary. The upgrade
+/// must go through it, not through `anvil update`'s in-process replace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PackageManager {
+    Homebrew,
+    Winget,
+    Scoop,
 }
 
-fn is_path_under_homebrew(path: &Path) -> bool {
-    let Some(s) = path.to_str() else {
-        return false;
+const HOMEBREW_PREFIXES: &[&str] = &["/opt/homebrew/", "/usr/local/Cellar/", "/home/linuxbrew/"];
+// Mirrors the markers in `commands::version` — kept in sync intentionally.
+// Winget installs land under `%LOCALAPPDATA%\Microsoft\WindowsApps\eddacraft...`,
+// scoop installs under `%USERPROFILE%\scoop\apps\anvil\<version>\`.
+const WINGET_MARKERS: &[&str] = &["WindowsApps\\eddacraft", "WindowsApps/eddacraft"];
+const SCOOP_MARKERS: &[&str] = &["scoop\\apps\\anvil\\", "scoop/apps/anvil/"];
+
+fn detect_package_manager() -> Option<PackageManager> {
+    let exe = std::env::current_exe().ok()?;
+    package_manager_for_exe(&exe)
+}
+
+fn package_manager_for_exe(path: &Path) -> Option<PackageManager> {
+    let s = path.to_str()?;
+    if HOMEBREW_PREFIXES.iter().any(|p| s.starts_with(p)) {
+        return Some(PackageManager::Homebrew);
+    }
+    if WINGET_MARKERS.iter().any(|m| s.contains(m)) {
+        return Some(PackageManager::Winget);
+    }
+    if SCOOP_MARKERS.iter().any(|m| s.contains(m)) {
+        return Some(PackageManager::Scoop);
+    }
+    None
+}
+
+fn report_package_manager_install(current: &str, global: &GlobalArgs, pm: PackageManager) {
+    let (method, upgrade_cmd) = match pm {
+        PackageManager::Homebrew => ("homebrew", "brew upgrade eddacraft/tap/anvil"),
+        PackageManager::Winget => ("winget", "winget upgrade --id eddacraft.anvil"),
+        PackageManager::Scoop => ("scoop", "scoop update anvil"),
     };
-    HOMEBREW_PREFIXES.iter().any(|prefix| s.starts_with(prefix))
+    let display = match pm {
+        PackageManager::Homebrew => "Homebrew",
+        PackageManager::Winget => "WinGet",
+        PackageManager::Scoop => "Scoop",
+    };
+    if global.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "current_version": current,
+                "install_method": method,
+                "message": format!("Installed via {display}. Run `{upgrade_cmd}` instead."),
+                "upgrade_command": upgrade_cmd,
+            })
+        );
+    } else {
+        println!("anvil was installed via {display}. Run `{upgrade_cmd}` instead.");
+    }
 }
 
 // ── Sidecar resolution ─────────────────────────────────────────────
@@ -342,36 +377,80 @@ fn perform_update(
 mod tests {
     use super::*;
 
-    // ── Homebrew detection ──────────────────────────────────────────
+    // ── Package-manager detection ───────────────────────────────────
 
     #[test]
     fn homebrew_opt_prefix_detected() {
         let path = Path::new("/opt/homebrew/bin/anvil");
-        assert!(is_path_under_homebrew(path));
+        assert_eq!(
+            package_manager_for_exe(path),
+            Some(PackageManager::Homebrew)
+        );
     }
 
     #[test]
     fn homebrew_cellar_prefix_detected() {
         let path = Path::new("/usr/local/Cellar/anvil/0.3.1/bin/anvil");
-        assert!(is_path_under_homebrew(path));
+        assert_eq!(
+            package_manager_for_exe(path),
+            Some(PackageManager::Homebrew)
+        );
     }
 
     #[test]
     fn homebrew_linuxbrew_prefix_detected() {
         let path = Path::new("/home/linuxbrew/.linuxbrew/bin/anvil");
-        assert!(is_path_under_homebrew(path));
+        assert_eq!(
+            package_manager_for_exe(path),
+            Some(PackageManager::Homebrew)
+        );
     }
 
     #[test]
-    fn non_homebrew_cargo_bin() {
+    fn winget_backslash_path_detected() {
+        let path = Path::new(
+            r"C:\Users\Alice\AppData\Local\Microsoft\WindowsApps\eddacraft.anvil_8wekyb3d8bbwe\anvil.exe",
+        );
+        assert_eq!(package_manager_for_exe(path), Some(PackageManager::Winget));
+    }
+
+    #[test]
+    fn winget_forward_slash_path_detected() {
+        // Some Windows toolchains normalise to forward slashes.
+        let path = Path::new(
+            "C:/Users/Alice/AppData/Local/Microsoft/WindowsApps/eddacraft.anvil_8wekyb3d8bbwe/anvil.exe",
+        );
+        assert_eq!(package_manager_for_exe(path), Some(PackageManager::Winget));
+    }
+
+    #[test]
+    fn scoop_backslash_path_detected() {
+        let path = Path::new(r"C:\Users\Alice\scoop\apps\anvil\0.6.1\anvil.exe");
+        assert_eq!(package_manager_for_exe(path), Some(PackageManager::Scoop));
+    }
+
+    #[test]
+    fn scoop_forward_slash_path_detected() {
+        let path = Path::new("C:/Users/Alice/scoop/apps/anvil/0.6.1/anvil.exe");
+        assert_eq!(package_manager_for_exe(path), Some(PackageManager::Scoop));
+    }
+
+    #[test]
+    fn cargo_bin_path_has_no_package_manager() {
         let path = Path::new("/home/user/.cargo/bin/anvil");
-        assert!(!is_path_under_homebrew(path));
+        assert_eq!(package_manager_for_exe(path), None);
+    }
+
+    #[test]
+    fn windows_cargo_bin_path_has_no_package_manager() {
+        let path = Path::new(r"C:\Users\121\.cargo\bin\anvil.exe");
+        assert_eq!(package_manager_for_exe(path), None);
     }
 
     #[test]
     fn non_homebrew_usr_local_bin() {
         let path = Path::new("/usr/local/bin/anvil");
-        assert!(!is_path_under_homebrew(path));
+        assert_eq!(package_manager_for_exe(path), None);
     }
 
     // ── Sidecar resolution ──────────────────────────────────────────
