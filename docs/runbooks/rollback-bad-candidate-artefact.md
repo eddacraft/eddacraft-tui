@@ -159,23 +159,21 @@ Reference: candidate vs published vs superseded states are defined in
 
 The
 [record schema](../../plans/specs/2026-05-10-release-record-schema.md#lifecycle-states)
-defines exactly three lifecycle states (`candidate`, `published`, `superseded`).
-Discard does not have a dedicated state today, so it is recorded via
-`policyDecisions` rather than by inventing a new `lifecycleState`. Tightening
-this convention into a ratified schema state is tracked as
-[RELORCH-012](../../plans/modules/release-orchestration.aps.md#relorch-012-yank-lifecycle-state-and-policydecisions-conventions);
-when that lands, this section's `policyDecisions` instructions will be replaced
-with a direct `lifecycleState` value.
+defines `discarded` as the terminal state for a candidate that must never be
+promoted. The matching `candidate-discard` policy decision carries the operator
+rationale and approval metadata.
 
-- **Discard:** keep `lifecycleState: candidate`. Append a `policyDecisions`
-  entry describing the discard so reconciliation tools can refuse to consume the
-  candidate:
+- **Discard:** set `lifecycleState: discarded`. Append a `policyDecisions` entry
+  describing the discard so reconciliation tools can refuse to consume the
+  candidate, including on older compatibility records:
 
   ```json
   {
     "decision": "candidate-discard",
     "value": "discarded",
-    "reason": "<one-line operator reason>"
+    "reason": "<one-line operator reason>",
+    "appliedAt": "<ISO-8601 timestamp>",
+    "approver": "<operator handle>"
   }
   ```
 
@@ -228,7 +226,7 @@ candidate or the abandonment decision is recorded.
   is a record-level state change rather than an issue-comment edit. The decision
   tree in this playbook is unchanged.
 - **Release skill interaction.** The release skill must not promote a candidate
-  whose record carries a `policyDecisions` entry with
-  `decision: "candidate-discard"`, or whose `lifecycleState` is `superseded`. If
-  the skill encounters such a record during resume, stop and ask the operator
-  before any further mutation.
+  whose record has `lifecycleState: discarded` or carries a compatibility
+  `policyDecisions` entry with `decision: "candidate-discard"`, or whose
+  `lifecycleState` is `superseded`. If the skill encounters such a record during
+  resume, stop and ask the operator before any further mutation.

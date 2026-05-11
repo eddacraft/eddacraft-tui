@@ -2,14 +2,12 @@
 
 Purpose: ship Anvil with the least manual choreography possible.
 
+This runbook uses the command-driven release model. Deterministic release work
+is owned by the per-phase commands under `scripts/release/`.
+
 `main` is the only permanent product branch following the OPMODEL-012 cutover on
 2026-05-11. Releases tag a selected green `main` SHA after release readiness —
 there is no `dev -> main` promotion.
-
-Until `RELORCH-011` implements and wires the per-phase commands under
-`scripts/release/`, `scripts/release/*.sh` is target architecture, not an
-executable contract. In the interim, `scripts/release.sh` is the only checked-in
-deterministic release helper; it is preflight-only.
 
 ## Golden Rule
 
@@ -26,21 +24,7 @@ and [`emergency-hotfix.md`](../runbooks/emergency-hotfix.md).
 
 ## Required Tools
 
-### Current Preflight Tool
-
-The only checked-in deterministic release helper today is:
-
-```bash
-bash scripts/release.sh
-```
-
-It is a preflight-only command. It runs deterministic checks and performs no
-git, GitHub, tag, release, or package-manager mutations.
-
-### Target Command Surface
-
-After RELORCH-011 implements and wires the command surface, these commands must
-work from the repository root before release day:
+These commands must work from the repository root before release day:
 
 ```bash
 bash scripts/release/assess.sh --help
@@ -54,38 +38,15 @@ bash scripts/release/closeout.sh --help
 ```
 
 If any command is missing, the release process is not ready. Do not substitute a
-manual checklist for that command surface. Before RELORCH-011 lands, use
-`scripts/release.sh` and log any manual judgement or recovery steps in the
-release tracking issue.
+manual checklist for that command surface.
 
 ## Happy Path
 
-### Current Preflight-Only Path
+Use this path for normal releases. Releases tag a selected green `main` SHA
+after release readiness; promotion remains available for release branches that
+need a PR before tagging.
 
-Use this path until RELORCH-011 lands the full command surface:
-
-1. Run `bash scripts/release.sh` from the repository root.
-2. Confirm all preflight checks pass.
-3. Stop before any branch, tag, GitHub Release, package-manager, tap, or
-   install-site mutation.
-4. Continue only when the operator provides exact commands and explicit approval
-   for each mutating step. Before any tag or publication action, verify clean
-   worktree, expected remotes, source SHA, version surfaces, no existing tag,
-   and green CI for the source SHA.
-5. Record decisions, manual steps, failures, and recovery in the release
-   tracking issue.
-
-Do not invoke missing `scripts/release/*` commands. Do not treat this path as
-shipped-state evidence; APS shipped state requires a verified release record
-once that target mechanism exists.
-
-### Future Command-Driven Path
-
-Use this path only after RELORCH-011 implements the commands. Target-state
-inputs select a green `main` SHA directly; there is no `--head dev` promotion
-step.
-
-#### 1. Start The Release
+### 1. Start The Release
 
 Run the release skill:
 
@@ -145,8 +106,11 @@ Do not manually edit these files if prepare fails.
 ```bash
 bash scripts/release/promote.sh \
   --version <version> \
-  --strategy stabilisation \
-  --source-sha <main-sha>
+  --strategy <direct|stabilisation> \
+  --source-sha <promoted-source-sha> \
+  --request-readiness \
+  --channel <beta|stable> \
+  --base-boundary <previous-tag-or-ref>
 ```
 
 Used only when the `stabilisation` strategy applies — `main` cannot be tagged
@@ -160,13 +124,14 @@ command after merge so it records the merged state.
 #### 5. Tag
 
 ```bash
-bash scripts/release/tag.sh --version <version>
+bash scripts/release/tag.sh --version <version> --source-sha <promoted-source-sha>
 ```
 
 The tag command must verify:
 
 - local and remote `main` agree
 - the version on `main` is correct
+- release-readiness passed for the exact source SHA
 - the remote is `EddaCraft/anvil-001`
 - provenance state is recorded before tag push
 
@@ -176,15 +141,17 @@ The tag command must verify:
 bash scripts/release/monitor.sh --version <version>
 ```
 
-This watches the cargo-dist release workflow until it finishes. If it fails,
-stop and decide whether to retry, use deterministic recovery, or abort. Do not
-skip a failed publishing workflow except as explicitly approved emergency
-recovery with compensating evidence recorded in the release issue.
+This records the cargo-dist release workflow state. Until live `gh run`
+monitoring is enabled, provide workflow evidence and stop for operator decision
+if the command returns `blocked`. If publishing fails, decide whether to retry,
+use deterministic recovery, or abort. Do not skip a failed publishing workflow
+except as explicitly approved emergency recovery with compensating evidence
+recorded in the release issue.
 
 #### 7. Verify The Release
 
 ```bash
-bash scripts/release/verify.sh --version <version>
+bash scripts/release/verify.sh --version <version> --source-sha <promoted-source-sha>
 ```
 
 Verification must confirm:
@@ -196,7 +163,11 @@ Verification must confirm:
 - Homebrew, Scoop, and WinGet publication state is recorded
 - `https://install.eddacraft.ai` returns HTTP 200
 
-#### 8. Approve Comms
+Until live host and publisher checks are enabled, `verify.sh` blocks and
+requires explicit verification evidence rather than inferring release state from
+prose.
+
+### 8. Approve Comms
 
 If `verify.sh` produces a release announcement draft, approve or edit it before
 posting.
@@ -215,7 +186,12 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 #### 9. Close Out
 
 ```bash
-bash scripts/release/closeout.sh --version <version>
+bash scripts/release/closeout.sh \
+  --version <version> \
+  --tag <version> \
+  --source-sha <promoted-source-sha> \
+  --verification-record <verification-url> \
+  --verification-passed
 ```
 
 This owns:
@@ -280,20 +256,14 @@ For specific failure modes, route to the matching playbook before improvising:
 
 A release is done only when all are true:
 
-- `verify.sh` passed (or, in the current preflight-only path, the operator has
-  recorded equivalent manual verification evidence on the tracking issue)
+- `verify.sh` passed
 - public release assets are present
 - install site returns 200
 - downstream package-manager state is recorded
 - comms are approved or explicitly skipped
-- `closeout.sh` completed (or, in the current path, closeout actions are
-  recorded on the tracking issue)
+- `closeout.sh` completed
 - release issue is closed
 
-In the current preflight-only path, the tracking issue is an interim operator
-log only. Link live verification evidence from the issue; do not treat the issue
-as release authority or shipped-state authority. If a release ships before
-canonical release records exist, mark it as a legacy release without a canonical
-release record and track any backfill or reconciliation follow-up explicitly.
-RELORCH-001's release-record schema and the corresponding publication step in
-`verify.sh` retire this interim arrangement.
+The tracking issue is an operator log only. Link live verification evidence from
+the issue; do not treat the issue as release authority or shipped-state
+authority.

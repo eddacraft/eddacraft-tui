@@ -39,10 +39,10 @@ GitHub release tracking issue.
 | Shipped-state reconciliation | Release record | Emit or locate the canonical record; never infer shipped state from issue prose. |
 | Agent/operator interface | `/release` skill | Consume command JSON and ask judgement questions; do not reimplement command logic. |
 
-Until OPMODEL branch cutover completes, commands may accept compatibility inputs
-such as `--base main --head dev`. They must label those outputs as
-`compatibility` and must not describe `dev -> main` promotion as the target-state
-release topology.
+After the OPMODEL main-first cutover, release commands use target-state inputs
+such as `--source-sha <sha>` for mutating phases. Assessment may still compare
+arbitrary refs, but command output must not describe `dev -> main` promotion as
+the target-state release topology.
 
 ## Load-Bearing Constraints
 
@@ -556,7 +556,7 @@ corresponding command exists and the harness is green.
 
 This spec satisfies RELORCH-001 when:
 
-- it is linked from `plans/modules/release-orchestration.aps.md`
+- it is linked from `plans/archive/modules/release-orchestration.aps.md`
 - it explicitly addresses the four load-bearing constraints
 - it defines tracking issue metadata comment shape
 - it defines release-record storage and emission responsibility

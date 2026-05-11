@@ -104,4 +104,57 @@ NODE
 help_output="$(bash "$PREPARE" --help)"
 assert_contains "$help_output" 'Usage: prepare.sh'
 
+repo_non_dry="$tmp/prepare-real-repo"
+init_repo "$repo_non_dry"
+fake_issues="$tmp/prepare-fake-issues.json"
+bash "$HARNESS" run-contract \
+  --name prepare-non-dry-run-fake-issue \
+  --expected-exit 0 \
+  --expected-command prepare \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$3" bash "$2" --json --version v0.7.0-beta --release-type beta --strategy direct --request-readiness --repo eddacraft/anvil-001' _ "$repo_non_dry" "$PREPARE" "$fake_issues"
+
+node - "$repo_non_dry" "$fake_issues" <<'NODE'
+const fs = require('node:fs');
+const [repo, issuePath] = process.argv.slice(2);
+const pkg = JSON.parse(fs.readFileSync(`${repo}/package.json`, 'utf8'));
+if (pkg.version !== '0.7.0-beta') throw new Error(`wrong package version ${pkg.version}`);
+for (const path of ['CHANGELOG.md', 'docs/public/anvil/releases/changelog.md']) {
+  const text = fs.readFileSync(`${repo}/${path}`, 'utf8');
+  if (!text.includes('## v0.7.0-beta')) throw new Error(`${path} missing release section`);
+}
+const state = JSON.parse(fs.readFileSync(issuePath, 'utf8'));
+if (state.issues.length !== 1) throw new Error(`expected one issue, got ${state.issues.length}`);
+if (state.issues[0].comments.length !== 1) throw new Error('expected one metadata comment');
+NODE
+if [[ -n "$(git -C "$repo_non_dry" status --porcelain)" ]]; then
+  echo "expected non-dry-run prepare to leave clean worktree" >&2
+  exit 1
+fi
+
+bash "$HARNESS" run-contract \
+  --name prepare-resume-existing-fake-issue \
+  --expected-exit 0 \
+  --expected-command prepare \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$3" bash "$2" --json --version v0.7.0-beta --release-type beta --strategy direct --tracking-issue 1234 --repo eddacraft/anvil-001' _ "$repo_non_dry" "$PREPARE" "$fake_issues"
+node - "$fake_issues" <<'NODE'
+const fs = require('node:fs');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (state.issues.length !== 1) throw new Error('resume should not create another issue');
+if (state.issues[0].comments.length !== 2) throw new Error('resume should append metadata comment');
+NODE
+
+rc=0
+(cd "$repo_non_dry" && ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$tmp/unguarded-issues.json" bash "$PREPARE" --json --version v0.7.0-beta --release-type beta --strategy direct >"$tmp/unguarded-gh.json") || rc=$?
+if [[ "$rc" != "129" ]]; then
+  echo "expected unguarded fake gh hook to exit 129, got $rc" >&2
+  exit 1
+fi
+node - "$tmp/unguarded-gh.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (!doc.failures.some((failure) => failure.code === 'invalid-input')) {
+  throw new Error('expected unguarded fake gh hook to report invalid-input');
+}
+NODE
+
 echo "prepare.test.sh: ok"

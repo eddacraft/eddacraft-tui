@@ -25,6 +25,30 @@ bash "$HARNESS" run-contract \
   --expected-command assess \
   -- bash "$FIXTURE" success
 
+bash "$HARNESS" run-contract \
+  --name metadata-comment \
+  --expected-exit 0 \
+  --expected-command prepare \
+  -- bash "$FIXTURE" metadata-comment
+
+bash "$HARNESS" run-contract \
+  --name remote-tag-recovery \
+  --expected-exit 1 \
+  --expected-command tag \
+  -- bash "$FIXTURE" remote-tag-recovery
+
+bash "$HARNESS" run-contract \
+  --name release-record-mismatch \
+  --expected-exit 1 \
+  --expected-command verify \
+  -- bash "$FIXTURE" release-record-mismatch
+
+bash "$HARNESS" run-contract \
+  --name cargo-dist-failure \
+  --expected-exit 1 \
+  --expected-command monitor \
+  -- bash "$FIXTURE" cargo-dist-failure
+
 if bash "$HARNESS" run-contract \
   --name non-json-stdout \
   --expected-exit 0 \

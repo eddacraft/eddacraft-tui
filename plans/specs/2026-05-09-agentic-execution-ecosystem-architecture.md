@@ -102,9 +102,9 @@ debugging, verification, delegation, and worktree skills.
 
 ### Current Drift And Inconsistency
 
-- The release skill on `dev` expects deterministic helper commands under
-  `scripts/release/*`, but this checkout only exposes `scripts/release.sh`. That
-  is a live skill-to-repo authority mismatch.
+- The RELORCH command surface now provides deterministic helpers under
+  `scripts/release/*`; the earlier skill-to-repo mismatch around the legacy
+  single-file runner is resolved.
 - Repo-local `/council` describes an always-five-agent batch process; global
   council skills distinguish streaming, quick, standard, and full modes.
 - Repo-local `/review` is a generic checklist rather than a targeted pre-PR

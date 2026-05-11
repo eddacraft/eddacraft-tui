@@ -21,7 +21,7 @@ assert_contains() {
 
 init_repo() {
   local repo="$1"
-  mkdir -p "$repo/plans/modules" "$repo/crates/anvil-cli/src"
+  mkdir -p "$repo/plans/archive/modules" "$repo/crates/anvil-cli/src"
   git -C "$repo" init -q
   git -C "$repo" config user.email relorch@example.invalid
   git -C "$repo" config user.name "RELORCH Test"
@@ -34,8 +34,8 @@ init_repo() {
 success_repo="$tmp/success-repo"
 init_repo "$success_repo"
 printf '%s\n' 'fn main() {}' >"$success_repo/crates/anvil-cli/src/main.rs"
-printf '%s\n' 'RELORCH-003 assessment text' >"$success_repo/plans/modules/release-orchestration.aps.md"
-git -C "$success_repo" add crates/anvil-cli/src/main.rs plans/modules/release-orchestration.aps.md
+printf '%s\n' 'RELORCH-003 assessment text' >"$success_repo/plans/archive/modules/release-orchestration.aps.md"
+git -C "$success_repo" add crates/anvil-cli/src/main.rs plans/archive/modules/release-orchestration.aps.md
 git -C "$success_repo" commit -q -m "feat: implement RELORCH-003 assessment"
 
 bash "$HARNESS" run-contract \

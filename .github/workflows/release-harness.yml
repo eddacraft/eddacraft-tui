@@ -49,3 +49,7 @@ jobs:
           bash scripts/release/_test/preflight.test.sh
           bash scripts/release/_test/prepare.test.sh
           bash scripts/release/_test/promote.test.sh
+          bash scripts/release/_test/tag.test.sh
+          bash scripts/release/_test/monitor.test.sh
+          bash scripts/release/_test/verify.test.sh
+          bash scripts/release/_test/closeout.test.sh

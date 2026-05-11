@@ -209,7 +209,7 @@ else
         add_command 'pnpm lint:check'
         ;;
       release-dry-run)
-        add_command 'bash -n scripts/release.sh scripts/release/*.sh'
+        add_command 'bash -n scripts/release/*.sh'
         ;;
       platform-smoke)
         add_command 'pnpm --filter @eddacraft/anvil-checks-native build:debug'

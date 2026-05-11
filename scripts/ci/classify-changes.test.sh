@@ -55,7 +55,7 @@ policy=$(run_case policy policies/fixtures/security.rego)
 assert_json_contains "${policy}" '.pathClasses | index("policy")' 'policy path class'
 assert_json_contains "${policy}" '.requiredChecks | index("opa-test")' 'policy requires OPA tests'
 
-release=$(run_case release scripts/release.sh .changeset/example.md)
+release=$(run_case release scripts/release/tag.sh .changeset/example.md)
 assert_json_contains "${release}" '.pathClasses | index("release")' 'release path class'
 assert_json_contains "${release}" '.riskClasses | index("release")' 'release risk class'
 assert_json_contains "${release}" '.requiredReviews | index("release")' 'release review required'

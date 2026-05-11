@@ -35,33 +35,10 @@ operator explicitly asks for emergency recovery.
 
 ## Mode Selection
 
-At entry, detect which release model is executable:
-
-1. **Target command mode:** all `scripts/release/*.sh` commands listed below
-   are present and invokable with `bash`, and `RELORCH-011` is Complete.
-2. **Preflight-only mode:** target commands are missing but
-   `scripts/release.sh` exists, or target commands exist before
-   `RELORCH-011` ratifies them.
-
-The OPMODEL-012 cutover completed 2026-05-11; `main` is the only permanent
-product branch. Release execution targets a green `main` SHA — there is no
-`dev -> main` promotion. Until `RELORCH-011` implements and wires the target
-commands, use preflight-only mode.
-
-In preflight-only mode, run only the checked-in deterministic preflight unless
-the operator supplies exact release mutation commands for an explicitly
-approved release or emergency recovery:
-
-```bash
-bash scripts/release.sh
-```
-
-After preflight, stop before mutating branches, tags, GitHub Releases, package
-registries, taps, or installer state. Mutating steps are operator-owned in
-preflight-only mode: require explicit per-step approval, exact commands, live
-precondition checks, and release-issue logging. Do not improvise missing
-`scripts/release/*` responsibilities. Do not claim preflight-only-mode issue
-notes are release records or APS shipped-state evidence.
+At entry, verify the target command model is executable: all required
+`scripts/release/*.sh` commands listed below are present and invokable with
+`bash`. If any command is missing or fails its own preconditions, stop and report
+the failure. Do not substitute manual release choreography.
 
 ## Required Commands
 
@@ -80,15 +57,8 @@ bash scripts/release/verify.sh --help
 bash scripts/release/closeout.sh --help
 ```
 
-If any command is missing in target command mode, stop and report the missing
-command. Do not fall back to manually performing that command's responsibility.
-If the repository is still in preflight-only mode, report that target commands
-are not implemented yet and use `bash scripts/release.sh` as the only
-deterministic release helper.
-
-If target commands exist before `RELORCH-011` ratifies them, do not use them
-as the normal release path. Treat them as implementation under validation
-unless the operator explicitly approves a bounded migration exercise.
+If any command is missing, stop and report the missing command. Do not fall back
+to manually performing that command's responsibility.
 
 Expected command ownership:
 
@@ -110,7 +80,7 @@ Expected command ownership:
 
 ## Entry Flow
 
-1. Select target command mode or preflight-only mode.
+1. Verify target command mode is available.
 2. Read live state:
 
 ```bash
@@ -119,27 +89,23 @@ git remote -v
 gh issue list --repo EddaCraft/anvil-001 --label release --state open --json number,title,url,body
 ```
 
-3. If an open release issue exists, summarise the likely current phase and
-   ask whether to resume it or start a new release.
-4. In preflight-only mode, run `bash scripts/release.sh`, then stop before
-   release mutation. Continue only when the operator provides exact commands
-   and approval for each mutating step. Do not run the target command
-   sequence below.
-5. In target command mode, run assessment against the selected `main` SHA.
-   `--base` is required; `--source-sha` carries the target-mode exact SHA:
+3. If an open release issue exists, summarise the likely current phase and ask
+   whether to resume it or start a new release.
+4. Run assessment against the selected `main` SHA. `--base` is required;
+   `--source-sha` carries the exact SHA:
 
 ```bash
 bash scripts/release/assess.sh --base <previous-tag> --source-sha <main-sha> --json
 ```
 
-6. Present the assessment to the operator and ask for confirmation or
-   override of version, release type, and strategy.
+5. Present the assessment to the operator and ask for confirmation or override
+   of version, release type, and strategy.
 
 ## Release Flow
 
-After operator confirmation in target command mode, run the commands in order.
-Each command must be idempotent: if re-run after a partial failure, it should
-resume or explain the conflict.
+After operator confirmation, run the commands in order. Each command must be
+idempotent: if re-run after a partial failure, it should resume or explain the
+conflict.
 
 ### 1. Preflight
 
@@ -173,7 +139,11 @@ stop.
 ```bash
 bash scripts/release/promote.sh \
   --version <version> \
-  --strategy <direct|stabilisation>
+  --strategy <direct|stabilisation> \
+  --source-sha <promoted-source-sha> \
+  --request-readiness \
+  --channel <beta|stable> \
+  --base-boundary <previous-tag-or-ref>
 ```
 
 If a PR needs human review/merge, ask the operator to merge it and then re-run or
@@ -182,11 +152,12 @@ resume `promote.sh` until it reports merged state.
 ### 4. Tag
 
 ```bash
-bash scripts/release/tag.sh --version <version>
+bash scripts/release/tag.sh --version <version> --source-sha <promoted-source-sha>
 ```
 
-The command must verify the local `main` HEAD, remote URL, expected version, and
-source provenance before pushing a tag.
+The command must verify the local `main` HEAD, remote URL, expected version,
+release-readiness result for the exact source SHA, and source provenance before
+pushing a tag.
 
 ### 5. Monitor
 
@@ -199,10 +170,14 @@ If the workflow fails, report the failed job and ask for retry, recovery, or
 abort. Do not patch release workflow state manually unless explicitly approved as
 emergency recovery.
 
+Current command-state note: if live workflow monitoring is not yet enabled,
+`monitor.sh` returns `blocked` and requires explicit workflow evidence before the
+operator proceeds.
+
 ### 6. Verify
 
 ```bash
-bash scripts/release/verify.sh --version <version>
+bash scripts/release/verify.sh --version <version> --source-sha <promoted-source-sha>
 ```
 
 Verification must include:
@@ -215,6 +190,10 @@ Verification must include:
 - Homebrew, Scoop, and WinGet publication state is recorded.
 - `https://install.eddacraft.ai` returns HTTP 200.
 
+Current command-state note: if live host and publisher checks are not yet
+enabled, `verify.sh` returns `blocked`; do not treat prose-only verification as a
+published release record.
+
 ### 7. Comms Approval
 
 If `verify.sh` produces a comms draft, present it to the operator. Send or record
@@ -223,11 +202,16 @@ it only after approval.
 ### 8. Closeout
 
 ```bash
-bash scripts/release/closeout.sh --version <version>
+bash scripts/release/closeout.sh \
+  --version <version> \
+  --tag <version> \
+  --source-sha <promoted-source-sha> \
+  --verification-record <verification-url> \
+  --verification-passed
 ```
 
-This command owns back-merge, release branch cleanup, final issue update, and
-issue closure.
+This command owns release branch cleanup, final issue update, and issue closure.
+There is no back-merge step because `main` is the single integration target.
 
 ## Failure Policy
 
@@ -245,11 +229,9 @@ On any command failure:
 
 ## Resumability
 
-Resume from live state plus structured release metadata. In preflight-only
-mode, the tracking issue is the durable operator log. In target command mode,
-the tracking issue may point to release records but is not shipped-state
-authority. The tracking issue or release metadata block should contain at
-least:
+Resume from live state plus structured release metadata. The tracking issue may
+point to release records but is not shipped-state authority. The tracking issue
+or release metadata block should contain at least:
 
 - `version`
 - `releaseType`
@@ -265,13 +247,15 @@ least:
 - `winget`
 - `installSite`
 
-At resume in preflight-only mode, read live state and the tracking issue,
-rerun `bash scripts/release.sh` if a fresh preflight is needed, then stop
-before any mutation unless the operator provides exact commands and approval.
-At resume in target command mode, run `assess.sh` first and then the
-appropriate deterministic command for the next incomplete phase. If expected
-state and live state disagree, stop and ask the operator which source should
-be trusted.
+At resume, run `assess.sh` first and then the appropriate deterministic command
+for the next incomplete phase. If expected state and live state disagree, stop
+and ask the operator which source should be trusted.
+
+Do not resume promotion, tagging, verification, or closeout from a release record
+whose `lifecycleState` is `discarded`, `superseded`, or `yanked`, or from a
+legacy compatibility record whose `policyDecisions` includes
+`candidate-discard` or `release-yank`. Stop and ask the operator which recovery
+playbook applies.
 
 ## Emergency Recovery
 
@@ -298,5 +282,4 @@ matching playbook before improvising:
   [`docs/runbooks/emergency-hotfix.md`](../../../docs/runbooks/emergency-hotfix.md).
 
 The skill must not execute these playbooks autonomously: each one requires
-explicit operator approval per mutating step, and mutating release commands
-remain operator-owned in preflight-only mode.
+explicit operator approval per mutating step.

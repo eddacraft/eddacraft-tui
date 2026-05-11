@@ -185,7 +185,7 @@ classify_file() {
   local file="$1"
 
   case "$file" in
-    .github/workflows/release.yml|scripts/release.sh|scripts/release/*|docs/guides/release-runbook.md|.claude/skills/release/*|.claude/skills/release/SKILL.md|plans/specs/*release*|plans/specs/*readiness*)
+    .github/workflows/release.yml|scripts/release/*|docs/guides/release-runbook.md|.claude/skills/release/*|.claude/skills/release/SKILL.md|plans/specs/*release*|plans/specs/*readiness*)
       add_unique RISK_CLASSES "release"
       add_unique PLAYBOOKS "docs/guides/release-runbook.md"
       add_unique REVIEWS "operations-reviewer"

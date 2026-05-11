@@ -179,11 +179,9 @@ Per the [record schema](../../plans/specs/2026-05-10-release-record-schema.md):
   `supersededBy.version`, `supersededBy.tag`, and `supersededBy.recordUrl` to
   the successor release. The successor release publishes its own `published`
   record per normal release flow.
-- **Yank:** the schema does not yet define a `yanked` lifecycle state, and
-  `lifecycleState: superseded` requires a successor. Until RELORCH adds a proper
-  state (tracked as a follow-up — see Schema follow-up below), keep
-  `lifecycleState: published` and append a `policyDecisions` entry that
-  reconciliation tools must treat as a hard block on APS shipped-state evidence:
+- **Yank:** set `lifecycleState: yanked` and append a `policyDecisions` entry
+  that reconciliation tools must treat as a hard block on APS shipped-state
+  evidence, including on older compatibility records:
 
   ```json
   {
@@ -203,24 +201,11 @@ Per the [record schema](../../plans/specs/2026-05-10-release-record-schema.md):
   }
   ```
 
-  Until automated reconciliation honours `release-yank`, the manual APS demotion
-  below is the only thing keeping APS shipped-state correct — do not skip it.
-
 - **Comms-only correction:** update `releaseNote.text` and add an inline note in
   the record body explaining the correction. Artefacts, checksums, source SHA,
   and `lifecycleState` stay unchanged. A bad release record must never be edited
   to remove evidence of the bad release; supersession and yank both preserve
   historical state.
-
-### Schema follow-up
-
-The release-record schema gap that forces this `policyDecisions` convention is
-already tracked as
-[RELORCH-012](../../plans/modules/release-orchestration.aps.md#relorch-012-yank-lifecycle-state-and-policydecisions-conventions):
-add a `yanked` lifecycle state (or equivalent) so reconciliation tools can
-detect the yank without depending on prose conventions. Until RELORCH-012 ships,
-the manual APS demotion in the next section is load-bearing — do not skip it on
-the assumption that automated reconciliation will catch the yank.
 
 ## APS / issue closeout
 

@@ -58,40 +58,32 @@ if (doc.data.operatorActionRequired !== true) throw new Error('dry-run promotion
 NODE
 
 target_sha="$(git -C "$repo" rev-parse HEAD)"
-(cd "$repo" && bash "$PROMOTE" --json --source-sha "$target_sha" --version v0.7.0-beta) >"$tmp/target.json"
+(cd "$repo" && bash "$PROMOTE" --json --source-sha "$target_sha" --version v0.7.0-beta) >"$tmp/target.json" || true
 bash "$HARNESS" run-contract \
-  --name promote-target-noop \
-  --expected-exit 0 \
+  --name promote-target-requires-readiness \
+  --expected-exit 1 \
   --expected-command promote \
   -- bash -c 'cd "$1" && bash "$2" --json --source-sha "$3" --version v0.7.0-beta' _ "$repo" "$PROMOTE" "$target_sha"
 node - "$tmp/target.json" "$target_sha" <<'NODE'
 const fs = require('node:fs');
 const [path, expectedSha] = process.argv.slice(2);
 const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
-if (doc.status !== 'noop') throw new Error(`expected noop, got ${doc.status}`);
+if (doc.status !== 'blocked') throw new Error(`expected blocked, got ${doc.status}`);
 if (doc.mode !== 'target') throw new Error(`expected target mode, got ${doc.mode}`);
 if (doc.data.mergeState !== 'not-required') throw new Error(`unexpected target mergeState ${doc.data.mergeState}`);
 if (doc.data.mergedSha !== expectedSha) throw new Error(`unexpected mergedSha ${doc.data.mergedSha}`);
 NODE
 
+target_readiness_state="$tmp/promote-target-readiness.json"
 bash "$HARNESS" run-contract \
-  --name promote-needs-operator \
-  --expected-exit 1 \
+  --name promote-target-readiness-fake-gh \
+  --expected-exit 0 \
   --expected-command promote \
-  -- bash -c 'cd "$1" && bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev' _ "$repo" "$PROMOTE"
-(cd "$repo" && bash "$PROMOTE" --json --version v0.7.0-beta --strategy direct --base main --head dev >"$tmp/non-dry-run.json") || rc=$?
-rc="${rc:-0}"
-if [[ "$rc" != "1" ]]; then
-  echo "expected non-dry-run promotion to exit 1, got $rc" >&2
-  exit 1
-fi
-node - "$tmp/non-dry-run.json" <<'NODE'
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --source-sha "$3" --version v0.7.0-beta --strategy direct --request-readiness --channel beta --base-boundary v0.6.1-beta' _ "$repo" "$PROMOTE" "$target_sha" "$target_readiness_state"
+node - "$target_readiness_state" <<'NODE'
 const fs = require('node:fs');
-const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-if (doc.status !== 'needs-operator') throw new Error(`expected needs-operator, got ${doc.status}`);
-if (!doc.failures.some((failure) => failure.code === 'operator-required')) {
-  throw new Error('expected operator-required failure');
-}
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (!state.calls.some((call) => call.command === 'workflow-run' && call.sourceSha)) throw new Error('expected target readiness workflow dispatch');
 NODE
 
 invalid_output="$(bash "$PROMOTE" --json --unknown 2>/dev/null || true)"
@@ -104,5 +96,101 @@ bash "$HARNESS" run-contract \
 
 help_output="$(bash "$PROMOTE" --help)"
 assert_contains "$help_output" 'Usage: promote.sh'
+
+fake_state="$tmp/promote-fake-gh.json"
+bash "$HARNESS" run-contract \
+  --name promote-create-pr-fake-gh \
+  --expected-exit 0 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --tracking-issue 1234' _ "$repo" "$PROMOTE" unused "$fake_state"
+node - "$fake_state" <<'NODE'
+const fs = require('node:fs');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (state.prs.length !== 1) throw new Error('expected one fake PR');
+if (!state.calls.some((call) => call.command === 'pr-create')) throw new Error('expected pr-create call');
+NODE
+
+bash "$HARNESS" run-contract \
+  --name promote-resume-open-pr-fake-gh \
+  --expected-exit 0 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --tracking-issue 1234' _ "$repo" "$PROMOTE" unused "$fake_state"
+node - "$fake_state" <<'NODE'
+const fs = require('node:fs');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (state.prs.length !== 1) throw new Error('resume should not create another fake PR');
+if (state.calls.filter((call) => call.command === 'pr-create').length !== 1) throw new Error('resume should not call pr-create again');
+NODE
+
+conflict_state="$tmp/promote-conflict.json"
+node - "$conflict_state" <<'NODE'
+const fs = require('node:fs');
+fs.writeFileSync(process.argv[2], JSON.stringify({ nextPr: 1401, prs: [{ number: 1400, url: 'https://github.com/eddacraft/anvil-001/pull/1400', title: 'Release v0.7.0-beta', base: 'main', head: 'dev', state: 'OPEN', mergeStateStatus: 'DIRTY', reviewDecision: 'REVIEW_REQUIRED', mergeCommit: null }], runs: [], calls: [] }, null, 2));
+NODE
+bash "$HARNESS" run-contract \
+  --name promote-conflict-fake-gh \
+  --expected-exit 1 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --tracking-issue 1234' _ "$repo" "$PROMOTE" unused "$conflict_state"
+
+review_state="$tmp/promote-review.json"
+node - "$review_state" <<'NODE'
+const fs = require('node:fs');
+fs.writeFileSync(process.argv[2], JSON.stringify({ nextPr: 1401, prs: [{ number: 1400, url: 'https://github.com/eddacraft/anvil-001/pull/1400', title: 'Release v0.7.0-beta', base: 'main', head: 'dev', state: 'OPEN', mergeStateStatus: 'CLEAN', reviewDecision: 'CHANGES_REQUESTED', mergeCommit: null }], runs: [], calls: [] }, null, 2));
+NODE
+bash "$HARNESS" run-contract \
+  --name promote-review-block-fake-gh \
+  --expected-exit 1 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --tracking-issue 1234' _ "$repo" "$PROMOTE" unused "$review_state"
+
+merged_state="$tmp/promote-merged.json"
+merge_sha="$(git -C "$repo" rev-parse dev)"
+node - "$merged_state" "$merge_sha" <<'NODE'
+const fs = require('node:fs');
+const mergeSha = process.argv[3];
+fs.writeFileSync(process.argv[2], JSON.stringify({ nextPr: 1401, prs: [{ number: 1400, url: 'https://github.com/eddacraft/anvil-001/pull/1400', title: 'Release v0.7.0-beta', base: 'main', head: 'dev', state: 'MERGED', mergeStateStatus: 'CLEAN', reviewDecision: 'APPROVED', mergeCommit: { oid: mergeSha } }], runs: [], calls: [] }, null, 2));
+NODE
+bash "$HARNESS" run-contract \
+  --name promote-readiness-fake-gh \
+  --expected-exit 0 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --tracking-issue 1234 --request-readiness --channel beta --base-boundary v0.6.1-beta' _ "$repo" "$PROMOTE" unused "$merged_state"
+node - "$merged_state" <<'NODE'
+const fs = require('node:fs');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (!state.calls.some((call) => call.command === 'workflow-run' && call.mode === 'readiness')) throw new Error('expected readiness workflow dispatch');
+NODE
+
+bash "$HARNESS" run-contract \
+  --name promote-readiness-resume-fake-gh \
+  --expected-exit 0 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && ANVIL_RELEASE_TEST_MODE=promote-fake-gh ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$4" bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --tracking-issue 1234 --request-readiness --channel beta --base-boundary v0.6.1-beta' _ "$repo" "$PROMOTE" unused "$merged_state"
+node - "$merged_state" <<'NODE'
+const fs = require('node:fs');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (state.calls.filter((call) => call.command === 'workflow-run').length !== 1) throw new Error('resume should not redispatch readiness');
+NODE
+
+bash "$HARNESS" run-contract \
+  --name promote-readiness-missing-boundary \
+  --expected-exit 129 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev --request-readiness --channel beta' _ "$repo" "$PROMOTE"
+
+rc=0
+(cd "$repo" && ANVIL_RELEASE_PROMOTE_FAKE_GH_FILE="$tmp/unguarded-promote.json" bash "$PROMOTE" --json --version v0.7.0-beta --strategy direct --base main --head dev >"$tmp/unguarded-promote.out") || rc=$?
+if [[ "$rc" != "129" ]]; then
+  echo "expected unguarded promote fake gh hook to exit 129, got $rc" >&2
+  exit 1
+fi
+node - "$tmp/unguarded-promote.out" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (!doc.failures.some((failure) => failure.code === 'invalid-input')) {
+  throw new Error('expected unguarded fake gh hook to report invalid-input');
+}
+NODE
 
 echo "promote.test.sh: ok"

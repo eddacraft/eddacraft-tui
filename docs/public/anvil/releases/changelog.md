@@ -272,8 +272,8 @@ All notable changes to anvil are documented here.
   act on them.
 - **Public docs** — release pages, install docs, the quality model, and the
   `.anvil` pattern reference were refreshed for the native scanner release.
-- **Release preflight** — `scripts/release.sh` now runs Rust and TypeScript fmt,
-  lint, typecheck, and tests as one bundled release gate.
+- **Release preflight** — the legacy bundled release gate runs Rust and
+  TypeScript fmt, lint, typecheck, and tests before release.
 
 ## [0.3.3-beta] — WinGet Distribution & Windows UX
 

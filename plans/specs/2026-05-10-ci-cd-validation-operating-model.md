@@ -10,7 +10,7 @@ Related authority:
 - `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
 - `plans/specs/2026-05-09-council-agent-skill-change-proposal.md`
 - `plans/modules/operating-model-migration.aps.md`
-- `plans/modules/release-orchestration.aps.md`
+- `plans/archive/modules/release-orchestration.aps.md`
 - `plans/modules/documentation-governance.aps.md`
 
 ## Purpose
@@ -124,7 +124,7 @@ Observed workflow surfaces:
 - `.github/actions/setup-workspace/action.yml`
 - `.github/actions/detect-changes/action.yml`
 - `.husky/pre-commit`
-- `scripts/release.sh`
+- `scripts/release/*.sh`
 - `package.json` scripts
 - `nx.json` affected and cache configuration
 
@@ -154,9 +154,9 @@ Current weaknesses:
   checks are split across many jobs, each paying setup overhead.
 - Security checks duplicate dependency, licence, secret, Semgrep, CodeQL, and
   cargo-deny concerns across workflows.
-- The release skill/runbook target architecture expects `scripts/release/*`, but
-  the current repository only has the legacy `scripts/release.sh` until RELORCH
-  lands the new command surface.
+- The release skill/runbook target architecture now expects deterministic
+  `scripts/release/*` commands; RELORCH landed that command surface and removed
+  the legacy single-file runner.
 - Change classification exists, but there is no single shared risk classifier
   consumed by hooks, agents, scripts, and CI.
 

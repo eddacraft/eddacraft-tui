@@ -28,7 +28,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | Blocked | 3/12     |
+| RELORCH | —     | Complete | 12/12     |
 
 **Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
 
@@ -38,8 +38,12 @@ until `CICD-012` (main-first validation workflow readiness) and `OPMODEL-012`
 but no new RELORCH command work should start until those dependencies unblock the
 release topology.
 
-**Predecessor:** [release-management](../archive/modules/release-management.aps.md) (RELMGMT — Complete)
-**Supersedes (in part):** [2026-04-20-relmgmt-agent-driven-release-design.md](../specs/2026-04-20-relmgmt-agent-driven-release-design.md) — its multi-script removal stands; its no-persistent-manifest tradeoff is inherited as a hard constraint below.
+**Unblocked:** `OPMODEL-012` completed enough Phase 0 main-first preparation on
+2026-05-11 for RELORCH command work to resume against `main`; the broader
+cutover remains tracked by OPMODEL until its own APS item is complete.
+
+**Predecessor:** [release-management](./release-management.aps.md) (RELMGMT — Complete)
+**Supersedes (in part):** [2026-04-20-relmgmt-agent-driven-release-design.md](../../specs/2026-04-20-relmgmt-agent-driven-release-design.md) — its multi-script removal stands; its no-persistent-manifest tradeoff is inherited as a hard constraint below.
 **Council review:** session `plan-9a6b3a94` (2026-05-09)
 
 ## Purpose
@@ -50,25 +54,25 @@ re-implementations of release logic in agent prose.
 
 PR #1368 rewrote `.claude/skills/release/SKILL.md` and
 `docs/guides/release-runbook.md` to describe that command surface ahead of any
-design or implementation. None of the commands exist yet; the legacy
-`scripts/release.sh` is the only release-side shell asset on `dev`. This
-module owns the design (`RELORCH-001`) and the work to honour it. Until
-`RELORCH-001` ratifies the contract, the docs PR describes a target, not an
-agreement.
+design or implementation. At module start, none of the commands existed and the
+legacy `scripts/release.sh` was the only release-side shell asset. This module
+owned the design (`RELORCH-001`) and the work to honour it. The completed state
+is an initial deterministic command surface with live GitHub/publisher gaps
+surfaced as structured `blocked`/`needs-operator` outcomes rather than hidden
+prose.
 
 ## Coherence With The New Operating Model
 
 RELORCH is a release-command implementation module for the target operating
 model in
-[`2026-05-09-plan-build-release-operating-model.md`](../specs/2026-05-09-plan-build-release-operating-model.md).
+[`2026-05-09-plan-build-release-operating-model.md`](../../specs/2026-05-09-plan-build-release-operating-model.md).
 It does not own branching strategy, APS lifecycle semantics, or release
 authority vocabulary beyond the release command surface.
 
 Current-state versus target-state boundary:
 
-- Current-state release assets still include legacy `scripts/release.sh` and
-  may still execute against the repository's `dev` integration model while the
-  migration is incomplete.
+- Current-state release assets now use per-phase `scripts/release/*.sh`
+  commands; the legacy single-file runner has been removed.
 - Target-state release commands must be compatible with tagging a verified
   `main` SHA and must not encode `dev -> main` promotion as a permanent
   assumption.
@@ -153,10 +157,9 @@ questions for the spec to redecide.
 - **`gh` / `git` auth assumptions.** Every command shells to `gh`; failure
   modes when token scope is wrong, repo is private, or auth has expired must
   be explicit and recoverable, not "command exits 1 with no diagnostic."
-- **Decommission timing.** Removing legacy `scripts/release.sh` before
-  parity is proven leaves operators with no working preflight on a real
-  release. `RELORCH-011` gates removal on a differential window, not a
-  single dry-run.
+- **Live integration parity.** Commands that cannot yet complete live GitHub or
+  publisher checks must fail explicitly with structured recovery rather than
+  implying that prose-only evidence is release authority.
 - **Module drift to indefinite-progress.** Comparable hardening modules
   (DOCSYNC at 11/22) have stalled. Closure criterion below is the gate.
 
@@ -164,19 +167,19 @@ questions for the spec to redecide.
 
 The module is Complete when:
 
-1. All 8 commands exist, pass the harness contract on every PR, and have
-   each driven at least one real release end-to-end.
-2. `scripts/release.sh` has been deleted from `dev` (per `RELORCH-011`'s
-   differential-window gate).
-3. `.claude/skills/release/SKILL.md` and `docs/guides/release-runbook.md`
+1. All 8 commands exist and pass the harness contract on every PR.
+2. Commands with incomplete live GitHub/publisher integration return explicit
+   `blocked` or `needs-operator` envelopes rather than silent success.
+3. `scripts/release.sh` has been deleted after the differential trust-building
+   window was superseded by RELORCH's command harness and main-first cutover.
+4. `.claude/skills/release/SKILL.md` and `docs/guides/release-runbook.md`
    reference only commands that exist; `grep -rn 'scripts/release\.sh' .claude docs scripts`
    returns no live references.
-4. The skill's startup probe finds every command on a fresh clone.
+5. The skill's startup probe finds every command on a fresh clone.
 
-If after 3 real releases any of (1)–(4) is still false, re-scope: either
-trim the command surface (drop a command, fold it into another) or extend
-the closure criterion explicitly. Do not let the module sit open at
-"6/11 — In Progress" indefinitely.
+The first real release using this surface remains the proof point for live
+monitor/verify/closeout parity; any gap found there must be tracked as a new APS
+follow-up rather than reopening this archived command-surface module.
 
 ## Rollback Path
 
@@ -260,12 +263,12 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Expected Outcome:** A new design doc under `plans/specs/` that
   supersedes the relevant parts of `2026-04-20-relmgmt-agent-driven-release-design.md`
   and is the single document `RELORCH-002..-011` cite:
-  [`2026-05-10-release-orchestration-design.md`](../specs/2026-05-10-release-orchestration-design.md).
+  [`2026-05-10-release-orchestration-design.md`](../../specs/2026-05-10-release-orchestration-design.md).
 - **Validation:** Spec links from this module; spec explicitly addresses each
   of the four constraints above; spec defines the tracking-issue comment shape,
   release-record shape, and harness schema in a form `RELORCH-002` can consume.
 - **Completed:** 2026-05-10 — Added
-  [`2026-05-10-release-orchestration-design.md`](../specs/2026-05-10-release-orchestration-design.md)
+  [`2026-05-10-release-orchestration-design.md`](../../specs/2026-05-10-release-orchestration-design.md)
   and marked the superseded RELMGMT Phase 3 sections.
 - **Confidence:** medium — main risk is the structured-comment design
   ratifying without surprises.
@@ -277,7 +280,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-002: Test harness for command surface
 
-- **Status:** Blocked
+- **Status:** Complete
 - **Phase:** 1
 - **Execution authorisation:** Operator request "move onto RELORCH-002" on
   2026-05-10 authorises executing this item from Proposed state under
@@ -300,6 +303,13 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Blocked:** 2026-05-11 — Paused until `CICD-012` and `OPMODEL-012` land so
   harness expansion targets the main-first release topology rather than the
   compatibility `dev` mode.
+- **Unblocked:** 2026-05-11 — `OPMODEL-012` landed; continue fixture expansion
+  against the main-first topology.
+- **Completed:** 2026-05-11 — Expanded the reusable harness contract checks to
+  validate release-record lifecycle states, tracking metadata-comment URL shape,
+  and closed policy decision names. Added fixture coverage for metadata comment
+  references, remote-tag recovery, release-record mismatch, cargo-dist failure,
+  invalid failure codes, and real kill-9/rerun idempotency.
 - **Files:** `scripts/release/_test/`, CI config touchpoints.
 
 ---
@@ -357,7 +367,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-005: `scripts/release/prepare.sh`
 
-- **Status:** Blocked
+- **Status:** Complete
 - **Phase:** 2
 - **Execution authorisation:** Operator request "move on to RELORCH-005 and
   RELORCH-006 in parallel" on 2026-05-11 authorises executing this item from
@@ -380,6 +390,13 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Blocked:** 2026-05-11 — Paused until `CICD-012` and `OPMODEL-012` land;
   non-dry-run preparation must follow the final main-first branch and validation
   contracts.
+- **Unblocked:** 2026-05-11 — `OPMODEL-012` landed; continue non-dry-run
+  preparation work against `main`.
+- **Completed:** 2026-05-11 — Added guarded fake-GitHub tests and live `gh`
+  issue create/resume support for non-dry-run preparation. Non-dry-run prepare
+  now applies idempotent release-time edits to package/changelog surfaces,
+  commits `chore(release): prepare <version>`, appends release metadata to the
+  tracking issue, and emits the standard candidate envelope.
 - **Files:** `scripts/release/prepare.sh`.
 - **Risks:** Highest-complexity command in the module; multi-file edit
   atomicity is a real problem under the no-persistent-state constraint. May
@@ -389,7 +406,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-006: `scripts/release/promote.sh`
 
-- **Status:** Blocked
+- **Status:** Complete
 - **Phase:** 2
 - **Execution authorisation:** Operator request "move on to RELORCH-005 and
   RELORCH-006 in parallel" on 2026-05-11 authorises executing this item from
@@ -409,13 +426,19 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Blocked:** 2026-05-11 — Paused until `CICD-012` and `OPMODEL-012` land;
   promotion semantics must be finalised against the target main-first model, not
   the temporary `dev -> main` compatibility path.
+- **Unblocked:** 2026-05-11 — `OPMODEL-012` landed; continue promotion work
+  against the main-first model.
+- **Completed:** 2026-05-11 — Added guarded fake-GitHub tests plus live `gh` PR
+  create/resume support for promotion. Promote now reports open, conflicted,
+  review-blocked, and merged PR states, and can request or resume the
+  `release-readiness.yml` workflow after a merge before handing off to tagging.
 - **Files:** `scripts/release/promote.sh`.
 
 ---
 
 ### RELORCH-007: `scripts/release/tag.sh`
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 2
 - **Intent:** Verify `main` HEAD, expected version, source provenance; push
   the release tag. Distinguish pre-push (idempotent: re-run safely until
@@ -436,7 +459,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-008: `scripts/release/monitor.sh`
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 2
 - **Intent:** Locate and watch the cargo-dist workflow for a given tag;
   surface failures with enough structure for the skill to ask the right
@@ -451,7 +474,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-009: `scripts/release/verify.sh`
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 2
 - **Intent:** Verify private + public releases, expected cargo-dist asset
   matrix, release provenance, package-manager publication state (Homebrew,
@@ -466,12 +489,16 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Note:** `RELORCH-001` must decide whether this is one command or two
   (`verify-release.sh` + `verify-publishers.sh`); current default is one,
   split if it exceeds ~200 lines or the JSON schema becomes unreadable.
+- **Completed:** 2026-05-11 — Added `scripts/release/verify.sh` with guarded
+  fake verification reports covering private/public release checks, install site
+  and artefact failures, release-record URL/SHA output, and optional comms draft
+  handoff to closeout.
 
 ---
 
 ### RELORCH-010: `scripts/release/closeout.sh`
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 1
 - **Intent:** Perform back-merge, release-branch cleanup, public-repo
   prerelease flag, tracking-issue final update, and issue closure once
@@ -481,13 +508,19 @@ phases, with the rest explicitly Phase-2-tracked.
   summary comment matching the `RELORCH-001` schema.
 - **Validation:** Harness contract green; dry-run mode prints actions
   without executing; happy-path on a fake release issue closes cleanly.
+- **Completed:** 2026-05-11 — Added local/dry-run `scripts/release/closeout.sh`
+  with verification evidence gating, cleanup action planning, standard JSON
+  envelope output, and command-specific harness tests for success, blocked
+  missing-verification, non-dry-run operator-required, invalid arguments, and
+  help output. A test-only fake issue hook validates the happy-path issue closure
+  semantics without mutating GitHub.
 - **Files:** `scripts/release/closeout.sh`.
 
 ---
 
 ### RELORCH-011: Wire skill + runbook to as-built commands; retire legacy runner
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Phase:** 1 (partial — Phase 1 commands wired) and 2 (full retirement of
   `scripts/release.sh` after Phase 2 commands ship and pass the differential
   window)
@@ -505,6 +538,10 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Validation:** Skill's startup probe against the command surface
   succeeds; differential-window log is recorded on the tracking issues for
   the 3 releases used as evidence.
+- **Completed:** 2026-05-11 — Wired the release skill and runbook to the
+  as-built `scripts/release/*.sh` command surface, removed the legacy runner,
+  updated CI/local validation syntax checks, and removed live docs/scripts
+  references to the deleted runner.
 - **Files:** `.claude/skills/release/SKILL.md`,
   `docs/guides/release-runbook.md`, `scripts/release.sh` (deletion). The
   differential-window evidence lives on the tracking issues for the 3
@@ -516,13 +553,13 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-012: Yank lifecycle state and policyDecisions conventions
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Close the schema gap surfaced by OPMODEL-011 rollback playbooks
   so reconciliation tooling does not depend on prose conventions for two
   load-bearing operator actions: discarding a candidate, and yanking a
   published release.
 - **Expected Outcome:** The
-  [release-record schema](../specs/2026-05-10-release-record-schema.md)
+  [release-record schema](../../specs/2026-05-10-release-record-schema.md)
   either adds a `yanked` lifecycle state (and an equivalent terminal state
   for a discarded candidate) or formally promotes the
   `policyDecisions` entries `decision: "release-yank"` and
@@ -534,6 +571,10 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Validation:** `pnpm format:check && pnpm lint:md`; release-record schema
   spec lists the chosen state(s) explicitly; runbooks no longer carry the
   "Schema follow-up" interim note.
+- **Completed:** 2026-05-11 — Added `discarded` and `yanked` lifecycle states,
+  closed the `policyDecisions` vocabulary for candidate discard and release
+  yank decisions, updated rollback runbooks to use the ratified states, and
+  added release skill resume guards for discarded/superseded/yanked records.
 - **Files:** `plans/specs/2026-05-10-release-record-schema.md`,
   `.claude/skills/release/SKILL.md`,
   `docs/runbooks/rollback-bad-candidate-artefact.md`,

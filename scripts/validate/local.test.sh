@@ -51,9 +51,9 @@ dependency_plan=$(bash "${validator}" --changed --paths-file "${dependency_paths
 jq -e '.commands[] | select(contains("trivy is required"))' >/dev/null <<<"${dependency_plan}"
 
 release_paths="${tmp_dir}/release.paths"
-printf '%s\n' 'scripts/release.sh' >"${release_paths}"
+printf '%s\n' 'scripts/release/tag.sh' >"${release_paths}"
 release_plan=$(bash "${validator}" --changed --paths-file "${release_paths}" --dry-run --json)
-jq -e '.commands[] | select(. == "bash -n scripts/release.sh scripts/release/*.sh")' >/dev/null <<<"${release_plan}"
+jq -e '.commands[] | select(. == "bash -n scripts/release/*.sh")' >/dev/null <<<"${release_plan}"
 
 full=$(bash "${validator}" --full --dry-run --json)
 jq -e '.mode == "full"' >/dev/null <<<"${full}"

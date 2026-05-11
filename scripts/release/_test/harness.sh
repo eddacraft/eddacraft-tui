@@ -86,6 +86,8 @@ const failures = [];
 const allowedModes = new Set(['compatibility', 'target', 'migration-exercise']);
 const allowedStatuses = new Set(['success', 'noop', 'blocked', 'failed', 'recoverable', 'needs-operator']);
 const allowedPhases = new Set(['assessment', 'preflight', 'prepare', 'promote', 'tag', 'monitor', 'verify', 'closeout']);
+const allowedLifecycleStates = new Set(['candidate', 'discarded', 'published', 'superseded', 'yanked']);
+const allowedPolicyDecisions = new Set(['version-override', 'initial-release', 'candidate-discard', 'release-yank']);
 const allowedFailureCodes = new Set([
   'invalid-input',
   'auth-failed',
@@ -122,11 +124,38 @@ if (doc.trackingIssue && typeof doc.trackingIssue === 'object') {
   for (const field of ['repository', 'number', 'url', 'metadataCommentUrl']) {
     if (!(field in doc.trackingIssue)) failures.push(`trackingIssue missing ${field}`);
   }
+  if (
+    'metadataCommentUrl' in doc.trackingIssue &&
+    doc.trackingIssue.metadataCommentUrl !== null &&
+    typeof doc.trackingIssue.metadataCommentUrl !== 'string'
+  ) {
+    failures.push('trackingIssue metadataCommentUrl must be a string or null');
+  }
 }
 
 if (doc.releaseRecord && typeof doc.releaseRecord === 'object') {
   for (const field of ['lifecycleState', 'recordUrl', 'sha256']) {
     if (!(field in doc.releaseRecord)) failures.push(`releaseRecord missing ${field}`);
+  }
+  if (
+    'lifecycleState' in doc.releaseRecord &&
+    doc.releaseRecord.lifecycleState !== null &&
+    !allowedLifecycleStates.has(doc.releaseRecord.lifecycleState)
+  ) {
+    failures.push(`releaseRecord invalid lifecycleState ${doc.releaseRecord.lifecycleState}`);
+  }
+  if (Array.isArray(doc.releaseRecord.policyDecisions)) {
+    for (const [index, decision] of doc.releaseRecord.policyDecisions.entries()) {
+      if (!decision || typeof decision !== 'object') {
+        failures.push(`releaseRecord.policyDecisions[${index}] must be an object`);
+        continue;
+      }
+      if (!allowedPolicyDecisions.has(decision.decision)) {
+        failures.push(`releaseRecord.policyDecisions[${index}] invalid decision ${decision.decision}`);
+      }
+    }
+  } else if ('policyDecisions' in doc.releaseRecord) {
+    failures.push('releaseRecord policyDecisions must be an array when present');
   }
 }
 

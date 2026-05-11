@@ -420,7 +420,7 @@ Recommended mini-council pairings:
 | --- | --- |
 | `docs/**` only | none |
 | `plans/**` only | Pragmatic Lead or General |
-| `.github/**`, `scripts/release.sh`, `dist-workspace.toml` | Operations + Pragmatic Lead |
+| `.github/**`, `scripts/release/**`, `dist-workspace.toml` | Operations + Pragmatic Lead |
 | `.claude/skills/release/**`, release runbooks | Operations + Adversarial |
 | `crates/**` normal | General |
 | `crates/**` auth/security/policy paths | Security + Adversarial |

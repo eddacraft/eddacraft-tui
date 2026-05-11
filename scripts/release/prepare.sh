@@ -18,6 +18,7 @@ request_readiness=false
 request_candidate_artifacts=false
 mode="compatibility"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+metadata_comment_url=""
 
 usage() {
   cat <<'USAGE'
@@ -75,6 +76,121 @@ empty_data_json() {
   printf '%s' '{"prepCommitSha":null,"changedFiles":[],"trackingIssueUrl":null,"candidateMetadata":{},"idempotencyKey":null}'
 }
 
+check_prepare_fake_guard() {
+  if [[ -n "${ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE:-}" && "${ANVIL_RELEASE_TEST_MODE:-}" != "prepare-fake-gh" ]]; then
+    emit_envelope "failed" "$(empty_data_json)" "$(failure_json invalid-input "ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE requires ANVIL_RELEASE_TEST_MODE=prepare-fake-gh" false correct-test-usage)" "prepare" "Unset the test hook or enable explicit prepare fake GitHub test mode."
+    exit 129
+  fi
+}
+
+release_version_without_prefix() {
+  printf '%s' "${version#v}"
+}
+
+ensure_tracking_issue() {
+  if [[ -n "${ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE:-}" ]]; then
+    node - "$ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE" "$repo" "$version" "$tracking_issue" <<'NODE'
+const fs = require('node:fs');
+const [path, repo, version, requested] = process.argv.slice(2);
+const state = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : { nextNumber: 1234, issues: [] };
+state.nextNumber ??= 1234;
+state.issues ??= [];
+const requestedNumber = /^\d+$/.test(requested) ? Number(requested) : null;
+let issue = requestedNumber ? state.issues.find((candidate) => candidate.number === requestedNumber) : null;
+if (!issue && requested) {
+  issue = state.issues.find((candidate) => candidate.url === requested);
+}
+if (!issue) {
+  issue = {
+    number: requestedNumber || state.nextNumber++,
+    url: requested && /^https?:/.test(requested) ? requested : `https://github.com/${repo}/issues/${requestedNumber || state.nextNumber - 1}`,
+    title: `Release ${version}`,
+    comments: [],
+  };
+  state.issues.push(issue);
+}
+fs.writeFileSync(path, JSON.stringify(state, null, 2) + '\n');
+process.stdout.write(JSON.stringify({ number: issue.number, url: issue.url }));
+NODE
+    return 0
+  fi
+
+  command -v gh >/dev/null 2>&1 || {
+    emit_envelope "failed" "$(empty_data_json)" "$(failure_json infra-failed "gh is required for non-dry-run prepare" true install-gh)" "prepare" "Install/authenticate gh or rerun with --dry-run."
+    exit 127
+  }
+
+  if [[ -n "$tracking_issue" ]]; then
+    gh issue view "$tracking_issue" --repo "$repo" --json number,url 2>/dev/null || {
+      emit_envelope "failed" "$(empty_data_json)" "$(failure_json auth-failed "failed to read tracking issue" true gh-auth-or-issue)" "prepare" "Authenticate gh or provide a valid tracking issue."
+      exit 1
+    }
+  else
+    gh issue create --repo "$repo" --title "Release $version" --body "Release tracking issue for $version." --json number,url 2>/dev/null || {
+      emit_envelope "failed" "$(empty_data_json)" "$(failure_json auth-failed "failed to create tracking issue" true gh-auth)" "prepare" "Authenticate gh and rerun prepare."
+      exit 1
+    }
+  fi
+}
+
+append_prepare_metadata() {
+  local issue_number="$1"
+  local issue_url="$2"
+  local prep_sha="$3"
+  local comment_body
+  comment_body="$(node - "$version" "$source_sha" "$prep_sha" <<'NODE'
+const [version, sourceSha, prepCommitSha] = process.argv.slice(2);
+process.stdout.write(`<!-- anvil-release-metadata:v1 -->\n${JSON.stringify({ phase: 'prepare', version, sourceSha, prepCommitSha, recordedAt: new Date().toISOString() }, null, 2)}\n`);
+NODE
+)"
+
+  if [[ -n "${ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE:-}" ]]; then
+    metadata_comment_url="$(node - "$ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE" "$issue_number" "$comment_body" <<'NODE'
+const fs = require('node:fs');
+const [path, numberRaw, body] = process.argv.slice(2);
+const state = JSON.parse(fs.readFileSync(path, 'utf8'));
+const issue = state.issues.find((candidate) => candidate.number === Number(numberRaw));
+if (!issue) throw new Error(`missing fake issue ${numberRaw}`);
+issue.comments ??= [];
+const url = `${issue.url}#issuecomment-${issue.comments.length + 1}`;
+issue.comments.push({ url, body });
+fs.writeFileSync(path, JSON.stringify(state, null, 2) + '\n');
+process.stdout.write(url);
+NODE
+)"
+    return 0
+  fi
+
+  metadata_comment_url="$(gh issue comment "$issue_number" --repo "$repo" --body "$comment_body" 2>/dev/null)"
+}
+
+apply_release_edits() {
+  local file_version
+  file_version="$(release_version_without_prefix)"
+  node - "$file_version" <<'NODE'
+const fs = require('node:fs');
+const version = process.argv[2];
+if (fs.existsSync('package.json')) {
+  const doc = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  doc.version = version;
+  fs.writeFileSync('package.json', JSON.stringify(doc, null, 2) + '\n');
+}
+NODE
+  mkdir -p docs/public/anvil/releases
+  for path in CHANGELOG.md docs/public/anvil/releases/changelog.md; do
+    [[ -e "$path" ]] || printf '%s\n' '# Changelog' >"$path"
+    if ! grep -F "## $version" "$path" >/dev/null 2>&1; then
+      node - "$path" "$version" <<'NODE'
+const fs = require('node:fs');
+const [path, version] = process.argv.slice(2);
+const existing = fs.readFileSync(path, 'utf8');
+const section = `\n## ${version}\n\n- Release preparation metadata generated.\n`;
+fs.writeFileSync(path, existing.replace(/\s*$/, '') + section + '\n');
+NODE
+    fi
+  done
+}
+
 emit_envelope() {
   local status="$1"
   local data_json="$2"
@@ -109,7 +225,7 @@ process.stdout.write(JSON.stringify({
     repository,
     number: /^\d+$/.test(trackingIssue) ? Number(trackingIssue) : null,
     url: /^https?:/.test(trackingIssue) ? trackingIssue : null,
-    metadataCommentUrl: null,
+    metadataCommentUrl: process.env.ANVIL_RELEASE_METADATA_COMMENT_URL || null,
   },
   releaseRecord: {
     lifecycleState: status === 'success' ? 'candidate' : null,
@@ -157,6 +273,8 @@ while (($# > 0)); do
     *) fail_usage "unknown argument: $1" ;;
   esac
 done
+
+check_prepare_fake_guard
 
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   emit_envelope "failed" "$(empty_data_json)" "$(failure_json invalid-input "not inside a git repository" false run-from-repository)" "prepare" "Run prepare from a git repository."
@@ -235,6 +353,38 @@ NODE
 if [[ "$dry_run" == "true" ]]; then
   emit_envelope "success" "$data_json" "[]" "promote" "Dry-run preparation is valid; run promote after operator approval."
 else
-  emit_envelope "needs-operator" "$data_json" "$(failure_json operator-required "non-dry-run prepare is not enabled in the initial local implementation" false use-dry-run-or-implement-gh)" "prepare" "Use --dry-run or complete GitHub-backed prepare implementation."
-  exit 1
+  issue_json="$(ensure_tracking_issue)"
+  tracking_issue="$(node -e "const issue=JSON.parse(process.argv[1]); process.stdout.write(String(issue.number));" "$issue_json")"
+  tracking_issue_url="$(node -e "const issue=JSON.parse(process.argv[1]); process.stdout.write(issue.url);" "$issue_json")"
+  apply_release_edits
+  if [[ -n "$(git status --porcelain -- package.json CHANGELOG.md docs/public/anvil/releases/changelog.md)" ]]; then
+    git add -- package.json CHANGELOG.md docs/public/anvil/releases/changelog.md
+    git commit -m "chore(release): prepare $version" >/dev/null
+  fi
+  prep_commit_sha="$(git rev-parse HEAD)"
+  data_json="$(node - "$version" "$release_type" "$strategy" "$source_sha" "$tracking_issue_url" "$request_readiness" "$request_candidate_artifacts" "$prep_commit_sha" <<'NODE'
+const [version, releaseType, strategy, sourceSha, trackingIssueUrl, readinessRaw, artifactsRaw, prepCommitSha] = process.argv.slice(2);
+process.stdout.write(JSON.stringify({
+  prepCommitSha,
+  changedFiles: ['package.json', 'CHANGELOG.md', 'docs/public/anvil/releases/changelog.md'],
+  trackingIssueUrl,
+  candidateMetadata: {
+    version,
+    releaseType,
+    strategy,
+    sourceSha,
+    readinessRequests: {
+      readiness: readinessRaw === 'true',
+      candidateArtifacts: artifactsRaw === 'true',
+    },
+  },
+  idempotencyKey: `prepare:${version}:${strategy}:${sourceSha}`,
+}));
+NODE
+)"
+  if ! append_prepare_metadata "$tracking_issue" "$tracking_issue_url" "$prep_commit_sha"; then
+    emit_envelope "recoverable" "$data_json" "$(failure_json auth-failed "failed to append release tracking metadata" true retry-prepare-metadata)" "prepare" "Fix GitHub issue permissions or network state, then rerun prepare."
+    exit 1
+  fi
+  ANVIL_RELEASE_METADATA_COMMENT_URL="$metadata_comment_url" emit_envelope "success" "$data_json" "[]" "promote" "Preparation committed and tracking metadata recorded."
 fi

@@ -234,16 +234,17 @@ require a coordinated bundle — pick them off in any order.
   `cargo deny check` (rust.yml:339-340) run on push to `main`, `dev`,
   and `rust-*` — but not on `release/*` branches. The release branch
   never gets these checks except via a PR to one of those targets,
-  and `scripts/release.sh` does not run them either. A workspace-hack
+  and the release preflight did not run them either. A workspace-hack
   drift or licence violation introduced on a release branch would
   ship undetected.
 - **Expected outcome:** Add `release/*` to the rust.yml push filter,
   AND add `cargo hakari verify` + `cargo deny check` to
-  `scripts/release.sh` so local preflight catches what CI catches.
+  the release preflight path so local preflight catches what CI catches.
 - **Confidence:** high
 - **Resolution:** Added `release/*` to the Rust workflow push branch filter.
   Added `cargo hakari verify` and `cargo deny check` to the local release
-  preflight script before the existing clippy/test checks.
+  preflight script before the existing clippy/test checks; RELORCH later
+  replaced the legacy single-file runner with `scripts/release/preflight.sh`.
 - **Status:** Done
 
 ### V050F-011: Refactor `scan_content` to surface custom-pattern compile errors

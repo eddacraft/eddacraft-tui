@@ -47,7 +47,8 @@ Acceptable storage locations:
 Canonical shipped-state requires a verified release record associated with the
 published tag. Candidate records may use the same schema but must set
 `lifecycleState` to `candidate` and must not be consumed for APS shipped-state
-updates.
+updates. Discarded candidate records and yanked published records remain
+historical evidence, but they are hard blocks for APS shipped-state promotion.
 
 ## Schema
 
@@ -145,14 +146,14 @@ All records require these fields:
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `schemaVersion` | Yes | Semver schema version, for example `1.0.0`, for deterministic parsers. |
-| `lifecycleState` | Yes | `candidate`, `published`, or `superseded`. |
+| `lifecycleState` | Yes | `candidate`, `discarded`, `published`, `superseded`, or `yanked`. |
 | `source.repository` | Yes | Repository containing the released source snapshot. |
 | `source.commitSha` | Yes | Exact commit SHA validated and tagged. |
 | `releaseIntent` | Yes | Versioning and change-shape summary. |
 | `aps.items` | Yes | APS work items included in this release. Empty only when `aps.emptyReason` records an explicit no-APS emergency release reason. |
 | `aps.emptyReason` | Yes, when `aps.items` is empty | Human-readable reason for an intentional no-APS emergency release. Must be `null` or omitted when `aps.items` is not empty. |
 
-Published and superseded records additionally require these fields:
+Published, superseded, and yanked records additionally require these fields:
 
 | Field | Required | Meaning |
 | --- | --- | --- |
@@ -190,17 +191,53 @@ When `lifecycleState` is `superseded`, `supersededBy` must be an object with:
 | `tag` | Yes | Replacement release tag. |
 | `recordUrl` | Yes | Location of the replacement release record. |
 
+When `lifecycleState` is `discarded` or `yanked`, the record must include a
+matching `policyDecisions` entry with one of the closed decision values defined
+below. This keeps the lifecycle machine small while preserving the operator
+rationale, timestamp, approver, and affected surfaces as machine-readable audit
+metadata.
+
+## Policy Decisions
+
+`policyDecisions[].decision` is a closed vocabulary for release-record decisions
+that reconciliation and release commands must understand:
+
+| Decision | Meaning | Required when |
+| --- | --- | --- |
+| `version-override` | Operator accepted a version different from the computed release intent. | A version override is used or explicitly rejected as `value: "none"`. |
+| `initial-release` | No previous tag exists for the release boundary. | `source.previousTag` is `null` on a published initial release. |
+| `candidate-discard` | A candidate artefact or readiness run must not be promoted. | `lifecycleState` is `discarded`. |
+| `release-yank` | A published release must no longer count as shipped-state evidence. | `lifecycleState` is `yanked`. |
+
+Every policy decision entry must include:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `decision` | Yes | One of the closed decision values above. |
+| `value` | Yes | Machine-readable decision outcome, for example `discarded`, `yanked`, or `none`. |
+| `reason` | Yes | One-line operator rationale. |
+| `appliedAt` | Yes, except `version-override: none` | ISO-8601 timestamp for the decision. |
+| `approver` | Yes, except `version-override: none` | Operator handle that approved the decision. |
+
+`release-yank` entries should additionally include `surfaces`, an array naming
+the distribution surfaces changed or intentionally left unchanged, such as
+`github-private`, `github-public`, `homebrew`, `scoop`, `winget`, and
+`install-site`.
+
 ## Lifecycle States
 
 | State | Meaning | APS effect |
 | --- | --- | --- |
 | `candidate` | Candidate metadata or artefacts exist but are not published. | Do not mark APS items Released/Shipped. |
+| `discarded` | Candidate metadata or artefacts are intentionally abandoned. | Hard block: do not mark APS items Released/Shipped from this record. |
 | `published` | Tag, assets, checksums, and verification are complete. | Eligible to mark included APS items Released/Shipped. |
 | `superseded` | A later release replaces or repairs this release. | Preserve historical shipped state and link the successor. |
+| `yanked` | A published release was withdrawn from recommended/distributable surfaces without a successor. | Hard block: remove or refuse APS Released/Shipped evidence from this record. |
 
 `superseded` records must set `supersededBy` to the replacement release version,
-tag, and release-record location once that successor exists. `candidate` and
-`published` records must set `supersededBy` to `null` or omit it.
+tag, and release-record location once that successor exists. `candidate`,
+`discarded`, `published`, and `yanked` records must set `supersededBy` to `null`
+or omit it.
 
 ## APS Reconciliation Rules
 
@@ -212,6 +249,11 @@ APS reconciliation may mark an item `Released/Shipped` only when all are true:
 4. Required artefacts have checksums or equivalent integrity metadata.
 5. Verification checks passed or an explicit policy decision records an accepted
    exception.
+
+APS reconciliation must remove or refuse shipped-state evidence when a record is
+`discarded` or `yanked`, or when a legacy compatibility record carries a
+`policyDecisions` entry with `decision: "candidate-discard"` or
+`decision: "release-yank"`.
 
 APS reconciliation must not infer shipped state from:
 
@@ -242,5 +284,4 @@ These are intentionally left to RELORCH implementation design:
   public release assets, or a combination
 - exact JSON Schema file path, if generated
 - how candidate records are retained and expired
-- whether `policyDecisions` becomes a closed enum or a flexible decision log
 - whether public records redact private release URLs
