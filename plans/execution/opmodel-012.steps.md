@@ -80,7 +80,14 @@ quoting from the playbook:
 
 ### Phase 3 — Docs flip + APS close-out (one PR, agent-driven)
 
-Opens after the operator confirms Phase 2 is done. Outputs:
+Opens after the operator confirms Phase 2 is done. **The Phase 3 PR body
+must include three machine-verifiable Phase 2 evidence blocks** (cutover SHA,
+branch-protection JSON, default branch) per
+[`docs/runbooks/main-first-cutover.md#verification`](../../docs/runbooks/main-first-cutover.md#verification).
+Without those, do not open the PR. This is the interlock that prevents a
+fresh agent session from flipping the docs based on chat-memory alone.
+
+Outputs:
 
 1. Flip authority in the four cutover docs:
    - `docs/guides/branching-strategy.md` — promote "Target Model" to
@@ -128,7 +135,7 @@ Reviewer: operations-reviewer (single council member).
 | CI workflow pinned to `dev` silently stops running after cutover | Phase 0 audit catches; Phase 1 PRs land before Phase 2. |
 | Branch protection misconfigured on `main` | Playbook lists the exact required check names from `gh pr checks` on a recent merged PR; operator copies that list. |
 | Someone pushes to `main` directly between Phase 0 and Phase 2 (no protection yet) | Phase 2 step 3 re-checks fast-forward window; if broken, abort and reschedule. |
-| Docs flip lands before Phase 2 completes | Phase 3 PR explicitly blocks on operator confirmation in the PR body; agent does not open Phase 3 until told. |
+| Docs flip lands before Phase 2 completes | Phase 3 PR body must paste three machine-verifiable Phase 2 evidence outputs (cutover SHA, branch-protection JSON, default branch) per the [cutover playbook Verification section](../../docs/runbooks/main-first-cutover.md#verification). PR cannot be reviewed without those three blocks present. Stops a fresh agent in a new session from opening Phase 3 on chat-memory alone. |
 
 ## Decision points awaiting operator
 

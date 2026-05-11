@@ -23,7 +23,7 @@ work or release flow once `dev` is no longer the integration target.
 | `ci-nightly.yml` | `schedule`, `workflow_dispatch` | None | No change |
 | `ci.yml` | `push: [main, dev]`, `pull_request: [main, dev]` | Triggers on both; PRs against `main` will continue to run | **Post-cutover cleanup** — drop `dev` from both lists |
 | `codeql.yml` | `push: [main, dev]`, `pull_request: [main, dev]`, `schedule` | Triggers on both | **Post-cutover cleanup** — drop `dev` |
-| `infra.yml` | `pull_request` (any base, path-filtered), `push: [main]`, `workflow_dispatch` | None — already main-only on push | No change |
+| `infra.yml` | `pull_request` (any base, path-filtered), `push: [main]`, `workflow_dispatch` | None — already main-only on push. (`PULUMI_STACK_PREVIEW: dev` at line 33 is a Pulumi stack name, not a branch ref — do not change.) | No change |
 | `labeler.yml` | `pull_request` (any base) | None | No change |
 | `napi.yml` | `push: [main, dev]` (path-filtered + tags), `pull_request` (any base, path-filtered) | Triggers on both | **Post-cutover cleanup** — drop `dev` |
 | **`pr-base-guard.yml`** | `pull_request: [main]` | **Actively rejects** feat/fix/docs/chore branches targeting `main`. After cutover, normal work targets `main`; this guard would reject every such PR. | **Cutover-blocking** — delete (or invert) as part of the cutover |
@@ -44,6 +44,19 @@ work or release flow once `dev` is no longer the integration target.
   triggers; remove them in the Phase 3 docs-flip PR or a separate cleanup PR.
 - **No-change workflows: 8** — already main-only, schedule-only, or
   base-agnostic.
+
+## Adjacent surfaces (not workflows but cutover-relevant)
+
+These are not `.github/workflows/*.yml` files, but the audit found them while
+sweeping for `dev` references. Phase 3 (docs flip + cleanup PR) must address
+each. They are listed here so they are not forgotten between Phase 0 and
+Phase 3.
+
+| Surface | File | Issue | Phase 3 action |
+|---|---|---|---|
+| Dependabot | `.github/dependabot.yml` | No explicit `target-branch`; tracks repo default. Will silently start targeting `main` the moment Step 6 flips the default. | Decide whether to pin `target-branch: main` explicitly (defensive, prevents future-default-branch surprises) or leave the implicit default. Document the decision. |
+| Emergency-hotfix runbook | `docs/runbooks/emergency-hotfix.md` lines 170, 174 | Compatibility-mode back-merge commands branch from and PR into `dev`. Post-cutover the back-merge step is unnecessary (main is the only target) but the runbook still says "do this". | Remove the compatibility-mode back-merge section in Phase 3 once OPMODEL-012 is verified complete. Update the mode notes to say compatibility mode is retired. |
+| `origin/HEAD` on local clones | n/a (per-contributor) | Each existing clone has `origin/HEAD -> refs/remotes/origin/dev`. `gh pr create` resolves the default base from this; it will keep proposing `dev` until each contributor runs `git remote set-head origin --auto`. | Phase 2 announcement includes the snippet (already in playbook Step 8). |
 
 ## Cutover-blocking detail: `pr-base-guard.yml`
 

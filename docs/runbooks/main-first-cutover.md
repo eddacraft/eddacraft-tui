@@ -54,8 +54,14 @@ Before opening the cutover window:
 
 3. Operator has notified each open-PR-against-`dev` owner with a deadline:
    merge-before-cutover or accept retarget-after.
-4. Operator has decided the dev retirement disposition (see Step 6 below):
-   protect-and-keep, dated compatibility branch, or delete.
+4. Operator has decided the dev retirement disposition (see Step 7 below):
+   protect-and-keep, dated compatibility branch (recommended), or delete.
+5. **Dependabot awareness.** `.github/dependabot.yml` does not pin a
+   `target-branch`, so it tracks the repo default. The moment Step 6 flips the
+   default to `main`, all new Dependabot PRs target `main`. Plan the cutover
+   window so a scheduled Dependabot run mid-window is acceptable (PRs queue
+   against `main` while the channel is still frozen — that is fine, just be
+   ready for them).
 
 If `git rev-list --count origin/dev..origin/main` is not `0`, the fast-forward
 window has closed. Stop. Decide whether to merge `main` into `dev` first
@@ -131,7 +137,18 @@ gh pr create --repo EddaCraft/anvil-001 --base main \
   --body "Per OPMODEL-012 Phase 2; see docs/runbooks/main-first-cutover.md."
 ```
 
-Merge after one council reviewer approval. Verify the workflow is gone:
+Expect the **`PR Base Guard` check to fail red** on this PR — the cleanup PR's
+head branch is `chore/*`, which the guard rejects. That is intentional and does
+not block the merge: no branch protection exists yet at this step, so
+required-check enforcement is not on. The operator merges the PR despite the red
+check; the next PR after this merges into a clean state.
+
+Merge after one council reviewer approval. Then **record this merge SHA and
+timestamp in the operator log — this is the rollback boundary.** After this
+merge, the clean rollback path in the Rollback section closes; further failures
+move to fix-forward.
+
+Verify the workflow is gone:
 
 ```bash
 gh api repos/EddaCraft/anvil-001/contents/.github/workflows/pr-base-guard.yml \
@@ -146,6 +163,15 @@ Do this **before** Step 5 — if branch protection lands first and
 Use the required-check list from the Phase 0 audit
 ([`workflow audit`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md#required-ci-checks-for-main-branch-protection)).
 Confirm the canonical list against a recent code PR before applying.
+
+**Required checks rule:** only include checks that **always run** for the shape
+of change you want to gate. A required check that is path-filtered out on a
+given PR will block that PR indefinitely. The default list below is the
+always-running subset for code PRs; do **not** add Build, Dependency Audit, E2E
+Harness, Platform Smoke, Release Gate, SAST, Secret Scan, License Compliance, or
+Dependency Audit (PR) to required checks unless you are willing to maintain a
+separate "required for code" vs "required for docs" split via repo rulesets
+rather than legacy branch protection.
 
 ```bash
 # Replace REQUIRED_CHECKS with the operator-confirmed list.
@@ -172,6 +198,12 @@ gh api -X PUT repos/EddaCraft/anvil-001/branches/main/protection \
 EOF
 ```
 
+`enforce_admins: false` is a **deliberate** small-team choice so the operator
+can recover from misconfigured protection without being locked out. Revisit this
+when the team grows beyond a single primary maintainer; flip to `true` once
+protection settings are stable and a second maintainer can confirm recovery
+paths exist.
+
 Verify:
 
 ```bash
@@ -189,30 +221,49 @@ gh api -X PATCH repos/EddaCraft/anvil-001 -f default_branch=main
 gh api repos/EddaCraft/anvil-001 --jq .default_branch     # must print "main"
 ```
 
-Open a no-op test PR against `main` from a throwaway branch to confirm the
-default-branch dropdown shows `main`:
+Open a small **non-empty** test PR against `main` to confirm the default-branch
+dropdown shows `main` and that the required checks actually pass on a real diff.
+An empty commit (`--allow-empty`) does not exercise path-filtered jobs; a
+one-line docs touch exercises Docs Lint at minimum:
 
 ```bash
 git switch -c chore/cutover-smoke origin/main
-git commit --allow-empty -m "chore: cutover smoke (will close)"
+date -u +"%Y-%m-%dT%H:%M:%SZ" >> docs/runbooks/main-first-cutover-smoke.log
+git add docs/runbooks/main-first-cutover-smoke.log
+git commit -m "chore: cutover smoke (will close)"
 git push -u origin chore/cutover-smoke
 gh pr create --base main --title "chore: cutover smoke (close immediately)" \
   --body "OPMODEL-012 Phase 2 verification PR. Close without merging."
-# Verify CI runs, then close:
+# Verify CI runs and required checks pass:
+gh pr checks <PR-NUM> --watch
+# Then close (do not merge); the smoke log file goes with the deleted branch:
 gh pr close <PR-NUM> --delete-branch
 ```
 
-CI must run (proves workflows still trigger on `main` PRs) and the PR base must
-default to `main`. Close the PR; do not merge.
+CI must run (proves workflows still trigger on `main` PRs), every required check
+must pass (proves protection isn't going to block real PRs), and the PR base
+must default to `main`. Close the PR; do not merge.
 
 ### 7. Restrict or retire `dev`
 
-Operator picks one disposition:
+Three options. **Default recommendation: dated compatibility branch.**
+Reasoning: the emergency-hotfix runbook still references `origin/dev` for the
+compat-mode back-merge step, RELORCH-011 has not yet retired the compatibility
+release path, `origin/HEAD` on existing local clones still points to `dev` until
+each contributor runs `git remote set-head`, and any out-of-tree tooling that
+fetches the `dev` ref by name will break silently on delete. A dated branch
+costs one tag push and gives every consumer a forcing-function deadline rather
+than a permanent stub.
 
-- **Protect-and-keep.** Keep `dev` for retroactive history, blocked against
-  normal pushes:
+- **Dated compatibility branch (recommended).** Tag `dev`'s tip with a
+  retirement date, then apply restrictive protection so no further work lands on
+  it. Pick an expiry date and post it to the team channel:
 
   ```bash
+  RETIREMENT_TAG="dev-retired-$(date -u +%Y-%m-%d)"
+  git tag "${RETIREMENT_TAG}" origin/dev
+  git push origin "${RETIREMENT_TAG}"
+
   gh api -X PUT repos/EddaCraft/anvil-001/branches/dev/protection \
     -H "Accept: application/vnd.github+json" \
     --input - <<'EOF'
@@ -227,37 +278,48 @@ Operator picks one disposition:
   EOF
   ```
 
-- **Dated compatibility branch.** Same protection plus a tag marking the cutover
-  point and an explicit expiry note in the team channel. Choose this if any
-  external consumer (downstream installer, tooling, doc link) still references
-  `dev` and needs a transition window.
+  Open a follow-up issue ("Delete `dev` branch on or after `<expiry-date>`")
+  with the retirement-tag SHA in the body so the actual delete has an owner and
+  a calendar anchor.
 
-  ```bash
-  git tag dev-retired-2026-05-11 origin/dev
-  git push origin dev-retired-2026-05-11
-  ```
+- **Protect-and-keep (no expiry).** Choose only if you have a concrete reason to
+  keep `dev` indefinitely (regulatory, external contractual reference, or a
+  non-trivial historical query workflow that depends on the ref). Same
+  protection API call as the dated branch, minus the tag and the follow-up
+  issue. Worse than dated by default because there is no forcing function to
+  ever clean it up.
 
-  Plus the protect-and-keep API call above.
-
-- **Delete.** If no external consumer references `dev`:
+- **Delete.** Choose only after enumerating and confirming that no external
+  consumer (CI in another repo, installer scripts, downstream clones, Dependabot
+  configs in dependent repos, contributor muscle memory) fetches `dev` by name.
+  Irreversible without `git reflog` access on the remote:
 
   ```bash
   git push origin --delete dev
-  ```
-
-  Confirm afterwards:
-
-  ```bash
   git ls-remote origin dev      # must print nothing
   ```
 
-Document the choice and the rationale in the OPMODEL-012 completion line and in
-the team channel.
+Document the choice, the rationale, and (for dated) the expiry date and
+follow-up issue number in the OPMODEL-012 completion line and in the team
+channel.
 
 ### 8. Open the channel back up
 
 Announce: cutover complete; new branches branch from `main`; PRs target `main`;
 the open `dev`-targeted PRs need retarget per the deadline set in Pre-flight.
+
+Each contributor with an existing local clone needs to update their local view
+of the repo's default branch. Include this snippet in the announcement:
+
+```bash
+git fetch origin --prune
+git remote set-head origin --auto      # updates origin/HEAD to point at main
+git symbolic-ref refs/remotes/origin/HEAD     # must print refs/remotes/origin/main
+```
+
+Without `git remote set-head origin --auto`, `gh pr create` may still default to
+`dev` as the base on existing clones because it resolves the default from local
+`origin/HEAD`.
 
 For each previously-open PR against `dev` that did not merge before cutover:
 
@@ -279,19 +341,50 @@ The cutover is verified when all of the following hold:
 - Branch protection on `main` is active with the operator-confirmed required
   checks (`gh api repos/.../branches/main/protection`).
 - `pr-base-guard.yml` no longer exists in `.github/workflows/`.
-- The Step 6 smoke PR ran CI on `main` and was closed cleanly.
+- The Step 6 smoke PR ran CI on `main`, **every required check passed on the
+  smoke PR** (proving protection won't block real PRs), and the PR was closed
+  cleanly.
 - `dev` reflects the operator's chosen disposition (protected-and-kept, dated,
   or deleted).
 - A new throwaway branch off `main` can open a PR against `main` without hitting
   any guard rejection.
+- The team announcement included the `git remote set-head origin --auto` snippet
+  so contributors' clones update.
+
+**Phase 2 evidence to paste into the Phase 3 PR body** (the Phase 3 docs flip
+will not be reviewed without these):
+
+```bash
+# Cutover SHA:
+git rev-parse origin/main
+
+# Branch protection summary:
+gh api repos/EddaCraft/anvil-001/branches/main/protection \
+  --jq '{required_checks: .required_status_checks.contexts, reviews: .required_pull_request_reviews.required_approving_review_count, force_push: .allow_force_pushes.enabled, deletions: .allow_deletions.enabled}'
+
+# Default branch:
+gh api repos/EddaCraft/anvil-001 --jq .default_branch
+```
 
 Record each verification in the OPMODEL-012 completion line on the module file
 and in a comms post to the team channel.
 
 ## Rollback
 
-If the cutover needs to be reverted before the cleanup PR (Step 4) merges and
-before any further work lands on `main`:
+### Boundary
+
+The clean-rollback window closes when the **Step 4 cleanup PR merges**
+(`pr-base-guard.yml` deleted, deletion logged to the operator log per the note
+in Step 4). If you reach a failure after that merge has landed and any further
+work has appeared on `main`, full revert is no longer clean and the only safe
+path is fix-forward — open issues for any broken paths and address per
+[`rollback-bad-main.md`](./rollback-bad-main.md).
+
+If `dev` was already deleted in Step 7, you are also past the clean rollback
+window: skip step 1 below and go straight to fix-forward. (Steps 7 and later all
+happen after Step 4 has merged, so `dev`-deleted implies past-boundary.)
+
+### Steps (within boundary)
 
 1. Re-fetch origin and confirm `main` and `dev` are still equal:
 
@@ -299,6 +392,10 @@ before any further work lands on `main`:
    git fetch origin
    git rev-parse origin/main origin/dev    # must print the same SHA twice
    ```
+
+   If this command errors with "unknown revision" on `origin/dev`, `dev` has
+   been deleted — you are past the rollback boundary. Stop here and go to
+   fix-forward.
 
 2. Remove branch protection on `main`:
 
@@ -312,9 +409,24 @@ before any further work lands on `main`:
    gh api -X PATCH repos/EddaCraft/anvil-001 -f default_branch=dev
    ```
 
-4. Restore `pr-base-guard.yml` if it was deleted: revert the cleanup PR, or
-   re-create the file from the git history at `origin/main^` (or from the most
-   recent commit that still contained it).
+4. Restore `pr-base-guard.yml` if it was deleted. Use a content-addressed
+   restore from the last commit that still contained the file — `origin/main^`
+   is the previous tip of `main` (the old release branch) and may be a
+   completely unrelated commit:
+
+   ```bash
+   # Locate the SHA of the deletion commit and its parent:
+   gh pr view <cleanup-pr-number> --json mergeCommit --jq .mergeCommit.oid
+   git show <merge-sha>^:.github/workflows/pr-base-guard.yml \
+     > .github/workflows/pr-base-guard.yml
+   git add .github/workflows/pr-base-guard.yml
+   git commit -m "revert: restore pr-base-guard.yml during OPMODEL-012 rollback"
+   git push
+   ```
+
+   Or simply revert the cleanup PR via `gh pr revert`. Either path is
+   acceptable; pick whichever produces the cleaner audit trail in the tracking
+   issue.
 
 5. Restore `dev` if it was deleted:
 
@@ -329,9 +441,12 @@ before any further work lands on `main`:
    gh api -X DELETE repos/EddaCraft/anvil-001/branches/dev/protection
    ```
 
-If work has already landed on `main` after cutover, full revert is no longer
-clean. At that point the only safe path is fix-forward — open issues for any
-broken paths and address per [`rollback-bad-main.md`](./rollback-bad-main.md).
+6. Reset local `origin/HEAD` for everyone with a clone:
+
+   ```bash
+   git fetch origin --prune
+   git remote set-head origin --auto
+   ```
 
 ## Release-record updates
 
