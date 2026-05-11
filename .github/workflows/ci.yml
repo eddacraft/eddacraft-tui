@@ -461,13 +461,26 @@ jobs:
   # macOS = 10x multiplier, Windows = 2x — running on every push was
   # consuming ~40k included minutes/month.
 
-  # ── Job 3b: Release gate — cross-platform (only PRs targeting main) ──
+  # ── Job 3b: Release gate — cross-platform ──
+  # CICD-012: the gate fires on release-class PRs in either operating
+  # mode and on every push to `main`.
+  #
+  # - Migration mode (`dev` integration): `dev`, `release/*`, and
+  #   `hotfix/*` heads targeting `main` are the release/hotfix sync
+  #   pattern.
+  # - Target mode (`main`-first, post-OPMODEL-012): normal `feat/*` /
+  #   `fix/*` / `docs/*` / `chore/*` PRs also target `main`. The head
+  #   pattern allowlist below keeps the gate from firing on every
+  #   normal PR after cutover; release/hotfix PRs still fire it.
   test-release-gate:
     name: Release Gate (Node 22.x, ${{ matrix.os }})
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: |
-      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+        (github.head_ref == 'dev' ||
+         startsWith(github.head_ref, 'release/') ||
+         startsWith(github.head_ref, 'hotfix/'))) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     strategy:
       fail-fast: false

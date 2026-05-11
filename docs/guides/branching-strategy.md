@@ -154,6 +154,22 @@ Target CI is defined by risk and changed paths rather than branch tiering:
 OPMODEL-005 and OPMODEL-010 own the release-readiness and drift-check design;
 this guide only describes the branching intent.
 
+### Cutover-aware CI gates (CICD-012)
+
+The following workflow gates are dual-mode by design and survive the
+`OPMODEL-012` rename without re-tuning:
+
+| Gate                     | Migration trigger                                                                                       | Target trigger                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `ci.yml` Release Gate    | PR with base `main` and head `dev` / `release/*` / `hotfix/*`; push to `main`.                          | Same — normal `feat/*` PRs to `main` do not fire the gate.                  |
+| `rust.yml` Cross-compile | Push to `main` or `dev`; PR with base `main` and head `dev` / `release/*` / `hotfix/*`.                 | Same — push to `main` and release/hotfix PRs only.                          |
+| `pr-base-guard.yml`      | Rejects fork or non-release heads targeting `main`.                                                     | Migration-only — workflow is retired or rewritten as part of `OPMODEL-012`. |
+| `release-readiness.yml`  | `expectedReachableFrom: main` for canonical readiness; `migration-dev` opt-in for compatibility probes. | `expectedReachableFrom: main` only — `migration-dev` retired post-cutover.  |
+
+Every other validation workflow already triggers on both `main` and `dev` (or
+fires on tag pushes / scheduled assurance), so the cutover does not silently
+change their meaning.
+
 ## Why This Is Changing
 
 The current `dev` model provides a useful integration buffer, but it creates

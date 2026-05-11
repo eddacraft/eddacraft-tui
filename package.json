@@ -43,6 +43,7 @@
     "test:ci-cost": "bash scripts/ci/cost-report.test.sh",
     "test:ci-fast-pr": "bash scripts/ci/fast-pr-validation.test.sh",
     "test:ci-security-targeting": "bash scripts/ci/security-targeting.test.sh",
+    "test:ci-cutover-readiness": "bash scripts/ci/cutover-readiness.test.sh",
     "test:aps-drift": "bash scripts/aps/_test/drift-check.test.sh",
     "aps:drift": "node scripts/aps/drift-check.mjs",
     "validate:staged": "bash scripts/validate/local.sh --staged",

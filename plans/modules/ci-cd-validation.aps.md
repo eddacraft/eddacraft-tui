@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 7/12     |
+| CICD | —     | In Progress | 8/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -380,7 +380,7 @@ This module is Complete when:
 
 ### CICD-012: Main-first cutover readiness for validation workflows
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Prepare validation workflows so `OPMODEL-012` can retarget normal
   work from `dev` to `main` without redesigning CI/CD.
 - **Expected Outcome:** Workflow triggers, branch guards, candidate readiness, and
@@ -391,4 +391,21 @@ This module is Complete when:
   `docs/guides/branching-strategy.md`, `docs/guides/worktree-policy.md`
 - **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-005, OPMODEL-007
 - **Coordinates with:** OPMODEL-012
+- **Completed:** 2026-05-11 — `.github/workflows/ci.yml` and
+  `.github/workflows/rust.yml` now gate the cross-platform release matrix on
+  the head pattern as well as the base ref, so normal `feat/*` PRs do not fire
+  the matrix after the cutover retargets them at `main`; release/hotfix PRs
+  and pushes to `main` still do. `.github/workflows/pr-base-guard.yml` carries
+  a `MIGRATION-MODE GUARD` header spelling out the retirement path under
+  `OPMODEL-012`. The PR template references both modes so contributors choose
+  the right base branch. `docs/guides/branching-strategy.md` gains a
+  "Cutover-aware CI gates" subsection mapping every dual-mode gate to its
+  migration and target triggers. `scripts/ci/cutover-readiness.test.sh` (wired
+  as `pnpm test:ci-cutover-readiness`) locks the dual-mode invariants:
+  integration workflows fire on both `dev` and `main`, release-class gates
+  use the head allowlist, `pr-base-guard.yml` self-identifies as
+  migration-only, and `release-readiness.yml` already speaks the `main` /
+  `migration-dev` vocabulary. Every other validation workflow already
+  triggers on both `main` and `dev` or fires on tag/schedule events, so the
+  cutover does not silently change their meaning.
 - **Confidence:** medium

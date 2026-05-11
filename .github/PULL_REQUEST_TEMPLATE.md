@@ -4,6 +4,21 @@
 
 -
 
+<!--
+Target base reminder (CICD-012, OPMODEL-012):
+
+- Migration mode (today): normal `feat/*` / `fix/*` / `docs/*` /
+  `chore/*` PRs target `dev`. PRs to `main` are release sync
+  (`dev`) or release/hotfix (`release/*` / `hotfix/*`) only — the
+  `PR Base Guard` workflow enforces this.
+- Target mode (after `OPMODEL-012`): normal PRs target `main`. The
+  release gate fires on `release/*` / `hotfix/*` heads, not on every
+  PR. See `docs/guides/branching-strategy.md` for the full table.
+
+Check that this PR's base branch matches the operating mode in
+effect right now.
+-->
+
 ## APS + GH execution context
 
 APS Module: <!-- e.g. INTD, RTAI, TRACE --> APS Task(s):

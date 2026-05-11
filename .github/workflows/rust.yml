@@ -383,9 +383,17 @@ jobs:
 
   cross-compile:
     name: Cross (${{ matrix.target }})
-    # Run cross-compilation (incl. the Windows matrix) on pushes to main
-    # and dev, and on PRs targeting main as a release gate. Normal dev PRs
-    # stay on the fast Rust check/test/clippy/format path.
+    # Run cross-compilation (incl. the Windows matrix) on pushes to the
+    # integration branches (`main` and `dev` during migration) and on
+    # release-class PRs targeting `main`. Normal dev PRs stay on the
+    # fast Rust check/test/clippy/format path.
+    #
+    # CICD-012 head-pattern allowlist: the `base_ref == 'main'` gate
+    # below is dev-aware in migration mode (dev → main release sync)
+    # AND stays correct after the `main`-first cutover, when normal
+    # `feat/*` / `fix/*` PRs also target `main`. The head allowlist
+    # keeps the cross-compile matrix from firing on every normal post-
+    # cutover PR; release/hotfix PRs still fire it.
     #
     # Additionally gate on `detect-rust-changes` so JS-only diffs (e.g.
     # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
@@ -395,7 +403,10 @@ jobs:
     # file itself — still fire cross-compile.
     if: >-
       ((github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
-      github.ref)) || (github.event_name == 'pull_request' && github.base_ref == 'main')) &&
+      github.ref)) || (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+        (github.head_ref == 'dev' ||
+         startsWith(github.head_ref, 'release/') ||
+         startsWith(github.head_ref, 'hotfix/')))) &&
       needs.detect-rust-changes.outputs.rust-changed == 'true'
     runs-on: ${{ matrix.os }}
     needs: [check, detect-rust-changes]

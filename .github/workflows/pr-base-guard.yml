@@ -1,9 +1,23 @@
 name: PR Base Guard
 
-# Fail any PR opened against `main` whose head branch is not part of the
-# allowed release / hotfix / sync flow. The intent is to keep `main` as a
-# release branch and prevent feature / planning / refactor branches from
-# being merged into it directly.
+# CICD-012: MIGRATION-MODE GUARD — retire as part of OPMODEL-012.
+#
+# This workflow is only meaningful while `dev` is the canonical
+# integration target and `main` is reserved for releases. It rejects
+# PRs opened against `main` whose head branch is not part of the
+# allowed release / hotfix / sync flow.
+#
+# After the `main`-first cutover (OPMODEL-012) normal `feat/*`,
+# `fix/*`, `docs/*`, and `chore/*` branches MUST be allowed to target
+# `main` directly. This guard would block every normal PR in that
+# world. The cutover task owner is expected to either:
+#
+#   - delete this workflow file as part of OPMODEL-012, or
+#   - replace the guard body with the target-mode invariant
+#     (typically: refuse fork PRs without a maintainer label) before
+#     enabling main-first PR flow.
+#
+# Until then, the migration-mode rules remain:
 #
 # Allowed head patterns (any one):
 #   - `dev`                    (the standard dev → main release sync)
