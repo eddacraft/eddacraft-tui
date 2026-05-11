@@ -21,7 +21,7 @@ substrate that makes future releases repeatable:
 - **`OPMODEL` — Complete, 12/12, archived 2026-05-11.** Main-first operating
   model migration finished. Cutover SHA `b6f236e9`; `pr-base-guard.yml` retired
   in PR #1417; `main` ruleset id 16217152 enforces 7 required checks, PR review,
-  non-FF, and no-delete. `dev` retired as the dated compatibility branch
+  non-FF, and no-delete. `dev` retired, with cutover tagged as
   `dev-retired-2026-05-11`; deletion follow-up #1419 (~2026-07-10).
 - **CI/CD readiness (`CICD`) — In Progress, 8/12.** Path/risk classifier
   (CICD-002), local validation commands (CICD-003), fast PR validation
