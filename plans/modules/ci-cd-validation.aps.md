@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 11/12    |
+| CICD | —     | Complete    | 12/12    |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -393,15 +393,39 @@ This module is Complete when:
 
 ### CICD-010: Workflow decomposition and consolidation
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Migrate from overlapping tool-centric workflows to validation
   contracts: PR, integration, assurance, candidate, publish.
 - **Expected Outcome:** Existing workflows either consolidate or clearly map to
   one of the target contracts without duplicated setup or duplicated authority.
 - **Validation:** Workflow README and job summaries identify each workflow's
   contract; duplicate execution paths are removed or justified.
-- **Files:** `.github/workflows/`, `.github/workflows/README.md`
+- **Files:** `.github/workflows/README.md`,
+  `scripts/ci/workflow-contracts.test.sh`, `.github/workflows/ci.yml`,
+  `package.json`
 - **Coordinates with:** DOCGOV closeout, OPMODEL-012
+- **Completed:** 2026-05-11 — `.github/workflows/README.md` now opens with a
+  five-contract validation model (PR validation, Integration push, Assurance,
+  Release candidate, Publish) and a Workflow Contract Map table that lists
+  every file under `.github/workflows/` (excluding `*.example`) with its
+  contract, trigger surface, and owner module. An Authority Audit subsection
+  enumerates each previously-overlapping surface — `Dependency Audit (PR)` vs
+  `Dependency Audit` (resolved by CICD-005), Semgrep vs CodeQL (distinct
+  tools), `metadata-validation` infra-static vs `infra.yml` Pulumi (distinct
+  contracts), `Integration Readiness` aggregate vs per-job statuses (the
+  aggregate fails on any non-success/skipped required job) — confirming that
+  no duplicate authority remains. Filenames are intentionally not consolidated
+  yet (the spec permits gradual migration and CICD-012 owns the post-cutover
+  cleanup of stale `dev` triggers). `scripts/ci/workflow-contracts.test.sh`
+  (`pnpm test:ci-workflow-contracts`) enforces the map: every YAML workflow
+  must appear backtick-quoted in the README, the contract names must all be
+  present, and the CICD-005 authority-audit credit must remain so a regression
+  that re-introduces the duplicated dependency-audit gate is caught.
+- **Validation Run:** `pnpm test:ci-workflow-contracts`,
+  `pnpm test:ci-integration`, `pnpm test:ci-matrix-targeting`,
+  `pnpm test:ci-drift-integration`, `pnpm test:ci-fast-pr`,
+  `pnpm format:check`, `pnpm lint:md`,
+  `node -e '... yaml.parse ...'` on `.github/workflows/ci.yml`.
 - **Confidence:** medium
 
 ---

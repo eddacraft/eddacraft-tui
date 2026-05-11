@@ -8,18 +8,48 @@ This directory contains GitHub Actions workflows for CI/CD automation.
 
 Per the
 [CI/CD and validation operating model](../../plans/specs/2026-05-10-ci-cd-validation-operating-model.md),
-each workflow has a single validation contract. Two contracts are particularly
-important to keep separate:
+each workflow has a single validation contract. Five contracts cover the entire
+target pipeline (the spec's MVP CI Operating Model); every workflow under
+`.github/workflows/` maps to exactly one contract (plus a small set of explicit
+**auxiliary** workflows for labels, gates, and observability).
 
-| Contract                       | Triggered by                                                                                             | Purpose                                                                                              |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Fast PR validation**         | `pull_request` against `main`/`dev`                                                                      | Prove the proposed change shape — affected lint/typecheck/test/metadata.                             |
-| **Integration SHA validation** | `push` to `main`/`dev` (the integration branch — `dev` during the migration, `main` after `OPMODEL-012`) | Prove the merged SHA — full workspace lint/typecheck/test/build/e2e plus a single readiness summary. |
+| #   | Contract              | Authoritative for                                                   |
+| --- | --------------------- | ------------------------------------------------------------------- |
+| 1   | **PR validation**     | Proving the proposed change shape (affected lint/typecheck/test).   |
+| 2   | **Integration push**  | Proving the merged integration SHA — full workspace evidence.       |
+| 3   | **Assurance**         | Scheduled full assurance — coverage, expanded matrices, deep scans. |
+| 4   | **Release candidate** | Release readiness for an explicit SHA before tag publish.           |
+| 5   | **Publish**           | Immutable tag-triggered build/publish + post-publish verification.  |
 
-The integration push contract is intentionally distinct from the PR contract.
+### Workflow Contract Map (CICD-010)
+
+The table is the single source of truth — every file under `.github/workflows/`
+(excluding `*.example`) must appear in exactly one row. The
+`scripts/ci/workflow-contracts.test.sh` fixture enforces this.
+
+| Workflow                | Contract                                          | Trigger surface                                                                                                     | Owner module |
+| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `ci.yml`                | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` — Node/TS lint, typecheck, test, build, e2e, metadata, platform-smoke       | CICD         |
+| `rust.yml`              | PR + Integration                                  | `pull_request` / `push` to `main`/`dev`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`               | CICD         |
+| `security.yml`          | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` plus weekly `schedule` and `workflow_dispatch`                              | CICD         |
+| `codeql.yml`            | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` plus weekly `schedule`                                                      | CICD         |
+| `napi.yml`              | Integration + Publish                             | `pull_request` / `push` to `main`/`dev` (napi paths) plus `napi-v*` tags                                            | CICD         |
+| `infra.yml`             | PR + Integration                                  | `pull_request` (any base, path-filtered) plus `push` to `main` and `workflow_dispatch` — Pulumi preview/apply       | CICD         |
+| `release-harness.yml`   | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` (release-script paths) plus `workflow_dispatch` — release-command contract  | RELORCH      |
+| `bench.yml`             | Integration                                       | `push` to `main` (release-gate) plus `workflow_dispatch`                                                            | CICD         |
+| `bench-nightly.yml`     | Assurance                                         | `schedule` plus `workflow_dispatch`                                                                                 | CICD         |
+| `ci-nightly.yml`        | Assurance                                         | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node | CICD         |
+| `ci-cost-report.yml`    | Assurance                                         | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics     | CICD         |
+| `release-readiness.yml` | Release candidate                                 | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials        | RELORCH      |
+| `release.yml`           | Publish                                           | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification          | RELORCH      |
+| `pr-base-guard.yml`     | Auxiliary (cutover-blocking guard, to be retired) | `pull_request: [main]` — rejects non-`dev`/`release/*`/`hotfix/*` head refs                                         | OPMODEL      |
+| `labeler.yml`           | Auxiliary (PR labels)                             | `pull_request` (any base) — `actions/labeler` path-based labels                                                     | CICD         |
+
+### PR vs Integration push contract
+
+The PR contract is intentionally distinct from the integration push contract.
 See
 [CICD-005](../../plans/modules/ci-cd-validation.aps.md#cicd-005-integration-sha-validation-redesign).
-Specifically:
 
 - PR-only status fillers (`Lint & Format` skip, `Type Check` skip, `Unit Tests`
   skip) do not run on push — they exist to satisfy required-check status on
@@ -31,7 +61,27 @@ Specifically:
 - `Integration Readiness` (`ci.yml`) is push-only — it emits a single step
   summary identifying the SHA, the ref, and the validating job results. It fails
   the workflow if any required integration job failed; `APS Drift Check` is
-  treated as warning-only evidence.
+  treated as warning-only evidence per
+  [CICD-011](../../plans/modules/ci-cd-validation.aps.md#cicd-011-apsreporelease-drift-checks-in-ci).
+
+### Authority audit (no duplicated gates)
+
+The following surfaces were potential duplicate-authority risks. Each was either
+eliminated, gated, or justified:
+
+- `Dependency Audit (PR)` (`ci.yml`) vs `Dependency Audit` (`security.yml`) —
+  CICD-005 gated `ci.yml`'s job to `pull_request` events; `security.yml` owns
+  the push and scheduled audit.
+- Semgrep (`security.yml`) vs CodeQL (`codeql.yml`) — distinct static analysis
+  tools with distinct rule packs and authority. Both run on PR + push +
+  schedule. Not duplicate authority.
+- `metadata-validation` (`ci.yml`) `infra-static-check` step vs `infra.yml`
+  Pulumi preview/apply — `metadata-validation` runs `pnpm lint:check` for static
+  infra config validation; `infra.yml` runs the Pulumi engine for preview/apply.
+  Distinct contracts, not duplicate.
+- `Integration Readiness` aggregate (`ci.yml`) vs per-job statuses — the
+  aggregate fails on any non-success/skipped required job so the contract status
+  survives even when the granular jobs are skipped by path filters.
 
 ## Matrix Targeting
 
@@ -51,7 +101,7 @@ they run only when platform evidence is required:
 Operators can force any of the gated matrices via the workflow's `Run workflow`
 button (`workflow_dispatch`) when an out-of-band verification run is needed.
 
-## Workflows
+## Workflows (per-file detail)
 
 ### `ci.yml` — Continuous Integration
 
@@ -85,20 +135,26 @@ schedule.
 ### `napi.yml` — NAPI
 
 Cross-platform NAPI binding builds for path-sensitive changes plus tagged
-releases.
+releases. Tag (`napi-v*`) push additionally publishes per-platform npm packages.
 
 ### `infra.yml` — Infrastructure
 
-Pulumi preview/apply gates for infra changes.
+Pulumi preview on PR, Pulumi apply on push to `main` and `workflow_dispatch`.
+
+### `release-harness.yml` — Release command contract
+
+PR/push gate scoped to `scripts/release/**` — runs the release-command contract
+tests (assess, preflight, prepare, promote) on Ubuntu + macOS.
 
 ### `bench.yml` / `bench-nightly.yml` — Benchmarks
 
-Rust stress-test scenarios. Push-to-`main` and scheduled.
+Rust criterion + stress + midedit benchmarks. `bench.yml` is push-to-`main`
+(release-gate) and dispatch; `bench-nightly.yml` covers scheduled assurance.
 
 ### `ci-nightly.yml` — Scheduled assurance
 
-Coverage (TS + Rust), expanded matrices, and broader audits that do not belong
-on routine PR or integration push.
+Coverage (TS + Rust), expanded cross-platform matrices, multi-version Node
+tests, and broader audits that do not belong on routine PR or integration push.
 
 ### `ci-cost-report.yml` — CI Cost Report
 
@@ -106,10 +162,12 @@ Weekly cron + manual dispatch. Writes workflow / event / branch elapsed minutes
 plus optional job timing and omitted-run diagnostics to the GitHub Actions step
 summary (CICD-001).
 
-### `release.yml` / `release-readiness.yml` / `release-harness.yml`
+### `release.yml` / `release-readiness.yml`
 
-Release-candidate readiness, immutable tag publishing, and release verification.
-See `plans/modules/release-orchestration.aps.md`.
+Release-candidate readiness (`release-readiness.yml`, dispatch-only with exact
+SHA validation, no publish credentials) and immutable tag publishing
+(`release.yml`, cargo-dist build + publish + post-publish verify). See
+`plans/modules/release-orchestration.aps.md`.
 
 ### `pr-base-guard.yml`
 
@@ -133,6 +191,9 @@ pnpm test:ci-integration
 
 # Lock the matrix-targeting contract.
 pnpm test:ci-matrix-targeting
+
+# Lock the workflow contract map (every file appears in the README).
+pnpm test:ci-workflow-contracts
 
 # Lock the APS drift CI wiring.
 pnpm test:ci-drift-integration

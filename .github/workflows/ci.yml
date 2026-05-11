@@ -154,6 +154,7 @@ jobs:
           pnpm test:ci-integration
           pnpm test:ci-matrix-targeting
           pnpm test:ci-drift-integration
+          pnpm test:ci-workflow-contracts
           pnpm test:validate-local
 
       - name: Install OPA
