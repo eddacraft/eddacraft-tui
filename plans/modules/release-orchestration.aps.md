@@ -28,9 +28,15 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | In Progress | 3/12     |
+| RELORCH | —     | Blocked | 3/12     |
 
 **Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
+
+**Pause:** Operator request on 2026-05-11 pauses further RELORCH implementation
+until `CICD-012` (main-first validation workflow readiness) and `OPMODEL-012`
+(main-first cutover) land. Existing local/dry-run command slices remain recorded,
+but no new RELORCH command work should start until those dependencies unblock the
+release topology.
 
 **Predecessor:** [release-management](../archive/modules/release-management.aps.md) (RELMGMT — Complete)
 **Supersedes (in part):** [2026-04-20-relmgmt-agent-driven-release-design.md](../specs/2026-04-20-relmgmt-agent-driven-release-design.md) — its multi-script removal stands; its no-persistent-manifest tradeoff is inherited as a hard constraint below.
@@ -271,7 +277,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-002: Test harness for command surface
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Phase:** 1
 - **Execution authorisation:** Operator request "move onto RELORCH-002" on
   2026-05-10 authorises executing this item from Proposed state under
@@ -291,6 +297,9 @@ phases, with the rest explicitly Phase-2-tracked.
   for PRs touching `scripts/release/**`. Remaining before completion: expand the
   fixture matrix for metadata comments, remote-tag recovery, release-record
   mismatch, and cargo-dist failure cases.
+- **Blocked:** 2026-05-11 — Paused until `CICD-012` and `OPMODEL-012` land so
+  harness expansion targets the main-first release topology rather than the
+  compatibility `dev` mode.
 - **Files:** `scripts/release/_test/`, CI config touchpoints.
 
 ---
@@ -348,7 +357,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-005: `scripts/release/prepare.sh`
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Phase:** 2
 - **Execution authorisation:** Operator request "move on to RELORCH-005 and
   RELORCH-006 in parallel" on 2026-05-11 authorises executing this item from
@@ -368,6 +377,9 @@ phases, with the rest explicitly Phase-2-tracked.
   contract output, dirty-worktree rejection, invalid arguments, help output, and
   kill/re-run resumability. Remaining before completion: GitHub tracking issue
   create/resume, release-time edits, and non-dry-run preparation commit flow.
+- **Blocked:** 2026-05-11 — Paused until `CICD-012` and `OPMODEL-012` land;
+  non-dry-run preparation must follow the final main-first branch and validation
+  contracts.
 - **Files:** `scripts/release/prepare.sh`.
 - **Risks:** Highest-complexity command in the module; multi-file edit
   atomicity is a real problem under the no-persistent-state constraint. May
@@ -377,7 +389,7 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-006: `scripts/release/promote.sh`
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Phase:** 2
 - **Execution authorisation:** Operator request "move on to RELORCH-005 and
   RELORCH-006 in parallel" on 2026-05-11 authorises executing this item from
@@ -394,6 +406,9 @@ phases, with the rest explicitly Phase-2-tracked.
   compatibility promotion planning, target-mode noop, invalid arguments, and
   help output. Remaining before completion: GitHub promotion PR create/resume,
   review/conflict state inspection, and post-merge readiness request/resume.
+- **Blocked:** 2026-05-11 — Paused until `CICD-012` and `OPMODEL-012` land;
+  promotion semantics must be finalised against the target main-first model, not
+  the temporary `dev -> main` compatibility path.
 - **Files:** `scripts/release/promote.sh`.
 
 ---
