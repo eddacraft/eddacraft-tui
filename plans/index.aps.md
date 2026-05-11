@@ -237,17 +237,21 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 ### Continuous Improvement
 
-Codebase-maintenance drives ongoing refactoring, shared libraries, generators,
-and DX improvements. Code-review-backlog (complete) is retained for history.
+Continuous-improvement-backlog is the standing intake for concrete improvement
+items identified anywhere in the project. It intentionally remains active while
+the project is active; append executable `CIB-NNN` items as they are found.
+Codebase-maintenance and code-review-backlog are retained for history.
 
-| Module                                                                | Scope | Status   | Progress           |
-| --------------------------------------------------------------------- | ----- | -------- | ------------------ |
-| [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md) | MAINT | Complete | 11/11 (1 deferred) |
-| [code-review-backlog](./archive/modules/code-review-backlog.aps.md)   | CRB   | Complete | 29/29              |
+| Module                                                                      | Scope | Status      | Progress           |
+| --------------------------------------------------------------------------- | ----- | ----------- | ------------------ |
+| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 0/open             |
+| [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md)       | MAINT | Complete    | 11/11 (1 deferred) |
+| [code-review-backlog](./archive/modules/code-review-backlog.aps.md)         | CRB   | Complete    | 29/29              |
 
 > ~~continuous-improvement~~ (CI) — retired 2026-04-18; was a meta-module
-> without executable tasks. All concrete intents map onto MAINT. See
-> [archived notice](./archive/modules/continuous-improvement.aps.md).
+> without executable tasks. It remains archived. New concrete cross-project
+> improvement intake now goes through
+> [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md).
 
 ### Rust Engine
 
