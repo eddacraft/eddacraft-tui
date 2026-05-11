@@ -559,19 +559,29 @@ export async function findPendingDeviceCodeWithEmail(
 }
 
 /**
- * Atomically increment the attempts counter on a device_code row.
- * Used by /device/confirm to track failed email matches against a known
- * user_code, mirroring the otp_codes.attempts pattern.
+ * Atomically increment the attempts counter on a device_code row, bounded
+ * by `max`. Returns the new counter value, or `null` if the row was already
+ * at or above the cap and no UPDATE fired. The `WHERE attempts < ${max}`
+ * guard is what bounds the counter under concurrent /device/confirm bursts —
+ * without it, parallel requests can all pass the route-level pre-check
+ * (read attempts < max, decide to increment) and drive the counter
+ * arbitrarily above the intended cap. With it, the DB enforces the ceiling
+ * regardless of how many parallel callers race to increment.
  */
-export async function incrementDeviceCodeAttempts(sql: NeonClient, id: string): Promise<number> {
+export async function incrementDeviceCodeAttempts(
+  sql: NeonClient,
+  id: string,
+  max: number
+): Promise<number | null> {
   const r = rows(
     await sql`
     UPDATE device_codes SET attempts = attempts + 1
-    WHERE id = ${id}
+    WHERE id = ${id} AND attempts < ${max}
     RETURNING attempts
   `
   );
-  return z.coerce.number().parse(r[0]?.attempts);
+  if (!r[0]) return null;
+  return z.coerce.number().parse(r[0].attempts);
 }
 
 /**

@@ -292,7 +292,34 @@ describe('POST /auth/device/confirm', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(expect.anything(), 'dc-7');
+    expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(
+      expect.anything(),
+      'dc-7',
+      5
+    );
+    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
+  });
+
+  it('still returns the anti-enum error when the increment finds the row already locked', async () => {
+    // Race: callers A and B both read attempts=4, both pass the pre-check,
+    // A's UPDATE lands first and pushes the row to attempts=5; B's UPDATE
+    // sees attempts >= max via the `WHERE attempts < ${max}` guard and is
+    // a no-op, returning null. The route must still respond with the same
+    // anti-enum 400 — the row is already locked.
+    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+      id: 'dc-race',
+      user_email: 'someone@else.com',
+      attempts: 4,
+    });
+    vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(null);
+
+    const res = await post('/auth/device/confirm', {
+      userCode: 'ANVIL-AAAAAAAA',
+      email: 'active@example.com',
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
     expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
   });
 

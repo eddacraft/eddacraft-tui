@@ -148,11 +148,16 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
     return c.json({ error: 'Invalid or expired code' }, 400);
   }
   if (result.user_email !== normalisedEmail) {
-    const attempts = await incrementDeviceCodeAttempts(sql, result.id);
+    // The DB-level `WHERE attempts < ${max}` guard inside the helper means a
+    // concurrent burst that all reads `attempts < MAX_ATTEMPTS` at the same
+    // moment will still cap the counter at MAX_ATTEMPTS — a returned `null`
+    // says "the row was already locked when this UPDATE landed". The
+    // anti-enum response is identical in either case.
+    const attempts = await incrementDeviceCodeAttempts(sql, result.id, MAX_ATTEMPTS);
     debug('confirm rejected: email mismatch for code', {
       id: result.id,
       attempts,
-      lockedOut: attempts >= MAX_ATTEMPTS,
+      lockedOut: attempts === null || attempts >= MAX_ATTEMPTS,
     });
     return c.json({ error: 'Invalid or expired code' }, 400);
   }
