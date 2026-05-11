@@ -455,7 +455,9 @@ This module is Complete when:
 
 ### OPMODEL-012: Main-first cutover and dev retirement
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Authorisation:** Operator approved phased execution on 2026-05-11; Phase 0
+  (audit + playbook + APS bump) is the current slice.
 - **Intent:** Execute the actual branch migration only after guidance, release
   readiness, and documentation are coherent enough to support normal work on
   `main`.
@@ -467,6 +469,13 @@ This module is Complete when:
 - **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-003, OPMODEL-004,
   OPMODEL-005, OPMODEL-006, OPMODEL-007, OPMODEL-008, OPMODEL-010,
   OPMODEL-011
-- **Files:** `docs/guides/branching-strategy.md`, `docs/guides/worktree-policy.md`,
-  `.github/PULL_REQUEST_TEMPLATE.md`, `docs/guides/release-runbook.md`
+- **Action plan:**
+  [`plans/execution/opmodel-012.steps.md`](../execution/opmodel-012.steps.md)
+- **Phase 0 outputs (this slice):**
+  [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../audits/2026-05-11-opmodel-012-workflow-audit.md),
+  [`docs/runbooks/main-first-cutover.md`](../../docs/runbooks/main-first-cutover.md)
+- **Files:** `docs/guides/branching-strategy.md`,
+  `docs/guides/worktree-policy.md`, `.github/PULL_REQUEST_TEMPLATE.md`,
+  `docs/guides/release-runbook.md`, `.github/workflows/pr-base-guard.yml`
+  (deletion at cutover), plus the 6 cleanup workflows identified in the audit.
 - **Confidence:** medium

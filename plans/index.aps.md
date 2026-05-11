@@ -93,7 +93,7 @@ that future tags are validated by exact SHA rather than prose-only runbooks.
 | Operating model migration | In Progress | OPMODEL 11/12 | Completed: migration map, branching/worktree guidance, APS lifecycle/release metadata, release-record schema, release-readiness workflow design, release runbook/skill boundary, deterministic guidance, review/council entrypoints, workflow session/event schema, warning-mode drift checks, and rollback/incident playbooks. Next: cutover. |
 | CI/CD release readiness | In Progress | OPMODEL-005 spec complete; implementation pending | Implement exact-SHA readiness and optional non-publishing candidate artefacts. Until implemented, do not claim CI readiness as shipped validation authority. |
 | Release orchestration | In Progress | RELORCH 3/12 | RELORCH-001 design, RELORCH-003 assess command, and RELORCH-004 preflight command complete; RELORCH-002 initial harness is in progress and still needs the broader fixture matrix. RELORCH-012 added to close the schema gap (yank state + policyDecisions enum) surfaced by OPMODEL-011 rollback playbooks. |
-| Main-first cutover | Proposed | OPMODEL-012 blocked | Do not execute until deterministic guidance, review routing, warning drift checks, and rollback playbooks are usable. |
+| Main-first cutover | In Progress | OPMODEL-012 Phase 0 in this PR | Phase 0: workflow audit + cutover playbook + APS bump. Phase 2 (operator-driven cutover) and Phase 3 (docs flip) follow per `plans/execution/opmodel-012.steps.md`. |
 | Daemon-working product slate | Queued | MLP 0/17, INTL 0/9 | Keep queued until operating-model and CI/CD release machinery are trustworthy enough to carry a larger product claim. |
 
 ### Next window (proposed) — _post-OPMODEL daemon-working slate_
