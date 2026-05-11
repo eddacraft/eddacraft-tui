@@ -156,6 +156,17 @@ const GITHUB_REPO: &str = "anvil";
 fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let current = env!("CARGO_PKG_VERSION");
 
+    // Windows holds an exclusive file lock on a running executable, so the
+    // in-process axoupdater replace cannot overwrite `anvil.exe`. The sidecar
+    // path (`find_sidecar`) is the only safe Windows updater; it is not
+    // shipped in this release (`install-updater = false` in
+    // dist-workspace.toml, gated on missing aarch64-pc-windows-msvc
+    // axoupdater binaries). `--check` is read-only, so let it through.
+    if cfg!(windows) && !args.check {
+        report_windows_unsupported(current, global);
+        return Ok(());
+    }
+
     let mut updater = axoupdater::AxoUpdater::new_for("anvil");
 
     // Try loading the cargo-dist install receipt (created by shell/powershell installers).
@@ -227,6 +238,41 @@ fn report_check(current: &str, update_needed: bool, global: &GlobalArgs) -> anyh
         anyhow::bail!(UpdateAvailable);
     }
     Ok(())
+}
+
+fn report_windows_unsupported(current: &str, global: &GlobalArgs) {
+    let message = windows_unsupported_message();
+    if global.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "current_version": current,
+                "platform": "windows",
+                "action": "unsupported",
+                "message": message,
+                "alternatives": [
+                    "winget upgrade --id eddacraft.anvil",
+                    "irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex",
+                ],
+            })
+        );
+    } else {
+        println!("Current version: {current}");
+        println!("{message}");
+    }
+}
+
+fn windows_unsupported_message() -> &'static str {
+    "Self-update is not supported on Windows in this release.\n\
+     \n\
+     To upgrade, use one of:\n  \
+     - winget upgrade --id eddacraft.anvil\n  \
+     - Re-run the PowerShell installer:\n      \
+         irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex\n\
+     \n\
+     If the installer fails with \"file is being used by another process\",\n\
+     close any editor running the Anvil MCP server (Cursor, Claude Code)\n\
+     and try again."
 }
 
 fn report_up_to_date(current: &str, global: &GlobalArgs) {
@@ -392,6 +438,14 @@ mod tests {
         }
         let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(cmd_args, vec!["--force"]);
+    }
+
+    #[test]
+    fn windows_unsupported_message_lists_alternatives() {
+        let msg = windows_unsupported_message();
+        assert!(msg.contains("winget upgrade --id eddacraft.anvil"));
+        assert!(msg.contains("eddacraft-anvil-installer.ps1"));
+        assert!(msg.contains("Anvil MCP server"));
     }
 
     #[test]

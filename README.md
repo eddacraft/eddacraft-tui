@@ -105,6 +105,22 @@ scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
 scoop install anvil
 ```
 
+### Upgrading on Windows
+
+`anvil update` cannot self-replace `anvil.exe` on Windows in the current
+release (the cargo-dist updater sidecar is disabled until upstream ships an
+ARM64 Windows build). Use your package manager or re-run the installer:
+
+```powershell
+winget upgrade --id eddacraft.anvil
+# or
+irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+```
+
+If the installer fails with `The process cannot access the file ... because it
+is being used by another process`, an Anvil MCP server is still running.
+Quit Cursor / Claude Code (or stop any `anvil mcp serve` process) and retry.
+
 ---
 
 ## For contributors

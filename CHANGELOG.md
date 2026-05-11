@@ -8,6 +8,24 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+### Fixed
+
+- **`anvil update` on Windows no longer crashes with a file-lock error.**
+  The cargo-dist updater sidecar is not shipped in this release
+  (`install-updater = false` so aarch64-pc-windows-msvc can stay in the
+  release matrix), so the in-process axoupdater path was attempting to
+  overwrite the running `anvil.exe` and failing with
+  `The process cannot access the file ... because it is being used by another
+  process`. The command now refuses cleanly on Windows and points to
+  `winget upgrade --id eddacraft.anvil` or re-running the PowerShell
+  installer, with a note about closing editors running an Anvil MCP server.
+  `--check` still works.
+- **`anvil check` no-args error now suggests next steps.** A bare
+  `anvil check` previously bailed with `No files specified. Use --all,
+  --changed, or provide file paths.` — terse for first-time users. The
+  message now lists `--changed`, `--all`, and explicit paths, plus pointers
+  to `anvil welcome` and `anvil status`.
+
 ## [0.6.1-beta] — `anvil start` UX + Auth Refresh Polish
 
 ### Fixed

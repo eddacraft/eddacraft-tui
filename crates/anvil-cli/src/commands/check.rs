@@ -472,7 +472,14 @@ fn gather_files(args: &CheckArgs, extensions: &[String]) -> Result<(Vec<String>,
         return Ok((files, FileSource::All));
     }
 
-    bail!("No files specified. Use --all, --changed, or provide file paths.");
+    bail!(
+        "No files specified.\n\n\
+         Choose what to analyse:\n  \
+         anvil check --changed       # files changed since last commit (in a git repo)\n  \
+         anvil check --all           # all source files in the project\n  \
+         anvil check path/to/file    # one or more specific files\n\n\
+         New here? Run `anvil welcome` for a guided tour, or `anvil status` for a project overview."
+    );
 }
 
 /// Validate that a git ref does not look like a git option.
