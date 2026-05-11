@@ -8,5 +8,6 @@ printf '%s\n' '{"status":"completed","conclusion":"success","url":"https://githu
 printf '%s\n' '{"status":"completed","conclusion":"failure","url":"https://github.com/eddacraft/anvil-001/actions/runs/2","failedJob":"dist","logUrl":"https://github.com/eddacraft/anvil-001/actions/runs/2/job/3"}' >"$fail"
 bash "$HARNESS" run-contract --name monitor-pass --expected-exit 0 --expected-command monitor -- bash -c 'ANVIL_RELEASE_TEST_MODE=monitor-fake-run ANVIL_RELEASE_MONITOR_FAKE_RUN_FILE="$1" bash "$2" --json --version v0.7.0-beta' _ "$pass" "$MONITOR"
 bash "$HARNESS" run-contract --name monitor-fail --expected-exit 1 --expected-command monitor -- bash -c 'ANVIL_RELEASE_TEST_MODE=monitor-fake-run ANVIL_RELEASE_MONITOR_FAKE_RUN_FILE="$1" bash "$2" --json --version v0.7.0-beta' _ "$fail" "$MONITOR"
+bash "$HARNESS" run-contract --name monitor-run-url-evidence --expected-exit 1 --expected-command monitor -- bash "$MONITOR" --json --version v0.7.0-beta --run-url https://github.com/eddacraft/anvil-001/actions/runs/123
 bash "$HARNESS" run-contract --name monitor-invalid --expected-exit 129 --expected-command monitor -- bash "$MONITOR" --json --unknown
 echo "monitor.test.sh: ok"

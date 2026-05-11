@@ -58,17 +58,17 @@ if (doc.data.operatorActionRequired !== true) throw new Error('dry-run promotion
 NODE
 
 target_sha="$(git -C "$repo" rev-parse HEAD)"
-(cd "$repo" && bash "$PROMOTE" --json --source-sha "$target_sha" --version v0.7.0-beta) >"$tmp/target.json" || true
+(cd "$repo" && bash "$PROMOTE" --json --source-sha "$target_sha" --version v0.7.0-beta) >"$tmp/target.json"
 bash "$HARNESS" run-contract \
-  --name promote-target-requires-readiness \
-  --expected-exit 1 \
+  --name promote-target-noop \
+  --expected-exit 0 \
   --expected-command promote \
   -- bash -c 'cd "$1" && bash "$2" --json --source-sha "$3" --version v0.7.0-beta' _ "$repo" "$PROMOTE" "$target_sha"
 node - "$tmp/target.json" "$target_sha" <<'NODE'
 const fs = require('node:fs');
 const [path, expectedSha] = process.argv.slice(2);
 const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
-if (doc.status !== 'blocked') throw new Error(`expected blocked, got ${doc.status}`);
+if (doc.status !== 'noop') throw new Error(`expected noop, got ${doc.status}`);
 if (doc.mode !== 'target') throw new Error(`expected target mode, got ${doc.mode}`);
 if (doc.data.mergeState !== 'not-required') throw new Error(`unexpected target mergeState ${doc.data.mergeState}`);
 if (doc.data.mergedSha !== expectedSha) throw new Error(`unexpected mergedSha ${doc.data.mergedSha}`);

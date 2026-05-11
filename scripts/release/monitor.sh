@@ -11,6 +11,12 @@ const [code, message, retryableRaw, recovery] = process.argv.slice(2);
 process.stdout.write(JSON.stringify([{ code, message, retryable: retryableRaw === 'true', recovery, evidence: { command: 'scripts/release/monitor.sh', url: null, path: null } }]));
 NODE
 }
+run_id_from_url() { node - "$1" <<'NODE'
+const value = process.argv[2] || '';
+const match = value.match(/\/actions\/runs\/(\d+)/) || value.match(/^(\d+)$/);
+if (match) process.stdout.write(match[1]);
+NODE
+}
 emit() { local status="$1" data="$2" failures="$3" next="$4" reason="$5" ended; ended="$(now)"; node - "$SCHEMA_VERSION" "$COMMAND" "$PHASE" "$status" "$started_at" "$ended" "$repo" "$mode" "$version" "$data" "$failures" "$next" "$reason" <<'NODE'
 const [schemaVersion, command, phase, status, startedAt, endedAt, repository, mode, version, dataRaw, failuresRaw, nextCommand, nextReason] = process.argv.slice(2);
 process.stdout.write(JSON.stringify({ schemaVersion, command, phase, mode, status, startedAt, endedAt, repository, inputs: { base: null, head: null, version }, trackingIssue: { repository, number: null, url: null, metadataCommentUrl: null }, releaseRecord: { lifecycleState: status === 'success' ? 'published' : null, recordUrl: null, sha256: null }, data: JSON.parse(dataRaw), warnings: [], failures: JSON.parse(failuresRaw), next: { command: nextCommand, reason: nextReason } }) + '\n');
@@ -30,4 +36,39 @@ NODE
 )"
   status="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(r.status)" "$result")"; code="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(String(r.exitCode))" "$result")"; data="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(JSON.stringify(r.data))" "$result")"; fails="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(JSON.stringify(r.failures))" "$result")"; emit "$status" "$data" "$fails" verify 'Workflow reached terminal state or needs recovery.'; exit "$code"
 fi
-emit blocked '{"workflowRun":null,"state":"operator-required","failedJob":null,"logUrl":null}' "$(failure_json operator-required 'live workflow monitoring requires gh run integration or --run-url fake evidence' true provide-run-evidence)" monitor 'Provide workflow evidence or complete live monitor integration.'; exit 1
+if [[ -n "$run_url" ]]; then
+  if [[ "$poll" == true ]]; then
+    command -v gh >/dev/null 2>&1 || { emit failed "$(node - "$run_url" <<'NODE'
+const runUrl = process.argv[2];
+process.stdout.write(JSON.stringify({ workflowRun: runUrl, state: 'unknown', failedJob: null, logUrl: runUrl }));
+NODE
+)" "$(failure_json infra-failed 'gh is required to poll workflow run state' true install-gh)" monitor 'Install/authenticate gh or rerun without --poll to record operator evidence.'; exit 127; }
+    run_id="$(run_id_from_url "$run_url")"
+    [[ -n "$run_id" ]] || fail_usage '--run-url must be a GitHub Actions run URL or run id when --poll is used'
+    run_json="$(gh run view "$run_id" --repo "$repo" --json status,conclusion,url 2>/dev/null || true)"
+    if [[ -z "$run_json" ]]; then
+      emit failed "$(node - "$run_url" <<'NODE'
+const runUrl = process.argv[2];
+process.stdout.write(JSON.stringify({ workflowRun: runUrl, state: 'unknown', failedJob: null, logUrl: runUrl }));
+NODE
+)" "$(failure_json infra-failed 'failed to read workflow run state' true retry-gh-run-view)" monitor 'Check GitHub auth or the run URL, then rerun monitor.'
+      exit 1
+    fi
+    result="$(node - "$run_json" <<'NODE'
+const run = JSON.parse(process.argv[2]);
+const ok = run.status === 'completed' && run.conclusion === 'success';
+const failed = run.status === 'completed' && run.conclusion !== 'success';
+process.stdout.write(JSON.stringify({ status: ok ? 'success' : failed ? 'failed' : 'blocked', exitCode: ok ? 0 : 1, data: { workflowRun: run.url, state: ok ? 'passed' : failed ? 'failed' : run.status, failedJob: null, logUrl: run.url }, failures: failed ? [{ code: 'artifact-build-failed', message: 'release workflow failed', retryable: true, recovery: 'retry-workflow', evidence: { command: 'gh run view', url: run.url, path: null } }] : [] }));
+NODE
+)"
+    status="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(r.status)" "$result")"; code="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(String(r.exitCode))" "$result")"; data="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(JSON.stringify(r.data))" "$result")"; fails="$(node -e "const r=JSON.parse(process.argv[1]);process.stdout.write(JSON.stringify(r.failures))" "$result")"; emit "$status" "$data" "$fails" verify 'Workflow reached terminal state or needs recovery.'; exit "$code"
+  fi
+  data="$(node - "$run_url" <<'NODE'
+const runUrl = process.argv[2];
+process.stdout.write(JSON.stringify({ workflowRun: runUrl, state: 'operator-provided', failedJob: null, logUrl: runUrl }));
+NODE
+)"
+  emit blocked "$data" "$(failure_json operator-required 'workflow run evidence requires operator confirmation or --poll' true rerun-with-poll)" monitor 'Confirm the workflow evidence or rerun with --poll for a live status check.'
+  exit 1
+fi
+emit blocked '{"workflowRun":null,"state":"operator-required","failedJob":null,"logUrl":null}' "$(failure_json operator-required 'live workflow monitoring requires --run-url evidence or fake harness state' true provide-run-evidence)" monitor 'Provide workflow evidence or complete live monitor integration.'; exit 1

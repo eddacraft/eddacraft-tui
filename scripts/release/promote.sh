@@ -193,8 +193,8 @@ process.stdout.write(JSON.stringify({
 NODE
 )"
   if [[ "$request_readiness" != "true" ]]; then
-    emit_envelope "blocked" "$data_json" "$(failure_json operator-required "target mode requires release-readiness evidence before tag" true rerun-with-request-readiness)" "promote" "Rerun with --request-readiness, --channel, and --base-boundary before tagging."
-    exit 1
+    emit_envelope "noop" "$data_json" "[]" "tag" "Target mode does not require promotion; tag will enforce release-readiness for the exact SHA."
+    exit 0
   fi
   if [[ "$dry_run" == "true" ]]; then
     readiness_json="$(node - "$source_sha" <<'NODE'

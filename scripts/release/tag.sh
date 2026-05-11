@@ -34,7 +34,7 @@ process.stdout.write(JSON.stringify([{ code, message, retryable: retryableRaw ==
 NODE
 }
 
-empty_data_json() { printf '%s' '{"tag":null,"tagSha":null,"pushed":false,"recovery":null}'; }
+empty_data_json() { printf '%s' '{"tag":null,"tagSha":null,"sourceSha":null,"readinessRunUrl":null,"pushed":false,"recovery":null,"recoveryRequired":false}'; }
 
 emit_envelope() {
   local status="$1" data_json="$2" failures_json="$3" next_command="$4" next_reason="$5" ended_at
@@ -45,7 +45,7 @@ process.stdout.write(JSON.stringify({
   schemaVersion, command, phase, mode, status, startedAt, endedAt, repository,
   inputs: { base: null, head: null, version: version || null, sourceSha: sourceSha || null },
   trackingIssue: { repository, number: null, url: null, metadataCommentUrl: null },
-  releaseRecord: { lifecycleState: status === 'success' ? 'published' : null, recordUrl: null, sha256: null },
+  releaseRecord: { lifecycleState: status === 'success' ? 'candidate' : null, recordUrl: null, sha256: null },
   data: JSON.parse(dataRaw), warnings: [], failures: JSON.parse(failuresRaw),
   next: { command: nextCommand, reason: nextReason },
 }) + '\n');
@@ -126,13 +126,13 @@ if (existing && existing !== sourceSha && recoverRaw !== 'true') {
   status = 'blocked'; exitCode = 1; failure = { code: 'remote-conflict', message: 'remote tag exists at a different SHA', retryable: false, recovery: 'recover-tag', evidence: { command: 'tag fake remote', url: null, path } };
 } else if (existing && existing === sourceSha && recoverRaw !== 'true') {
   status = 'blocked'; exitCode = 1; failure = { code: 'operator-required', message: 'tag already pushed; rerun with --recover', retryable: true, recovery: 'rerun-with-recover', evidence: { command: 'tag fake remote', url: null, path } };
-} else if (existing && recoverRaw === 'true') {
+    } else if (existing && recoverRaw === 'true') {
   recovery = 'remote-tag-matches';
 } else if (dryRunRaw !== 'true') {
   state.tags[version] = sourceSha; pushed = true;
 }
 fs.writeFileSync(path, JSON.stringify(state, null, 2) + '\n');
-process.stdout.write(JSON.stringify({ status, exitCode, failures: failure ? [failure] : [], data: { tag: version, tagSha: sourceSha, pushed, recovery } }));
+process.stdout.write(JSON.stringify({ status, exitCode, failures: failure ? [failure] : [], data: { tag: version, tagSha: sourceSha, sourceSha, readinessRunUrl: null, pushed, recovery, recoveryRequired: Boolean(failure) } }));
 NODE
 )"
   status="$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(r.status);" "$result")"
@@ -143,35 +143,46 @@ NODE
   exit "$exit_code"
 fi
 
-readiness_passed() {
+readiness_state="unknown"
+readiness_run_url=""
+readiness_check() {
   if [[ -n "${ANVIL_RELEASE_TAG_FAKE_READINESS_FILE:-}" ]]; then
-    node - "$ANVIL_RELEASE_TAG_FAKE_READINESS_FILE" "$source_sha" <<'NODE'
+    result="$(node - "$ANVIL_RELEASE_TAG_FAKE_READINESS_FILE" "$source_sha" <<'NODE'
 const fs = require('node:fs');
 const [path, sourceSha] = process.argv.slice(2);
 const report = JSON.parse(fs.readFileSync(path, 'utf8'));
 const runs = Array.isArray(report.runs) ? report.runs : [report];
 const run = runs.find((candidate) => candidate.headSha === sourceSha || candidate.sourceSha === sourceSha);
-process.exit(run && (run.conclusion === 'success' || run.state === 'passed') ? 0 : 1);
+if (!run) process.stdout.write(JSON.stringify({ state: 'missing', runUrl: null, exitCode: 1 }));
+else if (run.conclusion === 'success' || run.state === 'passed') process.stdout.write(JSON.stringify({ state: 'passed', runUrl: run.url || run.runUrl || null, exitCode: 0 }));
+else process.stdout.write(JSON.stringify({ state: run.conclusion || run.state || 'failed', runUrl: run.url || run.runUrl || null, exitCode: 1 }));
 NODE
-    return $?
+    )"
+    readiness_state="$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(r.state);" "$result")"
+    readiness_run_url="$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(r.runUrl || '');" "$result")"
+    return "$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(String(r.exitCode));" "$result")"
   fi
 
-  command -v gh >/dev/null 2>&1 || return 1
+  command -v gh >/dev/null 2>&1 || { readiness_state="infra-missing-gh"; return 2; }
   local run_json
   run_json="$(gh run list --repo "$repo" --workflow release-readiness.yml --json headSha,conclusion,status,url --limit 20 2>/dev/null || true)"
-  node - "$run_json" "$source_sha" <<'NODE'
+  if [[ -z "$run_json" ]]; then
+    readiness_state="infra-gh-run-list"
+    return 2
+  fi
+  result="$(node - "$run_json" "$source_sha" <<'NODE'
 const [runsRaw, sourceSha] = process.argv.slice(2);
 const runs = runsRaw ? JSON.parse(runsRaw) : [];
-const run = runs.find((candidate) => candidate.headSha === sourceSha && candidate.conclusion === 'success');
-process.exit(run ? 0 : 1);
+const run = runs.find((candidate) => candidate.headSha === sourceSha);
+if (!run) process.stdout.write(JSON.stringify({ state: 'missing', runUrl: null, exitCode: 1 }));
+else if (run.conclusion === 'success') process.stdout.write(JSON.stringify({ state: 'passed', runUrl: run.url || null, exitCode: 0 }));
+else process.stdout.write(JSON.stringify({ state: run.conclusion || run.status || 'failed', runUrl: run.url || null, exitCode: 1 }));
 NODE
+  )"
+  readiness_state="$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(r.state);" "$result")"
+  readiness_run_url="$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(r.runUrl || '');" "$result")"
+  return "$(node -e "const r=JSON.parse(process.argv[1]); process.stdout.write(String(r.exitCode));" "$result")"
 }
-
-data_json="$(node - "$version" "$source_sha" "$dry_run" <<'NODE'
-const [tag, tagSha, dryRunRaw] = process.argv.slice(2);
-process.stdout.write(JSON.stringify({ tag, tagSha, pushed: dryRunRaw !== 'true', recovery: null }));
-NODE
-)"
 
 remote_url="$(git remote get-url origin 2>/dev/null || true)"
 if [[ -z "$remote_url" ]]; then
@@ -202,8 +213,18 @@ if [[ -n "$package_version" && "v${package_version}" != "$version" ]]; then
   emit_blocked stale-source "package.json version does not match requested tag" true rerun-prepare "Run prepare for the requested version before tagging."
   exit 1
 fi
-if ! readiness_passed; then
-  emit_blocked validation-failed "release-readiness has not passed for source SHA" true run-readiness "Run or recover release-readiness for the exact source SHA before tagging."
+readiness_rc=0
+readiness_check || readiness_rc=$?
+data_json="$(node - "$version" "$source_sha" "$dry_run" "$readiness_run_url" <<'NODE'
+const [tag, sourceSha, dryRunRaw, readinessRunUrl] = process.argv.slice(2);
+process.stdout.write(JSON.stringify({ tag, tagSha: sourceSha, sourceSha, readinessRunUrl: readinessRunUrl || null, pushed: dryRunRaw !== 'true', recovery: null, recoveryRequired: false }));
+NODE
+)"
+if [[ "$readiness_rc" == "2" ]]; then
+  emit_envelope "blocked" "$data_json" "$(failure_json infra-failed "could not check release-readiness state: $readiness_state" true install-or-auth-gh)" "tag" "Install/authenticate gh, or rerun with explicit guarded readiness evidence."
+  exit 1
+elif [[ "$readiness_rc" != "0" ]]; then
+  emit_envelope "blocked" "$data_json" "$(failure_json validation-failed "release-readiness has not passed for source SHA" true run-readiness)" "tag" "Run or recover release-readiness for the exact source SHA before tagging."
   exit 1
 fi
 
@@ -226,9 +247,9 @@ if [[ -n "$remote_tag_sha" && "$remote_tag_sha" == "$source_sha" ]]; then
     emit_blocked operator-required "tag already pushed; rerun with --recover" true rerun-with-recover "Confirm the remote tag state before continuing."
     exit 1
   fi
-  recovery_data="$(node - "$version" "$source_sha" <<'NODE'
-const [tag, tagSha] = process.argv.slice(2);
-process.stdout.write(JSON.stringify({ tag, tagSha, pushed: false, recovery: 'remote-tag-matches' }));
+  recovery_data="$(node - "$version" "$source_sha" "$readiness_run_url" <<'NODE'
+const [tag, sourceSha, readinessRunUrl] = process.argv.slice(2);
+process.stdout.write(JSON.stringify({ tag, tagSha: sourceSha, sourceSha, readinessRunUrl: readinessRunUrl || null, pushed: false, recovery: 'remote-tag-matches', recoveryRequired: false }));
 NODE
 )"
   emit_envelope "success" "$recovery_data" "[]" "monitor" "Remote tag already matches; monitor release workflow."
