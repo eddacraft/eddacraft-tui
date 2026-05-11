@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 0/0      |
+| CIB | —     | In Progress | 0/2      |
 
 ## Purpose
 
@@ -70,7 +70,7 @@ archive.
 ## Item Template
 
 ```markdown
-### CIB-001: Short outcome-focused title
+### CIB-NNN: Short outcome-focused title
 
 - **Status:** Draft
 - **Intent:** One sentence describing the improvement outcome.
@@ -82,5 +82,52 @@ archive.
 
 ## Tasks
 
-No active items yet. Append new `CIB-NNN` items here as improvement
-opportunities are identified.
+### CIB-001: Sweep global `dev-workflow` skill for post-cutover and current-council drift
+
+- **Status:** Draft
+- **Intent:** Bring the global `dev-workflow` routing skill into alignment with
+  the main-first cutover and the current risk-tiered council architecture.
+- **Expected Outcome:** `~/Projects/src/code-env/.claude/skills/dev-workflow/SKILL.md`
+  no longer instructs branching from `dev`, the Stage Map references the current
+  council and skill set (risk-tiered `council`, `local-review-council` for the
+  streaming flow, `planning-council`), and adjacent stages
+  (`addressing-pr-reviews`, `finishing-a-branch`, `release`) are linked where
+  relevant. Skill is consistent with `AGENTS.md` and current APS lifecycle.
+- **Validation:** Manual diff of the updated skill against the main-first
+  cutover artefacts (`docs/guides/branching-strategy.md`,
+  `docs/guides/worktree-policy.md`) and the current council skill; `pnpm
+  format:check` if any in-repo doc is touched alongside.
+- **Identified From:** Session review 2026-05-11 — OPMODEL-012 archive closed
+  without sweeping `dev-workflow`; skill still says "Branch from `dev`" at line
+  32 and points "Review" only at the legacy `code-review` skill plus `/council`
+  command despite the newer streaming/batch council model.
+- **Coordinates with:** DOCGOV-008 (stale entrypoints), CIB-002 (canonical skill
+  list), `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
+  (skill authority boundaries).
+- **Confidence:** high
+
+### CIB-002: Establish definitive skill and agent list for the anvil repo
+
+- **Status:** Draft
+- **Intent:** Produce a single authoritative inventory of the skills and agents
+  this repository expects to be available, distinguishing repo-local from global
+  surfaces and recording authority and source for each entry.
+- **Expected Outcome:** A checked-in list (location decided during triage —
+  candidates: `docs/guides/agent-surface-inventory.md` or a section inside
+  `AGENTS.md`) names every skill and agent the anvil workflow depends on, marks
+  repo-local versus global, identifies the canonical source for each global
+  entry (e.g. `joshuaboys/code-env`), and is linked from `AGENTS.md`. Drift
+  between this list and `.claude/` plus external skill repos is detectable by a
+  documented manual check until automated validation is added.
+- **Validation:** Manual inventory cross-check against `.claude/agents/`,
+  `.claude/skills/` (where present), the global Claude skill directory, and
+  current `AGENTS.md` references; `pnpm format:check` for any in-repo docs
+  touched.
+- **Identified From:** Session review 2026-05-11 — repeated drift between
+  expected skills (e.g. `dev-workflow`, `council`, `release`) and what is
+  current or correct, with no single source of truth available to detect it.
+- **Coordinates with:** CIB-001 (drift sweep informs entries), DOCGOV-002
+  (taxonomy and metadata),
+  `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
+  (Phase 1: Inventory And Declare Authority).
+- **Confidence:** medium
