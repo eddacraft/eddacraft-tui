@@ -3,11 +3,13 @@
 
 # Anvil — Save-time Trust
 
-> **Latest verified release tag: `v0.6.1-beta`.** The current delivery window is
-> operational: `OPMODEL` plus CI/CD release-readiness, release records, drift
-> checks, and release orchestration. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
-> for the current parallel delivery lanes and [`ROADMAP.md`](../ROADMAP.md) for
-> thematic context across horizons.
+> **Latest verified release tag: `v0.6.1-beta`.** The main-first cutover
+> completed on 2026-05-11 (OPMODEL-012); `main` is the single integration
+> target. The current delivery window is operational: finish the release
+> orchestration command surface (`RELORCH`) and the remaining CI targeting
+> work (`CICD`). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the current
+> parallel delivery lanes and [`ROADMAP.md`](../ROADMAP.md) for thematic
+> context across horizons.
 
 ## Overview
 
@@ -80,30 +82,34 @@ class reaches across architectural contexts.
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
-### Current window — OPMODEL + CI/CD readiness
+### Current window — release orchestration + remaining CICD
 
-The current planning window starts after `v0.6.1-beta`. The slate is operational:
-finish the minimum viable Plan / Build / Release operating model before the
-`main`-first cutover, and make CI release-readiness evidence executable enough
-that future tags are validated by exact SHA rather than prose-only runbooks.
+The current planning window opened after the OPMODEL-012 main-first cutover
+landed on 2026-05-11. The remaining operational substrate to finish before the
+next product window is the deterministic release command surface (RELORCH)
+plus the remaining CI targeting work (CICD-005, -008, -010, -011). The
+candidate release for this window remains `v0.6.2-beta`, claimed as _"the
+release operating model is executable end-to-end"_.
 
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
 | Shipped baseline | Shipped | `v0.6.1-beta` verified tag | Wow-start activation and daemon-backed validation are behind us; current work should not reopen `v0.6.0-beta` scope. |
-| Operating model migration | In Progress | OPMODEL 11/12 | Completed: migration map, branching/worktree guidance, APS lifecycle/release metadata, release-record schema, release-readiness workflow design, release runbook/skill boundary, deterministic guidance, review/council entrypoints, workflow session/event schema, warning-mode drift checks, and rollback/incident playbooks. Next: cutover. |
-| CI/CD release readiness | In Progress | OPMODEL-005 spec complete; implementation pending | Implement exact-SHA readiness and optional non-publishing candidate artefacts. Until implemented, do not claim CI readiness as shipped validation authority. |
-| Release orchestration | Blocked | RELORCH 3/12 | Paused 2026-05-11 until CICD-012 and OPMODEL-012 land. RELORCH-001 design, RELORCH-003 assess command, and RELORCH-004 preflight command complete; RELORCH-002 initial harness still needs the broader fixture matrix. RELORCH-012 added to close the schema gap (yank state + policyDecisions enum) surfaced by OPMODEL-011 rollback playbooks. |
-| Main-first cutover | Complete | OPMODEL-012 done 2026-05-11 | Cutover SHA `b6f236e9`; `main` ruleset + dev disposition (dated compat tag) live; module archived. |
-| Daemon-working product slate | Queued | MLP 0/17, INTL 0/9 | Keep queued until operating-model and CI/CD release machinery are trustworthy enough to carry a larger product claim. |
+| Main-first cutover | Complete | OPMODEL 12/12 — archived 2026-05-11 | Cutover SHA `b6f236e9`; `main` ruleset id 16217152 enforces 7 required checks + PR + non-FF + no-delete; `dev` retired as `dev-retired-2026-05-11` tag (deletion follow-up #1419). Module archived. |
+| CI/CD release readiness | Shipped | OPMODEL-005 spec + CICD-009 implementation complete | `.github/workflows/release-readiness.yml` validates an exact `main` SHA with no publishing credentials; candidate metadata + retention live. CICD-012 added cutover-aware gates and self-defending fork-reject. |
+| Release orchestration | Unblocked | RELORCH 3/12 | Resumed after the OPMODEL-012 cutover. Phase 1 nucleus remaining: RELORCH-002 harness fixture matrix, RELORCH-010 closeout, RELORCH-011 wire-up + decommission. Phase 2 (RELORCH-005..-009) follows. RELORCH-012 closes the release-record schema gap (yank state + policyDecisions enum) surfaced by the OPMODEL-011 rollback playbooks. |
+| CI targeting + drift | In Progress | CICD 8/12 | Shipped: classifier (-002), local validation (-003), fast PR validation (-004), coverage cost controls (-006), security/dependency targeting (-007), release-readiness reconciliation (-009), cutover readiness (-012). Remaining: CICD-005 integration SHA validation redesign, CICD-008 matrix targeting, CICD-010 workflow decomposition, CICD-011 APS/repo/release drift checks in CI. |
+| Daemon-working product slate | Queued | MLP 0/17, INTL 0/9 | Promote once release-orchestration commands can replay a known release (RELORCH-009 against `v0.6.1-beta`). |
 
-### Next window (proposed) — _post-OPMODEL daemon-working slate_
+### Next window (proposed) — _daemon-working slate_
 
-The next product planning window opens after OPMODEL/CI/CD release machinery is
-trustworthy. **Theme:** _Daemon working end-to-end_ — `anvil start` lands a real
-testable protection claim, hooks fire deterministically, the witness chain
-records every commit, baseline adoption works, and `anvil-run` wraps agent
-processes. Target tag candidate remains **`v0.7.0-beta`** unless the operational
-release sequence changes version policy.
+OPMODEL closed; release-readiness CI shipped. The next product planning
+window opens once RELORCH commands can replay a known release end-to-end
+(RELORCH-009 against `v0.6.1-beta` is the practical gate). **Theme:**
+_Daemon working end-to-end_ — `anvil start` lands a real testable protection
+claim, hooks fire deterministically, the witness chain records every commit,
+baseline adoption works, and `anvil-run` wraps agent processes. Target tag
+candidate remains **`v0.7.0-beta`** unless the operational release sequence
+changes version policy.
 
 Source of truth for current parallelisation and release dependencies:
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
