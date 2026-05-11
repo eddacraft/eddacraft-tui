@@ -26,7 +26,7 @@ Report or plan release promotion. This initial implementation is local and
 dry-run safe; it does not create or merge GitHub pull requests.
 
 Options:
-  --json                         Emit one JSON object only
+  --json                         Accepted for command-surface consistency; output is always one JSON object
   --dry-run                      Report planned promotion without mutation
   --version <version>            Release version, e.g. v0.7.0-beta
   --strategy <strategy>          direct or stabilisation

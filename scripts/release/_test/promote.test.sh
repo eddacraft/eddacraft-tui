@@ -74,6 +74,26 @@ if (doc.data.mergeState !== 'not-required') throw new Error(`unexpected target m
 if (doc.data.mergedSha !== expectedSha) throw new Error(`unexpected mergedSha ${doc.data.mergedSha}`);
 NODE
 
+bash "$HARNESS" run-contract \
+  --name promote-needs-operator \
+  --expected-exit 1 \
+  --expected-command promote \
+  -- bash -c 'cd "$1" && bash "$2" --json --version v0.7.0-beta --strategy direct --base main --head dev' _ "$repo" "$PROMOTE"
+(cd "$repo" && bash "$PROMOTE" --json --version v0.7.0-beta --strategy direct --base main --head dev >"$tmp/non-dry-run.json") || rc=$?
+rc="${rc:-0}"
+if [[ "$rc" != "1" ]]; then
+  echo "expected non-dry-run promotion to exit 1, got $rc" >&2
+  exit 1
+fi
+node - "$tmp/non-dry-run.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (doc.status !== 'needs-operator') throw new Error(`expected needs-operator, got ${doc.status}`);
+if (!doc.failures.some((failure) => failure.code === 'operator-required')) {
+  throw new Error('expected operator-required failure');
+}
+NODE
+
 invalid_output="$(bash "$PROMOTE" --json --unknown 2>/dev/null || true)"
 assert_contains "$invalid_output" '"status":"failed"'
 bash "$HARNESS" run-contract \
