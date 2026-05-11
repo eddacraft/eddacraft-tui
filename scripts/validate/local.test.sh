@@ -53,7 +53,7 @@ jq -e '.commands[] | select(contains("trivy is required"))' >/dev/null <<<"${dep
 release_paths="${tmp_dir}/release.paths"
 printf '%s\n' 'scripts/release.sh' >"${release_paths}"
 release_plan=$(bash "${validator}" --changed --paths-file "${release_paths}" --dry-run --json)
-jq -e '.commands[] | select(contains("cargo-hakari cargo-deny"))' >/dev/null <<<"${release_plan}"
+jq -e '.commands[] | select(. == "bash -n scripts/release.sh scripts/release/*.sh")' >/dev/null <<<"${release_plan}"
 
 full=$(bash "${validator}" --full --dry-run --json)
 jq -e '.mode == "full"' >/dev/null <<<"${full}"
