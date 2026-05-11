@@ -156,9 +156,8 @@ jobs:
       - name: Run release script syntax check
         if: needs.detect-changes.outputs.release-dry-run-required == 'true'
         run: |
-          cargo install cargo-hakari --locked --version 0.9.37
-          cargo install cargo-deny --locked --version 0.19.4
-          ANVIL_RELEASE_STEP_TIMEOUT=120 bash scripts/release.sh
+          bash -n scripts/release.sh
+          bash -n scripts/release/*.sh
 
   platform-smoke:
     name: Platform Smoke

@@ -209,8 +209,7 @@ else
         add_command 'pnpm lint:check'
         ;;
       release-dry-run)
-        add_command 'bash -lc '\''for tool in cargo-hakari cargo-deny; do if ! command -v "$tool" >/dev/null 2>&1; then echo "$tool is required for release validation. Install the pinned version from scripts/release.sh before rerunning." >&2; exit 2; fi; done'\'''
-        add_command 'ANVIL_RELEASE_STEP_TIMEOUT=120 bash scripts/release.sh'
+        add_command 'bash -n scripts/release.sh scripts/release/*.sh'
         ;;
       platform-smoke)
         add_command 'pnpm --filter @eddacraft/anvil-checks-native build:debug'

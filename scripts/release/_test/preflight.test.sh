@@ -93,6 +93,22 @@ ANVIL_RELEASE_PREFLIGHT_FIXTURE=missing-tool \
     -- bash "$PREFLIGHT" --json
 
 rc=0
+ANVIL_RELEASE_PREFLIGHT_FIXTURE=missing-tool \
+  bash "$PREFLIGHT" --json >"$tmp/missing-tool.json" || rc=$?
+rc="${rc:-0}"
+if [[ "$rc" != "127" ]]; then
+  echo "expected missing tool exit 127, got $rc" >&2
+  exit 1
+fi
+node - "$tmp/missing-tool.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (!doc.failures.some((failure) => failure.code === 'infra-failed')) {
+  throw new Error('expected missing tool failures to use infra-failed');
+}
+NODE
+
+rc=0
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=version-mismatch \
   bash "$PREFLIGHT" --json >"$tmp/version.json" || rc=$?
 rc="${rc:-0}"

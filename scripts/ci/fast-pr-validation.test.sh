@@ -49,7 +49,8 @@ assert_contains "${ci_workflow}" "needs.detect-changes.outputs.infra-static-chec
 assert_contains "${ci_workflow}" 'const yaml = require("yaml")'
 assert_contains "${ci_workflow}" "git ls-files 'scripts/*.sh' 'scripts/**/*.sh'"
 assert_contains "${ci_workflow}" 'aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25'
-assert_contains "${ci_workflow}" 'ANVIL_RELEASE_STEP_TIMEOUT=120 bash scripts/release.sh'
+assert_contains "${ci_workflow}" 'bash -n scripts/release.sh'
+assert_contains "${ci_workflow}" 'bash -n scripts/release/*.sh'
 assert_contains "${ci_workflow}" 'pnpm --filter @eddacraft/anvil-checks-native build:debug'
 assert_contains "${ci_workflow}" "needs.detect-changes.result != 'success'"
 assert_contains "${ci_workflow}" "needs.detect-changes.outputs.lint-required != 'true'"

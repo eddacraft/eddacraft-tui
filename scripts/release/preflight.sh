@@ -342,7 +342,7 @@ emit_json() {
     fi
     local failure_code="validation-failed"
     if (( GATE_EXIT_CODES[$i] == 126 || GATE_EXIT_CODES[$i] == 127 )); then
-      failure_code="validation-failed"
+      failure_code="infra-failed"
     fi
     printf '{"code":%s,"message":%s,"retryable":true,"recovery":"fix-and-rerun","evidence":{"command":%s,"url":null,"path":null,"gate":%s,"exitCode":%s}}' \
       "$(json_string "$failure_code")" \
