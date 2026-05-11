@@ -6,7 +6,7 @@ disabling, and retiring feature flags in Anvil.
 ## Flag Lifecycle
 
 ```
-draft → active → retiring → retired → removed from runtime use
+draft → active → retiring → retired → (runtime use removed)
 ```
 
 | Status     | Meaning                                                                         |

@@ -358,7 +358,7 @@ post-launch. Production sink choice is deferred to the EXPORT module.
 ### Usage Analytics
 
 Cross-cutting durable usage observations on Kindling — command invocations,
-flag-evaluation rollups, dev-investment query views. Third trial of the
+inline flag-context snapshots, dev-investment query views. Third trial of the
 cross-cutting module convention promoted under
 [ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md). Founder
 request 2026-05-10 — answers "who is using what" durably so dev-investment
