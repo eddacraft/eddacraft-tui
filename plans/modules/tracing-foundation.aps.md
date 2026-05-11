@@ -13,9 +13,9 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status      | Progress |
 | ----- | ---------- | ----------- | -------- |
-| TRACE | @eddacraft | In Progress | 1/4      |
+| TRACE | @eddacraft | In Progress | 2/4      |
 
-**Last reviewed:** 2026-05-10
+**Last reviewed:** 2026-05-11
 
 > **Provenance:** Architecture decision record
 > [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md)
@@ -57,13 +57,12 @@ Give Anvil a runtime tracing baseline that:
 - Turns ADR-019's `anvil.flags.*` precedent into a registry-based
   contribution model without designing every domain's attributes for them.
 
-The launch-blocker scope is **TRACE-001 (shipped) + TRACE-004 (Draft,
-confirmed launch-blocker 2026-05-10)**. TRACE-004 lands call-path
-instrumentation, `traceparent`-to-span binding, and a local-only dev sink
-so developers can debug a request through the daemon end-to-end before
-the first external user. Everything else (TS-side mirror, redaction
-hardening, EXPORT sink choice, the OBS module's domain ops work) is
-post-launch.
+The launch-blocker scope is **TRACE-001 (shipped) + TRACE-004 (shipped,
+2026-05-11)**. TRACE-004 landed call-path instrumentation,
+`traceparent`-to-span binding, and a local-only dev sink so developers can
+debug a request through the daemon end-to-end before the first external user.
+Everything else (TS-side mirror, redaction hardening, EXPORT sink choice, the
+OBS module's domain ops work) is post-launch.
 
 ## In scope
 
@@ -160,8 +159,8 @@ This module is **Ready** when:
 
 ## Tasks
 
-> Status: In Progress. TRACE-001 Complete 2026-04-30. **TRACE-004 confirmed
-> launch-blocker 2026-05-10** (In Progress as of 2026-05-11).
+> Status: In Progress. TRACE-001 Complete 2026-04-30. TRACE-004 Complete
+> 2026-05-11 via PR #1435.
 > TRACE-002 (TS mirror) and TRACE-003 (redaction
 > hardening) stay Draft as post-launch hardening.
 
@@ -267,17 +266,16 @@ This module is **Ready** when:
 
 ---
 
-### TRACE-004: Instrument call paths and bind incoming `traceparent` to span context
+### TRACE-004: Instrument call paths and bind incoming `traceparent` to span context — Complete
 
-> **Status update (2026-05-11):** In Progress. First shippable cut landed:
+> **Status update (2026-05-11):** Complete via PR #1435. Shippable cut landed:
 > `anvil-observability` exposes current-span and explicit-span binding helpers;
 > JSON-RPC dispatch records valid incoming `traceparent` as correlation fields on
-> handler spans;
-> scan-buffer and CLI entry spans are instrumented; `ANVIL_TRACE_SINK=file=<path>`
-> writes local JSON-line output with restrictive Unix create permissions; OTLP
-> remains deferred to EXPORT to avoid SDK dependency churn. Remaining TRACE-004
-> breadth: fuller kernel-surface span coverage and true exporter-backed parent
-> propagation / local collector walkthrough.
+> handler spans; scan-buffer and CLI entry spans are instrumented;
+> `ANVIL_TRACE_SINK=file=<path>` writes local JSON-line output with restrictive
+> Unix create permissions and hardened existing-file checks; OTLP remains
+> deferred to EXPORT to avoid SDK dependency churn. Fuller exporter-backed parent
+> propagation / local collector walkthrough is explicitly deferred to EXPORT.
 
 - **Intent:** Anvil's daemon and CLI emit spans on the call paths
   developers actually need to debug, and an incoming `traceparent`
@@ -343,17 +341,18 @@ This module is **Ready** when:
   round-trip / handler-span test), `docs/observability/local-tracing.md` (new),
   `docs/observability/namespace-registry.md` (record any new
   attributes added by the instrumentation pass).
-- **Validation:** TBD when picked up — at minimum (a) a unit test that
-  `bind_traceparent_to_current_span` records the trace/parent IDs on
-  the current span; (b) the existing INTD-014 fixture asserts the
-  handler span carries the matching IDs; (c) a local file-sink smoke
-  test can inspect JSON-line output. Jaeger / connected OTLP trace
-  verification is deferred to EXPORT.
+- **Validation:** Passed 2026-05-11: `cargo fmt --check`,
+  `pnpm format:check`,
+  `cargo clippy -p eddacraft-anvil-intercept -p eddacraft-anvil-observability --all-targets -- -D warnings`,
+  `cargo test -p eddacraft-anvil-observability`, and
+  `cargo test -p eddacraft-anvil-intercept --test jsonrpc_conformance`. PR #1435
+  CI passed before merge. Jaeger / connected OTLP trace verification is deferred
+  to EXPORT.
 - **Confidence:** medium-high — the missing pieces are well-shaped
   (helper + attribute pass + opt-in sink) and TRACE-001's plumbing is
   the integration point. Risk lives in the breadth of the
   instrumentation pass.
-- **Status:** In Progress
+- **Status:** Complete
 
 ## Risks
 
