@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 6/12     |
+| CICD | —     | In Progress | 7/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -277,7 +277,7 @@ This module is Complete when:
 
 ### CICD-007: Security and dependency assurance targeting
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Keep security assurance strong while avoiding broad per-PR scans for
   unrelated changes.
 - **Expected Outcome:** Semgrep, CodeQL, Trivy, TruffleHog, cargo-deny, licence,
@@ -288,6 +288,20 @@ This module is Complete when:
 - **Files:** `.github/workflows/security.yml`, `.github/workflows/codeql.yml`,
   `.github/workflows/rust.yml`, `scripts/license-check.sh`
 - **Coordinates with:** SEC, ATTRIB, DOCGOV
+- **Completed:** 2026-05-11 — `.github/workflows/security.yml` now triggers on
+  push/PR/schedule/workflow_dispatch; the weekly Monday 06:15 UTC cron and the
+  manual dispatch path skip `detect-changes` so every job runs as a full
+  assurance sweep. Per-PR jobs gate on classifier signals: Semgrep on
+  `source-changed` or `rust-changed`, dependency-audit (Trivy) and
+  license-check on `dependency-audit-required` (lockfile/manifest moves), and
+  the secret scan on the broader `code-changed` signal. `rust.yml` adds a new
+  `rust-deps-changed` `dorny/paths-filter` output covering manifests, lockfile,
+  toolchain, and the workflow file itself; cargo-deny and the acknowledgements
+  freshness gate consume that signal so pure Rust source edits no longer trigger
+  the dependency-graph jobs. CodeQL already gated `analyze-js`/`analyze-rust` on
+  source-changed/rust-changed plus a weekly schedule and did not need targeting
+  changes. `pnpm test:ci-security-targeting` locks the new contract via
+  `scripts/ci/security-targeting.test.sh`.
 - **Confidence:** medium
 
 ---

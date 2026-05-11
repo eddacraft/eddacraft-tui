@@ -1,5 +1,12 @@
 name: Security
 
+# CICD-007: path/risk targeting for per-PR runs plus weekly scheduled
+# assurance. Each job is gated by the classifier output that names the
+# signal it cares about (TS/JS source for Semgrep, lockfile/manifest for
+# dependency-audit + license-check, any code change for the secret scan).
+# On schedule and manual dispatch, change detection is skipped so every
+# job runs as a full assurance sweep.
+
 on:
   push:
     branches:
@@ -9,6 +16,10 @@ on:
     branches:
       - main
       - dev
+  schedule:
+    # Weekly full sweep: Monday 06:15 UTC (offset from codeql @ 06:30).
+    - cron: '15 6 * * 1'
+  workflow_dispatch: {}
 
 concurrency:
   group:
@@ -20,14 +31,18 @@ permissions:
   contents: read
 
 jobs:
-  # ── Detect changes (skip security scans for docs-only PRs) ─────
+  # ── Detect changes (skipped on schedule/dispatch → every job runs) ─
   detect-changes:
     name: Detect Changes
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
     outputs:
       code-changed: ${{ steps.changes.outputs.code-changed }}
+      source-changed: ${{ steps.changes.outputs.source-changed }}
+      rust-changed: ${{ steps.changes.outputs.rust-changed }}
+      dependency-audit-required: ${{ steps.changes.outputs.dependency-audit-required }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -39,13 +54,19 @@ jobs:
         uses: ./.github/actions/detect-changes
 
   # ── SAST: Semgrep ─────────────────────────────────────────────
+  # Path-gated on TS/JS or Rust source changes. Docs-only and
+  # lockfile-only PRs do not need a Semgrep run.
   semgrep:
     name: SAST (Semgrep)
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: |
+      always() &&
+      (needs.detect-changes.result == 'skipped' ||
+       needs.detect-changes.outputs.source-changed == 'true' ||
+       needs.detect-changes.outputs.rust-changed == 'true')
     permissions:
       actions: read
       contents: read
@@ -70,13 +91,18 @@ jobs:
         continue-on-error: true
 
   # ── Dependency Vulnerability Audit ─────────────────────────────
+  # Trivy reads lockfiles directly — only run when a lockfile or
+  # manifest actually changed (classifier `dependency-audit` signal).
   dependency-audit:
     name: Dependency Audit
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: |
+      always() &&
+      (needs.detect-changes.result == 'skipped' ||
+       needs.detect-changes.outputs.dependency-audit-required == 'true')
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -94,13 +120,18 @@ jobs:
           exit-code: '1'
 
   # ── Secret Scanning ────────────────────────────────────────────
+  # TruffleHog is cheap and a secret can land in any non-docs file,
+  # so the broader `code-changed` gate stays here.
   secret-scan:
     name: Secret Scan
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: |
+      always() &&
+      (needs.detect-changes.result == 'skipped' ||
+       needs.detect-changes.outputs.code-changed == 'true')
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -113,13 +144,19 @@ jobs:
           extra_args: --only-verified
 
   # ── License Compliance ─────────────────────────────────────────
+  # License surface only moves when a lockfile or manifest changes,
+  # so gate on the same `dependency-audit` classifier signal as the
+  # dependency vulnerability audit.
   license-check:
     name: License Compliance
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.code-changed == 'true'
+    if: |
+      always() &&
+      (needs.detect-changes.result == 'skipped' ||
+       needs.detect-changes.outputs.dependency-audit-required == 'true')
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

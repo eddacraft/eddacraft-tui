@@ -73,6 +73,11 @@ jobs:
       pull-requests: read
     outputs:
       rust-changed: ${{ steps.filter.outputs.rust }}
+      # CICD-007: `rust-deps-changed` narrows dependency-only Rust signals
+      # (Cargo manifests + lockfile) so cargo-deny and the acknowledgements
+      # regeneration only fire when something the dependency graph cares
+      # about actually moved. Pure crate source changes do not flip it.
+      rust-deps-changed: ${{ steps.filter.outputs.rust-deps }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -86,6 +91,13 @@ jobs:
               - 'packages/anvil-checks-native/native/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'dist-workspace.toml'
+              - 'rust-toolchain.toml'
+              - '.github/workflows/rust.yml'
+            rust-deps:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'crates/**/Cargo.toml'
               - 'dist-workspace.toml'
               - 'rust-toolchain.toml'
               - '.github/workflows/rust.yml'
@@ -324,7 +336,10 @@ jobs:
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
-    needs: check
+    needs: [check, detect-rust-changes]
+    # CICD-007: only run cargo-deny when something dependency-relevant
+    # moved (manifests, lockfile, toolchain, or this workflow file).
+    if: needs.detect-rust-changes.outputs.rust-deps-changed == 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
@@ -344,7 +359,10 @@ jobs:
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
-    needs: check
+    needs: [check, detect-rust-changes]
+    # CICD-007: ACKNOWLEDGEMENTS.md only needs regen when the dependency
+    # graph changes; pure source edits cannot drift it.
+    if: needs.detect-rust-changes.outputs.rust-deps-changed == 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
