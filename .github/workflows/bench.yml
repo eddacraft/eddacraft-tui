@@ -32,7 +32,7 @@ jobs:
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - run: cargo check -p anvil-bench --all-targets
       - run: cargo check -p eddacraft-anvil-kernel --benches
       - run: cargo check -p eddacraft-anvil-checks --benches
@@ -45,7 +45,7 @@ jobs:
     needs: bench-check
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Run kernel benchmarks
         run: |
           set -o pipefail && cargo bench --bench kernel -- --output-format bencher | tee kernel-bench.txt
@@ -87,7 +87,7 @@ jobs:
     # runner-independent and is the only gate that should block a merge.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Run midedit_roundtrip benchmark
         # Plain criterion output (no `--output-format bencher`) — the
         # comparator only reads the percentile-sampler block, so bencher
