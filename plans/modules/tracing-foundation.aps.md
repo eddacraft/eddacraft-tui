@@ -295,8 +295,8 @@ This module is **Ready** when:
     correlation key. It does not create an OpenTelemetry parent relationship;
     EXPORT owns exporter-backed propagation.
   - `#[instrument]` (or equivalent `info_span!`) on: the JSON-RPC
-    dispatch loop, scan-buffer handlers, the CLI command entrypoints,
-    and the kernel work surfaces. Span attributes follow the
+    dispatch loop, scan-buffer handlers, and CLI command entrypoints.
+    Kernel work-surface breadth remains follow-up scope. Span attributes follow the
     [namespace registry](../../docs/observability/namespace-registry.md)
     conventions; new attributes added by this pass are recorded in
     the registry in the same PR.
@@ -335,8 +335,6 @@ This module is **Ready** when:
   (instrument dispatch; bind incoming `traceparent`),
   `crates/anvil-intercept/src/main.rs` (sink wiring at init),
   `crates/anvil-cli/src/main.rs` (instrument command entrypoints),
-  `crates/anvil-kernel/src/...` (instrument the kernel surface
-  methods — exact list when picked up),
   `crates/anvil-intercept/tests/jsonrpc_conformance.rs` (extend the
   round-trip / handler-span test), `docs/observability/local-tracing.md` (new),
   `docs/observability/namespace-registry.md` (record any new

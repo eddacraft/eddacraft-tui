@@ -339,10 +339,12 @@ Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
 daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
 surface. Second trial of the cross-cutting module convention promoted to
 APS under [ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md).
-Pre-launch scope is **TRACE-001 only** (subscriber init, W3C `traceparent`
-propagation, redaction layer, namespace registry stub, INTD-014 fixture
-update). TRACE-002 (TS mirror) and TRACE-003 (redaction hardening) are
-post-launch. Production sink choice is deferred to the EXPORT module.
+Pre-launch scope is **TRACE-001 + TRACE-004**: subscriber init, W3C
+`traceparent` propagation, namespace registry stub, INTD-014 fixture update,
+call-path instrumentation for the daemon / CLI paths shipped so far, and a
+local hardened file sink. TRACE-002 (TS mirror), TRACE-003 (redaction
+hardening), kernel-surface breadth, and production sink choice remain
+post-launch / EXPORT follow-up scope.
 
 | Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
 | --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
