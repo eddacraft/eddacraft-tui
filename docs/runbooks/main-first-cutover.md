@@ -40,7 +40,10 @@ Do **not** use this playbook for:
 
 Before opening the cutover window:
 
-1. Phase 0 PR is merged.
+1. Phase 0 PR (#1410) is merged and CICD-012
+   (`Main-first cutover readiness for validation workflows`) is Complete.
+   CICD-012 settles the validation surface so the cutover doesn't strand
+   in-progress CICD work mid-stream.
 2. Phase 0 audit is current — re-confirm fast-forward is still clean and the
    open-PR list:
 

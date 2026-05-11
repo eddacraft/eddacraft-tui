@@ -64,6 +64,19 @@ security) continue working after cutover (they keep triggering on `main`); the
 **Phase 1 is now a no-op** and Phase 2 absorbs the `pr-base-guard.yml`
 deletion (Step 4 of the playbook).
 
+### Phase 2 prerequisites
+
+Before opening the Phase 2 cutover window:
+
+- **PR #1410 merged** — Phase 0 outputs (audit + playbook) live on `dev`.
+- **CICD-012 complete** — `Main-first cutover readiness for validation
+  workflows` lands the validation-side preparation. Without it, the cutover
+  can still proceed but any subsequent CICD-012 work would have to bridge
+  validation contracts across the cutover; landing it first lets the cutover
+  happen against a settled validation surface. CICD-009
+  (release-readiness workflow) merged 2026-05-11 in PR #1413 — that
+  satisfies one of CICD-012's coordinating items.
+
 ### Phase 2 — Coordination window + the cutover (operator-driven, no PR)
 
 Operator-owned per the playbook. Agent does not push, does not change branch
