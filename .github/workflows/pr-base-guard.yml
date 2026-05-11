@@ -10,12 +10,23 @@ name: PR Base Guard
 # After the `main`-first cutover (OPMODEL-012) normal `feat/*`,
 # `fix/*`, `docs/*`, and `chore/*` branches MUST be allowed to target
 # `main` directly. This guard would block every normal PR in that
-# world. The cutover task owner is expected to either:
+# world.
 #
-#   - delete this workflow file as part of OPMODEL-012, or
-#   - replace the guard body with the target-mode invariant
-#     (typically: refuse fork PRs without a maintainer label) before
-#     enabling main-first PR flow.
+# Retirement sequence — do NOT skip the hardening step:
+#
+#   1. Verify ci.yml `test-release-gate` and rust.yml `cross-compile`
+#      both contain the `head.repo.full_name == github.repository`
+#      clause (added by CICD-012). Those clauses are what keeps a
+#      fork PR from triggering the expensive cross-platform and
+#      cross-compile matrices once this guard is gone — deleting
+#      this file without those clauses in place lets a single fork
+#      PR named `dev` / `hotfix/x` burn CI minutes on demand.
+#   2. Either delete this workflow file, or replace the guard body
+#      with the target-mode invariant (refuse fork PRs without a
+#      maintainer label).
+#   3. Update `scripts/ci/cutover-readiness.test.sh` to assert the
+#      replacement contract (or remove its `pr-base-guard.yml`
+#      assertions if the file is deleted).
 #
 # Until then, the migration-mode rules remain:
 #

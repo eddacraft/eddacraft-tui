@@ -387,25 +387,45 @@ This module is Complete when:
   documentation distinguish compatibility `dev` mode from target `main` mode.
 - **Validation:** Dry-run or review evidence shows the same contracts can operate
   with `dev` today and `main` after cutover.
-- **Files:** `.github/workflows/`, `.github/actions/`, `.github/PULL_REQUEST_TEMPLATE.md`,
+- **Files:** `.github/workflows/`, `.github/PULL_REQUEST_TEMPLATE.md`,
   `docs/guides/branching-strategy.md`, `docs/guides/worktree-policy.md`
 - **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-005, OPMODEL-007
 - **Coordinates with:** OPMODEL-012
 - **Completed:** 2026-05-11 — `.github/workflows/ci.yml` and
   `.github/workflows/rust.yml` now gate the cross-platform release matrix on
-  the head pattern as well as the base ref, so normal `feat/*` PRs do not fire
-  the matrix after the cutover retargets them at `main`; release/hotfix PRs
-  and pushes to `main` still do. `.github/workflows/pr-base-guard.yml` carries
-  a `MIGRATION-MODE GUARD` header spelling out the retirement path under
-  `OPMODEL-012`. The PR template references both modes so contributors choose
-  the right base branch. `docs/guides/branching-strategy.md` gains a
-  "Cutover-aware CI gates" subsection mapping every dual-mode gate to its
-  migration and target triggers. `scripts/ci/cutover-readiness.test.sh` (wired
-  as `pnpm test:ci-cutover-readiness`) locks the dual-mode invariants:
+  the head pattern AND on `head.repo.full_name == github.repository`, so
+  normal `feat/*` PRs and fork PRs do not fire the expensive matrix even
+  after the cutover retargets normal work at `main`; release/hotfix PRs from
+  the canonical repo and pushes to `main` still do. The fork-reject clause
+  makes both gates self-defending, so retiring `pr-base-guard.yml` under
+  OPMODEL-012 does not create a fork-trust gap.
+  `.github/workflows/pr-base-guard.yml` carries a `MIGRATION-MODE GUARD`
+  header spelling out the retirement sequence: verify the new gates'
+  `head.repo.full_name` clause is present first, then delete (or rewrite to a
+  label-based gate). `.github/workflows/release-readiness.yml` carries an
+  inline CICD-012/OPMODEL-012 comment naming the `migration-dev` option as
+  the artefact to retire post-cutover. The PR template references both modes
+  so contributors choose the right base branch.
+  `docs/guides/branching-strategy.md` gains a "Cutover-aware CI gates"
+  subsection mapping every dual-mode gate to its migration and target
+  triggers, plus a per-group audit naming the other workflows (already
+  dual-mode, tag/schedule/dispatch-driven, intentionally `main`-only
+  post-merge). `scripts/ci/cutover-readiness.test.sh` (wired as
+  `pnpm test:ci-cutover-readiness`) locks the dual-mode invariants:
   integration workflows fire on both `dev` and `main`, release-class gates
-  use the head allowlist, `pr-base-guard.yml` self-identifies as
-  migration-only, and `release-readiness.yml` already speaks the `main` /
-  `migration-dev` vocabulary. Every other validation workflow already
-  triggers on both `main` and `dev` or fires on tag/schedule events, so the
-  cutover does not silently change their meaning.
+  use the head allowlist AND the `head.repo.full_name` fork-reject clause,
+  `pr-base-guard.yml` self-identifies as migration-only and keeps its
+  fork-reject behaviour until the gate hardening lands, and
+  `release-readiness.yml` already speaks the `main` / `migration-dev`
+  vocabulary.
+  **Remaining sweep owned by OPMODEL-012** (not blocking this work item):
+  remove the hard-coded `dev` branch entries in `ci.yml` push/PR base lists,
+  `rust.yml` push branch list + `cross-compile` push condition, and
+  `security.yml` push/PR base lists once `dev` is retired; delete or rewrite
+  `pr-base-guard.yml` per its in-file retirement sequence; remove the
+  `migration-dev` option from `release-readiness.yml`. **Known forward gap:**
+  the gates do not declare a `merge_group` event — merge-queue commits would
+  not fire the cross-platform / cross-compile matrices. Merge queue is not
+  currently enabled; adding `merge_group: {}` support is a separate
+  follow-up if/when merge queue lands.
 - **Confidence:** medium

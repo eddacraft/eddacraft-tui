@@ -166,9 +166,24 @@ The following workflow gates are dual-mode by design and survive the
 | `pr-base-guard.yml`      | Rejects fork or non-release heads targeting `main`.                                                     | Migration-only — workflow is retired or rewritten as part of `OPMODEL-012`. |
 | `release-readiness.yml`  | `expectedReachableFrom: main` for canonical readiness; `migration-dev` opt-in for compatibility probes. | `expectedReachableFrom: main` only — `migration-dev` retired post-cutover.  |
 
-Every other validation workflow already triggers on both `main` and `dev` (or
-fires on tag pushes / scheduled assurance), so the cutover does not silently
-change their meaning.
+The remaining validation workflows fall into three groups:
+
+- **Already dual-mode** (`codeql.yml`, `security.yml`, `napi.yml`,
+  `release-harness.yml`): listed `main` and `dev` (or both) in their push/PR
+  triggers and need no further work for the cutover.
+- **Tag-, schedule-, or dispatch-driven** (`release.yml`,
+  `release-readiness.yml`, `ci-nightly.yml`, `ci-cost-report.yml`,
+  `bench-nightly.yml`, `labeler.yml`): branch-agnostic; cutover-safe by
+  construction.
+- **Intentionally `main`-only post-merge** (`bench.yml`, `infra.yml`): fire only
+  on push to `main`, by design. The cutover does not affect them — `main`
+  remains the post-merge target in both modes.
+
+Hard-coded `refs/heads/dev` references inside the workflows touched by this
+change (`ci.yml` push/PR base list, `rust.yml` push branch list and
+cross-compile push condition, `security.yml` push/PR base list) are
+migration-mode artefacts. `OPMODEL-012` owns the post-cutover sweep that removes
+them once `dev` is retired or protected.
 
 ## Why This Is Changing
 

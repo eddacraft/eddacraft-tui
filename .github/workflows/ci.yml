@@ -472,12 +472,18 @@ jobs:
   #   `fix/*` / `docs/*` / `chore/*` PRs also target `main`. The head
   #   pattern allowlist below keeps the gate from firing on every
   #   normal PR after cutover; release/hotfix PRs still fire it.
+  #
+  # The `head.repo.fork == false` clause makes this gate self-defending:
+  # a fork PR cannot trigger the expensive macOS + Windows matrix by
+  # naming its head `dev` / `release/*` / `hotfix/*`, even after
+  # `pr-base-guard.yml` is retired by `OPMODEL-012`.
   test-release-gate:
     name: Release Gate (Node 22.x, ${{ matrix.os }})
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
         (github.head_ref == 'dev' ||
          startsWith(github.head_ref, 'release/') ||
          startsWith(github.head_ref, 'hotfix/'))) ||

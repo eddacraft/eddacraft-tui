@@ -395,6 +395,12 @@ jobs:
     # keeps the cross-compile matrix from firing on every normal post-
     # cutover PR; release/hotfix PRs still fire it.
     #
+    # The `head.repo.full_name == github.repository` clause makes the
+    # gate self-defending: a fork PR cannot trigger the six-target
+    # cross-compile matrix by naming its head `dev` / `release/*` /
+    # `hotfix/*`, even after `pr-base-guard.yml` is retired by
+    # `OPMODEL-012`.
+    #
     # Additionally gate on `detect-rust-changes` so JS-only diffs (e.g.
     # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
     # still admits, because Test/Clippy depend on the lockfile) don't
@@ -404,6 +410,7 @@ jobs:
     if: >-
       ((github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
       github.ref)) || (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
         (github.head_ref == 'dev' ||
          startsWith(github.head_ref, 'release/') ||
          startsWith(github.head_ref, 'hotfix/')))) &&

@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Lock CICD-012 invariants: validation workflows survive the
 # `dev` → `main` cutover without silently changing meaning.
+#
+# Note: assertions use `grep -F` against literal substrings of
+# workflow YAML. They will pass even if the surrounding YAML is
+# reformatted into multi-line shape, but they will fail if the
+# expression context is removed entirely. A future hardening pass
+# can replace these with structural YAML assertions (e.g. via yq)
+# if the test gets brittle.
 
 set -euo pipefail
 
@@ -50,15 +57,26 @@ assert_contains "${ci_workflow}" "startsWith(github.head_ref, 'release/') ||"
 assert_contains "${ci_workflow}" "startsWith(github.head_ref, 'hotfix/'))"
 assert_not_contains "${ci_workflow}" "(github.event_name == 'pull_request' && github.base_ref == 'main') ||"
 
-# rust.yml cross-compile must follow the same head allowlist pattern.
+# The release gate must also reject fork PRs from triggering the
+# expensive cross-platform matrix, even if pr-base-guard.yml is
+# retired by OPMODEL-012.
+assert_contains "${ci_workflow}" "github.event.pull_request.head.repo.full_name == github.repository"
+
+# rust.yml cross-compile must follow the same head allowlist pattern
+# and the same fork-reject clause.
+assert_contains "${rust_workflow}" "github.head_ref == 'dev' ||"
 assert_contains "${rust_workflow}" "startsWith(github.head_ref, 'release/') ||"
 assert_contains "${rust_workflow}" "startsWith(github.head_ref, 'hotfix/')))"
+assert_contains "${rust_workflow}" "github.event.pull_request.head.repo.full_name == github.repository"
 assert_not_contains "${rust_workflow}" "github.ref)) || (github.event_name == 'pull_request' && github.base_ref == 'main')) &&"
 
 # pr-base-guard must self-identify as migration-only so the cutover
-# task owner sees the retirement path.
+# task owner sees the retirement path. The fork-reject check is
+# also locked so a future PR cannot remove it without the contract
+# moving into the new gates first.
 assert_contains "${pr_base_guard}" 'CICD-012: MIGRATION-MODE GUARD'
 assert_contains "${pr_base_guard}" 'OPMODEL-012'
+assert_contains "${pr_base_guard}" '"${HEAD_REPO}" != "${REPO}"'
 
 # Release readiness must already speak the dual-mode vocabulary.
 assert_contains "${release_readiness}" '          - main'
