@@ -49,3 +49,4 @@ jobs:
           bash scripts/release/_test/contract.test.sh
           bash scripts/release/_test/assess.test.sh
           bash scripts/release/_test/preflight.test.sh
+          bash scripts/release/_test/prepare.test.sh

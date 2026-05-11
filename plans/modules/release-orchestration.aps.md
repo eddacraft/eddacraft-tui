@@ -348,8 +348,11 @@ phases, with the rest explicitly Phase-2-tracked.
 
 ### RELORCH-005: `scripts/release/prepare.sh`
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Phase:** 2
+- **Execution authorisation:** Operator request "move on to RELORCH-005 and
+  RELORCH-006 in parallel" on 2026-05-11 authorises executing this item from
+  Proposed state under `plans/aps-rules.md` status rule 1.
 - **Intent:** Drive every release-time edit (version surfaces, release notes,
   generated public docs) and create or resume the GH release tracking issue.
   Reconstruct state from git/gh + structured-comment metadata each run; no
@@ -360,6 +363,11 @@ phases, with the rest explicitly Phase-2-tracked.
 - **Validation:** Harness `kill -9` mid-run case completes successfully on
   re-run; end-to-end dry run against a fake version produces the expected
   diff.
+- **Progress:** 2026-05-11 — Added the initial local/dry-run
+  `scripts/release/prepare.sh` implementation plus command-specific tests for
+  contract output, dirty-worktree rejection, invalid arguments, help output, and
+  kill/re-run resumability. Remaining before completion: GitHub tracking issue
+  create/resume, release-time edits, and non-dry-run preparation commit flow.
 - **Files:** `scripts/release/prepare.sh`.
 - **Risks:** Highest-complexity command in the module; multi-file edit
   atomicity is a real problem under the no-persistent-state constraint. May
