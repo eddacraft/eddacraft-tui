@@ -136,12 +136,14 @@ The pinned version lives in **one** place:
 `packages/anvil/policy/src/opa-binary-manager.ts` (`DEFAULT_OPA_VERSION`).
 Currently `1.16.1`. CI installs the same version via
 [`open-policy-agent/setup-opa`](https://github.com/open-policy-agent/setup-opa)
-in both `.github/workflows/ci.yml` and `.github/workflows/rust.yml`.
+in `.github/workflows/ci.yml`, `.github/workflows/ci-nightly.yml`, and
+`.github/workflows/rust.yml`.
 
 To bump:
 
 1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
-2. Update the `version:` input and `EXPECTED_OPA_VERSION` env in both workflows.
+2. Update the `version:` input and `EXPECTED_OPA_VERSION` env in all three
+   workflows.
 3. Update any other files in the allowlist in `scripts/check-opa-version-pin.sh`
    (e.g. doc comments, AGENTS.md).
 4. **If you rename, add, or remove any of the files listed above, edit the

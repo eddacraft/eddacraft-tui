@@ -37,6 +37,7 @@ ALLOWLIST="
 packages/anvil/policy/src/opa-binary-manager.ts
 packages/anvil/policy/src/opa-binary-manager.test.ts
 .github/workflows/ci.yml
+.github/workflows/ci-nightly.yml
 .github/workflows/rust.yml
 docs/guides/opa-policy-testing.md
 docs/archive/planning/opa-policy-engine.md

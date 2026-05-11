@@ -347,17 +347,20 @@ pnpm test:e2e:harness
 
 TypeScript coverage is emitted by each Vitest project under its local
 `coverage/` directory, with JSON summaries in `coverage/coverage-summary.json`
-where the project config enables them. The CI unit-test job uploads the root,
-package, and app `coverage/` directories as `coverage-report-22.x` and writes a
+where the project config enables them. Per APS CICD-006, CI coverage runs in the
+nightly `ci-nightly.yml` workflow — not on PR or `dev`-push events; the
+`coverage-typescript` nightly job uploads the root, package, and app `coverage/`
+directories as `coverage-report-22.x` (14-day retention) and writes a
 per-project line/branch/function/statement table to the GitHub Actions job
 summary.
 
 Rust coverage uses `cargo-llvm-cov` and writes the local HTML report to
-`target/llvm-cov/html/`. The local command also prints the workspace summary. On
-non-PR CI runs, the Rust workflow uploads `coverage-rust.json`,
+`target/llvm-cov/html/`. The local command also prints the workspace summary.
+The nightly `coverage-rust` job uploads `coverage-rust.json`,
 `coverage-rust-summary.txt`, and the HTML report directory as
-`coverage-report-rust`; pull requests run affected Rust tests without coverage
-to keep feedback fast.
+`coverage-report-rust` (14-day retention); PRs and `dev`-push runs use the
+strict `cargo nextest` test gate without coverage instrumentation to keep
+feedback fast.
 
 The E2E harness is reported separately from unit coverage totals. Its JSON
 result is uploaded as `e2e-results` from `coverage/e2e-results.json`.

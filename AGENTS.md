@@ -237,13 +237,17 @@ cargo llvm-cov --workspace --html            # needs `cargo install cargo-llvm-c
 
 ### Coverage reports
 
-Coverage is advisory only — no blocking threshold. Each PR produces:
+Coverage is advisory only — no blocking threshold. PR and `dev`-push runs do not
+emit coverage; per APS CICD-006, coverage moved to the nightly `ci-nightly.yml`
+workflow:
 
-- **TypeScript**: per-project line/branch/function/statement table in the
-  `Unit Tests` job summary. Raw `coverage/coverage-summary.json` uploaded as the
-  `coverage-report-22.x` artifact.
-- **Rust**: per-file summary from `cargo llvm-cov report --summary-only` in the
-  `Rust / Test` job summary. Raw JSON uploaded as `coverage-report-rust`.
+- **TypeScript**: the `coverage-typescript` nightly job emits a per-project
+  line/branch/function/statement table in the job summary. Raw
+  `coverage/coverage-summary.json` files are uploaded as the
+  `coverage-report-22.x` artifact (14-day retention).
+- **Rust**: the `coverage-rust` nightly job emits the per-file summary from
+  `cargo llvm-cov report --summary-only`. Raw JSON, summary text, and HTML
+  report are uploaded as `coverage-report-rust` (14-day retention).
 
 ### E2E conventions
 
