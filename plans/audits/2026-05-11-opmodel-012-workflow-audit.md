@@ -135,6 +135,27 @@ indefinitely. Two safe defaults:
 Reference: `gh pr checks <recent-merged-PR-number>` on a code PR before
 protection-add will give a more representative snapshot.
 
+### `Integration Readiness` is push-only and Node-only
+
+**Do not add `Integration Readiness` to the PR-required checks list.** The
+job (`ci.yml`, added by CICD-005) only runs on `push` events to the
+integration branch, so it never reports a status on a PR — requiring it on
+PRs would block every merge indefinitely.
+
+It is also intentionally **Node / TypeScript-scoped**: it aggregates
+`docs-lint`, `metadata-validation`, `platform-smoke`, `aps-drift`, `lint`,
+`typecheck`, `test`, `build`, and `e2e-harness`. Rust integration evidence
+lives in `rust.yml`'s job statuses (`Check`, `Test`, `Clippy`, `Format`,
+`Hakari verify`, `cargo-deny`, `Acknowledgements freshness`,
+`Cross (target)`) and is **not** aggregated by Integration Readiness — a
+Rust-only push will show every Integration Readiness row as `skipped`.
+
+If `Integration Readiness` is ever elevated to a required *push* check
+(e.g., for tag-protection or release-branch flows), the `rust.yml` job
+statuses must be required alongside it; the aggregate is not a substitute
+for the Rust workflow's gates. See `.github/workflows/README.md` § "PR vs
+Integration push contract" for the full statement.
+
 ## Open PRs targeting `dev` at audit time
 
 Snapshot 2026-05-11. The cutover playbook re-runs this query at Phase 2.

@@ -179,4 +179,20 @@ EOF
 degraded_json="$("${CHECK[@]}" --root "$degraded_tmp" --pr-title 'feat: NOPE-999 case' --json)"
 assert_json_has_code "$degraded_json" 'pr-aps-check-degraded'
 
+# CICD-011 cycle-2 council: in degraded mode, `pr-missing-aps-reference`
+# and `pr-aps-reference-unknown` must short-circuit so the degraded
+# advisory stands alone. Without the short-circuit, a PR with no APS
+# reference at all (empty index + no reference) would fire BOTH
+# `pr-aps-check-degraded` ("check disabled") and
+# `pr-missing-aps-reference` ("no reference found") simultaneously,
+# giving operators contradictory signal.
+degraded_noref_json="$("${CHECK[@]}" --root "$degraded_tmp" --pr-title 'chore: bump deps no aps reference here' --json)"
+assert_json_has_code "$degraded_noref_json" 'pr-aps-check-degraded'
+if printf '%s' "$degraded_noref_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-missing-aps-reference" || f.code === "pr-aps-reference-unknown")) {
+  throw new Error("did not expect pr-missing-aps-reference or pr-aps-reference-unknown when the index is degraded");
+}
+'; then :; else echo "degraded short-circuit failed: PR-reference checks fired alongside the degraded advisory" >&2; exit 1; fi
+
 echo "drift-check.test.sh: ok"

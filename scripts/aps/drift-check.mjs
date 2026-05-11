@@ -307,18 +307,25 @@ if (prTitle || prBodyPath) {
   // checkout) and the unknown-reference check is silently disabled.
   // Emit the advisory so the degraded state is observable rather than
   // invisible.
+  //
+  // CICD-011 cycle-2 council: in degraded mode, short-circuit the
+  // remaining PR-metadata checks entirely. The `pr-missing-aps-
+  // reference` finding is non-authoritative when the index is empty
+  // (we cannot know whether the PR's reference would have resolved
+  // against a healthy index), so firing it alongside the degraded
+  // advisory gives the operator contradictory signal. Let the
+  // degraded advisory stand alone.
   if (knownApsItems.size === 0) {
     addFinding(
       'pr-aps-check-degraded',
-      'No APS work items extracted from plans/modules/ — pr-aps-reference-unknown is disabled for this run.'
+      'No APS work items extracted from plans/modules/ — PR-reference checks are disabled for this run.'
     );
-  }
-  if (!referenced && !unplannedOptOut) {
+  } else if (!referenced && !unplannedOptOut) {
     addFinding(
       'pr-missing-aps-reference',
       'PR title and body do not reference an APS work item (e.g. `CICD-005`) and do not declare `Unplanned-work:` in the body.'
     );
-  } else if (referenced && knownApsItems.size > 0 && !knownApsItems.has(referenced)) {
+  } else if (referenced && !knownApsItems.has(referenced)) {
     addFinding(
       'pr-aps-reference-unknown',
       `PR references APS work item ${referenced}, but no module under plans/modules/ declares that ID.`,

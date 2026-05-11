@@ -79,6 +79,14 @@ assert_block_contains "${rust_workflow}" "^  cross-compile:" "rust-changed == .t
 # Critical: dev pushes must NOT trigger cross-compile. The previous
 # gating contained `refs/heads/dev`; the new gating must not.
 assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "refs/heads/dev"
+# CICD-011 cycle-2 council: a failed `check` must skip the matrix so a
+# broken `cargo check --workspace` on a `main` push does not spin up
+# six expensive matrix legs. The `always()` from cycle-1 admitted them;
+# the `needs.check.result == 'success' || needs.check.result ==
+# 'skipped'` guard restores the skip path without re-opening the
+# detect-rust-changes silent-skip bug. `workflow_dispatch` is exempt.
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == .success."
+assert_block_contains "${rust_workflow}" "^  cross-compile:" "needs.check.result == .skipped."
 
 # ── napi.yml: path-gated matrix (correct as-is) ─────────────────
 # The NAPI binding is inherently platform-sensitive; the workflow-level

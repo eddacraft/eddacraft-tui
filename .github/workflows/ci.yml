@@ -286,20 +286,21 @@ jobs:
       # Actions step inputs strip multi-line content and the body can
       # contain shell-significant characters.
       #
-      # CICD-011 council follow-up: `::add-mask::` registers the body as
-      # a secret with the runner so any later step (including those run
-      # under `ACTIONS_STEP_DEBUG=true`) redacts the value from its
-      # logs. The body never reaches the integration-readiness step
-      # summary because drift-check.mjs only emits finding codes and
-      # messages, not the body content.
+      # CICD-011 cycle-2 council: the body is intentionally never echoed
+      # to stdout. The earlier `::add-mask::${PR_BODY}` attempt traded a
+      # minor info-disclosure concern for an active workflow-command
+      # injection vector (the runner parses `::cmd::` lines from any
+      # step's stdout; a multiline body whose 2nd+ lines start with
+      # `::` would be executed, and shell expansion lands line 1 in the
+      # log buffer before the mask registers anyway). PR bodies are
+      # already public via the GitHub UI/API — they are not a credential
+      # that needs runtime masking. Keep the body in a file the rest of
+      # the job can read; do not surface it via shell echo.
       - name: Capture PR metadata
         if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          if [ -n "${PR_BODY:-}" ]; then
-            echo "::add-mask::${PR_BODY}"
-          fi
           printf '%s' "${PR_BODY:-}" > /tmp/aps-drift-pr-body.txt
 
       - name: Run warning-mode drift checks (push)

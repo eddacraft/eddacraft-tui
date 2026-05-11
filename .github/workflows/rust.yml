@@ -412,28 +412,36 @@ jobs:
     # force a matrix run for verification work even when no Rust paths
     # moved in the dispatched ref.
     #
-    # CICD-011 council follow-up: gate on `always()` plus an explicit
-    # `detect-rust-changes.result` check so a detection failure
-    # (e.g. paths-filter flake, runner OOM) fails the release gate
-    # loudly instead of silently skipping. Without this, the empty
-    # output of a failed detection job evaluates `'' == 'true'` as
-    # false and the cross-compile matrix vanishes from the run. The
-    # first matrix step (`Fail when Rust-change detection failed`)
-    # hard-stops on detection failure so the cost ceiling per incident
-    # is bounded.
+    # CICD-011 cycle-2 council: scope the override so a `detect-rust-
+    # changes` failure fails-loud (cycle-1 intent) but a `check` failure
+    # still skips the matrix (cycle-1 regression). The plain `always()`
+    # from cycle-1 overrode GitHub's default skip-on-needs-failure for
+    # *all* `needs:` jobs — including `check` — so a broken
+    # `cargo check --workspace` on a `main` push spun up six matrix legs
+    # before failing in setup. The conditional below admits the matrix
+    # only when `check` itself is `success` (or `skipped`, which means
+    # path-filtered out), while still running on a `detect-rust-changes`
+    # failure so the in-step guard can hard-stop with a clear error.
+    # `workflow_dispatch` bypasses both guards — operators may run the
+    # matrix without `check` (the dispatch entry point in rust.yml has
+    # no `needs:` resolution from a normal trigger event).
     if: >-
       always() && (
-        github.event_name == 'workflow_dispatch' || (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          (needs.check.result == 'success' || needs.check.result == 'skipped') &&
           (
-            (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
-              startsWith(github.ref, 'refs/heads/release/'))) ||
-            (github.event_name == 'pull_request' && github.base_ref == 'main' &&
-              github.event.pull_request.head.repo.full_name == github.repository &&
-              (startsWith(github.head_ref, 'release/') ||
-               startsWith(github.head_ref, 'hotfix/')))
-          ) &&
-          (needs.detect-rust-changes.result != 'success' ||
-           needs.detect-rust-changes.outputs.rust-changed == 'true')
+            (
+              (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+                startsWith(github.ref, 'refs/heads/release/'))) ||
+              (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+                github.event.pull_request.head.repo.full_name == github.repository &&
+                (startsWith(github.head_ref, 'release/') ||
+                 startsWith(github.head_ref, 'hotfix/')))
+            ) &&
+            (needs.detect-rust-changes.result != 'success' ||
+             needs.detect-rust-changes.outputs.rust-changed == 'true')
+          )
         )
       )
     runs-on: ${{ matrix.os }}
