@@ -151,6 +151,7 @@ jobs:
           pnpm test:ci-classify
           pnpm test:ci-cost
           pnpm test:ci-fast-pr
+          pnpm test:ci-integration
           pnpm test:validate-local
 
       - name: Install OPA
@@ -209,7 +210,12 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.dependency-audit-required == 'true'
+    # CICD-005: PR-only. The integration push contract delegates dependency
+    # audit to security.yml's `dependency-audit` job so push events do not
+    # run Trivy twice on the same SHA.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.detect-changes.outputs.dependency-audit-required == 'true'
 
     steps:
       - name: Checkout repository
@@ -347,6 +353,10 @@ jobs:
   # When no Node/source changes are detected, the real jobs are skipped,
   # so these lightweight jobs fill the gap to unblock merges. Mirrors
   # the source-changed gate above.
+  #
+  # CICD-005: PR-only. Integration push events do not consume the
+  # required-check fillers — push proves the merged SHA via the real
+  # lint/typecheck/test jobs and the integration-readiness summary.
   lint-skip:
     name: Lint & Format
     runs-on:
@@ -354,7 +364,8 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if: |
-      always() && needs.detect-changes.result == 'success' &&
+      always() && github.event_name == 'pull_request' &&
+      needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.lint-required != 'true' &&
       needs.detect-changes.outputs.format-required != 'true'
     steps:
@@ -367,7 +378,7 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if:
-      always() && needs.detect-changes.result == 'success' &&
+      always() && github.event_name == 'pull_request' && needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.typecheck-required != 'true'
     steps:
       - run: echo "Skipped — no Node/source changes detected"
@@ -379,7 +390,7 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if:
-      always() && needs.detect-changes.result == 'success' &&
+      always() && github.event_name == 'pull_request' && needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.unit-tests-required != 'true'
     steps:
       - run: echo "Skipped — no Node/source changes detected"
@@ -626,3 +637,112 @@ jobs:
   # NOTE: Playwright E2E (e2e-tests) and TUI E2E (tui-tests) jobs removed
   # pre-beta. Playwright: no tests written yet — re-add when website E2E
   # exists. TUI tests: were cargo test in a Node job — covered by rust.yml.
+
+  # ── Integration Readiness Summary ────────────────────────────────
+  # CICD-005: distinct readiness contract for the merged integration SHA.
+  # Push to the integration branch (`dev` during migration, `main` after
+  # OPMODEL-012) emits a single summary block naming the SHA and the
+  # validation jobs that proved it. PR runs do not need this — PR
+  # commentary is owned by labeler/security summary, and PR validation
+  # already reports per-job status.
+  #
+  # `if: always() && ...` so the summary is recorded even when one of the
+  # gating jobs failed or was skipped (e.g. docs-lint doesn't run for a
+  # code-only push). The final step still fails the job if any upstream
+  # job failed, so integration push failures remain visible at the
+  # commit level.
+  integration-readiness:
+    name: Integration Readiness
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    if: always() && github.event_name == 'push'
+    needs:
+      - detect-changes
+      - docs-lint
+      - metadata-validation
+      - platform-smoke
+      - aps-drift
+      - lint
+      - typecheck
+      - test
+      - build
+      - e2e-harness
+    steps:
+      - name: Emit integration readiness summary
+        env:
+          INTEGRATION_SHA: ${{ github.sha }}
+          INTEGRATION_REF: ${{ github.ref }}
+          DOCS_LINT_RESULT: ${{ needs.docs-lint.result }}
+          METADATA_RESULT: ${{ needs.metadata-validation.result }}
+          PLATFORM_SMOKE_RESULT: ${{ needs.platform-smoke.result }}
+          APS_DRIFT_RESULT: ${{ needs.aps-drift.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          E2E_RESULT: ${{ needs.e2e-harness.result }}
+        shell: bash
+        run: |
+          summary() {
+            printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
+          }
+          summary "## Integration Readiness"
+          summary ""
+          summary "**SHA:** \`${INTEGRATION_SHA}\`"
+          summary "**Ref:** \`${INTEGRATION_REF}\`"
+          summary ""
+          summary "Per the CI/CD operating model, push validation proves the"
+          summary "merged integration SHA. PR-only fillers (lint-skip,"
+          summary "typecheck-skip, test-skip) and PR commentary (Dependency"
+          summary "Audit (PR), Security Summary) are intentionally absent."
+          summary ""
+          summary "| Job | Result |"
+          summary "| --- | --- |"
+          summary "| Docs Lint | ${DOCS_LINT_RESULT} |"
+          summary "| CI Metadata Checks | ${METADATA_RESULT} |"
+          summary "| Platform Smoke | ${PLATFORM_SMOKE_RESULT} |"
+          summary "| APS Drift Check | ${APS_DRIFT_RESULT} |"
+          summary "| Lint & Format | ${LINT_RESULT} |"
+          summary "| Type Check | ${TYPECHECK_RESULT} |"
+          summary "| Unit Tests (Node 22.x, ubuntu-latest) | ${TEST_RESULT} |"
+          summary "| Build (Node 22.x) | ${BUILD_RESULT} |"
+          summary "| E2E Harness (Node 22.x) | ${E2E_RESULT} |"
+
+      - name: Fail if any required integration job failed
+        env:
+          DOCS_LINT_RESULT: ${{ needs.docs-lint.result }}
+          METADATA_RESULT: ${{ needs.metadata-validation.result }}
+          PLATFORM_SMOKE_RESULT: ${{ needs.platform-smoke.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          E2E_RESULT: ${{ needs.e2e-harness.result }}
+        shell: bash
+        run: |
+          # `aps-drift` is intentionally excluded — it is continue-on-error
+          # warning-mode evidence per CICD-011, not a blocking gate.
+          failed=0
+          for label_result in \
+            "Docs Lint:${DOCS_LINT_RESULT}" \
+            "CI Metadata Checks:${METADATA_RESULT}" \
+            "Platform Smoke:${PLATFORM_SMOKE_RESULT}" \
+            "Lint & Format:${LINT_RESULT}" \
+            "Type Check:${TYPECHECK_RESULT}" \
+            "Unit Tests:${TEST_RESULT}" \
+            "Build:${BUILD_RESULT}" \
+            "E2E Harness:${E2E_RESULT}"; do
+            label="${label_result%%:*}"
+            result="${label_result##*:}"
+            # `skipped` is acceptable (path-gated job did not need to run).
+            # `success` is acceptable. Anything else fails the contract.
+            case "$result" in
+              success|skipped|'') ;;
+              *)
+                echo "::error::Integration readiness failed: ${label} reported ${result}"
+                failed=1
+                ;;
+            esac
+          done
+          exit "$failed"

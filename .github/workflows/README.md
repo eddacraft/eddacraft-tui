@@ -4,95 +4,123 @@
 
 This directory contains GitHub Actions workflows for CI/CD automation.
 
+## Validation Contracts
+
+Per the
+[CI/CD and validation operating model](../../plans/specs/2026-05-10-ci-cd-validation-operating-model.md),
+each workflow has a single validation contract. Two contracts are particularly
+important to keep separate:
+
+| Contract                       | Triggered by                                                                                             | Purpose                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Fast PR validation**         | `pull_request` against `main`/`dev`                                                                      | Prove the proposed change shape — affected lint/typecheck/test/metadata.                             |
+| **Integration SHA validation** | `push` to `main`/`dev` (the integration branch — `dev` during the migration, `main` after `OPMODEL-012`) | Prove the merged SHA — full workspace lint/typecheck/test/build/e2e plus a single readiness summary. |
+
+The integration push contract is intentionally distinct from the PR contract.
+See
+[CICD-005](../../plans/modules/ci-cd-validation.aps.md#cicd-005-integration-sha-validation-redesign).
+Specifically:
+
+- PR-only status fillers (`Lint & Format` skip, `Type Check` skip, `Unit Tests`
+  skip) do not run on push — they exist to satisfy required-check status on
+  docs-only / pure-Rust PRs.
+- `Dependency Audit (PR)` (`ci.yml`) is PR-only. `security.yml`'s
+  `Dependency Audit` job owns the equivalent check on push.
+- `Security Summary` (`security.yml`) is PR-only — there is no PR to comment on
+  for a push event.
+- `Integration Readiness` (`ci.yml`) is push-only — it emits a single step
+  summary identifying the SHA, the ref, and the validating job results. It fails
+  the workflow if any required integration job failed; `APS Drift Check` is
+  treated as warning-only evidence.
+
 ## Workflows
 
-### `bench.yml` - Benchmarks
+### `ci.yml` — Continuous Integration
 
-Runs Rust stress-test scenarios (graph memory, watcher saturation, incremental
-throughput) on pushes to `main`. Also available via `workflow_dispatch`.
+Owns fast PR validation and integration SHA validation for the Node / TypeScript
+surface plus shared metadata, platform smoke, APS drift, and docs lint.
 
-### `ci.yml` - Continuous Integration
+Path-based change detection (`.github/actions/detect-changes`) and the shared
+classifier (`scripts/ci/classify-changes.sh`) decide which jobs run. Coverage
+moved to `ci-nightly.yml` per CICD-006.
 
-**Optimisations:**
+### `rust.yml` — Rust
 
-1. **Path-based Change Detection**: Detects which files changed to skip
-   unnecessary jobs
-2. **Docs-only Fast Path**: When only documentation changes (`.md`, `docs/`,
-   `plans/`), runs only markdown linting and format checking
-3. **Conditional E2E Tests**: Only runs E2E tests when relevant files change
-4. **Matrix Strategy**: Tests on Node.js 20.x and 22.x in parallel
+Owns Rust validation for both PR (affected) and integration push (full
+workspace). Includes Hakari verification, `cargo-deny`, acknowledgements
+freshness, and a cross-compile matrix gated on `rust-changed` and the
+release-gate condition (PR to `main` or push to integration).
 
-**Job Flow:**
+### `security.yml` — Security
 
-```
-detect-changes (always runs)
-    ├── docs-lint (if docs-only)
-    └── lint-and-test (if code changed)
-            └── e2e-tests (if E2E files changed)
-```
+Owns Semgrep, Trivy dependency audit, TruffleHog secret scan, and license
+compliance. PR-only `Security Summary` posts a single sticky comment per
+CICD-007. Weekly Monday 06:15 UTC schedule runs a full assurance sweep.
 
-**Time Savings:**
+### `codeql.yml` — CodeQL
 
-- **Docs-only commits**: ~10 minutes → ~2 minutes (80% reduction)
-- **Code without E2E changes**: ~15 minutes → ~12 minutes (20% reduction)
-- **Full changes**: ~15 minutes (unchanged, but runs when needed)
+Owns CodeQL analysis for JavaScript/TypeScript and Rust on PR, push, and weekly
+schedule.
 
-### Docs-only Patterns
+### `napi.yml` — NAPI
 
-The following changes trigger the fast docs-only path:
+Cross-platform NAPI binding builds for path-sensitive changes plus tagged
+releases.
 
-- `*.md`, `*.txt` files
-- `docs/**` directory
-- `plans/**` directory
-- `README.md`, `AGENTS.md`, `CLAUDE.md`
-- `LICENSE` file
+### `infra.yml` — Infrastructure
 
-### E2E Trigger Patterns
+Pulumi preview/apply gates for infra changes.
 
-E2E tests run when:
+### `bench.yml` / `bench-nightly.yml` — Benchmarks
 
-- `e2e/**` directory changes
-- `playwright.config.ts` changes
-- Other code changes exist (prevents docs-only from running E2E)
+Rust stress-test scenarios. Push-to-`main` and scheduled.
 
-## Local Testing
+### `ci-nightly.yml` — Scheduled assurance
 
-Test workflow syntax:
+Coverage (TS + Rust), expanded matrices, and broader audits that do not belong
+on routine PR or integration push.
+
+### `ci-cost-report.yml` — CI Cost Report
+
+Weekly cron + manual dispatch. Writes workflow / event / branch elapsed minutes
+plus optional job timing and omitted-run diagnostics to the GitHub Actions step
+summary (CICD-001).
+
+### `release.yml` / `release-readiness.yml` / `release-harness.yml`
+
+Release-candidate readiness, immutable tag publishing, and release verification.
+See `plans/modules/release-orchestration.aps.md`.
+
+### `pr-base-guard.yml`
+
+Compatibility-mode guard rejecting `feat/*` / `fix/*` / `docs/*` / `chore/*` PRs
+against `main`. **Cutover-blocking** — to be deleted at `OPMODEL-012` Phase 2.
+See
+[`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md).
+
+### `labeler.yml`
+
+Auto-labels PRs based on path filters.
+
+## Local testing
 
 ```bash
-# Install act (GitHub Actions locally)
-brew install act  # or appropriate package manager
+# Lock the fast PR contract.
+pnpm test:ci-fast-pr
 
-# Run CI workflow
-act pull_request
+# Lock the integration push contract.
+pnpm test:ci-integration
+
+# Lock the security workflow gating.
+pnpm test:ci-security-targeting
+
+# Lock the classifier and cost-report outputs.
+pnpm test:ci-classify
+pnpm test:ci-cost
 ```
-
-## Adding New Workflows
-
-1. Create `.yml` file in this directory
-2. Follow naming convention: `{purpose}.yml`
-3. Add documentation section to this README
-4. Test with `act` before committing
-
-## Troubleshooting
-
-**Change detection not working in PRs:**
-
-The workflow fetches base and head commits. If PRs are very old, increase fetch
-depth:
-
-```yaml
-- uses: actions/checkout@v4
-  with:
-    fetch-depth: 100 # Increase if needed
-```
-
-**False positives in docs-only detection:**
-
-Update the patterns in the `detect-changes` job's filter step.
 
 ## References
 
+- [`plans/specs/2026-05-10-ci-cd-validation-operating-model.md`](../../plans/specs/2026-05-10-ci-cd-validation-operating-model.md)
+- [`plans/modules/ci-cd-validation.aps.md`](../../plans/modules/ci-cd-validation.aps.md)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [pnpm/action-setup](https://github.com/pnpm/action-setup)
-- [actions/checkout](https://github.com/actions/checkout)

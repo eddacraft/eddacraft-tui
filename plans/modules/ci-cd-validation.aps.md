@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 8/12     |
+| CICD | —     | In Progress | 9/12     |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -236,7 +236,7 @@ This module is Complete when:
 
 ### CICD-005: Integration SHA validation redesign
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Separate merged-SHA validation from PR feedback and reduce duplicate
   execution on pushes to the integration branch.
 - **Expected Outcome:** Push validation proves the `dev` integration SHA during
@@ -246,6 +246,26 @@ This module is Complete when:
 - **Files:** `.github/workflows/ci.yml`, `.github/workflows/rust.yml`,
   `.github/workflows/security.yml`
 - **Coordinates with:** OPMODEL-012
+- **Completed:** 2026-05-11 — `ci.yml` now gates the `*-skip` required-check
+  fillers (`lint-skip`, `typecheck-skip`, `test-skip`) and the PR-named
+  `dependency-audit` Trivy job to `github.event_name == 'pull_request'`, so the
+  integration push no longer runs status-fillers or duplicates `security.yml`'s
+  `dependency-audit` on the merged SHA. A new push-only `integration-readiness`
+  job (`if: always() && github.event_name == 'push'`) depends on the full set of
+  integration-validating jobs, emits a single readiness summary naming the SHA
+  and ref, and fails the workflow if any required integration job (lint,
+  typecheck, test, build, e2e, docs-lint, metadata, platform-smoke) reports a
+  non-`success`/`skipped` result; `aps-drift` remains warning-only per
+  CICD-011. `rust.yml` and `security.yml` already differentiated push from PR
+  (full workspace on push; PR-only summary comment), so no behavioural changes
+  there. `scripts/ci/integration-validation.test.sh` locks the contract via
+  `pnpm test:ci-integration`, and the metadata-validation job runs the new
+  fixture alongside the existing CI fixtures. `.github/workflows/README.md`
+  now documents the fast-PR / integration-push contracts and the explicit
+  exclusions on each side.
+- **Validation Run:** `pnpm test:ci-integration`, `pnpm test:ci-fast-pr`,
+  `pnpm test:ci-security-targeting`, `pnpm test:ci-classify`, `pnpm format:check`,
+  `pnpm lint:md`, `node -e '... yaml.parse ...'` on `.github/workflows/ci.yml`.
 - **Confidence:** medium
 
 ---
