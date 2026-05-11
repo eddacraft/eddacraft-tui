@@ -275,3 +275,20 @@ logged to the tracking issue with:
 - commands run
 - repos/tags/releases changed
 - follow-up needed to encode the recovery into scripts
+
+For recovery scenarios with established procedures, route the operator to the
+matching playbook before improvising:
+
+- Broken integration branch before any tag is pushed:
+  [`docs/runbooks/rollback-bad-main.md`](../../../docs/runbooks/rollback-bad-main.md).
+- Bad candidate artefact from the release-readiness workflow:
+  [`docs/runbooks/rollback-bad-candidate-artefact.md`](../../../docs/runbooks/rollback-bad-candidate-artefact.md).
+- Bad published release that needs supersession or yank:
+  [`docs/runbooks/rollback-bad-published-release.md`](../../../docs/runbooks/rollback-bad-published-release.md).
+- Out-of-band patch release for a regression, security fix, or compliance
+  window:
+  [`docs/runbooks/emergency-hotfix.md`](../../../docs/runbooks/emergency-hotfix.md).
+
+The skill must not execute these playbooks autonomously: each one requires
+explicit operator approval per mutating step, and mutating release commands
+remain operator-owned in compatibility mode.

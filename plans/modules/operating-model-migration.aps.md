@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 10/12    |
+| OPMODEL | —     | In Progress | 11/12    |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -424,15 +424,31 @@ This module is Complete when:
 
 ### OPMODEL-011: Rollback and incident playbooks
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator explicitly requested starting OPMODEL-011 on
+  2026-05-11 after OPMODEL-010 completion; this approval treats the item as
+  Ready for this slice.
 - **Intent:** Make recovery paths executable for bad `main`, bad candidate
   artefacts, bad published releases, and emergency hotfixes.
 - **Expected Outcome:** Playbooks define triggers, commands, success criteria,
   rollback/supersession rules, release-record updates, and APS/issue closeout.
 - **Validation:** `pnpm format:check && pnpm lint:md`
-- **Files:** `docs/runbooks/`, `.claude/skills/release/playbooks/` or equivalent
-  skill playbook paths
+- **Files:** `docs/runbooks/rollback-bad-main.md`,
+  `docs/runbooks/rollback-bad-candidate-artefact.md`,
+  `docs/runbooks/rollback-bad-published-release.md`,
+  `docs/runbooks/emergency-hotfix.md`,
+  `.claude/skills/release/SKILL.md`
 - **Coordinates with:** RELORCH, DOCGOV-006
+- **Completed:** 2026-05-11 — Added four operator-facing playbooks under
+  `docs/runbooks/` for bad `main`, bad candidate artefact, bad published
+  release, and emergency hotfix. Each defines triggers, decision tree,
+  commands, success criteria, release-record updates per the
+  [release-record schema](../specs/2026-05-10-release-record-schema.md), APS /
+  issue closeout, and compatibility-vs-target mode notes. Wired the release
+  skill's Emergency Recovery section to the playbooks while keeping mutating
+  release commands operator-owned in compatibility mode. Validation passed
+  with `pnpm format:check`, `pnpm lint:md`, `git diff --check`, and
+  `pnpm aps:drift` showed no new findings attributable to this change.
 - **Confidence:** medium
 
 ---

@@ -28,7 +28,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| RELORCH | —     | In Progress | 3/11     |
+| RELORCH | —     | In Progress | 3/12     |
 
 **Execution authorisation:** Operator request "start RELORCH" on 2026-05-10 authorises executing `RELORCH-001` from Proposed state under `plans/aps-rules.md` status rule 1.
 
@@ -480,3 +480,37 @@ phases, with the rest explicitly Phase-2-tracked.
   releases used (per Constraint #2) — not in a checked-in file — so it does
   not reintroduce on-disk state across commands.
 - **Coordinates with:** `RELORCH-004`.
+
+---
+
+### RELORCH-012: Yank lifecycle state and policyDecisions conventions
+
+- **Status:** Proposed
+- **Intent:** Close the schema gap surfaced by OPMODEL-011 rollback playbooks
+  so reconciliation tooling does not depend on prose conventions for two
+  load-bearing operator actions: discarding a candidate, and yanking a
+  published release.
+- **Expected Outcome:** The
+  [release-record schema](../specs/2026-05-10-release-record-schema.md)
+  either adds a `yanked` lifecycle state (and an equivalent terminal state
+  for a discarded candidate) or formally promotes the
+  `policyDecisions` entries `decision: "release-yank"` and
+  `decision: "candidate-discard"` to a closed enum that APS reconciliation
+  honours as hard blocks on shipped-state evidence. The matching guards in
+  `.claude/skills/release/SKILL.md`, `docs/runbooks/rollback-bad-published-release.md`,
+  and `docs/runbooks/rollback-bad-candidate-artefact.md` are updated to
+  reference the ratified vocabulary.
+- **Validation:** `pnpm format:check && pnpm lint:md`; release-record schema
+  spec lists the chosen state(s) explicitly; runbooks no longer carry the
+  "Schema follow-up" interim note.
+- **Files:** `plans/specs/2026-05-10-release-record-schema.md`,
+  `.claude/skills/release/SKILL.md`,
+  `docs/runbooks/rollback-bad-candidate-artefact.md`,
+  `docs/runbooks/rollback-bad-published-release.md`
+- **Coordinates with:** OPMODEL-011 (already shipped the interim
+  `policyDecisions` convention), RELORCH-001 (schema authority), RELORCH-009
+  (verify must consume the new state if added).
+- **Risks:** Schema change without coordinated reconciliation tooling could
+  re-promote yanked releases to APS shipped-state. Sequence: schema first,
+  then reconciliation, then runbook tightening.
+- **Confidence:** medium
