@@ -54,7 +54,18 @@ jobs:
         id: changes
         uses: ./.github/actions/detect-changes
 
-  # Docs-only job: just linting
+  # Runs markdown lint whenever any `.md` change is present. The negative
+  # gates that previously restricted this to markdown-only PRs were removed
+  # so the check can be a required-status-check in the `main` ruleset; mixed
+  # PRs (markdown + code) now also run Docs Lint. The twin `docs-lint-skip`
+  # job below reports the same check name on PRs with no markdown changes,
+  # so the required check always has a status to satisfy the ruleset.
+  #
+  # Note: `Lint & Format` (Job 1 below) currently also runs `pnpm run lint:md`
+  # as part of its PR lint step. That overlap is intentional during the
+  # rejoin window — keep `Lint & Format` as the markdownlint failsafe until
+  # required-status reporting on `Docs Lint` is stable. A follow-up can
+  # remove the duplicate.
   docs-lint:
     name: Docs Lint
     runs-on:
@@ -62,9 +73,8 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if: |
-      needs.detect-changes.outputs.markdownlint-required == 'true' &&
-      needs.detect-changes.outputs.lint-required != 'true' &&
-      needs.detect-changes.outputs.format-required != 'true'
+      always() && needs.detect-changes.result == 'success' &&
+      needs.detect-changes.outputs.markdownlint-required == 'true'
 
     steps:
       - name: Checkout repository
@@ -78,6 +88,22 @@ jobs:
 
       - name: Run format check
         run: pnpm run format:check
+
+  # Skip-twin for `Docs Lint`. Reports the same check name on PRs that don't
+  # touch any `.md` files, so the required check in the `main` ruleset always
+  # has a status to satisfy. Mirrors the `lint-skip` / `typecheck-skip` /
+  # `unit-tests-skip` pattern below.
+  docs-lint-skip:
+    name: Docs Lint
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    needs: detect-changes
+    if: |
+      always() && needs.detect-changes.result == 'success' &&
+      needs.detect-changes.outputs.markdownlint-required != 'true'
+    steps:
+      - run: echo "Skipped — no .md changes detected"
 
   metadata-validation:
     name: CI Metadata Checks
