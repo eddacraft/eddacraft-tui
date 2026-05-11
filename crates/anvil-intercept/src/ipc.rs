@@ -1810,26 +1810,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     let is_notification = !has_id;
     let params = map.get("params").unwrap_or(&Value::Null);
     let trace_context = traceparent.and_then(|raw| TraceContext::parse(raw).ok());
-    let method_label = trace_method_label(method);
-    let dispatch_span = tracing::info_span!(
-        target: "anvil_intercept::ipc",
-        "jsonrpc.dispatch",
-        method = %method_label,
-        method_truncated = method_label.len() != method.len(),
-        is_notification,
-        trace_id = field::Empty,
-        parent_id = field::Empty,
-        trace_flags = field::Empty,
-    );
-    if let Some(context) = &trace_context {
-        bind_traceparent_to_span(&dispatch_span, context);
-    }
-    dispatch_span.in_scope(|| {
-        tracing::info!(
-            target: "anvil_intercept::ipc",
-            "jsonrpc dispatch received"
-        );
-    });
+    let dispatch_span = jsonrpc_dispatch_span(method, is_notification, trace_context.as_ref());
 
     // Mid-edit scan: dual-routed under DRVR-002.
     //
@@ -2244,6 +2225,34 @@ fn trace_method_label(method: &str) -> Cow<'_, str> {
         }
         Cow::Owned(format!("{}...", &method[..end]))
     }
+}
+
+fn jsonrpc_dispatch_span(
+    method: &str,
+    is_notification: bool,
+    trace_context: Option<&TraceContext>,
+) -> tracing::Span {
+    let method_label = trace_method_label(method);
+    let dispatch_span = tracing::info_span!(
+        target: "anvil_intercept::ipc",
+        "jsonrpc.dispatch",
+        method = %method_label,
+        method_truncated = method_label.len() != method.len(),
+        is_notification,
+        trace_id = field::Empty,
+        parent_id = field::Empty,
+        trace_flags = field::Empty,
+    );
+    if let Some(context) = trace_context {
+        bind_traceparent_to_span(&dispatch_span, context);
+    }
+    dispatch_span.in_scope(|| {
+        tracing::info!(
+            target: "anvil_intercept::ipc",
+            "jsonrpc dispatch received"
+        );
+    });
+    dispatch_span
 }
 
 async fn scan_buffer_from_jsonrpc(
