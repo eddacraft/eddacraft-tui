@@ -1,7 +1,7 @@
 # OPMODEL-012 — Main-first cutover and dev retirement (action plan)
 
 > **Spec:** [`plans/modules/operating-model-migration.aps.md`](../modules/operating-model-migration.aps.md) → OPMODEL-012
-> **Status:** Proposed → drafted 2026-05-11; awaiting operator approval to execute Phase 0.
+> **Status:** In Progress — Phase 0 outputs delivered in PR #1410. Phase 2 awaits operator scheduling; Phase 3 awaits Phase 2 completion.
 > **Owner:** Josh + Claude (operator + agent split per phase)
 
 ## Context as of 2026-05-11
@@ -10,9 +10,14 @@
   cutover is mechanically possible.
 - No branch protection on `main` or `dev` → no protection migration burden;
   fresh protection on `main` is part of the cutover.
-- 3 open PRs target `dev`: #1406 (feat/RELORCH), #1408 (feat/cicd-006), #1333
-  (dependabot). All need retarget or merge-before-cutover.
-- 10 CI workflows reference `dev` or `main` triggers (audit Phase 0).
+- Open PRs targeting `dev` at Phase 0 PR open-time (snapshot): #1406
+  (`fix(release): align RELORCH contract checks`), #1408
+  (`feat(cicd): move coverage to nightly assurance`), #1333 (dependabot
+  production-dependencies bump). All need retarget or merge-before-cutover;
+  re-run `gh pr list --base dev --state open` immediately before Phase 2.
+- 15 CI workflows in `.github/workflows/` total; 1 is cutover-blocking
+  (`pr-base-guard.yml`), 6 need post-cutover cleanup, 8 need no change. See
+  [`workflow audit`](../audits/2026-05-11-opmodel-012-workflow-audit.md).
 - The four cutover docs (`branching-strategy.md`, `worktree-policy.md`,
   `release-runbook.md`, `SKILL.md`) already carry dual-mode structure with
   explicit "Current Compatibility Model" / "Target Model" sections — Phase 3
@@ -28,9 +33,10 @@ Outputs in this PR:
 
 1. **Workflow audit** — produce a checked-in inventory at
    `plans/audits/2026-05-11-opmodel-012-workflow-audit.md` listing each of the
-   10 workflows, its current `dev`/`main` triggers, and what (if anything)
-   needs to change for cutover. Anything that needs a code change before
-   cutover gets a follow-up task in OPMODEL-012's row table.
+   15 workflows under `.github/workflows/`, its current `dev`/`main` triggers,
+   and what (if anything) needs to change for cutover. Anything that needs a
+   code change before cutover gets a follow-up task in OPMODEL-012's row
+   table.
 2. **Cutover playbook** at `docs/runbooks/main-first-cutover.md` — the
    step-by-step the operator runs in Phase 2. Triggers, freeze rule,
    commands, verification, rollback, APS/release-record consequences. Style

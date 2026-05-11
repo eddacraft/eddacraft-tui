@@ -97,8 +97,13 @@ Must print `0`. If not, abort per Pre-flight.
 ### 3. Fast-forward `main` to `dev`'s HEAD
 
 The repository has no branch protection on `main` at cutover start (confirmed in
-Phase 0 audit), so a direct push works. After protection lands in Step 5, this
-exact command will no longer succeed for anyone — that is the intent.
+Phase 0 audit), so a direct push works. After protection lands in Step 5 this
+exact command stops working for everyone except admins — admins retain
+direct-push capability because Step 5 deliberately sets `enforce_admins: false`
+(see Step 5's note for the recovery rationale). That admin path is the
+operator's escape hatch if protection is later misconfigured; it is not a
+routine path. All non-emergency changes go through PR review + required checks
+per the protection rule.
 
 ```bash
 DEV_SHA=$(git rev-parse origin/dev)
