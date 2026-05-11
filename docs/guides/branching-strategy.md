@@ -2,88 +2,25 @@
 
 ## Overview
 
-This repository is migrating from the current `dev` integration model to the
-target `main`-first operating model defined in
-[`plans/specs/2026-05-09-plan-build-release-operating-model.md`](../../plans/specs/2026-05-09-plan-build-release-operating-model.md).
+`main` is the only permanent product branch. Normal work branches from `main`
+and normal PRs target `main`. `dev` is retired as a dated compatibility branch
+following the OPMODEL-012 cutover on 2026-05-11.
 
-Until `OPMODEL-012` completes the cutover, executable branch authority remains:
+See
+[`plans/specs/2026-05-09-plan-build-release-operating-model.md`](../../plans/specs/2026-05-09-plan-build-release-operating-model.md)
+for the operating-model context.
 
-- normal work branches from `dev`
-- normal PRs target `dev`
-- `main` remains the stable release branch
+## Branches
 
-After `OPMODEL-012`, executable branch authority changes to the target model:
+| Branch                                 | Purpose                                                                                                                             | Protection                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `main`                                 | The only permanent product branch; continuously releasable.                                                                         | PRs only. Required CI and release-readiness evidence for release. |
+| `feat/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived normal work branches created from `main`.                                                                               | Disposable.                                                       |
+| `release/*`                            | Exceptional, short-lived release stabilisation branch when `main` cannot be tagged directly.                                        | Explicit expiry; release hardening only.                          |
+| `hotfix/*`                             | Urgent production repair branch from `main` or latest good tag when `main` is unreleasable.                                         | Disposable; incident follow-up required if bypassing normal flow. |
+| `dev`                                  | Retired dated compatibility branch (tag `dev-retired-2026-05-11`). Scheduled for deletion on or after 2026-07-10 — see issue #1419. | Locked: no creation, update, deletion, or non-FF.                 |
 
-- `main` is the only permanent product branch
-- normal work branches from `main`
-- normal PRs target `main`
-- `dev` is retired, protected against normal work, or retained only as a dated
-  compatibility branch
-
-Do not mix these models. Target-state design language does not authorise
-`main`-first execution before `OPMODEL-012`.
-
-## Current Compatibility Model
-
-Use this model until `OPMODEL-012` lands.
-
-| Branch                                 | Purpose                                                                        | Protection                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| `main`                                 | Stable branch for production releases and hotfixes.                            | PRs only. Release gate.                                 |
-| `dev`                                  | Active integration branch for day-to-day work from multiple streams.           | PRs required. Standard CI.                              |
-| `release/x.y` or `release/x.y.z`       | Temporary release stabilisation branch cut from `dev`.                         | PRs or maintainer-only pushes during release hardening. |
-| `feat/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived work branches created from `dev`.                                  | Disposable.                                             |
-| `hotfix/*`                             | Urgent production fix branch created from `main` or the active release branch. | Disposable.                                             |
-
-Current flow:
-
-```text
-feat/*  --PR--> dev --PR--> main
-fix/*   --PR--> dev --PR--> main
-docs/*  --PR--> dev --PR--> main
-
-dev --cut--> release/x.y.z --PR--> main --merge back--> dev
-main --branch--> hotfix/* --PR--> main --merge back--> dev
-```
-
-Current normal development:
-
-1. Create feature, fix, docs, and chore branches from `dev`.
-2. Merge completed work into `dev` continuously.
-3. Keep branches small and short-lived where possible.
-4. Use APS plans and work item IDs for planning; branch structure should reflect
-   code flow, not roadmap ownership.
-
-Current release flow:
-
-1. Promote from `dev` to `main` frequently.
-2. For low-risk releases, open a direct `dev -> main` release PR.
-3. For higher-risk releases, cut `release/x.y` or `release/x.y.z` from `dev`.
-4. Allow only release hardening on `release/*`: bug fixes, packaging, docs,
-   changelog, and versioning.
-5. Merge `release/*` into `main`, tag the release, then merge the release branch
-   back into `dev` immediately.
-
-Current hotfix flow:
-
-1. Branch `hotfix/*` from `main` or the active `release/*` branch.
-2. Merge the fix into the release target first.
-3. Tag the patch release if needed.
-4. Merge the same fix back into `dev` on the same day.
-
-## Target Model
-
-Use this model only after `OPMODEL-012` completes the cutover.
-
-| Branch                                 | Purpose                                                                                      | Protection                                                        |
-| -------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `main`                                 | The only permanent product branch; continuously releasable.                                  | PRs only. Required CI and release-readiness evidence for release. |
-| `feat/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived normal work branches created from `main`.                                        | Disposable.                                                       |
-| `release/*`                            | Exceptional, short-lived release stabilisation branch when `main` cannot be tagged directly. | Explicit expiry; release hardening only.                          |
-| `hotfix/*`                             | Urgent production repair branch from `main` or latest good tag when `main` is unreleasable.  | Disposable; incident follow-up required if bypassing normal flow. |
-| `dev`                                  | Retired, protected, or dated compatibility branch.                                           | No normal work.                                                   |
-
-Target normal flow:
+## Normal flow
 
 ```text
 feat/*  --PR--> main --release when useful
@@ -92,7 +29,12 @@ docs/*  --PR--> main
 chore/* --PR--> main
 ```
 
-Target release flow:
+1. Create feature, fix, docs, and chore branches from `main`.
+2. Open the PR against `main`.
+3. Required CI checks must pass; review threads must resolve.
+4. Merge — squash, rebase, or merge are all allowed by the `main` ruleset.
+
+## Release flow
 
 1. Select a green `main` SHA.
 2. Run release readiness for that SHA.
@@ -102,33 +44,23 @@ Target release flow:
 6. Emit the release record.
 7. Reconcile APS shipped state from the release record.
 
-Target hotfix flow:
+`release/*` branches are exceptional. Cut one only when `main` cannot be tagged
+directly (e.g. a release window needs to freeze a SHA while routine merges
+continue). The branch carries an explicit expiry and is restricted to release
+hardening — versioning, packaging, docs, changelog. Merge to `main` and tag from
+`main`, then delete the `release/*` branch.
 
-1. Branch `hotfix/*` from `main`.
+## Hotfix flow
+
+1. Branch `hotfix/*` from `main` (or the latest good tag if `main` is
+   unreleasable).
 2. Merge the fix to `main` after targeted review and CI.
 3. Tag a patch release from the green `main` SHA.
-4. If `main` is unreleasable, branch from the latest good tag only as an
-   incident response and reconcile back to `main` immediately.
+4. If `hotfix/*` was cut from a tag because `main` was unreleasable, reconcile
+   back to `main` immediately as an incident response; see
+   [`docs/runbooks/emergency-hotfix.md`](../runbooks/emergency-hotfix.md).
 
-## Cutover Rules
-
-`OPMODEL-012` is the only work item that changes executable branch authority.
-Before that item completes:
-
-1. Do not open normal PRs to `main`.
-2. Do not branch normal work from `main`.
-3. Do not remove `dev -> main` release guidance from runbooks.
-4. Do not treat target-state examples as commands.
-
-During cutover:
-
-1. Prepare PR templates, branch protections, and guidance.
-2. Freeze normal new PRs into `dev`.
-3. Promote current `dev` to `main`.
-4. Retarget normal work to `main` before reopening normal PR flow.
-5. Protect, expire, or retire `dev`.
-
-## Branch Naming
+## Branch naming
 
 - `feat/docsauth-github-oauth`
 - `fix/rcli-038-cache-workspace-root`
@@ -137,64 +69,68 @@ During cutover:
 - `release/0.3.0`
 - `hotfix/auth-token-expiry`
 
-## CI Tiers
+## CI gates
 
-Current CI still reflects the compatibility model:
+CI selects validation by risk and changed paths rather than branch tiering. The
+`main` ruleset enforces the always-running subset as required checks:
 
-- PRs to `dev` run standard validation.
-- PRs to `main` act as release promotion or hotfix gates.
+- APS Drift Check
+- Docs Lint
+- Lint & Format
+- Type Check
+- Unit Tests (Node 22.x, ubuntu-latest)
+- Security Summary
+- Detect Changes
 
-Target CI is defined by risk and changed paths rather than branch tiering:
+Path-filtered and risk-targeted workflows (Build, E2E Harness, Release Gate,
+SAST, Secret Scan, Dependency Audit, Platform Smoke, License Compliance) run
+when their triggers fire but are not required for merge — they would otherwise
+block PRs whose paths don't trigger them.
 
-- every PR gets fast formatting, lint, typecheck, and affected tests
-- risky paths select fuller validation
-- release readiness is recorded for a commit SHA
-- tag workflows publish immutable artefacts
+Release readiness and drift checks are defined in OPMODEL-005 (release readiness
+workflow) and OPMODEL-010 (warning-mode drift). The CICD module owns the
+validation contract that selects checks per risk class.
 
-OPMODEL-005 and OPMODEL-010 own the release-readiness and drift-check design;
-this guide only describes the branching intent.
+## Why this is the model
 
-### Cutover-aware CI gates (CICD-012)
+The previous `dev`-as-integration model created release-day branch
+reconciliation, let `main` drift from active product truth, and required
+back-merges that frequently slipped. The main-first model keeps one product line
+and moves validation authority to CI results for commit SHAs, tags, GitHub
+Release assets, and release records.
 
-The following workflow gates are dual-mode by design and survive the
-`OPMODEL-012` rename without re-tuning:
-
-| Gate                     | Migration trigger                                                                                       | Target trigger                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `ci.yml` Release Gate    | PR with base `main` and head `dev` / `release/*` / `hotfix/*`; push to `main`.                          | Same — normal `feat/*` PRs to `main` do not fire the gate.                  |
-| `rust.yml` Cross-compile | Push to `main` or `dev`; PR with base `main` and head `dev` / `release/*` / `hotfix/*`.                 | Same — push to `main` and release/hotfix PRs only.                          |
-| `pr-base-guard.yml`      | Rejects fork or non-release heads targeting `main`.                                                     | Migration-only — workflow is retired or rewritten as part of `OPMODEL-012`. |
-| `release-readiness.yml`  | `expectedReachableFrom: main` for canonical readiness; `migration-dev` opt-in for compatibility probes. | `expectedReachableFrom: main` only — `migration-dev` retired post-cutover.  |
-
-The remaining validation workflows fall into three groups:
-
-- **Already dual-mode** (`codeql.yml`, `security.yml`, `napi.yml`,
-  `release-harness.yml`): listed `main` and `dev` (or both) in their push/PR
-  triggers and need no further work for the cutover.
-- **Tag-, schedule-, or dispatch-driven** (`release.yml`,
-  `release-readiness.yml`, `ci-nightly.yml`, `ci-cost-report.yml`,
-  `bench-nightly.yml`, `labeler.yml`): branch-agnostic; cutover-safe by
-  construction.
-- **Intentionally `main`-only post-merge** (`bench.yml`, `infra.yml`): fire only
-  on push to `main`, by design. The cutover does not affect them — `main`
-  remains the post-merge target in both modes.
-
-Hard-coded `refs/heads/dev` references inside the workflows touched by this
-change (`ci.yml` push/PR base list, `rust.yml` push branch list and
-cross-compile push condition, `security.yml` push/PR base list) are
-migration-mode artefacts. `OPMODEL-012` owns the post-cutover sweep that removes
-them once `dev` is retired or protected.
-
-## Why This Is Changing
-
-The current `dev` model provides a useful integration buffer, but it creates
-release-day branch reconciliation and can let `main` drift from active product
-truth. The target model keeps one product line and moves validation authority to
-CI results for commit SHAs, tags, GitHub Release assets, and release records.
-
-## Related Docs
+## Related docs
 
 - [Worktree Policy](worktree-policy.md)
 - [Release Runbook](release-runbook.md)
+- [Main-First Cutover Runbook](../runbooks/main-first-cutover.md) (historical
+  evidence of the 2026-05-11 cutover; not for re-execution)
 - [Branch Reconciliation Runbook](../runbooks/branch-reconciliation.md)
+  (historical evidence of the pre-cutover divergence recovery)
 - [Operating Model Spec](../../plans/specs/2026-05-09-plan-build-release-operating-model.md)
+
+## Archive — pre-OPMODEL-012 compatibility model
+
+Retained for historical reference. The `dev -> main` promotion model described
+here is **no longer in force** as of the 2026-05-11 cutover.
+
+Before cutover:
+
+- normal work branched from `dev`
+- normal PRs targeted `dev`
+- `main` was the stable release branch promoted from `dev`
+- `release/*` branches were cut from `dev` and merged to `main`, then
+  back-merged to `dev`
+- `hotfix/*` branches were cut from `main` or `release/*`, merged to the release
+  target first, then back-merged to `dev` the same day
+
+Cutover evidence:
+
+- Phase 0 audit:
+  [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md)
+- Phase 2 playbook:
+  [`docs/runbooks/main-first-cutover.md`](../runbooks/main-first-cutover.md)
+- Cutover SHA: `b6f236e90dbc03338f17767202acf93f1449f8d2`
+- `pr-base-guard.yml` retirement: PR #1417 (merged
+  `62d85777c03ffe9a196befc9390a7d0a18ff0ee8`)
+- `dev` retirement issue: #1419 (deletion on or after 2026-07-10)

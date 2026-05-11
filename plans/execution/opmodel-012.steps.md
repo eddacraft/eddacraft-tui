@@ -1,6 +1,6 @@
 # OPMODEL-012 — Main-first cutover and dev retirement (action plan)
 
-> **Spec:** [`plans/modules/operating-model-migration.aps.md`](../modules/operating-model-migration.aps.md) → OPMODEL-012
+> **Spec:** [`plans/archive/modules/operating-model-migration.aps.md`](../archive/modules/operating-model-migration.aps.md) → OPMODEL-012 (archived 2026-05-11)
 > **Status:** In Progress — Phase 0 outputs delivered in PR #1410. Phase 2 awaits operator scheduling; Phase 3 awaits Phase 2 completion.
 > **Owner:** Josh + Claude (operator + agent split per phase)
 

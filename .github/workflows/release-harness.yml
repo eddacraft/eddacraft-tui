@@ -4,14 +4,12 @@ on:
   pull_request:
     branches:
       - main
-      - dev
     paths:
       - 'scripts/release/**'
       - '.github/workflows/release-harness.yml'
   push:
     branches:
       - main
-      - dev
     paths:
       - 'scripts/release/**'
       - '.github/workflows/release-harness.yml'

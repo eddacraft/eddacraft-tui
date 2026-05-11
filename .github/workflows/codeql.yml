@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -10,7 +10,7 @@ on:
       - '.claude/**'
       - 'LICENSE'
   pull_request:
-    branches: [main, dev]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'

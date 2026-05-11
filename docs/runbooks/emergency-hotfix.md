@@ -62,8 +62,8 @@ restructures, the change is not a hotfix; route it through the normal flow.
 Pick one of:
 
 1. **Tagged patch release.** Default. Cut a hotfix branch from the latest
-   released tag, fix, validate, merge, tag a patch (`+0.0.1`), publish via the
-   release skill in compatibility mode.
+   released tag, fix, validate, merge to `main`, tag a patch (`+0.0.1`), publish
+   via the release skill.
 2. **Flag-driven mitigation.** Land the change behind a feature flag enabled
    only for affected users; defer the tag bump to the next normal release.
    Prefer this when a flag exists and gives equivalent risk reduction.
@@ -114,10 +114,7 @@ fix the drift in a separate PR after the hotfix ships; do not bundle.
 
 ### Open the PR
 
-In compatibility mode, hotfix PRs target `main` directly — not `dev`. The
-back-merge to `dev` happens after the hotfix tag is pushed (see "Reconcile the
-integration branch" below). In target mode the PR targets trunk `main` and there
-is no back-merge step.
+Hotfix PRs target `main` directly.
 
 ```bash
 gh pr create --repo EddaCraft/anvil-001 --base main \
@@ -151,40 +148,13 @@ quick if a fast turnaround is needed.
 
 ### Merge, tag, publish
 
-After merge, follow the release skill in compatibility mode per
+After merge, follow the release skill per
 [`SKILL.md`](../../.claude/skills/release/SKILL.md). Stop at preflight. Ask the
 operator for exact mutating commands per step (tag, publish, monitor, verify,
 downstream surfaces). Record every command and its result on the release
 tracking issue.
 
-### Reconcile the integration branch
-
-In **compatibility mode**, the hotfix shipped from a tag, not from `dev`. Do
-**not** merge the successor tag into `dev` — merging the tag drags `main`'s
-entire ancestry into `dev`, which has diverged significantly in this repo (see
-[`branch-reconciliation.md`](./branch-reconciliation.md) for the divergence
-history). Cherry-pick the hotfix delta instead:
-
-```bash
-git fetch origin --tags
-git switch -c backmerge/<successor-tag> origin/dev
-git cherry-pick <hotfix-merge-commit-sha>     # the squash/merge commit on main
-pnpm validate:full
-git push -u origin backmerge/<successor-tag>
-gh pr create --repo EddaCraft/anvil-001 --base dev \
-  --title "chore: back-merge <successor-tag> hotfix into dev" \
-  --body "Cherry-picks <hotfix-merge-commit-sha> from main."
-```
-
-If the squash/merge commit is hard to identify, cherry-pick the original hotfix
-commit(s) from the hotfix branch instead.
-
-In **target mode** (post OPMODEL-012), the hotfix branch merges to trunk `main`
-directly; no `dev` reconciliation is needed.
-
-If the cherry-pick cannot land cleanly, do not block the hotfix release; open a
-follow-up reconciliation PR with an explicit owner and a due date no later than
-the next planned release, and reference it in the release tracking issue.
+There is no back-merge step. `main` is the single integration target.
 
 ## Success criteria
 
@@ -195,16 +165,15 @@ the next planned release, and reference it in the release tracking issue.
 - The trigger that justified the hotfix is resolved (regression closed, security
   advisory addressed, compliance window met).
 - The release tracking issue records: trigger, scope guard answers, decision
-  (tagged patch / flag / config), commands run, surfaces updated, operator
-  approver, and the back-merge PR number (if compatibility mode).
+  (tagged patch / flag / config), commands run, surfaces updated, and operator
+  approver.
 - A `published` release record exists for the successor tag per the
   [release-record schema](../../plans/specs/2026-05-10-release-record-schema.md).
 
 ## Release-record updates
 
 - Publish a `published` release record for the successor tag per the normal
-  schema. Source SHA must be the merge commit on the integration branch (or the
-  trunk `main` HEAD in target mode), reachable from the new tag.
+  schema. Source SHA must be the `main` HEAD reached by the new tag.
 - If the hotfix is correcting a previously published release, mark the prior
   release record `superseded` with `supersededBy` set to the hotfix release per
   [`rollback-bad-published-release.md`](./rollback-bad-published-release.md).
@@ -236,26 +205,15 @@ Close the release tracking issue (or the dedicated incident issue) when:
 
 - the hotfix release is verified,
 - APS statuses are reconciled,
-- the back-merge PR (compatibility mode) is merged, or a tracking issue for the
-  back-merge exists with an explicit owner and a due date no later than the next
-  planned release,
 - and the operator records closure inline.
 
-Do not close the incident issue while the back-merge PR is merely open with no
-owner — that is exactly the failure mode that produced the
-[`branch-reconciliation.md`](./branch-reconciliation.md) divergence.
+## Notes
 
-## Mode notes
-
-- **Compatibility mode (today).** Hotfix branches cut from the released tag,
-  merge to `main`, ship via the release skill in compatibility mode, then
-  back-merge to `dev`. Mutating release commands stay operator-owned.
-- **Target mode (post OPMODEL-012).** Hotfix branches cut from the released tag
-  and merge to trunk `main`; no `dev` back-merge. The release skill runs the
-  deterministic `scripts/release/*.sh` sequence; the operator still approves the
-  trigger and the scope guard.
-- **Release skill interaction.** The release skill must continue to stop at
-  preflight in compatibility mode and ask for exact mutating commands; it must
-  not improvise an emergency tag push. Treat the
-  [`SKILL.md`](../../.claude/skills/release/SKILL.md) emergency-recovery
+- Hotfix branches cut from the released tag and merge to `main`. There is no
+  back-merge step — `main` is the single integration target.
+- Until RELORCH-011 lands the target release command surface, mutating release
+  commands remain operator-owned per
+  [`SKILL.md`](../../.claude/skills/release/SKILL.md). The release skill stops
+  at preflight in this mode and asks for exact mutating commands; it must not
+  improvise an emergency tag push. Treat the SKILL.md emergency-recovery
   boundary as load-bearing.

@@ -11,11 +11,9 @@ on:
   push:
     branches:
       - main
-      - dev
   pull_request:
     branches:
       - main
-      - dev
   schedule:
     # Weekly full sweep: Monday 06:15 UTC (offset from codeql @ 06:30).
     - cron: '15 6 * * 1'

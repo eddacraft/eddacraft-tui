@@ -2,7 +2,7 @@ name: Rust
 
 on:
   push:
-    branches: [main, dev, 'rust-*', 'release/*']
+    branches: [main, 'rust-*', 'release/*']
     paths:
       - 'crates/**'
       - 'packages/anvil-checks-native/native/**'
@@ -383,23 +383,16 @@ jobs:
 
   cross-compile:
     name: Cross (${{ matrix.target }})
-    # Run cross-compilation (incl. the Windows matrix) on pushes to the
-    # integration branches (`main` and `dev` during migration) and on
-    # release-class PRs targeting `main`. Normal dev PRs stay on the
-    # fast Rust check/test/clippy/format path.
+    # Run cross-compilation (incl. the Windows matrix) on pushes to `main`
+    # and on release-class PRs targeting `main`. Normal feat/fix/docs/chore
+    # PRs stay on the fast Rust check/test/clippy/format path.
     #
-    # CICD-012 head-pattern allowlist: the `base_ref == 'main'` gate
-    # below is dev-aware in migration mode (dev → main release sync)
-    # AND stays correct after the `main`-first cutover, when normal
-    # `feat/*` / `fix/*` PRs also target `main`. The head allowlist
-    # keeps the cross-compile matrix from firing on every normal post-
-    # cutover PR; release/hotfix PRs still fire it.
+    # The head allowlist keeps the cross-compile matrix from firing on
+    # every normal PR; only `release/*` and `hotfix/*` head patterns do.
     #
     # The `head.repo.full_name == github.repository` clause makes the
     # gate self-defending: a fork PR cannot trigger the six-target
-    # cross-compile matrix by naming its head `dev` / `release/*` /
-    # `hotfix/*`, even after `pr-base-guard.yml` is retired by
-    # `OPMODEL-012`.
+    # cross-compile matrix by naming its head `release/*` / `hotfix/*`.
     #
     # Additionally gate on `detect-rust-changes` so JS-only diffs (e.g.
     # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
@@ -408,11 +401,10 @@ jobs:
     # `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, and this workflow
     # file itself — still fire cross-compile.
     if: >-
-      ((github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/dev"]'),
-      github.ref)) || (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'pull_request' && github.base_ref == 'main' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.head_ref == 'dev' ||
-         startsWith(github.head_ref, 'release/') ||
+        (startsWith(github.head_ref, 'release/') ||
          startsWith(github.head_ref, 'hotfix/')))) &&
       needs.detect-rust-changes.outputs.rust-changed == 'true'
     runs-on: ${{ matrix.os }}

@@ -5,35 +5,24 @@
 Use worktrees as lightweight execution spaces for active branches. The branch or
 PR is the unit of work; the worktree is only the local workspace.
 
-This policy now separates current compatibility execution from the target
-`main`-first model. Until `OPMODEL-012` completes the branch cutover, normal
-work still branches from `dev` and normal PRs still target `dev`.
+Following the OPMODEL-012 cutover on 2026-05-11, `main` is the only permanent
+product anchor. `dev` is retired (see
+[branching-strategy](branching-strategy.md#archive--pre-opmodel-012-compatibility-model)).
 
 ## Permanent Worktrees
 
-### Current Compatibility Model
-
-Keep two long-lived anchor worktrees:
-
-1. `main`
-2. `dev`
-
-Suggested directories:
-
-- `../anvil.main`
-- `../anvil.dev`
-
-`main` is the stable release anchor. `dev` is the active integration anchor.
-
-### Target Model
-
-After `OPMODEL-012`, keep one long-lived product anchor:
+Keep one long-lived product anchor:
 
 1. `main`
 
-`dev` should be removed locally unless it is explicitly retained as a dated
-compatibility branch. Normal work should not require a permanent `dev` worktree
-after cutover.
+Suggested directory: `../anvil.main`.
+
+Do not keep a permanent `dev` worktree. If a local `dev` worktree exists, remove
+it:
+
+```bash
+git worktree remove ../anvil.dev      # or wherever the dev worktree lives
+```
 
 ## Disposable Worktrees
 
@@ -60,21 +49,12 @@ Examples:
 
 ## Branch Creation Rules
 
-Current compatibility rules, before `OPMODEL-012`:
-
-1. Create normal work branches from `dev`.
-2. Create release branches from `dev`.
-3. Create hotfix branches from `main` or the active `release/*` branch.
-4. Merge completed work into its target branch, then remove the worktree.
-
-Target rules, after `OPMODEL-012`:
-
 1. Create normal work branches from `main`.
 2. Create `release/*` only when `main` cannot be tagged directly and the branch
    has an explicit expiry.
 3. Create `hotfix/*` from `main`, or from the latest good tag only for an
    incident where `main` is unreleasable.
-4. Merge completed work into its target branch, then remove the worktree.
+4. Merge completed work into `main`, then remove the worktree.
 
 ## Why Disposable Is the Default
 
@@ -138,21 +118,28 @@ Check for:
 
 ## Practical Rule of Thumb
 
-Before `OPMODEL-012`:
-
-1. Keep `main` and `dev` anchors available.
-2. Open disposable worktrees for active streams from `dev`.
-3. Remove them as soon as the stream is merged, replaced, or paused.
-
-After `OPMODEL-012`:
-
 1. Keep `main` as the product anchor.
 2. Open disposable worktrees for active streams from `main`.
 3. Remove them as soon as the stream is merged, replaced, or paused.
 4. If a worktree feels permanent, merge, split, or close the stream.
 
+## Updating an existing clone
+
+If your local clone predates the cutover, `origin/HEAD` may still point to
+`dev`. Update it once:
+
+```bash
+git fetch origin --prune
+git remote set-head origin --auto
+git symbolic-ref refs/remotes/origin/HEAD     # must print refs/remotes/origin/main
+```
+
+Without this, `gh pr create` may still propose `dev` as the default base.
+
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)
 - [Release Runbook](release-runbook.md)
+- [Main-First Cutover Runbook](../runbooks/main-first-cutover.md) (historical
+  evidence of the 2026-05-11 cutover)
 - [Operating Model Spec](../../plans/specs/2026-05-09-plan-build-release-operating-model.md)

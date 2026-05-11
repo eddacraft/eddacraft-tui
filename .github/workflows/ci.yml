@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - dev
   pull_request:
     branches:
       - main
-      - dev
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -462,24 +460,17 @@ jobs:
   # consuming ~40k included minutes/month.
 
   # ── Job 3b: Release gate — cross-platform ──
-  # CICD-012: the gate fires on release-class PRs in either operating
-  # mode and on every push to `main`.
-  #
-  # - Migration mode (`dev` integration): `dev`, `release/*`, and
-  #   `hotfix/*` heads targeting `main` are the release/hotfix sync
-  #   pattern.
-  # - Target mode (`main`-first, post-OPMODEL-012): normal `feat/*` /
-  #   `fix/*` / `docs/*` / `chore/*` PRs also target `main`. The head
-  #   pattern allowlist below keeps the gate from firing on every
-  #   normal PR after cutover; release/hotfix PRs still fire it.
+  # The gate fires on release-class PRs and on every push to `main`.
+  # Normal `feat/*` / `fix/*` / `docs/*` / `chore/*` PRs to `main` do
+  # not fire the gate; only `release/*` and `hotfix/*` head patterns
+  # do.
   #
   # The `head.repo.full_name == github.repository` clause makes this
   # gate self-defending: a fork PR cannot trigger the expensive macOS
-  # + Windows matrix by naming its head `dev` / `release/*` /
-  # `hotfix/*`, even after `pr-base-guard.yml` is retired by
-  # `OPMODEL-012`. The full-name comparison is preferred over
-  # `head.repo.fork == false` because the former works uniformly
-  # against both upstream forks and same-org fork repos.
+  # + Windows matrix by naming its head `release/*` / `hotfix/*`. The
+  # full-name comparison is preferred over `head.repo.fork == false`
+  # because the former works uniformly against both upstream forks and
+  # same-org fork repos.
   test-release-gate:
     name: Release Gate (Node 22.x, ${{ matrix.os }})
     runs-on: ${{ matrix.runner }}
@@ -487,8 +478,7 @@ jobs:
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.head_ref == 'dev' ||
-         startsWith(github.head_ref, 'release/') ||
+        (startsWith(github.head_ref, 'release/') ||
          startsWith(github.head_ref, 'hotfix/'))) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     strategy:

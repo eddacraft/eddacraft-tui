@@ -28,7 +28,8 @@ operator explicitly asks for emergency recovery.
 - Private repo: `EddaCraft/anvil-001`
 - Public repo: `EddaCraft/anvil`
 - Default base branch: `main`
-- Dev branch: `dev`
+- Retired dev branch: `dev` (tag `dev-retired-2026-05-11`; deletion scheduled
+  on or after 2026-07-10 — see issue #1419)
 - Issue label: `release`
 - Install site: `https://install.eddacraft.ai`
 
@@ -36,21 +37,20 @@ operator explicitly asks for emergency recovery.
 
 At entry, detect which release model is executable:
 
-1. **Target command mode:** all `scripts/release/*.sh` commands listed below are
-   present and invokable with `bash`, `RELORCH-011` is Complete, and OPMODEL
-   cutover guidance authorises the target flow.
-2. **Current compatibility mode:** target commands are missing but
-   `scripts/release.sh` exists, or target commands exist before cutover authority.
+1. **Target command mode:** all `scripts/release/*.sh` commands listed below
+   are present and invokable with `bash`, and `RELORCH-011` is Complete.
+2. **Preflight-only mode:** target commands are missing but
+   `scripts/release.sh` exists, or target commands exist before
+   `RELORCH-011` ratifies them.
 
-Until `RELORCH-011` implements and wires the target commands, use current
-compatibility mode. Until `OPMODEL-012` completes branch cutover, normal release
-execution remains in the `dev -> main` compatibility model; do not tag a
-main-first target-state flow unless the operator explicitly approves an emergency
-exception.
+The OPMODEL-012 cutover completed 2026-05-11; `main` is the only permanent
+product branch. Release execution targets a green `main` SHA — there is no
+`dev -> main` promotion. Until `RELORCH-011` implements and wires the target
+commands, use preflight-only mode.
 
-In compatibility mode, run only the checked-in deterministic preflight unless the
-operator supplies exact release mutation commands for an explicitly approved
-release or emergency recovery:
+In preflight-only mode, run only the checked-in deterministic preflight unless
+the operator supplies exact release mutation commands for an explicitly
+approved release or emergency recovery:
 
 ```bash
 bash scripts/release.sh
@@ -58,10 +58,10 @@ bash scripts/release.sh
 
 After preflight, stop before mutating branches, tags, GitHub Releases, package
 registries, taps, or installer state. Mutating steps are operator-owned in
-compatibility mode: require explicit per-step approval, exact commands, live
+preflight-only mode: require explicit per-step approval, exact commands, live
 precondition checks, and release-issue logging. Do not improvise missing
-`scripts/release/*` responsibilities. Do not claim compatibility-mode issue notes
-are release records or APS shipped-state evidence.
+`scripts/release/*` responsibilities. Do not claim preflight-only-mode issue
+notes are release records or APS shipped-state evidence.
 
 ## Required Commands
 
@@ -82,18 +82,19 @@ bash scripts/release/closeout.sh --help
 
 If any command is missing in target command mode, stop and report the missing
 command. Do not fall back to manually performing that command's responsibility.
-If the repository is still in current compatibility mode, report that target
-commands are not implemented yet and use `bash scripts/release.sh` as the only
+If the repository is still in preflight-only mode, report that target commands
+are not implemented yet and use `bash scripts/release.sh` as the only
 deterministic release helper.
 
-If target commands exist before RELORCH/OPMODEL cutover authority, do not use
-them as the normal release path. Treat them as implementation under validation
+If target commands exist before `RELORCH-011` ratifies them, do not use them
+as the normal release path. Treat them as implementation under validation
 unless the operator explicitly approves a bounded migration exercise.
 
 Expected command ownership:
 
-- `assess.sh`: fetches refs/tags, compares `main` and `dev`, reports candidate
-  version, release type, touched areas, risk, and recommended branch strategy.
+- `assess.sh`: fetches refs/tags, evaluates the selected `main` SHA against
+  the previous release tag, reports candidate version, release type, touched
+  areas, risk, and recommended strategy.
 - `preflight.sh`: runs deterministic local gates and verifies tool/version pins.
 - `prepare.sh`: updates all version surfaces, release notes, generated public
   docs, and tracking-issue release metadata from live `git` / `gh` state.
@@ -103,12 +104,13 @@ Expected command ownership:
 - `monitor.sh`: finds and monitors the cargo-dist release workflow for the tag.
 - `verify.sh`: verifies private/public releases, assets, provenance, package
   manager publication state, and install site health.
-- `closeout.sh`: performs back-merge/branch cleanup and closes the tracking
-  issue after verification.
+- `closeout.sh`: performs release-branch cleanup (when `stabilisation`
+  strategy ran) and closes the tracking issue after verification. There is no
+  back-merge step — `main` is the single integration target.
 
 ## Entry Flow
 
-1. Select target command mode or current compatibility mode.
+1. Select target command mode or preflight-only mode.
 2. Read live state:
 
 ```bash
@@ -117,19 +119,21 @@ git remote -v
 gh issue list --repo EddaCraft/anvil-001 --label release --state open --json number,title,url,body
 ```
 
-3. If an open release issue exists, summarise the likely current phase and ask
-   whether to resume it or start a new release.
-4. In current compatibility mode, run `bash scripts/release.sh`, then stop before
-   release mutation. Continue only when the operator provides exact commands and
-   approval for each mutating step. Do not run the target command sequence below.
-5. In target command mode, run assessment:
+3. If an open release issue exists, summarise the likely current phase and
+   ask whether to resume it or start a new release.
+4. In preflight-only mode, run `bash scripts/release.sh`, then stop before
+   release mutation. Continue only when the operator provides exact commands
+   and approval for each mutating step. Do not run the target command
+   sequence below.
+5. In target command mode, run assessment against the selected `main` SHA
+   (exact form gated on RELORCH-011's final command contract):
 
 ```bash
-bash scripts/release/assess.sh --base main --head dev --json
+bash scripts/release/assess.sh --sha <main-sha> --json
 ```
 
-6. Present the assessment to the operator and ask for confirmation or override
-   of version, release type, and branch strategy.
+6. Present the assessment to the operator and ask for confirmation or
+   override of version, release type, and strategy.
 
 ## Release Flow
 
@@ -140,11 +144,11 @@ resume or explain the conflict.
 ### 1. Preflight
 
 ```bash
-bash scripts/release/preflight.sh --base main --head dev
+bash scripts/release/preflight.sh --sha <main-sha>
 ```
 
-If this fails, stop. Report the failed gate and ask whether to abort or fix and
-retry.
+If this fails, stop. Report the failed gate and ask whether to abort or fix
+and retry.
 
 ### 2. Prepare
 
@@ -238,16 +242,16 @@ On any command failure:
 
 ## Resumability
 
-Resume from live state plus structured release metadata. In compatibility mode,
-the tracking issue is the durable operator log. In target command mode, the
-tracking issue may point to release records but is not shipped-state authority.
-The tracking issue or release metadata block should contain at least:
+Resume from live state plus structured release metadata. In preflight-only
+mode, the tracking issue is the durable operator log. In target command mode,
+the tracking issue may point to release records but is not shipped-state
+authority. The tracking issue or release metadata block should contain at
+least:
 
 - `version`
 - `releaseType`
 - `strategy`
 - `sourceSha`
-- `devSha`
 - `mainSha`
 - `tagSha`
 - `workflowRun`
@@ -258,12 +262,13 @@ The tracking issue or release metadata block should contain at least:
 - `winget`
 - `installSite`
 
-At resume in compatibility mode, read live state and the tracking issue, rerun
-`bash scripts/release.sh` if a fresh preflight is needed, then stop before any
-mutation unless the operator provides exact commands and approval. At resume in
-target command mode, run `assess.sh` first and then the appropriate deterministic
-command for the next incomplete phase. If expected state and live state disagree,
-stop and ask the operator which source should be trusted.
+At resume in preflight-only mode, read live state and the tracking issue,
+rerun `bash scripts/release.sh` if a fresh preflight is needed, then stop
+before any mutation unless the operator provides exact commands and approval.
+At resume in target command mode, run `assess.sh` first and then the
+appropriate deterministic command for the next incomplete phase. If expected
+state and live state disagree, stop and ask the operator which source should
+be trusted.
 
 ## Emergency Recovery
 
@@ -291,4 +296,4 @@ matching playbook before improvising:
 
 The skill must not execute these playbooks autonomously: each one requires
 explicit operator approval per mutating step, and mutating release commands
-remain operator-owned in compatibility mode.
+remain operator-owned in preflight-only mode.

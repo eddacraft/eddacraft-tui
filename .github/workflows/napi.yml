@@ -19,7 +19,7 @@ name: NAPI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     # Per ADR-030 the napi binding is an internal CLI-acceleration
     # path (not published, not consumer-facing via VSCode / MCP).
     # Scope the path filter to what affects the binding's compile

@@ -10,7 +10,7 @@ agent guidance, CI, and recovery. See: plans/aps-rules.md
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| OPMODEL | —     | In Progress | 11/12    |
+| OPMODEL | —     | Complete | 12/12    |
 
 **Spec:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
@@ -455,27 +455,85 @@ This module is Complete when:
 
 ### OPMODEL-012: Main-first cutover and dev retirement
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Authorisation:** Operator approved phased execution on 2026-05-11; Phase 0
-  (audit + playbook + APS bump) is the current slice.
+  (audit + playbook + APS bump) landed in PR #1410; Phase 2 (operator-driven
+  cutover) and Phase 3 (docs flip + APS close-out) followed in the same
+  window.
 - **Intent:** Execute the actual branch migration only after guidance, release
   readiness, and documentation are coherent enough to support normal work on
   `main`.
 - **Expected Outcome:** Current `dev` is promoted to `main`; normal PRs target
-  `main`; `dev` is protected, retired, or given an explicit compatibility expiry;
-  runbooks and PR templates no longer describe normal `dev -> main` promotion.
-- **Validation:** Branch protections and CI pass on `main`; docs and PR template
-  cite the main-first model; no active runbook requires normal back-merge.
+  `main`; `dev` is protected, retired, or given an explicit compatibility
+  expiry; runbooks and PR templates no longer describe normal `dev -> main`
+  promotion.
+- **Validation:** Branch protections and CI pass on `main`; docs and PR
+  template cite the main-first model; no active runbook requires normal
+  back-merge.
 - **Blocks on:** OPMODEL-001, OPMODEL-002, OPMODEL-003, OPMODEL-004,
   OPMODEL-005, OPMODEL-006, OPMODEL-007, OPMODEL-008, OPMODEL-010,
-  OPMODEL-011
+  OPMODEL-011 — all Complete at cutover time; callouts resolved.
 - **Action plan:**
   [`plans/execution/opmodel-012.steps.md`](../execution/opmodel-012.steps.md)
-- **Phase 0 outputs (this slice):**
+- **Phase 0 outputs (PR #1410):**
   [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../audits/2026-05-11-opmodel-012-workflow-audit.md),
   [`docs/runbooks/main-first-cutover.md`](../../docs/runbooks/main-first-cutover.md)
 - **Files:** `docs/guides/branching-strategy.md`,
-  `docs/guides/worktree-policy.md`, `.github/PULL_REQUEST_TEMPLATE.md`,
-  `docs/guides/release-runbook.md`, `.github/workflows/pr-base-guard.yml`
-  (deletion at cutover), plus the 6 cleanup workflows identified in the audit.
-- **Confidence:** medium
+  `docs/guides/worktree-policy.md`, `docs/guides/release-runbook.md`,
+  `.claude/skills/release/SKILL.md`, `.github/workflows/pr-base-guard.yml`
+  (deleted in PR #1417), the 6 cleanup workflows (`ci`, `codeql`, `napi`,
+  `release-harness`, `rust`, `security`), `.github/dependabot.yml`,
+  `docs/runbooks/emergency-hotfix.md`.
+- **Completed:** 2026-05-11 — Phase 0 audit + playbook merged in PR #1410.
+  Phase 2 executed live with operator approval per step. Phase 3 docs flip in
+  the present PR. Receipts:
+  - **Cutover SHA (FF push):**
+    `b6f236e90dbc03338f17767202acf93f1449f8d2` (operator log entry).
+  - **Rollback boundary (`pr-base-guard.yml` retirement PR #1417 merge):**
+    `62d85777c03ffe9a196befc9390a7d0a18ff0ee8`.
+  - **Default branch:** `main` (flipped via `gh api -X PATCH`).
+  - **`main` ruleset:** id 16217152, 7 required checks
+    (APS Drift Check, Docs Lint, Lint & Format, Type Check, Unit Tests
+    (Node 22.x, ubuntu-latest), Security Summary, Detect Changes), PR
+    required with thread-resolution + stale-dismiss, non-FF + deletion
+    blocked, copilot code review, admin bypass retained as deliberate
+    operator escape hatch.
+  - **`dev (retired)` ruleset:** id 16217300, blocks deletion/non-FF/
+    creation/update on `refs/heads/dev`.
+  - **`dev` disposition:** dated compatibility branch — tag
+    `dev-retired-2026-05-11` at `b6f236e9`, deletion scheduled on or after
+    2026-07-10 (follow-up issue #1419).
+  - **Smoke verification:** PR #1418 (closed without merging) — all 7
+    required checks passed against `main` under the new ruleset.
+  - **Phase 0 → Phase 2 evidence:** Phase 0 audit found exactly one
+    cutover-blocking workflow (`pr-base-guard.yml`, retired in PR #1417);
+    6 post-cutover cleanup workflows (`ci`, `codeql`, `napi`,
+    `release-harness`, `rust`, `security`) had `dev` triggers dropped in
+    Phase 3.
+  - Validation: `pnpm format:check`, `pnpm lint:md`, `pnpm aps:drift` no
+    new findings, `git diff --check` clean.
+- **Confidence:** high
+
+## Cross-cutting callout closure summary
+
+Per [`plans/aps-rules.md#cross-cutting-modules`](../aps-rules.md#cross-cutting-modules)
+rule 4, all open callouts in this module body are swept and resolved before
+archive:
+
+- **Module-level `Coordinates with:`** (RELORCH, CICD, DOCGOV, ADR-035,
+  CGBDG): documented-and-closed. Each named coordinator delivered or accepted
+  hand-off in its own module. RELORCH-001..-004 design and command surface
+  partially shipped; CICD-001..-004, -009, -012 shipped during this window;
+  DOCGOV continues separately on documentation-governance closeout. No
+  remaining open coordination obligations live in this module.
+- **Per-task `Coordinates with:`** (OPMODEL-001..-011): documented-and-closed
+  inline in each work item's completion line. The coordinating modules
+  accepted the design or guidance produced; further execution is owned by
+  those modules.
+- **Per-task `Blocks on:`** (OPMODEL-005 internal-to-OPMODEL dependencies,
+  OPMODEL-012's dependency on -001..-008/-010/-011): all satisfied at time
+  of cutover (each predecessor item is Complete). Resolved.
+
+Provenance: see `plans/aps-rules.md` provenance section — OPMODEL was the
+second cross-cutting trial after LAUNCH; this archive close exercises the
+rule's archive-time sweep clause for the first time.
