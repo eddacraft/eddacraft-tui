@@ -96,7 +96,7 @@ Expected command ownership:
   version, release type, touched areas, risk, and recommended branch strategy.
 - `preflight.sh`: runs deterministic local gates and verifies tool/version pins.
 - `prepare.sh`: updates all version surfaces, release notes, generated public
-  docs, and release metadata from one release manifest.
+  docs, and tracking-issue release metadata from live `git` / `gh` state.
 - `promote.sh`: opens or resumes the promotion PR and reports merge status.
 - `tag.sh`: verifies `main`, creates/pushes the release tag, and records source
   provenance.
@@ -155,8 +155,8 @@ bash scripts/release/prepare.sh \
   --strategy <direct|stabilisation>
 ```
 
-Expected output: release tracking issue URL, release metadata path or issue
-state block, and commit SHA for the release preparation commit.
+Expected output: release tracking issue URL, structured issue metadata state, and
+commit SHA for the release preparation commit.
 
 Do not hand-edit version files or changelogs if prepare fails. Fix the command or
 stop.

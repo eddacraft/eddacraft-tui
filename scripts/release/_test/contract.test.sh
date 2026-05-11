@@ -45,6 +45,16 @@ if bash "$HARNESS" run-contract \
 fi
 assert_contains "$(<"$tmp/missing-failure.out")" "preflight exit 2 does not match failedGateCount"
 
+if bash "$HARNESS" run-contract \
+  --name invalid-failure-code \
+  --expected-exit 1 \
+  --expected-command preflight \
+  -- bash "$FIXTURE" invalid-failure-code >"$tmp/invalid-code.out" 2>&1; then
+  echo "expected out-of-schema failure code to fail contract validation" >&2
+  exit 1
+fi
+assert_contains "$(<"$tmp/invalid-code.out")" "invalid code tool-unavailable"
+
 bash "$HARNESS" run-kill9-rerun \
   --name killable-idempotency \
   --state-file "$tmp/killable.state" \

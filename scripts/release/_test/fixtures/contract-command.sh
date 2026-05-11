@@ -89,6 +89,48 @@ NODE
   exit 2
 }
 
+emit_invalid_failure_code() {
+  node - "$(now)" <<'NODE'
+const timestamp = process.argv[2];
+process.stdout.write(JSON.stringify({
+  schemaVersion: '1.0.0',
+  command: 'preflight',
+  phase: 'preflight',
+  mode: 'compatibility',
+  status: 'failed',
+  startedAt: timestamp,
+  endedAt: timestamp,
+  repository: 'eddacraft/anvil-001',
+  inputs: {},
+  trackingIssue: {
+    repository: 'eddacraft/anvil-001',
+    number: 1234,
+    url: 'https://github.com/eddacraft/anvil-001/issues/1234',
+    metadataCommentUrl: 'https://github.com/eddacraft/anvil-001/issues/1234#issuecomment-1',
+  },
+  releaseRecord: {
+    lifecycleState: 'candidate',
+    recordUrl: null,
+    sha256: null,
+  },
+  data: { failedGateCount: 1 },
+  warnings: [],
+  failures: [{
+    code: 'tool-unavailable',
+    message: 'fixture uses an out-of-schema failure code',
+    retryable: true,
+    recovery: 'fix-and-rerun',
+    evidence: { command: 'fixture preflight', url: null, path: null },
+  }],
+  next: {
+    command: 'preflight',
+    reason: 'fixture next command',
+  },
+}) + '\n');
+NODE
+  exit 1
+}
+
 run_killable() {
   local state_file="$1"
   if [[ -f "$state_file" ]]; then
@@ -111,6 +153,9 @@ case "${1:-}" in
     ;;
   failed-gate-mismatch)
     emit_failed_gate_mismatch
+    ;;
+  invalid-failure-code)
+    emit_invalid_failure_code
     ;;
   killable)
     run_killable "${2:?state file required}"

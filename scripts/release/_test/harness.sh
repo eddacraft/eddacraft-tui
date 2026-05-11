@@ -86,6 +86,19 @@ const failures = [];
 const allowedModes = new Set(['compatibility', 'target', 'migration-exercise']);
 const allowedStatuses = new Set(['success', 'noop', 'blocked', 'failed', 'recoverable', 'needs-operator']);
 const allowedPhases = new Set(['assessment', 'preflight', 'prepare', 'promote', 'tag', 'monitor', 'verify', 'closeout']);
+const allowedFailureCodes = new Set([
+  'invalid-input',
+  'auth-failed',
+  'dirty-worktree',
+  'stale-source',
+  'validation-failed',
+  'artifact-build-failed',
+  'integrity-failed',
+  'remote-conflict',
+  'infra-failed',
+  'operator-required',
+  'contract-drift',
+]);
 
 function requireField(name, predicate = (value) => value !== undefined && value !== null && value !== '') {
   if (!predicate(doc[name])) failures.push(`missing or invalid ${name}`);
@@ -162,6 +175,9 @@ if (Array.isArray(doc.failures)) {
     }
     for (const field of ['code', 'message', 'retryable', 'recovery', 'evidence']) {
       if (!(field in failure)) failures.push(`failures[${index}] missing ${field}`);
+    }
+    if ('code' in failure && !allowedFailureCodes.has(failure.code)) {
+      failures.push(`failures[${index}] invalid code ${failure.code}`);
     }
   }
 }

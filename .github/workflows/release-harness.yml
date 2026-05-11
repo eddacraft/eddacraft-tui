@@ -47,4 +47,5 @@ jobs:
       - name: Run release command harness
         run: |
           bash scripts/release/_test/contract.test.sh
+          bash scripts/release/_test/assess.test.sh
           bash scripts/release/_test/preflight.test.sh
