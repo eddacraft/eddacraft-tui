@@ -2,12 +2,26 @@
 # Lock CICD-012 invariants: validation workflows survive the
 # `dev` → `main` cutover without silently changing meaning.
 #
-# Note: assertions use `grep -F` against literal substrings of
-# workflow YAML. They will pass even if the surrounding YAML is
-# reformatted into multi-line shape, but they will fail if the
-# expression context is removed entirely. A future hardening pass
-# can replace these with structural YAML assertions (e.g. via yq)
-# if the test gets brittle.
+# Note on brittleness: assertions use `grep -F` against literal
+# substrings of workflow YAML. Some assertions are format-sensitive
+# in concrete ways a future contributor should know about:
+#
+#   - The trigger-list checks (`branches: [main, dev]` for codeql.yml
+#     and `branches: [main, dev, 'rust-*', 'release/*']` for rust.yml)
+#     are single-line and will fail if the lists are expanded to
+#     block-form YAML (`branches:\n  - main\n  - dev`). Either
+#     reformat the workflow back to inline form or update these
+#     assertions to match the new shape.
+#   - The `      - main` / `      - dev` checks for `ci.yml` and
+#     `security.yml` ARE indentation-sensitive but tolerate
+#     reordering within the same `branches:` block.
+#   - The `if:` expression checks tolerate line breaks inside the
+#     expression because each clause is locked individually
+#     (`github.head_ref == 'dev' ||` etc.), but they will fail if the
+#     clause text itself is rewritten.
+#
+# A future hardening pass can replace these with structural YAML
+# assertions (e.g. via yq) when that brittleness becomes load-bearing.
 
 set -euo pipefail
 
