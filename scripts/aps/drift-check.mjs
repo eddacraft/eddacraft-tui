@@ -5,7 +5,7 @@ import { basename, join, relative } from 'node:path';
 const args = process.argv.slice(2);
 
 function usage() {
-  console.log(`Usage: scripts/aps/drift-check.mjs [--root PATH] [--changed-files PATH] [--release-record PATH] [--json]
+  console.log(`Usage: scripts/aps/drift-check.mjs [--root PATH] [--changed-files PATH] [--release-record PATH] [--pr-title TEXT] [--pr-body-file PATH] [--json]
 
 Warning-mode APS/repo/release drift checks. Findings are advisory and exit 0.`);
 }
@@ -13,6 +13,8 @@ Warning-mode APS/repo/release drift checks. Findings are advisory and exit 0.`);
 let root = process.cwd();
 let changedFilesPath = '';
 let releaseRecordPath = '';
+let prTitle = '';
+let prBodyPath = '';
 let json = false;
 
 for (let i = 0; i < args.length; i += 1) {
@@ -25,15 +27,23 @@ for (let i = 0; i < args.length; i += 1) {
     json = true;
     continue;
   }
-  if (arg === '--root' || arg === '--changed-files' || arg === '--release-record') {
+  if (
+    arg === '--root' ||
+    arg === '--changed-files' ||
+    arg === '--release-record' ||
+    arg === '--pr-title' ||
+    arg === '--pr-body-file'
+  ) {
     const value = args[i + 1];
-    if (!value || value.startsWith('--')) {
+    if (value === undefined || value.startsWith('--')) {
       console.error(`drift-check.mjs: ${arg} requires a value`);
       process.exit(2);
     }
     if (arg === '--root') root = value;
     if (arg === '--changed-files') changedFilesPath = value;
     if (arg === '--release-record') releaseRecordPath = value;
+    if (arg === '--pr-title') prTitle = value;
+    if (arg === '--pr-body-file') prBodyPath = value;
     i += 1;
     continue;
   }
@@ -262,6 +272,34 @@ for (const item of items.filter((entry) => entry.status === 'Released/Shipped'))
       `${item.id} is Released/Shipped without a matching published release record item.`,
       {
         apsItem: item.id,
+      }
+    );
+  }
+}
+
+// CICD-011: PR-metadata drift. A PR should either reference at least one APS
+// work item ID (e.g. `CICD-005`, `OPMODEL-012`) anywhere in its title or body,
+// or explicitly opt out via an `Unplanned-work:` line in the body. Falls
+// through silently when no PR metadata was supplied (e.g. push events).
+const apsWorkItemPattern = /\b[A-Z][A-Z0-9]{1,15}-\d{3}\b/;
+const knownApsItems = new Set(items.map((entry) => entry.id));
+if (prTitle || prBodyPath) {
+  const prBody = prBodyPath && existsSync(prBodyPath) ? readText(prBodyPath) : '';
+  const titleMatch = prTitle.match(apsWorkItemPattern);
+  const bodyMatch = prBody.match(apsWorkItemPattern);
+  const referenced = titleMatch?.[0] ?? bodyMatch?.[0];
+  const unplannedOptOut = /^\s*Unplanned-work:\s*\S+/im.test(prBody);
+  if (!referenced && !unplannedOptOut) {
+    addFinding(
+      'pr-missing-aps-reference',
+      'PR title and body do not reference an APS work item (e.g. `CICD-005`) and do not declare `Unplanned-work:` in the body.'
+    );
+  } else if (referenced && knownApsItems.size > 0 && !knownApsItems.has(referenced)) {
+    addFinding(
+      'pr-aps-reference-unknown',
+      `PR references APS work item ${referenced}, but no module under plans/modules/ declares that ID.`,
+      {
+        apsItem: referenced,
       }
     );
   }

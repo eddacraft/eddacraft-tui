@@ -153,6 +153,7 @@ jobs:
           pnpm test:ci-fast-pr
           pnpm test:ci-integration
           pnpm test:ci-matrix-targeting
+          pnpm test:ci-drift-integration
           pnpm test:validate-local
 
       - name: Install OPA
@@ -252,8 +253,31 @@ jobs:
             git diff --name-only "${{ github.event.before }}...${{ github.sha }}" > /tmp/aps-drift-files.txt
           fi
 
-      - name: Run warning-mode drift checks
+      # CICD-011: pass PR title + body so drift-check.mjs can warn when
+      # a PR neither references a known APS work item nor declares
+      # `Unplanned-work:`. PR body lands in a file because GitHub
+      # Actions step inputs strip multi-line content and the body can
+      # contain shell-significant characters.
+      - name: Capture PR metadata
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "${PR_BODY:-}" > /tmp/aps-drift-pr-body.txt
+
+      - name: Run warning-mode drift checks (push)
+        if: github.event_name != 'pull_request'
         run: node scripts/aps/drift-check.mjs --changed-files /tmp/aps-drift-files.txt
+
+      - name: Run warning-mode drift checks (PR)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node scripts/aps/drift-check.mjs \
+            --changed-files /tmp/aps-drift-files.txt \
+            --pr-title "$PR_TITLE" \
+            --pr-body-file /tmp/aps-drift-pr-body.txt
 
   # ── Job 1: Lint + Format ─────────────────────────────────────────
   # Gated on source-changed (not code-changed): pure-Rust PRs are

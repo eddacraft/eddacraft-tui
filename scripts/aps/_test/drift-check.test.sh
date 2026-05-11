@@ -98,4 +98,37 @@ assert_json_has_code "$published_json" 'release-version-tag-mismatch'
 assert_json_has_code "$published_json" 'package-version-tag-mismatch'
 assert_json_has_code "$published_json" 'release-artifact-missing-integrity'
 
+# ── CICD-011: PR metadata drift ──────────────────────────────────
+# A PR with no APS reference and no `Unplanned-work:` opt-out flags
+# the `pr-missing-aps-reference` warning.
+pr_missing_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'chore: bump deps' --json)"
+assert_json_has_code "$pr_missing_json" 'pr-missing-aps-reference'
+
+# A PR title that names an APS work item resolves the warning. The
+# fixture module declares FIX-001..FIX-004, so referencing FIX-001 is
+# valid; no `pr-missing-aps-reference` or `pr-aps-reference-unknown`
+# should appear.
+pr_ok_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat(fix): cover FIX-001 follow-ups' --json)"
+if printf '%s' "$pr_ok_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-missing-aps-reference" || f.code === "pr-aps-reference-unknown")) {
+  throw new Error("did not expect PR-metadata drift on a title that references a known APS item");
+}
+'; then :; else echo "pr-metadata false-positive on known APS reference" >&2; exit 1; fi
+
+# A PR that references an APS work item that no module declares flags
+# `pr-aps-reference-unknown`.
+pr_unknown_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'feat: NOPE-999 something else' --json)"
+assert_json_has_code "$pr_unknown_json" 'pr-aps-reference-unknown'
+
+# A PR with `Unplanned-work:` opt-out in the body suppresses the warning.
+printf 'Unplanned-work: production hotfix\n' > "$tmp/pr-body.txt"
+pr_unplanned_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'fix: prod regression' --pr-body-file "$tmp/pr-body.txt" --json)"
+if printf '%s' "$pr_unplanned_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "pr-missing-aps-reference")) {
+  throw new Error("did not expect pr-missing-aps-reference when Unplanned-work: is declared");
+}
+'; then :; else echo "pr-metadata false-positive on Unplanned-work opt-out" >&2; exit 1; fi
+
 echo "drift-check.test.sh: ok"

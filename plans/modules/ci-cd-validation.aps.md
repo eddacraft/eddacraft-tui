@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 10/12    |
+| CICD | —     | In Progress | 11/12    |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -408,15 +408,43 @@ This module is Complete when:
 
 ### CICD-011: APS/repo/release drift checks in CI
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Add warning-mode deterministic drift checks that connect APS intent,
   changed files, PR metadata, release candidates, and release records.
 - **Expected Outcome:** CI reports missing APS references, inconsistent module
   counts, stale validation metadata, release-note gaps, and shipped-state drift.
 - **Validation:** Fixture tests cover each drift class; warning output appears on a
   controlled PR.
-- **Files:** `scripts/ci/`, `plans/`, `.github/workflows/`
+- **Files:** `scripts/aps/drift-check.mjs`, `scripts/aps/_test/drift-check.test.sh`,
+  `scripts/ci/drift-check-integration.test.sh`, `.github/workflows/ci.yml`,
+  `package.json`
 - **Coordinates with:** OPMODEL-010, DOCGOV-005, RELORCH
+- **Completed:** 2026-05-11 — `scripts/aps/drift-check.mjs` gains two new
+  flags (`--pr-title`, `--pr-body-file`) and two new finding codes
+  (`pr-missing-aps-reference`, `pr-aps-reference-unknown`). `ci.yml`'s
+  `aps-drift` job now captures `${{ github.event.pull_request.body }}` to a
+  file and invokes drift-check.mjs with PR metadata on `pull_request` events;
+  push events keep the changed-files-only invocation. The job remains
+  `continue-on-error: true` — drift is warning-mode evidence, not a gate.
+  Findings opt out cleanly via an `Unplanned-work:` line in the PR body,
+  matching the operating-model rule for unplanned work. The existing
+  `scripts/aps/_test/drift-check.test.sh` fixture (`pnpm test:aps-drift`) now
+  covers the four PR-metadata cases — missing reference, known reference,
+  unknown reference, `Unplanned-work:` opt-out — alongside the existing drift
+  classes from OPMODEL-010 (progress mismatch, index mismatch, complete
+  without validation evidence, changed file without APS reference, candidate
+  missing merged item, shipped without release record, release/tag mismatch,
+  package/tag mismatch, artifact missing integrity).
+  `scripts/ci/drift-check-integration.test.sh` (`pnpm test:ci-drift-integration`)
+  locks the workflow wiring: `aps-drift` is warning-mode, push and PR each
+  invoke drift-check.mjs with the correct flags, and drift-check.mjs still
+  exposes the PR-metadata surface the workflow depends on. The
+  metadata-validation job runs the new fixture alongside the existing CI
+  fixtures.
+- **Validation Run:** `pnpm test:aps-drift`, `pnpm test:ci-drift-integration`,
+  `pnpm test:ci-integration`, `pnpm test:ci-fast-pr`,
+  `pnpm test:ci-matrix-targeting`, `pnpm format:check`, `pnpm lint:md`,
+  `node -e '... yaml.parse ...'` on `.github/workflows/ci.yml`.
 - **Confidence:** medium
 
 ---

@@ -134,6 +134,9 @@ pnpm test:ci-integration
 # Lock the matrix-targeting contract.
 pnpm test:ci-matrix-targeting
 
+# Lock the APS drift CI wiring.
+pnpm test:ci-drift-integration
+
 # Lock the security workflow gating.
 pnpm test:ci-security-targeting
 
