@@ -1,8 +1,8 @@
 # Internal Engineering Documentation
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                           |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md` and this directory index |
+| Type   | Authority | Owner  | Status | Freshness                                                                                         |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md`, `docs/`, and `plans/` |
 
 | Upstream                                  | Downstream                                    |
 | ----------------------------------------- | --------------------------------------------- |

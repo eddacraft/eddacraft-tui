@@ -1,8 +1,8 @@
 # Development Guides
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                          |
-| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md` and guide index entries |
+| Type   | Authority | Owner  | Status | Freshness                                                                                     |
+| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md` and `docs/guides/` |
 
 | Upstream                                  | Downstream                |
 | ----------------------------------------- | ------------------------- |
