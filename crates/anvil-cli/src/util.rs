@@ -329,10 +329,7 @@ mod tests {
     #[test]
     fn is_ignored_dir_name_matches_full_list() {
         for entry in IGNORE_DIRS {
-            assert!(
-                is_ignored_dir_name(entry),
-                "expected {entry} to be ignored"
-            );
+            assert!(is_ignored_dir_name(entry), "expected {entry} to be ignored");
         }
     }
 
