@@ -24,7 +24,7 @@
     "@json-render/core": "^0.18.0",
     "@json-render/react": "^0.18.0",
     "@json-render/shadcn": "^0.18.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "react": "^19.0.0",

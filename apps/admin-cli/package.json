@@ -31,7 +31,7 @@
     "@eddacraft/admin-contracts": "workspace:*",
     "commander": "^14.0.3",
     "picocolors": "^1.1.1",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

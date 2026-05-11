@@ -37,8 +37,8 @@
     "@neondatabase/serverless": "^1.1.0",
     "hono": "^4.12.18",
     "jose": "^6.2.3",
-    "resend": "^6.12.2",
-    "zod": "^4.3.6"
+    "resend": "^6.12.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

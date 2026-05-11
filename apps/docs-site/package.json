@@ -15,22 +15,22 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@docusaurus/preset-classic": "3.10.0",
-    "@docusaurus/faster": "3.10.0",
+    "@docusaurus/preset-classic": "3.10.1",
+    "@docusaurus/faster": "3.10.1",
     "@eddacraft/anvil-contracts": "workspace:*",
     "@eddacraft/anvil-runtime": "workspace:*",
     "clsx": "^2.1.1",
     "jose": "^6.2.3",
     "prism-react-renderer": "^2.4.1",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "@docusaurus/types": "3.10.0",
-    "@docusaurus/plugin-content-docs": "3.10.0"
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "@docusaurus/types": "3.10.1",
+    "@docusaurus/plugin-content-docs": "3.10.1"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.1",
     "@docusaurus/tsconfig": "3.10.1",
-    "@docusaurus/types": "3.10.0",
+    "@docusaurus/types": "3.10.1",
     "typescript": "~6.0.3"
   },
   "browserslist": {
