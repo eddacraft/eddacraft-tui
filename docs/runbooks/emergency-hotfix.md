@@ -1,8 +1,7 @@
 # Emergency Hotfix
 
 > **Owner:** Release council **Scope:** Out-of-band patch releases that cannot
-> wait for the normal `dev -> main` (compatibility) or trunk-`main` (target)
-> cadence. **Companion playbooks:**
+> wait for the normal trunk-`main` release cadence. **Companion playbooks:**
 > [`rollback-bad-main.md`](./rollback-bad-main.md),
 > [`rollback-bad-candidate-artefact.md`](./rollback-bad-candidate-artefact.md),
 > [`rollback-bad-published-release.md`](./rollback-bad-published-release.md).

@@ -55,7 +55,7 @@ Two co-equal sources — web and product:
 | Source   | Location                                                  | Governs                                 |
 | -------- | --------------------------------------------------------- | --------------------------------------- |
 | Website  | `apps/website/AGENTS.md` + `apps/website/app/globals.css` | Web palette, typography, components     |
-| TUI Spec | `docs/specs/anvil_tui_context.md` (dev branch)            | Rust palette, layout, product aesthetic |
+| TUI Spec | `docs/specs/anvil_tui_context.md`                         | Rust palette, layout, product aesthetic |
 
 Design system: **Nordic Brutalist / Industrial Terminal** Core accent: `--anvil`
 / `EMBER` (#cc5500)

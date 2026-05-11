@@ -1,6 +1,7 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-05-10 (current delivery: OPMODEL + CI/CD readiness)
+**Last updated:** 2026-05-11 (post-OPMODEL-012 cutover; current delivery:
+RELORCH + remaining CICD)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -13,164 +14,118 @@
 
 **Latest verified tag in repo:** `v0.6.1-beta`
 
-`v0.6.0-beta` and `v0.6.1-beta` have moved Anvil past wow-start activation and
-daemon-backed validation. The active release work is no longer product-surface
-expansion. It is the operating-model cutover that makes future releases
-repeatable:
+`v0.6.0-beta` and `v0.6.1-beta` shipped wow-start activation and daemon-backed
+validation. The active work since `v0.6.1-beta` has been the operational
+substrate that makes future releases repeatable:
 
-- `OPMODEL`: Plan / Build / Release operating model migration, 6/12 complete.
-- CI/CD readiness: release-readiness workflow, candidate artefacts, release
-  records, drift checks, and release-command integration.
-- `RELORCH`: deterministic `scripts/release/*.sh` command surface, currently
-  Proposed, 0/11.
+- **`OPMODEL` — Complete, 12/12, archived 2026-05-11.** Main-first operating
+  model migration finished. Cutover SHA `b6f236e9`; `pr-base-guard.yml` retired
+  in PR #1417; `main` ruleset id 16217152 enforces 7 required checks, PR review,
+  non-FF, and no-delete. `dev` retired as the dated compatibility branch
+  `dev-retired-2026-05-11`; deletion follow-up #1419 (~2026-07-10).
+- **CI/CD readiness (`CICD`) — In Progress, 8/12.** Path/risk classifier
+  (CICD-002), local validation commands (CICD-003), fast PR validation
+  (CICD-004), coverage cost controls (CICD-006), security/dependency targeting
+  (CICD-007), release-readiness workflow (CICD-009), and cutover readiness
+  (CICD-012) all shipped. Remaining: CICD-005 (integration SHA validation
+  redesign), CICD-008 (matrix targeting), CICD-010 (workflow decomposition),
+  CICD-011 (APS/repo/release drift checks in CI).
+- **Release orchestration (`RELORCH`) — Unblocked 2026-05-11, 3/12.** Paused
+  during the OPMODEL-012 / CICD-012 cutover window; resumes now with the main
+  branch as the validated integration target. Phase 1 nucleus remaining:
+  RELORCH-002 harness fixture matrix, RELORCH-010 closeout, RELORCH-011
+  wire-up + decommission. Phase 2 (`prepare` / `promote` / `tag` / `monitor` /
+  `verify`) follows. RELORCH-012 closes the release-record schema gap (yank
+  state + policyDecisions enum) surfaced by the OPMODEL-011 rollback playbooks.
 
-The next release should be scoped as an operational release, not another feature
-bundle.
+The next tagged release is still an **operational** release, not a
+product-surface bundle. Its claim shifts from "the operating model is designed"
+to "the operating model is executable end-to-end."
 
 ---
 
 ## Current Candidate: `v0.6.2-beta`
 
-**Claim:** _The release operating model is executable._ A selected SHA can be
-assessed, checked, reviewed, and prepared for release through deterministic
-guidance and CI evidence rather than prose-only runbooks.
-
-**Recommended scope:** ship the minimum viable operating model before the
-`main`-first cutover.
-
-**Release type:** beta patch/minor operational release. Do not market it as the
-full daemon-working product release; it is the release machinery and workflow
-foundation that lets that later claim be safe.
+**Claim:** _The release operating model is executable end-to-end._ A selected
+`main` SHA can be assessed, prepared, tagged, monitored, and verified through
+deterministic commands and CI evidence rather than prose-only runbooks.
 
 **Hard gates:**
 
-- `OPMODEL-007` deterministic agent guidance exists in advisory mode.
-- `OPMODEL-008` review/council entrypoints use the same review tiers.
-- `OPMODEL-010` APS/repo/release drift checks exist at least in warning mode.
-- Release-readiness CI can validate an exact SHA or the implementation gap is
-  explicitly tracked under RELORCH/CI and not claimed as shipped.
-- `OPMODEL-012` does not execute until rollback playbooks and drift checks are
-  usable.
+- Main-first cutover complete with branch protection on `main`. **Met** —
+  ruleset 16217152.
+- Release-readiness workflow validates an exact `main` SHA without publishing
+  credentials. **Met** — `.github/workflows/release-readiness.yml`.
+- Rollback and incident playbooks executable. **Met** — OPMODEL-011.
+- RELORCH command surface deterministic enough to replay against `v0.6.1-beta`
+  from scratch. **Not yet met** — Phase 1/2 RELORCH work in progress.
+
+**Release type:** beta patch/minor operational release. Do not market it as the
+daemon-working product release; that remains the next window.
 
 ---
 
-## Release Lanes
+## Remaining Lanes
 
-These lanes can run in parallel after the listed gates are respected.
+These lanes are all post-cutover and can run in parallel.
 
-| Lane                        | Owner module                                                                                                                                       | Can run now?                                         | Main outputs                                                                         | Blocks                                   |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------- |
-| L1: Deterministic guidance  | [`OPMODEL-007`](./plans/modules/operating-model-migration.aps.md#opmodel-007-deterministic-agent-guidance-script)                                  | Yes                                                  | `scripts/agent/guidance.sh`, fixtures, advisory CI/hook output.                      | L3, L4, L6                               |
-| L2: Review routing          | [`OPMODEL-008`](./plans/modules/operating-model-migration.aps.md#opmodel-008-review-and-council-entrypoint-alignment)                              | Yes                                                  | `/review`, `/council`, planning-council entrypoints aligned to one tier model.       | L6                                       |
-| L3: Release CI/CD readiness | [`OPMODEL-005`](./plans/modules/operating-model-migration.aps.md#opmodel-005-release-readiness-and-candidate-artefact-workflow-design), RELORCH/CI | Yes, after L1 contract shape is stable enough        | `.github/workflows/release-readiness.yml`, candidate metadata, exact-SHA validation. | L6, release tags that claim CI readiness |
-| L4: Drift checks            | [`OPMODEL-010`](./plans/modules/operating-model-migration.aps.md#opmodel-010-apsreporelease-drift-checks)                                          | Yes, can start with warning fixtures                 | APS/repo/release consistency checks, CI warning mode.                                | L6, L7                                   |
-| L5: Release commands        | [`RELORCH-001..011`](./plans/modules/release-orchestration.aps.md)                                                                                 | Yes, but RELORCH-001 then RELORCH-002 are sequential | `scripts/release/{assess,preflight,prepare,promote,tag,monitor,verify,closeout}.sh`. | Full target `/release` mode              |
-| L6: Recovery playbooks      | [`OPMODEL-011`](./plans/modules/operating-model-migration.aps.md#opmodel-011-rollback-and-incident-playbooks)                                      | Yes, after L3/L4 failure classes are named           | Bad main, bad candidate, bad artefact, bad release, hotfix playbooks.                | L7                                       |
-| L7: Main-first cutover      | [`OPMODEL-012`](./plans/modules/operating-model-migration.aps.md#opmodel-012-main-first-cutover-and-dev-retirement)                                | No                                                   | Promote current `dev` to `main`, retarget normal PRs, retire/protect `dev`.          | L1, L2, L4, L6                           |
-
----
-
-## Parallel Delivery Shape
-
-### Wave 0: Lock Contracts
-
-Run these first. They unblock parallel execution without requiring branch
-cutover.
-
-| Work                            | Parallel? | Notes                                                                        |
-| ------------------------------- | --------- | ---------------------------------------------------------------------------- |
-| `OPMODEL-007` guidance contract | Yes       | Defines the path/risk/check JSON consumed by CI, hooks, and agents.          |
-| `OPMODEL-008` review tiers      | Yes       | Can proceed from the existing council/review specs while L1 builds fixtures. |
-| `RELORCH-001` command design    | Yes       | Must finish before RELORCH command harness or command implementation.        |
-
-### Wave 1: Build Advisory Controls
-
-Once Wave 0 contracts exist, split into independent implementation lanes.
-
-| Work                           | Parallel?               | Notes                                                                                           |
-| ------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `OPMODEL-010` drift checks     | Yes                     | Start warning-only with fixtures; do not fail normal CI yet.                                    |
-| Release-readiness workflow     | Yes                     | Implement exact-SHA validation and candidate metadata. Keep publishing credentials unavailable. |
-| `RELORCH-002` harness          | No, after `RELORCH-001` | Harness encodes the command JSON and exit-code schema.                                          |
-| `RELORCH-003` assess           | Yes, after harness      | Low-risk first command; useful before the full release surface exists.                          |
-| `RELORCH-004` preflight        | Yes, after harness      | Parity with existing checks; JSON output is the main new contract.                              |
-| `RELORCH-010` closeout dry-run | Yes, after harness      | Can start in dry-run/input-gated mode before tag/monitor commands exist.                        |
-
-### Wave 2: Prove Failure Handling
-
-This wave turns advisory controls into something operators can trust.
-
-| Work                             | Parallel?          | Notes                                                                                    |
-| -------------------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
-| `OPMODEL-011` rollback playbooks | Yes                | Depends on named failure classes from readiness and drift checks.                        |
-| `RELORCH-005` prepare            | Yes, after harness | Highest-complexity command; protect it with kill/re-run tests.                           |
-| `RELORCH-006` promote            | Yes, after harness | Compatibility mode may still understand `dev -> main`, but must label it migration-only. |
-| `RELORCH-008` monitor            | Yes, after harness | Can be tested against recent release workflow runs.                                      |
-| `RELORCH-009` verify             | Yes, after harness | Can replay checks against `v0.6.1-beta`.                                                 |
-
-### Wave 3: Cutover Decision
-
-Do not start until Waves 1 and 2 have produced usable evidence.
-
-| Work                               | Parallel? | Notes                                                                                                      |
-| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
-| `RELORCH-007` tag                  | Limited   | Tagging is the irreversible command; implementation can happen, but real use waits for readiness evidence. |
-| `RELORCH-011` wire-up/decommission | No        | Last RELORCH item; requires commands green through a differential window.                                  |
-| `OPMODEL-012` main-first cutover   | No        | Requires guidance, review routing, drift checks, and rollback playbooks.                                   |
+| Lane                                   | Owner                                                                                                                                                                                       | Status                 | Main outputs                                                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| L1: Release commands — Phase 1 nucleus | [`RELORCH-002`](./plans/modules/release-orchestration.aps.md), [`RELORCH-010`](./plans/modules/release-orchestration.aps.md), [`RELORCH-011`](./plans/modules/release-orchestration.aps.md) | Unblocked              | Harness fixture matrix, closeout, wire-up + decommission.                                                                                        |
+| L2: Release commands — Phase 2         | [`RELORCH-005..009`](./plans/modules/release-orchestration.aps.md)                                                                                                                          | After L1 harness lands | `scripts/release/{prepare,promote,tag,monitor,verify}.sh`.                                                                                       |
+| L3: Release-record schema              | [`RELORCH-012`](./plans/modules/release-orchestration.aps.md)                                                                                                                               | Unblocked              | Yank state + policyDecisions enum; closes gap surfaced by OPMODEL-011 playbooks.                                                                 |
+| L4: Integration SHA validation         | [`CICD-005`](./plans/modules/ci-cd-validation.aps.md)                                                                                                                                       | Unblocked              | Separate merged-SHA validation from PR feedback; distinct readiness contract for `main` pushes.                                                  |
+| L5: Matrix targeting                   | [`CICD-008`](./plans/modules/ci-cd-validation.aps.md)                                                                                                                                       | Unblocked              | Reserve macOS/Windows/cross-compile/NAPI/bench matrices for changes that need platform evidence.                                                 |
+| L6: Workflow decomposition             | [`CICD-010`](./plans/modules/ci-cd-validation.aps.md)                                                                                                                                       | Unblocked              | Map existing workflows onto PR / integration / assurance / candidate / publish contracts.                                                        |
+| L7: APS/repo/release drift in CI       | [`CICD-011`](./plans/modules/ci-cd-validation.aps.md)                                                                                                                                       | Unblocked              | Warning-mode CI drift checks for missing APS references, inconsistent counts, stale validation metadata, release-note gaps, shipped-state drift. |
 
 ---
 
 ## What Can Be Done In Parallel Now
 
-Start these as separate branches/worktrees if capacity exists:
+Start as separate worktrees branched from `main`:
 
-| Track                       | First PR                          | Why safe in parallel                                                                                        |
-| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Guidance                    | `OPMODEL-007`                     | Mostly new deterministic script + fixtures; downstream consumers can wait on JSON shape.                    |
-| Review routing              | `OPMODEL-008`                     | Skill/command docs can align to the already-defined operating model without touching CI.                    |
-| RELORCH design              | `RELORCH-001`                     | Spec-only; gates release command implementation but does not conflict with OPMODEL docs.                    |
-| Readiness workflow skeleton | CI implementation for OPMODEL-005 | Can create a disabled/manual `release-readiness.yml` with exact-SHA checkout and no publishing permissions. |
-| Drift check design/fixtures | `OPMODEL-010`                     | Warning-only checks can land without changing release authority.                                            |
-| Recovery playbook outline   | `OPMODEL-011` draft               | Can draft structure now, then fill concrete commands after readiness/drift failure classes settle.          |
+| Track                      | First work item | Why safe in parallel                                                                                                            |
+| -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Release harness completion | `RELORCH-002`   | Fixture matrix grows existing harness; isolated from CICD lanes.                                                                |
+| Release-record schema gap  | `RELORCH-012`   | Schema-only change; closes a known correctness gap.                                                                             |
+| Matrix targeting           | `CICD-008`      | Touches workflow `if:` conditions in non-release jobs; pattern follows shipped CICD-004 / -006 / -007.                          |
+| Workflow decomposition     | `CICD-010`      | Mostly `.github/workflows/README.md` and trigger consolidation; conflicts only with CICD-008 if both rewrite the same workflow. |
+| Drift checks in CI         | `CICD-011`      | Extends already-shipped OPMODEL-010 drift script; touches `scripts/ci/` + a workflow job.                                       |
 
-Avoid parallelising these too early:
+Avoid parallelising too early:
 
-- `RELORCH-002` before `RELORCH-001`; the harness needs the schema.
-- `RELORCH-005..010` before `RELORCH-002`; command contracts should fail in CI
-  from day one.
-- `OPMODEL-012` before `OPMODEL-007`, `OPMODEL-008`, `OPMODEL-010`, and
-  `OPMODEL-011`; cutover without guardrails creates a bad-main recovery problem.
-- Any release claim that says CI readiness is authoritative before the workflow
-  validates the exact SHA.
+- RELORCH-005..-009 before RELORCH-002 lands the broader fixture matrix —
+  command contracts should fail in CI from day one.
+- CICD-010 workflow decomposition while CICD-008 matrix targeting is mid-edit on
+  the same workflow — sequence them or carve up files explicitly.
 
 ---
 
 ## Suggested `v0.6.2-beta` Cut
 
-Ship this if the goal is a tight, honest operational release:
+| Pick                      | Include                                                                            | Exclude                                          |
+| ------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Minimum                   | RELORCH-002 harness fixture matrix; RELORCH-012 schema gap; CICD-011 drift checks. | RELORCH-005..-011; CICD-005/-008/-010.           |
+| Strong                    | Minimum + RELORCH-005..-009 + RELORCH-010 closeout; CICD-008 matrix targeting.     | RELORCH-011 wire-up; CICD-005, CICD-010.         |
+| Full operating-model beta | Strong + RELORCH-011 wire-up + decommission; CICD-005, CICD-010.                   | Daemon-working product slate (separate release). |
 
-| Pick                      | Include                                                                                                   | Exclude                                                           |
-| ------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Minimum                   | `OPMODEL-007`, `OPMODEL-008`, `OPMODEL-010` warning mode, release-readiness workflow skeleton/manual mode | `OPMODEL-012`, full RELORCH command retirement                    |
-| Strong                    | Minimum + `RELORCH-001`, `RELORCH-002`, `RELORCH-003`, `RELORCH-004`                                      | `RELORCH-007` real tag command as primary path                    |
-| Full operating-model beta | Strong + `OPMODEL-011`, `RELORCH-005`, `RELORCH-008`, `RELORCH-009` replayed against `v0.6.1-beta`        | `OPMODEL-012` unless rollback and branch protections are verified |
-
-**Recommendation:** take the **Strong** cut. It gives agents and humans a real
-operating-model loop: deterministic guidance, aligned review, warning drift
-checks, exact-SHA readiness design starting to execute, and the first release
-commands under harness. Save `OPMODEL-012` for a separate cutover release after
-a green dry run.
+**Recommendation:** take the **Strong** cut. It gives operators a real release
+loop end-to-end (assess → preflight → prepare → promote → tag → monitor →
+verify) replayable against `v0.6.1-beta`, with matrix costs already targeted.
+Save the wire-up step and the integration/decomposition work for a follow-on
+release.
 
 ---
 
 ## Later: Daemon-Working Product Release
 
-The daemon-working product slate remains valuable, but it should not compete
-with OPMODEL/CI/CD cutover work in the same release. Keep it queued until
-release machinery is trustworthy.
+The daemon-working product slate remains valuable; it should not compete with
+the remaining RELORCH/CICD work in the same release. Promote once the release
+machinery is trustworthy end-to-end.
 
-| Future slice                             | Source                                                | Gate before promotion                                                                    |
-| ---------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Multi-Layer Protection v1                | [`MLP`](./plans/modules/multilayer-protection.aps.md) | OPMODEL cutover complete or explicitly deferred; release readiness can prove exact SHAs. |
-| Intercept Launcher v1                    | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Shared `AgentTag` schema coordinated with MLP-014.                                       |
-| Enterprise/compliance/language expansion | Queued APS modules                                    | Promote only after daemon-working and release machinery are stable.                      |
+| Future slice                                 | Source                                                | Gate before promotion                                                                           |
+| -------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Multi-Layer Protection v1                    | [`MLP`](./plans/modules/multilayer-protection.aps.md) | Release readiness can prove an exact `main` SHA replayably (RELORCH-009 against `v0.6.1-beta`). |
+| Intercept Launcher v1                        | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Shared `AgentTag` schema coordinated with MLP-014.                                              |
+| Enterprise / compliance / language expansion | Queued APS modules                                    | Promote only after daemon-working and release machinery are stable.                             |

@@ -146,13 +146,14 @@ on macOS should expect:
 
 This is expected v1 behaviour, tracked outside the release.
 
-### Windows CI regressions on `dev` branches are silent
+### Windows CI regressions on feature branches are silent
 
-The Windows cross-compile job is gated to `main` branch pushes and PRs targeting
-`main`. A Windows-only regression on a `dev` branch is invisible in CI until the
-dev → main sync runs the matrix. If you're triaging a Windows bug against a
-`dev`-cut artefact, run the Windows test matrix locally before rooting the bug
-at the operator's environment:
+The Windows cross-compile job is gated to pushes to `main` and release-class PRs
+(head `release/*` or `hotfix/*`). Normal `feat/*` / `fix/*` PRs do not fire the
+Windows matrix, so a Windows-only regression on a feature branch is invisible in
+CI until merge to `main`. If you're triaging a Windows bug against a pre-merge
+artefact, run the Windows test matrix locally before rooting the bug at the
+operator's environment:
 
 ```bash
 cargo test --workspace --target x86_64-pc-windows-msvc -- --test-threads=1

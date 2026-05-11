@@ -27,12 +27,14 @@ commands that request, interpret, and publish release readiness evidence.
 | Shipped-state proof | Release record | Candidate readiness must not mark APS items Released/Shipped. |
 | Operator narrative | GitHub tracking issue | The issue may link readiness runs but is not validation truth. |
 
-Until `OPMODEL-012` completes the branch cutover, this is target-state design.
-Current executable work still branches from `dev` and PRs target `dev`. Target
-release readiness is keyed by a selected `main` SHA after cutover; compatibility
-probes may accept a `dev` SHA only when explicitly labelled as migration-only.
-Migration-only readiness is non-canonical and must not populate release-record
-verification fields.
+`OPMODEL-012` completed the main-first cutover on 2026-05-11. Release
+readiness is keyed by a selected `main` SHA; the `migration-dev`
+`expectedReachableFrom` opt-in remains in the workflow as a transitional
+compatibility probe for SHAs that were reachable from `dev` before the
+cutover, but new readiness runs should use `main`. The `migration-dev`
+option is non-canonical, must not populate release-record verification
+fields, and is slated for removal in a follow-up sweep once no live SHA
+needs the probe.
 
 ## Workflow Shape
 

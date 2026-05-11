@@ -1,18 +1,16 @@
 # Rollback Bad `main`
 
-> **Owner:** Release council **Scope:** Compatibility mode (`dev -> main`
-> promotion model). Target-mode notes are flagged inline; do not run target-mode
-> commands until OPMODEL-012 cutover authority lands. **Companion playbooks:**
+> **Owner:** Release council **Scope:** `main`-first model — `main` is the
+> single integration target. **Companion playbooks:**
 > [`rollback-bad-candidate-artefact.md`](./rollback-bad-candidate-artefact.md),
 > [`rollback-bad-published-release.md`](./rollback-bad-published-release.md),
 > [`emergency-hotfix.md`](./emergency-hotfix.md).
 
 ## Purpose
 
-Recover when the integration target branch is broken — `main` in compatibility
-mode, or trunk `main` in target mode — before a release tag has been pushed for
-the broken state. Stop further promotion, choose between revert and fix-forward,
-and reset APS state so no work item carries spurious shipped-state evidence.
+Recover when trunk `main` is broken — before a release tag has been pushed for
+the broken state. Stop further work, choose between revert and fix-forward, and
+reset APS state so no work item carries spurious shipped-state evidence.
 
 ## When to use
 
@@ -204,17 +202,12 @@ Update the open release tracking issue or the incident issue with:
 Close the incident issue once CI is green, APS statuses reflect the recovery,
 and the freeze is lifted.
 
-## Mode notes
+## Notes
 
-- **Compatibility mode (today).** The target branch is `main` in the
-  `dev -> main` promotion model. Reverts and fix-forwards land via PR against
-  `main`. Force pushes to `main` require explicit operator approval and stay the
-  exception, not the default.
-- **Target mode (post OPMODEL-012).** The target branch is trunk `main` in the
-  main-first model. The revert and fix-forward procedures are unchanged; the
-  reset-with-force option becomes harder to justify because everyone is working
-  off `main` directly — prefer revert or fix-forward unless the operator
-  explicitly authorises the reset.
+- Reverts and fix-forwards land via PR against trunk `main`. Force pushes to
+  `main` require explicit operator approval and stay the exception, not the
+  default — everyone is working off `main` directly, so prefer revert or
+  fix-forward unless the operator explicitly authorises the reset.
 - **Release skill interaction.** The release skill must stop at preflight when
-  the target branch is broken; do not run mutating release commands until this
-  playbook has restored a green target branch.
+  `main` is broken; do not run mutating release commands until this playbook has
+  restored a green `main`.

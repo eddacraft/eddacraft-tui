@@ -42,18 +42,21 @@ modules rather than absorbing their authority.
 
 ## Migration Boundary
 
-The target operating model is `main`-first, but this repository remains
-`dev`-first until `OPMODEL-012` completes.
+`OPMODEL-012` completed the main-first cutover on 2026-05-11; `main` is the
+single integration target and normal PRs target `main`. Earlier CICD items
+(CICD-001..-009, CICD-012) shipped with explicit migration vs target wording.
+Remaining CICD work (CICD-005, -008, -010, -011) now designs against the
+post-cutover surface directly:
 
-Therefore:
-
-- Normal PR validation continues to target `dev` until `OPMODEL-012`.
-- `main` validation remains release/hotfix/current compatibility work until
-  cutover.
-- Any target-state `main` workflow changes must be migration-safe and clearly
-  labelled.
-- This module must not retire `dev`, change branch protections, or alter normal
-  branch authority; OPMODEL owns that transition.
+- Normal PR validation targets `main`.
+- `release/*` and `hotfix/*` are the release-class head patterns; the
+  cross-platform and cross-compile matrices fire on those PRs plus pushes to
+  `main`.
+- `dev` is retired as a dated compatibility branch (`dev-retired-2026-05-11`;
+  deletion follow-up issue #1419). No CICD work should add new `dev`
+  triggers; the 6 cleanup workflows that previously triggered on `dev`
+  (`ci.yml`, `codeql.yml`, `napi.yml`, `release-harness.yml`, `rust.yml`,
+  `security.yml`) had their `dev` entries removed in PR #1420.
 
 ## In Scope
 
@@ -213,8 +216,8 @@ This module is Complete when:
   the expected jobs and skip unrelated expensive jobs.
 - **Files:** `.github/workflows/ci.yml`, `.github/workflows/rust.yml`,
   `.github/actions/`
-- **Coordinates with:** OPMODEL migration boundary; normal PR target remains `dev`
-  until OPMODEL-012
+- **Coordinates with:** OPMODEL (cutover completed 2026-05-11; normal PR
+  target is now `main`)
 - **Completed:** 2026-05-10 — Fast PR validation now consumes classifier-required
   checks for Node, docs, workflow, shell, policy, dependency, infra, release, and
   platform surfaces. Routine PR unit tests no longer collect/upload coverage,
