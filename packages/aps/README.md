@@ -21,16 +21,28 @@ pnpm add @eddacraft/anvil-aps
 
 ## Usage
 
-Coming soon - see `docs/` directory for detailed documentation.
+```typescript
+import { parseAPSDocument } from '@eddacraft/anvil-aps/parser';
+import { validateDocument } from '@eddacraft/anvil-aps/validator';
+
+const doc = await parseAPSDocument(content, { path: 'plans/index.aps.md' });
+const result = validateDocument(doc);
+```
+
+See [`AGENTS.md`](./AGENTS.md) for the subpath-export map (parser, loader,
+validator, state, templates, filter, types).
 
 ## Documentation
 
-- [APS Planning Spec](./docs/APS-Planning-Spec-v0.1.md) - Full specification
-- [APS Conventions](./docs/APS-Conventions.md) - Markdown conventions and
-  patterns
-- [Non-Goals](./docs/APS-NonGoals.md) - What APS explicitly does not do
-- [Anvil Integration](./docs/APS-Anvil-Integration.md) - How APS integrates with
-  Anvil CLI
+- [APS Planning Spec](https://github.com/eddacraft/anvil-plan-spec) — the
+  canonical specification (Markdown shapes, status vocabulary, validation rule
+  names)
+- [AGENTS.md](./AGENTS.md) — package layout, subpath exports, validator rule
+  list, and authoring conventions for changes inside this package
+- [examples/](./examples) — runnable APS fixtures (`feature-auth.aps.md`,
+  `refactor-error-handling.aps.md`, `system-ecommerce/`)
+- [templates/](./templates) — the canonical templates emitted by
+  `generateTemplate()` (`leaf-*.md`, `simple-*.md`, `index-*.md`)
 
 ## Development
 

@@ -12,13 +12,13 @@ packages/aps/src/
 │   └── index.ts        # Extract tasks, modules, metadata from .aps.md
 ├── loader/             # Document loading and graph resolution
 │   └── index.ts        # Load plans, resolve dependencies
-├── validator/          # Validation rules (745 lines)
-│   └── index.ts        # 8 validation rules for APS documents
+├── validator/          # Validation rules
+│   └── index.ts        # See "Validation Rules" below
 ├── filter/             # Task/module filtering
 │   └── index.ts        # Context bundle generation
-├── state/              # Task state management (844 lines)
+├── state/              # Task state management
 │   └── index.ts        # .anvil/state.json, locking
-├── templates/          # Template generation (607 lines)
+├── templates/          # Template generation
 │   └── generator.ts    # Create .aps.md from prompts
 ├── types/              # Zod schemas and TypeScript types
 │   └── index.ts        # APSDocument, Task, Module schemas
@@ -37,18 +37,26 @@ packages/aps/src/
 
 ## Validation Rules
 
-8 built-in rules in `validator/index.ts`:
+Rules emitted by `validator/index.ts`. Severity is per-issue (`error` or
+`warning`) — see the source for the exact threshold of each rule.
 
-| Rule                    | Purpose                              |
-| ----------------------- | ------------------------------------ |
-| `required-sections`     | Ensure mandatory sections exist      |
-| `task-format`           | Validate task ID format (TASK-001)   |
-| `task-intent`           | Tasks must have clear intent         |
-| `broken-links`          | Detect references to missing modules |
-| `duplicate-ids`         | No duplicate task/module IDs         |
-| `circular-dependencies` | Detect circular module dependencies  |
-| `scope-mismatch`        | Task scope matches module boundary   |
-| `orphan-modules`        | Modules must be referenced           |
+| Rule                       | Purpose                                                   |
+| -------------------------- | --------------------------------------------------------- |
+| `file-readable`            | Target file exists and is readable                        |
+| `plan-loadable`            | Document parses without error                             |
+| `required-sections`        | Index has `## Modules`, leaf has `## Tasks`, both have H1 |
+| `task-format`              | Task ID matches `TASK_ID_REGEX` (`SCOPE-NNN`)             |
+| `task-intent`              | Tasks declare a non-empty `Intent:`                       |
+| `missing-expected-outcome` | Warn when a task omits `Expected Outcome:`                |
+| `missing-validation`       | Warn when a task omits `Validation:` (alias: `Test:`)     |
+| `missing-confidence`       | Warn when a task omits `Confidence:`                      |
+| `broken-links`             | References to missing modules or task IDs                 |
+| `duplicate-ids`            | No duplicate task or module IDs                           |
+| `circular-dependencies`    | Detect circular module dependencies                       |
+| `scope-mismatch`           | Task ID prefix matches the owning module's scope          |
+| `orphan-modules`           | Modules must be referenced from an index                  |
+| `orphan-scan-depth`        | Warn when orphan scan can't traverse the full plan graph  |
+| `path-containment`         | Relative paths stay inside the planning root              |
 
 ## Adding a Validation Rule
 
@@ -116,6 +124,30 @@ doc.modules; // Array of Module objects
 doc.tasks; // Array of Task objects
 doc.dependencies; // Module dependency graph
 ```
+
+## Document Shapes and Field Aliases
+
+There are two parser entry-points; templates differ accordingly:
+
+- **Leaf specs** (`parse-document.ts`) — H1 title, then an optional paragraph of
+  inline `**Field:** value` metadata, then `## Tasks` with H3 task entries. See
+  `templates/leaf-*.md` and `templates/simple-*.md`.
+- **Index files** (`parse-index.ts`) — H1 title, then `## Modules` with H3
+  module entries followed by list-form `- **Field:** value` lines for module
+  metadata. See `templates/index-*.md`.
+
+Parser tolerances worth knowing when authoring or migrating docs:
+
+| Surface              | Canonical form    | Legacy alias accepted                                                      | Effect                           |
+| -------------------- | ----------------- | -------------------------------------------------------------------------- | -------------------------------- |
+| Task field name      | `Validation:`     | `Test:`                                                                    | Parsed as `validation`           |
+| Task field name      | `Non-scope:`      | `NonScope:`                                                                | Parsed as `nonScope`             |
+| Module `Status:`     | `Proposed`        | `Draft`                                                                    | Normalised → Proposed            |
+| Module `Status:`     | `Done`            | `Complete`                                                                 | Normalised → Done                |
+| Task `Status:` prose | `open` / `locked` | `in progress`, `done`, `draft`, `ready`, `blocked`, `complete`, `canceled` | Normalised — see `parseStatus()` |
+
+Anything outside these aliases is ignored (status left unset) — the parser does
+not error on unknown status prose.
 
 ## Template Generation
 

@@ -20,41 +20,68 @@
 
 ## Lifecycle Statuses
 
-Target operating-model artefacts use this lifecycle vocabulary:
+APS distinguishes two related but separate vocabularies:
+
+1. **Schema status field** — the value assigned to a module's `Status` (or a
+   task `Status:` line) in an `.aps.md` file. This is parsed and validated by
+   `@eddacraft/anvil-aps`.
+2. **Lifecycle narrative** — prose labels used in index commentary, release
+   tables, and operator-facing summaries. These are not parsed; they describe
+   where work sits in the broader plan/build/release pipeline.
+
+### Schema Status Values
+
+The parser and validator accept exactly these five values:
+
+| Status | Meaning | Tasks Executable? |
+|--------|---------|-------------------|
+| Proposed | Reviewed direction exists, but execution is not yet authorised | No |
+| Ready | Scope clear, dependencies identified, validation known, execution authorised | Yes |
+| In Progress | Actively being worked on | Yes |
+| Done | Substantive work is finished | No new execution |
+| Blocked | Cannot proceed (document reason) | No |
+
+The parser normalises two legacy values written in older specs:
+
+- `Draft` → `Proposed`
+- `Complete` → `Done`
+
+New APS text should write the canonical form directly. Any other value is
+ignored by the parser (status is left unset).
+
+### Lifecycle Narrative Labels
+
+The following prose labels are used in `plans/index.aps.md` current-window
+tables, release commentary, and module narrative — they are **not** valid
+values for the schema `Status` field:
 
 ```text
 APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
 ```
 
-`Committed` is legacy wording for `Merged` unless a specific module defines a
-narrower transition. New APS text should prefer `Merged` and
-`Released/Shipped`.
-
-Modules and work items progress through these statuses:
-
-| Status | Meaning | Tasks Executable? |
-|--------|---------|-------------------|
-| Draft | Early capture; scope and acceptance criteria may be incomplete | No |
-| Proposed | Reviewed direction exists, but execution is not yet authorised | No |
-| Ready | Scope clear, dependencies identified, validation known, execution authorised | Yes |
-| In Progress | Actively being worked on | Yes |
-| Merged | Code or docs reached the integration target, but have not necessarily shipped | No new execution |
-| Released/Shipped | A release record proves inclusion in a verified release | No new execution |
-| Complete | No remaining active closeout work; may be archived under APS rules | N/A |
-| Archived | Historical record only | N/A |
-| Blocked | Cannot proceed (document reason) | No |
+- `Merged` — code or docs reached the integration target but have not
+  necessarily shipped.
+- `Released` / `Shipped` — a release record proves inclusion in a verified
+  release.
+- `Complete` (in prose) — no remaining active closeout work; module may be
+  archived. When used as a schema `Status` value it is normalised to `Done`.
+- `Archived` — historical record only; the file has been moved to
+  `plans/archive/modules/`.
+- `Committed` is legacy wording for `Merged` unless a specific module defines a
+  narrower transition. New text should prefer `Merged`.
 
 ### Status Rules
 
 1. Do not execute `Draft` or `Proposed` work unless the operator explicitly
    approves the item as urgent authorised work; record that authorisation inline.
 2. Mark work `In Progress` before making substantive changes for that item.
-3. Mark work `Merged` only when the PR or equivalent integration step has landed.
-4. Mark work `Released/Shipped` only from release-record evidence. Do not infer
-   shipped state from memory, a PR merge, or release notes prose.
-5. Mark work `Complete` only when validation, closeout, and cross-reference sweeps
-   are done.
-6. Archive completed modules with `git mv` into `plans/archive/modules/` and
+3. In schema fields, advance the module/task to `Done` when substantive work is
+   finished. In index narrative, additionally distinguish `Merged` vs
+   `Released/Shipped` based on release-record evidence — do not infer shipped
+   state from memory, a PR merge, or release notes prose.
+4. Mark work `Complete` (narrative) only when validation, closeout, and
+   cross-reference sweeps are done.
+5. Archive completed modules with `git mv` into `plans/archive/modules/` and
    update `plans/index.aps.md` in the same change.
 
 ## Release Metadata
@@ -74,6 +101,11 @@ releaseNote:
 validation:
   - command to prove the item
 ```
+
+These fields are a **prose convention**: they are read by humans and the
+release tooling that scans plan text, but they are NOT extracted into the
+parser's typed `Task` schema. Write them as plain `**Field:** value` lines
+in the task body alongside `Validation:` etc.
 
 Rules:
 
@@ -199,7 +231,8 @@ Tasks are **execution authority** — permission to make changes.
 ### Recommended Fields
 
 - **Expected Outcome:** Testable/observable result
-- **Validation:** Command to verify completion (also accepts **Test:**)
+- **Validation:** Command to verify completion. The parser also accepts the
+  legacy alias `**Test:**`; new tasks should write `Validation:`.
 - **Confidence:** low/medium/high
 - **changeType:** `fix`, `feature`, `docs`, `internal`, or `breaking`
 - **releaseIntent:** `candidate`, `hold`, or `never`
@@ -321,5 +354,5 @@ When a task or module introduces a feature flag into the manifest:
 | Planning module | Boundaries clear? Status set? No premature tasks? |
 | Executing | Module status is Ready/In Progress? Prerequisites met? |
 | Starting work | Read index.aps.md (active) + completed-index.aps.md (context)? |
-| Finishing / committing | Module set to Committed? Post-merge test plan extracted to plans/reviews/post-merge/? |
-| Cleanup agent | Committed items merged + CI green → advance to Complete? Post-merge plans verified? |
+| Finishing / committing | Schema status set to Done? Narrative status (Merged) reflects integration? Post-merge test plan extracted to plans/reviews/post-merge/? |
+| Cleanup agent | Done items merged + CI green → advance narrative to Complete? Post-merge plans verified? |

@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 2/8      |
+| DOCGOV | —     | In Progress | 3/8      |
 
 ## Purpose
 
@@ -117,7 +117,7 @@ use the minimal validation baseline in
 
 ### DOCGOV-003: Align APS public docs, local rules, and schemas
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Remove contradictions between public APS docs, local APS rules,
   package schemas, parser expectations, and current repository usage.
 - **Expected Outcome:** APS status vocabulary, file layout, task headings,
@@ -125,6 +125,20 @@ use the minimal validation baseline in
   contract.
 - **Validation:** `pnpm -F @eddacraft/anvil-aps test && pnpm format:check`
 - **Dependencies:** DOCGOV-002
+- **Files:** `plans/aps-rules.md`, `packages/aps/README.md`,
+  `packages/aps/AGENTS.md`, `plans/modules/documentation-governance.aps.md`,
+  `plans/index.aps.md`
+- **Closeout:** `plans/aps-rules.md` now distinguishes the five schema status
+  values (`Proposed`/`Ready`/`In Progress`/`Done`/`Blocked`) from the lifecycle
+  narrative vocabulary used in index commentary, names the parser's
+  `Draft → Proposed` / `Complete → Done` normalisations, marks the release
+  metadata block as a prose convention, and documents `Test:` as a legacy alias
+  for `Validation:`. `packages/aps/README.md` replaces links to nonexistent
+  `docs/` files with the canonical spec URL plus pointers to `AGENTS.md`,
+  `examples/`, and `templates/`. `packages/aps/AGENTS.md` lists the validator's
+  actual rule set (15 rule names emitted by `validator/index.ts`, not 8),
+  documents the leaf vs index document shapes, and tables the parser tolerances
+  for field aliases and status normalisations.
 - **Confidence:** medium
 
 ### DOCGOV-004: Repair ADR integrity and enforcement
