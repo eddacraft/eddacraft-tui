@@ -296,6 +296,13 @@ jobs:
       # already public via the GitHub UI/API — they are not a credential
       # that needs runtime masking. Keep the body in a file the rest of
       # the job can read; do not surface it via shell echo.
+      #
+      # Note on `ACTIONS_STEP_DEBUG=true`: when debug mode is enabled
+      # the runner dumps all step env vars to the log before executing
+      # the run block, so `PR_BODY` will appear verbatim. This is
+      # acceptable because PR bodies are already public via the GitHub
+      # UI/API; do NOT extend this pattern to genuinely sensitive
+      # values, where the env-var path would itself be the leak.
       - name: Capture PR metadata
         if: github.event_name == 'pull_request'
         env:

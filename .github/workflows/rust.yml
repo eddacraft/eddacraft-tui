@@ -419,12 +419,21 @@ jobs:
     # *all* `needs:` jobs — including `check` — so a broken
     # `cargo check --workspace` on a `main` push spun up six matrix legs
     # before failing in setup. The conditional below admits the matrix
-    # only when `check` itself is `success` (or `skipped`, which means
-    # path-filtered out), while still running on a `detect-rust-changes`
-    # failure so the in-step guard can hard-stop with a clear error.
-    # `workflow_dispatch` bypasses both guards — operators may run the
-    # matrix without `check` (the dispatch entry point in rust.yml has
-    # no `needs:` resolution from a normal trigger event).
+    # only when `check` itself reports `success`, while still running on
+    # a `detect-rust-changes` failure so the in-step guard can hard-stop
+    # with a clear error. `workflow_dispatch` bypasses both guards —
+    # operators may run the matrix without `check` (the dispatch entry
+    # point in rust.yml has no `needs:` resolution from a normal trigger
+    # event).
+    #
+    # The `result == 'skipped'` clause is forward-compatibility: `check`
+    # has no job-level `if:` and no `needs:` today, so it can never
+    # report `skipped` via the cascade — workflow-level path filtering
+    # skips the entire run, not individual jobs. If a future maintainer
+    # adds an `if:` guard to `check` (e.g. to bypass it on tag-only
+    # events), this clause keeps cross-compile admissible in that case
+    # rather than treating the skip as failure. The matrix-targeting
+    # fixture locks the clause so it cannot be silently dropped.
     if: >-
       always() && (
         github.event_name == 'workflow_dispatch' ||

@@ -145,10 +145,15 @@ PRs would block every merge indefinitely.
 It is also intentionally **Node / TypeScript-scoped**: it aggregates
 `docs-lint`, `metadata-validation`, `platform-smoke`, `aps-drift`, `lint`,
 `typecheck`, `test`, `build`, and `e2e-harness`. Rust integration evidence
-lives in `rust.yml`'s job statuses (`Check`, `Test`, `Clippy`, `Format`,
-`Hakari verify`, `cargo-deny`, `Acknowledgements freshness`,
-`Cross (target)`) and is **not** aggregated by Integration Readiness — a
-Rust-only push will show every Integration Readiness row as `skipped`.
+lives in `rust.yml`'s job statuses (`Detect Rust Changes`, `nxrust Smoke`,
+`Check`, `Test`, `Clippy`, `Format`, `Hakari verify`, `cargo-deny`,
+`Acknowledgements freshness`, and the matrix-expanded `Cross (…)` legs —
+`Cross (x86_64-unknown-linux-gnu)`, `Cross (aarch64-unknown-linux-gnu)`,
+`Cross (x86_64-apple-darwin)`, `Cross (aarch64-apple-darwin)`,
+`Cross (x86_64-pc-windows-msvc)`, `Cross (aarch64-pc-windows-msvc)`,
+the names GitHub surfaces at branch-protection time). These are **not**
+aggregated by Integration Readiness — a Rust-only push will show every
+Integration Readiness row as `skipped`.
 
 If `Integration Readiness` is ever elevated to a required *push* check
 (e.g., for tag-protection or release-branch flows), the `rust.yml` job
