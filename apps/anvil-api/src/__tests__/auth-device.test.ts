@@ -15,6 +15,7 @@ vi.mock('../db/queries.js', () => ({
   insertDummyDeviceCode: vi.fn(),
   findPendingDeviceCodeWithEmail: vi.fn(),
   confirmDeviceCode: vi.fn(),
+  incrementDeviceCodeAttempts: vi.fn(),
   pollDeviceCode: vi.fn(),
   deviceCodeExistsByPollToken: vi.fn(),
   consumeDeviceCode: vi.fn(),
@@ -37,6 +38,7 @@ import {
   findPendingDeviceCodeWithEmail,
   findUserByEmail,
   findUserById,
+  incrementDeviceCodeAttempts,
   insertDeviceCode,
   insertDummyDeviceCode,
   insertRefreshToken,
@@ -68,6 +70,7 @@ beforeEach(() => {
   vi.mocked(insertDummyDeviceCode).mockResolvedValue(undefined);
   vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue(null);
   vi.mocked(confirmDeviceCode).mockResolvedValue(true);
+  vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(1);
   vi.mocked(pollDeviceCode).mockResolvedValue(null);
   vi.mocked(deviceCodeExistsByPollToken).mockResolvedValue(false);
   vi.mocked(consumeDeviceCode).mockResolvedValue(null);
@@ -261,6 +264,7 @@ describe('POST /auth/device/confirm', () => {
     vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
       id: 'dc-1',
       user_email: 'someone@else.com',
+      attempts: 0,
     });
 
     const res = await post('/auth/device/confirm', {
@@ -273,10 +277,62 @@ describe('POST /auth/device/confirm', () => {
     expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
   });
 
+  it('increments the per-code attempts counter on an email mismatch', async () => {
+    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+      id: 'dc-7',
+      user_email: 'someone@else.com',
+      attempts: 2,
+    });
+    vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(3);
+
+    const res = await post('/auth/device/confirm', {
+      userCode: 'ANVIL-AAAAAAAA',
+      email: 'active@example.com',
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
+    expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(expect.anything(), 'dc-7');
+    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
+  });
+
+  it('does not increment attempts when the user_code is unknown', async () => {
+    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue(null);
+
+    const res = await post('/auth/device/confirm', {
+      userCode: 'ANVIL-AAAAAAAA',
+      email: 'active@example.com',
+    });
+
+    expect(res.status).toBe(400);
+    expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
+  });
+
+  it('rejects even a matching email once attempts is at the cap', async () => {
+    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+      id: 'dc-locked',
+      user_email: 'active@example.com',
+      attempts: 5,
+    });
+
+    const res = await post('/auth/device/confirm', {
+      userCode: 'ANVIL-AAAAAAAA',
+      email: 'active@example.com',
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
+    // Locked rows are not re-incremented — the row is already at the ceiling
+    // and the attacker shouldn't be able to drive attempts arbitrarily high.
+    expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
+    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
+  });
+
   it('uppercases and trims the user code before lookup', async () => {
     vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
       id: 'dc-1',
       user_email: 'active@example.com',
+      attempts: 0,
     });
 
     const res = await post('/auth/device/confirm', {
@@ -296,6 +352,7 @@ describe('POST /auth/device/confirm', () => {
     vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
       id: 'dc-42',
       user_email: 'active@example.com',
+      attempts: 0,
     });
 
     const res = await post('/auth/device/confirm', {
@@ -306,6 +363,7 @@ describe('POST /auth/device/confirm', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ confirmed: true });
     expect(vi.mocked(confirmDeviceCode)).toHaveBeenCalledWith(expect.anything(), 'dc-42');
+    expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
   });
 
   it('rejects missing userCode or email via Zod', async () => {

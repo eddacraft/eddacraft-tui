@@ -59,6 +59,7 @@ CREATE TABLE device_codes (
   confirmed_at  timestamptz,
   expires_at    timestamptz NOT NULL,
   last_polled_at timestamptz,
+  attempts      int NOT NULL DEFAULT 0,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 

@@ -10,6 +10,7 @@ import {
   insertDummyDeviceCode,
   findPendingDeviceCodeWithEmail,
   confirmDeviceCode,
+  incrementDeviceCodeAttempts,
   pollDeviceCode,
   deviceCodeExistsByPollToken,
   consumeDeviceCode,
@@ -29,6 +30,13 @@ const debug = createDebugger('auth-device');
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 90;
 const POLL_INTERVAL_S = 5;
+
+// Per-code brute-force ceiling for /device/confirm. Once a user_code row has
+// recorded this many failed email matches, further confirms are rejected
+// regardless of the submitted email — the legitimate user must request a new
+// code. Mirrors the otp_codes.attempts pattern at a higher threshold because
+// the email pairing makes guessing harder than a 6-digit OTP. See issue #922.
+const MAX_ATTEMPTS = 5;
 
 function generatePollToken(): string {
   return randomBytes(32).toString('hex');
@@ -129,8 +137,23 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
     debug('confirm rejected: no matching pending device code');
     return c.json({ error: 'Invalid or expired code' }, 400);
   }
+  if (result.attempts >= MAX_ATTEMPTS) {
+    // Row exists but has been locked out by prior failed attempts. Reject
+    // even if the email is now correct — the legitimate user re-issues a
+    // new code. Logged so operators can see lockouts in metrics.
+    debug('confirm rejected: device code locked', {
+      id: result.id,
+      attempts: result.attempts,
+    });
+    return c.json({ error: 'Invalid or expired code' }, 400);
+  }
   if (result.user_email !== normalisedEmail) {
-    debug('confirm rejected: email mismatch for code');
+    const attempts = await incrementDeviceCodeAttempts(sql, result.id);
+    debug('confirm rejected: email mismatch for code', {
+      id: result.id,
+      attempts,
+      lockedOut: attempts >= MAX_ATTEMPTS,
+    });
     return c.json({ error: 'Invalid or expired code' }, 400);
   }
 

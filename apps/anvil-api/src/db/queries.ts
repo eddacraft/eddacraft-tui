@@ -277,6 +277,7 @@ const DeviceCodeSchema = z.object({
   confirmed_at: z.union([DateStringSchema, z.null()]),
   expires_at: DateStringSchema,
   last_polled_at: z.union([DateStringSchema, z.null()]),
+  attempts: z.coerce.number(),
   created_at: DateStringSchema,
 });
 
@@ -531,14 +532,16 @@ export async function insertDummyDeviceCode(
 /**
  * Find a pending (unconfirmed, unexpired) device code and its owner's email.
  * Used by the /confirm endpoint to verify the code belongs to the right user.
+ * `attempts` is returned so the caller can enforce the per-code brute-force
+ * lockout (see auth-device.ts MAX_ATTEMPTS).
  */
 export async function findPendingDeviceCodeWithEmail(
   sql: NeonClient,
   userCode: string
-): Promise<{ id: string; user_email: string } | null> {
+): Promise<{ id: string; user_email: string; attempts: number } | null> {
   const r = rows(
     await sql`
-    SELECT dc.id, bu.email AS user_email
+    SELECT dc.id, dc.attempts, bu.email AS user_email
     FROM device_codes dc
     JOIN beta_users bu ON bu.id = dc.user_id
     WHERE dc.user_code = ${userCode}
@@ -551,7 +554,24 @@ export async function findPendingDeviceCodeWithEmail(
   return {
     id: String(r[0].id),
     user_email: String(r[0].user_email),
+    attempts: z.coerce.number().parse(r[0].attempts),
   };
+}
+
+/**
+ * Atomically increment the attempts counter on a device_code row.
+ * Used by /device/confirm to track failed email matches against a known
+ * user_code, mirroring the otp_codes.attempts pattern.
+ */
+export async function incrementDeviceCodeAttempts(sql: NeonClient, id: string): Promise<number> {
+  const r = rows(
+    await sql`
+    UPDATE device_codes SET attempts = attempts + 1
+    WHERE id = ${id}
+    RETURNING attempts
+  `
+  );
+  return z.coerce.number().parse(r[0]?.attempts);
 }
 
 /**
