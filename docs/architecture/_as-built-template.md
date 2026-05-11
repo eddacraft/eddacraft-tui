@@ -1,11 +1,12 @@
 # {Component Name} — As-Built
 
-> **Status:** Live (beta) | Live (RC) | Live (GA) | Pre-implementation |
-> Deprecated **Last reviewed:** YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` /
-> `<short-sha>` **Crate / location:** `crates/foo` (or `apps/bar`,
-> `packages/baz`) **Module owner (APS):** MODULE-CODE (link to
-> `plans/modules/...`) **Used by:** {downstream consumers — other crates, CLI
-> surfaces, MCP tools}
+| Type     | Authority | Owner                                     | Status                                                         | Freshness                                                                                                                                                               |
+| -------- | --------- | ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | MODULE-CODE (link to `plans/modules/...`) | `{one of: Draft, Proposed, Ready, Live, Deprecated, Archived}` | Last reviewed YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` / `<short-sha>` and implementation state `{one of: Live beta, Live RC, Live GA, Pre-implementation, Deprecated}` |
+
+| Upstream                                    | Downstream                                                                 |
+| ------------------------------------------- | -------------------------------------------------------------------------- |
+| `crates/foo`, `apps/bar`, or `packages/baz` | {consumers — other crates, CLI surfaces, MCP tools, runbooks, public docs} |
 
 ## Overview
 

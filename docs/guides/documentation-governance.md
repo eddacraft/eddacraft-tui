@@ -1,5 +1,13 @@
 # Documentation Governance
 
+| Type  | Authority     | Owner  | Status | Freshness                                                                        |
+| ----- | ------------- | ------ | ------ | -------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-11 against `plans/modules/documentation-governance.aps.md` |
+
+| Upstream                                                                           | Downstream                                                                           |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `plans/modules/documentation-governance.aps.md`, `AGENTS.md`, `plans/aps-rules.md` | `docs/README.md`, `docs/guides/README.md`, `AGENTS.md`, future `docs-workflow` skill |
+
 Documentation is operational knowledge for humans and agents. It exists to make
 engineering behaviour deterministic: what to read, what to trust, what to
 update, and what must be verified before work is closed.
@@ -42,6 +50,77 @@ source instead.
 Current migration exception: the evergreen release runbook remains at
 `docs/guides/release-runbook.md`. Treat it as runbook authority until DOCGOV-008
 either moves it, renames it, or records why the exception remains.
+
+## Metadata Convention
+
+New documents and materially touched non-APS documentation should declare their
+governance metadata immediately after the H1 title. Existing documents do not
+need a metadata-only migration until DOCGOV-005 adds validation.
+
+APS modules, APS indexes, and ADRs keep their native metadata formats unless
+their own schema or process explicitly adopts this table. Do not add this table
+to APS files just because their plan state changed.
+
+Use this compact table immediately after the title:
+
+```markdown
+| Type  | Authority     | Owner                       | Status | Freshness                                            |
+| ----- | ------------- | --------------------------- | ------ | ---------------------------------------------------- |
+| Guide | Authoritative | APS module, team, or handle | Live   | Last reviewed YYYY-MM-DD against tag/SHA/source path |
+
+| Upstream                                         | Downstream                                          |
+| ------------------------------------------------ | --------------------------------------------------- |
+| Canonical source(s) this doc must not contradict | Docs, tooling, or workflows that depend on this doc |
+```
+
+Keep values short and link to canonical sources when useful. For active non-APS
+docs, fill every field in the table; do not replace the table with prose
+elsewhere in the document. Archive-only documents may omit `Downstream` when no
+live document depends on them.
+
+### Field Meanings
+
+| Field      | Meaning                                                                         |
+| ---------- | ------------------------------------------------------------------------------- |
+| Type       | The document type from the table above                                          |
+| Authority  | Whether the document is source-of-truth, derived, advisory, or historical       |
+| Owner      | Who keeps the document correct; prefer APS module IDs for active work           |
+| Status     | Current lifecycle state of the document itself                                  |
+| Freshness  | Review date plus tag, SHA, source path, release, or other check anchor          |
+| Upstream   | Documents, code, schemas, tests, release records, or ADRs this doc derives from |
+| Downstream | Documents, generated indexes, runbooks, agents, or workflows that read this doc |
+
+### Status Values
+
+| Value      | Use when                                                  |
+| ---------- | --------------------------------------------------------- |
+| Draft      | Content is being shaped and is not yet safe as guidance   |
+| Proposed   | Direction is reviewed but not yet operational authority   |
+| Ready      | Content is approved for use but not yet live practice     |
+| Live       | Content is current operational guidance or discovery      |
+| Deprecated | Content is stale or superseded but remains in active path |
+| Archived   | Content is historical reference only                      |
+
+### Authority Values
+
+| Value         | Use when                                                                     |
+| ------------- | ---------------------------------------------------------------------------- |
+| Authoritative | The document owns the answer for its declared scope                          |
+| Derived       | The document summarises or maps implementation truth from upstream sources   |
+| Advisory      | The document offers practice guidance but must defer to stronger sources     |
+| Historical    | The document is preserved for context and should not be edited as live truth |
+
+### Freshness Rules
+
+- **As-built docs:** cite a tag or SHA and source paths reviewed.
+- **Runbooks:** cite the last successful dry-run, release, incident, or command
+  review.
+- **Guides:** cite the upstream rule, APS item, ADR, or source path reviewed.
+- **Public docs:** cite the release or product version they describe.
+- **Archives:** cite the superseding document or archive date.
+
+When freshness cannot be established, mark the document `Status: Deprecated` or
+track the gap in APS instead of leaving it ambiguous.
 
 ## Docs Workflow Skill Shape
 

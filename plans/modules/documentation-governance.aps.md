@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 1/8      |
+| DOCGOV | —     | In Progress | 2/8      |
 
 ## Purpose
 
@@ -87,7 +87,8 @@ use the minimal validation baseline in
 - **Expected Outcome:** Repository guidance names the authoritative sources,
   documents a docs-workflow skill shape, and requires closeout before final
   responses on documentation-affecting work.
-- **Validation:** `pnpm format:check`
+- **Validation:** `pnpm format:check`; manual metadata, index, and APS
+  reconciliation review
 - **Files:** `AGENTS.md`, `docs/guides/documentation-governance.md`,
   `docs/guides/README.md`, `docs/README.md`, `plans/index.aps.md`,
   `plans/modules/documentation-governance.aps.md`
@@ -98,13 +99,20 @@ use the minimal validation baseline in
 
 ### DOCGOV-002: Canonicalise documentation taxonomy and metadata
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Add a minimal document taxonomy and metadata convention without
   forcing a large folder migration.
 - **Expected Outcome:** New or touched docs can declare type, authority, owner,
   status, freshness, and upstream/downstream references consistently.
 - **Validation:** `pnpm format:check`
 - **Dependencies:** DOCGOV-001
+- **Files:** `docs/guides/documentation-governance.md`,
+  `docs/architecture/_as-built-template.md`, `docs/guides/README.md`,
+  `docs/README.md`, `plans/modules/documentation-governance.aps.md`,
+  `plans/index.aps.md`
+- **Closeout:** Validation passed with `pnpm format:check`; council findings on
+  metadata applicability, required fields, status vocabulary, as-built document
+  status, and README freshness anchors were addressed before PR.
 - **Confidence:** high
 
 ### DOCGOV-003: Align APS public docs, local rules, and schemas

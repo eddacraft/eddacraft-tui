@@ -1,5 +1,13 @@
 # Development Guides
 
+| Type   | Authority | Owner  | Status | Freshness                                                                                          |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md` and guide index entries |
+
+| Upstream                                  | Downstream                |
+| ----------------------------------------- | ------------------------- |
+| `docs/guides/documentation-governance.md` | Developer guide discovery |
+
 How-to guides for developers working on Anvil.
 
 ## Available Guides
@@ -27,7 +35,8 @@ How-to guides for developers working on Anvil.
 - [Custom Architecture Policies](custom-architecture-policies.md) — Writing
   custom OPA policies
 - [Documentation Governance](documentation-governance.md) — Documentation
-  authority model, docs-workflow shape, and closeout protocol
+  authority model, metadata convention, docs-workflow shape, and closeout
+  protocol
 
 ### Testing & Workflow
 

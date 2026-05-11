@@ -1,5 +1,13 @@
 # Internal Engineering Documentation
 
+| Type   | Authority | Owner  | Status | Freshness                                                                                           |
+| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md` and this directory index |
+
+| Upstream                                  | Downstream                                    |
+| ----------------------------------------- | --------------------------------------------- |
+| `docs/guides/documentation-governance.md` | Contributor and agent documentation discovery |
+
 This directory contains **internal engineering documentation** for Anvil
 developers.
 
@@ -14,8 +22,8 @@ developers.
 ## Authority Model
 
 See [guides/documentation-governance.md](guides/documentation-governance.md) for
-the canonical documentation authority model, docs-workflow skill shape, and
-closeout protocol.
+the canonical documentation authority model, document metadata convention,
+docs-workflow skill shape, and closeout protocol.
 
 ## Structure
 
@@ -53,7 +61,8 @@ docs/
 ### Development
 
 - [guides/documentation-governance.md](guides/documentation-governance.md) —
-  Documentation authority model and agent closeout protocol
+  Documentation authority model, metadata convention, and agent closeout
+  protocol
 - [guides/testing.md](guides/testing.md) — Test strategy and practices
 - [testing/beta-user-test-scenarios.md](testing/beta-user-test-scenarios.md) —
   Beta tester facilitator script
