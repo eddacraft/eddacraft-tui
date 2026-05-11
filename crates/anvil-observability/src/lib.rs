@@ -41,7 +41,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
 use tracing::Span;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
@@ -193,23 +193,31 @@ pub fn init_tracing(kind: BinaryKind) -> Result<(), InitTracingError> {
 }
 
 fn open_trace_file(path: &str) -> Result<File, InitTracingError> {
+    let path = Path::new(path);
     #[cfg(unix)]
-    validate_existing_trace_file(Path::new(path))?;
+    let existing_metadata = validate_existing_trace_file(path)?;
 
     let mut options = OpenOptions::new();
     options.create(true).append(true);
     #[cfg(unix)]
     options.mode(0o600);
-    options
-        .open(Path::new(path))
-        .map_err(|err| InitTracingError::TraceSink(format!("file={path}: {err}")))
+    let file = options
+        .open(path)
+        .map_err(|err| InitTracingError::TraceSink(format!("file={}: {err}", path.display())))?;
+
+    #[cfg(unix)]
+    validate_opened_trace_file(path, &file, existing_metadata.as_ref())?;
+
+    Ok(file)
 }
 
 #[cfg(unix)]
-fn validate_existing_trace_file(path: &Path) -> Result<(), InitTracingError> {
+fn validate_existing_trace_file(
+    path: &Path,
+) -> Result<Option<std::fs::Metadata>, InitTracingError> {
     let metadata = match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => {
             return Err(InitTracingError::TraceSink(format!(
                 "file={}: {err}",
@@ -218,9 +226,26 @@ fn validate_existing_trace_file(path: &Path) -> Result<(), InitTracingError> {
         }
     };
 
+    validate_trace_file_metadata(path, &metadata)?;
+
+    Ok(Some(metadata))
+}
+
+#[cfg(unix)]
+fn validate_trace_file_metadata(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), InitTracingError> {
     if metadata.file_type().is_symlink() {
         return Err(InitTracingError::TraceSink(format!(
             "file={} must not be a symlink",
+            path.display()
+        )));
+    }
+
+    if !metadata.file_type().is_file() {
+        return Err(InitTracingError::TraceSink(format!(
+            "file={} must be a regular file",
             path.display()
         )));
     }
@@ -229,6 +254,46 @@ fn validate_existing_trace_file(path: &Path) -> Result<(), InitTracingError> {
     if mode & 0o077 != 0 {
         return Err(InitTracingError::TraceSink(format!(
             "file={} must not be readable or writable by group/other",
+            path.display()
+        )));
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn validate_opened_trace_file(
+    path: &Path,
+    file: &File,
+    existing_metadata: Option<&std::fs::Metadata>,
+) -> Result<(), InitTracingError> {
+    let opened_metadata = file
+        .metadata()
+        .map_err(|err| InitTracingError::TraceSink(format!("file={}: {err}", path.display())))?;
+    if !opened_metadata.file_type().is_file() {
+        return Err(InitTracingError::TraceSink(format!(
+            "file={} must be a regular file",
+            path.display()
+        )));
+    }
+
+    let path_metadata = std::fs::symlink_metadata(path)
+        .map_err(|err| InitTracingError::TraceSink(format!("file={}: {err}", path.display())))?;
+    validate_trace_file_metadata(path, &path_metadata)?;
+
+    if let Some(expected) = existing_metadata
+        && (expected.dev(), expected.ino()) != (opened_metadata.dev(), opened_metadata.ino())
+    {
+        return Err(InitTracingError::TraceSink(format!(
+            "file={} changed while opening",
+            path.display()
+        )));
+    }
+
+    if (path_metadata.dev(), path_metadata.ino()) != (opened_metadata.dev(), opened_metadata.ino())
+    {
+        return Err(InitTracingError::TraceSink(format!(
+            "file={} changed while opening",
             path.display()
         )));
     }
@@ -269,6 +334,11 @@ impl Write for SharedTraceWriter {
 mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
+    #[cfg(unix)]
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
     use tracing::{field, info_span};
     use tracing_subscriber::Layer;
@@ -276,6 +346,20 @@ mod tests {
     use tracing_subscriber::registry::LookupSpan;
 
     use super::*;
+
+    #[cfg(unix)]
+    fn fresh_test_dir(name: &str) -> std::path::PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "anvil-observability-{name}-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&path).expect("test dir");
+        path
+    }
 
     #[derive(Debug, Default, Clone)]
     struct RecordedFields(Arc<Mutex<HashMap<String, String>>>);
@@ -363,5 +447,37 @@ mod tests {
         );
         assert_eq!(fields.get("parent_id").as_deref(), Some("b7ad6b7169203331"));
         assert_eq!(fields.get("trace_flags").as_deref(), Some("01"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn open_trace_file_refuses_non_regular_existing_path() {
+        let tmp = fresh_test_dir("non-regular");
+        let path = tmp.join("trace-dir");
+        std::fs::create_dir(&path).expect("directory sink fixture");
+
+        let err =
+            open_trace_file(path.to_str().expect("utf8 path")).expect_err("directory refused");
+
+        assert!(
+            err.to_string().contains("must be a regular file"),
+            "unexpected error: {err}"
+        );
+
+        std::fs::remove_dir_all(&tmp).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn open_trace_file_accepts_private_regular_file() {
+        let tmp = fresh_test_dir("regular-file");
+        let path = tmp.join("trace.jsonl");
+        std::fs::write(&path, b"").expect("trace file fixture");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .expect("private mode");
+
+        open_trace_file(path.to_str().expect("utf8 path")).expect("regular file accepted");
+
+        std::fs::remove_dir_all(&tmp).expect("cleanup");
     }
 }

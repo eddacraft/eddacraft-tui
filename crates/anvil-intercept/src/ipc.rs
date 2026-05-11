@@ -2215,15 +2215,17 @@ fn trace_method_label(method: &str) -> Cow<'_, str> {
     if method.len() <= MAX_TRACE_METHOD_LEN {
         Cow::Borrowed(method)
     } else {
+        const ELLIPSIS: &str = "...";
+        let max_prefix_len = MAX_TRACE_METHOD_LEN - ELLIPSIS.len();
         let mut end = 0;
         for (index, ch) in method.char_indices() {
             let next = index + ch.len_utf8();
-            if next > MAX_TRACE_METHOD_LEN {
+            if next > max_prefix_len {
                 break;
             }
             end = next;
         }
-        Cow::Owned(format!("{}...", &method[..end]))
+        Cow::Owned(format!("{}{ELLIPSIS}", &method[..end]))
     }
 }
 
@@ -2572,6 +2574,25 @@ mod tests {
                 .expect("fields")
                 .insert(field.name().to_owned(), value.to_string());
         }
+    }
+
+    #[test]
+    fn trace_method_label_reserves_space_for_ellipsis() {
+        let method = "a".repeat(MAX_TRACE_METHOD_LEN + 1);
+        let label = trace_method_label(&method);
+
+        assert_eq!(label.len(), MAX_TRACE_METHOD_LEN);
+        assert!(label.ends_with("..."));
+    }
+
+    #[test]
+    fn trace_method_label_truncates_on_char_boundary() {
+        let method = "é".repeat(MAX_TRACE_METHOD_LEN);
+        let label = trace_method_label(&method);
+
+        assert!(label.len() <= MAX_TRACE_METHOD_LEN);
+        assert!(label.ends_with("..."));
+        assert!(std::str::from_utf8(label.as_bytes()).is_ok());
     }
 
     #[tokio::test]
