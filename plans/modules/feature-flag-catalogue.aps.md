@@ -1,17 +1,18 @@
 <!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
-<!-- Executable only if tasks exist and status is Ready. -->
+<!-- Executable only if tasks exist and status is Ready, except explicitly authorised decision-only work items recorded inline. -->
 
 # Feature Flag Catalogue
 
 | Scope   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | Draft  | 0/7      |
+| FLAGCAT | —     | medium   | Draft  | 1/7      |
 
 **Last reviewed:** 2026-05-11 — FLAGS and FLAGM are archived as Complete; the
 five flag definitions and per-surface modules referenced below are still the
-current state on `dev`. **2026-05-11:** FLAGCAT-007 added to answer the
-USAGE-002 cross-clarification (resolved-snapshot shape, stable join key,
-ADR-019 gate-affecting-only scope).
+current state on `dev`. **2026-05-11:** FLAGCAT-007 resolved by
+[ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md): USAGE stores
+the resolved flag context inline, manifest `key` is the stable join key, and
+ADR-019 remains gate-affecting-only for standalone Kindling flag facts.
 
 ## Purpose
 
@@ -193,7 +194,10 @@ Change status to **Ready** when:
   `FeatureFlagManifestSchema`. `packages/anvil/flags-catalogue/` exports
   `CLI_LICENCE_GATE`, `DOCS_ACCESS_FLAG`, `API_SCOPE_FLAGS`,
   `API_SCOPE_NAMES`, `DEFAULT_APPROVAL_SCOPES`, and a
-  `featureFlagManifest()` helper. No existing call site migrated yet.
+  `featureFlagManifest()` helper. The manifest preserves the shipped runtime
+  `key` strings as ADR-041 stable join keys and has room to represent retired
+  keys or key-migration notes for historical queries. No existing call site
+  migrated yet.
 - **Scope:** `flags/manifest.json`, `packages/anvil/flags-catalogue/`,
   `pnpm-workspace.yaml`, `tsconfig.base.json`
 - **Non-scope:** Rust codegen, flipping existing call sites
@@ -262,9 +266,10 @@ Change status to **Ready** when:
 - **Expected Outcome:** A Vitest spec (or standalone script invoked from CI)
   parses `flags/manifest.json`, the TS accessors, and the generated Rust
   constants, and asserts structural equality on keys, variant names, and
-  default variants. `docs/guides/feature-flag-inventory.md` documents the
-  add-a-flag flow and removes any "split across surfaces" language left
-  over from FLAGM.
+  default variants. The check also fails if an active/retired key is reused or
+  if a key migration lacks the historical-query note required by ADR-041.
+  `docs/guides/feature-flag-inventory.md` documents the add-a-flag flow and
+  removes any "split across surfaces" language left over from FLAGM.
 - **Scope:** `packages/anvil/flags-catalogue/`, `docs/guides/feature-flag-inventory.md`,
   optionally `.github/workflows/*.yml`
 - **Non-scope:** Dashboard or admin UI for flag management
@@ -275,7 +280,13 @@ Change status to **Ready** when:
 
 <a id="flagcat-007"></a>
 
-### FLAGCAT-007: Catalogue → Kindling snapshot shape and stable join key for USAGE-002 — Draft
+### FLAGCAT-007: Catalogue → Kindling snapshot shape and stable join key for USAGE-002 — Complete
+
+> **Authorisation note (2026-05-11):** The operator explicitly requested
+> `FLAGCAT-007` alongside TRACE-004 as urgent cross-module decision work while
+> the FLAGCAT implementation module remains Draft. Per `plans/aps-rules.md`,
+> this item is executable as a documentation/ADR contract only; the remaining
+> catalogue implementation tasks stay Draft.
 
 - **Intent:** Answer the three sub-questions USAGE-002 raised under
   OQ5 so the usage module can reference the resolved flag context per
@@ -316,12 +327,20 @@ Change status to **Ready** when:
     current latest) or a dedicated section in `flags/manifest.json`'s
     design note, whichever the founder prefers when the task is
     picked up.
-- **Coordinates with:** USAGE-002 — this task's output is USAGE-002's
-  precondition; closing this unblocks USAGE-002's promotion to
-  Ready.
-- **Coordinates with:** ADR-019 (flags observability alignment) — if
-  sub-question (c) requires widening the gate-affecting-only rule,
-  ADR-019 is amended in the same change.
+- **Resolution:** [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md)
+  records the durable contract. The catalogue/FLAGS do not publish a
+  separate per-invocation snapshot row; USAGE-002 publishes the resolved
+  flag context inline on the usage observation. The manifest entry `key`
+  is the stable join key; key changes create new logical flags, retired
+  keys are reserved, and `createdFor` stays provenance only. ADR-019 is
+  not widened: non-gate-affecting flags have inline usage context only,
+  not separate Kindling join rows.
+- **Coordinates with:** USAGE-002 — this task resolves USAGE-002's OQ5
+  precondition. USAGE-002 still depends on USAGE-001 row-shape work and
+  OQ1's observation-kind decision before promotion to Ready.
+- **Coordinates with:** ADR-019 (flags observability alignment) — no
+  widening was needed; ADR-019 now cross-links ADR-041 as a
+  clarification.
 - **Coordinates with:** ADR-035 (three-pipe rule) — the snapshot,
   wherever it lives, must obey the matrix (governance facts on
   Kindling, not on tracing).
@@ -333,10 +352,11 @@ Change status to **Ready** when:
 - **Non-scope:** Implementing the snapshot publisher itself if one
   is needed — that's a follow-up task whose scope falls out of this
   task's answers; FLAGCAT-007 only pins the contract.
-- **Dependencies:** FLAGCAT-002 (catalogue package exists and is the
-  source of truth before the snapshot shape is decided).
-- **Validation:** TBD when picked up — at minimum a written answer
-  to all three sub-questions referenced from USAGE-002's task body
-  and from this module's index entry.
-- **Confidence:** medium — the questions are well-shaped, but the
-  answer to (a) drives a follow-up task whose scope is unknown.
+- **Dependencies:** None for the documentation contract. FLAGCAT-002
+  consumes the contract later by preserving manifest `key` as the stable
+  identifier; it is not required to decide the contract.
+- **Validation:** `rg 'ADR-041|OQ5|FLAGCAT-007|flag_set|manifest key|manifest \`key\`' plans/decisions plans/modules plans/index.aps.md`
+  plus review that ADR-041 answers snapshot shape, join key, and ADR-019 scope.
+- **Confidence:** high — the contract is documented; implementation
+  remains intentionally out of scope.
+- **Status:** Complete

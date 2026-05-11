@@ -66,6 +66,7 @@ These define how Anvil behaves by default. All features must align.
 | [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
 | [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
 | [035](035-three-pipe-observability-rule.md) | Three-pipe observability rule: Kindling = governance facts, Notification = user-visible state, tracing/OTEL = ephemeral debugging (never source-of-truth); `traceparent` is the cross-pipe correlation key | Accepted |
+| [041](041-flag-snapshot-usage-join-contract.md) | Usage rows store resolved flag context inline; manifest `key` is the stable join key; ADR-019 stays gate-affecting-only for standalone Kindling flag facts | Accepted |
 
 ## Planning and Process
 

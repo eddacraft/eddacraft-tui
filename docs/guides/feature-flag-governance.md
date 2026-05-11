@@ -6,15 +6,15 @@ disabling, and retiring feature flags in Anvil.
 ## Flag Lifecycle
 
 ```
-draft → active → retiring → retired → (deleted)
+draft → active → retiring → retired → removed from runtime use
 ```
 
-| Status     | Meaning                                                           |
-| ---------- | ----------------------------------------------------------------- |
-| `draft`    | Defined in the manifest but not evaluated at runtime              |
-| `active`   | Evaluated normally — targeting and overrides apply                |
-| `retiring` | Still evaluated but scheduled for removal; no new targeting rules |
-| `retired`  | Resolves to default only — ready for code removal                 |
+| Status     | Meaning                                                                         |
+| ---------- | ------------------------------------------------------------------------------- |
+| `draft`    | Defined in the manifest but not evaluated at runtime                            |
+| `active`   | Evaluated normally — targeting and overrides apply                              |
+| `retiring` | Still evaluated but scheduled for removal; no new targeting rules               |
+| `retired`  | Resolves to default only — ready for runtime-code removal; key remains reserved |
 
 ## Creating a Flag
 
@@ -125,8 +125,21 @@ Kill switch and entitlement flags **fail closed**:
    rules should be added.
 2. Verify all consumers reference the expected stable variant.
 3. Set status to `retired`. The flag now resolves to its default variant only.
-4. Remove the flag definition from the manifest and delete any referencing code.
+4. Remove runtime references and targeting code. Do not reuse the manifest
+   `key`; ADR-041 treats it as the historical usage join key.
 5. Close the originating APS work item if not already closed.
+
+### Key retention for historical queries
+
+The flag `key` is the stable join key for usage analytics (ADR-041):
+
+- Display names, accessors, owners, intent text, and documentation can be
+  renamed without changing `key`.
+- Changing `key` creates a new logical flag, not a refactor of the old flag.
+- Retired keys remain reserved forever and must not be reused.
+- If a retired definition is removed from the active manifest after retention
+  allows it, keep an explicit migration note mapping old key to new key or
+  stating that the key ended with no replacement.
 
 ### Preventing flag rot
 

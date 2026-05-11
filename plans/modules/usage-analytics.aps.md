@@ -2,11 +2,10 @@
 APS Module: Usage Analytics
 ===========================
 Cross-cutting durable usage observations on Kindling — command
-invocations, flag-evaluation rollups, dev-investment query views.
-Touches every command surface (CLI / JSON-RPC) and consumes the
-flag-context the FLAGS module already publishes to Kindling per
-ADR-019. Third trial of the cross-cutting module convention promoted
-under ADR-034.
+invocations, inline flag-context snapshots, dev-investment query views.
+Touches every command surface (CLI / JSON-RPC) and records the
+invocation's resolved flag context inline per ADR-041. Third trial of
+the cross-cutting module convention promoted under ADR-034.
 
 Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 -->
@@ -50,9 +49,9 @@ rather than gut-led. Specifically:
 - Record every CLI command invocation and JSON-RPC method call as a
   Kindling row carrying the active flag context and the cross-pipe
   `traceparent`.
-- Roll up `anvil.flags.*` evaluations so the founder can ask "which
-  gates fired for whom this week" without rebuilding the index from
-  spans.
+- Record the inline `flag_set` context defined by ADR-041 so the founder
+  can ask "which gates fired for whom this week" without rebuilding the
+  index from spans.
 - Publish canned query views answering "top N commands", "commands
   never invoked", "flag-dependent paths exercised vs not".
 
@@ -71,8 +70,9 @@ contract** in USAGE-001.
   crates do not emit; only entrypoints.
 - Query helpers / canned views — at minimum a `kindling`-style query
   surface and a runbook describing the top-N / never-invoked queries.
-- Alignment with ADR-019's `anvil.flags.*` Kindling rows so a single
-  query joins "who ran what" to "which gates fired".
+- Alignment with ADR-019 / ADR-041 so gate-affecting flag facts join by
+  manifest `key`, while non-gate flag context stays inline on the usage
+  row.
 - A privacy contract documenting the redaction rule (the same
   `SENSITIVE_FIELDS` deny-list `anvil-observability` exposes today).
 - A new `anvil.usage.*` namespace registry entry (per ADR-035 / the
@@ -103,8 +103,8 @@ contract** in USAGE-001.
   exclusively.
 - TRACE-001 — `anvil-observability::TraceContext` provides the
   `traceparent` correlation key every usage row carries.
-- ADR-019 — `anvil.flags.*` Kindling rows are the join target;
-  USAGE does not duplicate flag-evaluation facts, it references them.
+- ADR-019 / ADR-041 — gate-affecting flag facts join by manifest
+  `key`; non-gate flag context is inline on the usage row only.
 
 **Coordinates with:**
 
@@ -112,9 +112,9 @@ contract** in USAGE-001.
   at write time. TRACE-004 binds the incoming context; USAGE-001
   reads it. The two land in either order, but both must be in place
   before the first end-to-end "trace ↔ usage" join works.
-- FLAGS module — the active flag set on each usage row is the
-  resolved `anvil.flags.*` snapshot the FLAGS evaluator already
-  publishes; USAGE-002 closes the loop.
+- FLAGS module — the active flag set on each usage row is the inline
+  resolved context USAGE captures from the resolver at the invocation
+  boundary; USAGE-002 closes the loop.
 - TRACE-003 — argument redaction shares the `SENSITIVE_FIELDS`
   deny-list. USAGE inherits the advisory-only constraint until
   TRACE-003 lands the layer; producers MUST NOT bypass it.
@@ -151,13 +151,13 @@ This module is **Ready** when:
       Salt rotation is a deliberate privacy reset, not routine.
       USAGE-001's contract test pins the hash function and asserts the
       raw principal never lands in a Kindling row.
-- [ ] OQ5 resolved: FLAGS cross-clarification ([`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007))
-      — does the catalogue publish a resolved snapshot USAGE can
-      reference, what is the stable join key, and does ADR-019's
-      gate-affecting-outcomes-only rule break the join for non-gate
-      flags.
+- [x] OQ5 resolved: FLAGS cross-clarification ([`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007))
+      — [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md)
+      says USAGE stores resolved flag context inline on the usage row,
+      joins by manifest `key`, and ADR-019 stays gate-affecting-only for
+      standalone Kindling flag facts.
 - [ ] OQ1 resolved: reuse-existing vs new `command.invoked` kind
-      (founder lean 2026-05-10 → new kind, pending OQ5).
+      (founder lean 2026-05-10 → new kind; OQ5 now resolved).
 - [ ] At least one task approved for execution.
 
 ## Privacy contract
@@ -180,7 +180,7 @@ require founder review.
   (the value of the `REDACTED` constant). A sensitive argument's
   *existence* (its name) is still visible; nothing about its value
   or shape leaks via metadata.
-- Active flag set — the resolved snapshot referenced under OQ5.
+- Active flag set — the inline resolved flag context defined by ADR-041.
 - `traceparent` (cross-pipe correlation per ADR-035).
 
 **NOT captured:**
@@ -229,8 +229,7 @@ requires founder review. The contract doc lives in
     principal (one-way hash + per-deployment salt per OQ2 — salt
     sourced from the existing secrets store; raw principal MUST NOT
     appear in any field), timestamp, redacted argument shape, active
-    flag set (placeholder field until USAGE-002 lands the snapshot
-    contract per FLAGCAT-007), `traceparent`.
+    flag set (inline `flag_set` per ADR-041), `traceparent`.
   - Argument redaction defers to
     `anvil_observability::redaction`. Raw argument values are never
     recorded; non-sensitive arguments contribute *shape* metadata
@@ -251,8 +250,8 @@ requires founder review. The contract doc lives in
     observation fails the test (R2 mitigation).
 - **Coordinates with:** TRACE-004 — incoming `traceparent` is on the
   current span; USAGE reads from there.
-- **Coordinates with:** FLAGS — active flag set is the resolved
-  `anvil.flags.*` snapshot (placeholder field until USAGE-002).
+- **Coordinates with:** FLAGS — active flag set is the inline resolved
+  flag context defined by ADR-041.
 - **Files (best-effort):** `crates/anvil-cli/src/main.rs`,
   `crates/anvil-intercept/src/ipc.rs`,
   `crates/<kindling-crate>/src/<observation-module>` (path TBD when
@@ -268,36 +267,44 @@ requires founder review. The contract doc lives in
   principal never appears in any captured field (only the salted
   hash); (e) the contract test against the registered command/method
   list.
-- **Confidence:** medium — OQ2 resolved; OQ1 / OQ5 still gate the
-  observation-kind decision and the FLAGCAT-007 cross-reference.
+- **Confidence:** medium — OQ2 and OQ5 are resolved; OQ1 still gates the
+  observation-kind decision.
 - **Status:** Draft
 
 ---
 
 ### USAGE-002: Flag-context correlation on usage rows
 
-- **Intent:** Every usage row carries the resolved `anvil.flags.*`
-  snapshot active at invocation time so "which gates fired for whom"
-  is a single Kindling query.
+- **Intent:** Every usage row carries the resolved flag context active
+  at invocation time so "which gates fired for whom" can join through
+  the canonical flag key without duplicating standalone flag-evaluation
+  facts.
 - **Expected Outcome:**
-  - The active flag set is captured as a stable, queryable field on
-    every USAGE-001 observation. Shape decided in this task — likely
-    a sorted list of flag IDs with their resolved values, modelled
-    on ADR-019's `anvil.flags.*` precedent.
+  - The active flag set is captured as a stable, queryable inline
+    `flag_set` field on every USAGE-001 observation, per
+    [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md):
+    sorted by manifest `key`, with resolved variant, resolution source,
+    and whether the entry was gate-affecting. The field contains flags
+    resolved or inherited as active context for that invocation; it is
+    not a full dump of every manifest entry, and producers must not
+    re-evaluate unrelated flags solely to populate it.
   - A canned query / view in
     `docs/observability/usage-analytics.md` answering "for command
     X, which flag set was active across the invocations this week?".
-  - Cross-link from ADR-019's "Consequences" section noting USAGE-002
-    is the consumer that joins flag-evaluation rows to the commands
-    that triggered them.
+  - Canned gate-affecting queries join usage rows to ADR-019
+    `flags_consulted` data by manifest `key`. Non-gate-affecting flags
+    are available only as inline invocation context, not as standalone
+    Kindling join rows.
 - **Coordinates with:** USAGE-001 (extends the row shape).
-- **Coordinates with:** FLAGS module (consumes the resolved flag
-  snapshot the evaluator publishes; does not re-evaluate).
+- **Coordinates with:** FLAGS module (consumes the resolver's resolved
+  values at the invocation boundary; does not re-evaluate or require a
+  separate FLAGS-published snapshot row).
 - **Files (best-effort):**
   `crates/<kindling-crate>/src/<observation-module>`,
   `docs/observability/usage-analytics.md`,
   `plans/decisions/019-flags-observability-alignment.md`
-  (cross-link only).
+  (cross-link only),
+  `plans/decisions/041-flag-snapshot-usage-join-contract.md`.
 - **Validation:** TBD when picked up — at minimum a query test that
   joins a known invocation to its known flag set and returns the
   expected pairing.
@@ -362,10 +369,10 @@ requires founder review. The contract doc lives in
 
 ## Open questions
 
-- **OQ1 (founder lean 2026-05-10 → new kind, pending OQ5):** Introduce
-  a new `command.invoked` Kindling observation kind. Final decision
-  recorded in USAGE-001 once OQ5's FLAGS cross-clarification confirms
-  no existing kind already covers the shape USAGE-002 needs.
+- **OQ1 (founder lean 2026-05-10 → new kind; OQ5 resolved):**
+  Introduce a new `command.invoked` Kindling observation kind. Final
+  decision recorded in USAGE-001; ADR-041 confirms FLAGS does not
+  already publish a row shape that covers USAGE-002.
 - **OQ2 (resolved 2026-05-11):** Principal anonymised via one-way
   hash with a per-deployment salt held in the existing secrets
   store. Salt rotation is a deliberate privacy reset, not routine.
@@ -379,16 +386,15 @@ requires founder review. The contract doc lives in
   evidence-based dev-investment decisions need cross-system joins
   or when a third party (board / investor) asks for usage rollups
   outside Anvil.
-- **OQ5 (open — FLAGS cross-clarification, raised 2026-05-10;
-  ownership 2026-05-11 → [`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007)):**
-  USAGE-002 assumes the flag catalogue publishes a resolved
-  `anvil.flags.*` snapshot to Kindling per ADR-019, in a shape USAGE
-  rows can reference rather than duplicate. Three sub-questions:
-  (a) does the catalogue today persist a queryable snapshot, or only
-  per-evaluation rows? (b) are flag IDs stable across renames /
-  retirements, and what is the join key? (c) does ADR-019's
-  "gate-affecting outcomes only" rule mean USAGE rows that reference
-  a non-gate-affecting flag have nothing to join to? Resolution gates
-  USAGE-002 promotion to Ready and may also unblock OQ1 (an existing
-  FLAGS-emitted observation kind may be the right host for command
-  invocations rather than a new one).
+- **OQ5 (resolved 2026-05-11 by [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md)
+  via [`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007)):**
+  The catalogue/FLAGS do not publish a separate per-invocation resolved
+  snapshot row. USAGE-002 stores the resolved flag context inline on the
+  usage row as `flag_set`, sorted by manifest `key`, with resolved
+  variant, resolution source, and gate-affecting marker. It contains
+  flags resolved or inherited at the invocation boundary, not every
+  manifest flag. The manifest `key` is the stable join key; changing it
+  creates a new logical flag, retired keys are reserved for historical
+  queries, and `createdFor` is provenance only. ADR-019 is not widened:
+  non-gate-affecting flags have inline usage context only and no
+  standalone Kindling row to join to.

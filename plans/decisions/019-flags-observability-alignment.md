@@ -112,6 +112,11 @@ that affect governance outcomes are part of the provenance chain.
 - **Mitigations:** OBS-001's scope statement should be updated to note that it
   will collect and ratify domain-specific conventions contributed by other
   modules, not design them from scratch.
+- **Clarification:** ADR-041 keeps this ADR's gate-affecting-only Kindling
+  boundary intact. USAGE rows may carry an inline resolved flag context for the
+  command invocation, but that context is not a standalone flag-evaluation
+  observation and non-gate-affecting flags still have no separate Kindling join
+  row.
 
 ## References
 
@@ -120,3 +125,4 @@ that affect governance outcomes are part of the provenance chain.
 - FLAGS-006 task: `plans/modules/feature-flagging.aps.md`
 - OBS-001 task: `plans/modules/observability-foundation.aps.md`
 - Related ADR: ADR-018 (product/IP architecture — tier gating consumes auth context)
+- Related ADR: ADR-041 (feature flag snapshot contract for usage joins)
