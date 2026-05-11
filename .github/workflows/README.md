@@ -33,6 +33,24 @@ Specifically:
   the workflow if any required integration job failed; `APS Drift Check` is
   treated as warning-only evidence.
 
+## Matrix Targeting
+
+Platform matrices (macOS, Windows, Rust cross-compile, NAPI binding) are
+expensive — macOS runners cost 10x, Windows 2x. Per
+[CICD-008](../../plans/modules/ci-cd-validation.aps.md#cicd-008-matrix-and-platform-execution-targeting),
+they run only when platform evidence is required:
+
+| Matrix                            | Runs on                                                                                                                              | Skipped on                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `ci.yml` `Release Gate` (Node)    | PR to `main` (release-gate) or push to `main`, **only when `source-changed`**                                                        | Docs-only release PRs; routine PRs to `dev`; integration push to `dev`             |
+| `rust.yml` `Cross (target)`       | PR to `main`, push to `main`/`release/*`, or `workflow_dispatch` — gated on `rust-changed` (dispatch ignores the rust-changed guard) | Push to `dev`; routine PRs to `dev`; JS-only diffs that admit the workflow paths   |
+| `napi.yml` `Build`/`Test`         | PR/push touching `crates/anvil-checks-napi/**`, `crates/anvil-checks/src/**`, manifests, toolchain, or tags `napi-v*`                | Anything outside the napi binding's compile surface                                |
+| `bench.yml` `Criterion`/`Midedit` | Push to `main` (release-gate) or `workflow_dispatch`                                                                                 | All PRs; push to `dev`                                                             |
+| `ci-nightly.yml` `Unit Tests`     | `schedule` (daily 02:00 UTC) or `workflow_dispatch`                                                                                  | Routine PR and integration push events — nightly assurance owns scheduled evidence |
+
+Operators can force any of the gated matrices via the workflow's `Run workflow`
+button (`workflow_dispatch`) when an out-of-band verification run is needed.
+
 ## Workflows
 
 ### `ci.yml` — Continuous Integration
@@ -49,7 +67,9 @@ moved to `ci-nightly.yml` per CICD-006.
 Owns Rust validation for both PR (affected) and integration push (full
 workspace). Includes Hakari verification, `cargo-deny`, acknowledgements
 freshness, and a cross-compile matrix gated on `rust-changed` and the
-release-gate condition (PR to `main` or push to integration).
+release-gate condition (PR to `main`, push to `main`/`release/*`, or
+`workflow_dispatch`). Push to `dev` no longer triggers the matrix per CICD-008 —
+`dev` is the integration branch during migration but is not a release gate.
 
 ### `security.yml` — Security
 
@@ -110,6 +130,9 @@ pnpm test:ci-fast-pr
 
 # Lock the integration push contract.
 pnpm test:ci-integration
+
+# Lock the matrix-targeting contract.
+pnpm test:ci-matrix-targeting
 
 # Lock the security workflow gating.
 pnpm test:ci-security-targeting

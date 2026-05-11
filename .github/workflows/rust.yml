@@ -30,6 +30,10 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/actions/setup-workspace/**'
       - '.github/workflows/rust.yml'
+  # CICD-008: explicit operator path to run the cross-compile matrix
+  # against any ref (release-gate dry runs, post-incident verification,
+  # release-candidate hand-validation).
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -383,30 +387,42 @@ jobs:
 
   cross-compile:
     name: Cross (${{ matrix.target }})
-    # Run cross-compilation (incl. the Windows matrix) on pushes to `main`
-    # and on release-class PRs targeting `main`. Normal feat/fix/docs/chore
-    # PRs stay on the fast Rust check/test/clippy/format path.
+    # Run cross-compilation (incl. the Windows matrix) on release-gate
+    # events only: release-class PR-to-`main`, push to `main` or a
+    # `release/*` branch, and `workflow_dispatch` for operator-triggered
+    # verification. Normal feat/fix/docs/chore PRs stay on the fast
+    # Rust check/test/clippy/format path. Per CICD-008 platform
+    # matrices are reserved for release-sensitive paths, nightly
+    # assurance, and explicit dispatch.
     #
-    # The head allowlist keeps the cross-compile matrix from firing on
-    # every normal PR; only `release/*` and `hotfix/*` head patterns do.
-    #
-    # The `head.repo.full_name == github.repository` clause makes the
-    # gate self-defending: a fork PR cannot trigger the six-target
-    # cross-compile matrix by naming its head `release/*` / `hotfix/*`.
+    # The head allowlist on PR-to-`main` keeps the cross-compile matrix
+    # from firing on every normal post-cutover PR; only `release/*` and
+    # `hotfix/*` head patterns do. The `head.repo.full_name ==
+    # github.repository` clause makes the gate self-defending: a fork
+    # PR cannot trigger the six-target cross-compile matrix by naming
+    # its head `release/*` / `hotfix/*`.
     #
     # Additionally gate on `detect-rust-changes` so JS-only diffs (e.g.
     # dependabot pnpm-lock bumps that the workflow-level `paths:` filter
     # still admits, because Test/Clippy depend on the lockfile) don't
     # spin up the Windows + macOS matrix. Rust-only signals — `crates/**`,
     # `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, and this workflow
-    # file itself — still fire cross-compile.
+    # file itself — still fire cross-compile. `workflow_dispatch` is
+    # intentionally exempt from the rust-changed gate so operators can
+    # force a matrix run for verification work even when no Rust paths
+    # moved in the dispatched ref.
     if: >-
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-        (github.event_name == 'pull_request' && github.base_ref == 'main' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        (startsWith(github.head_ref, 'release/') ||
-         startsWith(github.head_ref, 'hotfix/')))) &&
-      needs.detect-rust-changes.outputs.rust-changed == 'true'
+      github.event_name == 'workflow_dispatch' || (
+        (
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+            startsWith(github.ref, 'refs/heads/release/'))) ||
+          (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+            github.event.pull_request.head.repo.full_name == github.repository &&
+            (startsWith(github.head_ref, 'release/') ||
+             startsWith(github.head_ref, 'hotfix/')))
+        ) &&
+        needs.detect-rust-changes.outputs.rust-changed == 'true'
+      )
     runs-on: ${{ matrix.os }}
     needs: [check, detect-rust-changes]
     strategy:

@@ -152,6 +152,7 @@ jobs:
           pnpm test:ci-cost
           pnpm test:ci-fast-pr
           pnpm test:ci-integration
+          pnpm test:ci-matrix-targeting
           pnpm test:validate-local
 
       - name: Install OPA
@@ -507,16 +508,23 @@ jobs:
   # full-name comparison is preferred over `head.repo.fork == false`
   # because the former works uniformly against both upstream forks and
   # same-org fork repos.
+  #
+  # CICD-008: additionally gate on `source-changed` so docs-only
+  # release PRs and docs-only release-sync pushes do not spin up the
+  # macOS (10x) + Windows (2x) matrix when no Node source moved.
   test-release-gate:
     name: Release Gate (Node 22.x, ${{ matrix.os }})
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: |
-      (github.event_name == 'pull_request' && github.base_ref == 'main' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        (startsWith(github.head_ref, 'release/') ||
-         startsWith(github.head_ref, 'hotfix/'))) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      needs.detect-changes.outputs.source-changed == 'true' &&
+      (
+        (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          (startsWith(github.head_ref, 'release/') ||
+           startsWith(github.head_ref, 'hotfix/'))) ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
     strategy:
       fail-fast: false
       matrix:

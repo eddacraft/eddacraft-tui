@@ -9,7 +9,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| CICD | —     | In Progress | 9/12     |
+| CICD | —     | In Progress | 10/12    |
 
 **Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
@@ -331,7 +331,7 @@ This module is Complete when:
 
 ### CICD-008: Matrix and platform execution targeting
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Reserve macOS, Windows, cross-compile, NAPI, and benchmark matrices
   for changes that need platform evidence.
 - **Expected Outcome:** Platform matrices run for platform-sensitive paths,
@@ -342,6 +342,26 @@ This module is Complete when:
   `.github/workflows/napi.yml`, `.github/workflows/bench.yml`,
   `.github/workflows/ci-nightly.yml`
 - **Coordinates with:** RELORCH, DIST surfaces
+- **Completed:** 2026-05-11 — `rust.yml` `cross-compile` no longer fires on
+  push to `dev`. The new gate is `workflow_dispatch` OR
+  ((push to `main` OR push to `release/*`) OR PR to `main`) AND `rust-changed`,
+  with `workflow_dispatch` intentionally bypassing the rust-changed guard so
+  operators can force a verification run on any ref. `rust.yml` gains a
+  `workflow_dispatch: {}` trigger. `ci.yml` `test-release-gate` (macOS +
+  Windows Node tests) now gates on `source-changed` so docs-only release PRs
+  and docs-only release-sync pushes skip the 10x/2x matrix. `napi.yml`,
+  `bench.yml`, and `ci-nightly.yml` already match the spec — path-gated NAPI
+  matrix, release-gated bench, schedule-only nightly cross-platform Node
+  tests — and are locked by the fixture instead of being modified.
+  `scripts/ci/matrix-targeting.test.sh` (`pnpm test:ci-matrix-targeting`)
+  asserts each matrix's gating, including the explicit `refs/heads/dev`
+  prohibition in the rust cross-compile if-gate. `.github/workflows/README.md`
+  now documents the matrix-targeting contract per workflow and surfaces the
+  `workflow_dispatch` operator path.
+- **Validation Run:** `pnpm test:ci-matrix-targeting`,
+  `pnpm test:ci-integration`, `pnpm test:ci-fast-pr`, `pnpm test:ci-classify`,
+  `pnpm format:check`, `pnpm lint:md`,
+  `node -e '... yaml.parse ...'` on `ci.yml` and `rust.yml`.
 - **Confidence:** medium
 
 ---
