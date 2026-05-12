@@ -114,7 +114,7 @@ archive.
 
 ### CIB-002: Establish definitive skill and agent list for the anvil repo
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Produce a single authoritative inventory of the skills and agents
   this repository expects to be available, distinguishing repo-local from global
   surfaces and recording authority and source for each entry.

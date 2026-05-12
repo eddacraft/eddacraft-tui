@@ -125,7 +125,7 @@ The `Authored-By:` trailer is added automatically — do not add it manually.
 Every piece of work follows this sequence. Agents must not skip stages.
 
 ```
-APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] → Complete
+APS (Ready) → Branch → Code → Council → PR → Merged → [cleanup] → Released/Shipped
 ```
 
 ### 1. Start from APS
@@ -134,7 +134,9 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 - Mark module **In Progress** before touching any code
 - Branch name must reference the APS module: `fix/<module-slug>` or
   `feat/<module-slug>`
-- Create branch from `dev` (hotfixes from `main`)
+- Create branch from `main`. Hotfixes also branch from `main` (or the latest
+  good tag if `main` is unreleasable). `dev` was retired by OPMODEL-012 on
+  2026-05-11 — see `docs/guides/branching-strategy.md`.
 
 ### 2. Code
 
@@ -148,23 +150,30 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 
 ### 3. Council Review (before PR)
 
-- Run `/council` before opening any non-trivial PR
-- Minimum: council-reviewer + adversarial-reviewer
-- Address CRITICAL and MAJOR findings before opening PR
+- Run `/council [quick|mini|full] <target>` before opening any non-trivial PR.
+  Default to `quick`; escalate to `mini` for cross-boundary / CI / release /
+  security / workflow risk, and to `full` for branch / release-operating-model
+  changes or high-risk design — see `.claude/commands/council.md` for the tier
+  table and Role Map.
+- Address CRITICAL and MAJOR findings before opening PR.
 
 ### 4. Open PR
 
-- Target `dev` for normal work, `main` only for hotfixes
+- Target `main`. Hotfixes also target `main` (or a release branch if one is
+  active).
 - If the PR has post-merge verification steps:
   - Extract them to `plans/reviews/post-merge/<branch-slug>.md`
+    (`!plans/reviews/post-merge/` is a gitignore exception, so the file is
+    tracked)
   - Reference the APS module ID in the file
   - Do NOT leave test plans only in the PR description
-- Mark module status **Committed** in the `.aps.md` file
+- Mark module status **Merged** in the `.aps.md` file when the PR lands.
 
 ### 5. Cleanup Agent (automated)
 
-- Runs on schedule — checks all **Committed** modules
-- Verifies branch merged + CI green → advances to **Complete**
+- Runs on schedule — checks all **Merged** modules
+- Verifies branch merged + CI green → advances to **Released/Shipped** when a
+  release record proves inclusion, then **Complete**
 - Works through `plans/reviews/post-merge/` — verifies agent-runnable steps,
   flags human-required steps
 - Sends notification for anything needing attention
@@ -172,21 +181,26 @@ APS (Ready) → Branch → Code → Council → PR → Committed → [cleanup] �
 
 ### Quick Reference
 
-| Stage  | Agent/Command           | Skill                            |
-| ------ | ----------------------- | -------------------------------- |
-| Plan   | `anvil-plan-spec` agent | `aps-planning`                   |
-| Branch | —                       | `docs/guides/worktree-policy.md` |
-| Code   | `tdd-coach` agent       | `test-driven-development`        |
-| Debug  | `debugger` agent        | `systematic-debugging`           |
-| Review | `/council` command      | `code-review`                    |
-| PR     | `/commit` command       | —                                |
-| Verify | cleanup agent (cron)    | —                                |
+| Stage          | Agent/Command           | Skill                               |
+| -------------- | ----------------------- | ----------------------------------- |
+| Plan           | `anvil-plan-spec` agent | `writing-plans`, `planning-council` |
+| Branch         | —                       | `using-git-worktrees`               |
+| Code           | `tdd-coach` agent       | `test-driven-development`           |
+| Debug          | `debugger` agent        | `systematic-debugging`              |
+| Review         | `/council` command      | `council`                           |
+| Finish         | `/commit` command       | `finishing-a-branch`                |
+| Address review | —                       | `addressing-pr-reviews`             |
+| Verify         | cleanup agent (cron)    | `verification-before-completion`    |
 
 Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` ·
-`docs/guides/worktree-policy.md`
+`docs/guides/worktree-policy.md` ·
+[`docs/guides/agent-surface-inventory.md`](docs/guides/agent-surface-inventory.md)
+— authoritative list of which skills and agents are repo-local vs global.
 
-> Global workflow skill: `dev-workflow` in `joshuaboys/code-env` — canonical
-> routing layer for all lifecycle stages.
+> Routing skill: `dev-workflow` is vendored repo-local at
+> `.claude/skills/dev-workflow/SKILL.md` and
+> `.opencode/skills/dev-workflow/SKILL.md`, tuned to anvil's main-first cutover
+> and `quick|mini|full` Council tiers.
 
 ## Feature Flags
 
