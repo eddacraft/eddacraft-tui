@@ -853,7 +853,7 @@ violations and anti-patterns at save time.
 [0.1.2-beta]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.0
+
 ## v0.6.2-beta
 
 - Release preparation metadata generated.
-
