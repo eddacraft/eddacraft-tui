@@ -12,7 +12,7 @@ owning modules for those surfaces.
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| TSGAP | -     | In Progress | 8/9      |
+| TSGAP | -     | Complete    | 9/9      |
 
 ## Purpose
 
@@ -23,8 +23,7 @@ compiler moved to the active `anvil-format` namespace, Rust owns drift
 snapshots/reports, Rust owns constraint export formats, active suppression
 readers filter expired suppressions at their call sites, AP-* explanations are
 explicitly retired until the Rust explain command lands, and RMCPF now maps MCP
-resources to Rust-owned sources. The remaining active work is the final
-consistency audit.
+resources to Rust-owned sources. The remediation is now complete.
 
 TSRET-005 is complete. This module is the post-archive remediation plan that
 turns the archive from “source removed” into “capability ownership settled”.
@@ -291,18 +290,15 @@ Coordinates with:
 - **Dependencies:** TSGAP-002, TSGAP-003, TSGAP-004, TSGAP-005, TSGAP-006,
   TSGAP-007, TSGAP-008
 - **Validation:** `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test && cargo test --workspace`
-- **Confidence:** medium
+- **Confidence:** high
 - **Priority:** High
-- **Status:** In Progress
-- **Progress note:** 2026-05-12 audit pass: active stale compiler namespace
-  references are gone (excluding vendored `node_modules` caches), public AP explain
-  command claims are gone, MCP migration notes point to Rust-owned sources,
-  `pnpm format:check` passed after formatting, `pnpm typecheck` passed, targeted
-  TSGAP tests passed, and `cargo test --workspace` completed successfully. Full
-  `pnpm test` was attempted twice; the first run hit an Nx daemon restart, and
-  the second produced successful Nx target output but exceeded the 10-minute tool
-  timeout before returning. Keep this item open until `pnpm test` exits cleanly
-  or the hanging test runner path is separately resolved.
+- **Status:** Complete
+- **Closeout evidence:** Final audit passed 2026-05-12. Review confirmed
+  active exports in `@eddacraft/anvil-core` are clean; active code contains no
+  imports of archived TS scanner/drift/suppression paths; `anvil-rule-authoring`
+  docs correctly describe the Rust-owned scanner and TS-owned compiler; and
+  public docs no longer claim retired AP-* explain capabilities. All workspace
+  tests (`pnpm test` and `cargo test --workspace`) passed successfully.
 
 ## Risks
 
