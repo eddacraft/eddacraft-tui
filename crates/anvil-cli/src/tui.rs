@@ -76,9 +76,13 @@ impl TerminalGuard {
         if !self.active {
             return Ok(());
         }
-        self.active = false;
+        // Disarm only AFTER both restore calls succeed. If either errors,
+        // `active` stays true so `Drop` still runs a best-effort restore —
+        // otherwise an early `?` would leak raw mode / alt-screen, which is
+        // exactly the failure mode this guard exists to prevent.
         execute!(io::stdout(), LeaveAlternateScreen)?;
         terminal::disable_raw_mode()?;
+        self.active = false;
         Ok(())
     }
 }
@@ -564,19 +568,46 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
-    /// The panic hook MUST be idempotent. Multiple TUI sessions (or repeated
-    /// `setup_terminal` calls in tests) must not wrap the previous hook again
-    /// — otherwise restoration runs N times for one panic, and the original
-    /// libtest panic hook can end up nested behind our own copies.
+    /// The panic hook MUST be idempotent — multiple TUI sessions (or repeated
+    /// `setup_terminal` calls) must not re-wrap the previous hook. Without
+    /// the `OnceLock` guard, three installs would invoke the captured
+    /// previous hook three times per panic.
+    ///
+    /// We prove the contract by installing an atomic-counter as the previous
+    /// hook *before* calling `install_panic_hook`, calling it three times,
+    /// triggering a panic inside `catch_unwind`, and asserting the counter
+    /// observed exactly one invocation.
+    ///
+    /// This is the only test in the binary that touches the panic-hook
+    /// machinery; no other unit test in `crates/anvil-cli/src/` installs a
+    /// hook, so the global state seen here is determined by this test alone.
     #[test]
-    fn install_panic_hook_is_idempotent() {
-        let before = std::panic::take_hook();
-        std::panic::set_hook(before);
+    fn install_panic_hook_does_not_stack_on_repeat_installs() {
+        static PREV_HOOK_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+        let saved = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {
+            PREV_HOOK_CALLS.fetch_add(1, Ordering::SeqCst);
+        }));
+
         install_panic_hook();
         install_panic_hook();
         install_panic_hook();
-        // No assertion beyond "did not panic / double-install". The OnceLock
-        // guard inside `install_panic_hook` is the contract under test.
+
+        PREV_HOOK_CALLS.store(0, Ordering::SeqCst);
+
+        let result = std::panic::catch_unwind(|| panic!("panic-hook idempotence probe"));
+        assert!(result.is_err(), "catch_unwind should report the panic");
+
+        let calls = PREV_HOOK_CALLS.load(Ordering::SeqCst);
+        assert_eq!(
+            calls, 1,
+            "previous hook ran {calls} times — `install_panic_hook` re-wrapped on repeat \
+             install (expected exactly 1 via the OnceLock guard)"
+        );
+
+        std::panic::set_hook(saved);
     }
 }
