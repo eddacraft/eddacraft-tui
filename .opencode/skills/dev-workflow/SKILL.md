@@ -79,11 +79,14 @@ item for producing the definitive inventory.
 8. **Use the review remediation order.** Fix failing CI first, then automated
    review comments, then human review comments. Re-run targeted validation after
    each meaningful fix batch.
-9. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
-   abandoned, or paused with no near-term action, ask whether to run `wt remove`
-   for the Worktrunk worktree and local branch if it is safe. Never delete a
-   branch that is unmerged, unpushed, or still needed without explicit user
-   approval.
+9. **Prefer rebase before merge.** When a PR branch needs to catch up to `main`
+   or resolve merge conflicts, rebase it onto latest `main` and push with
+   `--force-with-lease` unless the user explicitly asks for a merge commit.
+10. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
+    abandoned, or paused with no near-term action, ask whether to run
+    `wt remove` for the Worktrunk worktree and local branch if it is safe. Never
+    delete a branch that is unmerged, unpushed, or still needed without explicit
+    user approval.
 
 ## Decision Points
 
@@ -112,6 +115,10 @@ expected unless the user says local iteration is done.
 
 **PR review feedback returned:** → `addressing-pr-reviews` — fix CI first, then
 automated review comments, then human review comments
+
+**PR branch behind or conflicted:** → rebase onto latest `main`, resolve
+conflicts, validate, then push with `--force-with-lease`; use a merge commit
+only when the user explicitly asks
 
 **Multiple independent tasks:** → `parallel-agents` to dispatch subagents per
 task
