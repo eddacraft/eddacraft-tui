@@ -87,6 +87,8 @@ docs/analysis/claude-code-safety-net-review.md
 .claude/skills/*
 !.claude/skills/release/
 !.claude/skills/dev-workflow/
+!.claude/skills/dependabot
+!.claude/skills/planning-council/
 .claude/VERSION
 # SKOBS — skill discovery & observability snapshots (local, not committed)
 .claude/.skill-snapshots/

@@ -125,7 +125,7 @@ The `Authored-By:` trailer is added automatically — do not add it manually.
 Every piece of work follows this sequence. Agents must not skip stages.
 
 ```
-APS (Ready) → Branch → Code → Council → PR → Merged → [cleanup] → Released/Shipped
+APS (Ready) → Branch → Code → Council → PR → Merged → [cleanup] → Released/Shipped → Complete
 ```
 
 ### 1. Start from APS
