@@ -27,10 +27,10 @@ pub struct WitnessLine {
     /// ADR-037.
     pub kind: String,
     /// Either an [`GenesisAnchor`] string ("GENESIS-FRESH" /
-    /// "GENESIS-BASELINED:<sha>") or the SHA-256 hex of the prior
-    /// line's canonical bytes.
+    /// "GENESIS-BASELINED") or the SHA-256 hex of the prior line's
+    /// canonical bytes. ADR-037 §D-2.
     pub prev_line_hash: String,
-    /// The project_uuid from `anvil/project-id`. Cross-machine
+    /// The `project_uuid` from `anvil/project-id`. Cross-machine
     /// identity anchor.
     pub project_uuid: String,
     /// The commit SHA this line attests to. Optional because some
@@ -98,7 +98,7 @@ impl WitnessLine {
             seq: 1,
             scope: scope.into(),
             kind: "witness".to_string(),
-            prev_line_hash: anchor.anchor_string(),
+            prev_line_hash: anchor.anchor_string().to_string(),
             project_uuid: project_uuid.into(),
             commit_sha: None,
             agent_tag: None,
@@ -133,7 +133,7 @@ mod tests {
             seq,
             scope: "active".to_string(),
             kind: "witness".to_string(),
-            prev_line_hash: GenesisAnchor::Fresh.anchor_string(),
+            prev_line_hash: GenesisAnchor::Fresh.anchor_string().to_string(),
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".to_string(),
             commit_sha: Some("abcdef".to_string()),
             agent_tag: None,

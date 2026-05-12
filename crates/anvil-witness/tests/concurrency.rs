@@ -46,7 +46,7 @@ fn run_concurrent(n_writers: usize) {
         )
         .unwrap(),
     );
-    let prev = GenesisAnchor::Fresh.anchor_string();
+    let prev = GenesisAnchor::Fresh.anchor_string().to_string();
 
     let mut handles = Vec::with_capacity(n_writers);
     for thread_id in 0..n_writers {

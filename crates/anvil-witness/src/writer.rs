@@ -17,6 +17,13 @@ pub enum WriterError {
     Corruption(String),
     #[error("witness root is a symlink; refusing to write: {path}")]
     SymlinkRoot { path: PathBuf },
+    #[error(
+        "scope mismatch: writer is configured for `{writer_scope}` but line.scope is `{line_scope}`"
+    )]
+    ScopeMismatch {
+        writer_scope: String,
+        line_scope: String,
+    },
 }
 
 /// Threshold policy for active-file rollover.
@@ -101,10 +108,30 @@ impl WitnessWriter {
     /// Returns the new active file's line count after the append, and
     /// the archive path if a rollover happened.
     pub fn append(&self, line: &WitnessLine) -> Result<AppendOutcome, WriterError> {
+        // Reject a line that targets a different scope before any
+        // file IO. Without this guard a misrouted hook could push
+        // entries into the wrong archive scope and silently break
+        // verification (which keys archive selection on scope).
+        if line.scope != self.scope {
+            return Err(WriterError::ScopeMismatch {
+                writer_scope: self.scope.clone(),
+                line_scope: line.scope.clone(),
+            });
+        }
+
         let active_path = self.active_path();
         let lock_path = self.lock_path();
 
-        self.refuse_if_symlink(&self.witness_root())?;
+        // Refuse symlinks at every path we're about to write through.
+        // The witness root protects against `anvil/witness/` being
+        // re-pointed; the lock and active checks protect against
+        // someone replacing those specific files with a symlink
+        // pointing outside the repo. Without these the symlink
+        // refusal on the dir alone is bypassable by replacing the
+        // child file.
+        refuse_if_symlink(&self.witness_root())?;
+        refuse_if_symlink(&lock_path)?;
+        refuse_if_symlink(&active_path)?;
 
         // Open (or create) the lock file. The lock is held via
         // fs2::FileExt::lock_exclusive on this fd. We unlock manually
@@ -173,41 +200,72 @@ impl WitnessWriter {
             merkle = &merkle[..16],
         );
         let archive_path = archive_dir.join(archive_name);
-        fs::rename(active_path, &archive_path)?;
+
+        // Content-addressed naming means two writers producing
+        // identical content would compute the same archive name. On
+        // POSIX `fs::rename` silently replaces the existing file; on
+        // Windows it fails with AlreadyExists. Both behaviours are
+        // wrong for our use case: we want the rollover to be
+        // idempotent (the archive already exists with the same
+        // content, so we just need to remove the active file). We
+        // verify the destination's content matches before treating it
+        // as a no-op so a stale or corrupt file at the destination is
+        // never silently accepted.
+        match fs::rename(active_path, &archive_path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                let existing = fs::read(&archive_path).map_err(WriterError::Io)?;
+                if existing == bytes {
+                    // Content matches — safe to drop the active file.
+                    fs::remove_file(active_path)?;
+                } else {
+                    return Err(WriterError::Corruption(format!(
+                        "archive {} exists with different content; refusing to overwrite",
+                        archive_path.display(),
+                    )));
+                }
+            }
+            Err(e) => return Err(e.into()),
+        }
         Ok(archive_path)
     }
 
     fn ensure_tree(&self) -> Result<(), WriterError> {
         let root = self.witness_root();
-        self.refuse_if_symlink(&root)?;
+        refuse_if_symlink(&root)?;
         fs::create_dir_all(&root)?;
-        self.refuse_if_symlink(&root)?;
+        refuse_if_symlink(&root)?;
         Ok(())
     }
+}
 
-    /// Refuse to write through a symlink at `path`. The TOCTOU
-    /// hardening matches MLP-001's pattern: check, create, re-check.
-    fn refuse_if_symlink(&self, path: &Path) -> Result<(), WriterError> {
-        if path.exists() {
-            let meta = fs::symlink_metadata(path)?;
-            if meta.file_type().is_symlink() {
-                return Err(WriterError::SymlinkRoot {
-                    path: path.to_path_buf(),
-                });
-            }
+/// Refuse to write through a symlink at `path`. The TOCTOU hardening
+/// matches MLP-001's pattern: check, create, re-check. Kept as a
+/// module-private free function — it doesn't depend on writer state.
+fn refuse_if_symlink(path: &Path) -> Result<(), WriterError> {
+    if path.exists() {
+        let meta = fs::symlink_metadata(path)?;
+        if meta.file_type().is_symlink() {
+            return Err(WriterError::SymlinkRoot {
+                path: path.to_path_buf(),
+            });
         }
-        Ok(())
     }
+    Ok(())
+}
 
+impl WitnessWriter {
     pub fn witness_root(&self) -> PathBuf {
         self.root.join("anvil").join("witness")
     }
 
     pub fn active_path(&self) -> PathBuf {
-        // The active file lives one level above `witness/` per spec
-        // (anvil/witnessed.ndjson) so a downgraded reader sees it at
-        // a predictable path even without crawling the witness tree.
-        self.root.join("anvil").join("witnessed.ndjson")
+        // ADR-037 §D-3 pins the active file inside the witness tree
+        // at `anvil/witness/active.ndjson`. Keeping it under `witness/`
+        // (rather than its sibling at `anvil/witnessed.ndjson`) means
+        // the whole chain — active + archives + manifest — lives in
+        // one directory that callers can crawl or `git diff` as a unit.
+        self.witness_root().join("active.ndjson")
     }
 
     fn lock_path(&self) -> PathBuf {
@@ -277,7 +335,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
         let outcome = writer
-            .append(&fresh_line(1, &GenesisAnchor::Fresh.anchor_string()))
+            .append(&fresh_line(1, GenesisAnchor::Fresh.anchor_string()))
             .unwrap();
         assert!(outcome.rolled_over_to.is_none());
         assert_eq!(outcome.active_lines, 1);
@@ -289,7 +347,7 @@ mod tests {
     fn append_chains_lines() {
         let dir = TempDir::new().unwrap();
         let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
-        let first = fresh_line(1, &GenesisAnchor::Fresh.anchor_string());
+        let first = fresh_line(1, GenesisAnchor::Fresh.anchor_string());
         writer.append(&first).unwrap();
         let first_hash = compute_line_hash(&first.to_canonical_bytes().unwrap());
         let second = fresh_line(2, &first_hash);
@@ -311,7 +369,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut prev = GenesisAnchor::Fresh.anchor_string();
+        let mut prev = GenesisAnchor::Fresh.anchor_string().to_string();
         let mut archive_seen = None;
         for seq in 1..=3 {
             let line = fresh_line(seq, &prev);
@@ -341,7 +399,7 @@ mod tests {
             RolloverPolicy::tight(1_000_000, /* max_bytes = */ 200),
         )
         .unwrap();
-        let mut prev = GenesisAnchor::Fresh.anchor_string();
+        let mut prev = GenesisAnchor::Fresh.anchor_string().to_string();
         let mut saw_rollover = false;
         for seq in 1..=5 {
             let line = fresh_line(seq, &prev);

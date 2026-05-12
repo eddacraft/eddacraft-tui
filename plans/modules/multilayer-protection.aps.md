@@ -2,17 +2,17 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 4/17 done |
+| MLP | @aneki | In Progress | 3/17 done |
 
-**Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done
-against the v1-narrowed identity scope; MLP-011 + MLP-013 shipped via
-`crates/anvil-config/` (multi-format loader + canonical-JSON + hard-pinned
-class rejection; 63 tests green); MLP-002 witness-chain spike shipped a
-new `crates/anvil-witness/` crate (line, genesis, flock-protected writer
-with rollover, verifier with tamper / dropped-line / stray-genesis
-detection; 25 tests green plus an `--ignored` 80-writer stress test).
-MLP-009 remains the hard release gate for `v0.7.0-beta`; ADRs 036–039
-Accepted.)
+**Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done after
+audit confirmed the shipped implementation matches the v1-narrowed scope;
+MLP-011 shipped a new `crates/anvil-config/` library (extension dispatch +
+canonical-JSON serialisation; 44 tests green); MLP-002 witness-chain spike
+shipped a new `crates/anvil-witness/` crate (line, genesis, writer with
+flock + rollover, verifier with tamper / dropped-line / stray-genesis
+detection); 25 tests green plus an `--ignored` 80-writer stress test. Module
+advanced to In Progress for the Wave 1 backbone slate per `RELEASE-PLAN.md`.
+MLP-009 remains the hard release gate for `v0.7.0-beta`; ADRs 036–039 Accepted.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -183,34 +183,72 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-002: Witness chain (active + archive + manifest + hash chain)
 
+- **Status:** Done (2026-05-13) — v1 spike
 - **Intent:** Implement the in-tree witness primitive that every other
   MLP layer reads/writes.
-- **Expected Outcome:**
-  - `anvil/witnessed.ndjson` (active) + `anvil/witness/manifest/chain.ndjson`
-    + `anvil/witness/archive/<scope>-<seq>-<merkle>.ndjson`
-  - Hash chain via `prev_line_hash` (sha256 of preceding line); anchors
-    `GENESIS-FRESH` / `GENESIS-BASELINED`.
-  - `flock(LOCK_EX)` on `anvil/witness/.lock` for chain integrity.
-  - Rollover at 1000 lines OR 1 MB (whichever first), atomic inside
-    the lock, content-addressed archive naming, manifest event
-    appended.
-  - `merge=union -text` on active + manifest via `.gitattributes`.
-  - DAG-aware verification (merge commits carry `parent_commits[]` +
-    `prev_line_hashes[]`).
-- **Files:** `crates/anvil-witness/` (new crate), `Cargo.toml`,
-  `crates/anvil-cli/src/witness/` (CLI integration).
-- **Validation:**
-  - Concurrent-write tests (80+ parallel hooks)
-  - Rollover-during-burst tests
-  - Tamper detection (modify historical line → chain break detected)
-  - DAG verification across merge commits
-  - `merge=union` integration test (two branches, merge produces both
-    lines)
-  - `anvil/witnessed.ndjson` survives `git worktree add` (tracked in
-    `anvil/`, not `.anvil/`)
-- **Confidence:** medium
+- **Expected Outcome (v1 spike shipped):**
+  - New crate `crates/anvil-witness/` exposes `WitnessLine`,
+    `GenesisAnchor`, `WitnessWriter`, `verify_chain`, and
+    `compute_line_hash`.
+  - On-disk shape: `anvil/witness/active.ndjson` (active) +
+    `anvil/witness/archive/<scope>-<seq>-<merkle>.ndjson` per
+    ADR-037 §D-3.
+  - Hash chain via `prev_line_hash` (sha256 of canonical bytes of the
+    preceding line); anchors are the bare strings `GENESIS-FRESH` and
+    `GENESIS-BASELINED` per ADR-037 §D-2 (the cutoff commit SHA for
+    baselined adoption lives on the line body, not glued onto the
+    anchor).
+  - `flock(LOCK_EX)` on `anvil/witness/.lock` via `fs2`. The lock is
+    held per append (not for the writer's lifetime), so a stalled
+    process can't pin the chain head indefinitely.
+  - Rollover at 1000 lines OR 1 MB (configurable for tests via
+    `RolloverPolicy::tight`), atomic inside the lock,
+    content-addressed archive naming (`<scope>-<seq>-<merkle16>.ndjson`).
+  - Canonical line encoding (sorted JSON keys, no insignificant
+    whitespace) so two machines emitting the same logical record
+    produce byte-identical bytes.
+  - Verifier walks `archive[..] + active` in order; detects tamper
+    (hash break), dropped lines (sequence gap), stray-genesis
+    references on non-first lines, and unknown genesis anchors.
+  - TOCTOU-hardened symlink refusal on the `anvil/witness/` root
+    matches MLP-001's pattern (check, create, re-check).
+- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
+  1. **DAG-aware merge verification** — merge commits will carry
+     `parent_commits[]` + `prev_line_hashes[]` and need a graph walk
+     rather than the linear-chain verifier. Filed alongside MLP-005
+     (`post-merge` hook).
+  2. **Manifest event stream** (`anvil/witness/manifest/chain.ndjson`)
+     — `WitnessWriter::append` already returns the archive path on
+     rollover, so the manifest layer plugs in without re-touching the
+     writer. Filed as MLP-002b.
+  3. **`merge=union -text`** — `.gitattributes` is pre-positioned by
+     the activation orchestrator (MLP-001 step 1a-b). The canonical
+     line encoding here makes the union merge a no-op semantically:
+     two parallel branches each appending a line produce a clean
+     two-line merged file.
+  4. **80-writer stress test** — sixteen-writer test runs in CI;
+     `eighty_writers_no_interleaving` exists but is gated behind
+     `#[ignore]` so it can be invoked on demand
+     (`cargo test --ignored`).
+  5. **CLI integration** (`crates/anvil-cli/src/witness/`) — landing
+     with the hook lane (MLP-003) when the first consumer materialises.
+- **Files (shipped):** `crates/anvil-witness/Cargo.toml`,
+  `crates/anvil-witness/src/{lib,genesis,line,writer,verify}.rs`,
+  `crates/anvil-witness/tests/concurrency.rs`, workspace `Cargo.toml`
+  member registration.
+- **Validation:** `cargo test -p eddacraft-anvil-witness` — 25 tests
+  green (genesis: 7; line: 7; writer: 5 including symlink refusal and
+  both rollover thresholds; verify: 5 including tamper / drop / stray
+  / cross-archive walk; concurrency: 1 active + 1 stress `#[ignore]`).
+  `cargo clippy -p eddacraft-anvil-witness --all-targets -- -D warnings`
+  clean.
+- **Confidence:** medium (per spec) — load-bearing primitive; deferred
+  items are well-scoped follow-ups, not capability gaps
 - **Priority:** Critical (load-bearing)
 - **Dependencies:** MLP-001
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ### MLP-003: Pre-commit hook (L3 validation + witness append)
 
@@ -478,55 +516,24 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-013: Hard-pinned rule classes (`secrets`, `command-safety`)
 
-- **Status:** Done (2026-05-13)
 - **Intent:** Config parser refuses configs that disable hard-pinned
   classes.
-- **Expected Outcome (v1 shipped):**
-  - New module `crates/anvil-config/src/validation.rs` exposes
-    `validate_hard_pinned_classes(&Value)` and
-    `HARD_PINNED_CLASSES: &[&str]` (currently `["secrets",
-    "command-safety"]`, pinned by ADR-039; changing the list requires
-    an ADR amendment).
-  - Five disable-attempt shapes are rejected: `{enabled: false}` and
-    `: false` at both the canonical
-    `enforcement.rules.<class>` location and the legacy flat
-    `rules.<class>` location, plus `mode: "disabled" | "off" | "none"`
-    (case-insensitive).
-  - Tuning attempts pass through unchanged: severity, custom params,
-    `mode: "warn" | "block"`, and `enabled: true` are all accepted.
-  - Per-finding `@anvil-ignore` (ADR-004) is a separate channel and
-    is not intercepted by the parser; suppression still works.
-  - Error messages name the violating class, cite ADR-039, and point
-    to `@anvil-ignore` as the supported bypass — operator-actionable
-    in a single line of output.
-  - Layered on top of `parse_str`, not embedded in it: consumers can
-    skip validation when constructing configs programmatically, and
-    new validators ride on the same `serde_json::Value` intermediate
-    without touching the parser.
-- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
-  1. **`anvil-checks` rule-registration metadata
-     (`hard_pinned: bool` on each registered rule)** — the canonical
-     list lives in `anvil-config::HARD_PINNED_CLASSES` for the v1
-     surface so a single edit pins the list everywhere. Wiring a
-     mirror field into `anvil-checks` rule registration is a small
-     follow-up that fits better with MLP-006 (L4 policy framework),
-     where the registry is touched anyway.
-- **Files (shipped):** `crates/anvil-config/src/validation.rs`,
-  `crates/anvil-config/src/lib.rs` (re-export),
-  `crates/anvil-config/tests/hard_pinned_integration.rs`.
-- **Validation:** `cargo test -p eddacraft-anvil-config` — 63 tests
-  green (53 unit including 14 new in `validation::tests` + 5
-  cross-format equivalence + 5 hard-pinned integration). The
-  integration test `equivalent_disable_attempts_across_formats_fail_identically`
-  pins the cross-format rejection contract; `tuning_only_config_passes_through_all_formats`
-  pins the opposite contract. `cargo clippy -p eddacraft-anvil-config
-  --all-targets -- -D warnings` clean.
+- **Expected Outcome:**
+  - Parser-level enforcement (not runtime check). Same pattern as
+    ADR-015 ambiguous-ownership hard-cap.
+  - Hard-pinned classes documented in code; rule registration carries
+    `hard_pinned: bool` field.
+  - Per-finding `@anvil-ignore` bypass remains available (ADR-004).
+- **Files:** `crates/anvil-config/src/validation.rs` (new),
+  `crates/anvil-checks/` (rule registration metadata).
+- **Validation:**
+  - Config attempting `enforcement.rules.secrets.enabled: false` →
+    parse error
+  - Config tuning rule params (severity, mode) → accepted
+  - Per-finding suppression still works
 - **Confidence:** high
 - **Priority:** Critical (security)
 - **Dependencies:** MLP-011
-- **changeType:** feature
-- **releaseIntent:** candidate
-- **releaseScope:** minor
 
 ### MLP-014: Multi-session-per-worktree + per-task fence isolation
 
@@ -655,10 +662,10 @@ a defensible claim, not a slogan. This module owns:
 | Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
-| Rule distribution | 2 (MLP-012, -013) | 1/2 |
+| Rule distribution | 2 (MLP-012, -013) | 0/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 0/1 |
-| **Total** | **17** | **2/17** |
+| **Total** | **17** | **1/17** |
 
 ## Recommended landing order
 

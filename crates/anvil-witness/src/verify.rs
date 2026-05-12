@@ -49,15 +49,23 @@ pub enum VerifyError {
 }
 
 /// Summary returned by a successful [`verify_chain`] call.
+///
+/// An empty chain (no files supplied, or every file empty) returns
+/// `anchor: None` and `tip_hash: None`. Callers MUST treat `None` as
+/// "no anchor walked" rather than confusing it with `Some(Fresh)` —
+/// a fresh chain still has a first line whose `prev_line_hash` is
+/// `GENESIS-FRESH`, which would be reflected here as `Some(Fresh)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainReport {
-    /// The genesis anchor the chain begins at.
-    pub anchor: GenesisAnchor,
+    /// The genesis anchor the chain begins at. `None` if no lines
+    /// were walked.
+    pub anchor: Option<GenesisAnchor>,
     /// Total lines walked across all files.
     pub line_count: u64,
     /// The hash of the final line — what the next line's
-    /// `prev_line_hash` should equal.
-    pub tip_hash: String,
+    /// `prev_line_hash` should equal. `None` if no lines were
+    /// walked.
+    pub tip_hash: Option<String>,
 }
 
 /// Walk `paths` (in order) and verify the witness chain integrity.
@@ -158,9 +166,9 @@ pub fn verify_chain(paths: &[&Path]) -> Result<ChainReport, VerifyError> {
     }
 
     Ok(ChainReport {
-        anchor: anchor.unwrap_or(GenesisAnchor::Fresh),
+        anchor,
         line_count: total,
-        tip_hash: tip.unwrap_or_default(),
+        tip_hash: tip,
     })
 }
 
@@ -187,7 +195,7 @@ mod tests {
     }
 
     fn write_chain(writer: &WitnessWriter, count: u64) -> Vec<String> {
-        let mut prev = GenesisAnchor::Fresh.anchor_string();
+        let mut prev = GenesisAnchor::Fresh.anchor_string().to_string();
         let mut hashes = vec![prev.clone()];
         for seq in 1..=count {
             let l = line(seq, &prev);
@@ -205,7 +213,19 @@ mod tests {
         write_chain(&writer, 5);
         let report = verify_chain(&[writer.active_path().as_path()]).unwrap();
         assert_eq!(report.line_count, 5);
-        assert_eq!(report.anchor, GenesisAnchor::Fresh);
+        assert_eq!(report.anchor, Some(GenesisAnchor::Fresh));
+        assert!(report.tip_hash.is_some());
+    }
+
+    #[test]
+    fn verify_empty_chain_yields_none_anchor() {
+        let dir = TempDir::new().unwrap();
+        let empty = dir.path().join("empty.ndjson");
+        std::fs::write(&empty, "").unwrap();
+        let report = verify_chain(&[empty.as_path()]).unwrap();
+        assert_eq!(report.line_count, 0);
+        assert_eq!(report.anchor, None);
+        assert_eq!(report.tip_hash, None);
     }
 
     #[test]
@@ -279,7 +299,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let writer =
             WitnessWriter::open(dir.path(), "active", RolloverPolicy::tight(3, 1_000_000)).unwrap();
-        let mut prev = GenesisAnchor::Fresh.anchor_string();
+        let mut prev = GenesisAnchor::Fresh.anchor_string().to_string();
         let mut rolled_to = None;
         for seq in 1..=5 {
             let l = line(seq, &prev);

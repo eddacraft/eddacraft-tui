@@ -6,9 +6,11 @@
 //!
 //! ## v1 scope shipped here
 //!
-//! - [`WitnessLine`] — one record per line; ASCII-safe canonical JSON
+//! - [`WitnessLine`] — one record per line; canonical UTF-8 JSON
 //!   with sorted keys so two machines emitting the same logical
-//!   record produce byte-identical lines.
+//!   record produce byte-identical lines. (Strings carrying non-ASCII
+//!   commit messages or UUIDs survive intact via standard JSON
+//!   string semantics.)
 //! - [`compute_line_hash`] — SHA-256 of the canonical bytes of a line
 //!   (without its trailing newline); used as the `prev_line_hash` of
 //!   the next line.
