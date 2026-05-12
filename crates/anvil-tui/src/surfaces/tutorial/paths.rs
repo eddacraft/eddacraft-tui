@@ -163,11 +163,11 @@ pub fn policy_steps() -> Vec<TutorialStep> {
         ),
         step_with_verify(
             "Test the Policy",
-            "Before enforcing a policy, test it locally to confirm it catches the expected patterns. `anvil policy test` runs the OPA test suite against your policies to ensure they behave as expected.",
-            "Run: anvil policy test to verify your Rego logic.",
+            "Before enforcing a policy, confirm Anvil can discover it. `anvil policy test` walks `.anvil/policies/` and reports the Rego test files it finds. Test execution is not yet wired up in the Rust CLI — for now, run `opa test .anvil/policies` directly to exercise Rego logic.",
+            "Run: anvil policy test to list your Rego test files.",
             "anvil policy test",
             Verify::ExitCode(0),
-            "Policy tests failed. Check your Rego logic.",
+            "anvil policy test exited non-zero — check the output for details.",
         ),
         step(
             "See the Policy Fire",
@@ -207,7 +207,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step_with_command(
             "Show Definition",
-            "See how Anvil interprets your architecture. The `show` command prints the resolved layers and rules, including any template defaults that were applied.",
+            "See how Anvil parses your architecture. The `show` command prints the template name, each layer's patterns and dependencies, and the rule count from `.anvil/architecture.yaml`.",
             "Run: anvil architecture show",
             "anvil architecture show",
         ),
