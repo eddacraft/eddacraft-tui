@@ -189,8 +189,8 @@ NODE
 const fs = require('node:fs');
 const [path, version] = process.argv.slice(2);
 const existing = fs.readFileSync(path, 'utf8');
-const section = `\n## ${version}\n\n- Release preparation metadata generated.\n`;
-fs.writeFileSync(path, existing.replace(/\s*$/, '') + section + '\n');
+const section = `\n\n## ${version}\n\n- Release preparation metadata generated.\n`;
+fs.writeFileSync(path, existing.replace(/\s*$/, '') + section);
 NODE
     fi
   done

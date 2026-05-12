@@ -121,6 +121,9 @@ if (pkg.version !== '0.7.0-beta') throw new Error(`wrong package version ${pkg.v
 for (const path of ['CHANGELOG.md', 'docs/public/anvil/releases/changelog.md']) {
   const text = fs.readFileSync(`${repo}/${path}`, 'utf8');
   if (!text.includes('## v0.7.0-beta')) throw new Error(`${path} missing release section`);
+  if (!text.includes('\n\n## v0.7.0-beta')) throw new Error(`${path} missing blank line before release heading`);
+  if (text.endsWith('\n\n')) throw new Error(`${path} has trailing blank line; oxfmt --check will fail`);
+  if (!text.endsWith('\n')) throw new Error(`${path} missing final newline`);
 }
 const state = JSON.parse(fs.readFileSync(issuePath, 'utf8'));
 if (state.issues.length !== 1) throw new Error(`expected one issue, got ${state.issues.length}`);
